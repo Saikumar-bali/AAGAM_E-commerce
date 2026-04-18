@@ -1,0 +1,18 @@
+{
+  "name": "aagam-ecommerse",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "npm@11.6.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "turbo": "^2.9.6"
+  }
+}

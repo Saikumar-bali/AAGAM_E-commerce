@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String?  // Added for local auth
+  phone     String?  @unique
+  name      String?
+  role      Role     @default(CUSTOMER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  riderProfile RiderProfile?
+  orders       Order[]
+  stores       Store[]       @relation("StoreOwner")
+}
+
+enum Role {
+  CUSTOMER
+  RIDER
+  ADMIN
+  STORE_OWNER
+}
+
+model Store {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  latitude  Float
+  longitude Float
+  ownerId   String
+  owner     User     @relation("StoreOwner", fields: [ownerId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inventory Inventory[]
+  orders    Order[]
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  products  Product[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  image       String?
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  inventory Inventory[]
+  orderItems OrderItem[]
+}
+
+model Inventory {
+  id        String   @id @default(cuid())
+  storeId   String
+  productId String
+  quantity  Int      @default(0)
+  store     Store    @relation(fields: [storeId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  updatedAt DateTime @updatedAt
+
+  @@unique([storeId, productId])
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  customerId  String
+  customer    User        @relation(fields: [customerId], references: [id])
+  storeId     String
+  store       Store       @relation(fields: [storeId], references: [id])
+  status      OrderStatus @default(PENDING)
+  totalAmount Float
+  deliveryLat Float?
+  deliveryLng Float?
+  riderId     String?
+  rider       RiderProfile? @relation(fields: [riderId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  items OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+}
+
+model RiderProfile {
+  id        String      @id @default(cuid())
+  userId    String      @unique
+  user      User        @relation(fields: [userId], references: [id])
+  status    RiderStatus @default(OFFLINE)
+  latitude  Float?
+  longitude Float?
+  orders    Order[]
+  updatedAt DateTime    @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PICKING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum RiderStatus {
+  ONLINE
+  OFFLINE
+  BUSY
+}

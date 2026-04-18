@@ -1,0 +1,13 @@
+{
+  "name": "@aagam/utils",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@aagam/types": "*",
+    "axios": "^1.15.0"
+  }
+}
