@@ -70,7 +70,7 @@ export default function RiderDashboard() {
                     <p className="text-xs text-gray-500">Delivered at 10:45 AM</p>
                   </div>
                 </div>
-                <p className="font-bold text-gray-900">$5.50</p>
+                <p className="font-bold text-gray-900">₹5.50</p>
               </div>
             ))}
           </div>
@@ -79,7 +79,7 @@ export default function RiderDashboard() {
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
             <h3 className="text-gray-500 text-sm font-medium mb-1">Today's Earnings</h3>
-            <p className="text-3xl font-bold text-gray-900">$42.00</p>
+            <p className="text-3xl font-bold text-gray-900">₹42.00</p>
             <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between text-sm">
               <span className="text-gray-500">Deliveries</span>
               <span className="font-bold text-gray-900">8</span>

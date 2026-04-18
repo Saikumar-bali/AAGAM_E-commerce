@@ -58,7 +58,7 @@ export default function AdminProductsPage() {
   const stats = [
     { label: 'Total Products', value: totalProducts, icon: Package, color: 'bg-blue-500' },
     { label: 'Categories', value: categories.length, icon: Tag, color: 'bg-purple-500' },
-    { label: 'Avg. Price', value: `$${avgPrice.toFixed(2)}`, icon: DollarSign, color: 'bg-emerald-500' },
+    { label: 'Avg. Price', value: `₹${avgPrice.toFixed(2)}`, icon: DollarSign, color: 'bg-emerald-500' },
     { label: 'This Month', value: products.filter(p => new Date(p.createdAt) > new Date(Date.now() - 30*24*60*60*1000)).length, icon: TrendingUp, color: 'bg-amber-500' },
   ];
 
@@ -191,7 +191,7 @@ export default function AdminProductsPage() {
                     <div><p className="text-sm font-bold text-gray-900">{product.name}</p><p className="text-xs text-gray-500 truncate max-w-xs">{product.description || 'No description'}</p></div>
                   </div></td>
                   <td className="px-6 py-4"><span className="inline-flex px-3 py-1.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700"><Tag className="h-3 w-3 mr-1" />{product.category?.name}</span></td>
-                  <td className="px-6 py-4"><p className="text-sm font-bold text-gray-900">${product.price.toFixed(2)}</p></td>
+                  <td className="px-6 py-4"><p className="text-sm font-bold text-gray-900">₹{product.price.toFixed(2)}</p></td>
                   <td className="px-6 py-4"><p className="text-sm text-gray-500">{new Date(product.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p></td>
                   <td className="px-6 py-4 text-right"><div className="flex justify-end space-x-1.5">
                     <button onClick={() => handleView(product)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg opacity-0 group-hover:opacity-100"><Eye className="h-4 w-4" /></button>
@@ -223,7 +223,7 @@ export default function AdminProductsPage() {
                   <textarea className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:ring-2 focus:ring-emerald-500 resize-none" rows={3}
                     value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} placeholder="Enter description (optional)" /></div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Price (₹)</label>
                     <input type="number" step="0.01" required className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:ring-2 focus:ring-emerald-500"
                       value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} placeholder="9.99" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
@@ -264,7 +264,7 @@ export default function AdminProductsPage() {
                   <textarea className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:ring-2 focus:ring-emerald-500 resize-none" rows={3}
                     value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} /></div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Price (₹)</label>
                     <input type="number" step="0.01" required className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:ring-2 focus:ring-emerald-500"
                       value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
@@ -308,7 +308,7 @@ export default function AdminProductsPage() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-xl p-4"><p className="text-xs text-gray-500">Price</p><p className="text-xl font-bold text-gray-900">${selectedProduct.price.toFixed(2)}</p></div>
+                <div className="bg-gray-50 rounded-xl p-4"><p className="text-xs text-gray-500">Price</p><p className="text-xl font-bold text-gray-900">₹{selectedProduct.price.toFixed(2)}</p></div>
                 <div className="bg-gray-50 rounded-xl p-4"><p className="text-xs text-gray-500">Created</p><p className="text-sm font-bold text-gray-900">{new Date(selectedProduct.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p></div>
               </div>
             </div>

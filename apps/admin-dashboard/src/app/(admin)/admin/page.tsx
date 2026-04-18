@@ -8,7 +8,7 @@ export default function AdminDashboard() {
     { name: 'Active Stores', value: '12', icon: Store, color: 'text-blue-600', bg: 'bg-blue-100' },
     { name: 'Online Riders', value: '45', icon: Truck, iconColor: 'text-emerald-600', bgColor: 'bg-emerald-100' },
     { name: 'Pending Orders', value: '128', icon: Package, color: 'text-orange-600', bg: 'bg-orange-100' },
-    { name: 'Daily Revenue', value: '$12,450', icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-100' },
+    { name: 'Daily Revenue', value: '₹12,450', icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-100' },
   ];
 
   return (

@@ -93,7 +93,7 @@ export default function AdminOrdersPage() {
     { label: 'Total Orders', value: orders.length, icon: ShoppingCart, color: 'bg-blue-500' },
     { label: 'Pending', value: pendingOrders, icon: Clock, color: 'bg-amber-500' },
     { label: 'Delivered', value: deliveredOrders, icon: CheckCircle, color: 'bg-emerald-500' },
-    { label: 'Revenue', value: `$${totalRevenue.toFixed(2)}`, icon: DollarSign, color: 'bg-purple-500' },
+    { label: 'Revenue', value: `₹${totalRevenue.toFixed(2)}`, icon: DollarSign, color: 'bg-purple-500' },
   ];
 
   const getStatusConfig = (status: string) => {
@@ -246,8 +246,8 @@ export default function AdminOrdersPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center text-sm font-bold text-gray-900">
-                          <DollarSign className="h-3 w-3 text-gray-400 mr-0.5" />
-                          {order.totalAmount.toFixed(2)}
+                          <span className="text-gray-400 mr-0.5">₹</span>
+                          {order.totalAmount.toFixed(2)}₹
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -306,7 +306,7 @@ export default function AdminOrdersPage() {
                 })()}
                 <div className="text-right">
                   <p className="text-sm text-gray-500">Order Total</p>
-                  <p className="text-2xl font-bold text-gray-900">${selectedOrder.totalAmount.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-gray-900">₹{selectedOrder.totalAmount.toFixed(2)}</p>
                 </div>
               </div>
 
@@ -355,15 +355,15 @@ export default function AdminOrdersPage() {
                         <tr key={item.id}>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.product?.name || 'Unknown'}</td>
                           <td className="px-4 py-3 text-sm text-gray-600 text-right">{item.quantity}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600 text-right">${item.price.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">${(item.quantity * item.price).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 text-right">₹{item.price.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">₹{(item.quantity * item.price).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot className="bg-gray-50">
                       <tr>
                         <td colSpan={3} className="px-4 py-3 text-sm font-bold text-gray-900 text-right">Total</td>
-                        <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">${selectedOrder.totalAmount.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">₹{selectedOrder.totalAmount.toFixed(2)}</td>
                       </tr>
                     </tfoot>
                   </table>
