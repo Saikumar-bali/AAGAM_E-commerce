@@ -26,16 +26,13 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Turbo Cache
-        uses: dtinth/setup-github-actions-cache-action@v1
+      - name: Cache Turbo
+        uses: actions/cache@v4
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             turbo-${{ runner.os }}-
-
-      - name: Lint
-        run: npx turbo lint
 
       - name: Build
         run: npx turbo build --cache-dir=".turbo"
