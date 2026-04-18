@@ -29,7 +29,7 @@ interface Rider {
   latitude: number | null;
   longitude: number | null;
   updatedAt: string;
-  user?: { name: string | null; email: string | null };
+  user?: { name: string | null; email: string | null; phone: string | null };
   orders?: Array<{ id: string }>;
 }
 
@@ -42,6 +42,7 @@ export default function AdminRidersPage() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
   const [error, setError] = useState('');
   const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
@@ -110,6 +111,19 @@ export default function AdminRidersPage() {
       setError(err.response?.data?.message || 'Failed to create rider');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (rider: Rider) => {
+    if (!confirm(`Are you sure you want to remove rider "${rider.user?.name}"?`)) return;
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/riders/${rider.id}`);
+      fetchRiders();
+    } catch (err) {
+      console.error('Failed to delete rider', err);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -224,8 +238,9 @@ export default function AdminRidersPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-600">
+                        <div className="text-sm text-gray-600 space-y-1">
                           <div className="flex items-center"><Mail className="h-4 w-4 mr-2 text-gray-400" />{rider.user?.email || 'No email'}</div>
+                          <div className="flex items-center"><Phone className="h-4 w-4 mr-2 text-gray-400" />{rider.user?.phone || 'No phone'}</div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -254,7 +269,7 @@ export default function AdminRidersPage() {
                           <button className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                             <Edit className="h-4 w-4" />
                           </button>
-                          <button className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                          <button onClick={() => handleDelete(rider)} disabled={deleting} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>

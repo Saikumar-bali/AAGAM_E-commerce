@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Param, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Param, Patch, Delete } from '@nestjs/common';
 import { RiderService } from './rider.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -36,5 +36,12 @@ export class RiderController {
   @Roles(Role.ADMIN)
   async create(@Body() data: { email: string; name: string; phone: string }) {
     return this.riderService.create(data);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async delete(@Param('id') id: string) {
+    return this.riderService.delete(id);
   }
 }

@@ -7,7 +7,7 @@ export class RiderService {
     return prisma.riderProfile.findMany({
       include: {
         user: {
-          select: { name: true, email: true }
+          select: { name: true, email: true, phone: true }
         },
         orders: true
       }
@@ -44,5 +44,14 @@ export class RiderService {
         status: 'OFFLINE',
       },
     });
+  }
+
+  async delete(id: string) {
+    const rider = await prisma.riderProfile.findUnique({ where: { id } });
+    if (!rider) throw new Error('Rider not found');
+    
+    await prisma.riderProfile.delete({ where: { id } });
+    await prisma.user.delete({ where: { id: rider.userId } });
+    return { message: 'Rider deleted successfully' };
   }
 }

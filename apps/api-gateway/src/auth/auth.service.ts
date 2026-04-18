@@ -35,6 +35,16 @@ export class AuthService {
         },
       });
 
+      // 4. If registering as RIDER, automatically create rider profile
+      if (role?.toUpperCase() === 'RIDER') {
+        await prisma.riderProfile.create({
+          data: {
+            userId: user.id,
+            status: 'OFFLINE',
+          },
+        });
+      }
+
       return { 
         message: 'User created successfully',
         user: { id: user.id, email: user.email, role: user.role } 
