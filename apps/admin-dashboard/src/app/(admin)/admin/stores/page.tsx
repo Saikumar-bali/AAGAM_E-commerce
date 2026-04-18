@@ -16,7 +16,9 @@ import {
   TrendingUp,
   Clock,
   CheckCircle,
-  XCircle
+  XCircle,
+  X,
+  Loader2
 } from 'lucide-react';
 
 interface Store {
@@ -34,38 +36,43 @@ interface Store {
   inventory?: { quantity: number }[];
 }
 
-const statusFilters = ['All', 'Active', 'Inactive'];
-
 export default function AdminStoresPage() {
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    address: '',
+    latitude: '',
+    longitude: '',
+    ownerEmail: ''
+  });
+  const [error, setError] = useState('');
+
+  const fetchStores = async () => {
+    try {
+      const response = await apiClient.get('/stores');
+      setStores(response.data);
+    } catch (err) {
+      console.error('Failed to fetch stores', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchStores = async () => {
-      try {
-        const response = await apiClient.get('/stores');
-        setStores(response.data);
-      } catch (error) {
-        console.error('Failed to fetch stores', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchStores();
   }, []);
 
-  const filteredStores = stores.filter(store => {
-    const matchesSearch = store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      store.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      store.owner?.name?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSearch;
-  });
+  const filteredStores = stores.filter(store => 
+    store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    store.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    store.owner?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const activeStores = stores.filter(s => (s.inventory?.length || 0) > 0).length;
+  const activeStores = stores.filter(s => (s.inventory?.reduce((a, i) => a + i.quantity, 0) || 0) > 0).length;
   const totalInventory = stores.reduce((acc, s) => acc + (s.inventory?.reduce((a, i) => a + i.quantity, 0) || 0), 0);
 
   const stats = [
@@ -74,6 +81,29 @@ export default function AdminStoresPage() {
     { label: 'Total Inventory', value: totalInventory, icon: Package, color: 'bg-purple-500' },
     { label: 'New This Month', value: stores.filter(s => new Date(s.createdAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length, icon: TrendingUp, color: 'bg-amber-500' },
   ];
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
+
+    try {
+      await apiClient.post('/stores', {
+        name: formData.name,
+        address: formData.address,
+        latitude: parseFloat(formData.latitude),
+        longitude: parseFloat(formData.longitude),
+        ownerEmail: formData.ownerEmail
+      });
+      setShowModal(false);
+      setFormData({ name: '', address: '', latitude: '', longitude: '', ownerEmail: '' });
+      fetchStores();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to create store');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <DashboardLayout allowedRole="ADMIN">
@@ -111,32 +141,15 @@ export default function AdminStoresPage() {
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-50 bg-gray-50/50">
-          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-            <div className="relative flex-1 max-w-md w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input 
-                type="text" 
-                placeholder="Search stores by name, location or owner..." 
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2">
-              {statusFilters.map(status => (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    statusFilter === status 
-                      ? 'bg-emerald-600 text-white' 
-                      : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Search stores by name, location or owner..." 
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
         </div>
 
@@ -154,7 +167,7 @@ export default function AdminStoresPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
-                [1, 2, 3, 4, 5].map(i => (
+                [1, 2, 3].map(i => (
                   <tr key={i} className="animate-pulse">
                     <td className="px-6 py-4"><div className="h-12 bg-gray-100 rounded w-48"></div></td>
                     <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-56"></div></td>
@@ -167,11 +180,8 @@ export default function AdminStoresPage() {
               ) : filteredStores.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center">
-                      <Store className="h-12 w-12 text-gray-300 mb-3" />
-                      <p className="text-gray-500 font-medium">No stores found</p>
-                      <p className="text-gray-400 text-sm">Try adjusting your search criteria</p>
-                    </div>
+                    <Store className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500 font-medium">No stores found</p>
                   </td>
                 </tr>
               ) : (
@@ -216,21 +226,9 @@ export default function AdminStoresPage() {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${
-                          isActive 
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                            : 'bg-gray-100 text-gray-600 border border-gray-200'
+                          isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-600 border border-gray-200'
                         }`}>
-                          {isActive ? (
-                            <>
-                              <CheckCircle className="h-3 w-3 mr-1.5" />
-                              Active
-                            </>
-                          ) : (
-                            <>
-                              <Clock className="h-3 w-3 mr-1.5" />
-                              Inactive
-                            </>
-                          )}
+                          {isActive ? <><CheckCircle className="h-3 w-3 mr-1.5" /> Active</> : <><Clock className="h-3 w-3 mr-1.5" /> Inactive</>}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -253,23 +251,100 @@ export default function AdminStoresPage() {
             </tbody>
           </table>
         </div>
+      </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/30">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              Showing <span className="font-bold text-gray-900">{filteredStores.length}</span> of <span className="font-bold text-gray-900">{stores.length}</span> stores
-            </p>
-            <div className="flex gap-2">
-              <button className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50" disabled>
-                Previous
-              </button>
-              <button className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50" disabled>
-                Next
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">Add New Store</h2>
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
+            <form onSubmit={handleSubmit} className="p-6">
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
+              )}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Store Name</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    placeholder="Enter store name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    placeholder="Enter full address"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={formData.latitude}
+                      onChange={(e) => setFormData({...formData, latitude: e.target.value})}
+                      placeholder="40.7128"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={formData.longitude}
+                      onChange={(e) => setFormData({...formData, longitude: e.target.value})}
+                      placeholder="-74.006"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Owner Email</label>
+                  <input
+                    type="email"
+                    required
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={formData.ownerEmail}
+                    onChange={(e) => setFormData({...formData, ownerEmail: e.target.value})}
+                    placeholder="owner@email.com"
+                  />
+                </div>
+              </div>
+              <div className="mt-6 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all disabled:opacity-50 flex items-center justify-center"
+                >
+                  {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Create Store'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-      </div>
+      )}
     </DashboardLayout>
   );
 }

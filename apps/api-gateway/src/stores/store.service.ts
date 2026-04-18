@@ -16,9 +16,27 @@ export class StoreService {
     });
   }
 
-  async create(data: { name: string; address: string; latitude: number; longitude: number; ownerId: string }) {
+  async create(data: { name: string; address: string; latitude: number; longitude: number; ownerEmail: string }) {
+    let owner = await prisma.user.findUnique({ where: { email: data.ownerEmail } });
+    
+    if (!owner) {
+      owner = await prisma.user.create({
+        data: {
+          email: data.ownerEmail,
+          name: data.ownerEmail.split('@')[0],
+          role: 'STORE_OWNER',
+        },
+      });
+    }
+    
     return prisma.store.create({
-      data,
+      data: {
+        name: data.name,
+        address: data.address,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        ownerId: owner.id,
+      },
     });
   }
 

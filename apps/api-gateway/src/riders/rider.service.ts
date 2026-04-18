@@ -27,4 +27,22 @@ export class RiderService {
       data: { status }
     });
   }
+
+  async create(data: { email: string; name: string; phone: string }) {
+    const user = await prisma.user.create({
+      data: {
+        email: data.email,
+        name: data.name,
+        phone: data.phone,
+        role: 'RIDER',
+      },
+    });
+    
+    return prisma.riderProfile.create({
+      data: {
+        userId: user.id,
+        status: 'OFFLINE',
+      },
+    });
+  }
 }

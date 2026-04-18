@@ -12,13 +12,11 @@ import {
   Edit,
   Trash2,
   Image as ImageIcon,
-  Filter,
-  ChevronDown,
   Eye,
   Calendar,
   TrendingUp,
-  Package as PackageIcon,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 
 interface Product {
@@ -29,10 +27,7 @@ interface Product {
   image: string | null;
   categoryId: string;
   createdAt: string;
-  category?: {
-    id: string;
-    name: string;
-  };
+  category?: { id: string; name: string };
 }
 
 interface Category {
@@ -40,39 +35,44 @@ interface Category {
   name: string;
 }
 
-const statusFilters = ['All', 'In Stock', 'Low Stock', 'Out of Stock'];
-
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
   const [showModal, setShowModal] = useState(false);
-  const [viewProduct, setViewProduct] = useState<Product | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    price: '',
+    categoryId: '',
+    image: ''
+  });
+  const [error, setError] = useState('');
+
+  const fetchData = async () => {
+    try {
+      const [productsRes, categoriesRes] = await Promise.all([
+        apiClient.get('/products'),
+        apiClient.get('/products/categories'),
+      ]);
+      setProducts(productsRes.data);
+      setCategories(categoriesRes.data);
+    } catch (err) {
+      console.error('Failed to fetch data', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [productsRes, categoriesRes] = await Promise.all([
-          apiClient.get('/products'),
-          apiClient.get('/products/categories'),
-        ]);
-        setProducts(productsRes.data);
-        setCategories(categoriesRes.data);
-      } catch (error) {
-        console.error('Failed to fetch data', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.category?.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'All' || product.category?.name === categoryFilter;
     return matchesSearch && matchesCategory;
@@ -83,11 +83,34 @@ export default function AdminProductsPage() {
   const avgPrice = totalProducts > 0 ? totalValue / totalProducts : 0;
 
   const stats = [
-    { label: 'Total Products', value: totalProducts, icon: PackageIcon, color: 'bg-blue-500' },
+    { label: 'Total Products', value: totalProducts, icon: Package, color: 'bg-blue-500' },
     { label: 'Categories', value: categories.length, icon: Tag, color: 'bg-purple-500' },
     { label: 'Avg. Price', value: `$${avgPrice.toFixed(2)}`, icon: DollarSign, color: 'bg-emerald-500' },
     { label: 'This Month', value: products.filter(p => new Date(p.createdAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length, icon: TrendingUp, color: 'bg-amber-500' },
   ];
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
+
+    try {
+      await apiClient.post('/products', {
+        name: formData.name,
+        description: formData.description || null,
+        price: parseFloat(formData.price),
+        categoryId: formData.categoryId,
+        image: formData.image || null
+      });
+      setShowModal(false);
+      setFormData({ name: '', description: '', price: '', categoryId: '', image: '' });
+      fetchData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to create product');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <DashboardLayout allowedRole="ADMIN">
@@ -125,42 +148,27 @@ export default function AdminProductsPage() {
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-50 bg-gray-50/50">
-          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-            <div className="relative flex-1 max-w-md w-full">
+          <div className="flex flex-col lg:flex-row gap-4 items-center">
+            <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input 
                 type="text" 
-                placeholder="Search products by name, description or category..." 
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                placeholder="Search products..." 
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex flex-wrap gap-2">
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="All">All Categories</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.name}>{cat.name}</option>
-                ))}
-              </select>
-              {statusFilters.map(status => (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    statusFilter === status 
-                      ? 'bg-emerald-600 text-white' 
-                      : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  {status}
-                </button>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="All">All Categories</option>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.name}>{cat.name}</option>
               ))}
-            </div>
+            </select>
           </div>
         </div>
 
@@ -177,7 +185,7 @@ export default function AdminProductsPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
-                [1, 2, 3, 4, 5].map(i => (
+                [1, 2, 3].map(i => (
                   <tr key={i} className="animate-pulse">
                     <td className="px-6 py-4"><div className="h-12 bg-gray-100 rounded w-56"></div></td>
                     <td className="px-6 py-4"><div className="h-6 bg-gray-100 rounded w-24"></div></td>
@@ -189,11 +197,8 @@ export default function AdminProductsPage() {
               ) : filteredProducts.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center">
-                      <PackageIcon className="h-12 w-12 text-gray-300 mb-3" />
-                      <p className="text-gray-500 font-medium">No products found</p>
-                      <p className="text-gray-400 text-sm">Try adjusting your search criteria</p>
-                    </div>
+                    <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500 font-medium">No products found</p>
                   </td>
                 </tr>
               ) : (
@@ -231,21 +236,11 @@ export default function AdminProductsPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center text-sm text-gray-500">
                         <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                        {new Date(product.createdAt).toLocaleDateString('en-US', { 
-                          year: 'numeric', 
-                          month: 'short', 
-                          day: 'numeric' 
-                        })}
+                        {new Date(product.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end space-x-1.5">
-                        <button 
-                          onClick={() => setViewProduct(product)}
-                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
                         <button className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                           <Edit className="h-4 w-4" />
                         </button>
@@ -260,86 +255,99 @@ export default function AdminProductsPage() {
             </tbody>
           </table>
         </div>
-
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/30">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              Showing <span className="font-bold text-gray-900">{filteredProducts.length}</span> of <span className="font-bold text-gray-900">{products.length}</span> products
-            </p>
-            <div className="flex gap-2">
-              <button className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50" disabled>
-                Previous
-              </button>
-              <button className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50" disabled>
-                Next
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
 
-      {viewProduct && (
+      {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Product Details</h2>
-              <button 
-                onClick={() => setViewProduct(null)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-all"
-              >
+              <h2 className="text-xl font-bold text-gray-900">Add New Product</h2>
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
-            <div className="p-6">
-              <div className="flex items-start mb-6">
-                <div className="h-24 w-24 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden mr-6 border border-gray-200">
-                  {viewProduct.image ? (
-                    <img src={viewProduct.image} alt={viewProduct.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-gray-400">
-                      <ImageIcon className="h-10 w-10" />
-                    </div>
-                  )}
+            <form onSubmit={handleSubmit} className="p-6">
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
+              )}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    placeholder="Enter product name"
+                  />
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold text-gray-900">{viewProduct.name}</h3>
-                  <p className="text-sm text-gray-500 mt-1">{viewProduct.description || 'No description'}</p>
-                  <div className="flex items-center mt-3">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700">
-                      <Tag className="h-3 w-3 mr-1" />
-                      {viewProduct.category?.name}
-                    </span>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    rows={3}
+                    value={formData.description}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                    placeholder="Enter description (optional)"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={formData.price}
+                      onChange={(e) => setFormData({...formData, price: e.target.value})}
+                      placeholder="9.99"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                      required
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={formData.categoryId}
+                      onChange={(e) => setFormData({...formData, categoryId: e.target.value})}
+                    >
+                      <option value="">Select category</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 font-medium">Price</p>
-                  <p className="text-xl font-bold text-gray-900 mt-1">${viewProduct.price.toFixed(2)}</p>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 font-medium">Created</p>
-                  <p className="text-sm font-bold text-gray-900 mt-1">
-                    {new Date(viewProduct.createdAt).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
+                  <input
+                    type="url"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={formData.image}
+                    onChange={(e) => setFormData({...formData, image: e.target.value})}
+                    placeholder="https://example.com/image.jpg (optional)"
+                  />
                 </div>
               </div>
-            </div>
-            <div className="p-6 border-t border-gray-100 flex gap-3">
-              <button 
-                onClick={() => setViewProduct(null)}
-                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all"
-              >
-                Close
-              </button>
-              <button className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all">
-                Edit Product
-              </button>
-            </div>
+              <div className="mt-6 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all disabled:opacity-50 flex items-center justify-center"
+                >
+                  {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Create Product'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

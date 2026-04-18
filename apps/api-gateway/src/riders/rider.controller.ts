@@ -30,4 +30,11 @@ export class RiderController {
   ) {
     return this.riderService.updateStatus(id, status);
   }
+
+  @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async create(@Body() data: { email: string; name: string; phone: string }) {
+    return this.riderService.create(data);
+  }
 }
