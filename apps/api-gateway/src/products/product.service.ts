@@ -31,4 +31,17 @@ export class ProductService {
       data: { name },
     });
   }
+
+  async update(id: string, data: { name?: string; description?: string | null; price?: number; categoryId?: string; image?: string | null }) {
+    return prisma.product.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async delete(id: string) {
+    return prisma.product.delete({
+      where: { id },
+    });
+  }
 }
