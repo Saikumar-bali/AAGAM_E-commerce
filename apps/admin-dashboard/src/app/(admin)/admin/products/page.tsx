@@ -162,7 +162,7 @@ export default function AdminProductsPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-700"
             >
               <option value="All">All Categories</option>
               {categories.map(cat => (
@@ -276,7 +276,7 @@ export default function AdminProductsPage() {
                   <input
                     type="text"
                     required
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={formData.name}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
                     placeholder="Enter product name"
@@ -285,7 +285,7 @@ export default function AdminProductsPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                   <textarea
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
                     rows={3}
                     value={formData.description}
                     onChange={(e) => setFormData({...formData, description: e.target.value})}
@@ -299,7 +299,7 @@ export default function AdminProductsPage() {
                       type="number"
                       step="0.01"
                       required
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       value={formData.price}
                       onChange={(e) => setFormData({...formData, price: e.target.value})}
                       placeholder="9.99"
@@ -309,7 +309,7 @@ export default function AdminProductsPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                     <select
                       required
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       value={formData.categoryId}
                       onChange={(e) => setFormData({...formData, categoryId: e.target.value})}
                     >
@@ -324,7 +324,7 @@ export default function AdminProductsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
                   <input
                     type="url"
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={formData.image}
                     onChange={(e) => setFormData({...formData, image: e.target.value})}
                     placeholder="https://example.com/image.jpg (optional)"

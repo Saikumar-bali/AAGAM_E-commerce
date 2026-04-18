@@ -272,7 +272,7 @@ export default function AdminStoresPage() {
                   <input
                     type="text"
                     required
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={formData.name}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
                     placeholder="Enter store name"
@@ -283,7 +283,7 @@ export default function AdminStoresPage() {
                   <input
                     type="text"
                     required
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={formData.address}
                     onChange={(e) => setFormData({...formData, address: e.target.value})}
                     placeholder="Enter full address"
@@ -295,7 +295,7 @@ export default function AdminStoresPage() {
                     <input
                       type="text"
                       required
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       value={formData.latitude}
                       onChange={(e) => setFormData({...formData, latitude: e.target.value})}
                       placeholder="40.7128"
@@ -306,7 +306,7 @@ export default function AdminStoresPage() {
                     <input
                       type="text"
                       required
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       value={formData.longitude}
                       onChange={(e) => setFormData({...formData, longitude: e.target.value})}
                       placeholder="-74.006"
@@ -318,7 +318,7 @@ export default function AdminStoresPage() {
                   <input
                     type="email"
                     required
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={formData.ownerEmail}
                     onChange={(e) => setFormData({...formData, ownerEmail: e.target.value})}
                     placeholder="owner@email.com"
