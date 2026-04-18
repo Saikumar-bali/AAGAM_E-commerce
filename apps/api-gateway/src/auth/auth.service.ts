@@ -82,4 +82,16 @@ export class AuthService {
       user: { id: user.id, email: user.email, role: user.role, name: user.name } 
     };
   }
+
+  async findAll() {
+    return prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+  }
 }

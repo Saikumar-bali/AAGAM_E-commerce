@@ -6,7 +6,8 @@
   "scripts": {
     "build": "prisma generate && tsc",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "db:seed": "node seed.js"
   },
   "dependencies": {
     "@prisma/client": "^5.10.0"

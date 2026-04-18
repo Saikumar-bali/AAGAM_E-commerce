@@ -5,7 +5,7 @@ import { prisma } from '@aagam/database';
 export class StoreService {
   async findAll() {
     return prisma.store.findMany({
-      include: { owner: true },
+      include: { owner: true, inventory: true },
     });
   }
 

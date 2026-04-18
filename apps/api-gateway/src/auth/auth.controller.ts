@@ -47,4 +47,10 @@ export class AuthController {
     response.clearCookie('access_token', { path: '/' });
     return { message: 'Logged out successfully' };
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('users')
+  async findAll() {
+    return this.authService.findAll();
+  }
 }
