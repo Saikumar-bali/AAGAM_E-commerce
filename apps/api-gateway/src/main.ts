@@ -2,10 +2,50 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import cookieParser = require('cookie-parser');
 import { ValidationPipe } from '@nestjs/common';
+import { IoAdapter } from '@nestjs/platform-socket.io';
+import { ServerOptions } from 'socket.io';
+import { createClient } from 'redis';
+import { createAdapter } from '@socket.io/redis-adapter';
+
+class RedisIoAdapter extends IoAdapter {
+  private adapterConstructor!: ReturnType<typeof createAdapter>;
+  private app: any;
+
+  constructor(app: any) {
+    super(app.getHttpServer());
+    this.app = app;
+  }
+
+  async connectToRedis(redisUrl: string): Promise<void> {
+    const pubClient = createClient({ url: redisUrl });
+    const subClient = pubClient.duplicate();
+
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+
+    this.adapterConstructor = createAdapter(pubClient, subClient);
+  }
+
+  createIOServer(port: number, options?: ServerOptions): any {
+    const server = super.createIOServer(port, options);
+    server.adapter(this.adapterConstructor);
+    return server;
+  }
+}
 
 async function bootstrap() {
   try {
     const app = await NestFactory.create(AppModule);
+
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    try {
+      const redisIoAdapter = new RedisIoAdapter(app);
+      await redisIoAdapter.connectToRedis(redisUrl);
+      app.useWebSocketAdapter(redisIoAdapter);
+      console.log('✅ Redis adapter connected for WebSockets');
+    } catch (redisError) {
+      console.warn('⚠️ Redis not available, using default WebSocket adapter:', redisError);
+      app.useWebSocketAdapter(new IoAdapter(app));
+    }
 
     app.use(cookieParser());
 

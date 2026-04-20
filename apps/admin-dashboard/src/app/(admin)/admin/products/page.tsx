@@ -25,6 +25,7 @@ export default function AdminProductsPage() {
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -111,10 +112,17 @@ export default function AdminProductsPage() {
   };
 
   const handleDelete = async (product: Product) => {
-    if (!confirm(`Are you sure you want to delete "${product.name}"?`)) return;
+    setSelectedProduct(product);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedProduct) return;
     setDeleting(true);
     try {
-      await apiClient.delete(`/products/${product.id}`);
+      await apiClient.delete(`/products/${selectedProduct.id}`);
+      setShowDeleteModal(false);
+      setSelectedProduct(null);
       fetchData();
     } catch (err) { console.error('Failed to delete product', err); }
     finally { setDeleting(false); }
@@ -315,6 +323,27 @@ export default function AdminProductsPage() {
             <div className="p-6 border-t border-gray-100 flex gap-3">
               <button onClick={() => { setShowViewModal(false); setSelectedProduct(null); }} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200">Close</button>
               <button onClick={() => { setShowViewModal(false); handleEdit(selectedProduct); }} className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700">Edit Product</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && selectedProduct && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="h-8 w-8 text-red-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Delete Product</h2>
+              <p className="text-gray-500">Are you sure you want to delete <span className="font-semibold text-gray-900">"{selectedProduct.name}"</span>? This action cannot be undone.</p>
+            </div>
+            <div className="p-6 pt-0 flex gap-3">
+              <button onClick={() => { setShowDeleteModal(false); setSelectedProduct(null); }} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200">Cancel</button>
+              <button onClick={confirmDelete} disabled={deleting} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center">
+                {deleting ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Delete'}
+              </button>
             </div>
           </div>
         </div>
