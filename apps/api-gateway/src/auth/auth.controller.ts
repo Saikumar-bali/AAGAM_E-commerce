@@ -2,6 +2,9 @@ import { Controller, Post, Body, Res, Get, UseGuards, Req } from '@nestjs/common
 import { AuthService } from './auth.service';
 import { Response, Request } from 'express';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
+import { Roles } from './decorators/roles.decorator';
+import { Role } from '@aagam/database';
 import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
@@ -60,7 +63,8 @@ export class AuthController {
     return { message: 'Logged out successfully' };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @Get('users')
   async findAll() {
     return this.authService.findAll();
