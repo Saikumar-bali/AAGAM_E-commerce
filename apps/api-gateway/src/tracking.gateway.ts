@@ -7,9 +7,15 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 
+const isProduction = process.env.NODE_ENV === 'production';
+const allowedOrigins = isProduction 
+  ? process.env.CORS_ORIGINS?.split(',') || []
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'];
+
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: allowedOrigins,
+    credentials: true,
   },
 })
 export class TrackingGateway {
