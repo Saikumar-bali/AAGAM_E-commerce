@@ -20,9 +20,11 @@ export class AuthController {
     const result = await this.authService.signIn(loginDto.email, loginDto.password);
     
     // Set HTTP-only cookie
+    const isProduction = process.env.NODE_ENV === 'production';
     response.cookie('access_token', result.session.access_token, {
       httpOnly: true,
-      secure: false, 
+      secure: isProduction,
+      sameSite: 'strict',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
@@ -44,7 +46,12 @@ export class AuthController {
 
   @Post('logout')
   async logout(@Res({ passthrough: true }) response: Response) {
-    response.clearCookie('access_token', { path: '/' });
+    const isProduction = process.env.NODE_ENV === 'production';
+    response.clearCookie('access_token', { 
+      path: '/',
+      secure: isProduction,
+      sameSite: 'strict',
+    });
     return { message: 'Logged out successfully' };
   }
 
