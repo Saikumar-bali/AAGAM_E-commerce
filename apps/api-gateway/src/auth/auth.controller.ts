@@ -23,7 +23,9 @@ export class AuthController {
   @Post('login')
   @Throttle({ short: { limit: 5, ttl: 900000 } }) // 5 attempts per 15 minutes
   async signIn(@Body() loginDto: LoginDto, @Res({ passthrough: true }) response: Response) {
-    console.log('[AuthController] Login attempt for:', loginDto.email);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[AuthController] Login attempt');
+    }
     const result = await this.authService.signIn(loginDto.email, loginDto.password);
     
     // Set HTTP-only cookie
@@ -36,7 +38,9 @@ export class AuthController {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    console.log('[AuthController] Login successful, cookie set for:', loginDto.email);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[AuthController] Login successful');
+    }
 
     return {
       message: 'Logged in successfully',
@@ -47,7 +51,9 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('me')
   async getProfile(@Req() req: any) {
-    console.log('[AuthController] /me request received. User from request:', req.user?.email);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[AuthController] /me request received');
+    }
     return req.user;
   }
 

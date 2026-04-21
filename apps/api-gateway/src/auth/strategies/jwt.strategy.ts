@@ -11,13 +11,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromExtractors([
         (request: Request) => {
           const token = request?.cookies?.access_token;
-          const cookieHeader = request.headers.cookie;
-          if (token) {
-            console.log('[JwtStrategy] Token found in cookie');
-          } else {
-            console.log('[JwtStrategy] No token found in cookie.');
-            console.log('[JwtStrategy] Cookie Header:', cookieHeader || 'None');
-            console.log('[JwtStrategy] Parsed Cookies:', Object.keys(request?.cookies || {}));
+          if (process.env.NODE_ENV === 'development') {
+            if (token) {
+              console.log('[JwtStrategy] Token found in cookie');
+            } else {
+              console.log('[JwtStrategy] No token in cookie, checking auth header');
+            }
           }
           return token;
         },

@@ -56,23 +56,25 @@ export class AuthService {
   }
 
   async signIn(email: string, pass: string) {
-    console.log('SignIn Attempt:', { email });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('SignIn Attempt: Authentication request received');
+    }
     // 1. Find user in local database
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      console.log('SignIn Error: User not found');
+      console.log('SignIn Error: Invalid credentials');
       throw new UnauthorizedException('Invalid credentials');
     }
     
     if (!user.password) {
-      console.log('SignIn Error: User has no password set (possibly Supabase-only user)');
+      console.log('SignIn Error: Invalid credentials (no password)');
       throw new UnauthorizedException('Invalid credentials');
     }
 
     // 2. Compare hashed password
     const isMatch = await bcrypt.compare(pass, user.password);
     if (!isMatch) {
-      console.log('SignIn Error: Password mismatch');
+      console.log('SignIn Error: Password verification failed');
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -83,7 +85,9 @@ export class AuthService {
       { expiresIn: '7d' }
     );
 
-    console.log('SignIn Success:', { userId: user.id, email: user.email });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('SignIn Success: User authenticated successfully');
+    }
 
     return { 
       session: {
