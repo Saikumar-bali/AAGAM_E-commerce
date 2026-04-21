@@ -1,0 +1,22 @@
+[Unit]
+Description=AAGAM API Gateway
+After=network.target redis.service
+Requires=redis.service
+
+[Service]
+Type=simple
+User=node
+WorkingDirectory=/opt/aagam/api-gateway
+ExecStart=/usr/bin/node dist/main.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=REDIS_URL=redis://127.0.0.1:6379
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

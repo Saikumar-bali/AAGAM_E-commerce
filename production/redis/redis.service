@@ -1,0 +1,14 @@
+[Unit]
+Description=Redis In-Memory Data Store
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/redis-server /etc/redis/redis.conf --daemonize no
+Restart=always
+RestartSec=3
+User=redis
+Group=redis
+
+[Install]
+WantedBy=multi-user.target

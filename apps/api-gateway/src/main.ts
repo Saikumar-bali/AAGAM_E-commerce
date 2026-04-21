@@ -37,13 +37,19 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule);
 
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     try {
       const redisIoAdapter = new RedisIoAdapter(app);
       await redisIoAdapter.connectToRedis(redisUrl);
       app.useWebSocketAdapter(redisIoAdapter);
       console.log('✅ Redis adapter connected for WebSockets');
     } catch (redisError) {
-      console.warn('⚠️ Redis not available, using default WebSocket adapter:', redisError);
+      if (isProduction) {
+        console.error('❌ Redis required in production but not available:', redisError);
+        process.exit(1);
+      }
+      console.warn('⚠️ Redis not available, using default WebSocket adapter');
       app.useWebSocketAdapter(new IoAdapter(app));
     }
 
@@ -55,17 +61,22 @@ async function bootstrap() {
       transform: true,
     }));
 
+    const corsOrigins = isProduction 
+      ? process.env.CORS_ORIGINS?.split(',') || []
+      : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'];
+    
     app.enableCors({
-      origin: ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'],
+      origin: corsOrigins,
       credentials: true,
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     });
 
-    // Listen on 0.0.0.0 to avoid IPv6/IPv4 localhost issues on Windows
-    await app.listen(3000, '0.0.0.0');
-    console.log(`✅ API Gateway is live at: http://localhost:3000`);
+    const port = parseInt(process.env.PORT || '3000', 10);
+    await app.listen(port, '0.0.0.0');
+    console.log(`✅ API Gateway is live on port ${port} [${process.env.NODE_ENV || 'development'}]`);
   } catch (error) {
     console.error('❌ Failed to start API Gateway:', error);
+    process.exit(1);
   }
 }
 bootstrap();
