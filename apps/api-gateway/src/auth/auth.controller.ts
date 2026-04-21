@@ -2,19 +2,23 @@ import { Controller, Post, Body, Res, Get, UseGuards, Req } from '@nestjs/common
 import { AuthService } from './auth.service';
 import { Response, Request } from 'express';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
+@UseGuards(ThrottlerGuard)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('signup')
+  @Throttle({ short: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   async signUp(@Body() signupDto: SignupDto) {
     return this.authService.signUp(signupDto.email, signupDto.password, signupDto.name, signupDto.role);
   }
 
   @Post('login')
+  @Throttle({ short: { limit: 5, ttl: 900000 } }) // 5 attempts per 15 minutes
   async signIn(@Body() loginDto: LoginDto, @Res({ passthrough: true }) response: Response) {
     console.log('[AuthController] Login attempt for:', loginDto.email);
     const result = await this.authService.signIn(loginDto.email, loginDto.password);
@@ -45,6 +49,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @Throttle({ short: { limit: 10, ttl: 60000 } })
   async logout(@Res({ passthrough: true }) response: Response) {
     const isProduction = process.env.NODE_ENV === 'production';
     response.clearCookie('access_token', { 
