@@ -1,8 +1,11 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
+import { Role } from '@aagam/database';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { ConfigService } from '@nestjs/config';
+
+const ALLOWED_ROLES: Role[] = [Role.CUSTOMER, Role.RIDER, Role.STORE_OWNER];
 
 @Injectable()
 export class AuthService {
@@ -17,6 +20,9 @@ export class AuthService {
   }
 
   async signUp(email: string, pass: string, name: string, role: string = 'CUSTOMER') {
+    const validRole = (role || 'CUSTOMER').toUpperCase() as Role;
+    const userRole = ALLOWED_ROLES.includes(validRole) ? validRole : Role.CUSTOMER;
+
     // 1. Check if user exists in local database
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('User already exists');
@@ -31,12 +37,12 @@ export class AuthService {
           email,
           name,
           password: hashedPassword,
-          role: (role || 'CUSTOMER').toUpperCase() as any,
+          role: userRole,
         },
       });
 
       // 4. If registering as RIDER, automatically create rider profile
-      if (role?.toUpperCase() === 'RIDER') {
+      if (userRole === Role.RIDER) {
         await prisma.riderProfile.create({
           data: {
             userId: user.id,
