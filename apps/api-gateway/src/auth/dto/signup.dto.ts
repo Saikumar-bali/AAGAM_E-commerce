@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsEnum, IsOptional, MinLength } from 'class-validator';
+import { IsEmail, IsString, IsEnum, IsOptional, MinLength, MaxLength } from 'class-validator';
 import { Role } from '@aagam/database';
 
 export class SignupDto {
@@ -6,7 +6,8 @@ export class SignupDto {
   email: string = '';
 
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
+  @MaxLength(72) // Bcrypt limit
   password: string = '';
 
   @IsString()
