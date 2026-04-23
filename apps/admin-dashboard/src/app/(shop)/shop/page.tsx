@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiClient } from '@aagam/utils';
 import { useCart } from '@/hooks/useCart';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -21,6 +22,7 @@ export default function ShopPage() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [query, setQuery] = useState('');
   const { cart, addToCart, updateQuantity, removeFromCart, totalPrice, totalItems } = useCart();
+  const router = useRouter();
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -244,7 +246,13 @@ export default function ShopPage() {
                       <span className="text-gray-600 font-bold">Subtotal</span>
                       <span className="text-2xl font-black text-gray-900">{formatINR(totalPrice)}</span>
                     </div>
-                    <button className="w-full bg-emerald-700 text-white py-4 rounded-2xl font-black hover:bg-emerald-800 transition-colors shadow-lg shadow-emerald-900/10">
+                    <button
+                      onClick={() => {
+                        setIsCartOpen(false);
+                        router.push('/shop/checkout');
+                      }}
+                      className="w-full bg-emerald-700 text-white py-4 rounded-2xl font-black hover:bg-emerald-800 transition-colors shadow-lg shadow-emerald-900/10"
+                    >
                       Checkout Now
                     </button>
                     <p className="text-center text-[10px] text-emerald-900/50 mt-4 uppercase tracking-widest font-black">Free delivery on your first order</p>
