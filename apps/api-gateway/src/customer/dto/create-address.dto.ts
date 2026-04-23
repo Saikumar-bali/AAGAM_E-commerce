@@ -16,6 +16,11 @@ export class CreateAddressDto {
   @Matches(/^(\+?[1-9]\d{7,14}|\d{10})$/)
   phoneE164!: string;
 
+  @IsOptional()
+  @IsString()
+  @Matches(/^(\+?[1-9]\d{7,14}|\d{10})$/)
+  alternatePhoneE164?: string;
+
   @IsString()
   @MinLength(3)
   @MaxLength(120)
@@ -65,4 +70,3 @@ export class CreateAddressDto {
   @IsBoolean()
   isDefault?: boolean;
 }
-

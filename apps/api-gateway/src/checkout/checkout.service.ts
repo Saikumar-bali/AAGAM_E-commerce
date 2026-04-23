@@ -202,6 +202,7 @@ export class CheckoutService {
             label: address.label,
             recipientName: address.recipientName,
             phoneE164: address.phoneE164,
+            alternatePhoneE164: (address as any).alternatePhoneE164,
             line1: address.line1,
             line2: address.line2,
             landmark: address.landmark,
@@ -248,4 +249,3 @@ export class CheckoutService {
     });
   }
 }
-

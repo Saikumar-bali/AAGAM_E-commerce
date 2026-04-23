@@ -149,6 +149,7 @@ model CustomerAddress {
   label     String?
   recipientName String
   phoneE164 String
+  alternatePhoneE164 String?
 
   line1     String
   line2     String?

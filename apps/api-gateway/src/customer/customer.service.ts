@@ -28,6 +28,7 @@ export class CustomerService {
   async createAddress(userId: string, dto: CreateAddressDto) {
     const country = (dto.country || 'IN').toUpperCase();
     const phoneE164 = normalizePhoneE164(dto.phoneE164);
+    const alternatePhoneE164 = dto.alternatePhoneE164 ? normalizePhoneE164(dto.alternatePhoneE164) : null;
 
     if (country !== 'IN') {
       throw new BadRequestException('Only IN addresses are supported currently');
@@ -47,6 +48,7 @@ export class CustomerService {
           label: dto.label,
           recipientName: dto.recipientName,
           phoneE164,
+          alternatePhoneE164,
           line1: dto.line1,
           line2: dto.line2,
           landmark: dto.landmark,
@@ -74,6 +76,11 @@ export class CustomerService {
     }
 
     const phoneE164 = dto.phoneE164 ? normalizePhoneE164(dto.phoneE164) : undefined;
+    const alternatePhoneE164 = dto.alternatePhoneE164
+      ? normalizePhoneE164(dto.alternatePhoneE164)
+      : dto.alternatePhoneE164 === ''
+        ? null
+        : undefined;
 
     return prisma.$transaction(async (tx) => {
       if (dto.isDefault) {
@@ -89,6 +96,7 @@ export class CustomerService {
           label: dto.label,
           recipientName: dto.recipientName,
           phoneE164,
+          alternatePhoneE164,
           line1: dto.line1,
           line2: dto.line2,
           landmark: dto.landmark,
@@ -114,4 +122,3 @@ export class CustomerService {
     return { success: true };
   }
 }
-

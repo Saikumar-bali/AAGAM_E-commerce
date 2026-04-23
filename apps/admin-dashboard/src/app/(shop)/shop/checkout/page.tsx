@@ -13,6 +13,7 @@ type Address = {
   label?: string | null;
   recipientName: string;
   phoneE164: string;
+  alternatePhoneE164?: string | null;
   line1: string;
   line2?: string | null;
   landmark?: string | null;
@@ -68,6 +69,7 @@ export default function CheckoutPage() {
     label: 'Home',
     recipientName: '',
     phoneE164: '',
+    alternatePhoneE164: '',
     line1: '',
     line2: '',
     landmark: '',
@@ -148,13 +150,37 @@ export default function CheckoutPage() {
 
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
+        const latitude = pos.coords.latitude;
+        const longitude = pos.coords.longitude;
+
         setDraft((d) => ({
           ...d,
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
+          latitude,
+          longitude,
         }));
-        setLocating(false);
+
+        try {
+          // Server-side reverse geocode to avoid browser CORS + keep provider headers centralized.
+          const res = await apiClient.get('/geo/reverse', { params: { lat: latitude, lng: longitude } });
+          const payload = res.data;
+          const addr = payload?.address;
+          if (payload?.ok && addr) {
+            setDraft((d) => ({
+              ...d,
+              line1: addr.line1 || d.line1,
+              landmark: addr.landmark || d.landmark,
+              city: addr.city || d.city,
+              state: addr.state || d.state,
+              pincode: addr.pincode || d.pincode,
+              country: addr.country || d.country,
+            }));
+          }
+        } catch (e) {
+          // Non-fatal; user can still fill manually.
+        } finally {
+          setLocating(false);
+        }
       },
       (err) => {
         setError(err.message || 'Failed to fetch location');
@@ -177,6 +203,7 @@ export default function CheckoutPage() {
         label: draft.label,
         recipientName: draft.recipientName,
         phoneE164: draft.phoneE164,
+        alternatePhoneE164: draft.alternatePhoneE164 || undefined,
         line1: draft.line1,
         line2: draft.line2 || undefined,
         landmark: draft.landmark || undefined,
@@ -342,14 +369,19 @@ export default function CheckoutPage() {
                         {a.city ? `, ${a.city}` : ''}
                         {a.pincode ? ` - ${a.pincode}` : ''}
                       </div>
-                      <div className="mt-2 inline-flex items-center gap-2 text-xs font-black text-emerald-900/70">
-                        <Phone className="h-3.5 w-3.5" />
-                        {a.phoneE164}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+                  <div className="mt-2 inline-flex items-center gap-2 text-xs font-black text-emerald-900/70">
+                    <Phone className="h-3.5 w-3.5" />
+                    {a.phoneE164}
+                  </div>
+                  {a.alternatePhoneE164 ? (
+                    <div className="mt-1 text-[11px] font-black text-emerald-900/50">
+                      Alt: {a.alternatePhoneE164}
+                    </div>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          )}
 
               {creatingAddress ? (
                 <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
@@ -368,6 +400,7 @@ export default function CheckoutPage() {
                     <Input label="Label" value={draft.label} onChange={(v) => setDraft((d) => ({ ...d, label: v }))} />
                     <Input label="Recipient name" value={draft.recipientName} onChange={(v) => setDraft((d) => ({ ...d, recipientName: v }))} />
                     <Input label="Contact number" value={draft.phoneE164} onChange={(v) => setDraft((d) => ({ ...d, phoneE164: v }))} placeholder="+91XXXXXXXXXX or 10 digits" />
+                    <Input label="Alternate number (optional)" value={draft.alternatePhoneE164} onChange={(v) => setDraft((d) => ({ ...d, alternatePhoneE164: v }))} placeholder="+91XXXXXXXXXX or 10 digits" />
                     <Input label="Pincode" value={draft.pincode} onChange={(v) => setDraft((d) => ({ ...d, pincode: v }))} placeholder="6 digits" />
                     <Input label="Address line 1" value={draft.line1} onChange={(v) => setDraft((d) => ({ ...d, line1: v }))} className="md:col-span-2" />
                     <Input label="Address line 2 (optional)" value={draft.line2} onChange={(v) => setDraft((d) => ({ ...d, line2: v }))} className="md:col-span-2" />
@@ -556,4 +589,3 @@ function Input({
     </label>
   );
 }
-

@@ -19,6 +19,11 @@ export class UpdateAddressDto {
 
   @IsOptional()
   @IsString()
+  @Matches(/^(\+?[1-9]\d{7,14}|\d{10})$/)
+  alternatePhoneE164?: string;
+
+  @IsOptional()
+  @IsString()
   @MinLength(3)
   @MaxLength(120)
   line1?: string;
@@ -72,4 +77,3 @@ export class UpdateAddressDto {
   @IsBoolean()
   isDefault?: boolean;
 }
-
