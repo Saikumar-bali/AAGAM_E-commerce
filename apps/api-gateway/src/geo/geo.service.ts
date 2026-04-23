@@ -25,21 +25,34 @@ export class GeoService {
   async reverse(lat: number, lng: number) {
     // Using OSM Nominatim. For production, consider a paid provider or your own proxy + caching.
     const url = 'https://nominatim.openstreetmap.org/reverse';
-    const res = await axios.get<NominatimResponse>(url, {
-      params: {
-        format: 'jsonv2',
-        lat,
-        lon: lng,
-        addressdetails: 1,
-      },
-      timeout: 15000,
-      headers: {
-        // Nominatim usage policy asks for an identifying UA.
-        'User-Agent': 'AagamEcommerce/1.0 (checkout reverse geocode)',
-        Accept: 'application/json',
-      },
-      validateStatus: () => true,
-    });
+
+    let res: { status: number; data?: NominatimResponse } | null = null;
+    try {
+      const r = await axios.get<NominatimResponse>(url, {
+        params: {
+          format: 'jsonv2',
+          lat,
+          lon: lng,
+          addressdetails: 1,
+        },
+        timeout: 15000,
+        headers: {
+          // Nominatim usage policy asks for an identifying UA.
+          'User-Agent': 'AagamEcommerce/1.0 (checkout reverse geocode)',
+          Accept: 'application/json',
+        },
+        validateStatus: () => true,
+      });
+      res = { status: r.status, data: r.data };
+    } catch (e: any) {
+      // Never 500 for reverse-geocode failures; checkout can still proceed with manual fill.
+      return {
+        ok: false,
+        source: 'nominatim',
+        status: 0,
+        message: e?.message || 'Reverse geocode failed',
+      };
+    }
 
     if (res.status < 200 || res.status >= 300) {
       return {
@@ -74,4 +87,3 @@ export class GeoService {
     };
   }
 }
-
