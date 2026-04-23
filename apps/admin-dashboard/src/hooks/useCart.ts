@@ -10,6 +10,16 @@ export interface CartItem {
   image?: string;
 }
 
+function normalizeCartItem(raw: any): CartItem {
+  return {
+    id: String(raw?.id ?? ''),
+    name: String(raw?.name ?? ''),
+    price: Number(raw?.price ?? 0) || 0,
+    quantity: Number(raw?.quantity ?? 0) || 0,
+    image: raw?.image ? String(raw.image) : undefined,
+  };
+}
+
 export const useCart = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -17,7 +27,13 @@ export const useCart = () => {
   useEffect(() => {
     const savedCart = localStorage.getItem('aagam_cart');
     if (savedCart) {
-      setCart(JSON.parse(savedCart));
+      try {
+        const parsed = JSON.parse(savedCart);
+        const next = Array.isArray(parsed) ? parsed.map(normalizeCartItem).filter((i) => i.id && i.quantity > 0) : [];
+        setCart(next);
+      } catch {
+        setCart([]);
+      }
     }
     setIsLoaded(true);
   }, []);
@@ -30,13 +46,23 @@ export const useCart = () => {
 
   const addToCart = (product: any) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.id === product.id);
+      const id = String(product?.id ?? '');
+      if (!id) return prev;
+
+      const candidate: Omit<CartItem, 'quantity'> = {
+        id,
+        name: String(product?.name ?? ''),
+        price: Number(product?.price ?? 0) || 0,
+        image: product?.image ? String(product.image) : undefined,
+      };
+
+      const existing = prev.find((item) => item.id === id);
       if (existing) {
         return prev.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { ...candidate, quantity: 1 }];
     });
   };
 

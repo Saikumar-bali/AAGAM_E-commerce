@@ -35,6 +35,7 @@ model Store {
   address   String
   latitude  Float
   longitude Float
+  isActive  Boolean  @default(true)
   ownerId   String
   owner     User     @relation("StoreOwner", fields: [ownerId], references: [id])
   createdAt DateTime @default(now())

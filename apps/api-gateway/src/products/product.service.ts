@@ -37,11 +37,16 @@ export class ProductService {
   }
 
   async create(data: { name: string; description?: string; price: number; categoryId: string; image?: string }) {
-    const product = await prisma.product.create({
-      data,
-    });
-    await this.cacheManager.del('all_products'); // Invalidate cache
-    return product;
+    try {
+      const product = await prisma.product.create({
+        data,
+      });
+      await this.cacheManager.del('all_products'); // Invalidate cache
+      return product;
+    } catch (error) {
+      console.error('[PRODUCT SERVICE] Error creating product:', error);
+      throw error;
+    }
   }
 
   async getCategories() {

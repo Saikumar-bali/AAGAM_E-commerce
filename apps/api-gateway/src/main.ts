@@ -32,6 +32,7 @@ class RedisIoAdapter extends IoAdapter {
   }
 }
 
+// API Gateway Bootstrap
 async function bootstrap() {
   try {
     const app = await NestFactory.create(AppModule);

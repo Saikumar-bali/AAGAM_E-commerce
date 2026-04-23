@@ -42,10 +42,14 @@ export class RiderService {
     });
   }
 
-  async updateStatus(id: string, status: any) {
+  async updateStatus(id: string, data: { status: string; latitude?: number; longitude?: number }) {
     return prisma.riderProfile.update({
       where: { id },
-      data: { status }
+      data: { 
+        status: data.status as any,
+        ...(data.latitude && { latitude: data.latitude }),
+        ...(data.longitude && { longitude: data.longitude }),
+      }
     });
   }
 
