@@ -6,12 +6,9 @@
       "installZsh": true,
       "configureZshAsDefaultShell": true
     },
-    "ghcr.io/devcontainers/features/postgres:1": {
-      "version": "15"
-    },
-    "ghcr.io/devcontainers/features/redis:1": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:1": {}
   },
-  "forwardPorts": [3001, 3005, 6379, 5432],
+  "forwardPorts": [3001, 3005],
   "portsAttributes": {
     "3001": {
       "label": "Admin Dashboard",
@@ -34,10 +31,7 @@
     }
   },
   "containerEnv": {
-    "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/postgres",
-    "REDIS_URL": "redis://localhost:6379",
     "NODE_ENV": "development"
   },
-  "postStartCommand": "npm run dev",
-  "postCreateCommand": "bash .devcontainer/post-create.sh"
+  "postCreateCommand": "echo 'Container built successfully. Run .devcontainer/setup.sh manually to complete setup.'"
 }
