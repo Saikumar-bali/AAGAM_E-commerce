@@ -1,23 +1,13 @@
 {
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:0-20",
   "features": {
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
-      "version": "1"
-    },
-    "ghcr.io/devcontainers-contrib/features/postgres-bootstrap:1": {
-      "version": "latest",
-      "port": 5432,
-      "password": "postgres"
-    },
-    "ghcr.io/devcontainers-contrib/features/redis:1": {
-      "version": "latest",
-      "port": 6379
-    }
+    "ghcr.io/devcontainers/features/postgres:1": {},
+    "ghcr.io/devcontainers/features/redis:1": {}
   },
   "containerEnv": {
-    "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/postgres"
+    "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/postgres",
+    "REDIS_URL": "redis://localhost:6379",
+    "NODE_ENV": "development"
   },
-  "postCreateCommand": "echo Done",
-  "initializeCommand": "chmod +x ${localWorkspaceFolder}/.devcontainer/setup.sh",
-  "onAttachCommand": "${workspaceFolder}/.devcontainer/setup.sh"
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
 }
