@@ -49,4 +49,13 @@ fi
 cd ../..
 npx turbo build --filter=@aagam/types --filter=@aagam/utils --filter=@aagam/database
 
+echo "📦 Setting up Worker Service environment..."
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/aagam_ecom"
+export REDIS_URL="redis://localhost:6379"
+mkdir -p apps/worker-service
+echo "DATABASE_URL=$DATABASE_URL" > apps/worker-service/.env.local
+echo "REDIS_URL=$REDIS_URL" >> apps/worker-service/.env.local
+
+npx turbo build --filter=@aagam/worker-service
+
 echo "✅ Setup Complete!"
