@@ -1,18 +1,5 @@
 {
   "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
-  "features": {
-    "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/postgres:1": {
-      "version": "15"
-    },
-    "ghcr.io/devcontainers/features/redis:1": {
-      "version": "7"
-    },
-    "ghcr.io/devcontainers/features/common-utils:2": {},
-    "sshd": {
-      "version": "latest"
-    }
-  },
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "forwardPorts": [3001, 3005, 5432, 6379],
   "portsAttributes": {
@@ -22,7 +9,8 @@
     "3005": {
       "visibility": "public"
     }
-  },  "containerEnv": {
+  },
+  "containerEnv": {
     "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/aagam_ecom",
     "NODE_ENV": "development"
   }
