@@ -1,37 +1,4 @@
 {
-  "name": "Aagam E-Commerce Staging",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
-  "features": {
-    "ghcr.io/devcontainers/features/common-utils:2": {
-      "installZsh": true,
-      "configureZshAsDefaultShell": true
-    },
-    "ghcr.io/devcontainers/features/docker-in-docker:1": {}
-  },
-  "forwardPorts": [3001, 3005],
-  "portsAttributes": {
-    "3001": {
-      "label": "Admin Dashboard",
-      "onAutoForward": "openBrowser",
-      "visibility": "public"
-    },
-    "3005": {
-      "label": "API Gateway",
-      "visibility": "private"
-    }
-  },
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "dbaeumer.vscode-eslint",
-        "esbenp.prettier-vscode",
-        "prisma.prisma",
-        "mechatroner.rainbow-csv"
-      ]
-    }
-  },
-  "containerEnv": {
-    "NODE_ENV": "development"
-  },
-  "postCreateCommand": "echo 'Container built successfully. Run .devcontainer/setup.sh manually to complete setup.'"
+  "postCreateCommand": "echo Success"
 }
