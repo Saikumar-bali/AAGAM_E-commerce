@@ -3,23 +3,26 @@ set -e
 
 echo "🚀 Initializing Aagam E-Commerce Setup..."
 
-# Navigate to project root if not already there
 cd /workspaces/AAGAM_E-commerce || cd /workspaces/*
 
-# 1. Dependencies
 echo "📦 Installing Dependencies..."
 npm install --silent
 
-# 2. Database Sync
 echo "🗄️ Syncing Database Schema..."
 cd packages/database
+
+if [ -z "$DATABASE_URL" ]; then
+    export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/aagam_ecom"
+fi
+
+echo "DATABASE_URL=$DATABASE_URL" > .env
+
 npx prisma generate
 npx prisma db push --accept-data-loss
 
-# 3. Data Import
+echo "📊 Importing Data Snapshot..."
 if [ -f "data-snapshot.sql" ]; then
-    echo "📊 Importing Data Snapshot..."
-    psql "postgresql://postgres:postgres@localhost:5432/postgres" < data-snapshot.sql
+    psql "$DATABASE_URL" < data-snapshot.sql
 else
     echo "🌱 No snapshot found, running standard seed..."
     node seed.js
