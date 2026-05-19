@@ -1,0 +1,45 @@
+{
+  "name": "Aagam E-Commerce Staging",
+  "dockerfile": "Dockerfile",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true
+    },
+    "ghcr.io/devcontainers/features/postgres:1": {
+      "version": "15"
+    },
+    "ghcr.io/devcontainers/features/redis:1": {}
+  },
+  "forwardPorts": [3001, 3005, 6379, 5432],
+  "portsAttributes": {
+    "3001": {
+      "label": "Admin Dashboard",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    },
+    "3005": {
+      "label": "API Gateway",
+      "visibility": "private"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "prisma.prisma",
+        "mechatroner.rainbow-csv"
+      ]
+    }
+  },
+  "containerEnv": {
+    "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/postgres",
+    "REDIS_URL": "redis://localhost:6379",
+    "NODE_ENV": "development"
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
+}
