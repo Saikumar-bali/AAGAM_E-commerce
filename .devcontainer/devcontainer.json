@@ -1,13 +1,9 @@
 {
   "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
-  "features": {
-    "ghcr.io/devcontainers/features/postgres:1": {},
-    "ghcr.io/devcontainers/features/redis:1": {},
-    "ghcr.io/devcontainers/features/sshd:1": {}
-  },
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
-  "forwardPorts": [3001, 3005],
+  "postCreateCommand": "bash .devcontainer/manual-setup.sh",
+  "forwardPorts": [3001, 3005, 5432, 6379],
   "containerEnv": {
-    "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/postgres"
+    "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/aagam_ecom",
+    "NODE_ENV": "development"
   }
 }
