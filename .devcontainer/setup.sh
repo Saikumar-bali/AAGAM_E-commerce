@@ -13,6 +13,7 @@ apt-get install -y postgresql redis-server sudo
 echo "🔌 Starting Services..."
 service postgresql start
 service redis-server start
+service redis-server status
 
 # 3. Configure Postgres
 echo "🗄️ Configuring Database..."
