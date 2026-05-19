@@ -9,6 +9,11 @@ import { ProductModule } from './products/product.module';
 import { StoreModule } from './stores/store.module';
 import { OrderModule } from './orders/order.module';
 import { RiderModule } from './riders/rider.module';
+import { UploadModule } from './upload/upload.module';
+import { CustomerModule } from './customer/customer.module';
+import { CheckoutModule } from './checkout/checkout.module';
+import { PaymentsModule } from './payments/payments.module';
+import { GeoModule } from './geo/geo.module';
 import { TrackingGateway } from './tracking.gateway';
 import * as redisStore from 'cache-manager-redis-yet';
 
@@ -46,6 +51,11 @@ import * as redisStore from 'cache-manager-redis-yet';
     StoreModule,
     OrderModule,
     RiderModule,
+    UploadModule,
+    CustomerModule,
+    CheckoutModule,
+    PaymentsModule,
+    GeoModule,
   ],
   controllers: [AppController],
   providers: [AppService, TrackingGateway],

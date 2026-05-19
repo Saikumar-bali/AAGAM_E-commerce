@@ -26,9 +26,9 @@ export class RiderController {
   @UseGuards(JwtAuthGuard)
   async updateStatus(
     @Param('id') id: string,
-    @Body('status') status: any
+    @Body() data: { status: string; latitude?: number; longitude?: number }
   ) {
-    return this.riderService.updateStatus(id, status);
+    return this.riderService.updateStatus(id, data);
   }
 
   @Post()

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Param, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Param, Patch, Delete } from '@nestjs/common';
 import { StoreService } from './store.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -24,6 +24,20 @@ export class StoreController {
   @Roles(Role.ADMIN)
   async create(@Body() data: any) {
     return this.storeService.create(data);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async update(@Param('id') id: string, @Body() data: any) {
+    return this.storeService.update(id, data);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async delete(@Param('id') id: string) {
+    return this.storeService.delete(id);
   }
 
   @Patch(':id/inventory')

@@ -5,7 +5,8 @@ import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
 import { 
   Package, Tag, DollarSign, Plus, Search, Edit, Trash2,
-  Image as ImageIcon, Calendar, TrendingUp, X, Loader2, Eye, AlertTriangle
+  Image as ImageIcon, Calendar, TrendingUp, X, Loader2, Eye, AlertTriangle,
+  Upload, Check
 } from 'lucide-react';
 
 interface Product {
@@ -31,6 +32,8 @@ export default function AdminProductsPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({ name: '', description: '', price: '', categoryId: '', image: '' });
   const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
 
   const fetchData = async () => {
     try {
@@ -63,7 +66,51 @@ export default function AdminProductsPage() {
     { label: 'This Month', value: products.filter(p => new Date(p.createdAt) > new Date(Date.now() - 30*24*60*60*1000)).length, icon: TrendingUp, color: 'bg-amber-500' },
   ];
 
-  const resetForm = () => setFormData({ name: '', description: '', price: '', categoryId: '', image: '' });
+  const resetForm = () => {
+    setFormData({ name: '', description: '', price: '', categoryId: '', image: '' });
+    setPreviewUrl('');
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      setError('Please select a valid image file (JPEG, PNG, WebP, or GIF)');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image must be less than 5MB');
+      return;
+    }
+
+    setUploading(true);
+    setError('');
+
+    try {
+      console.log('[ADMIN] Starting image upload...');
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+
+      const response = await apiClient.post('/upload/image', uploadFormData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const publicUrl = response.data.publicUrl;
+      console.log('[ADMIN] Upload success, URL:', publicUrl);
+
+      if (!publicUrl) throw new Error('No publicUrl returned from server');
+
+      setFormData(prev => ({ ...prev, image: publicUrl }));
+    } catch (err: any) {
+      console.error('[ADMIN] Upload error:', err);
+      console.error('[ADMIN] Error response:', err.response?.data);
+      setError(err.response?.data?.message || err.message || 'Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,6 +136,7 @@ export default function AdminProductsPage() {
       price: product.price.toString(), categoryId: product.categoryId,
       image: product.image || ''
     });
+    setPreviewUrl(product.image || '');
     setShowEditModal(true);
   };
 
@@ -193,8 +241,21 @@ export default function AdminProductsPage() {
                 <tr key={product.id} className="hover:bg-gray-50 group">
                   <td className="px-6 py-4"><div className="flex items-center">
                     <div className="h-12 w-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden mr-4 border border-gray-200">
-                      {product.image ? <img src={product.image} alt={product.name} className="h-full w-full object-cover" /> :
-                        <div className="h-full w-full flex items-center justify-center text-gray-400"><ImageIcon className="h-6 w-6" /></div>}
+                      {product.image ? (
+                        <img 
+                          src={product.image} 
+                          alt={product.name} 
+                          className="h-full w-full object-cover" 
+                          onLoad={() => console.log(`[IMAGE DEBUG] Successfully loaded: ${product.image}`)}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            console.error(`[IMAGE DEBUG] Failed to load: ${target.src}`);
+                            // Optional: you could set a fallback image here
+                          }}
+                        />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-gray-400"><ImageIcon className="h-6 w-6" /></div>
+                      )}
                     </div>
                     <div><p className="text-sm font-bold text-gray-900">{product.name}</p><p className="text-xs text-gray-500 truncate max-w-xs">{product.description || 'No description'}</p></div>
                   </div></td>
@@ -240,9 +301,36 @@ export default function AdminProductsPage() {
                       <option value="">Select category</option>
                       {categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
                     </select></div></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-                  <input type="url" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:ring-2 focus:ring-emerald-500"
-                    value={formData.image} onChange={(e) => setFormData({...formData, image: e.target.value})} placeholder="https://example.com/image.jpg" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-emerald-400 transition-colors">
+                      <label className="cursor-pointer flex flex-col items-center">
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+                        {uploading ? (
+                          <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+                        ) : formData.image ? (
+                          <div className="relative">
+                            <img src={formData.image} alt="Uploaded" className="w-24 h-24 object-cover rounded-lg" />
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg opacity-0 hover:opacity-100 transition-opacity">
+                              <Upload className="h-6 w-6 text-white" />
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                            <span className="text-sm text-gray-500">Click to upload image</span>
+                            <span className="text-xs text-gray-400">JPEG, PNG, WebP (max 5MB)</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                    {formData.image && (
+                      <div className="flex items-center gap-2 text-sm text-emerald-600">
+                        <Check className="h-4 w-4" /> Image ready for product creation
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="mt-6 flex gap-3">
                 <button type="button" onClick={() => { setShowModal(false); resetForm(); }} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200">Cancel</button>
@@ -281,9 +369,30 @@ export default function AdminProductsPage() {
                       <option value="">Select category</option>
                       {categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
                     </select></div></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-                  <input type="url" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:ring-2 focus:ring-emerald-500"
-                    value={formData.image} onChange={(e) => setFormData({...formData, image: e.target.value})} /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-emerald-400 transition-colors">
+                      <label className="cursor-pointer flex flex-col items-center">
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+                        {uploading ? (
+                          <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+                        ) : formData.image ? (
+                          <div className="relative">
+                            <img src={formData.image} alt="Current" className="w-24 h-24 object-cover rounded-lg" />
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg opacity-0 hover:opacity-100 transition-opacity">
+                              <Upload className="h-6 w-6 text-white" />
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                            <span className="text-sm text-gray-500">Click to upload image</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="mt-6 flex gap-3">
                 <button type="button" onClick={() => { setShowEditModal(false); setSelectedProduct(null); resetForm(); }} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200">Cancel</button>

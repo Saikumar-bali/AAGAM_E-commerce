@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@aagam/utils';
 import { useCart } from '@/hooks/useCart';
 import DashboardLayout from '@/components/DashboardLayout';
+import { formatINR } from '@/lib/currency';
 import { 
   ShoppingCart, 
   Search, 
@@ -12,8 +13,6 @@ import {
   Minus, 
   X, 
   ShoppingBag,
-  LogOut,
-  User,
   Package as PackageIcon
 } from 'lucide-react';
 
@@ -21,6 +20,7 @@ export default function ShopPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const { cart, addToCart, updateQuantity, removeFromCart, totalPrice, totalItems } = useCart();
   const router = useRouter();
 
@@ -38,30 +38,31 @@ export default function ShopPage() {
     fetchProducts();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await apiClient.post('/auth/logout');
-    } catch (error) {
-      console.error('Logout failed', error);
-    } finally {
-      localStorage.clear();
-      router.push('/login');
-    }
-  };
+  const qtyById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of cart) map.set(item.id, item.quantity);
+    return map;
+  }, [cart]);
+
+  const filteredProducts = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) => String(p?.name || '').toLowerCase().includes(q));
+  }, [products, query]);
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
-      <div className="min-h-screen bg-gray-50 font-sans">
-        {/* Header - Integrated into the layout but maintaining the custom shop header style */}
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-30 -mx-8 -mt-8 mb-8 px-8">
+      <div id="shop" className="min-h-screen font-sans relative">
+        <div className="pointer-events-none absolute inset-x-0 -top-8 h-64 bg-gradient-to-b from-emerald-100 via-white to-transparent" />
+
+        {/* Compact Shop Header */}
+        <header className="sticky top-0 z-30 -mx-8 -mt-8 mb-6 px-8 pt-8 pb-5 backdrop-blur bg-white/70 border-b border-emerald-100/70">
           <div className="max-w-7xl mx-auto flex justify-between items-center h-16">
             <div className="flex items-center">
-              <span className="text-2xl font-bold text-emerald-600">Aagam</span>
-              <nav className="ml-10 hidden md:flex space-x-8">
-                <a href="#" className="text-gray-900 font-medium">Grocery</a>
-                <a href="#" className="text-gray-500 hover:text-gray-900 font-medium transition-colors">Electronics</a>
-                <a href="#" className="text-gray-500 hover:text-gray-900 font-medium transition-colors">Household</a>
-              </nav>
+              <span className="text-xl font-black text-emerald-700 tracking-tight">Aagam</span>
+              <span className="ml-3 hidden sm:inline-flex text-[11px] font-extrabold uppercase tracking-[0.18em] text-emerald-900/60">
+                Shop
+              </span>
             </div>
 
             <div className="flex items-center space-x-4">
@@ -69,18 +70,23 @@ export default function ShopPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input 
                   type="text" 
-                  placeholder="Search products..." 
-                  className="pl-10 pr-4 py-2 bg-gray-100 border-none rounded-full text-sm focus:ring-2 focus:ring-emerald-500 transition-all w-64"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search..." 
+                  className="pl-10 pr-4 py-2 bg-white/80 border border-emerald-100 rounded-full text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-200 transition-all w-64 shadow-sm"
                 />
               </div>
               
               <button 
                 onClick={() => setIsCartOpen(true)}
-                className="relative p-2 text-gray-600 hover:text-emerald-600 transition-colors"
+                className="relative px-3 py-2 rounded-full border border-emerald-100 bg-white/80 text-emerald-800 hover:bg-emerald-50 transition-colors shadow-sm"
               >
-                <ShoppingBag className="h-6 w-6" />
+                <span className="inline-flex items-center gap-2">
+                  <ShoppingBag className="h-5 w-5" />
+                  <span className="hidden sm:inline font-extrabold text-sm">Cart</span>
+                </span>
                 {totalItems > 0 && (
-                  <span className="absolute top-0 right-0 h-5 w-5 bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white">
+                  <span className="absolute -top-1 -right-1 h-5 w-5 bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white">
                     {totalItems}
                   </span>
                 )}
@@ -90,50 +96,84 @@ export default function ShopPage() {
         </header>
 
         {/* Main Content */}
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Fresh Groceries</h1>
-            <p className="text-gray-500 mt-2">Delivered to your door in minutes.</p>
+        <div className="max-w-7xl mx-auto pt-2">
+          <div className="mb-5">
+            <h1 className="text-2xl font-black text-gray-900">Fresh Groceries</h1>
+            <p className="text-gray-600 mt-1 text-sm">Compact cards, fast checkout, INR pricing.</p>
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {[1, 2, 4, 5, 6, 7, 8].map(i => (
-                <div key={i} className="bg-white rounded-2xl h-64 animate-pulse border border-gray-100"></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(i => (
+                <div key={i} className="bg-white/80 rounded-xl h-44 animate-pulse border border-emerald-100"></div>
               ))}
             </div>
-          ) : products.length === 0 ? (
+          ) : filteredProducts.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-300">
               <PackageIcon className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900">No products found</h3>
-              <p className="text-gray-500">The store is currently being stocked. Check back soon!</p>
+              <p className="text-gray-500">Try a different search.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {products.map((product) => (
-                <div key={product.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl hover:shadow-emerald-900/5 transition-all group">
-                  <div className="aspect-square bg-gray-50 relative overflow-hidden">
-                    {product.image ? (
-                      <img src={product.image} alt={product.name} className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <PackageIcon className="h-12 w-12 text-gray-200" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              {filteredProducts.map((product) => {
+                const qty = qtyById.get(product.id) || 0;
+                const price = typeof product.price === 'number' ? product.price : Number(product.price) || 0;
+                const cartProduct = { id: product.id, name: product.name, price, image: product.image };
+
+                return (
+                  <div key={product.id} className="bg-white/90 rounded-xl border border-emerald-100 overflow-hidden hover:shadow-lg hover:shadow-emerald-900/5 transition-shadow">
+                    <div className="aspect-[4/3] bg-emerald-50/50 relative overflow-hidden">
+                      {product.image ? (
+                        <img src={product.image} alt={product.name} className="object-cover w-full h-full" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <PackageIcon className="h-10 w-10 text-emerald-200" />
+                        </div>
+                      )}
+                      <div className="absolute top-2 left-2 rounded-full bg-white/90 border border-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-800">
+                        {product.category?.name || 'General'}
                       </div>
-                    )}
-                    <button 
-                      onClick={() => addToCart(product)}
-                      className="absolute bottom-3 right-3 h-10 w-10 bg-white shadow-lg rounded-xl flex items-center justify-center text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all transform translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100"
-                    >
-                      <Plus className="h-6 w-6" />
-                    </button>
+                    </div>
+
+                    <div className="p-3">
+                      <h3 className="text-[13px] font-extrabold text-gray-900 leading-snug truncate">
+                        {product.name}
+                      </h3>
+                      <div className="mt-2 flex items-end justify-between gap-2">
+                        <div className="text-sm font-black text-gray-900">{formatINR(price)}</div>
+
+                        {qty > 0 ? (
+                          <div className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50">
+                            <button
+                              onClick={() => updateQuantity(product.id, qty - 1)}
+                              className="h-8 w-8 grid place-items-center text-emerald-800 hover:bg-emerald-100 rounded-full"
+                              aria-label="Decrease quantity"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </button>
+                            <span className="w-8 text-center text-xs font-black text-emerald-900">{qty}</span>
+                            <button
+                              onClick={() => updateQuantity(product.id, qty + 1)}
+                              className="h-8 w-8 grid place-items-center text-emerald-800 hover:bg-emerald-100 rounded-full"
+                              aria-label="Increase quantity"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => addToCart(cartProduct)}
+                            className="h-8 px-3 rounded-full bg-emerald-700 text-white text-xs font-black hover:bg-emerald-800 transition-colors"
+                          >
+                            Add
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="p-4">
-                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">{product.category?.name || 'General'}</span>
-                    <h3 className="text-sm font-bold text-gray-900 mt-1 line-clamp-1">{product.name}</h3>
-                    <p className="text-lg font-black text-gray-900 mt-2">${product.price.toFixed(2)}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -145,8 +185,8 @@ export default function ShopPage() {
             <div className="absolute inset-y-0 right-0 pl-10 max-w-full flex">
               <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col">
                 <div className="px-6 py-6 border-b border-gray-100 flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center">
-                    <ShoppingCart className="h-6 w-6 mr-3 text-emerald-500" />
+                  <h2 className="text-xl font-black text-gray-900 flex items-center">
+                    <ShoppingCart className="h-6 w-6 mr-3 text-emerald-600" />
                     Your Cart
                   </h2>
                   <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
@@ -160,37 +200,37 @@ export default function ShopPage() {
                       <div className="h-20 w-20 bg-gray-50 rounded-full flex items-center justify-center mb-4">
                         <ShoppingBag className="h-10 w-10 text-gray-200" />
                       </div>
-                      <h3 className="text-lg font-bold text-gray-900">Your cart is empty</h3>
+                      <h3 className="text-lg font-black text-gray-900">Your cart is empty</h3>
                       <p className="text-gray-500 mt-1">Add some items to start shopping!</p>
                     </div>
                   ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-5">
                       {cart.map((item) => (
                         <div key={item.id} className="flex items-center">
-                          <div className="h-20 w-20 bg-gray-50 rounded-xl overflow-hidden flex-shrink-0">
+                          <div className="h-16 w-16 bg-emerald-50 rounded-xl overflow-hidden flex-shrink-0 border border-emerald-100">
                             {item.image ? (
                               <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
-                                <PackageIcon className="h-8 w-8 text-gray-200" />
+                                <PackageIcon className="h-7 w-7 text-emerald-200" />
                               </div>
                             )}
                           </div>
                           <div className="ml-4 flex-1">
-                            <div className="flex justify-between items-start">
-                              <h4 className="text-sm font-bold text-gray-900">{item.name}</h4>
+                            <div className="flex justify-between items-start gap-3">
+                              <h4 className="text-sm font-black text-gray-900 truncate">{item.name}</h4>
                               <button onClick={() => removeFromCart(item.id)} className="text-gray-400 hover:text-red-500 transition-colors">
                                 <X className="h-4 w-4" />
                               </button>
                             </div>
-                            <p className="text-sm font-bold text-emerald-600 mt-1">${item.price.toFixed(2)}</p>
-                            <div className="flex items-center mt-3 bg-gray-50 w-fit rounded-lg border border-gray-100">
-                              <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-1.5 hover:bg-gray-200 rounded-l-lg text-gray-500">
-                                <Minus className="h-3 w-3" />
+                            <p className="text-sm font-black text-emerald-700 mt-1">{formatINR(item.price)}</p>
+                            <div className="flex items-center mt-3 bg-emerald-50 w-fit rounded-full border border-emerald-100">
+                              <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="h-8 w-8 grid place-items-center hover:bg-emerald-100 rounded-full text-emerald-800">
+                                <Minus className="h-4 w-4" />
                               </button>
-                              <span className="w-8 text-center text-xs font-bold text-gray-900">{item.quantity}</span>
-                              <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-1.5 hover:bg-gray-200 rounded-r-lg text-gray-500">
-                                <Plus className="h-3 w-3" />
+                              <span className="w-8 text-center text-xs font-black text-emerald-900">{item.quantity}</span>
+                              <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="h-8 w-8 grid place-items-center hover:bg-emerald-100 rounded-full text-emerald-800">
+                                <Plus className="h-4 w-4" />
                               </button>
                             </div>
                           </div>
@@ -201,15 +241,21 @@ export default function ShopPage() {
                 </div>
 
                 {cart.length > 0 && (
-                  <div className="border-t border-gray-100 p-6 bg-gray-50">
+                  <div className="border-t border-gray-100 p-6 bg-gradient-to-b from-white to-emerald-50">
                     <div className="flex justify-between items-center mb-4">
-                      <span className="text-gray-500 font-medium">Subtotal</span>
-                      <span className="text-2xl font-black text-gray-900">${totalPrice.toFixed(2)}</span>
+                      <span className="text-gray-600 font-bold">Subtotal</span>
+                      <span className="text-2xl font-black text-gray-900">{formatINR(totalPrice)}</span>
                     </div>
-                    <button className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-900/10">
+                    <button
+                      onClick={() => {
+                        setIsCartOpen(false);
+                        router.push('/shop/checkout');
+                      }}
+                      className="w-full bg-emerald-700 text-white py-4 rounded-2xl font-black hover:bg-emerald-800 transition-colors shadow-lg shadow-emerald-900/10"
+                    >
                       Checkout Now
                     </button>
-                    <p className="text-center text-[10px] text-gray-400 mt-4 uppercase tracking-widest font-bold">Free delivery on your first order</p>
+                    <p className="text-center text-[10px] text-emerald-900/50 mt-4 uppercase tracking-widest font-black">Free delivery on your first order</p>
                   </div>
                 )}
               </div>

@@ -117,12 +117,32 @@ async function main() {
     });
     console.log('✅ Rider profiles created');
 
-    // Create Categories
+    // Create Categories (Grocery-style)
     const categories = await Promise.all([
       prisma.category.upsert({
-        where: { name: 'Fast Food' },
+        where: { name: 'Vegetables' },
         update: {},
-        create: { id: 'cat-fast-food', name: 'Fast Food' },
+        create: { id: 'cat-vegetables', name: 'Vegetables' },
+      }),
+      prisma.category.upsert({
+        where: { name: 'Fruits' },
+        update: {},
+        create: { id: 'cat-fruits', name: 'Fruits' },
+      }),
+      prisma.category.upsert({
+        where: { name: 'Milk & Dairy' },
+        update: {},
+        create: { id: 'cat-milk-dairy', name: 'Milk & Dairy' },
+      }),
+      prisma.category.upsert({
+        where: { name: 'Bread & Bakery' },
+        update: {},
+        create: { id: 'cat-bread-bakery', name: 'Bread & Bakery' },
+      }),
+      prisma.category.upsert({
+        where: { name: 'Eggs' },
+        update: {},
+        create: { id: 'cat-eggs', name: 'Eggs' },
       }),
       prisma.category.upsert({
         where: { name: 'Beverages' },
@@ -130,19 +150,19 @@ async function main() {
         create: { id: 'cat-beverages', name: 'Beverages' },
       }),
       prisma.category.upsert({
-        where: { name: 'Desserts' },
+        where: { name: 'Snacks' },
         update: {},
-        create: { id: 'cat-desserts', name: 'Desserts' },
+        create: { id: 'cat-snacks', name: 'Snacks' },
       }),
       prisma.category.upsert({
-        where: { name: 'Pizza' },
+        where: { name: 'Staples' },
         update: {},
-        create: { id: 'cat-pizza', name: 'Pizza' },
+        create: { id: 'cat-staples', name: 'Staples' },
       }),
       prisma.category.upsert({
-        where: { name: 'Healthy' },
+        where: { name: 'Household' },
         update: {},
-        create: { id: 'cat-healthy', name: 'Healthy' },
+        create: { id: 'cat-household', name: 'Household' },
       }),
     ]);
     console.log('✅ Categories created');
@@ -175,17 +195,17 @@ async function main() {
     });
     console.log('✅ Stores created');
 
-    // Create Products
+    // Create Products (Grocery-style)
     const products = await Promise.all([
       prisma.product.upsert({
         where: { id: 'prod-1' },
         update: {},
         create: {
           id: 'prod-1',
-          name: 'Classic Cheeseburger',
-          description: 'Juicy beef patty with melted cheddar, lettuce, tomato, and special sauce',
-          price: 8.99,
-          categoryId: 'cat-fast-food',
+          name: 'Tomatoes (1kg)',
+          description: 'Fresh red tomatoes, perfect for cooking',
+          price: 45.00,
+          categoryId: 'cat-vegetables',
         },
       }),
       prisma.product.upsert({
@@ -193,10 +213,10 @@ async function main() {
         update: {},
         create: {
           id: 'prod-2',
-          name: 'Crispy Chicken Sandwich',
-          description: 'Crispy fried chicken breast with pickles and mayo',
-          price: 7.99,
-          categoryId: 'cat-fast-food',
+          name: 'Potatoes (1kg)',
+          description: 'Fresh potatoes, versatile for any dish',
+          price: 35.00,
+          categoryId: 'cat-vegetables',
         },
       }),
       prisma.product.upsert({
@@ -204,10 +224,10 @@ async function main() {
         update: {},
         create: {
           id: 'prod-3',
-          name: 'French Fries (Large)',
-          description: 'Golden crispy fries seasoned to perfection',
-          price: 3.99,
-          categoryId: 'cat-fast-food',
+          name: 'Onions (1kg)',
+          description: 'Fresh yellow onions',
+          price: 30.00,
+          categoryId: 'cat-vegetables',
         },
       }),
       prisma.product.upsert({
@@ -215,10 +235,10 @@ async function main() {
         update: {},
         create: {
           id: 'prod-4',
-          name: 'Cola Classic',
-          description: 'Refreshing cola beverage',
-          price: 1.99,
-          categoryId: 'cat-beverages',
+          name: 'Apples (1kg)',
+          description: 'Fresh red apples, sweet and crunchy',
+          price: 120.00,
+          categoryId: 'cat-fruits',
         },
       }),
       prisma.product.upsert({
@@ -226,10 +246,10 @@ async function main() {
         update: {},
         create: {
           id: 'prod-5',
-          name: 'Lemonade',
-          description: 'Fresh squeezed lemonade',
-          price: 2.49,
-          categoryId: 'cat-beverages',
+          name: 'Bananas (1 dozen)',
+          description: 'Fresh ripe bananas',
+          price: 50.00,
+          categoryId: 'cat-fruits',
         },
       }),
       prisma.product.upsert({
@@ -237,10 +257,10 @@ async function main() {
         update: {},
         create: {
           id: 'prod-6',
-          name: 'Chocolate Shake',
-          description: 'Rich and creamy chocolate milkshake',
-          price: 4.99,
-          categoryId: 'cat-desserts',
+          name: 'Milk (1L)',
+          description: 'Fresh toned milk',
+          price: 45.00,
+          categoryId: 'cat-milk-dairy',
         },
       }),
       prisma.product.upsert({
@@ -248,10 +268,10 @@ async function main() {
         update: {},
         create: {
           id: 'prod-7',
-          name: 'Pepperoni Pizza (Large)',
-          description: 'Classic pepperoni pizza with extra mozzarella',
-          price: 14.99,
-          categoryId: 'cat-pizza',
+          name: 'Curd (500g)',
+          description: 'Fresh curd, creamy and thick',
+          price: 35.00,
+          categoryId: 'cat-milk-dairy',
         },
       }),
       prisma.product.upsert({
@@ -259,10 +279,10 @@ async function main() {
         update: {},
         create: {
           id: 'prod-8',
-          name: 'Veggie Pizza (Large)',
-          description: 'Loaded with fresh vegetables',
-          price: 13.99,
-          categoryId: 'cat-pizza',
+          name: 'Bread (400g)',
+          description: 'Fresh bread loaf',
+          price: 30.00,
+          categoryId: 'cat-bread-bakery',
         },
       }),
       prisma.product.upsert({
@@ -270,10 +290,10 @@ async function main() {
         update: {},
         create: {
           id: 'prod-9',
-          name: 'Garden Salad',
-          description: 'Fresh mixed greens with house dressing',
-          price: 6.99,
-          categoryId: 'cat-healthy',
+          name: 'Eggs (12 pack)',
+          description: 'Farm fresh eggs',
+          price: 60.00,
+          categoryId: 'cat-eggs',
         },
       }),
       prisma.product.upsert({
@@ -281,10 +301,10 @@ async function main() {
         update: {},
         create: {
           id: 'prod-10',
-          name: 'Grilled Chicken Bowl',
-          description: 'Grilled chicken over rice with vegetables',
-          price: 9.99,
-          categoryId: 'cat-healthy',
+          name: 'Bottled Water (1L, 6 pack)',
+          description: 'Purified drinking water',
+          price: 80.00,
+          categoryId: 'cat-beverages',
         },
       }),
     ]);

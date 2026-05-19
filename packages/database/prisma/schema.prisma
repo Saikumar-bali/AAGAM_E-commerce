@@ -19,6 +19,7 @@ model User {
 
   riderProfile RiderProfile?
   orders       Order[]
+  addresses    CustomerAddress[]
   stores       Store[]       @relation("StoreOwner")
 }
 
@@ -35,6 +36,7 @@ model Store {
   address   String
   latitude  Float
   longitude Float
+  isActive  Boolean  @default(true)
   ownerId   String
   owner     User     @relation("StoreOwner", fields: [ownerId], references: [id])
   createdAt DateTime @default(now())
@@ -85,14 +87,26 @@ model Order {
   store       Store       @relation(fields: [storeId], references: [id])
   status      OrderStatus @default(PENDING)
   totalAmount Float
+  currency    String      @default("INR")
+  subtotal    Float       @default(0)
+  deliveryFee Float       @default(0)
+  discountAmount Float    @default(0)
+  taxAmount   Float       @default(0)
+  grandTotal  Float       @default(0)
   deliveryLat Float?
   deliveryLng Float?
+  idempotencyKey String?  @unique
+  customerSnapshot Json?
+  addressSnapshot  Json?
+  itemsSnapshot    Json?
+  pricingSnapshot  Json?
   riderId     String?
   rider       RiderProfile? @relation(fields: [riderId], references: [id])
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
   items OrderItem[]
+  payment Payment?
 }
 
 model OrderItem {
@@ -118,11 +132,73 @@ model RiderProfile {
 
 enum OrderStatus {
   PENDING
+  PAYMENT_PENDING
+  PAYMENT_FAILED
   CONFIRMED
   PICKING
   OUT_FOR_DELIVERY
   DELIVERED
   CANCELLED
+}
+
+model CustomerAddress {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  label     String?
+  recipientName String
+  phoneE164 String
+  alternatePhoneE164 String?
+
+  line1     String
+  line2     String?
+  landmark  String?
+  city      String
+  state     String
+  pincode   String
+  country   String   @default("IN")
+
+  latitude  Float
+  longitude Float
+  instructions String?
+
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum PaymentMethod {
+  ONLINE
+  COD
+}
+
+enum PaymentStatus {
+  CREATED
+  CAPTURED
+  FAILED
+  PENDING_COD
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  orderId   String        @unique
+  order     Order         @relation(fields: [orderId], references: [id])
+
+  method    PaymentMethod
+  status    PaymentStatus @default(CREATED)
+  provider  String        @default("SIMULATED")
+
+  amount    Float
+  currency  String        @default("INR")
+
+  providerOrderId  String?
+  providerPaymentId String?
+  verifiedAt DateTime?
+  failureReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum RiderStatus {

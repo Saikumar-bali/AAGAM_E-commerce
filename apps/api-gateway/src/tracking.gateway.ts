@@ -22,7 +22,7 @@ export class TrackingGateway {
   @WebSocketServer()
   server!: Server;
 
-  // 1. Rider joins a room for a specific order
+  // 1. Client (Admin/Customer) joins a room for a specific order
   @SubscribeMessage('joinOrder')
   handleJoinOrder(
     @MessageBody() data: { orderId: string },
@@ -32,23 +32,36 @@ export class TrackingGateway {
     console.log(`Client joined room: order_${data.orderId}`);
   }
 
-  // 2. Rider sends location update
-  @SubscribeMessage('updateLocation')
-  handleLocationUpdate(
+  // 2. Admin joins a global monitoring room for all active riders
+  @SubscribeMessage('joinAdminMonitor')
+  handleJoinAdminMonitor(@ConnectedSocket() client: Socket) {
+    client.join('admin_monitor');
+    console.log('Admin joined global monitor room');
+  }
+
+  // 3. Rider sends location and status update
+  @SubscribeMessage('updateRiderLocation')
+  handleRiderLocationUpdate(
     @MessageBody() data: { 
-      orderId: string; 
+      riderId: string;
+      orderId?: string; 
       latitude: number; 
       longitude: number;
-      bearing: number; // The direction the rider is facing
+      bearing: number;
+      status: string;
     },
   ) {
-    // We broadcast to everyone in the 'order_ID' room (Customer + Admin)
-    // We use 'volatile' so if a packet is lost, it doesn't slow down the stream
-    this.server.to(`order_${data.orderId}`).volatile.emit('locationChanged', {
-      latitude: data.latitude,
-      longitude: data.longitude,
-      bearing: data.bearing,
+    const payload = {
+      ...data,
       timestamp: new Date().toISOString(),
-    });
+    };
+
+    // Broadcast to the specific order room (for the customer)
+    if (data.orderId) {
+      this.server.to(`order_${data.orderId}`).volatile.emit('riderMoved', payload);
+    }
+
+    // Broadcast to the admin monitor room
+    this.server.to('admin_monitor').volatile.emit('adminRiderUpdate', payload);
   }
 }
