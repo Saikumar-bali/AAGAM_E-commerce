@@ -12,7 +12,7 @@ apt-get install -y postgresql redis-server sudo
 # 2. Start Services
 echo "🔌 Starting Services..."
 service postgresql start
-service redis-server start
+service redis-server start || redis-server --daemonize yes
 service redis-server status
 
 # 3. Configure Postgres
@@ -47,6 +47,7 @@ npm install --silent
 echo "🗄️ Syncing Prisma..."
 cd packages/database
 echo "DATABASE_URL=$DB_LINK" > .env
+sudo -u postgres psql -c "CREATE DATABASE aagam_ecom;" 2>/dev/null || true
 npx prisma generate
 npx prisma db push --accept-data-loss
 
