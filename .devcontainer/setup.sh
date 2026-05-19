@@ -12,8 +12,27 @@ apt-get install -y postgresql redis-server sudo
 # 2. Start Services
 echo "🔌 Starting Services..."
 service postgresql start
-service redis-server start || redis-server --daemonize yes
-service redis-server status
+
+echo "📦 Force starting Redis..."
+killall redis-server 2>/dev/null || true
+rm -f /var/run/redis/redis-server.pid 2>/dev/null || true
+mkdir -p /var/log/redis
+chown root:root /var/log/redis
+chmod 755 /var/log/redis
+
+redis-server --daemonize yes
+
+for i in 1 2 3 4 5; do
+    if redis-cli ping | grep -q PONG; then
+        echo "✅ Redis is responding"
+        break
+    fi
+    if [ $i -eq 5 ]; then
+        echo "❌ Redis failed to start after 5 retries"
+        exit 1
+    fi
+    sleep 1
+done
 
 # 3. Configure Postgres
 echo "🗄️ Configuring Database..."
