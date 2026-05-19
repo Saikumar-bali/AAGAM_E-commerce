@@ -1,22 +1,22 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting High-Stability Manual Setup..."
+echo "🚀 Starting Root-Level Manual Setup..."
 
 # 1. Install System Dependencies
 echo "📦 Installing PostgreSQL and Redis..."
 export DEBIAN_FRONTEND=noninteractive
-sudo apt-get update
-sudo apt-get install -y postgresql redis-server
+apt-get update
+apt-get install -y postgresql redis-server sudo
 
 # 2. Start Services
 echo "🔌 Starting Services..."
-sudo service postgresql start
-sudo service redis-server start
+service postgresql start
+service redis-server start
 
 # 3. Configure Postgres
 echo "🗄️ Configuring Database..."
-sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';"
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';" || true
 sudo -u postgres psql -c "CREATE DATABASE aagam_ecom;" || true
 
 # 4. Bridge Frontend/Backend

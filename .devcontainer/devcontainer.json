@@ -13,5 +13,6 @@
   "containerEnv": {
     "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/aagam_ecom",
     "NODE_ENV": "development"
-  }
+  },
+  "remoteUser": "root"
 }
