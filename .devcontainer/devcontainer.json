@@ -9,5 +9,5 @@
     "REDIS_URL": "redis://localhost:6379",
     "NODE_ENV": "development"
   },
-  "postCreateCommand": "bash .devcontainer/post-create.sh"
+  "postCreateCommand": "bash .devcontainer/post-create.sh || echo 'Post-create failed but container is UP'"
 }
