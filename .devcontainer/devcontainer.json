@@ -1,10 +1,7 @@
 {
   "name": "Aagam E-Commerce Staging",
-  "dockerfile": "Dockerfile",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
   "features": {
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "20"
-    },
     "ghcr.io/devcontainers/features/common-utils:2": {
       "installZsh": true,
       "configureZshAsDefaultShell": true
@@ -41,5 +38,6 @@
     "REDIS_URL": "redis://localhost:6379",
     "NODE_ENV": "development"
   },
+  "postStartCommand": "npm run dev",
   "postCreateCommand": "bash .devcontainer/post-create.sh"
 }
