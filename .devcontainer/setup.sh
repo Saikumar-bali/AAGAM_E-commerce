@@ -5,6 +5,13 @@ echo "🚀 Initializing Aagam E-Commerce Setup..."
 
 cd /workspaces/AAGAM_E-commerce || cd /workspaces/*
 
+if [ -n "$CODESPACE_NAME" ] && [ -n "$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN" ]; then
+    echo "🔗 Detected GitHub Codespace environment"
+    API_URL="https://${CODESPACE_NAME}-3005.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
+    echo "NEXT_PUBLIC_API_URL=${API_URL}" > apps/admin-dashboard/.env.local
+    echo "✅ Written API_URL to apps/admin-dashboard/.env.local: ${API_URL}"
+fi
+
 echo "📦 Installing Dependencies..."
 npm install --silent
 
