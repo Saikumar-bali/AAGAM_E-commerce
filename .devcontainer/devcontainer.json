@@ -1,6 +1,12 @@
 {
   "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
-  "postCreateCommand": "bash .devcontainer/manual-setup.sh",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "sshd": {
+      "version": "latest"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
   "forwardPorts": [3001, 3005, 5432, 6379],
   "containerEnv": {
     "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/aagam_ecom",
