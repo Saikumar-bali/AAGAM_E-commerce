@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { PaymentMethod, PaymentStatus, prisma } from '@aagam/database';
 
 import { CheckoutPlaceOrderDto, CheckoutQuoteDto } from './dto/checkout.dto';
+import { TrackingGateway } from '../tracking.gateway';
+import { NotificationService } from '../notifications/notification.service';
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const toRad = (v: number) => (v * Math.PI) / 180;
@@ -22,8 +24,22 @@ function computeDeliveryFee(distanceKm: number): { serviceable: boolean; deliver
   return { serviceable: false, deliveryFee: 0 };
 }
 
+function normalizeItems(items: Array<{ productId: string; quantity: number }>) {
+  const byProduct = new Map<string, number>();
+  for (const item of items) {
+    const current = byProduct.get(item.productId) ?? 0;
+    byProduct.set(item.productId, current + item.quantity);
+  }
+  return Array.from(byProduct.entries()).map(([productId, quantity]) => ({ productId, quantity }));
+}
+
 @Injectable()
 export class CheckoutService {
+  constructor(
+    private readonly trackingGateway: TrackingGateway,
+    private readonly notificationService: NotificationService
+  ) {}
+
   private async resolveStoreForLocation(lat: number, lng: number) {
     const stores = await prisma.store.findMany({
       where: { isActive: true },
@@ -48,6 +64,7 @@ export class CheckoutService {
 
   async quote(userId: string, dto: CheckoutQuoteDto) {
     if (!dto.items?.length) throw new BadRequestException('No items');
+    const normalizedItems = normalizeItems(dto.items);
 
     const address = dto.addressId
       ? await prisma.customerAddress.findFirst({ where: { id: dto.addressId, userId } })
@@ -56,7 +73,7 @@ export class CheckoutService {
       throw new NotFoundException('Address not found');
     }
 
-    const productIds = dto.items.map((i) => i.productId);
+    const productIds = normalizedItems.map((i) => i.productId);
     const products = await prisma.product.findMany({
       where: { id: { in: productIds } },
       select: { id: true, name: true, price: true, image: true },
@@ -100,7 +117,7 @@ export class CheckoutService {
       for (const inv of inventory) inventoryByProduct.set(inv.productId, inv.quantity);
     }
 
-    const items = dto.items.map((i) => {
+    const items = normalizedItems.map((i) => {
       const p = byId.get(i.productId)!;
       const availableQty = inventoryByProduct.has(i.productId) ? inventoryByProduct.get(i.productId)! : null;
       const inStock = availableQty === null ? true : availableQty >= i.quantity;
@@ -153,7 +170,8 @@ export class CheckoutService {
       }
     }
 
-    const quote = await this.quote(userId, { items: dto.items, addressId: dto.addressId });
+    const normalizedItems = normalizeItems(dto.items);
+    const quote = await this.quote(userId, { items: normalizedItems, addressId: dto.addressId });
     if (!quote.serviceable) {
       throw new BadRequestException('Address is not serviceable');
     }
@@ -176,7 +194,25 @@ export class CheckoutService {
     const paymentStatus = dto.paymentMethod === PaymentMethod.COD ? PaymentStatus.PENDING_COD : PaymentStatus.CREATED;
 
     return prisma.$transaction(async (tx) => {
-      // Create order + items (and store snapshot JSON for invoice correctness)
+      for (const item of quote.invoice.items) {
+        const reserved = await tx.inventory.updateMany({
+          where: {
+            storeId,
+            productId: item.productId,
+            quantity: { gte: item.quantity },
+          },
+          data: {
+            quantity: {
+              decrement: item.quantity,
+            },
+          },
+        });
+
+        if (reserved.count !== 1) {
+          throw new BadRequestException(`Out of stock: ${item.name}`);
+        }
+      }
+
       const created = await tx.order.create({
         data: {
           customerId: userId,
@@ -244,6 +280,61 @@ export class CheckoutService {
           currency: 'INR',
         },
       });
+
+      // Emit Socket.IO event for real-time notifications
+      try {
+        const payload = {
+          id: created.id,
+          shortId: created.id.substring(0, 8).toUpperCase(),
+          status: created.status,
+          totalAmount: created.totalAmount,
+          grandTotal: created.grandTotal,
+          itemCount: created.items?.length ?? 0,
+          paymentMethod: dto.paymentMethod,
+          priority: dto.paymentMethod === PaymentMethod.COD ? 'HIGH' : 'NORMAL',
+          createdAt: created.createdAt,
+          store: { id: storeId, name: created.store?.name || null },
+          customer: { name: user.name, email: user.email },
+          delivery: {
+            latitude: address.latitude,
+            longitude: address.longitude,
+            address: address.line1,
+            city: address.city,
+          },
+        };
+        this.trackingGateway.server?.to('admin_orders').emit('orderPlaced', payload);
+        this.trackingGateway.server?.to('admin_monitor').emit('orderPlaced', payload);
+
+        // Zone-based notification for riders (within ~5km)
+        const zoneKey = `${Math.round(address.latitude * 10)}_${Math.round(address.longitude * 10)}`;
+        this.trackingGateway.server?.to(`zone_${zoneKey}`).emit('newOrderNearby', payload);
+        
+        // Also emit to all riders queue (fallback)
+        this.trackingGateway.server?.to('riders_queue').emit('newOrderNearby', payload);
+        
+        // Push Notification to Riders
+        try {
+          const riders = await prisma.user.findMany({
+            where: { role: 'RIDER', fcmToken: { not: null } },
+            select: { fcmToken: true },
+          });
+          
+          for (const rider of riders) {
+            if (rider.fcmToken) {
+              await this.notificationService.sendNewOrderAlert(rider.fcmToken, {
+                orderId: created.id,
+                amount: created.grandTotal,
+                storeName: created.store?.name || 'Store',
+              });
+            }
+          }
+        } catch (pushErr) {
+          console.error('[CheckoutService] Failed to send push notifications:', pushErr);
+        }
+      } catch (err) {
+        console.error('[CheckoutService] Failed to emit order events:', err);
+        // Non-fatal - don't fail order placement if Socket/Push emit fails
+      }
 
       return created;
     });

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@aagam/utils';
 import { useCart } from '@/hooks/useCart';
@@ -13,22 +14,37 @@ import {
   Minus, 
   X, 
   ShoppingBag,
-  Package as PackageIcon
+  Package as PackageIcon,
+  SlidersHorizontal
 } from 'lucide-react';
 
 export default function ShopPage() {
   const [products, setProducts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [sort, setSort] = useState('newest');
   const { cart, addToCart, updateQuantity, removeFromCart, totalPrice, totalItems } = useCart();
   const router = useRouter();
 
   useEffect(() => {
     const fetchProducts = async () => {
+      setLoading(true);
       try {
-        const response = await apiClient.get('/products');
-        setProducts(response.data);
+        const [productsResponse, categoriesResponse] = await Promise.all([
+          apiClient.get('/products', {
+            params: {
+              search: query || undefined,
+              categoryId: selectedCategoryId || undefined,
+              sort,
+            },
+          }),
+          apiClient.get('/products/categories'),
+        ]);
+        setProducts(Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data?.items || []);
+        setCategories(Array.isArray(categoriesResponse.data) ? categoriesResponse.data : []);
       } catch (error) {
         console.error('Failed to fetch products', error);
       } finally {
@@ -36,7 +52,7 @@ export default function ShopPage() {
       }
     };
     fetchProducts();
-  }, []);
+  }, [query, selectedCategoryId, sort]);
 
   const qtyById = useMemo(() => {
     const map = new Map<string, number>();
@@ -44,11 +60,7 @@ export default function ShopPage() {
     return map;
   }, [cart]);
 
-  const filteredProducts = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter((p) => String(p?.name || '').toLowerCase().includes(q));
-  }, [products, query]);
+  const filteredProducts = useMemo(() => products, [products]);
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
@@ -99,7 +111,52 @@ export default function ShopPage() {
         <div className="max-w-7xl mx-auto pt-2">
           <div className="mb-5">
             <h1 className="text-2xl font-black text-gray-900">Fresh Groceries</h1>
-            <p className="text-gray-600 mt-1 text-sm">Compact cards, fast checkout, INR pricing.</p>
+            <p className="text-gray-600 mt-1 text-sm">Search, browse by category, compare prices, and check out fast.</p>
+          </div>
+
+          <div className="mb-6 rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-2 text-sm font-black text-emerald-900">
+                <SlidersHorizontal className="h-4 w-4" />
+                Browse smarter
+              </div>
+
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSelectedCategoryId('')}
+                    className={`rounded-full px-3 py-1.5 text-xs font-black transition-colors ${
+                      selectedCategoryId === '' ? 'bg-emerald-700 text-white' : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                    }`}
+                  >
+                    All
+                  </button>
+                  {categories.map((category) => (
+                    <button
+                      key={category.id}
+                      onClick={() => setSelectedCategoryId(category.id)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-black transition-colors ${
+                        selectedCategoryId === category.id ? 'bg-emerald-700 text-white' : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                      }`}
+                    >
+                      {category.name}
+                    </button>
+                  ))}
+                </div>
+
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  className="rounded-full border border-emerald-100 bg-white px-4 py-2 text-sm font-bold text-gray-800 outline-none ring-0"
+                >
+                  <option value="newest">Newest</option>
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                  <option value="name_asc">Name: A to Z</option>
+                  <option value="name_desc">Name: Z to A</option>
+                </select>
+              </div>
+            </div>
           </div>
 
           {loading ? (
@@ -143,32 +200,41 @@ export default function ShopPage() {
                       <div className="mt-2 flex items-end justify-between gap-2">
                         <div className="text-sm font-black text-gray-900">{formatINR(price)}</div>
 
-                        {qty > 0 ? (
-                          <div className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50">
-                            <button
-                              onClick={() => updateQuantity(product.id, qty - 1)}
-                              className="h-8 w-8 grid place-items-center text-emerald-800 hover:bg-emerald-100 rounded-full"
-                              aria-label="Decrease quantity"
-                            >
-                              <Minus className="h-4 w-4" />
-                            </button>
-                            <span className="w-8 text-center text-xs font-black text-emerald-900">{qty}</span>
-                            <button
-                              onClick={() => updateQuantity(product.id, qty + 1)}
-                              className="h-8 w-8 grid place-items-center text-emerald-800 hover:bg-emerald-100 rounded-full"
-                              aria-label="Increase quantity"
-                            >
-                              <Plus className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => addToCart(cartProduct)}
-                            className="h-8 px-3 rounded-full bg-emerald-700 text-white text-xs font-black hover:bg-emerald-800 transition-colors"
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/shop/products/${product.id}`}
+                            className="h-8 px-3 rounded-full border border-emerald-100 bg-white text-xs font-black text-emerald-900 hover:bg-emerald-50 transition-colors inline-flex items-center"
                           >
-                            Add
-                          </button>
-                        )}
+                            View
+                          </Link>
+
+                          {qty > 0 ? (
+                            <div className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50">
+                              <button
+                                onClick={() => updateQuantity(product.id, qty - 1)}
+                                className="h-8 w-8 grid place-items-center text-emerald-800 hover:bg-emerald-100 rounded-full"
+                                aria-label="Decrease quantity"
+                              >
+                                <Minus className="h-4 w-4" />
+                              </button>
+                              <span className="w-8 text-center text-xs font-black text-emerald-900">{qty}</span>
+                              <button
+                                onClick={() => updateQuantity(product.id, qty + 1)}
+                                className="h-8 w-8 grid place-items-center text-emerald-800 hover:bg-emerald-100 rounded-full"
+                                aria-label="Increase quantity"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => addToCart(cartProduct)}
+                              className="h-8 px-3 rounded-full bg-emerald-700 text-white text-xs font-black hover:bg-emerald-800 transition-colors"
+                            >
+                              Add
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

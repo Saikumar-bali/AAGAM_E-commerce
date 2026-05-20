@@ -1,5 +1,5 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { PaymentStatus, prisma } from '@aagam/database';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PaymentMethod, PaymentStatus, prisma } from '@aagam/database';
 
 @Injectable()
 export class PaymentsService {
@@ -10,6 +10,13 @@ export class PaymentsService {
 
     const payment = await prisma.payment.findUnique({ where: { orderId } });
     if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.method !== PaymentMethod.ONLINE) throw new BadRequestException('Only online payments can be captured');
+    if (payment.status === PaymentStatus.CAPTURED) {
+      return { success: true, status: PaymentStatus.CAPTURED };
+    }
+    if (payment.status !== PaymentStatus.CREATED || order.status !== 'PAYMENT_PENDING') {
+      throw new BadRequestException('Payment is not awaiting capture');
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
@@ -32,6 +39,13 @@ export class PaymentsService {
 
     const payment = await prisma.payment.findUnique({ where: { orderId } });
     if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.method !== PaymentMethod.ONLINE) throw new BadRequestException('Only online payments can fail through this endpoint');
+    if (payment.status === PaymentStatus.FAILED) {
+      return { success: true, status: PaymentStatus.FAILED };
+    }
+    if (payment.status !== PaymentStatus.CREATED || order.status !== 'PAYMENT_PENDING') {
+      throw new BadRequestException('Payment is not awaiting capture');
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
@@ -47,4 +61,3 @@ export class PaymentsService {
     return { success: true, status: PaymentStatus.FAILED };
   }
 }
-

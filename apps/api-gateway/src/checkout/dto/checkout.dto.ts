@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsEnum, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { PaymentMethod } from '@aagam/database';
 
@@ -33,7 +33,7 @@ export class CheckoutPlaceOrderDto {
   @IsString()
   addressId!: string;
 
+  @Transform(({ value }) => String(value || '').toUpperCase())
   @IsEnum(PaymentMethod)
   paymentMethod!: PaymentMethod;
 }
-

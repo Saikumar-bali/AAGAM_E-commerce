@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Param, Patch, Delete } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -6,14 +6,15 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@aagam/database';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { QueryProductsDto } from './dto/query-products.dto';
 
 @Controller('products')
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   @Get()
-  async findAll() {
-    return this.productService.findAll();
+  async findAll(@Query() query: QueryProductsDto, @Req() req: any) {
+    return this.productService.findAll(query, req?.user?.id);
   }
 
   @Get('categories')
@@ -22,8 +23,8 @@ export class ProductController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.productService.findOne(id);
+  async findOne(@Param('id') id: string, @Query() query: QueryProductsDto, @Req() req: any) {
+    return this.productService.findOne(id, query, req?.user?.id);
   }
 
   @Post()
