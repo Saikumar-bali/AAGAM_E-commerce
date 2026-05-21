@@ -11,7 +11,8 @@ import {
   ShoppingCart, 
   Settings, 
   LogOut,
-  User
+  User,
+  MapPin
 } from 'lucide-react';
 
 import { apiClient } from '@aagam/utils';
@@ -51,6 +52,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     CUSTOMER: [
       { name: 'Shop', href: '/shop', icon: ShoppingCart },
       { name: 'My Orders', href: '/shop/orders', icon: Package },
+      { name: 'Addresses', href: '/shop/addresses', icon: MapPin },
     ],
   };
 

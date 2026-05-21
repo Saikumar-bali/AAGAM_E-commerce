@@ -16,6 +16,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io, Socket } from 'socket.io-client';
 import Geolocation from 'react-native-geolocation-service';
+import { API_URL as ENV_API_URL } from '@env';
 import { riderService } from '../../api/riderService';
 import { useAuthStore } from '../../store/authStore';
 import { 
@@ -33,7 +34,7 @@ import {
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
-const API_URL = 'http://192.168.0.18:3005'; // Fallback to your computer's API gateway
+const API_URL = ENV_API_URL || 'http://10.0.2.2:3005'; // Android emulator fallback
 
 export const RiderDashboard = () => {
   const queryClient = useQueryClient();
@@ -108,6 +109,51 @@ export const RiderDashboard = () => {
     );
   };
 
+  const sendLiveLocation = (orderId: string) => {
+    Geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude, accuracy, speed, heading } = position.coords;
+        setCurrentLocation({ lat: latitude, lng: longitude });
+        try {
+          await riderService.sendLocationPing(orderId, {
+            latitude,
+            longitude,
+            accuracy: accuracy ?? undefined,
+            speed: speed ?? undefined,
+            heading: heading ?? undefined,
+          });
+          socket?.emit('updateRiderLocation', {
+            riderId: user?.id,
+            orderId,
+            latitude,
+            longitude,
+            bearing: heading || 0,
+            status: 'LIVE',
+          });
+        } catch (error) {
+          console.warn('[RiderDashboard] Location ping failed', error);
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+    );
+  };
+
+  useEffect(() => {
+    const activeTrackableOrder = Array.isArray(assignedOrders)
+      ? assignedOrders.find((order: any) => ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'].includes(order.status))
+      : null;
+
+    if (!activeTrackableOrder || !isOnline) return;
+
+    sendLiveLocation(activeTrackableOrder.id);
+    const interval = setInterval(() => {
+      sendLiveLocation(activeTrackableOrder.id);
+    }, activeTrackableOrder.status === 'OUT_FOR_DELIVERY' ? 8000 : 20000);
+
+    return () => clearInterval(interval);
+  }, [assignedOrders, isOnline, socket, user?.id]);
+
   const handleAcceptOrder = async (orderId: string) => {
     try {
       await riderService.assignOrder(orderId);
@@ -131,10 +177,23 @@ export const RiderDashboard = () => {
   });
 
   const handleUpdateStatus = (orderId: string, currentStatus: string) => {
+    if (currentStatus === 'RIDER_ASSIGNED') {
+      riderService.startTracking(orderId)
+        .then(handleRefresh)
+        .catch((error: any) => Alert.alert('Error', error.message || 'Failed to start tracking'));
+      return;
+    }
+    if (currentStatus === 'OUT_FOR_DELIVERY') {
+      riderService.stopTracking(orderId)
+        .then(handleRefresh)
+        .catch((error: any) => Alert.alert('Error', error.message || 'Failed to complete delivery'));
+      return;
+    }
+
     let nextStatus = '';
     if (currentStatus === 'CONFIRMED') nextStatus = 'PICKING';
-    else if (currentStatus === 'PICKING') nextStatus = 'OUT_FOR_DELIVERY';
-    else if (currentStatus === 'OUT_FOR_DELIVERY') nextStatus = 'DELIVERED';
+    else if (currentStatus === 'PICKING') nextStatus = 'PACKED';
+    else if (currentStatus === 'PACKED') nextStatus = 'RIDER_ASSIGNED';
 
     if (nextStatus) {
       updateStatusMutation.mutate({ orderId, status: nextStatus });
@@ -340,8 +399,10 @@ const StatusChip = ({ status }: { status: string }) => {
 const getProgressWidth = (status: string) => {
   switch (status) {
     case 'CONFIRMED': return '25%';
-    case 'PICKING': return '50%';
-    case 'OUT_FOR_DELIVERY': return '75%';
+    case 'PICKING': return '40%';
+    case 'PACKED': return '55%';
+    case 'RIDER_ASSIGNED': return '70%';
+    case 'OUT_FOR_DELIVERY': return '85%';
     case 'DELIVERED': return '100%';
     default: return '0%';
   }
@@ -350,7 +411,9 @@ const getProgressWidth = (status: string) => {
 const getActionLabel = (status: string) => {
   switch (status) {
     case 'CONFIRMED': return 'I have reached the store';
-    case 'PICKING': return 'I have picked up the items';
+    case 'PICKING': return 'Items are packed';
+    case 'PACKED': return 'Accept for delivery';
+    case 'RIDER_ASSIGNED': return 'Start live delivery';
     case 'OUT_FOR_DELIVERY': return 'I have delivered the order';
     default: return 'View Details';
   }

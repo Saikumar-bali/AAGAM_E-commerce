@@ -218,6 +218,7 @@ export class CheckoutService {
           customerId: userId,
           storeId,
           status: orderStatus as any,
+          ...(orderStatus === 'CONFIRMED' ? { confirmedAt: new Date() } : {}),
           totalAmount: quote.invoice.grandTotal,
           currency: 'INR',
           subtotal: quote.invoice.subtotal,
@@ -278,6 +279,17 @@ export class CheckoutService {
           provider: dto.paymentMethod === PaymentMethod.COD ? 'COD' : 'SIMULATED',
           amount: quote.invoice.grandTotal,
           currency: 'INR',
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: created.id,
+          fromStatus: null,
+          toStatus: orderStatus as any,
+          actorUserId: userId,
+          actorRole: 'CUSTOMER',
+          note: dto.paymentMethod === PaymentMethod.COD ? 'Order placed and confirmed' : 'Order placed, awaiting payment',
         },
       });
 

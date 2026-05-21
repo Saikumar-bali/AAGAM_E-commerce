@@ -14,6 +14,7 @@ model User {
   phone     String?  @unique
   name      String?
   role      Role     @default(CUSTOMER)
+  fcmToken  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -102,11 +103,21 @@ model Order {
   pricingSnapshot  Json?
   riderId     String?
   rider       RiderProfile? @relation(fields: [riderId], references: [id])
+  confirmedAt DateTime?
+  pickingAt   DateTime?
+  packedAt    DateTime?
+  riderAssignedAt DateTime?
+  outForDeliveryAt DateTime?
+  deliveredAt DateTime?
+  cancelledAt DateTime?
+  paymentFailedAt DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
   items OrderItem[]
   payment Payment?
+  statusHistory OrderStatusHistory[]
+  riderLocationPings RiderLocationPing[]
 }
 
 model OrderItem {
@@ -127,6 +138,7 @@ model RiderProfile {
   latitude  Float?
   longitude Float?
   orders    Order[]
+  locationPings RiderLocationPing[]
   updatedAt DateTime    @updatedAt
 }
 
@@ -136,9 +148,44 @@ enum OrderStatus {
   PAYMENT_FAILED
   CONFIRMED
   PICKING
+  PACKED
+  RIDER_ASSIGNED
   OUT_FOR_DELIVERY
   DELIVERED
   CANCELLED
+}
+
+model OrderStatusHistory {
+  id          String      @id @default(cuid())
+  orderId     String
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus
+  actorUserId String?
+  actorRole   Role?
+  note        String?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+model RiderLocationPing {
+  id             String        @id @default(cuid())
+  riderProfileId String
+  riderProfile   RiderProfile  @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
+  orderId        String
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  latitude       Float
+  longitude      Float
+  accuracy       Float?
+  speed          Float?
+  heading        Float?
+  source         String        @default("MOBILE")
+  createdAt      DateTime      @default(now())
+
+  @@index([orderId, createdAt])
+  @@index([riderProfileId, createdAt])
 }
 
 model CustomerAddress {

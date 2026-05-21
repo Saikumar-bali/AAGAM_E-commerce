@@ -114,4 +114,14 @@ export class AuthService {
       },
     });
   }
+
+  async updateFcmToken(userId: string, token: string) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[AuthService] Updating FCM token for user ${userId}`);
+    }
+    return prisma.user.update({
+      where: { id: userId },
+      data: { fcmToken: token },
+    });
+  }
 }

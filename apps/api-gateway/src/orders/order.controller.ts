@@ -34,6 +34,13 @@ export class OrderController {
     return this.orderService.findMyOrders(req.user.id);
   }
 
+  @Get('my/:id/tracking')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  async findMyOrderTracking(@Req() req: any, @Param('id') id: string) {
+    return this.orderService.getTracking(id, { id: req.user.id, role: Role.CUSTOMER });
+  }
+
   @Get('my/:id')
   @UseGuards(JwtAuthGuard)
   async findMyOrder(@Req() req: any, @Param('id') id: string) {
@@ -60,6 +67,13 @@ export class OrderController {
       return [];
     }
     return this.orderService.findByRiderId(riderProfile.id);
+  }
+
+  @Get(':id/tracking')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.RIDER, Role.STORE_OWNER)
+  async findOrderTracking(@Req() req: any, @Param('id') id: string) {
+    return this.orderService.getTracking(id, req.user);
   }
 
   @Get(':id')

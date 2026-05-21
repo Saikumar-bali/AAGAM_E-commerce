@@ -1,0 +1,49 @@
+import { useEffect, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { API_URL } from '@env';
+import { useAuthStore } from '../store/authStore';
+
+const SOCKET_URL = API_URL || 'http://10.0.2.2:3005'; // Android emulator fallback
+
+export const useSocket = () => {
+  const socketRef = useRef<Socket | null>(null);
+  const token = useAuthStore((state) => state.token);
+
+  useEffect(() => {
+    if (!token) return;
+
+    // Initialize socket
+    const socket = io(SOCKET_URL, {
+      auth: { token },
+      transports: ['websocket'],
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('Socket connected:', socket.id);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Socket disconnected');
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [token]);
+
+  const emit = (event: string, data: any) => {
+    socketRef.current?.emit(event, data);
+  };
+
+  const on = (event: string, callback: (data: any) => void) => {
+    socketRef.current?.on(event, callback);
+  };
+
+  const off = (event: string) => {
+    socketRef.current?.off(event);
+  };
+
+  return { socket: socketRef.current, emit, on, off };
+};

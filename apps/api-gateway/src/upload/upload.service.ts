@@ -6,9 +6,9 @@ import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
-  private s3Client: S3Client;
-  private bucketName: string;
-  private publicUrl: string;
+  private s3Client?: S3Client;
+  private bucketName?: string;
+  private publicUrl?: string;
 
   constructor(private configService: ConfigService) {
     const bucketName = this.configService.get<string>('R2_BUCKET_NAME');
@@ -18,8 +18,8 @@ export class UploadService {
     const endpoint = this.configService.get<string>('R2_ENDPOINT');
 
     if (!bucketName || !basePublicUrl || !accessKeyId || !secretAccessKey || !endpoint) {
-      this.logger.error('Missing R2 configuration in environment variables');
-      throw new Error('R2 configuration is incomplete');
+      this.logger.warn('R2 upload storage is not configured; image uploads will be disabled.');
+      return;
     }
 
     this.bucketName = bucketName;
@@ -42,6 +42,10 @@ export class UploadService {
   }
 
   async uploadImage(buffer: Buffer, originalFilename: string): Promise<{ publicUrl: string }> {
+    if (!this.s3Client || !this.bucketName || !this.publicUrl) {
+      throw new Error('Image upload storage is not configured');
+    }
+
     const ext = originalFilename.split('.').pop() || 'jpg';
     const key = `products/${uuidv4()}.${ext}`;
     const contentType = this.getContentType(ext);

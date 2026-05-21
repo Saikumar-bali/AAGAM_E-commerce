@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
+import { io } from 'socket.io-client';
+import { playNotificationSound, requestNotificationPermission, sendBrowserNotification } from '@/utils/notifications';
 import { 
   ShoppingCart, 
   DollarSign, 
@@ -69,7 +71,47 @@ export default function AdminOrdersPage() {
   };
 
   useEffect(() => {
+    requestNotificationPermission();
     fetchOrders();
+
+    const s = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
+    s.on('connect', () => {
+      console.log('[AdminOrders] Socket connected');
+      s.emit('joinAdminOrders');
+    });
+
+    s.on('orderPlaced', (payload: any) => {
+      console.log('[AdminOrders] New order received:', payload.shortId);
+      playNotificationSound(0.6);
+      sendBrowserNotification(
+        `New Order — ${payload.paymentMethod}`,
+        {
+          body: `${payload.customer?.name || 'Customer'} ordered ${payload.itemCount} items for ₹${payload.grandTotal}`,
+          icon: '/favicon.ico',
+          tag: 'new-order',
+        }
+      );
+      // Optimistically add to list
+      setOrders((prev) => {
+        const incoming = {
+          id: payload.id,
+          status: payload.status,
+          totalAmount: payload.totalAmount,
+          deliveryLat: null,
+          deliveryLng: null,
+          riderId: null,
+          createdAt: payload.createdAt,
+          customer: payload.customer,
+          store: { name: payload.store?.name || '' },
+          items: [],
+        };
+        return [incoming, ...prev];
+      });
+    });
+
+    return () => {
+      s.disconnect();
+    };
   }, []);
 
   const filteredOrders = orders.filter(order => {

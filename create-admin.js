@@ -1,7 +1,7 @@
 const axios = require('axios');
 const crypto = require('crypto');
 
-const API_URL = process.env.API_URL || 'http://localhost:3000';
+const API_URL = process.env.API_URL || 'http://localhost:3005';
 
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@aagam.com';
 const adminPassword = process.env.ADMIN_PASSWORD || generateSecurePassword();

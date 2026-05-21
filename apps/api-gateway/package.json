@@ -5,7 +5,8 @@
   "scripts": {
     "start": "nest start",
     "dev": "nest start --watch",
-    "build": "nest build"
+    "build": "nest build",
+    "start:prod": "node dist/src/main.js"
   },
   "dependencies": {
     "@aagam/database": "*",
@@ -35,6 +36,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
+    "firebase-admin": "^13.8.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
     "passport": "^0.7.0",

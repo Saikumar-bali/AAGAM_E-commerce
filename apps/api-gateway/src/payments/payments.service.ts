@@ -25,7 +25,17 @@ export class PaymentsService {
       });
       await tx.order.update({
         where: { id: orderId },
-        data: { status: 'CONFIRMED' as any },
+        data: { status: 'CONFIRMED' as any, confirmedAt: new Date() },
+      });
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: order.status as any,
+          toStatus: 'CONFIRMED' as any,
+          actorUserId: userId,
+          actorRole: 'CUSTOMER',
+          note: 'Online payment captured',
+        },
       });
     });
 
@@ -54,7 +64,17 @@ export class PaymentsService {
       });
       await tx.order.update({
         where: { id: orderId },
-        data: { status: 'PAYMENT_FAILED' as any },
+        data: { status: 'PAYMENT_FAILED' as any, paymentFailedAt: new Date() },
+      });
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: order.status as any,
+          toStatus: 'PAYMENT_FAILED' as any,
+          actorUserId: userId,
+          actorRole: 'CUSTOMER',
+          note: reason || 'Payment failed',
+        },
       });
     });
 

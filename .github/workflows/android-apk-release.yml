@@ -1,0 +1,88 @@
+name: Android APK Release
+
+on:
+  push:
+    tags:
+      - "mobile-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example mobile-v1.0.0"
+        required: true
+        default: "mobile-v1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.3"
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure mobile environment
+        run: |
+          cat > apps/mobile-app/.env <<'EOF'
+          API_URL=https://aagam-api-production.up.railway.app
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          EOF
+
+      - name: Configure Firebase if provided
+        if: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
+        run: |
+          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > apps/mobile-app/android/app/google-services.json
+
+      - name: Build debug APK
+        working-directory: apps/mobile-app/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Rename APK
+        run: |
+          mkdir -p release
+          cp apps/mobile-app/android/app/build/outputs/apk/debug/app-debug.apk release/aagam-staging-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aagam-staging-debug-apk
+          path: release/aagam-staging-debug.apk
+
+      - name: Resolve release tag
+        id: release_tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.release_tag.outputs.tag }}" release/aagam-staging-debug.apk \
+            --repo "${{ github.repository }}" \
+            --title "Aagam Mobile ${{ steps.release_tag.outputs.tag }}" \
+            --notes "Staging APK pointed at https://aagam-api-production.up.railway.app" \
+            --latest

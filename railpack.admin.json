@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "steps": {
+    "build": {
+      "commands": ["npm run build:admin"]
+    }
+  },
+  "deploy": {
+    "startCommand": "npm run start:admin"
+  }
+}

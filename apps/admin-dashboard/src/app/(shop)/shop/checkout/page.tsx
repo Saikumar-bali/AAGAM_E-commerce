@@ -6,7 +6,7 @@ import { apiClient } from '@aagam/utils';
 import DashboardLayout from '@/components/DashboardLayout';
 import { useCart } from '@/hooks/useCart';
 import { formatINR } from '@/lib/currency';
-import { ArrowLeft, CheckCircle2, Loader2, MapPin, Phone, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Loader2, MapPin, Phone, ShoppingBag, MoreVertical, Edit2, Trash2, X } from 'lucide-react';
 
 type Address = {
   id: string;
@@ -65,6 +65,9 @@ export default function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
   const [creatingAddress, setCreatingAddress] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     label: 'Home',
     recipientName: '',
@@ -115,6 +118,15 @@ export default function CheckoutPage() {
 
     load();
   }, []);
+
+  // Close menu on outside click
+  useEffect(() => {
+    const handleClick = () => setMenuOpenId(null);
+    if (menuOpenId) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [menuOpenId]);
 
   useEffect(() => {
     const run = async () => {
@@ -226,18 +238,117 @@ export default function CheckoutPage() {
     }
   };
 
+  const handleEditAddress = (addr: Address) => {
+    setEditingAddressId(addr.id);
+    setDraft({
+      label: addr.label || 'Home',
+      recipientName: addr.recipientName,
+      phoneE164: addr.phoneE164,
+      alternatePhoneE164: addr.alternatePhoneE164 || '',
+      line1: addr.line1,
+      line2: addr.line2 || '',
+      landmark: addr.landmark || '',
+      city: addr.city,
+      state: addr.state,
+      pincode: addr.pincode,
+      country: addr.country,
+      latitude: addr.latitude,
+      longitude: addr.longitude,
+      instructions: addr.instructions || '',
+      isDefault: addr.isDefault,
+    });
+    setCreatingAddress(true);
+  };
+
+  const saveEditedAddress = async () => {
+    if (!editingAddressId) return;
+    if (draft.latitude == null || draft.longitude == null) {
+      setError('Please fetch your location first.');
+      return;
+    }
+
+    setCreatingAddress(true);
+    try {
+      const res = await apiClient.patch(`/customer/addresses/${editingAddressId}`, {
+        label: draft.label,
+        recipientName: draft.recipientName,
+        phoneE164: draft.phoneE164,
+        alternatePhoneE164: draft.alternatePhoneE164 || undefined,
+        line1: draft.line1,
+        line2: draft.line2 || undefined,
+        landmark: draft.landmark || undefined,
+        city: draft.city,
+        state: draft.state,
+        pincode: draft.pincode,
+        country: draft.country,
+        latitude: draft.latitude,
+        longitude: draft.longitude,
+        instructions: draft.instructions || undefined,
+        isDefault: draft.isDefault,
+      });
+      const updated = res.data as Address;
+      setAddresses((prev) => prev.map((a) => (a.id === editingAddressId ? updated : a)));
+      setEditingAddressId(null);
+      setCreatingAddress(false);
+      resetDraft();
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e?.message || 'Failed to update address');
+      setCreatingAddress(false);
+    }
+  };
+
+  const confirmDeleteAddress = async () => {
+    if (!deletingAddressId) return;
+    try {
+      await apiClient.delete(`/customer/addresses/${deletingAddressId}`);
+      const remaining = addresses.filter((a) => a.id !== deletingAddressId);
+      setAddresses(remaining);
+      if (selectedAddressId === deletingAddressId) {
+        setSelectedAddressId(remaining.length > 0 ? remaining[0].id : null);
+      }
+      setDeletingAddressId(null);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e?.message || 'Failed to delete address');
+    }
+  };
+
+  const resetDraft = () => {
+    setDraft({
+      label: 'Home',
+      recipientName: '',
+      phoneE164: '',
+      alternatePhoneE164: '',
+      line1: '',
+      line2: '',
+      landmark: '',
+      city: '',
+      state: '',
+      pincode: '',
+      country: 'IN',
+      latitude: null as number | null,
+      longitude: null as number | null,
+      instructions: '',
+      isDefault: true,
+    });
+  };
+
   const placeOrder = async () => {
     setError(null);
     if (!selectedAddressId) {
-      setError('Select an address first.');
+      setError('Please select a delivery address first.');
       return;
     }
     if (itemsPayload.length === 0) {
-      setError('Your cart is empty.');
+      setError('Your cart is empty. Add items before checking out.');
       return;
     }
-    if (!quote?.serviceable) {
-      setError('Address is not serviceable.');
+    if (!quote) {
+      setError('Please select an address to calculate the delivery fee.');
+      return;
+    }
+    if (!quote.serviceable) {
+      const dist = quote.distanceKm != null ? ` (${quote.distanceKm.toFixed(1)} km from nearest store — max 8 km)` : '';
+      setError(`We don't deliver to your location yet. Try a different address${dist}.`);
       return;
     }
 
@@ -251,16 +362,14 @@ export default function CheckoutPage() {
         {
           items: itemsPayload,
           addressId: selectedAddressId,
-          paymentMethod,
+          paymentMethod: paymentMethod === 'COD' ? 'COD' : 'ONLINE',
         },
         { headers: { 'Idempotency-Key': idempotencyKey } }
       );
       setOrderId(res.data?.id || res.data?.orderId || null);
-      if (paymentMethod === 'COD') {
-        clearCart();
-      }
+      clearCart();
     } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to place order');
+      setError(e?.response?.data?.message || e?.message || 'Failed to place order. Is the server running?');
     } finally {
       setPlacingOrder(false);
     }
@@ -332,7 +441,7 @@ export default function CheckoutPage() {
                   <div className="text-xs text-gray-600 mt-1">Select a saved address or create one using your exact location pin.</div>
                 </div>
                 <button
-                  onClick={() => setCreatingAddress((v) => !v)}
+                  onClick={() => { setEditingAddressId(null); resetDraft(); setCreatingAddress((v) => !v); }}
                   className="text-xs font-black px-3 py-2 rounded-full border border-emerald-100 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
                 >
                   {creatingAddress ? 'Close' : 'Add new'}
@@ -351,7 +460,7 @@ export default function CheckoutPage() {
                       key={a.id}
                       onClick={() => setSelectedAddressId(a.id)}
                       className={[
-                        'text-left rounded-2xl border p-4 transition-colors',
+                        'text-left rounded-2xl border p-4 transition-colors relative',
                         a.id === selectedAddressId ? 'border-emerald-300 bg-emerald-50' : 'border-emerald-100 bg-white hover:bg-emerald-50/50',
                       ].join(' ')}
                     >
@@ -362,7 +471,38 @@ export default function CheckoutPage() {
                           </div>
                           <div className="mt-1 text-sm font-black text-gray-900">{a.recipientName}</div>
                         </div>
-                        {a.id === selectedAddressId ? <CheckCircle2 className="h-5 w-5 text-emerald-700" /> : null}
+                        <div className="flex items-center gap-1">
+                          {a.id === selectedAddressId && <CheckCircle2 className="h-5 w-5 text-emerald-700" />}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === a.id ? null : a.id); }}
+                              className="p-1.5 rounded-lg hover:bg-emerald-100 transition-colors"
+                            >
+                              <MoreVertical className="h-4 w-4 text-emerald-700" />
+                            </button>
+                            {menuOpenId === a.id && (
+                              <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-emerald-100 z-20 overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); handleEditAddress(a); setMenuOpenId(null); }}
+                                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-emerald-50 transition-colors"
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setDeletingAddressId(a.id); setMenuOpenId(null); }}
+                                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                       <div className="mt-2 text-xs text-gray-700">
                         {a.line1}
@@ -386,14 +526,29 @@ export default function CheckoutPage() {
               {creatingAddress ? (
                 <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-black text-gray-900">New address</div>
-                    <button
-                      onClick={useCurrentLocation}
-                      className="inline-flex items-center gap-2 text-xs font-black px-3 py-2 rounded-full bg-emerald-700 text-white hover:bg-emerald-800"
-                    >
-                      {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
-                      Use current location
-                    </button>
+                    <div className="text-sm font-black text-gray-900">
+                      {editingAddressId ? 'Edit address' : 'New address'}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={useCurrentLocation}
+                        disabled={locating}
+                        className="inline-flex items-center gap-2 text-xs font-black px-3 py-2 rounded-full bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50"
+                      >
+                        {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+                        {locating ? 'Locating...' : 'Use current location'}
+                      </button>
+                      {(draft.latitude != null || editingAddressId) && (
+                        <button
+                          type="button"
+                          onClick={() => { setCreatingAddress(false); setEditingAddressId(null); resetDraft(); }}
+                          className="p-2 rounded-lg hover:bg-emerald-100 transition-colors"
+                        >
+                          <X className="h-4 w-4 text-emerald-700" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -420,10 +575,12 @@ export default function CheckoutPage() {
 
                   <div className="mt-4">
                     <button
-                      onClick={createAddress}
-                      className="w-full md:w-auto px-4 py-3 rounded-2xl bg-emerald-700 text-white font-black hover:bg-emerald-800"
+                      onClick={editingAddressId ? saveEditedAddress : createAddress}
+                      disabled={creatingAddress}
+                      className="w-full md:w-auto px-4 py-3 rounded-2xl bg-emerald-700 text-white font-black hover:bg-emerald-800 disabled:opacity-50 flex items-center gap-2"
                     >
-                      Save address
+                      {creatingAddress && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {editingAddressId ? 'Update address' : 'Save address'}
                     </button>
                   </div>
                 </div>
@@ -533,13 +690,27 @@ export default function CheckoutPage() {
                   )}
                 </div>
               ) : (
-                <button
-                  onClick={placeOrder}
-                  disabled={placingOrder || !selectedAddressId || !quote?.serviceable}
-                  className="w-full bg-emerald-700 text-white py-4 rounded-2xl font-black hover:bg-emerald-800 disabled:opacity-60"
-                >
-                  {placingOrder ? 'Placing order...' : paymentMethod === 'COD' ? 'Place COD order' : 'Continue to pay'}
-                </button>
+                <>
+                  <button
+                    onClick={placeOrder}
+                    disabled={placingOrder}
+                    className="w-full bg-emerald-700 text-white py-4 rounded-2xl font-black hover:bg-emerald-800 disabled:opacity-60 transition-colors"
+                  >
+                    {placingOrder ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Placing order...
+                      </span>
+                    ) : paymentMethod === 'COD' ? (
+                      'Place COD order'
+                    ) : (
+                      'Continue to pay'
+                    )}
+                  </button>
+                  {error && (
+                    <p className="mt-2 text-xs text-red-600 font-bold text-center">{error}</p>
+                  )}
+                </>
               )}
 
               {selected ? (
@@ -550,6 +721,13 @@ export default function CheckoutPage() {
             </section>
           </aside>
         </div>
+
+        <DeleteAddressModal
+          isOpen={deletingAddressId !== null}
+          address={addresses.find((a) => a.id === deletingAddressId) || null}
+          onConfirm={confirmDeleteAddress}
+          onCancel={() => setDeletingAddressId(null)}
+        />
       </div>
     </DashboardLayout>
   );
@@ -578,14 +756,57 @@ function Input({
   className?: string;
 }) {
   return (
-    <label className={['block', className || ''].join(' ')}>
-      <div className="text-[11px] font-black uppercase tracking-widest text-emerald-900/60">{label}</div>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="mt-1 w-full rounded-xl border border-emerald-100 bg-white px-3 py-2 text-sm font-bold text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
-      />
-    </label>
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={`w-full px-4 py-2.5 border border-emerald-200 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 ${className || ''}`}
+    />
+  );
+}
+
+// Delete confirmation modal
+function DeleteAddressModal({
+  isOpen,
+  address,
+  onConfirm,
+  onCancel,
+}: {
+  isOpen: boolean;
+  address: Address | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!isOpen || !address) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl p-6">
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+            <Trash2 className="h-6 w-6 text-red-600" />
+          </div>
+          <h3 className="text-lg font-black text-gray-900">Delete address?</h3>
+          <p className="mt-2 text-sm text-gray-600">
+            Are you sure you want to delete this address? This action cannot be undone.
+          </p>
+        </div>
+        <div className="mt-6 flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-black hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-black hover:bg-red-700 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

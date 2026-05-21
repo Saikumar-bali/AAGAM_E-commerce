@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Param, Patch, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Param, Patch, Delete, Req } from '@nestjs/common';
 import { StoreService } from './store.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -12,6 +12,13 @@ export class StoreController {
   @Get()
   async findAll() {
     return this.storeService.findAll();
+  }
+
+  @Get('my-stores')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.STORE_OWNER)
+  async findMyStores(@Req() req: any) {
+    return this.storeService.findByOwnerId(req.user.id);
   }
 
   @Get(':id')

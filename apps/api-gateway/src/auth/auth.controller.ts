@@ -45,6 +45,7 @@ export class AuthController {
     return {
       message: 'Logged in successfully',
       user: result.user,
+      access_token: result.session.access_token,
     };
   }
 
@@ -69,10 +70,15 @@ export class AuthController {
     return { message: 'Logged out successfully' };
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Get('users')
   async findAll() {
     return this.authService.findAll();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('fcm-token')
+  async updateFcmToken(@Req() req: any, @Body() body: { token: string }) {
+    return this.authService.updateFcmToken(req.user.id, body.token);
   }
 }
