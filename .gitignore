@@ -42,3 +42,4 @@ nul
 
 # Runtime uploads
 apps/api-gateway/uploads/
+backups/
