@@ -3,22 +3,78 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+  --ink: 15 23 42;
+  --muted: 100 116 139;
+  --line: 226 232 240;
+  --surface: 255 255 255;
+  --canvas: 248 250 252;
+  --brand: 13 148 136;
+  --brand-dark: 17 94 89;
+  --accent: 245 158 11;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: white;
+  color: rgb(var(--ink));
+  background:
+    radial-gradient(circle at top left, rgba(20, 184, 166, 0.16), transparent 34rem),
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.13), transparent 30rem),
+    linear-gradient(135deg, #f8fafc 0%, #eef6f4 45%, #fff7ed 100%);
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(20, 184, 166, 0.22);
+  color: #0f172a;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 118, 110, 0.35) transparent;
+}
+
+*::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(15, 118, 110, 0.35);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+@layer components {
+  .enterprise-card {
+    @apply rounded-[1.75rem] border border-white/70 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl;
+  }
+
+  .enterprise-panel {
+    @apply rounded-[2rem] border border-slate-200/70 bg-white/75 shadow-[0_20px_70px_rgba(15,23,42,0.07)] backdrop-blur-2xl;
+  }
+
+  .enterprise-button {
+    @apply inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-[0_18px_40px_rgba(15,23,42,0.22)] transition-all hover:-translate-y-0.5 hover:bg-teal-700;
+  }
+
+  .enterprise-input {
+    @apply w-full rounded-2xl border border-slate-200 bg-white/85 px-4 py-3 text-sm font-semibold text-slate-900 shadow-inner shadow-slate-100/60 outline-none transition-all placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10;
+  }
+
+  .enterprise-kicker {
+    @apply inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-black uppercase tracking-[0.22em] text-teal-700;
+  }
+
+  .enterprise-heading {
+    @apply text-3xl font-black tracking-[-0.045em] text-slate-950 md:text-5xl;
+  }
+
+  .enterprise-subtle-grid {
+    background-image:
+      linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
 }
 
 @layer utilities {

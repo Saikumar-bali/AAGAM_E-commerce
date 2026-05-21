@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient } from '@aagam/utils';
-import { Lock, Mail, Loader2, ArrowRight } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -21,10 +21,8 @@ export default function LoginPage() {
     try {
       const response = await apiClient.post('/auth/login', { email, password });
       const { user } = response.data;
-      
       localStorage.setItem('user_role', user.role);
       localStorage.setItem('user_name', user.name);
-      
       if (user.role === 'ADMIN') router.push('/admin');
       else if (user.role === 'RIDER') router.push('/rider');
       else router.push('/shop');
@@ -36,100 +34,78 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link href="/" className="flex justify-center mb-6">
-           <span className="text-4xl font-black tracking-tighter text-emerald-600">AAGAM</span>
-        </Link>
-        <h2 className="text-center text-3xl font-extrabold text-gray-900 tracking-tight">
-          Welcome back
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Or{' '}
-          <Link href="/signup" className="font-bold text-emerald-600 hover:text-emerald-500 transition-colors">
-            create a new account
-          </Link>
-        </p>
-      </div>
+    <main className="relative min-h-screen overflow-hidden px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
+      <div className="pointer-events-none absolute inset-0 enterprise-subtle-grid opacity-60" />
+      <div className="pointer-events-none absolute -left-24 top-12 h-96 w-96 rounded-full bg-teal-300/25 blur-3xl" />
+      <div className="pointer-events-none absolute -right-16 bottom-0 h-[28rem] w-[28rem] rounded-full bg-amber-200/40 blur-3xl" />
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-2xl shadow-emerald-900/5 sm:rounded-3xl sm:px-10 border border-gray-100">
-          <form className="space-y-6" onSubmit={handleLogin}>
-            {error && (
-              <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl text-sm font-medium">
-                {error}
-              </div>
-            )}
-            
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
-                Email address
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+      <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl items-center">
+        <div className="grid w-full gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+          <section className="hidden lg:block">
+            <Link href="/" className="inline-flex items-center gap-3">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-lg font-black text-white">A</span>
+              <span className="text-2xl font-black tracking-[-0.05em]">Aagam</span>
+            </Link>
+            <p className="enterprise-kicker mt-12"><Sparkles className="mr-2 h-3.5 w-3.5" /> Secure commerce access</p>
+            <h1 className="mt-5 max-w-xl text-5xl font-black tracking-[-0.07em]">One login for shop, rider, and operations.</h1>
+            <p className="mt-5 max-w-lg text-lg font-semibold leading-8 text-slate-600">
+              Enter the workspace and continue from catalogue browsing to checkout, delivery tracking, or admin control.
+            </p>
+            <div className="mt-8 grid max-w-lg gap-3">
+              {['Role-aware routing', 'Production API cookies', 'Realtime order workspace'].map((item) => (
+                <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/80 bg-white/70 p-4 font-bold text-slate-700 shadow-xl shadow-slate-900/5 backdrop-blur-xl">
+                  <CheckCircle2 className="h-5 w-5 text-teal-700" />
+                  {item}
                 </div>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all sm:text-sm"
-                  placeholder="you@example.com"
-                />
+              ))}
+            </div>
+          </section>
+
+          <section className="enterprise-panel mx-auto w-full max-w-md p-6 sm:p-8">
+            <div className="mb-8 text-center lg:hidden">
+              <Link href="/" className="text-3xl font-black tracking-[-0.06em]">Aagam</Link>
+            </div>
+            <div className="mb-8">
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-xl shadow-slate-950/20">
+                <ShieldCheck className="h-7 w-7" />
               </div>
+              <p className="enterprise-kicker">Welcome back</p>
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">Sign in to your workspace</h2>
+              <p className="mt-2 text-sm font-semibold text-slate-500">
+                New here? <Link href="/signup" className="text-teal-700 hover:text-teal-900">Create an account</Link>
+              </p>
             </div>
 
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+            <form className="space-y-5" onSubmit={handleLogin}>
+              {error && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                  {error}
                 </div>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all sm:text-sm"
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
+              )}
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input id="remember-me" type="checkbox" className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded" />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 font-medium">
-                  Remember me
-                </label>
-              </div>
-              <div className="text-sm">
-                <a href="#" className="font-bold text-emerald-600 hover:text-emerald-500">
-                  Forgot password?
-                </a>
-              </div>
-            </div>
+              <label className="block">
+                <span className="mb-2 block text-sm font-black text-slate-700">Email address</span>
+                <span className="relative block">
+                  <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                  <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="enterprise-input pl-12" placeholder="you@company.com" />
+                </span>
+              </label>
 
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex justify-center items-center py-4 px-4 border border-transparent rounded-2xl shadow-lg text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all disabled:opacity-50 group"
-              >
-                {loading ? <Loader2 className="animate-spin h-5 w-5" /> : (
-                  <>
-                    SIGN IN
-                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                  </>
-                )}
+              <label className="block">
+                <span className="mb-2 block text-sm font-black text-slate-700">Password</span>
+                <span className="relative block">
+                  <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                  <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="enterprise-input pl-12" placeholder="Enter password" />
+                </span>
+              </label>
+
+              <button type="submit" disabled={loading} className="enterprise-button w-full gap-2 disabled:cursor-not-allowed disabled:opacity-60">
+                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Continue <ArrowRight className="h-4 w-4" /></>}
               </button>
-            </div>
-          </form>
+            </form>
+          </section>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
