@@ -37,6 +37,19 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
+
+      - name: Cache Android build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            apps/mobile-app/android/.gradle
+            apps/mobile-app/android/app/build
+          key: android-gradle-${{ runner.os }}-${{ hashFiles('package-lock.json', 'apps/mobile-app/android/**/*.gradle', 'apps/mobile-app/android/gradle.properties', 'apps/mobile-app/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            android-gradle-${{ runner.os }}-
 
       - name: Install dependencies
         run: npm ci
