@@ -253,7 +253,7 @@ export const RiderDashboard = () => {
           onPress={isOnline ? () => setIsOnline(false) : handleGoOnline}
           disabled={locating}
         >
-          {locating ? <ActivityIndicator size="small" color="#4F46E5" /> : (
+          {locating ? <ActivityIndicator size="small" color="#0F766E" /> : (
             <>
               <Power size={18} color={isOnline ? '#10B981' : '#64748B'} />
               <Text style={[styles.statusText, isOnline ? styles.onlineText : styles.offlineText]}>
@@ -271,7 +271,7 @@ export const RiderDashboard = () => {
         {/* Earnings Parity with Web */}
         <View style={styles.statsRow}>
           <StatCard label="Earnings" value="₹0.00" icon={DollarSign} color="#10B981" />
-          <StatCard label="Trips" value="0" icon={ShieldCheck} color="#4F46E5" />
+          <StatCard label="Trips" value="0" icon={ShieldCheck} color="#0F766E" />
           <StatCard label="Rating" value="5.0 ★" icon={Zap} color="#F59E0B" />
         </View>
 
@@ -286,7 +286,7 @@ export const RiderDashboard = () => {
             <View key={order.id} style={styles.deliveryCard}>
               <View style={styles.cardHeader}>
                 <View style={styles.orderInfo}>
-                  <Package size={18} color="#4F46E5" />
+                  <Package size={18} color="#0F766E" />
                   <Text style={styles.orderIdText}>Order #{order.id.slice(-8).toUpperCase()}</Text>
                 </View>
                 <StatusChip status={order.status} />
@@ -457,14 +457,14 @@ const styles = StyleSheet.create({
   orderInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   orderIdText: { fontSize: 16, fontWeight: 'bold', color: '#1E293B' },
   progressTracker: { height: 6, backgroundColor: '#F1F5F9', borderRadius: 3, marginBottom: 24, overflow: 'hidden' },
-  progressBar: { height: '100%', backgroundColor: '#4F46E5' },
+  progressBar: { height: '100%', backgroundColor: '#0F766E' },
   detailRow: { flexDirection: 'row', marginBottom: 20, gap: 16 },
   detailIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center' },
   detailText: { flex: 1 },
   detailLabel: { fontSize: 10, fontWeight: '800', color: '#94A3B8', marginBottom: 4 },
   detailValue: { fontSize: 15, fontWeight: 'bold', color: '#1E293B' },
   detailSub: { fontSize: 13, color: '#64748B', marginTop: 2 },
-  linkText: { fontSize: 13, color: '#4F46E5', fontWeight: '700', marginTop: 6 },
+  linkText: { fontSize: 13, color: '#0F766E', fontWeight: '700', marginTop: 6 },
   itemsBox: { backgroundColor: '#F8FAFC', borderRadius: 16, padding: 16, marginBottom: 24 },
   itemsTitle: { fontSize: 10, fontWeight: '800', color: '#94A3B8', marginBottom: 8 },
   itemText: { fontSize: 13, color: '#475569', marginBottom: 4, fontWeight: '500' },

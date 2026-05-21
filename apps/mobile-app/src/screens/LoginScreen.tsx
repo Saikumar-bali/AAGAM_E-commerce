@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useAuthStore } from '../store/authStore';
-import { Mail, Lock, LogIn, ArrowRight, Github, Chrome } from 'lucide-react-native';
+import { Mail, Lock, ArrowRight, Github, Chrome } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 
 import { Alert } from 'react-native';
@@ -57,7 +57,7 @@ export const LoginScreen = () => {
             </View>
           </View>
           <Text style={styles.title}>Aagam</Text>
-          <Text style={styles.subtitle}>Premium E-commerce Excellence</Text>
+          <Text style={styles.subtitle}>Fast commerce, live delivery, zero guesswork</Text>
         </View>
 
         <View style={styles.glassCard}>
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     width: 300,
     height: 300,
     borderRadius: 150,
-    backgroundColor: '#E0E7FF',
+            backgroundColor: '#CCFBF1',
   },
   bgCircle2: {
     position: 'absolute',
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     width: 400,
     height: 400,
     borderRadius: 200,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#FEF3C7',
   },
   content: {
     flex: 1,
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 45,
     borderWidth: 2,
-    borderColor: '#4F46E5',
+    borderColor: '#14B8A6',
     padding: 5,
     justifyContent: 'center',
     alignItems: 'center',
@@ -182,11 +182,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 40,
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#0F766E',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 10,
-    shadowColor: '#4F46E5',
+    shadowColor: '#0F766E',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   registerText: {
-    color: '#4F46E5',
+    color: '#0F766E',
     fontWeight: 'bold',
     fontSize: 14,
   },

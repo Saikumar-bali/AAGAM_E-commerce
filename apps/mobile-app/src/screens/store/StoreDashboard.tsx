@@ -57,7 +57,7 @@ export const StoreDashboard = () => {
       </View>
 
       <View style={styles.statsGrid}>
-        <StatCard title="Inventory" value={stats.totalInventory} icon={Package} color="#4F46E5" />
+        <StatCard title="Inventory" value={stats.totalInventory} icon={Package} color="#0F766E" />
         <StatCard title="Orders" value={stats.totalOrders} icon={ShoppingBag} color="#10B981" />
         <StatCard title="Revenue" value={`$${stats.revenue}`} icon={TrendingUp} color="#F59E0B" />
         <StatCard title="Low Stock" value={stats.lowStockItems} icon={LayoutGrid} color="#EF4444" />
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#0F766E',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#CCFBF1',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   storeAvatarText: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#4F46E5',
+    color: '#0F766E',
   },
   storeCardName: {
     fontSize: 16,

@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { LoginScreen } from '../screens/LoginScreen';
 import { SignUpScreen } from '../screens/SignUpScreen';
 import { HomeScreen } from '../screens/HomeScreen';
-import { View, ActivityIndicator, Text } from 'react-native';
+import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 
 import { CustomerNavigator } from './CustomerNavigator';
 import { RiderNavigator } from './RiderNavigator';
@@ -22,9 +22,13 @@ export const RootNavigator = () => {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'white' }}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={{ marginTop: 10, color: '#666' }}>Loading Aagam...</Text>
+      <View style={styles.loadingPage}>
+        <View style={styles.loadingMark}>
+          <Text style={styles.loadingLogo}>A</Text>
+        </View>
+        <ActivityIndicator size="small" color="#14B8A6" />
+        <Text style={styles.loadingTitle}>Preparing Aagam</Text>
+        <Text style={styles.loadingSub}>Syncing your commerce workspace</Text>
       </View>
     );
   }
@@ -56,3 +60,25 @@ export const RootNavigator = () => {
     </NavigationContainer>
   );
 };
+
+const styles = StyleSheet.create({
+  loadingPage: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#101827',
+    paddingHorizontal: 28,
+  },
+  loadingMark: {
+    width: 82,
+    height: 82,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 22,
+  },
+  loadingLogo: { color: '#101827', fontSize: 38, fontWeight: '900' },
+  loadingTitle: { color: '#FFFFFF', fontSize: 21, fontWeight: '900', marginTop: 18 },
+  loadingSub: { color: '#94A3B8', fontSize: 13, fontWeight: '600', marginTop: 7 },
+});

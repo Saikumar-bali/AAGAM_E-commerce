@@ -10,25 +10,29 @@ export const StoreNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#4F46E5',
-        tabBarInactiveTintColor: '#94A3B8',
-        headerShown: true,
+        tabBarActiveTintColor: '#0F172A',
+        tabBarInactiveTintColor: '#A8A29E',
+        headerShown: false,
         tabBarStyle: {
-          height: 70,
-          paddingBottom: 12,
+          position: 'absolute',
+          left: 18,
+          right: 18,
+          bottom: 16,
+          height: 74,
+          paddingBottom: 14,
           paddingTop: 8,
           backgroundColor: '#FFFFFF',
-          borderTopWidth: 1,
-          borderTopColor: '#F1F5F9',
-          elevation: 10,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 10,
+          borderTopWidth: 0,
+          borderRadius: 28,
+          elevation: 18,
+          shadowColor: '#0F172A',
+          shadowOffset: { width: 0, height: 12 },
+          shadowOpacity: 0.14,
+          shadowRadius: 24,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
+          fontSize: 11,
+          fontWeight: '900',
         },
       }}
     >
