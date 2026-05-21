@@ -33,7 +33,7 @@ export class AuthController {
     response.cookie('access_token', result.session.access_token, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: isProduction ? 'none' : 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
@@ -65,7 +65,7 @@ export class AuthController {
     response.clearCookie('access_token', { 
       path: '/',
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: isProduction ? 'none' : 'lax',
     });
     return { message: 'Logged out successfully' };
   }
