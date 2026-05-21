@@ -69,24 +69,28 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="relative min-h-screen overflow-hidden px-4 py-12 sm:px-6 lg:px-8">
+      <div className="pointer-events-none absolute inset-0 enterprise-subtle-grid opacity-60" />
+      <div className="pointer-events-none absolute -left-24 top-12 h-96 w-96 rounded-full bg-teal-300/25 blur-3xl" />
+      <div className="pointer-events-none absolute -right-16 bottom-0 h-[28rem] w-[28rem] rounded-full bg-amber-200/40 blur-3xl" />
+      <div className="relative sm:mx-auto sm:w-full sm:max-w-md">
         <Link href="/" className="flex justify-center mb-6">
-           <span className="text-4xl font-black tracking-tighter text-emerald-600">AAGAM</span>
+           <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-xl font-black text-white shadow-2xl shadow-slate-950/20">A</span>
         </Link>
-        <h2 className="text-center text-3xl font-extrabold text-gray-900 tracking-tight">
+        <p className="enterprise-kicker mx-auto mb-4 w-fit">New workspace</p>
+        <h2 className="text-center text-4xl font-black tracking-[-0.06em] text-slate-950">
           Create your account
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
+        <p className="mt-2 text-center text-sm font-semibold text-slate-500">
           Already have an account?{' '}
-          <Link href="/login" className="font-bold text-emerald-600 hover:text-emerald-500 transition-colors">
+          <Link href="/login" className="font-black text-teal-700 hover:text-teal-900 transition-colors">
             Sign in
           </Link>
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-2xl shadow-emerald-900/5 sm:rounded-3xl sm:px-10 border border-gray-100">
+      <div className="relative mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="enterprise-panel px-4 py-8 sm:px-10">
           <form className="space-y-6" onSubmit={handleSignup}>
             {error && (
               <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl text-sm font-medium">
@@ -107,7 +111,7 @@ export default function SignupPage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all sm:text-sm"
+                  className="enterprise-input pl-11"
                   placeholder="John Doe"
                 />
               </div>
@@ -126,7 +130,7 @@ export default function SignupPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all sm:text-sm"
+                  className="enterprise-input pl-11"
                   placeholder="you@example.com"
                 />
               </div>
@@ -145,7 +149,7 @@ export default function SignupPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-11 pr-12 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all sm:text-sm"
+                  className="enterprise-input pl-11 pr-12"
                   placeholder="••••••••"
                 />
                 <button
@@ -187,7 +191,7 @@ export default function SignupPage() {
             </div>
 
             {/* Password Requirements */}
-            <div className="bg-gray-50 rounded-xl p-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
               <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
                 Password Requirements
               </p>
@@ -219,7 +223,7 @@ export default function SignupPage() {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all sm:text-sm appearance-none"
+                className="enterprise-input appearance-none"
               >
                 <option value="CUSTOMER">Customer (Shop & Order)</option>
                 <option value="RIDER">Rider (Deliver Orders)</option>
@@ -230,7 +234,7 @@ export default function SignupPage() {
               <button
                 type="submit"
                 disabled={loading || metRequirements.length < 4}
-                className="w-full flex justify-center items-center py-4 px-4 border border-transparent rounded-2xl shadow-lg text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                className="enterprise-button w-full gap-2 disabled:cursor-not-allowed disabled:opacity-50 group"
               >
                 {loading ? <Loader2 className="animate-spin h-5 w-5" /> : (
                   <>

@@ -64,15 +64,26 @@ async function bootstrap() {
 
     const corsOrigins = isProduction 
       ? process.env.CORS_ORIGINS?.split(',') || []
-      : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'];
+      : [
+          'http://localhost:3000', 
+          'http://localhost:3001', 
+          'http://localhost:3005',
+          'http://127.0.0.1:3000', 
+          'http://127.0.0.1:3001',
+          'http://127.0.0.1:3005',
+          'http://192.168.0.18:3000',
+          'http://192.168.0.18:3001',
+          'http://localhost:5173', // Vite default
+        ];
     
     app.enableCors({
-      origin: corsOrigins,
+      origin: isProduction ? corsOrigins : true,
       credentials: true,
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+      allowedHeaders: 'Content-Type,Accept,Authorization,X-Requested-With,Idempotency-Key',
     });
 
-    const port = parseInt(process.env.PORT || '3000', 10);
+    const port = parseInt(process.env.PORT || '3005', 10);
     await app.listen(port, '0.0.0.0');
     console.log(`✅ API Gateway is live on port ${port} [${process.env.NODE_ENV || 'development'}]`);
   } catch (error) {

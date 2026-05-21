@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
 import { 
@@ -8,13 +9,11 @@ import {
   MapPin, 
   User, 
   Plus, 
-  Search, 
-  MoreVertical,
+  Search,
   Edit,
   Trash2,
   Package,
   TrendingUp,
-  Clock,
   CheckCircle,
   XCircle,
   X,
@@ -22,6 +21,18 @@ import {
   Eye,
   AlertTriangle
 } from 'lucide-react';
+
+const StoreLocationPicker = dynamic(
+  () => import('@/components/StoreLocationPicker').then((m) => m.StoreLocationPicker),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-48 bg-gray-50 rounded-xl border border-gray-200 animate-pulse flex items-center justify-center">
+        <span className="text-xs text-gray-400">Loading map...</span>
+      </div>
+    ),
+  }
+);
 
 interface Store {
   id: string;
@@ -61,8 +72,8 @@ export default function AdminStoresPage() {
   const [formData, setFormData] = useState({
     name: '',
     address: '',
-    latitude: '',
-    longitude: '',
+    latitude: null as number | null,
+    longitude: null as number | null,
     ownerEmail: '',
     isActive: true
   });
@@ -100,7 +111,7 @@ export default function AdminStoresPage() {
   ];
 
   const resetForm = () => {
-    setFormData({ name: '', address: '', latitude: '', longitude: '', ownerEmail: '', isActive: true });
+    setFormData({ name: '', address: '', latitude: null, longitude: null, ownerEmail: '', isActive: true });
     setError('');
   };
 
@@ -109,8 +120,8 @@ export default function AdminStoresPage() {
     setFormData({
       name: store.name,
       address: store.address,
-      latitude: store.latitude.toString(),
-      longitude: store.longitude.toString(),
+      latitude: store.latitude,
+      longitude: store.longitude,
       ownerEmail: store.owner?.email || '',
       isActive: store.isActive
     });
@@ -141,11 +152,16 @@ export default function AdminStoresPage() {
     setError('');
 
     try {
+      if (formData.latitude == null || formData.longitude == null) {
+        setError('Please pick a store location on the map first.');
+        setSubmitting(false);
+        return;
+      }
       await apiClient.post('/stores', {
         name: formData.name,
         address: formData.address,
-        latitude: parseFloat(formData.latitude),
-        longitude: parseFloat(formData.longitude),
+        latitude: formData.latitude,
+        longitude: formData.longitude,
         ownerEmail: formData.ownerEmail
       });
       setShowModal(false);
@@ -165,11 +181,16 @@ export default function AdminStoresPage() {
     setError('');
 
     try {
+      if (formData.latitude == null || formData.longitude == null) {
+        setError('Please pick a store location on the map first.');
+        setSubmitting(false);
+        return;
+      }
       await apiClient.patch(`/stores/${selectedStore.id}`, {
         name: formData.name,
         address: formData.address,
-        latitude: parseFloat(formData.latitude),
-        longitude: parseFloat(formData.longitude),
+        latitude: formData.latitude,
+        longitude: formData.longitude,
         isActive: formData.isActive
       });
       setShowEditModal(false);
@@ -391,29 +412,22 @@ export default function AdminStoresPage() {
                     placeholder="Enter full address"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={formData.latitude}
-                      onChange={(e) => setFormData({...formData, latitude: e.target.value})}
-                      placeholder="40.7128"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={formData.longitude}
-                      onChange={(e) => setFormData({...formData, longitude: e.target.value})}
-                      placeholder="-74.006"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Store Location</label>
+                  <StoreLocationPicker
+                    coords={{ lat: formData.latitude, lng: formData.longitude }}
+                    onCoordsChange={(lat, lng) => setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }))}
+                    onAddressChange={(addr) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        address: prev.address || addr.address,
+                        city: addr.city,
+                        state: addr.state,
+                        pincode: addr.pincode,
+                      }))
+                    }
+                    apiClient={apiClient}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Owner Email</label>
@@ -483,27 +497,22 @@ export default function AdminStoresPage() {
                     onChange={(e) => setFormData({...formData, address: e.target.value})}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={formData.latitude}
-                      onChange={(e) => setFormData({...formData, latitude: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={formData.longitude}
-                      onChange={(e) => setFormData({...formData, longitude: e.target.value})}
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Store Location</label>
+                  <StoreLocationPicker
+                    coords={{ lat: formData.latitude, lng: formData.longitude }}
+                    onCoordsChange={(lat, lng) => setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }))}
+                    onAddressChange={(addr) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        address: prev.address || addr.address,
+                        city: addr.city,
+                        state: addr.state,
+                        pincode: addr.pincode,
+                      }))
+                    }
+                    apiClient={apiClient}
+                  />
                 </div>
                 <div className="flex items-center space-x-3 pt-2">
                   <input

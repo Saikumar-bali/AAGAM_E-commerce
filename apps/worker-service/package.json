@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc"
   },
   "dependencies": {
@@ -12,6 +12,7 @@
     "@aagam/types": "*",
     "@aagam/utils": "*",
     "bullmq": "^5.0.0",
+    "dotenv": "^16.4.0",
     "ioredis": "^5.3.0"
   },
   "devDependencies": {

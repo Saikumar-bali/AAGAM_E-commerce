@@ -99,6 +99,7 @@ start_services() {
     # Enable and start Redis
     systemctl enable redis
     systemctl start redis
+    systemctl status redis
     
     # Wait for Redis
     sleep 2

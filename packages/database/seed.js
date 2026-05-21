@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const dotenv = require('dotenv');
 const path = require('path');
+const bcrypt = require('bcrypt');
 
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
@@ -10,83 +11,93 @@ async function main() {
   console.log('🌱 Seeding database with sample data...');
 
   try {
+    const demoPassword = await bcrypt.hash(process.env.SEED_DEMO_PASSWORD || 'Demo@123', 10);
+    const adminPassword = await bcrypt.hash(process.env.SEED_ADMIN_PASSWORD || process.env.SEED_DEMO_PASSWORD || 'Admin@123', 10);
+    const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@aagam.com';
+
     // Create Admin User
     const admin = await prisma.user.upsert({
-      where: { email: 'admin@aagam.com' },
-      update: { role: 'ADMIN', name: 'Aagam Admin' },
+      where: { id: 'admin-user-id' },
+      update: { email: adminEmail, role: 'ADMIN', name: 'Aagam Admin', password: adminPassword },
       create: {
         id: 'admin-user-id',
-        email: 'admin@aagam.com',
+        email: adminEmail,
         name: 'Aagam Admin',
         role: 'ADMIN',
+        password: adminPassword,
       },
     });
     console.log('✅ Admin user created');
 
     // Create Store Owner User
     const storeOwner = await prisma.user.upsert({
-      where: { email: 'store owner@aagam.com' },
-      update: { role: 'STORE_OWNER', name: 'John Store Owner' },
+      where: { id: 'store-owner-id' },
+      update: { email: 'storeowner@aagam.com', role: 'STORE_OWNER', name: 'John Store Owner', password: demoPassword },
       create: {
         id: 'store-owner-id',
-        email: 'store owner@aagam.com',
+        email: 'storeowner@aagam.com',
         name: 'John Store Owner',
         phone: '+1234567890',
         role: 'STORE_OWNER',
+        password: demoPassword,
       },
     });
     console.log('✅ Store owner created');
 
     // Create a second Store Owner
     const storeOwner2 = await prisma.user.upsert({
-      where: { email: 'store2@aagam.com' },
-      update: { role: 'STORE_OWNER', name: 'Emma Store Owner' },
+      where: { id: 'store-owner-id-2' },
+      update: { email: 'store2@aagam.com', role: 'STORE_OWNER', name: 'Emma Store Owner', password: demoPassword },
       create: {
         id: 'store-owner-id-2',
         email: 'store2@aagam.com',
         name: 'Emma Store Owner',
         phone: '+1234567891',
         role: 'STORE_OWNER',
+        password: demoPassword,
       },
     });
     console.log('✅ Second store owner created');
 
     // Create Customer User
     const customer = await prisma.user.upsert({
-      where: { email: 'customer@aagam.com' },
-      update: { role: 'CUSTOMER', name: 'Alice Customer' },
+      where: { id: 'customer-user-id' },
+      update: { email: 'customer@aagam.com', role: 'CUSTOMER', name: 'Alice Customer', password: demoPassword },
       create: {
         id: 'customer-user-id',
         email: 'customer@aagam.com',
         name: 'Alice Customer',
         phone: '+1234567892',
         role: 'CUSTOMER',
+        password: demoPassword,
       },
     });
     console.log('✅ Customer created');
 
     // Create Rider Users
     const rider1 = await prisma.user.upsert({
-      where: { email: 'rider1@aagam.com' },
-      update: { role: 'RIDER', name: 'Bob Rider' },
+      where: { id: 'rider-user-id-1' },
+      update: { email: 'rider1@aagam.com', role: 'RIDER', name: 'Bob Rider', password: demoPassword },
       create: {
         id: 'rider-user-id-1',
         email: 'rider1@aagam.com',
         name: 'Bob Rider',
         phone: '+1234567893',
         role: 'RIDER',
+        password: demoPassword,
       },
     });
 
     const rider2 = await prisma.user.upsert({
-      where: { email: 'rider2@aagam.com' },
-      update: { role: 'RIDER', name: 'Charlie Rider' },
+      where: { id: 'rider-user-id-2' },
+      update: { email: 'rider2@aagam.com', role: 'RIDER', name: 'Charlie Rider', password: demoPassword },
       create: {
         id: 'rider-user-id-2',
         email: 'rider2@aagam.com',
         name: 'Charlie Rider',
         phone: '+1234567894',
         role: 'RIDER',
+        password: demoPassword,
       },
     });
     console.log('✅ Rider users created');
@@ -522,8 +533,11 @@ async function main() {
     console.log('🎉 Database seeded successfully!');
     console.log('--------------------------------------------------');
     console.log('Sample login credentials:');
-    console.log('  Admin: admin@aagam.com');
+    console.log(`  Admin: ${adminEmail}`);
     console.log('  Customer: customer@aagam.com');
+    console.log('  Rider: rider1@aagam.com');
+    console.log('  Store owner: storeowner@aagam.com');
+    console.log('  Demo password: use SEED_ADMIN_PASSWORD for admin and SEED_DEMO_PASSWORD for demo accounts');
     console.log('--------------------------------------------------');
   } catch (error) {
     console.error('❌ Seeding failed:', error);

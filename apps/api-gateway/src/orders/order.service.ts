@@ -1,8 +1,181 @@
-import { Injectable } from '@nestjs/common';
-import { prisma } from '@aagam/database';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { OrderStatus, Role, prisma } from '@aagam/database';
+import { TrackingGateway } from '../tracking.gateway';
+
+const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  PENDING: ['CONFIRMED', 'CANCELLED'],
+  PAYMENT_PENDING: ['CONFIRMED', 'PAYMENT_FAILED', 'CANCELLED'],
+  PAYMENT_FAILED: ['PAYMENT_PENDING', 'CANCELLED'],
+  CONFIRMED: ['PICKING', 'PACKED', 'RIDER_ASSIGNED', 'CANCELLED'],
+  PICKING: ['PACKED', 'RIDER_ASSIGNED', 'CANCELLED'],
+  PACKED: ['RIDER_ASSIGNED', 'CANCELLED'],
+  RIDER_ASSIGNED: ['OUT_FOR_DELIVERY', 'CANCELLED'],
+  OUT_FOR_DELIVERY: ['DELIVERED', 'CANCELLED'],
+  DELIVERED: [],
+  CANCELLED: [],
+};
 
 @Injectable()
 export class OrderService {
+  constructor(private readonly trackingGateway: TrackingGateway) {}
+
+  private timestampFieldForStatus(status: OrderStatus) {
+    const map: Partial<Record<OrderStatus, string>> = {
+      CONFIRMED: 'confirmedAt',
+      PICKING: 'pickingAt',
+      PACKED: 'packedAt',
+      RIDER_ASSIGNED: 'riderAssignedAt',
+      OUT_FOR_DELIVERY: 'outForDeliveryAt',
+      DELIVERED: 'deliveredAt',
+      CANCELLED: 'cancelledAt',
+      PAYMENT_FAILED: 'paymentFailedAt',
+    };
+    return map[status];
+  }
+
+  private async emitTrackingUpdate(orderId: string, payload?: any) {
+    const tracking = await this.getTracking(orderId);
+    const eventPayload = payload || tracking;
+    this.trackingGateway.emitOrderStatusUpdated(orderId, eventPayload);
+    this.trackingGateway.emitOrderTimelineUpdated(orderId, tracking);
+    return tracking;
+  }
+
+  async recordStatusHistory(data: {
+    orderId: string;
+    fromStatus?: OrderStatus | null;
+    toStatus: OrderStatus;
+    actor?: { id?: string; role?: Role } | null;
+    note?: string;
+    metadata?: any;
+  }, tx: any = prisma) {
+    return tx.orderStatusHistory.create({
+      data: {
+        orderId: data.orderId,
+        fromStatus: data.fromStatus || null,
+        toStatus: data.toStatus,
+        actorUserId: data.actor?.id || null,
+        actorRole: data.actor?.role || null,
+        note: data.note || null,
+        metadata: data.metadata || undefined,
+      },
+    });
+  }
+
+  async getTracking(orderId: string, user?: { id: string; role: Role }) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        customer: { select: { id: true, name: true, email: true, phone: true } },
+        store: { select: { id: true, name: true, address: true, latitude: true, longitude: true, ownerId: true } },
+        rider: { include: { user: { select: { id: true, name: true, phone: true } } } },
+        payment: true,
+        items: { include: { product: { select: { id: true, name: true, image: true } } } },
+        statusHistory: { orderBy: { createdAt: 'asc' } },
+        riderLocationPings: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+    });
+
+    if (!order) throw new NotFoundException('Order not found');
+
+    if (user?.role === Role.CUSTOMER && order.customerId !== user.id) {
+      throw new ForbiddenException('Not allowed');
+    }
+    if (user?.role === Role.STORE_OWNER && order.store.ownerId !== user.id) {
+      throw new ForbiddenException('Not allowed');
+    }
+    if (user?.role === Role.RIDER) {
+      const riderProfile = await prisma.riderProfile.findUnique({ where: { userId: user.id } });
+      if (!riderProfile || order.riderId !== riderProfile.id) {
+        throw new ForbiddenException('Not allowed');
+      }
+    }
+
+    const latestLocation = order.riderLocationPings[0] || null;
+    const eta = this.computeEta(order, latestLocation);
+
+    return {
+      order: {
+        id: order.id,
+        status: order.status,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        confirmedAt: order.confirmedAt,
+        pickingAt: order.pickingAt,
+        packedAt: order.packedAt,
+        riderAssignedAt: order.riderAssignedAt,
+        outForDeliveryAt: order.outForDeliveryAt,
+        deliveredAt: order.deliveredAt,
+        cancelledAt: order.cancelledAt,
+        paymentFailedAt: order.paymentFailedAt,
+        totalAmount: order.totalAmount,
+        grandTotal: order.grandTotal,
+        addressSnapshot: order.addressSnapshot,
+        itemsSnapshot: order.itemsSnapshot,
+        pricingSnapshot: order.pricingSnapshot,
+      },
+      timeline: order.statusHistory,
+      payment: order.payment,
+      store: {
+        id: order.store.id,
+        name: order.store.name,
+        address: order.store.address,
+        latitude: order.store.latitude,
+        longitude: order.store.longitude,
+      },
+      customer: order.customer,
+      rider: order.rider
+        ? {
+            id: order.rider.id,
+            status: order.rider.status,
+            name: order.rider.user?.name,
+            phone: order.rider.user?.phone,
+            latitude: order.rider.latitude,
+            longitude: order.rider.longitude,
+            updatedAt: order.rider.updatedAt,
+          }
+        : null,
+      items: order.items,
+      tracking: {
+        isLive: ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'].includes(order.status),
+        latestLocation,
+        lastPingAt: latestLocation?.createdAt || null,
+        etaMinutes: eta.etaMinutes,
+        distanceKm: eta.distanceKm,
+      },
+    };
+  }
+
+  private computeEta(order: any, latestLocation: any) {
+    const destinationLat = order.deliveryLat;
+    const destinationLng = order.deliveryLng;
+    const sourceLat = latestLocation?.latitude ?? order.rider?.latitude;
+    const sourceLng = latestLocation?.longitude ?? order.rider?.longitude;
+    if (
+      typeof destinationLat !== 'number' ||
+      typeof destinationLng !== 'number' ||
+      typeof sourceLat !== 'number' ||
+      typeof sourceLng !== 'number'
+    ) {
+      return { etaMinutes: null, distanceKm: null };
+    }
+    const distanceKm = this.haversineKm(sourceLat, sourceLng, destinationLat, destinationLng);
+    const citySpeedKmPerHour = 18;
+    const etaMinutes = Math.max(2, Math.ceil((distanceKm / citySpeedKmPerHour) * 60));
+    return { etaMinutes, distanceKm: Number(distanceKm.toFixed(2)) };
+  }
+
+  private haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const toRad = (v: number) => (v * Math.PI) / 180;
+    const R = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
   async findAll() {
     return prisma.order.findMany({
       include: {
@@ -49,10 +222,279 @@ export class OrderService {
     });
   }
 
-  async updateStatus(id: string, status: any) {
-    return prisma.order.update({
+  async findMyOrder(userId: string, id: string) {
+    const order = await prisma.order.findFirst({
+      where: { id, customerId: userId },
+      include: {
+        store: {
+          select: { id: true, name: true, address: true, latitude: true, longitude: true },
+        },
+        payment: true,
+        rider: {
+          include: {
+            user: {
+              select: { name: true, phone: true },
+            },
+          },
+        },
+        items: {
+          include: {
+            product: {
+              select: { id: true, name: true, image: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    return order;
+  }
+
+  async updateStatus(
+    id: string,
+    nextStatus: OrderStatus,
+    actor: { id: string; role: Role },
+    riderId?: string,
+  ) {
+    const order = await prisma.order.findUnique({
       where: { id },
-      data: { status }
+      include: {
+        store: {
+          select: { ownerId: true },
+        },
+      },
+    });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    if (order.status === nextStatus) {
+      return order;
+    }
+
+    const allowedNextStatuses = ORDER_TRANSITIONS[order.status as OrderStatus] || [];
+    if (!allowedNextStatuses.includes(nextStatus)) {
+      throw new BadRequestException(`Cannot transition order from ${order.status} to ${nextStatus}`);
+    }
+
+    if (actor.role === Role.RIDER) {
+      const riderProfile = await prisma.riderProfile.findUnique({ where: { userId: actor.id } });
+      if (!riderProfile || order.riderId !== riderProfile.id) {
+        throw new ForbiddenException('You can only update your assigned orders');
+      }
+
+      const riderAllowed: OrderStatus[] = [OrderStatus.PICKING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED];
+      if (!riderAllowed.includes(nextStatus)) {
+        throw new ForbiddenException('Riders can only progress active deliveries');
+      }
+    }
+
+    if (actor.role === Role.STORE_OWNER) {
+      if (order.store?.ownerId !== actor.id) {
+        throw new ForbiddenException('Not allowed to update orders for this store');
+      }
+      const ownerAllowed: OrderStatus[] = [OrderStatus.CONFIRMED, OrderStatus.PICKING, OrderStatus.CANCELLED];
+      if (!ownerAllowed.includes(nextStatus)) {
+        throw new ForbiddenException('Store owners can only confirm, begin picking, or cancel');
+      }
+    }
+
+    const data: any = { status: nextStatus };
+    const timestampField = this.timestampFieldForStatus(nextStatus);
+    if (timestampField) {
+      data[timestampField] = new Date();
+    }
+    if (riderId) {
+      data.riderId = riderId;
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: { id },
+        data,
+      });
+      await this.recordStatusHistory({
+        orderId: id,
+        fromStatus: order.status as OrderStatus,
+        toStatus: nextStatus,
+        actor,
+      }, tx);
+      return updatedOrder;
+    });
+
+    if (updated.riderId && nextStatus === OrderStatus.DELIVERED) {
+      await prisma.riderProfile.update({
+        where: { id: updated.riderId },
+        data: { status: 'ONLINE' },
+      }).catch(() => null);
+    }
+
+    await this.emitTrackingUpdate(id);
+    return updated;
+  }
+
+  async assignRider(orderId: string, userId: string) {
+    const riderProfile = await prisma.riderProfile.upsert({
+      where: { userId },
+      update: {},
+      create: {
+        userId,
+        status: 'OFFLINE',
+      },
+    });
+
+    return prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: { id: true, status: true, riderId: true },
+      });
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+      const assignableStatuses: OrderStatus[] = [OrderStatus.CONFIRMED, OrderStatus.PICKING, OrderStatus.PACKED];
+      if (!assignableStatuses.includes(order.status as OrderStatus)) {
+        throw new BadRequestException('Only confirmed, picking, or packed orders can be assigned to riders');
+      }
+      if (order.riderId) {
+        throw new ConflictException('Order already assigned to a rider');
+      }
+
+      const updated = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: OrderStatus.RIDER_ASSIGNED,
+          riderId: riderProfile.id,
+          riderAssignedAt: new Date(),
+        },
+      });
+
+      await this.recordStatusHistory({
+        orderId,
+        fromStatus: order.status as OrderStatus,
+        toStatus: OrderStatus.RIDER_ASSIGNED,
+        actor: { id: userId, role: Role.RIDER },
+        note: 'Rider accepted order',
+        metadata: { riderProfileId: riderProfile.id },
+      }, tx);
+
+      await tx.riderProfile.update({
+        where: { id: riderProfile.id },
+        data: { status: 'BUSY' },
+      });
+
+      this.trackingGateway.emitRiderAssigned(orderId, {
+        orderId,
+        riderId: riderProfile.id,
+        status: OrderStatus.RIDER_ASSIGNED,
+      });
+      return updated;
+    });
+  }
+
+  async findMyOrders(userId: string) {
+    return prisma.order.findMany({
+      where: { customerId: userId },
+      include: {
+        store: {
+          select: { name: true }
+        },
+        payment: true,
+        items: {
+          include: {
+            product: {
+              select: { name: true, image: true }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+  }
+
+  async findByRiderId(riderId: string) {
+    return prisma.order.findMany({
+      where: { riderId },
+      include: {
+        customer: {
+          select: { name: true, phone: true }
+        },
+        store: {
+          select: { name: true, address: true }
+        },
+        payment: true,
+        items: {
+          include: {
+            product: {
+              select: { name: true, image: true }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+  }
+
+  async findRecentForRiders(since: Date) {
+    return prisma.order.findMany({
+      where: {
+        createdAt: { gte: since },
+        status: 'CONFIRMED',
+        riderId: null,
+      },
+      include: {
+        customer: {
+          select: { name: true, phone: true }
+        },
+        store: {
+          select: { name: true, address: true, latitude: true, longitude: true }
+        },
+        rider: true,
+        payment: true,
+        items: {
+          include: {
+            product: {
+              select: { name: true, image: true }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 50,
+    });
+  }
+
+  async findOneWithDetails(id: string) {
+    return prisma.order.findUnique({
+      where: { id },
+      include: {
+        customer: {
+          select: { name: true, phone: true }
+        },
+        store: {
+          select: { name: true, address: true, latitude: true, longitude: true }
+        },
+        rider: {
+          include: { user: { select: { name: true } } }
+        },
+        payment: true,
+        items: {
+          include: {
+            product: {
+              select: { name: true, image: true }
+            }
+          }
+        }
+      }
     });
   }
 }

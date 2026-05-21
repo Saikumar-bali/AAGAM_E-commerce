@@ -11,7 +11,8 @@ import {
   ShoppingCart, 
   Settings, 
   LogOut,
-  User
+  User,
+  MapPin
 } from 'lucide-react';
 
 import { apiClient } from '@aagam/utils';
@@ -51,19 +52,39 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     CUSTOMER: [
       { name: 'Shop', href: '/shop', icon: ShoppingCart },
       { name: 'My Orders', href: '/shop/orders', icon: Package },
+      { name: 'Addresses', href: '/shop/addresses', icon: MapPin },
     ],
   };
 
   const currentMenu = menuItems[role] || [];
 
   return (
-    <div className="flex flex-col h-screen w-64 bg-gray-900 text-white border-r border-gray-800">
-      <div className="p-6">
-        <h1 className="text-2xl font-bold text-emerald-500">Aagam</h1>
-        <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">{role} PORTAL</p>
+    <>
+    <aside className="relative z-10 hidden h-screen w-72 flex-col border-r border-white/10 bg-slate-950 text-white shadow-[28px_0_80px_rgba(15,23,42,0.22)] lg:flex">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.22),transparent_20rem),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.16),transparent_18rem)]" />
+      <div className="relative p-6">
+        <Link href="/" className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-amber-300 text-lg font-black text-slate-950 shadow-xl shadow-teal-950/30">
+            A
+          </div>
+          <div>
+            <h1 className="text-2xl font-black tracking-[-0.05em] text-white">Aagam</h1>
+            <p className="text-[10px] font-black uppercase tracking-[0.26em] text-teal-200">{role} portal</p>
+          </div>
+        </Link>
+        <div className="mt-7 rounded-[1.5rem] border border-white/10 bg-white/8 p-4 backdrop-blur-xl">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Today signal</p>
+          <div className="mt-3 flex items-end justify-between">
+            <div>
+              <p className="text-2xl font-black">98.4%</p>
+              <p className="text-xs font-semibold text-slate-400">Fulfillment health</p>
+            </div>
+            <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-black text-emerald-200">ONLINE</span>
+          </div>
+        </div>
       </div>
 
-      <nav className="flex-1 px-4 space-y-1">
+      <nav className="relative flex-1 px-4 space-y-2">
         {currentMenu.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -71,29 +92,50 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
             <Link
               key={item.name}
               href={item.href}
-              className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+              className={`group flex items-center rounded-2xl px-4 py-3 text-sm font-extrabold transition-all ${
                 isActive 
-                  ? 'bg-emerald-600 text-white' 
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                  ? 'bg-white text-slate-950 shadow-2xl shadow-teal-950/20' 
+                  : 'text-slate-400 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <Icon className="mr-3 h-5 w-5" />
+              <span className={`mr-3 flex h-10 w-10 items-center justify-center rounded-xl transition ${isActive ? 'bg-teal-50 text-teal-700' : 'bg-white/5 text-slate-400 group-hover:text-teal-200'}`}>
+                <Icon className="h-5 w-5" />
+              </span>
               {item.name}
             </Link>
           );
         })}
       </nav>
 
-      <div className="p-4 border-t border-gray-800">
+      <div className="relative p-4">
         <button
           onClick={handleLogout}
-          className="flex items-center w-full px-4 py-3 text-sm font-medium text-gray-400 rounded-lg hover:bg-red-900/20 hover:text-red-400 transition-colors"
+          className="flex w-full items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-extrabold text-slate-300 transition hover:border-red-300/30 hover:bg-red-500/10 hover:text-red-200"
         >
           <LogOut className="mr-3 h-5 w-5" />
           Logout
         </button>
       </div>
-    </div>
+    </aside>
+    <nav className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-around rounded-[1.5rem] border border-white/70 bg-slate-950/92 p-2 text-white shadow-[0_24px_70px_rgba(15,23,42,0.32)] backdrop-blur-2xl lg:hidden">
+      {currentMenu.slice(0, 4).map((item) => {
+        const Icon = item.icon;
+        const isActive = pathname === item.href;
+        return (
+          <Link
+            key={item.name}
+            href={item.href}
+            className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-black transition ${
+              isActive ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <Icon className="h-5 w-5" />
+            <span className="max-w-full truncate">{item.name}</span>
+          </Link>
+        );
+      })}
+    </nav>
+    </>
   );
 };
 

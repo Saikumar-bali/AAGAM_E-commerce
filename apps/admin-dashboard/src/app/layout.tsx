@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Manrope } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope" });
 
 export const metadata: Metadata = {
-  title: "Aagam - Express Grocery Delivery",
-  description: "Get groceries delivered in 10 minutes",
+  title: "Aagam Commerce OS",
+  description: "Enterprise quick-commerce storefront, operations, and rider tracking.",
 };
 
 export default function RootLayout({
@@ -16,7 +16,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={`${manrope.className} antialiased`}>{children}</body>
     </html>
   )
 }

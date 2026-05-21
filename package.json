@@ -8,11 +8,24 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo dev",
-    "build": "turbo build",
+    "dev": "turbo dev --filter=!AagamMobile",
+    "build": "npm run build:api",
+    "build:all": "turbo build",
+    "start": "npm run railway:start:api",
+    "build:api": "npm run build --workspace @aagam/types && npm run build --workspace @aagam/utils && npm run build --workspace @aagam/database && npm run build --workspace @aagam/api-gateway",
+    "build:admin": "npm run build --workspace @aagam/types && npm run build --workspace @aagam/utils && npm run build --workspace @aagam/ui && npm run build --workspace @aagam/admin-dashboard",
+    "start:api": "npm run start:prod --workspace @aagam/api-gateway",
+    "start:admin": "npm run start:railway --workspace @aagam/admin-dashboard",
+    "railway:start:api": "npm run db:push:prod && npm run start:api",
+    "db:push:prod": "prisma db push --schema packages/database/prisma/schema.prisma",
+    "db:migrate:prod": "prisma migrate deploy --schema packages/database/prisma/schema.prisma",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "devDependencies": {
     "turbo": "^2.9.6"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   }
 }

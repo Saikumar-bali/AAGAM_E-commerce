@@ -14,8 +14,10 @@ import { CustomerModule } from './customer/customer.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { PaymentsModule } from './payments/payments.module';
 import { GeoModule } from './geo/geo.module';
-import { TrackingGateway } from './tracking.gateway';
+import { RealtimeModule } from './realtime/realtime.module';
 import * as redisStore from 'cache-manager-redis-yet';
+import { NotificationsModule } from './notifications/notifications.module';
+import { TrackingModule } from './tracking/tracking.module';
 
 @Module({
   imports: [
@@ -56,8 +58,11 @@ import * as redisStore from 'cache-manager-redis-yet';
     CheckoutModule,
     PaymentsModule,
     GeoModule,
+    RealtimeModule,
+    NotificationsModule,
+    TrackingModule,
   ],
   controllers: [AppController],
-  providers: [AppService, TrackingGateway],
+  providers: [AppService],
 })
 export class AppModule {}

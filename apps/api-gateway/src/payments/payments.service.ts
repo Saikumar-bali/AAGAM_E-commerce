@@ -1,5 +1,5 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { PaymentStatus, prisma } from '@aagam/database';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PaymentMethod, PaymentStatus, prisma } from '@aagam/database';
 
 @Injectable()
 export class PaymentsService {
@@ -10,6 +10,13 @@ export class PaymentsService {
 
     const payment = await prisma.payment.findUnique({ where: { orderId } });
     if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.method !== PaymentMethod.ONLINE) throw new BadRequestException('Only online payments can be captured');
+    if (payment.status === PaymentStatus.CAPTURED) {
+      return { success: true, status: PaymentStatus.CAPTURED };
+    }
+    if (payment.status !== PaymentStatus.CREATED || order.status !== 'PAYMENT_PENDING') {
+      throw new BadRequestException('Payment is not awaiting capture');
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
@@ -18,7 +25,17 @@ export class PaymentsService {
       });
       await tx.order.update({
         where: { id: orderId },
-        data: { status: 'CONFIRMED' as any },
+        data: { status: 'CONFIRMED' as any, confirmedAt: new Date() },
+      });
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: order.status as any,
+          toStatus: 'CONFIRMED' as any,
+          actorUserId: userId,
+          actorRole: 'CUSTOMER',
+          note: 'Online payment captured',
+        },
       });
     });
 
@@ -32,6 +49,13 @@ export class PaymentsService {
 
     const payment = await prisma.payment.findUnique({ where: { orderId } });
     if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.method !== PaymentMethod.ONLINE) throw new BadRequestException('Only online payments can fail through this endpoint');
+    if (payment.status === PaymentStatus.FAILED) {
+      return { success: true, status: PaymentStatus.FAILED };
+    }
+    if (payment.status !== PaymentStatus.CREATED || order.status !== 'PAYMENT_PENDING') {
+      throw new BadRequestException('Payment is not awaiting capture');
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
@@ -40,11 +64,20 @@ export class PaymentsService {
       });
       await tx.order.update({
         where: { id: orderId },
-        data: { status: 'PAYMENT_FAILED' as any },
+        data: { status: 'PAYMENT_FAILED' as any, paymentFailedAt: new Date() },
+      });
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: order.status as any,
+          toStatus: 'PAYMENT_FAILED' as any,
+          actorUserId: userId,
+          actorRole: 'CUSTOMER',
+          note: reason || 'Payment failed',
+        },
       });
     });
 
     return { success: true, status: PaymentStatus.FAILED };
   }
 }
-

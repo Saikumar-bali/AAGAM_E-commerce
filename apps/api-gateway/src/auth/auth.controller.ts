@@ -33,7 +33,7 @@ export class AuthController {
     response.cookie('access_token', result.session.access_token, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: isProduction ? 'none' : 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
@@ -45,6 +45,7 @@ export class AuthController {
     return {
       message: 'Logged in successfully',
       user: result.user,
+      access_token: result.session.access_token,
     };
   }
 
@@ -64,15 +65,20 @@ export class AuthController {
     response.clearCookie('access_token', { 
       path: '/',
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: isProduction ? 'none' : 'lax',
     });
     return { message: 'Logged out successfully' };
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Get('users')
   async findAll() {
     return this.authService.findAll();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('fcm-token')
+  async updateFcmToken(@Req() req: any, @Body() body: { token: string }) {
+    return this.authService.updateFcmToken(req.user.id, body.token);
   }
 }

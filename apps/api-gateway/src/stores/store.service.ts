@@ -1,11 +1,29 @@
-import { Injectable } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable } from '@nestjs/common';
 import { prisma } from '@aagam/database';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class StoreService {
+  constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
+
+  private async invalidateCommerceCache() {
+    await Promise.allSettled([
+      this.cacheManager.del('all_products'),
+      this.cacheManager.del('all_categories'),
+    ]);
+  }
+
   async findAll() {
     return prisma.store.findMany({
       include: { owner: true, inventory: true },
+    });
+  }
+
+  async findByOwnerId(ownerId: string) {
+    return prisma.store.findMany({
+      where: { ownerId },
+      include: { inventory: { include: { product: true } } },
     });
   }
 
@@ -29,7 +47,7 @@ export class StoreService {
       });
     }
     
-    return prisma.store.create({
+    const store = await prisma.store.create({
       data: {
         name: data.name,
         address: data.address,
@@ -38,13 +56,17 @@ export class StoreService {
         ownerId: owner.id,
       },
     });
+    await this.invalidateCommerceCache();
+    return store;
   }
 
   async update(id: string, data: { name?: string; address?: string; latitude?: number; longitude?: number; isActive?: boolean }) {
-    return prisma.store.update({
+    const store = await prisma.store.update({
       where: { id },
       data,
     });
+    await this.invalidateCommerceCache();
+    return store;
   }
 
   async delete(id: string) {
@@ -69,18 +91,22 @@ export class StoreService {
     });
 
     // 4. Finally delete the store
-    return prisma.store.delete({
+    const deleted = await prisma.store.delete({
       where: { id },
     });
+    await this.invalidateCommerceCache();
+    return deleted;
   }
 
   async updateInventory(storeId: string, productId: string, quantity: number) {
-    return prisma.inventory.upsert({
+    const inventory = await prisma.inventory.upsert({
       where: {
         storeId_productId: { storeId, productId },
       },
       update: { quantity },
       create: { storeId, productId, quantity },
     });
+    await this.invalidateCommerceCache();
+    return inventory;
   }
 }
