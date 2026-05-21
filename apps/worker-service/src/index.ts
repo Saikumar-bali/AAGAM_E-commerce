@@ -14,8 +14,9 @@ async function main() {
   }
   
   try {
-    const redis = (await import('ioredis')).default;
-    const redisClient = new redis(process.env.REDIS_URL);
+    const Redis = (await import('ioredis')).default;
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    const redisClient = new Redis(redisUrl);
     await new Promise((res, rej) => {
       redisClient.on('ready', () => { console.log('✅ Redis connected'); res(undefined); });
       redisClient.on('error', (e: Error) => { console.error('❌ Redis error:', e.message); rej(e); });
