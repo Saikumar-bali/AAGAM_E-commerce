@@ -195,7 +195,7 @@ export default function ShopPage() {
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(i => (
                 <div key={i} className="bg-white/80 rounded-xl h-44 animate-pulse border border-emerald-100"></div>
               ))}
@@ -207,7 +207,7 @@ export default function ShopPage() {
               <p className="text-gray-500">Try a different search.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {filteredProducts.map((product) => {
                 const qty = qtyById.get(product.id) || 0;
                 const price = typeof product.price === 'number' ? product.price : Number(product.price) || 0;

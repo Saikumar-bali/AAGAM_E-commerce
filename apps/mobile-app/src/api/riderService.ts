@@ -59,6 +59,14 @@ export const riderService = {
     return response.data;
   },
 
+  updateMyStatus: async (status: string, location?: { latitude: number; longitude: number }) => {
+    const response = await apiClient.patch('/riders/me/status', {
+      status,
+      ...location,
+    });
+    return response.data;
+  },
+
   // Assign an order to the current rider (Accept/Pick)
   assignOrder: async (orderId: string) => {
     const response = await apiClient.patch('/orders/assign', { orderId });

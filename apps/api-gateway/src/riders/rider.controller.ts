@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Param, Patch, Delete } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { RiderService } from './rider.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -14,6 +14,23 @@ export class RiderController {
   @Roles(Role.ADMIN)
   async findAll() {
     return this.riderService.findAll();
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.RIDER)
+  async findMe(@Req() req: any) {
+    return this.riderService.findByUserId(req.user.id);
+  }
+
+  @Patch('me/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.RIDER)
+  async updateMyStatus(
+    @Req() req: any,
+    @Body() data: { status: string; latitude?: number; longitude?: number }
+  ) {
+    return this.riderService.updateStatusForUser(req.user.id, data);
   }
 
   @Get(':id')

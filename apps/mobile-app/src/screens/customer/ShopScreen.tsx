@@ -127,6 +127,8 @@ export const ShopScreen = () => {
 
       <FlatList
         data={products}
+        numColumns={2}
+        columnWrapperStyle={styles.productRow}
         renderItem={({ item }) => {
           const inStock = item.availability?.inStock ?? true;
           const productImage = getProductImage(item);
@@ -220,21 +222,24 @@ const styles = StyleSheet.create({
   sortButtonText: { color: '#334155', fontWeight: '700', fontSize: 12 },
   sortButtonTextActive: { color: '#115E59' },
   listContainer: { paddingHorizontal: 16, paddingBottom: 24 },
+  productRow: { gap: 12 },
   productCard: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
+    marginHorizontal: 0,
     marginBottom: 14,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  productImage: { width: '100%', height: 180, resizeMode: 'cover' },
-  productInfo: { padding: 14 },
+  productImage: { width: '100%', height: 112, resizeMode: 'cover' },
+  productInfo: { padding: 12 },
   productCategory: { fontSize: 11, fontWeight: '800', color: '#0F766E', textTransform: 'uppercase' },
-  productName: { marginTop: 4, fontSize: 18, fontWeight: '800', color: '#0F172A' },
-  productDescription: { marginTop: 6, fontSize: 13, lineHeight: 18, color: '#64748B' },
-  cardFooter: { marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  productPrice: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
+  productName: { marginTop: 4, fontSize: 15, fontWeight: '800', color: '#0F172A' },
+  productDescription: { marginTop: 6, fontSize: 12, lineHeight: 16, color: '#64748B' },
+  cardFooter: { marginTop: 12, gap: 8 },
+  productPrice: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
   stockText: { marginTop: 3, fontSize: 12, color: '#0F766E', fontWeight: '700' },
   stockTextOut: { color: '#DC2626' },
   addButton: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999 },

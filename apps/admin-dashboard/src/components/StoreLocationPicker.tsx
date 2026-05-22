@@ -15,6 +15,7 @@ interface StoreLocationPickerProps {
   onCoordsChange: (lat: number, lng: number) => void;
   onAddressChange?: (address: { address: string; city: string; state: string; pincode: string }) => void;
   apiClient: any;
+  searchPlaceholder?: string;
 }
 
 export function StoreLocationPicker({
@@ -22,6 +23,7 @@ export function StoreLocationPicker({
   onCoordsChange,
   onAddressChange,
   apiClient,
+  searchPlaceholder = 'Search for address...',
 }: StoreLocationPickerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -153,11 +155,11 @@ export function StoreLocationPicker({
         {hasCoords && (
           <Marker
             draggable={true}
-            eventHandlers={{ dragend: (e: any) => { const { lat, lng } = e.target.getLatLng(); onCoordsChange(lat, lng); } }}
+            eventHandlers={{ dragend: async (e: any) => { const { lat, lng } = e.target.getLatLng(); onCoordsChange(lat, lng); await doReverseGeocode(lat, lng); } }}
             position={[coords.lat as number, coords.lng as number]}
           />
         )}
-        <MapClick onMapClick={(lat: number, lng: number) => onCoordsChange(lat, lng)} />
+        <MapClick onMapClick={async (lat: number, lng: number) => { onCoordsChange(lat, lng); await doReverseGeocode(lat, lng); }} />
       </MapContainer>
     );
   };
@@ -180,7 +182,7 @@ export function StoreLocationPicker({
             type="text"
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search for store address..."
+            placeholder={searchPlaceholder}
             className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder:text-gray-400"
           />
           {searching && (

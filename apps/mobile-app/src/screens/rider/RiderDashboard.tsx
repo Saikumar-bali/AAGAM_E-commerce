@@ -12,6 +12,7 @@ import {
   Linking,
   Platform,
   ActivityIndicator,
+  PermissionsAndroid,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io, Socket } from 'socket.io-client';
@@ -61,9 +62,9 @@ export const RiderDashboard = () => {
   // Socket setup
   useEffect(() => {
     // Register device for push notifications
-    import('../../utils/notifications').then(({ registerDeviceToken }) => {
-      registerDeviceToken();
-    });
+    import('../../utils/notifications')
+      .then(({ registerDeviceToken }) => registerDeviceToken())
+      .catch((error) => console.warn('[RiderDashboard] Notifications unavailable', error));
 
     const newSocket = io(API_URL, {
       transports: ['websocket'],
@@ -84,17 +85,57 @@ export const RiderDashboard = () => {
     return () => { newSocket.disconnect(); };
   }, []);
 
+  useEffect(() => {
+    if (socket) {
+      handleGoOnline();
+    }
+  }, [socket]);
+
   const handleRefresh = () => {
     refetchAssigned();
     refetchQueue();
   };
 
-  const handleGoOnline = () => {
+  const handleGoOffline = async () => {
+    setIsOnline(false);
+    try {
+      await riderService.updateMyStatus('OFFLINE', currentLocation
+        ? { latitude: currentLocation.lat, longitude: currentLocation.lng }
+        : undefined);
+    } catch (error) {
+      console.warn('[RiderDashboard] Rider offline update failed', error);
+    }
+  };
+
+  const requestLocationPermission = async () => {
+    if (Platform.OS !== 'android') return true;
+    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, {
+      title: 'Allow Aagam rider location',
+      message: 'Aagam needs your location to show nearby orders and share live delivery tracking.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Not now',
+    });
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  const handleGoOnline = async () => {
     setLocating(true);
+    const hasPermission = await requestLocationPermission();
+    if (!hasPermission) {
+      Alert.alert('Location permission needed', 'Allow location permission to go online and receive nearby orders.');
+      setLocating(false);
+      return;
+    }
+
     Geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude } = position.coords;
         setCurrentLocation({ lat: latitude, lng: longitude });
+        try {
+          await riderService.updateMyStatus('ONLINE', { latitude, longitude });
+        } catch (error) {
+          console.warn('[RiderDashboard] Rider status update failed', error);
+        }
         if (socket) {
           socket.emit('joinRiderZone', { latitude, longitude });
         }
@@ -102,6 +143,7 @@ export const RiderDashboard = () => {
         setLocating(false);
       },
       (error) => {
+        console.warn('[RiderDashboard] Location error', error);
         Alert.alert('Location Error', 'Please enable GPS to go online');
         setLocating(false);
       },
@@ -115,6 +157,7 @@ export const RiderDashboard = () => {
         const { latitude, longitude, accuracy, speed, heading } = position.coords;
         setCurrentLocation({ lat: latitude, lng: longitude });
         try {
+          await riderService.updateMyStatus('BUSY', { latitude, longitude });
           await riderService.sendLocationPing(orderId, {
             latitude,
             longitude,
@@ -250,7 +293,7 @@ export const RiderDashboard = () => {
         </View>
         <TouchableOpacity 
           style={[styles.statusToggle, isOnline ? styles.onlineBg : styles.offlineBg]}
-          onPress={isOnline ? () => setIsOnline(false) : handleGoOnline}
+          onPress={isOnline ? handleGoOffline : handleGoOnline}
           disabled={locating}
         >
           {locating ? <ActivityIndicator size="small" color="#0F766E" /> : (

@@ -42,6 +42,13 @@ export class RiderService {
     });
   }
 
+  async findByUserId(userId: string) {
+    return prisma.riderProfile.findUnique({
+      where: { userId },
+      include: { user: true }
+    });
+  }
+
   async updateStatus(id: string, data: { status: string; latitude?: number; longitude?: number }) {
     return prisma.riderProfile.update({
       where: { id },
@@ -50,6 +57,23 @@ export class RiderService {
         ...(data.latitude && { latitude: data.latitude }),
         ...(data.longitude && { longitude: data.longitude }),
       }
+    });
+  }
+
+  async updateStatusForUser(userId: string, data: { status: string; latitude?: number; longitude?: number }) {
+    return prisma.riderProfile.upsert({
+      where: { userId },
+      create: {
+        userId,
+        status: data.status as any,
+        latitude: data.latitude,
+        longitude: data.longitude,
+      },
+      update: {
+        status: data.status as any,
+        ...(data.latitude && { latitude: data.latitude }),
+        ...(data.longitude && { longitude: data.longitude }),
+      },
     });
   }
 

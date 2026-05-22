@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
+import { StoreLocationPicker } from '@/components/StoreLocationPicker';
 import { apiClient } from '@aagam/utils';
 import { 
   Plus, 
@@ -41,7 +42,6 @@ export default function AddressesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -85,43 +85,6 @@ export default function AddressesPage() {
       return () => document.removeEventListener('click', handleClick);
     }
   }, [menuOpenId]);
-
-  const useCurrentLocation = async () => {
-    if (!navigator.geolocation) {
-      setError('Geolocation not available');
-      return;
-    }
-    setLocating(true);
-    setError(null);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        setDraft((d) => ({ ...d, latitude: lat, longitude: lng }));
-        try {
-          const res = await apiClient.get('/geo/reverse', { params: { lat, lng } });
-          const data = res.data;
-          if (data?.ok && data?.address) {
-            const a = data.address;
-            setDraft((d) => ({
-              ...d,
-              line1: d.line1 || a.line1 || '',
-              landmark: d.landmark || a.landmark || '',
-              city: d.city || a.city || '',
-              state: d.state || a.state || '',
-              pincode: d.pincode || a.pincode || '',
-            }));
-          }
-        } catch {}
-        setLocating(false);
-      },
-      () => {
-        setError('Could not get location');
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000 }
-    );
-  };
 
   const resetDraft = () => {
     setDraft({
@@ -167,7 +130,7 @@ export default function AddressesPage() {
 
   const saveAddress = async () => {
     if (!draft.latitude || !draft.longitude) {
-      setError('Please use current location to pin your address');
+      setError('Please pin your address using live location, search, or the map');
       return;
     }
     setSaving(true);
@@ -336,22 +299,21 @@ export default function AddressesPage() {
               </button>
             </div>
 
-            <div className="mb-4">
-              <button
-                onClick={useCurrentLocation}
-                disabled={locating}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {locating ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
-                {locating ? 'Getting location...' : 'Use Current Location'}
-              </button>
+            <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-3">
+              <StoreLocationPicker
+                apiClient={apiClient}
+                coords={{ lat: draft.latitude, lng: draft.longitude }}
+                onCoordsChange={(lat, lng) => setDraft((d) => ({ ...d, latitude: lat, longitude: lng }))}
+                onAddressChange={(address) => setDraft((d) => ({
+                  ...d,
+                  line1: d.line1 || address.address,
+                  city: d.city || address.city,
+                  state: d.state || address.state,
+                  pincode: d.pincode || address.pincode,
+                }))}
+                searchPlaceholder="Search apartment, street, landmark, or area..."
+              />
             </div>
-
-            {(draft.latitude && draft.longitude) && (
-              <div className="mb-4 p-2 bg-emerald-50 rounded-lg text-xs font-mono text-emerald-800">
-                Pinned: {draft.latitude.toFixed(6)}, {draft.longitude.toFixed(6)}
-              </div>
-            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
