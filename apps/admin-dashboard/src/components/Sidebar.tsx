@@ -9,13 +9,17 @@ import {
   Package, 
   Truck, 
   ShoppingCart, 
-  Settings, 
   LogOut,
   User,
-  MapPin
+  MapPin,
+  Heart,
+  Tag,
+  RotateCcw,
+  UserCircle,
 } from 'lucide-react';
 
 import { apiClient } from '@aagam/utils';
+import AagamLogo from './AagamLogo';
 
 interface SidebarProps {
   role: 'ADMIN' | 'RIDER' | 'CUSTOMER';
@@ -53,6 +57,10 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
       { name: 'Shop', href: '/shop', icon: ShoppingCart },
       { name: 'My Orders', href: '/shop/orders', icon: Package },
       { name: 'Addresses', href: '/shop/addresses', icon: MapPin },
+      { name: 'Wishlist', href: '/shop/wishlist', icon: Heart },
+      { name: 'Deals', href: '/shop/deals', icon: Tag },
+      { name: 'Reorder', href: '/shop/reorder', icon: RotateCcw },
+      { name: 'Account', href: '/shop/account', icon: UserCircle },
     ],
   };
 
@@ -63,15 +71,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     <aside className="relative z-10 hidden h-screen w-72 flex-col border-r border-white/10 bg-slate-950 text-white shadow-[28px_0_80px_rgba(15,23,42,0.22)] lg:flex">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.22),transparent_20rem),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.16),transparent_18rem)]" />
       <div className="relative p-6">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-amber-300 text-lg font-black text-slate-950 shadow-xl shadow-teal-950/30">
-            A
-          </div>
-          <div>
-            <h1 className="text-2xl font-black tracking-[-0.05em] text-white">Aagam</h1>
-            <p className="text-[10px] font-black uppercase tracking-[0.26em] text-teal-200">{role} portal</p>
-          </div>
-        </Link>
+        <AagamLogo inverse label={`${role} portal`} />
         <div className="mt-7 rounded-[1.5rem] border border-white/10 bg-white/8 p-4 backdrop-blur-xl">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Today signal</p>
           <div className="mt-3 flex items-end justify-between">

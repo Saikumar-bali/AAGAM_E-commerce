@@ -63,6 +63,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build shared mobile packages
+        run: |
+          npm run build --workspace @aagam/types
+          npm run build --workspace @aagam/utils
+
       - name: Configure mobile environment
         run: |
           cat > apps/mobile-app/.env <<EOF

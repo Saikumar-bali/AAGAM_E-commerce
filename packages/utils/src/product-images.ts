@@ -6,16 +6,16 @@ type ProductImageInput = {
 };
 
 const IMAGE_BY_PRODUCT_ID: Record<string, string> = {
-  'prod-1': 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=900&q=80',
-  'prod-2': 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=900&q=80',
-  'prod-3': 'https://images.unsplash.com/photo-1508747703725-719777637510?auto=format&fit=crop&w=900&q=80',
-  'prod-4': 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=900&q=80',
-  'prod-5': 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=900&q=80',
-  'prod-6': 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=900&q=80',
-  'prod-7': 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=900&q=80',
-  'prod-8': 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=900&q=80',
-  'prod-9': 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?auto=format&fit=crop&w=900&q=80',
-  'prod-10': 'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?auto=format&fit=crop&w=900&q=80',
+  'prod-1': 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1592924357228-91a4daadcfea',
+  'prod-2': 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1518977676601-b53f82aba655',
+  'prod-3': 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1508747703725-719777637510',
+  'prod-4': 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6',
+  'prod-5': 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e',
+  'prod-6': 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1563636619-e9143da7973b',
+  'prod-7': 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1488477181946-6428a0291777',
+  'prod-8': 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1509440159596-0249088772ff',
+  'prod-9': 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f',
+  'prod-10': 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1548839140-29a749e1cf4d',
 };
 
 const IMAGE_BY_KEYWORD: Array<[RegExp, string]> = [
@@ -32,17 +32,17 @@ const IMAGE_BY_KEYWORD: Array<[RegExp, string]> = [
 ];
 
 const IMAGE_BY_CATEGORY: Record<string, string> = {
-  vegetables: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=900&q=80',
-  fruits: 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?auto=format&fit=crop&w=900&q=80',
-  'milk & dairy': 'https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=900&q=80',
+  vegetables: 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1540420773420-3366772f4999',
+  fruits: 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1619566636858-adf3ef46400b',
+  'milk & dairy': 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1628088062854-d1870b4553da',
   eggs: IMAGE_BY_PRODUCT_ID['prod-9'],
   beverages: IMAGE_BY_PRODUCT_ID['prod-10'],
-  snacks: 'https://images.unsplash.com/photo-1621939514649-280e2ee25f60?auto=format&fit=crop&w=900&q=80',
-  staples: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=900&q=80',
+  snacks: 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1621939514649-280e2ee25f60',
+  staples: 'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1586201375761-83865001e31c',
 };
 
 export const DEFAULT_PRODUCT_IMAGE =
-  'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=80';
+  'https://res.cloudinary.com/demo/image/fetch/w_900,h_650,c_fill,q_auto,f_auto/https://images.unsplash.com/photo-1542838132-92c53300491e';
 
 export function getProductImage(product: ProductImageInput): string {
   if (product.image) return product.image;

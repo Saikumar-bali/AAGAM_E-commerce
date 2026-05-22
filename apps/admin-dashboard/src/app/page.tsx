@@ -20,6 +20,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { apiClient } from '@aagam/utils';
+import AagamLogo from '@/components/AagamLogo';
 import { formatINR } from '@/lib/currency';
 
 const operatingStats = [
@@ -54,10 +55,9 @@ export default function LandingPage() {
 
       <nav className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${isScrolled ? 'py-3' : 'py-5'}`}>
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-3 rounded-full border border-white/70 bg-white/80 py-2 pl-2 pr-5 shadow-xl shadow-slate-900/5 backdrop-blur-xl">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 text-sm font-black text-white">A</span>
-            <span className="text-lg font-black tracking-[-0.05em]">Aagam</span>
-          </Link>
+          <div className="rounded-full border border-white/70 bg-white/80 py-2 pl-2 pr-5 shadow-xl shadow-slate-900/5 backdrop-blur-xl">
+            <AagamLogo compact label="Commerce OS" />
+          </div>
           <div className="hidden items-center gap-2 rounded-full border border-white/70 bg-white/75 px-4 py-3 text-sm font-extrabold text-slate-600 shadow-xl shadow-slate-900/5 backdrop-blur-xl md:flex">
             <MapPin className="h-4 w-4 text-teal-600" />
             Bangalore quick-commerce zone

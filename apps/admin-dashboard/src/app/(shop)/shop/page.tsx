@@ -15,7 +15,15 @@ import {
   X, 
   ShoppingBag,
   Package as PackageIcon,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Sparkles,
+  Truck,
+  ShieldCheck,
+  RotateCcw,
+  Heart,
+  MapPin,
+  CreditCard,
+  Tag,
 } from 'lucide-react';
 
 export default function ShopPage() {
@@ -61,67 +69,94 @@ export default function ShopPage() {
   }, [cart]);
 
   const filteredProducts = useMemo(() => products, [products]);
+  const quickActions = [
+    { label: 'Deals', icon: Tag, hint: 'Coupons soon' },
+    { label: 'Reorder', icon: RotateCcw, hint: 'Past baskets' },
+    { label: 'Wishlist', icon: Heart, hint: 'Save items' },
+    { label: 'Addresses', icon: MapPin, hint: 'Delivery spots' },
+    { label: 'Payments', icon: CreditCard, hint: 'COD/online' },
+  ];
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
-      <div id="shop" className="min-h-screen font-sans relative">
-        <div className="pointer-events-none absolute inset-x-0 -top-8 h-64 bg-gradient-to-b from-emerald-100 via-white to-transparent" />
+      <div id="shop" className="relative min-h-screen font-sans">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-72 rounded-[2rem] bg-gradient-to-br from-emerald-100 via-white to-amber-50" />
 
-        {/* Compact Shop Header */}
-        <header className="sticky top-0 z-30 -mx-8 -mt-8 mb-6 px-8 pt-8 pb-5 backdrop-blur bg-white/70 border-b border-emerald-100/70">
-          <div className="max-w-7xl mx-auto flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <span className="text-xl font-black text-emerald-700 tracking-tight">Aagam</span>
-              <span className="ml-3 hidden sm:inline-flex text-[11px] font-extrabold uppercase tracking-[0.18em] text-emerald-900/60">
-                Shop
-              </span>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              <div className="relative hidden sm:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input 
-                  type="text" 
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search..." 
-                  className="pl-10 pr-4 py-2 bg-white/80 border border-emerald-100 rounded-full text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-200 transition-all w-64 shadow-sm"
-                />
+        <div className="relative mx-auto max-w-7xl">
+          <div className="mb-6 overflow-hidden rounded-[2rem] border border-white/80 bg-white/85 shadow-[0_22px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+            <div className="grid gap-5 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div>
+                <p className="enterprise-kicker w-fit"><Sparkles className="mr-2 h-3.5 w-3.5" /> Customer marketplace</p>
+                <h1 className="mt-4 text-3xl font-black tracking-[-0.05em] text-slate-950 md:text-5xl">Fresh groceries, without the clutter.</h1>
+                <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+                  Search, browse by category, save favourites, reorder essentials, and check out with live availability.
+                </p>
               </div>
-              
-              <button 
+              <button
                 onClick={() => setIsCartOpen(true)}
-                className="relative px-3 py-2 rounded-full border border-emerald-100 bg-white/80 text-emerald-800 hover:bg-emerald-50 transition-colors shadow-sm"
+                className="relative inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white shadow-xl shadow-slate-950/20 transition hover:-translate-y-0.5 hover:bg-emerald-700"
               >
-                <span className="inline-flex items-center gap-2">
-                  <ShoppingBag className="h-5 w-5" />
-                  <span className="hidden sm:inline font-extrabold text-sm">Cart</span>
-                </span>
-                {totalItems > 0 && (
-                  <span className="absolute -top-1 -right-1 h-5 w-5 bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white">
+                <ShoppingBag className="h-5 w-5" />
+                Cart
+                {totalItems > 0 ? (
+                  <span className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-amber-400 text-[11px] font-black text-slate-950">
                     {totalItems}
                   </span>
-                )}
+                ) : null}
               </button>
             </div>
-          </div>
-        </header>
 
-        {/* Main Content */}
-        <div className="max-w-7xl mx-auto pt-2">
-          <div className="mb-5">
-            <h1 className="text-2xl font-black text-gray-900">Fresh Groceries</h1>
-            <p className="text-gray-600 mt-1 text-sm">Search, browse by category, compare prices, and check out fast.</p>
+            <div className="grid gap-3 border-t border-slate-100 bg-slate-50/70 p-4 md:grid-cols-3">
+              {[
+                { label: 'Fast delivery promise', value: '10 min', icon: Truck },
+                { label: 'Protected checkout', value: 'Safe stock', icon: ShieldCheck },
+                { label: 'Smart picks nearby', value: `${filteredProducts.length || 0} items`, icon: ShoppingCart },
+              ].map((stat) => (
+                <div key={stat.label} className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm">
+                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
+                    <stat.icon className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-black text-slate-950">{stat.value}</span>
+                    <span className="block text-xs font-bold text-slate-500">{stat.label}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="mb-6 rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm">
+          <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {quickActions.map((action) => (
+              <button key={action.label} className="group flex items-center gap-3 rounded-2xl border border-emerald-100 bg-white/90 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700 group-hover:bg-emerald-700 group-hover:text-white">
+                  <action.icon className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block text-sm font-black text-slate-950">{action.label}</span>
+                  <span className="block text-xs font-bold text-slate-500">{action.hint}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mb-6 rounded-[1.5rem] border border-emerald-100 bg-white/90 p-4 shadow-sm">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-2 text-sm font-black text-emerald-900">
                 <SlidersHorizontal className="h-4 w-4" />
                 Browse smarter
               </div>
 
-              <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              <div className="flex flex-1 flex-col gap-3 md:flex-row md:items-center md:justify-end">
+                <div className="relative w-full md:max-w-sm">
+                  <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search groceries..."
+                    className="w-full rounded-full border border-emerald-100 bg-white px-10 py-2.5 text-sm font-bold text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-500/10"
+                  />
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setSelectedCategoryId('')}

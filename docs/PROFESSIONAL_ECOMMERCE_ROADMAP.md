@@ -106,6 +106,30 @@ The current image issue is seed data. Products such as banana, curd, eggs, and o
 - Notification preferences.
 - Logout and account deletion request flow.
 
+### Customer Portal Navigation
+
+- Shop: catalogue, search, categories, product cards, cart entry.
+- Orders: history, active orders, order detail, invoices, live tracking.
+- Addresses: saved addresses, default address, delivery instructions, map picker later.
+- Wishlist: saved products, back-in-stock alerts, price-drop alerts, move-to-cart.
+- Deals: coupon wallet, category deals, bank/payment offers, free-delivery campaigns.
+- Reorder: repeat baskets, frequently bought items, smart substitutions.
+- Account: profile, preferences, support tickets, payment history, privacy controls.
+- Notifications: order updates, promotional preferences, delivery alerts.
+- Help: FAQs, contact support, cancellation/refund guidance.
+- Loyalty: points, tiers, rewards, referral credits later.
+
+### Customer Experience Quality Bar
+
+- No duplicate headers or nested dashboards in customer pages.
+- One consistent brand/logo system across landing, portal, admin, rider, and mobile.
+- Product imagery must always render, even when database media is missing.
+- Every customer page should have a clear primary action and one empty state.
+- Mobile screens should support slow network, image fallback, retry, and pull-to-refresh.
+- Checkout must show transparent totals: subtotal, delivery fee, tax, discount, grand total.
+- Every order state should be understandable to a non-technical customer.
+- Support actions should be contextual to the order state.
+
 ## 5. Phase 3: Rider App Features
 
 ### Rider Availability
