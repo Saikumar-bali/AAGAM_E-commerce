@@ -3,8 +3,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Minus, Package, Plus, ShoppingBag } from 'lucide-react';
-import { apiClient } from '@aagam/utils';
+import { ArrowLeft, Minus, Plus, ShoppingBag } from 'lucide-react';
+import { apiClient, getProductImage } from '@aagam/utils';
 import DashboardLayout from '@/components/DashboardLayout';
 import { useCart } from '@/hooks/useCart';
 import { formatINR } from '@/lib/currency';
@@ -38,6 +38,7 @@ export default function ProductDetailPage() {
     const match = cart.find((item) => item.id === product?.id);
     return match?.quantity || 0;
   }, [cart, product?.id]);
+  const productImage = product ? getProductImage(product) : '';
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
@@ -57,13 +58,7 @@ export default function ProductDetailPage() {
           ) : (
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="overflow-hidden rounded-[1.5rem] border border-emerald-100 bg-emerald-50/40">
-                {product.image ? (
-                  <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex min-h-[360px] items-center justify-center">
-                    <Package className="h-20 w-20 text-emerald-200" />
-                  </div>
-                )}
+                <img src={productImage} alt={product.name} className="h-full w-full min-h-[360px] object-cover" />
               </div>
 
               <div>
@@ -114,7 +109,7 @@ export default function ProductDetailPage() {
                     </div>
                   ) : (
                     <button
-                      onClick={() => addToCart({ id: product.id, name: product.name, price: Number(product.price) || 0, image: product.image })}
+                      onClick={() => addToCart({ id: product.id, name: product.name, price: Number(product.price) || 0, image: productImage })}
                       className="inline-flex h-11 items-center gap-2 rounded-full bg-emerald-700 px-5 text-sm font-black text-white hover:bg-emerald-800"
                     >
                       <ShoppingBag className="h-4 w-4" />

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
+import { getProductImage } from '@aagam/utils';
 import { apiClient } from '../../api/client';
 import { useCartStore } from '../../store/cartStore';
 
@@ -128,6 +129,7 @@ export const ShopScreen = () => {
         data={products}
         renderItem={({ item }) => {
           const inStock = item.availability?.inStock ?? true;
+          const productImage = getProductImage(item);
           return (
             <TouchableOpacity
               style={styles.productCard}
@@ -135,7 +137,7 @@ export const ShopScreen = () => {
               activeOpacity={0.92}
             >
               <Image
-                source={{ uri: item.image || 'https://via.placeholder.com/150' }}
+                source={{ uri: productImage }}
                 style={styles.productImage}
               />
               <View style={styles.productInfo}>

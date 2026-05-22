@@ -3,7 +3,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@aagam/utils';
+import { apiClient, getProductImage } from '@aagam/utils';
 import { useCart } from '@/hooks/useCart';
 import DashboardLayout from '@/components/DashboardLayout';
 import { formatINR } from '@/lib/currency';
@@ -176,18 +176,13 @@ export default function ShopPage() {
               {filteredProducts.map((product) => {
                 const qty = qtyById.get(product.id) || 0;
                 const price = typeof product.price === 'number' ? product.price : Number(product.price) || 0;
-                const cartProduct = { id: product.id, name: product.name, price, image: product.image };
+                const productImage = getProductImage(product);
+                const cartProduct = { id: product.id, name: product.name, price, image: productImage };
 
                 return (
                   <div key={product.id} className="bg-white/90 rounded-xl border border-emerald-100 overflow-hidden hover:shadow-lg hover:shadow-emerald-900/5 transition-shadow">
                     <div className="aspect-[4/3] bg-emerald-50/50 relative overflow-hidden">
-                      {product.image ? (
-                        <img src={product.image} alt={product.name} className="object-cover w-full h-full" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <PackageIcon className="h-10 w-10 text-emerald-200" />
-                        </div>
-                      )}
+                      <img src={productImage} alt={product.name} className="object-cover w-full h-full" />
                       <div className="absolute top-2 left-2 rounded-full bg-white/90 border border-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-800">
                         {product.category?.name || 'General'}
                       </div>
@@ -274,13 +269,7 @@ export default function ShopPage() {
                       {cart.map((item) => (
                         <div key={item.id} className="flex items-center">
                           <div className="h-16 w-16 bg-emerald-50 rounded-xl overflow-hidden flex-shrink-0 border border-emerald-100">
-                            {item.image ? (
-                              <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <PackageIcon className="h-7 w-7 text-emerald-200" />
-                              </div>
-                            )}
+                            <img src={item.image || getProductImage(item)} alt={item.name} className="w-full h-full object-cover" />
                           </div>
                           <div className="ml-4 flex-1">
                             <div className="flex justify-between items-start gap-3">

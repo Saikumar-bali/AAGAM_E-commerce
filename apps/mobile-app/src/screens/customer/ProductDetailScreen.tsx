@@ -2,6 +2,7 @@ import React from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
+import { getProductImage } from '@aagam/utils';
 import { apiClient } from '../../api/client';
 import { useCartStore } from '../../store/cartStore';
 
@@ -36,10 +37,11 @@ export const ProductDetailScreen = () => {
   }
 
   const inStock = product.availability?.inStock ?? true;
+  const productImage = getProductImage(product);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Image source={{ uri: product.image || 'https://via.placeholder.com/400' }} style={styles.image} />
+      <Image source={{ uri: productImage }} style={styles.image} />
       <Text style={styles.category}>{product.category?.name || 'General'}</Text>
       <Text style={styles.name}>{product.name}</Text>
       <Text style={styles.price}>₹{product.price}</Text>

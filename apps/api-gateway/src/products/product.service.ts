@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
+import { getProductImage } from '@aagam/utils';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { QueryProductsDto } from './dto/query-products.dto';
@@ -23,6 +24,15 @@ function computeServiceable(distanceKm: number | null): boolean | null {
 @Injectable()
 export class ProductService {
   constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
+
+  private withFallbackImages<T extends { id?: string | null; name?: string | null; image?: string | null; category?: { name?: string | null } | null }>(
+    products: T[],
+  ) {
+    return products.map((product) => ({
+      ...product,
+      image: getProductImage(product),
+    }));
+  }
 
   private async resolveAvailabilityContext(query: QueryProductsDto, userId?: string) {
     let lat = query.lat ?? null;
@@ -173,7 +183,8 @@ export class ProductService {
       paginate ? prisma.product.count({ where }) : Promise.resolve(0),
     ]);
 
-    const enrichedProducts = await this.attachAvailability(products, query, userId);
+    const productsWithImages = this.withFallbackImages(products);
+    const enrichedProducts = await this.attachAvailability(productsWithImages, query, userId);
 
     if (shouldUseCache) {
       await this.cacheManager.set(cacheKey, enrichedProducts, 600000);
@@ -212,7 +223,7 @@ export class ProductService {
       throw new NotFoundException('Product not found');
     }
 
-    const [enrichedProduct] = await this.attachAvailability([product], query, userId);
+    const [enrichedProduct] = await this.attachAvailability(this.withFallbackImages([product]), query, userId);
 
     if (shouldUseCache) {
       await this.cacheManager.set(cacheKey, enrichedProduct, 600000);

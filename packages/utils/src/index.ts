@@ -1,4 +1,5 @@
 export * from './api-client';
+export * from './product-images';
 
 /**
  * Calculates the distance between two points on the Earth's surface using the Haversine formula.

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useCartStore } from '../../store/cartStore';
 import { useNavigation } from '@react-navigation/native';
+import { getProductImage } from '@aagam/utils';
 
 export const CartScreen = () => {
   const { items, removeItem, updateQuantity, total, clearCart } = useCartStore();
@@ -18,7 +19,7 @@ export const CartScreen = () => {
   const renderItem = ({ item }: { item: any }) => (
     <View style={styles.cartItem}>
       <Image
-        source={{ uri: item.product.image || 'https://via.placeholder.com/150' }}
+        source={{ uri: getProductImage(item.product) }}
         style={styles.itemImage}
       />
       <View style={styles.itemDetails}>
