@@ -93,9 +93,7 @@ export default function AdminProductsPage() {
       const uploadFormData = new FormData();
       uploadFormData.append('file', file);
 
-      const response = await apiClient.post('/upload/image', uploadFormData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const response = await apiClient.post('/upload/image', uploadFormData);
 
       const publicUrl = response.data.publicUrl;
       console.log('[ADMIN] Upload success, URL:', publicUrl);

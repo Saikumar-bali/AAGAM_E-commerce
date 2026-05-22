@@ -14,6 +14,10 @@ export const apiClient = axios.create({
 // Interceptor to add JWT token to requests
 apiClient.interceptors.request.use(async (config) => {
   config.withCredentials = true; // Force it
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+    delete config.headers['content-type'];
+  }
   console.log(`[apiClient v2] Requesting: ${config.method?.toUpperCase()} ${config.url}`);
   return config;
 });

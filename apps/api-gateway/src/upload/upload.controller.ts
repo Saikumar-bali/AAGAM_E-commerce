@@ -1,8 +1,6 @@
-import { Controller, Post, UseInterceptors, HttpCode, HttpStatus, UploadedFile, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Controller, HttpCode, HttpStatus, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { unlinkSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { memoryStorage } from 'multer';
 import { UploadService } from './upload.service';
 
 @Controller('upload')
@@ -12,9 +10,7 @@ export class UploadController {
   @Post('image')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(FileInterceptor('file', {
-    storage: diskStorage({
-      destination: './uploads',
-    }),
+    storage: memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -29,10 +25,6 @@ export class UploadController {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
-    const filePath = join('./uploads', file.filename);
-    const buffer = readFileSync(filePath);
-    const result = await this.uploadService.uploadImage(buffer, file.originalname);
-    unlinkSync(filePath);
-    return result;
+    return this.uploadService.uploadImage(file.buffer, file.originalname);
   }
 }
