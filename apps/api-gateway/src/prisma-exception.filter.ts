@@ -1,11 +1,17 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import {
+  PrismaClientInitializationError,
+  PrismaClientKnownRequestError,
+  PrismaClientRustPanicError,
+  PrismaClientUnknownRequestError,
+} from '@prisma/client/runtime/library';
 
 @Catch(
-  Prisma.PrismaClientKnownRequestError,
-  Prisma.PrismaClientUnknownRequestError,
-  Prisma.PrismaClientInitializationError,
-  Prisma.PrismaClientRustPanicError,
+  PrismaClientKnownRequestError,
+  PrismaClientUnknownRequestError,
+  PrismaClientInitializationError,
+  PrismaClientRustPanicError,
 )
 export class PrismaExceptionFilter implements ExceptionFilter {
   catch(exception: any, host: ArgumentsHost) {
@@ -17,14 +23,14 @@ export class PrismaExceptionFilter implements ExceptionFilter {
     let message = 'Internal Server Error';
 
     // Initialization errors typically mean DB is unreachable / env wrong.
-    if (exception instanceof Prisma.PrismaClientInitializationError) {
+    if (exception instanceof PrismaClientInitializationError) {
       statusCode = HttpStatus.SERVICE_UNAVAILABLE;
       message =
         'Database connection failed. Check Postgres is running and DATABASE_URL is correct. Then run: npm -w @aagam/database run db:push';
     }
 
     // Known request errors usually point to schema mismatch (missing table/column) or constraints.
-    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+    if (exception instanceof PrismaClientKnownRequestError) {
       if (exception.code === 'P2021' || exception.code === 'P2022') {
         statusCode = HttpStatus.SERVICE_UNAVAILABLE;
         message =
