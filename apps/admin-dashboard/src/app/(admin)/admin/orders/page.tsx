@@ -42,8 +42,17 @@ interface Order {
   deliveryLng: number | null;
   riderId: string | null;
   createdAt: string;
-  customer?: { name: string | null; email: string | null };
-  store?: { name: string };
+  addressSnapshot?: {
+    recipientName?: string;
+    phoneE164?: string;
+    line1?: string;
+    line2?: string;
+    landmark?: string;
+    city?: string;
+    pincode?: string;
+  } | null;
+  customer?: { name: string | null; email: string | null; phone?: string | null };
+  store?: { name: string; address?: string | null; latitude?: number | null; longitude?: number | null };
   items?: OrderItem[];
   rider?: { user?: { name: string | null } };
 }
@@ -360,6 +369,7 @@ export default function AdminOrdersPage() {
                   </div>
                   <p className="text-sm font-bold text-gray-900">{selectedOrder.customer?.name || 'Unknown'}</p>
                   <p className="text-xs text-gray-500">{selectedOrder.customer?.email}</p>
+                  <p className="text-xs text-gray-500">{selectedOrder.customer?.phone || selectedOrder.addressSnapshot?.phoneE164 || 'Phone not set'}</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-4">
                   <div className="flex items-center text-gray-500 mb-2">
@@ -367,6 +377,38 @@ export default function AdminOrdersPage() {
                     <p className="text-xs font-medium uppercase">Store</p>
                   </div>
                   <p className="text-sm font-bold text-gray-900">{selectedOrder.store?.name}</p>
+                  <p className="text-xs text-gray-500">{selectedOrder.store?.address || 'Store address not set'}</p>
+                </div>
+              </div>
+
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium uppercase text-indigo-700">Delivery Location</p>
+                  <button
+                    onClick={() => openDeliveryMap(selectedOrder)}
+                    disabled={typeof selectedOrder.deliveryLat !== 'number' || typeof selectedOrder.deliveryLng !== 'number'}
+                    className="text-xs font-bold text-indigo-700 disabled:text-gray-400"
+                  >
+                    Open Route
+                  </button>
+                </div>
+                <p className="text-sm font-semibold text-gray-900">{getAddressText(selectedOrder)}</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  {typeof selectedOrder.deliveryLat === 'number' && typeof selectedOrder.deliveryLng === 'number'
+                    ? `Lat ${selectedOrder.deliveryLat.toFixed(6)}, Lng ${selectedOrder.deliveryLng.toFixed(6)}`
+                    : 'Delivery coordinates not available'}
+                </p>
+                <div className="mt-3">
+                  {(selectedOrder.customer?.phone || selectedOrder.addressSnapshot?.phoneE164) ? (
+                    <a
+                      href={`tel:${selectedOrder.customer?.phone || selectedOrder.addressSnapshot?.phoneE164}`}
+                      className="inline-flex items-center text-xs font-bold text-indigo-700"
+                    >
+                      Call customer
+                    </a>
+                  ) : (
+                    <p className="text-xs text-gray-500">Customer call is unavailable for this order.</p>
+                  )}
                 </div>
               </div>
 
@@ -465,3 +507,21 @@ export default function AdminOrdersPage() {
     </DashboardLayout>
   );
 }
+  const getAddressText = (order: Order) => {
+    const a = order.addressSnapshot;
+    if (!a) return 'Address not set';
+    const line = [a.line1, a.line2].filter(Boolean).join(', ');
+    const locality = [a.landmark, a.city, a.pincode].filter(Boolean).join(', ');
+    return [line, locality].filter(Boolean).join(' • ') || 'Address not set';
+  };
+
+  const openDeliveryMap = (order: Order) => {
+    const hasDestination = typeof order.deliveryLat === 'number' && typeof order.deliveryLng === 'number';
+    if (!hasDestination) return;
+    const destination = `${order.deliveryLat},${order.deliveryLng}`;
+    const hasStoreCoords = typeof order.store?.latitude === 'number' && typeof order.store?.longitude === 'number';
+    const href = hasStoreCoords
+      ? `https://www.google.com/maps/dir/?api=1&origin=${order.store?.latitude},${order.store?.longitude}&destination=${destination}&travelmode=driving`
+      : `https://www.google.com/maps/search/?api=1&query=${destination}`;
+    window.open(href, '_blank', 'noopener,noreferrer');
+  };

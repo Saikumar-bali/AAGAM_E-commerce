@@ -37,6 +37,13 @@ import {
 const { width } = Dimensions.get('window');
 const API_URL = ENV_API_URL || 'https://aagam-api-production.up.railway.app';
 
+const formatAddressText = (snapshot?: any) => {
+  if (!snapshot || typeof snapshot !== 'object') return '';
+  const lineParts = [snapshot.line1, snapshot.line2].filter(Boolean).join(', ');
+  const localityParts = [snapshot.landmark, snapshot.city, snapshot.pincode].filter(Boolean).join(', ');
+  return [lineParts, localityParts].filter(Boolean).join(' • ');
+};
+
 export const RiderDashboard = () => {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -280,6 +287,29 @@ export const RiderDashboard = () => {
     if (url) Linking.openURL(url);
   };
 
+  const openDeliveryRoute = (order: any) => {
+    if (!order?.deliveryLat || !order?.deliveryLng) {
+      Alert.alert('Location missing', 'Customer location is not available for this order yet.');
+      return;
+    }
+    const originLat = currentLocation?.lat ?? order.store?.latitude;
+    const originLng = currentLocation?.lng ?? order.store?.longitude;
+    const hasOrigin = typeof originLat === 'number' && typeof originLng === 'number';
+    const destination = `${order.deliveryLat},${order.deliveryLng}`;
+    const url = hasOrigin
+      ? `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${destination}&travelmode=driving`
+      : `https://www.google.com/maps/search/?api=1&query=${destination}`;
+    Linking.openURL(url);
+  };
+
+  const callCustomer = (phone?: string | null) => {
+    if (!phone) {
+      Alert.alert('Phone unavailable', 'Customer phone number is not available on this order.');
+      return;
+    }
+    Linking.openURL(`tel:${phone}`);
+  };
+
   return (
     <View style={styles.mainContainer}>
       <StatusBar barStyle="dark-content" />
@@ -355,6 +385,12 @@ export const RiderDashboard = () => {
         {Array.isArray(assignedOrders) && assignedOrders.length > 0 ? (
           assignedOrders.map((order: any) => (
             <View key={order.id} style={styles.deliveryCard}>
+              {(() => {
+                const customerName = order.customer?.name || order.addressSnapshot?.recipientName || 'Customer';
+                const customerPhone = order.customer?.phone || order.addressSnapshot?.phoneE164 || null;
+                const customerAddress = formatAddressText(order.addressSnapshot) || 'Address not set';
+                return (
+                  <>
               <View style={styles.cardHeader}>
                 <View style={styles.orderInfo}>
                   <Package size={18} color="#0F766E" />
@@ -384,8 +420,19 @@ export const RiderDashboard = () => {
                 <View style={styles.detailIcon}><User size={18} color="#64748B" /></View>
                 <View style={styles.detailText}>
                   <Text style={styles.detailLabel}>DELIVER TO</Text>
-                  <Text style={styles.detailValue}>{order.customer?.name || 'Customer'}</Text>
-                  <Text style={styles.detailSub}>{order.customerAddress || 'Address not set'}</Text>
+                  <Text style={styles.detailValue}>{customerName}</Text>
+                  <Text style={styles.detailSub}>{customerAddress}</Text>
+                  <View style={styles.customerActionsRow}>
+                    <TouchableOpacity onPress={() => openDeliveryRoute(order)}>
+                      <Text style={styles.linkText}>Navigate to customer →</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => callCustomer(customerPhone)}>
+                      <View style={styles.callAction}>
+                        <Phone size={13} color="#0F766E" />
+                        <Text style={styles.callActionText}>Call</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
 
@@ -406,6 +453,9 @@ export const RiderDashboard = () => {
                 <Text style={styles.actionButtonText}>{getActionLabel(order.status)}</Text>
                 <ArrowRight size={20} color="#FFF" />
               </TouchableOpacity>
+                  </>
+                );
+              })()}
             </View>
           ))
         ) : (
@@ -547,6 +597,9 @@ const styles = StyleSheet.create({
   detailValue: { fontSize: 15, fontWeight: 'bold', color: '#1E293B' },
   detailSub: { fontSize: 13, color: '#64748B', marginTop: 2 },
   linkText: { fontSize: 13, color: '#0F766E', fontWeight: '700', marginTop: 6 },
+  customerActionsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  callAction: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ECFDF5', borderColor: '#A7F3D0', borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  callActionText: { fontSize: 12, fontWeight: '700', color: '#0F766E' },
   itemsBox: { backgroundColor: '#F8FAFC', borderRadius: 16, padding: 16, marginBottom: 24 },
   itemsTitle: { fontSize: 10, fontWeight: '800', color: '#94A3B8', marginBottom: 8 },
   itemText: { fontSize: 13, color: '#475569', marginBottom: 4, fontWeight: '500' },

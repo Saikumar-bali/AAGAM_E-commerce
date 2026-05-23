@@ -84,6 +84,11 @@ Step-by-step execution notes:
     - `[NotificationService] Firebase Admin not initialized (missing FIREBASE_SERVICE_ACCOUNT_JSON and firebase-adminsdk.json).`
     - `[NotificationService] Firebase not initialized. Skipping push notification.`
   - Meaning: queue/socket fallback works, but true closed-app FCM alerts are blocked until Firebase service account env is configured on `aagam-api`.
+- Rider/admin delivery professionalism patch (2026-05-23 evening):
+  - Rider app now reads delivery address from `addressSnapshot` (instead of missing `customerAddress`), shows customer phone fallback, adds `Navigate to customer` route action, and adds `Call customer` action.
+  - Admin orders API payload now includes customer phone and store address/coordinates in `/orders`.
+  - Admin orders detail modal now shows delivery address snapshot, destination coordinates, `Open Route` map action, and `Call customer` action.
+  - Targeted builds passed: `npm run build:api`, `npm run build:admin`, `npx tsc --noEmit -p apps/mobile-app/tsconfig.json`.
 
 Acceptance criteria:
 - Customer places order in production.

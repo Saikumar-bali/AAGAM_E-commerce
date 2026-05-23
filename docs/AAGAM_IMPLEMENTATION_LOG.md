@@ -223,3 +223,26 @@ Result:
 Risks/follow-up:
 - Set `FIREBASE_SERVICE_ACCOUNT_JSON` on Railway service `aagam-api` and redeploy.
 - Re-run closed-app rider order test after env is applied.
+
+## 2026-05-23 20:18 IST
+Model/reasoning: Codex implementation session (5.3 medium workflow).
+Task: Improve rider/admin delivery professionalism (map route, customer address/contact visibility) while continuing production order tracking task.
+Files changed:
+- `apps/mobile-app/src/screens/rider/RiderDashboard.tsx`
+- `apps/api-gateway/src/orders/order.service.ts`
+- `apps/admin-dashboard/src/app/(admin)/admin/orders/page.tsx`
+- `docs/AAGAM_CURRENT_TASK.md`
+- `docs/AAGAM_IMPLEMENTATION_LOG.md`
+Verification:
+- `npm run build:api` passed.
+- `npm run build:admin` passed.
+- `npx tsc --noEmit -p apps/mobile-app/tsconfig.json` passed.
+Deployment:
+- Not deployed in this step.
+Result:
+- Rider current-delivery card now resolves customer destination from `addressSnapshot`, adds `Navigate to customer` Google Maps route link, and adds `Call customer` action.
+- Admin `/orders` payload now includes customer phone and store address/coordinates required for dispatch visibility.
+- Admin order details now show delivery address + coordinates, `Open Route` map action, and direct `Call customer` action.
+Risks/follow-up:
+- Verify end-to-end on production (Railway web/API + fresh rider APK) that new fields are present on existing and newly created orders.
+- Older orders without `addressSnapshot` or `deliveryLat/deliveryLng` will still show fallback empty-state text.

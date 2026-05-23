@@ -180,10 +180,10 @@ export class OrderService {
     return prisma.order.findMany({
       include: {
         customer: {
-          select: { name: true, email: true }
+          select: { name: true, email: true, phone: true }
         },
         store: {
-          select: { name: true }
+          select: { name: true, address: true, latitude: true, longitude: true }
         },
         items: {
           include: {
