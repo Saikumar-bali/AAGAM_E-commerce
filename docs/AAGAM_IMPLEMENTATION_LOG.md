@@ -246,3 +246,29 @@ Result:
 Risks/follow-up:
 - Verify end-to-end on production (Railway web/API + fresh rider APK) that new fields are present on existing and newly created orders.
 - Older orders without `addressSnapshot` or `deliveryLat/deliveryLng` will still show fallback empty-state text.
+
+## 2026-05-23 22:38 IST
+Model/reasoning: Codex implementation session (5.3 medium workflow).
+Task: Add rider/admin trip-history professionalism and two-way calling as part of production order tracking execution.
+Files changed:
+- `apps/api-gateway/src/orders/order.service.ts`
+- `apps/mobile-app/src/screens/rider/RiderHistoryScreen.tsx`
+- `apps/mobile-app/src/navigation/RiderNavigator.tsx`
+- `apps/mobile-app/src/screens/customer/OrderDetailScreen.tsx`
+- `apps/admin-dashboard/src/app/(admin)/admin/orders/page.tsx`
+- `docs/AAGAM_CURRENT_TASK.md`
+- `docs/AAGAM_IMPLEMENTATION_LOG.md`
+Verification:
+- `npm run build:api` passed.
+- `npm run build:admin` passed.
+- `npx tsc --noEmit -p apps/mobile-app/tsconfig.json` passed.
+Deployment:
+- Not deployed in this step.
+Result:
+- Tracking payload now includes trip summary (`distanceKm`, `durationMinutes`, `points`) and full route path points for history visualization use.
+- Rider mobile History tab now shows real trip cards with from→to, duration, distance, and route-open action.
+- Customer can now call assigned rider directly from order detail when rider phone exists.
+- Admin order details now show rider trip metrics and `Open Blue Route` action for map route replay in Google Maps.
+Risks/follow-up:
+- Google Maps deep-link shows best-effort route path via waypoints; exact polyline rendering inside app/admin map can be added in a later dedicated map component iteration.
+- Older orders with sparse GPS pings may show low/zero distance.

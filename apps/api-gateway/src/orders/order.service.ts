@@ -18,6 +18,16 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 @Injectable()
 export class OrderService {
   constructor(private readonly trackingGateway: TrackingGateway) {}
+  private haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const toRad = (v: number) => (v * Math.PI) / 180;
+    const R = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
 
   private timestampFieldForStatus(status: OrderStatus) {
     const map: Partial<Record<OrderStatus, string>> = {
@@ -72,7 +82,7 @@ export class OrderService {
         payment: true,
         items: { include: { product: { select: { id: true, name: true, image: true } } } },
         statusHistory: { orderBy: { createdAt: 'asc' } },
-        riderLocationPings: { orderBy: { createdAt: 'desc' }, take: 1 },
+        riderLocationPings: { orderBy: { createdAt: 'asc' }, take: 400 },
       },
     });
 
@@ -91,8 +101,14 @@ export class OrderService {
       }
     }
 
-    const latestLocation = order.riderLocationPings[0] || null;
+    const latestLocation = order.riderLocationPings[order.riderLocationPings.length - 1] || null;
     const eta = this.computeEta(order, latestLocation);
+    const tripSummary = this.computeTripSummary(order.riderLocationPings, order.outForDeliveryAt, order.deliveredAt);
+    const routePath = order.riderLocationPings.map((p) => ({
+      latitude: p.latitude,
+      longitude: p.longitude,
+      createdAt: p.createdAt,
+    }));
 
     return {
       order: {
@@ -142,6 +158,8 @@ export class OrderService {
         lastPingAt: latestLocation?.createdAt || null,
         etaMinutes: eta.etaMinutes,
         distanceKm: eta.distanceKm,
+        tripSummary,
+        routePath,
       },
     };
   }
@@ -165,15 +183,31 @@ export class OrderService {
     return { etaMinutes, distanceKm: Number(distanceKm.toFixed(2)) };
   }
 
-  private haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-    const toRad = (v: number) => (v * Math.PI) / 180;
-    const R = 6371;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(a));
+  private computeTripSummary(pings: Array<{ latitude: number; longitude: number; createdAt: Date }>, startedAt?: Date | null, endedAt?: Date | null) {
+    if (!Array.isArray(pings) || pings.length < 2) {
+      return {
+        distanceKm: 0,
+        durationMinutes: startedAt && endedAt ? Math.max(1, Math.round((endedAt.getTime() - startedAt.getTime()) / 60000)) : null,
+        points: Array.isArray(pings) ? pings.length : 0,
+      };
+    }
+    let distanceKm = 0;
+    for (let i = 1; i < pings.length; i += 1) {
+      distanceKm += this.haversineKm(
+        pings[i - 1].latitude,
+        pings[i - 1].longitude,
+        pings[i].latitude,
+        pings[i].longitude,
+      );
+    }
+    const effectiveStart = startedAt || pings[0].createdAt;
+    const effectiveEnd = endedAt || pings[pings.length - 1].createdAt;
+    const durationMinutes = Math.max(1, Math.round((effectiveEnd.getTime() - effectiveStart.getTime()) / 60000));
+    return {
+      distanceKm: Number(distanceKm.toFixed(2)),
+      durationMinutes,
+      points: pings.length,
+    };
   }
 
   async findAll() {
@@ -418,14 +452,14 @@ export class OrderService {
   }
 
   async findByRiderId(riderId: string) {
-    return prisma.order.findMany({
+    const orders = await prisma.order.findMany({
       where: { riderId },
       include: {
         customer: {
           select: { name: true, phone: true }
         },
         store: {
-          select: { name: true, address: true }
+          select: { name: true, address: true, latitude: true, longitude: true }
         },
         payment: true,
         items: {
@@ -434,11 +468,23 @@ export class OrderService {
               select: { name: true, image: true }
             }
           }
-        }
+        },
+        riderLocationPings: {
+          select: { latitude: true, longitude: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+          take: 400,
+        },
       },
       orderBy: {
         createdAt: 'desc'
       }
+    });
+    return orders.map((order) => {
+      const tripSummary = this.computeTripSummary(order.riderLocationPings, order.outForDeliveryAt, order.deliveredAt);
+      return {
+        ...order,
+        trackingSummary: tripSummary,
+      };
     });
   }
 

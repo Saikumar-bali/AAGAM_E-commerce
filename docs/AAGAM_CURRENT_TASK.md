@@ -89,6 +89,20 @@ Step-by-step execution notes:
   - Admin orders API payload now includes customer phone and store address/coordinates in `/orders`.
   - Admin orders detail modal now shows delivery address snapshot, destination coordinates, `Open Route` map action, and `Call customer` action.
   - Targeted builds passed: `npm run build:api`, `npm run build:admin`, `npx tsc --noEmit -p apps/mobile-app/tsconfig.json`.
+- Rider/admin trip-history + two-way call patch (2026-05-23 night):
+  - Backend tracking payload now includes:
+    - `tracking.tripSummary` (`distanceKm`, `durationMinutes`, `points`)
+    - `tracking.routePath` (ordered GPS points captured during delivery)
+  - Rider orders endpoint now includes `trackingSummary` and store coordinates for map-route history display.
+  - Rider mobile `History` tab now uses a real `RiderHistoryScreen` (not placeholder), showing:
+    - from→to (store to customer)
+    - trip distance + duration
+    - route-open action in Google Maps.
+  - Customer order detail now includes `Call Rider` when rider phone is available.
+  - Admin order detail now loads tracking payload and shows:
+    - rider trip summary (distance/time/GPS points)
+    - `Open Blue Route` action (Google Maps route with waypoints).
+  - Targeted builds passed: `npm run build:api`, `npm run build:admin`, `npx tsc --noEmit -p apps/mobile-app/tsconfig.json`.
 
 Acceptance criteria:
 - Customer places order in production.

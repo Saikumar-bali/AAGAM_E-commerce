@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../api/client';
@@ -128,6 +128,14 @@ export const OrderDetailScreen = () => {
         <Text style={styles.bodyText}>Payment status: {order.payment?.status || 'N/A'}</Text>
         <Text style={styles.bodyText}>Store: {trackingPayload.store?.name || 'Assigned Store'}</Text>
         <Text style={styles.bodyText}>Rider: {trackingPayload.rider?.name || 'Not assigned yet'}</Text>
+        {trackingPayload.rider?.phone ? (
+          <TouchableOpacity
+            style={styles.callBtn}
+            onPress={() => Linking.openURL(`tel:${trackingPayload.rider?.phone}`)}
+          >
+            <Text style={styles.callBtnText}>Call Rider</Text>
+          </TouchableOpacity>
+        ) : null}
         {latestLocation ? (
           <Text style={styles.bodyText}>
             Live location: {Number(latestLocation.latitude).toFixed(5)}, {Number(latestLocation.longitude).toFixed(5)}
@@ -155,4 +163,6 @@ const styles = StyleSheet.create({
   timelineRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#0F766E', marginTop: 5 },
   errorText: { color: '#B91C1C', fontWeight: '700' },
+  callBtn: { marginTop: 10, alignSelf: 'flex-start', backgroundColor: '#0F766E', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  callBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
 });

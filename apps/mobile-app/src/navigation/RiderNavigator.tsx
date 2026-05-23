@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { RiderDashboard } from '../screens/rider/RiderDashboard';
+import { RiderHistoryScreen } from '../screens/rider/RiderHistoryScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { LayoutGrid, History, User } from 'lucide-react-native';
 
@@ -45,12 +46,11 @@ export const RiderNavigator = () => {
       />
       <Tab.Screen 
         name="History" 
+        component={RiderHistoryScreen}
         options={{
           tabBarIcon: ({ color, size }) => <History size={size} color={color} />,
         }}
-      >
-        {(props) => <HomeScreen {...props} role="Rider History" />}
-      </Tab.Screen>
+      />
       <Tab.Screen 
         name="Profile" 
         options={{
