@@ -52,6 +52,7 @@ export const RiderDashboard = () => {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const previousQueueIdsRef = useRef<string[]>([]);
+  const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
 
   // Fetch assigned orders
   const { data: assignedOrders, isLoading: loadingAssigned, refetch: refetchAssigned } = useQuery({
@@ -233,6 +234,8 @@ export const RiderDashboard = () => {
   }, [assignedOrders, isOnline, socket, user?.id]);
 
   const handleAcceptOrder = async (orderId: string) => {
+    if (!orderId || acceptingOrderId) return;
+    setAcceptingOrderId(orderId);
     try {
       await riderService.assignOrder(orderId);
       setNewOrder(null);
@@ -240,7 +243,21 @@ export const RiderDashboard = () => {
       handleRefresh();
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to accept order');
+    } finally {
+      setAcceptingOrderId(null);
     }
+  };
+
+  const confirmAcceptOrder = (orderId: string) => {
+    Alert.alert(
+      'Accept this order?',
+      'This will assign the delivery to you.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Accept', onPress: () => handleAcceptOrder(orderId) },
+      ],
+      { cancelable: true },
+    );
   };
 
   const updateStatusMutation = useMutation({
@@ -334,7 +351,7 @@ export const RiderDashboard = () => {
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.acceptBtn}
-                onPress={() => handleAcceptOrder(newOrder.orderId || newOrder.id)}
+                onPress={() => confirmAcceptOrder(newOrder.orderId || newOrder.id)}
               >
                 <Text style={styles.acceptBtnText}>Accept Order</Text>
               </TouchableOpacity>
@@ -479,7 +496,7 @@ export const RiderDashboard = () => {
 
         {Array.isArray(queueOrders) && queueOrders.length > 0 ? (
           queueOrders.map((order: any) => (
-            <TouchableOpacity key={order.id} style={styles.queueCard} onPress={() => handleAcceptOrder(order.id)}>
+            <TouchableOpacity key={order.id} style={styles.queueCard} onPress={() => confirmAcceptOrder(order.id)}>
               <View style={styles.queueInfo}>
                 <View style={styles.queueIcon}><Zap size={20} color="#F59E0B" /></View>
                 <View>

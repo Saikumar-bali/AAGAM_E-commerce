@@ -85,12 +85,12 @@ export default function ShopPage() {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-72 rounded-[2rem] bg-gradient-to-br from-emerald-100 via-white to-amber-50" />
 
         <div className="relative mx-auto max-w-7xl">
-          <div className="mb-6 overflow-hidden rounded-[2rem] border border-white/80 bg-white/85 shadow-[0_22px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-            <div className="grid gap-5 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="mb-4 overflow-hidden rounded-[1.5rem] border border-white/80 bg-white/85 shadow-[0_22px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+            <div className="grid gap-4 p-4 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
                 <p className="enterprise-kicker w-fit"><Sparkles className="mr-2 h-3.5 w-3.5" /> Customer marketplace</p>
-                <h1 className="mt-4 text-3xl font-black tracking-[-0.05em] text-slate-950 md:text-5xl">Fresh groceries, without the clutter.</h1>
-                <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+                <h1 className="mt-3 text-2xl font-black tracking-[-0.05em] text-slate-950 md:text-4xl">Fresh groceries, without the clutter.</h1>
+                <p className="mt-2 max-w-2xl text-xs font-semibold leading-5 text-slate-600">
                   Search, browse by category, save favourites, reorder essentials, and check out with live availability.
                 </p>
               </div>
@@ -127,7 +127,7 @@ export default function ShopPage() {
             </div>
           </div>
 
-          <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {quickActions.map((action) => (
               <button key={action.label} onClick={() => router.push(action.href)} className="group flex items-center gap-3 rounded-2xl border border-emerald-100 bg-white/90 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700 group-hover:bg-emerald-700 group-hover:text-white">
@@ -141,7 +141,7 @@ export default function ShopPage() {
             ))}
           </div>
 
-          <div className="mb-6 rounded-[1.5rem] border border-emerald-100 bg-white/90 p-4 shadow-sm">
+          <div className="mb-4 rounded-[1.25rem] border border-emerald-100 bg-white/90 p-3 shadow-sm">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-2 text-sm font-black text-emerald-900">
                 <SlidersHorizontal className="h-4 w-4" />
@@ -197,7 +197,7 @@ export default function ShopPage() {
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(i => (
                 <div key={i} className="bg-white/80 rounded-xl h-44 animate-pulse border border-emerald-100"></div>
               ))}
@@ -209,7 +209,7 @@ export default function ShopPage() {
               <p className="text-gray-500">Try a different search.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
               {filteredProducts.map((product) => {
                 const qty = qtyById.get(product.id) || 0;
                 const price = typeof product.price === 'number' ? product.price : Number(product.price) || 0;

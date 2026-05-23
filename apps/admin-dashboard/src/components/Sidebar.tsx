@@ -69,7 +69,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
 
   return (
     <>
-    <aside className="relative z-10 hidden h-screen w-72 flex-col border-r border-white/10 bg-slate-950 text-white shadow-[28px_0_80px_rgba(15,23,42,0.22)] lg:flex">
+    <aside className="relative z-10 hidden h-screen w-64 flex-col border-r border-white/10 bg-slate-950 text-white shadow-[28px_0_80px_rgba(15,23,42,0.22)] lg:flex">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.22),transparent_20rem),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.16),transparent_18rem)]" />
       <div className="relative p-6">
         <AagamLogo inverse label={`${role} portal`} />

@@ -12,6 +12,9 @@
   --brand-dark: 17 94 89;
   --accent: 245 158 11;
 }
+html {
+  font-size: 14px;
+}
 
 body {
   color: rgb(var(--ink));
@@ -20,6 +23,7 @@ body {
     radial-gradient(circle at top right, rgba(245, 158, 11, 0.13), transparent 30rem),
     linear-gradient(135deg, #f8fafc 0%, #eef6f4 45%, #fff7ed 100%);
   min-height: 100vh;
+  font-size: 0.95rem;
 }
 
 ::selection {

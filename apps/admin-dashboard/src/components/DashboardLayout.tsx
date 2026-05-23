@@ -66,17 +66,17 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
   }
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-slate-100 text-slate-950">
+    <div className="relative flex h-screen overflow-hidden bg-slate-100 text-slate-950 text-[13px] xl:text-sm">
       <div className="pointer-events-none absolute inset-0 enterprise-subtle-grid opacity-60" />
       <div className="pointer-events-none absolute -left-24 top-0 h-96 w-96 rounded-full bg-teal-300/25 blur-3xl" />
       <div className="pointer-events-none absolute right-0 top-20 h-96 w-96 rounded-full bg-amber-200/35 blur-3xl" />
       <Sidebar role={userRole as any} />
-      <main className="relative flex-1 overflow-y-auto p-4 pb-28 md:p-8 lg:pb-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-6 flex flex-col gap-4 rounded-[2rem] border border-white/75 bg-white/80 p-4 shadow-[0_20px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+      <main className="relative flex-1 overflow-y-auto p-3 pb-24 md:p-5 lg:pb-6">
+        <div className="mx-auto max-w-[1500px]">
+          <div className="mb-4 flex flex-col gap-3 rounded-[1.5rem] border border-white/75 bg-white/80 p-3 shadow-[0_20px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="enterprise-kicker">Aagam Commerce OS</p>
-              <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950">
+              <h2 className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950">
                 {allowedRole === 'ADMIN' ? 'Operations control tower' : allowedRole === 'RIDER' ? 'Rider live workspace' : 'Premium shopping workspace'}
               </h2>
             </div>
