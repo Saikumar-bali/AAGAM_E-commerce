@@ -18,6 +18,17 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 @Injectable()
 export class OrderService {
   constructor(private readonly trackingGateway: TrackingGateway) {}
+  private statusNote(nextStatus: OrderStatus, actorRole?: Role) {
+    if (actorRole === Role.RIDER) {
+      if (nextStatus === OrderStatus.PICKING) return 'Rider reached store and started pickup.';
+      if (nextStatus === OrderStatus.OUT_FOR_DELIVERY) return 'Rider picked the order and is on the way.';
+      if (nextStatus === OrderStatus.DELIVERED) return 'Rider marked the order as delivered.';
+    }
+    if (nextStatus === OrderStatus.CONFIRMED) return 'Store confirmed your order.';
+    if (nextStatus === OrderStatus.PICKING) return 'Store is preparing your items.';
+    if (nextStatus === OrderStatus.CANCELLED) return actorRole === Role.CUSTOMER ? 'Order cancelled by customer.' : 'Order cancelled.';
+    return undefined;
+  }
   private haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
     const toRad = (v: number) => (v * Math.PI) / 180;
     const R = 6371;
@@ -356,6 +367,7 @@ export class OrderService {
         fromStatus: order.status as OrderStatus,
         toStatus: nextStatus,
         actor,
+        note: this.statusNote(nextStatus, actor.role),
       }, tx);
       return updatedOrder;
     });
@@ -485,6 +497,46 @@ export class OrderService {
         ...order,
         trackingSummary: tripSummary,
       };
+    });
+  }
+
+  async cancelMyOrder(userId: string, orderId: string) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, customerId: userId },
+      include: { items: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+
+    const cancellableStatuses: OrderStatus[] = [OrderStatus.PENDING, OrderStatus.PAYMENT_PENDING, OrderStatus.CONFIRMED];
+    if (!cancellableStatuses.includes(order.status as OrderStatus)) {
+      throw new BadRequestException('Order can no longer be cancelled');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      for (const item of order.items) {
+        await tx.inventory.updateMany({
+          where: { storeId: order.storeId, productId: item.productId },
+          data: { quantity: { increment: item.quantity } },
+        });
+      }
+
+      const updated = await tx.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.CANCELLED, cancelledAt: new Date() },
+      });
+
+      await this.recordStatusHistory(
+        {
+          orderId: order.id,
+          fromStatus: order.status as OrderStatus,
+          toStatus: OrderStatus.CANCELLED,
+          actor: { id: userId, role: Role.CUSTOMER },
+          note: 'Customer cancelled order',
+        },
+        tx,
+      );
+
+      return updated;
     });
   }
 

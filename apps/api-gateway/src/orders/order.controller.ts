@@ -47,6 +47,13 @@ export class OrderController {
     return this.orderService.findMyOrder(req.user.id, id);
   }
 
+  @Patch('my/:id/cancel')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  async cancelMyOrder(@Req() req: any, @Param('id') id: string) {
+    return this.orderService.cancelMyOrder(req.user.id, id);
+  }
+
   @Get('rider/queue')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.RIDER)

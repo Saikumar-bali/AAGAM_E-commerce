@@ -35,7 +35,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     } catch (error) {
       console.error('Logout failed', error);
     } finally {
-      localStorage.clear();
+      localStorage.removeItem('user_role');
+      localStorage.removeItem('user_name');
       router.push('/login');
     }
   };

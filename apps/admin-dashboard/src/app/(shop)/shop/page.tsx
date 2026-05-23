@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiClient, getProductImage } from '@aagam/utils';
 import { useCart } from '@/hooks/useCart';
+import { useWishlist } from '@/hooks/useWishlist';
 import DashboardLayout from '@/components/DashboardLayout';
 import { formatINR } from '@/lib/currency';
 import { 
@@ -35,6 +36,7 @@ export default function ShopPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [sort, setSort] = useState('newest');
   const { cart, addToCart, updateQuantity, removeFromCart, totalPrice, totalItems } = useCart();
+  const wishlist = useWishlist();
   const router = useRouter();
 
   useEffect(() => {
@@ -70,11 +72,11 @@ export default function ShopPage() {
 
   const filteredProducts = useMemo(() => products, [products]);
   const quickActions = [
-    { label: 'Deals', icon: Tag, hint: 'Coupons soon' },
-    { label: 'Reorder', icon: RotateCcw, hint: 'Past baskets' },
-    { label: 'Wishlist', icon: Heart, hint: 'Save items' },
-    { label: 'Addresses', icon: MapPin, hint: 'Delivery spots' },
-    { label: 'Payments', icon: CreditCard, hint: 'COD/online' },
+    { label: 'Deals', icon: Tag, hint: 'Coupons soon', href: '/shop/deals' },
+    { label: 'Reorder', icon: RotateCcw, hint: 'Past baskets', href: '/shop/reorder' },
+    { label: 'Wishlist', icon: Heart, hint: `${wishlist.count} saved`, href: '/shop/wishlist' },
+    { label: 'Addresses', icon: MapPin, hint: 'Delivery spots', href: '/shop/addresses' },
+    { label: 'Payments', icon: CreditCard, hint: 'COD/online', href: '/shop/checkout' },
   ];
 
   return (
@@ -127,7 +129,7 @@ export default function ShopPage() {
 
           <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {quickActions.map((action) => (
-              <button key={action.label} className="group flex items-center gap-3 rounded-2xl border border-emerald-100 bg-white/90 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+              <button key={action.label} onClick={() => router.push(action.href)} className="group flex items-center gap-3 rounded-2xl border border-emerald-100 bg-white/90 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700 group-hover:bg-emerald-700 group-hover:text-white">
                   <action.icon className="h-5 w-5" />
                 </span>
@@ -213,11 +215,21 @@ export default function ShopPage() {
                 const price = typeof product.price === 'number' ? product.price : Number(product.price) || 0;
                 const productImage = getProductImage(product);
                 const cartProduct = { id: product.id, name: product.name, price, image: productImage };
+                const wishItem = { id: product.id, name: product.name, price, image: productImage };
+                const wished = wishlist.has(product.id);
 
                 return (
                   <div key={product.id} className="bg-white/90 rounded-xl border border-emerald-100 overflow-hidden hover:shadow-lg hover:shadow-emerald-900/5 transition-shadow">
                     <div className="aspect-[4/3] bg-emerald-50/50 relative overflow-hidden">
                       <img src={productImage} alt={product.name} className="object-cover w-full h-full" />
+                      <button
+                        type="button"
+                        onClick={() => wishlist.toggle(wishItem)}
+                        className={`absolute top-2 right-2 grid h-8 w-8 place-items-center rounded-full border ${wished ? 'bg-rose-50 border-rose-200 text-rose-600' : 'bg-white/90 border-emerald-100 text-emerald-700'}`}
+                        aria-label="Toggle wishlist"
+                      >
+                        <Heart className={`h-4 w-4 ${wished ? 'fill-current' : ''}`} />
+                      </button>
                       <div className="absolute top-2 left-2 rounded-full bg-white/90 border border-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-800">
                         {product.category?.name || 'General'}
                       </div>
@@ -351,6 +363,15 @@ export default function ShopPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {totalItems > 0 && (
+          <button
+            onClick={() => router.push('/shop/checkout')}
+            className="fixed bottom-6 right-6 z-40 rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-black text-white shadow-2xl shadow-emerald-900/20 hover:bg-emerald-800"
+          >
+            Checkout {totalItems} item{totalItems > 1 ? 's' : ''} • {formatINR(totalPrice)}
+          </button>
         )}
       </div>
     </DashboardLayout>

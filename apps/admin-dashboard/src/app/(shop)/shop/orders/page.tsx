@@ -70,6 +70,7 @@ export default function CustomerOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('All');
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -87,6 +88,18 @@ export default function CustomerOrdersPage() {
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  const cancelOrder = async (orderId: string) => {
+    setCancellingId(orderId);
+    try {
+      await apiClient.patch(`/orders/my/${orderId}/cancel`);
+      await fetchOrders();
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e?.message || 'Failed to cancel order');
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   const filteredOrders = useMemo(() => {
     if (statusFilter === 'All') return orders;
@@ -346,6 +359,32 @@ export default function CustomerOrdersPage() {
                           <span>On Way</span>
                           <span>Delivered</span>
                         </div>
+                      </div>
+                    )}
+
+                    {order.items && order.items.length > 0 && (
+                      <div className="mt-4 flex items-center gap-2 overflow-x-auto">
+                        {order.items.slice(0, 4).map((it) => (
+                          <div key={it.id} className="flex min-w-[160px] items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-2 py-1.5">
+                            {it.product?.image ? <img src={it.product.image} alt={it.product?.name || 'item'} className="h-8 w-8 rounded object-cover" /> : <div className="h-8 w-8 rounded bg-gray-200" />}
+                            <div className="truncate text-xs">
+                              <div className="truncate font-bold text-gray-900">{it.product?.name || 'Item'}</div>
+                              <div className="text-gray-500">Qty {it.quantity}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {['PENDING', 'PAYMENT_PENDING', 'CONFIRMED'].includes(order.status) && (
+                      <div className="mt-4">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); cancelOrder(order.id); }}
+                          disabled={cancellingId === order.id}
+                          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                        >
+                          {cancellingId === order.id ? 'Cancelling...' : 'Cancel order'}
+                        </button>
                       </div>
                     )}
                   </div>

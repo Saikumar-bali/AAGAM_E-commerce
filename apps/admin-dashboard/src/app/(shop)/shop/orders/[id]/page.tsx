@@ -102,6 +102,7 @@ export default function CustomerOrderDetailPage() {
     if (order?.addressSnapshot && typeof order.addressSnapshot === 'object') return order.addressSnapshot;
     return null;
   }, [order]);
+  const livePoint = liveLocation || trackingPayload?.tracking?.latestLocation || null;
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
@@ -258,17 +259,35 @@ export default function CustomerOrderDetailPage() {
                     <div className="mt-4 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-900">
                       <div className="font-black">Latest rider position</div>
                       <div className="mt-1">
-                        {Number((liveLocation || trackingPayload.tracking.latestLocation).latitude).toFixed(5)}, {Number((liveLocation || trackingPayload.tracking.latestLocation).longitude).toFixed(5)}
+                        {Number(livePoint.latitude).toFixed(5)}, {Number(livePoint.longitude).toFixed(5)}
                       </div>
                       <div className="mt-1 text-emerald-900/70">
-                        Updated {new Date((liveLocation || trackingPayload.tracking.latestLocation).createdAt).toLocaleTimeString('en-IN')}
+                        Updated {new Date(livePoint.createdAt).toLocaleTimeString('en-IN')}
                       </div>
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${livePoint.latitude},${livePoint.longitude}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-block rounded-lg bg-emerald-700 px-2.5 py-1.5 text-[11px] font-black text-white"
+                      >
+                        Track rider on map
+                      </a>
                     </div>
                   ) : (
                     <div className="mt-4 text-xs text-gray-600">
                       Rider tracking will appear here once a rider is assigned and starts moving.
                     </div>
                   )}
+                  {livePoint ? (
+                    <div className="mt-3 overflow-hidden rounded-xl border border-emerald-100">
+                      <iframe
+                        title="Rider live location"
+                        className="h-44 w-full"
+                        loading="lazy"
+                        src={`https://maps.google.com/maps?q=${livePoint.latitude},${livePoint.longitude}&z=15&output=embed`}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

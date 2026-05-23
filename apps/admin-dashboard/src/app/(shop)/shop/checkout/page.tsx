@@ -416,11 +416,11 @@ export default function CheckoutPage() {
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
-      <div className="min-h-screen font-sans relative">
+      <div className="min-h-screen font-sans relative pb-10">
         <div className="pointer-events-none absolute inset-x-0 -top-8 h-64 bg-gradient-to-b from-emerald-100 via-white to-transparent" />
 
-        <div className="-mx-8 -mt-8 px-8 pt-8 pb-4 sticky top-0 z-30 backdrop-blur bg-white/70 border-b border-emerald-100/70">
-          <div className="max-w-7xl mx-auto flex items-center justify-between h-16">
+        <div className="mb-4 rounded-2xl border border-emerald-100 bg-white/90 px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between h-12">
             <button
               onClick={() => router.push('/shop')}
               className="inline-flex items-center gap-2 text-emerald-900 font-black"
