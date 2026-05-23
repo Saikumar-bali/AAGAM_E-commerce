@@ -16,13 +16,24 @@ interface Product {
 }
 
 interface Category { id: string; name: string; }
+interface Store {
+  id: string;
+  name: string;
+  isActive?: boolean;
+  inventory?: Array<{ productId: string; quantity: number }>;
+}
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [selectedStoreId, setSelectedStoreId] = useState('');
+  const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({});
+  const [savingStock, setSavingStock] = useState<Record<string, boolean>>({});
+  const [stockMessage, setStockMessage] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -37,16 +48,33 @@ export default function AdminProductsPage() {
 
   const fetchData = async () => {
     try {
-      const [productsRes, categoriesRes] = await Promise.all([
-        apiClient.get('/products'), apiClient.get('/products/categories'),
+      const [productsRes, categoriesRes, storesRes] = await Promise.all([
+        apiClient.get('/products'),
+        apiClient.get('/products/categories'),
+        apiClient.get('/stores'),
       ]);
       setProducts(productsRes.data);
       setCategories(categoriesRes.data);
+      const fetchedStores: Store[] = storesRes.data || [];
+      setStores(fetchedStores);
+      const preferredStore = fetchedStores.find((s) => s.isActive !== false) || fetchedStores[0];
+      const nextStoreId = preferredStore?.id || '';
+      setSelectedStoreId((prev) => prev || nextStoreId);
     } catch (err) { console.error('Failed to fetch data', err); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    if (!selectedStoreId) return;
+    const selectedStore = stores.find((s) => s.id === selectedStoreId);
+    const qtyMap = new Map((selectedStore?.inventory || []).map((it) => [it.productId, it.quantity]));
+    const nextDrafts: Record<string, string> = {};
+    for (const p of products) {
+      nextDrafts[p.id] = String(qtyMap.get(p.id) ?? 0);
+    }
+    setStockDrafts(nextDrafts);
+  }, [selectedStoreId, stores, products]);
 
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -179,6 +207,36 @@ export default function AdminProductsPage() {
     setShowViewModal(true);
   };
 
+  const updateStockDraft = (productId: string, value: string) => {
+    setStockDrafts((prev) => ({ ...prev, [productId]: value }));
+  };
+
+  const saveStock = async (productId: string) => {
+    if (!selectedStoreId) {
+      setStockMessage('Select a store before saving inventory.');
+      return;
+    }
+    const parsedQty = Number(stockDrafts[productId] ?? '0');
+    if (!Number.isFinite(parsedQty) || parsedQty < 0) {
+      setStockMessage('Stock quantity must be a non-negative number.');
+      return;
+    }
+    setStockMessage('');
+    setSavingStock((prev) => ({ ...prev, [productId]: true }));
+    try {
+      await apiClient.patch(`/stores/${selectedStoreId}/inventory`, {
+        productId,
+        quantity: Math.floor(parsedQty),
+      });
+      await fetchData();
+      setStockMessage('Inventory updated successfully.');
+    } catch (err: any) {
+      setStockMessage(err?.response?.data?.message || 'Failed to update inventory.');
+    } finally {
+      setSavingStock((prev) => ({ ...prev, [productId]: false }));
+    }
+  };
+
   return (
     <DashboardLayout allowedRole="ADMIN">
       <div className="mb-8">
@@ -214,7 +272,20 @@ export default function AdminProductsPage() {
               <option value="All">All Categories</option>
               {categories.map(cat => (<option key={cat.id} value={cat.name}>{cat.name}</option>))}
             </select>
+            <select value={selectedStoreId} onChange={(e) => setSelectedStoreId(e.target.value)}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:ring-2 focus:ring-emerald-500">
+              {stores.length === 0 ? (
+                <option value="">No stores found</option>
+              ) : (
+                stores.map((store) => (
+                  <option key={store.id} value={store.id}>
+                    {store.name}{store.isActive === false ? ' (Inactive)' : ''}
+                  </option>
+                ))
+              )}
+            </select>
           </div>
+          {stockMessage && <p className="mt-3 text-sm text-emerald-700">{stockMessage}</p>}
         </div>
 
         <div className="overflow-x-auto">
@@ -223,6 +294,7 @@ export default function AdminProductsPage() {
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Product</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Category</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Price</th>
+              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Stock Qty</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Created</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Actions</th>
             </tr></thead>
@@ -232,9 +304,10 @@ export default function AdminProductsPage() {
                 <td className="px-6 py-4"><div className="h-6 bg-gray-100 rounded w-24"></div></td>
                 <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-20"></div></td>
                 <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-24"></div></td>
+                <td className="px-6 py-4"><div className="h-9 bg-gray-100 rounded w-32"></div></td>
                 <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-8 ml-auto"></div></td></tr>
               )) : filteredProducts.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-16 text-center"><Package className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No products found</p></td></tr>
+                <tr><td colSpan={6} className="px-6 py-16 text-center"><Package className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No products found</p></td></tr>
               ) : filteredProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-gray-50 group">
                   <td className="px-6 py-4"><div className="flex items-center">
@@ -259,6 +332,25 @@ export default function AdminProductsPage() {
                   </div></td>
                   <td className="px-6 py-4"><span className="inline-flex px-3 py-1.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700"><Tag className="h-3 w-3 mr-1" />{product.category?.name}</span></td>
                   <td className="px-6 py-4"><p className="text-sm font-bold text-gray-900">₹{product.price.toFixed(2)}</p></td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:ring-2 focus:ring-emerald-500"
+                        value={stockDrafts[product.id] ?? '0'}
+                        onChange={(e) => updateStockDraft(product.id, e.target.value)}
+                      />
+                      <button
+                        onClick={() => saveStock(product.id)}
+                        disabled={!selectedStoreId || savingStock[product.id]}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1"
+                      >
+                        {savingStock[product.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                        Save
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-6 py-4"><p className="text-sm text-gray-500">{new Date(product.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p></td>
                   <td className="px-6 py-4 text-right"><div className="flex justify-end space-x-1.5">
                     <button onClick={() => handleView(product)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg opacity-0 group-hover:opacity-100"><Eye className="h-4 w-4" /></button>
