@@ -163,7 +163,7 @@ export class AuthService {
     const avatarUrl = payload.picture || null;
     const emailVerified = Boolean(payload.email_verified);
 
-    const existingByGoogleSub = await prisma.user.findUnique({
+    const existingByGoogleSub = await prisma.user.findFirst({
       where: { googleSub: payload.sub },
     });
 
