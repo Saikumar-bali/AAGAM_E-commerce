@@ -7,19 +7,31 @@ import * as fs from 'fs';
 export class NotificationService implements OnModuleInit {
   onModuleInit() {
     try {
+      if (admin.apps.length > 0) return;
+
+      // Railway/prod-safe path: use env JSON first.
+      const envServiceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      if (envServiceAccountRaw) {
+        const serviceAccount = JSON.parse(envServiceAccountRaw);
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+        });
+        console.log('[NotificationService] Firebase Admin initialized from FIREBASE_SERVICE_ACCOUNT_JSON');
+        return;
+      }
+
+      // Local-dev fallback: read service account file from repo root.
       const serviceAccountPath = path.resolve(process.cwd(), 'firebase-adminsdk.json');
       if (fs.existsSync(serviceAccountPath)) {
         const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-        
-        if (admin.apps.length === 0) {
-          admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
-          });
-          console.log('[NotificationService] Firebase Admin Initialized Successfully!');
-        }
-      } else {
-        console.warn(`[NotificationService] Service account file not found at ${serviceAccountPath}`);
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+        });
+        console.log('[NotificationService] Firebase Admin initialized from firebase-adminsdk.json');
+        return;
       }
+
+      console.warn('[NotificationService] Firebase Admin not initialized (missing FIREBASE_SERVICE_ACCOUNT_JSON and firebase-adminsdk.json).');
     } catch (error) {
       console.error('[NotificationService] Failed to initialize Firebase Admin:', error);
     }

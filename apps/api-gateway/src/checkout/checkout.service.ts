@@ -330,16 +330,23 @@ export class CheckoutService {
             where: { role: 'RIDER', fcmToken: { not: null } },
             select: { fcmToken: true },
           });
-          
-          for (const rider of riders) {
-            if (rider.fcmToken) {
-              await this.notificationService.sendNewOrderAlert(rider.fcmToken, {
-                orderId: created.id,
-                amount: created.grandTotal,
-                storeName: created.store?.name || 'Store',
-              });
-            }
-          }
+          console.log(`[CheckoutService] Rider push fanout count=${riders.length} for order=${created.id}`);
+
+          const pushResults = await Promise.allSettled(
+            riders
+              .filter((rider) => !!rider.fcmToken)
+              .map((rider) =>
+                this.notificationService.sendNewOrderAlert(rider.fcmToken as string, {
+                  orderId: created.id,
+                  amount: created.grandTotal,
+                  storeName: created.store?.name || 'Store',
+                }),
+              ),
+          );
+
+          const sent = pushResults.filter((r) => r.status === 'fulfilled').length;
+          const failed = pushResults.filter((r) => r.status === 'rejected').length;
+          console.log(`[CheckoutService] Rider push results sent=${sent} failed=${failed} order=${created.id}`);
         } catch (pushErr) {
           console.error('[CheckoutService] Failed to send push notifications:', pushErr);
         }
