@@ -4,6 +4,8 @@ buildscript {
         minSdkVersion = 24
         compileSdkVersion = 36
         targetSdkVersion = 36
+        // Align RN geolocation module compile-time and app runtime Play Services location API.
+        playServicesLocationVersion = "21.3.0"
         ndkVersion = "27.1.12297006"
         kotlinVersion = "1.9.24"
     }

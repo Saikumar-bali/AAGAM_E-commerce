@@ -23,7 +23,6 @@ import { useAuthStore } from '../../store/authStore';
 import { 
   Package, 
   DollarSign, 
-  ChevronRight, 
   Power,
   ShieldCheck,
   Zap,
@@ -32,10 +31,11 @@ import {
   MapPin,
   Phone,
   List,
+  RefreshCw,
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
-const API_URL = ENV_API_URL || 'http://10.0.2.2:3005'; // Android emulator fallback
+const API_URL = ENV_API_URL || 'https://aagam-api-production.up.railway.app';
 
 export const RiderDashboard = () => {
   const queryClient = useQueryClient();
@@ -44,17 +44,20 @@ export const RiderDashboard = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
+  const previousQueueIdsRef = useRef<string[]>([]);
 
   // Fetch assigned orders
   const { data: assignedOrders, isLoading: loadingAssigned, refetch: refetchAssigned } = useQuery({
     queryKey: ['rider-assigned'],
     queryFn: riderService.getAssignedOrders,
+    refetchInterval: isOnline ? 12000 : false,
   });
 
   // Fetch available queue
   const { data: queueOrders, isLoading: loadingQueue, refetch: refetchQueue } = useQuery({
     queryKey: ['rider-queue'],
     queryFn: riderService.getAvailableQueue,
+    refetchInterval: isOnline ? 7000 : false,
   });
 
   const [newOrder, setNewOrder] = useState<any>(null);
@@ -74,6 +77,9 @@ export const RiderDashboard = () => {
     newSocket.on('connect', () => {
       console.log('[Rider Socket] Connected');
       newSocket.emit('joinRidersQueue');
+      if (currentLocation) {
+        newSocket.emit('joinRiderZone', { latitude: currentLocation.lat, longitude: currentLocation.lng });
+      }
     });
 
     newSocket.on('newOrderNearby', (data: any) => {
@@ -81,15 +87,37 @@ export const RiderDashboard = () => {
       handleRefresh();
     });
 
+    newSocket.on('connect_error', (error: any) => {
+      console.warn('[Rider Socket] connect_error', error?.message || error);
+    });
+
     setSocket(newSocket);
     return () => { newSocket.disconnect(); };
-  }, []);
+  }, [currentLocation?.lat, currentLocation?.lng]);
 
   useEffect(() => {
     if (socket) {
       handleGoOnline();
     }
   }, [socket]);
+
+  useEffect(() => {
+    const queueList = Array.isArray(queueOrders) ? queueOrders : [];
+    const currentIds = queueList.map((o: any) => o.id);
+    const previousIds = previousQueueIdsRef.current;
+    const newIds = currentIds.filter((id: string) => !previousIds.includes(id));
+
+    if (isOnline && previousIds.length > 0 && newIds.length > 0) {
+      const newest = queueList.find((o: any) => o.id === newIds[0]);
+      setNewOrder(newest || null);
+      Alert.alert(
+        'New nearby order',
+        newest ? `${newest.store?.name || 'Aagam store'} • ₹${newest.grandTotal}` : 'A new order is available to accept.',
+      );
+    }
+
+    previousQueueIdsRef.current = currentIds;
+  }, [queueOrders, isOnline]);
 
   const handleRefresh = () => {
     refetchAssigned();
@@ -390,6 +418,13 @@ export const RiderDashboard = () => {
         {/* Available Orders Queue */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Available Orders</Text>
+          <View style={styles.queueCountBadge}>
+            <Text style={styles.queueCountText}>{Array.isArray(queueOrders) ? queueOrders.length : 0}</Text>
+          </View>
+          <TouchableOpacity onPress={handleRefresh} style={styles.inlineRefreshBtn}>
+            <RefreshCw size={14} color="#0F766E" />
+            <Text style={styles.inlineRefreshText}>Refresh</Text>
+          </TouchableOpacity>
         </View>
 
         {Array.isArray(queueOrders) && queueOrders.length > 0 ? (
@@ -495,6 +530,10 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, marginTop: 10, marginBottom: 16, gap: 8 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
   livePulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
+  queueCountBadge: { minWidth: 26, height: 26, borderRadius: 13, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  queueCountText: { fontSize: 12, fontWeight: '800', color: '#1D4ED8' },
+  inlineRefreshBtn: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ECFDF5', borderColor: '#A7F3D0', borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  inlineRefreshText: { fontSize: 12, fontWeight: '700', color: '#0F766E' },
   deliveryCard: { backgroundColor: '#FFFFFF', marginHorizontal: 20, borderRadius: 28, padding: 22, marginBottom: 20, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 20 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   orderInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },

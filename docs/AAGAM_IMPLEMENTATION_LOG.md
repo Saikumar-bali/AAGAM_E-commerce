@@ -1,0 +1,225 @@
+# Aagam Implementation Log
+
+## Purpose
+This file is the memory trail for Codex sessions. Every implementation session should append a short entry so the next model knows what was changed, verified, deployed, and what remains risky.
+
+## Log Format
+
+```text
+## YYYY-MM-DD HH:mm IST
+Model/reasoning:
+Task:
+Files changed:
+Verification:
+Deployment:
+Result:
+Risks/follow-up:
+```
+
+## 2026-05-22 17:45 IST
+Model/reasoning: Codex implementation session.
+Task: Improve customer address and rider tracking flows.
+Files changed:
+- `apps/admin-dashboard/src/app/(shop)/shop/page.tsx`
+- `apps/admin-dashboard/src/app/(shop)/shop/addresses/page.tsx`
+- `apps/admin-dashboard/src/components/StoreLocationPicker.tsx`
+- `apps/api-gateway/src/riders/rider.controller.ts`
+- `apps/api-gateway/src/riders/rider.service.ts`
+- `apps/mobile-app/src/api/riderService.ts`
+- `apps/mobile-app/src/screens/customer/CustomerProfileScreen.tsx`
+- `apps/mobile-app/src/screens/customer/ShopScreen.tsx`
+- `apps/mobile-app/src/screens/rider/RiderDashboard.tsx`
+- `docs/PRODUCTION_ORDER_TRACKING_TEST_PLAN.md`
+Verification:
+- `npm run build:api` passed.
+- `npm run build:admin` passed.
+- `npx tsc --noEmit -p apps/mobile-app/tsconfig.json` passed.
+- Local Android release build was started but intentionally interrupted by the user.
+Deployment:
+- API deployed to Railway.
+- Web deployed to Railway.
+- Pushed commit `86e2d75 Improve customer address and rider tracking flows` to `main`.
+Result:
+- Product cards are two per row.
+- Address map picker added on web and mobile.
+- Rider can update own status through `PATCH /riders/me/status`.
+- Rider app attempts automatic online after permission/location.
+Risks/follow-up:
+- Must verify production APK rider login because release build was not completed locally.
+- Need `adb logcat` if rider crash continues.
+- ETA calculation still needs implementation.
+
+## 2026-05-22 18:10 IST
+Model/reasoning: Codex implementation session.
+Task: Add model-usage operating protocol for step-by-step roadmap execution.
+Files changed:
+- `docs/CODEX_OPERATING_PROTOCOL.md`
+- `docs/AAGAM_CURRENT_TASK.md`
+- `docs/AAGAM_IMPLEMENTATION_LOG.md`
+Verification:
+- Documentation-only change.
+Deployment:
+- Not deployed.
+Result:
+- Added a protocol for using high reasoning as architect/reviewer and 5.3 Codex medium as day-to-day implementer.
+- Added a current task queue with first task focused on release APK rider login verification.
+Risks/follow-up:
+- Model selection itself cannot be controlled from repo files; user still selects the model in the app.
+- The protocol reduces usage by narrowing each Codex session to one task.
+
+## 2026-05-22 18:22 IST
+Model/reasoning: Codex implementation session (5.3 medium workflow).
+Task: Verify latest mobile release APK after rider login (first unchecked task).
+Files changed:
+- `docs/AAGAM_CURRENT_TASK.md`
+- `docs/AAGAM_IMPLEMENTATION_LOG.md`
+Verification:
+- `cd apps/mobile-app/android`
+- `.\gradlew.bat assembleRelease` passed (`BUILD SUCCESSFUL`).
+- `adb devices -l` confirmed connected device `192.168.0.22:41039`.
+- `adb install -r D:\aagam_ecommerse\apps\mobile-app\android\app\build\outputs\apk\release\app-release.apk` succeeded.
+- `adb shell monkey -p com.aagammobile -c android.intent.category.LAUNCHER 1` succeeded.
+- `adb logcat -c; Start-Sleep -Seconds 5; adb logcat -d *:E` captured error logs; no rider-login crash stack trace captured in this run.
+Deployment:
+- Not deployed.
+Result:
+- Automatable release verification steps are complete and successful (build/install/launch/log capture).
+- End-to-end login and permission acceptance checks remain manual on-device.
+Risks/follow-up:
+- Task remains unchecked until manual rider login path is executed and validated against acceptance criteria.
+- If rider login crashes, capture and store exact `adb logcat *:E` stack trace during the crash moment.
+
+## 2026-05-22 18:53 IST
+Model/reasoning: Codex implementation session (5.3 medium workflow).
+Task: Verify rider-login crash path and capture stack trace from release APK.
+Files changed:
+- `docs/AAGAM_CURRENT_TASK.md`
+- `docs/AAGAM_IMPLEMENTATION_LOG.md`
+Verification:
+- `adb logcat -c`
+- `adb shell monkey -p com.aagammobile -c android.intent.category.LAUNCHER 1`
+- User reproduced rider login and granted location permission ("While using the app")
+- `adb logcat -v time AndroidRuntime:E ReactNativeJS:E ReactNative:E ActivityManager:E FATAL:E *:S`
+Deployment:
+- Not deployed.
+Result:
+- Crash reproduced consistently during location-permission path after rider login.
+- Captured fatal stack trace:
+  - `java.lang.IncompatibleClassChangeError: Found interface com.google.android.gms.location.FusedLocationProviderClient, but class was expected`
+  - `at com.agontuk.RNFusedLocation.FusedLocationProvider.getCurrentLocation(FusedLocationProvider.java:97)`
+  - `at com.agontuk.RNFusedLocation.RNFusedLocationModule.getCurrentPosition(RNFusedLocationModule.java:112)`
+Risks/follow-up:
+- Rider cannot complete login-to-online flow because app crashes on current-location fetch.
+- Next task should pin/align fused-location and Google Play Services location dependency versions, then rebuild and retest same permission path.
+
+## 2026-05-23 00:22 IST
+Model/reasoning: Codex implementation session (5.3 medium workflow).
+Task: Fix and re-verify rider login crash after location permission.
+Files changed:
+- `apps/mobile-app/android/app/build.gradle`
+- `docs/AAGAM_CURRENT_TASK.md`
+- `docs/AAGAM_IMPLEMENTATION_LOG.md`
+Verification:
+- Manual build by user: `.\gradlew.bat assembleRelease --no-daemon --console=plain` passed.
+- `adb install -r D:\aagam_ecommerse\apps\mobile-app\android\app\build\outputs\apk\release\app-release.apk` succeeded.
+- `adb shell monkey -p com.aagammobile -c android.intent.category.LAUNCHER 1` succeeded.
+- Live capture: `adb logcat -v time AndroidRuntime:E ReactNativeJS:E ReactNative:E ActivityManager:E FATAL:E *:S` during rider login + permission flow.
+- Post-check: `adb logcat -d -v time | Select-String -Pattern "FATAL EXCEPTION|AndroidRuntime|IncompatibleClassChangeError|RNFusedLocation"` returned no matches.
+Deployment:
+- Not deployed.
+Result:
+- Previously reproduced `IncompatibleClassChangeError` crash was not observed after dependency alignment.
+- Rider permission path appears stable in this retest window.
+Risks/follow-up:
+- Keep monitoring on additional devices/Android versions to confirm no variant-specific regressions.
+
+## 2026-05-23 12:21 IST
+Model/reasoning: Codex implementation session (5.3 medium workflow).
+Task: Final re-verification of rider login + location permission crash on rebuilt release APK.
+Files changed:
+- `docs/AAGAM_CURRENT_TASK.md`
+- `docs/AAGAM_IMPLEMENTATION_LOG.md`
+Verification:
+- User confirmed release APK rebuilt successfully.
+- `adb install -r D:\aagam_ecommerse\apps\mobile-app\android\app\build\outputs\apk\release\app-release.apk` succeeded.
+- `adb logcat -c` executed.
+- `adb shell monkey -p com.aagammobile -c android.intent.category.LAUNCHER 1` executed.
+- Live watch: `adb logcat -v time AndroidRuntime:E ReactNativeJS:E ReactNative:E ActivityManager:E FATAL:E *:S` for 4 minutes while rider login + permission flow was tested.
+- Post-scan: `adb logcat -d -v time | Select-String -Pattern "FATAL EXCEPTION|AndroidRuntime|IncompatibleClassChangeError|RNFusedLocation"` returned no matches.
+Deployment:
+- Not deployed.
+Result:
+- No crash signature observed in extended validation window after rebuild.
+- Prior `IncompatibleClassChangeError` did not reappear in captured logs.
+Risks/follow-up:
+- If user still sees UI-level crash, capture full unfiltered log around tap event and include tombstone/ANR traces to isolate non-AndroidRuntime failures.
+
+## 2026-05-23 12:42 IST
+Model/reasoning: Codex implementation session (5.3 medium workflow).
+Task: Execute production order tracking test step by step (started).
+Files changed:
+- `docs/AAGAM_CURRENT_TASK.md`
+- `docs/AAGAM_IMPLEMENTATION_LOG.md`
+Verification:
+- Production reachability check:
+  - `https://aagam-api-production.up.railway.app/products` -> `200`
+  - `https://aagam-web-production.up.railway.app/shop` -> `200`
+- Step 1 (address setup): passed with real coordinates saved.
+- Step 2 (order placement): failed on checkout due to stock validation.
+Failure logged:
+- Endpoint/screen: web checkout `/shop/checkout`
+- Message: `Out of stock: Eggs (12 pack)`
+- Reproduction: add Eggs (12 pack) in cart -> proceed checkout -> Place COD order.
+Deployment:
+- Not deployed.
+Result:
+- Production tracking test is in progress; blocked at order creation due to inventory state.
+Risks/follow-up:
+- Need admin inventory update or cart change to continue end-to-end rider/admin/customer tracking validation.
+
+## 2026-05-23 13:35 IST
+Model/reasoning: Codex implementation session (5.3 medium workflow).
+Task: Unblock production tracking flow by fixing inventory management gap and rider queue visibility/alerts.
+Files changed:
+- `apps/admin-dashboard/src/app/(admin)/admin/products/page.tsx`
+- `apps/mobile-app/src/screens/rider/RiderDashboard.tsx`
+- `docs/AAGAM_CURRENT_TASK.md`
+- `docs/AAGAM_IMPLEMENTATION_LOG.md`
+Verification:
+- Admin web stock-management change committed/pushed (`2b22e46`) and deployed with Railway CLI to `aagam-web`.
+- Railway deploy ID: `a8dc8954-ae16-4f33-9a59-c095f849b646`.
+- Mobile compile check: `npx tsc --noEmit -p apps/mobile-app/tsconfig.json` passed.
+Deployment:
+- `aagam-web` deployed via Railway CLI (`npx @railway/cli up --service aagam-web`).
+- Mobile changes are local until next APK build/deploy.
+Result:
+- Admin can now update per-store product quantity directly from product list UI.
+- Rider app now has safer socket fallback URL, online polling for queue/assigned orders, and in-app new-order fallback alert behavior.
+- Rider available-orders section now shows live count and quick refresh action.
+Risks/follow-up:
+- Need fresh mobile release APK build/install to validate rider sees newly created order in real user flow.
+- Push-notification delivery still depends on backend FCM trigger path; app now has reliable polling fallback even if push is delayed.
+
+## 2026-05-23 14:58 IST
+Model/reasoning: Codex implementation session (5.3 medium workflow).
+Task: Diagnose missing rider closed-app push notifications in production.
+Files changed:
+- `apps/api-gateway/src/notifications/notification.service.ts`
+- `apps/api-gateway/src/checkout/checkout.service.ts`
+- `docs/AAGAM_CURRENT_TASK.md`
+- `docs/AAGAM_IMPLEMENTATION_LOG.md`
+Verification:
+- Closed/background app adb capture windows executed during fresh order placement.
+- Railway API logs inspected after deploying API fix (`65e66a8`) to `aagam-api`.
+- Confirmed log lines:
+  - `[NotificationService] Firebase Admin not initialized (missing FIREBASE_SERVICE_ACCOUNT_JSON and firebase-adminsdk.json).`
+  - `[NotificationService] Firebase not initialized. Skipping push notification.`
+  - `[CheckoutService] Rider push fanout count=1 ...`
+Deployment:
+- API deployed via Railway CLI (`npx @railway/cli up --service aagam-api`), deployment id `398ae6a0-5520-4c7b-a1d4-1e8d5db6b36b`.
+Result:
+- Root cause is not rider app/device capability; production API lacks Firebase Admin credentials at runtime.
+- Added env-first Firebase initialization path in notification service (`FIREBASE_SERVICE_ACCOUNT_JSON`) with file fallback.
+Risks/follow-up:
+- Set `FIREBASE_SERVICE_ACCOUNT_JSON` on Railway service `aagam-api` and redeploy.
+- Re-run closed-app rider order test after env is applied.

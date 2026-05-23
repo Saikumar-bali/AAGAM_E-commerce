@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { API_URL } from '@env';
 import { useAuthStore } from '../store/authStore';
 
-const SOCKET_URL = API_URL || 'http://10.0.2.2:3005'; // Android emulator fallback
+const SOCKET_URL = API_URL || 'https://aagam-api-production.up.railway.app';
 
 export const useSocket = () => {
   const socketRef = useRef<Socket | null>(null);
