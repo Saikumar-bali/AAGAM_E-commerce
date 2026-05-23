@@ -8,6 +8,7 @@ import { Role } from '@aagam/database';
 import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
@@ -41,6 +42,26 @@ export class AuthController {
     if (process.env.NODE_ENV === 'development') {
       console.log('[AuthController] Login successful');
     }
+
+    return {
+      message: 'Logged in successfully',
+      user: result.user,
+      access_token: result.session.access_token,
+    };
+  }
+
+  @Post('google')
+  @Throttle({ short: { limit: 10, ttl: 60000 } })
+  async signInWithGoogle(@Body() body: GoogleLoginDto, @Res({ passthrough: true }) response: Response) {
+    const result = await this.authService.signInWithGoogle(body.idToken);
+    const isProduction = process.env.NODE_ENV === 'production';
+    response.cookie('access_token', result.session.access_token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     return {
       message: 'Logged in successfully',

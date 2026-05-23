@@ -35,6 +35,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
         }
 
         setUserRole(user.role);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user_name', user.name || '');
+          localStorage.setItem('user_email', user.email || '');
+          localStorage.setItem('user_avatar', user.avatarUrl || '');
+        }
         setMounted(true);
       } catch (error: any) {
         console.error('[DashboardLayout] Session verification failed:', error.response?.data || error.message);
@@ -81,17 +86,21 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
               </h2>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="hidden items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500 md:flex">
-                <Search className="h-4 w-4" />
-                Search orders, products, stores
-                <span className="ml-5 inline-flex items-center gap-1 rounded-lg bg-white px-2 py-1 text-[11px] text-slate-400 shadow-sm">
-                  <Command className="h-3 w-3" /> K
-                </span>
-              </div>
-              <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
-                <CheckCircle2 className="h-4 w-4" />
-                Live systems
-              </div>
+              {allowedRole !== 'CUSTOMER' ? (
+                <div className="hidden items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500 md:flex">
+                  <Search className="h-4 w-4" />
+                  Search orders, products, stores
+                  <span className="ml-5 inline-flex items-center gap-1 rounded-lg bg-white px-2 py-1 text-[11px] text-slate-400 shadow-sm">
+                    <Command className="h-3 w-3" /> K
+                  </span>
+                </div>
+              ) : null}
+              {allowedRole !== 'CUSTOMER' ? (
+                <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Live systems
+                </div>
+              ) : null}
               <button className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:text-teal-700">
                 <Bell className="h-5 w-5" />
               </button>

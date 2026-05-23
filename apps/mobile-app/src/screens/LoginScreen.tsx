@@ -11,8 +11,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useAuthStore } from '../store/authStore';
-import { Mail, Lock, ArrowRight, Github, Chrome } from 'lucide-react-native';
+import { Mail, Lock, ArrowRight, Chrome } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { GOOGLE_WEB_CLIENT_ID } from '@env';
 
 import { Alert } from 'react-native';
 
@@ -23,7 +25,16 @@ export const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const login = useAuthStore((state) => state.login);
+  const googleLogin = useAuthStore((state) => state.googleLogin);
+
+  React.useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: GOOGLE_WEB_CLIENT_ID,
+      offlineAccess: false,
+    });
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -37,6 +48,24 @@ export const LoginScreen = () => {
       Alert.alert('Login Failed', error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setGoogleLoading(true);
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const response = await GoogleSignin.signIn();
+      const idToken = response.data?.idToken;
+      if (!idToken) {
+        throw new Error('Google token missing');
+      }
+      await googleLogin(idToken);
+    } catch (error: any) {
+      if (error?.code === statusCodes.SIGN_IN_CANCELLED) return;
+      Alert.alert('Google Sign-In Failed', error?.message || 'Unable to sign in with Google');
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -115,13 +144,11 @@ export const LoginScreen = () => {
           </View>
 
           <View style={styles.socialRow}>
-            <TouchableOpacity style={styles.socialBtn}>
+            <TouchableOpacity style={styles.socialBtn} onPress={handleGoogleLogin} disabled={googleLoading}>
               <Chrome size={24} color="#1E293B" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.socialBtn}>
-              <Github size={24} color="#1E293B" />
-            </TouchableOpacity>
           </View>
+          {googleLoading ? <ActivityIndicator style={styles.socialLoader} color="#0F766E" /> : null}
         </View>
 
         <View style={styles.footer}>
@@ -305,6 +332,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#F1F5F9',
+  },
+  socialLoader: {
+    marginTop: 14,
   },
   footer: {
     flexDirection: 'row',

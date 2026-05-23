@@ -4,12 +4,14 @@ import { Role } from '@aagam/database';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { ConfigService } from '@nestjs/config';
+import { OAuth2Client } from 'google-auth-library';
 
 const ALLOWED_ROLES: Role[] = [Role.CUSTOMER, Role.RIDER, Role.STORE_OWNER];
 
 @Injectable()
 export class AuthService {
   private jwtSecret: string;
+  private googleClient: OAuth2Client;
 
   constructor(private configService: ConfigService) {
     const secret = this.configService.get<string>('JWT_SECRET');
@@ -17,6 +19,34 @@ export class AuthService {
       throw new Error('JWT_SECRET must be defined in environment variables');
     }
     this.jwtSecret = secret;
+    this.googleClient = new OAuth2Client();
+  }
+
+  private getGoogleAudiences() {
+    const audiences = [
+      this.configService.get<string>('GOOGLE_WEB_CLIENT_ID'),
+      this.configService.get<string>('GOOGLE_ANDROID_CLIENT_ID'),
+    ].filter((value): value is string => Boolean(value?.trim()));
+    return [...new Set(audiences)];
+  }
+
+  private buildAuthResponse(user: { id: string; email: string; role: Role; name: string | null; avatarUrl?: string | null }) {
+    const token = jwt.sign(
+      { sub: user.id, email: user.email, role: user.role },
+      this.jwtSecret,
+      { expiresIn: '7d' }
+    );
+
+    return {
+      session: { access_token: token },
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.name,
+        avatarUrl: user.avatarUrl || null,
+      },
+    };
   }
 
   async signUp(email: string, pass: string, name: string, role: string = 'CUSTOMER') {
@@ -85,22 +115,95 @@ export class AuthService {
     }
 
     // 3. Generate secure JWT token
-    const token = jwt.sign(
-      { sub: user.id, email: user.email, role: user.role },
-      this.jwtSecret,
-      { expiresIn: '7d' }
-    );
-
     if (process.env.NODE_ENV === 'development') {
       console.log('SignIn Success: User authenticated successfully');
     }
 
-    return { 
-      session: {
-        access_token: token,
-      },
-      user: { id: user.id, email: user.email, role: user.role, name: user.name } 
+    return this.buildAuthResponse(user);
+  }
+
+  async signInWithGoogle(idToken: string) {
+    const audiences = this.getGoogleAudiences();
+    if (!audiences.length) {
+      throw new BadRequestException('Google sign-in is not configured on server');
+    }
+
+    let payload: {
+      sub?: string;
+      email?: string;
+      email_verified?: boolean;
+      name?: string;
+      picture?: string;
+      iss?: string;
+      aud?: string;
+      exp?: number;
     };
+
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken,
+        audience: audiences,
+      });
+      payload = ticket.getPayload() || {};
+    } catch (error) {
+      throw new UnauthorizedException('Invalid Google token');
+    }
+
+    if (!payload.email || !payload.sub) {
+      throw new UnauthorizedException('Google account email is required');
+    }
+
+    const isValidIssuer = payload.iss === 'accounts.google.com' || payload.iss === 'https://accounts.google.com';
+    if (!isValidIssuer) {
+      throw new UnauthorizedException('Invalid Google token issuer');
+    }
+
+    const email = payload.email.toLowerCase().trim();
+    const name = payload.name?.trim() || email.split('@')[0];
+    const avatarUrl = payload.picture || null;
+    const emailVerified = Boolean(payload.email_verified);
+
+    const existingByGoogleSub = await prisma.user.findUnique({
+      where: { googleSub: payload.sub },
+    });
+
+    if (existingByGoogleSub) {
+      const updated = await prisma.user.update({
+        where: { id: existingByGoogleSub.id },
+        data: {
+          name,
+          avatarUrl,
+          emailVerified,
+        },
+      });
+      return this.buildAuthResponse(updated);
+    }
+
+    const existingByEmail = await prisma.user.findUnique({ where: { email } });
+    if (existingByEmail) {
+      const linkedUser = await prisma.user.update({
+        where: { id: existingByEmail.id },
+        data: {
+          googleSub: payload.sub,
+          name: existingByEmail.name || name,
+          avatarUrl: avatarUrl || existingByEmail.avatarUrl,
+          emailVerified: emailVerified || existingByEmail.emailVerified,
+        },
+      });
+      return this.buildAuthResponse(linkedUser);
+    }
+
+    const createdUser = await prisma.user.create({
+      data: {
+        email,
+        name,
+        role: Role.CUSTOMER,
+        googleSub: payload.sub,
+        avatarUrl,
+        emailVerified,
+      },
+    });
+    return this.buildAuthResponse(createdUser);
   }
 
   async findAll() {

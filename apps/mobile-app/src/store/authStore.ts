@@ -9,6 +9,7 @@ interface AuthState {
   isLoading: boolean;
   setAuth: (user: UserType, token: string) => Promise<void>;
   login: (email: string, pass: string) => Promise<void>;
+  googleLogin: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
   signUp: (name: string, email: string, pass: string, role: string) => Promise<void>;
@@ -41,6 +42,18 @@ export const useAuthStore = create<AuthState>((set) => ({
         config: error.config?.url
       });
       throw new Error(error.response?.data?.message || 'Login failed - check server connection');
+    }
+  },
+  googleLogin: async (idToken) => {
+    try {
+      set({ isLoading: true });
+      const response = await apiClient.post('/auth/google', { idToken });
+      const { user, access_token } = response.data;
+      await Keychain.setGenericPassword('auth', JSON.stringify({ user, token: access_token }));
+      set({ user, token: access_token, isLoading: false });
+    } catch (error: any) {
+      set({ isLoading: false });
+      throw new Error(error.response?.data?.message || 'Google login failed');
     }
   },
   signUp: async (name, email, password, role) => {

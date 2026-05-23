@@ -3,16 +3,22 @@ export declare const UserSchema: z.ZodObject<{
     id: z.ZodString;
     email: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
+    avatarUrl: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    emailVerified: z.ZodOptional<z.ZodBoolean>;
     role: z.ZodEnum<["CUSTOMER", "RIDER", "ADMIN", "STORE_OWNER"]>;
 }, "strip", z.ZodTypeAny, {
     email: string;
     id: string;
     role: "CUSTOMER" | "RIDER" | "STORE_OWNER" | "ADMIN";
+    avatarUrl?: string | null | undefined;
+    emailVerified?: boolean | undefined;
     name?: string | undefined;
 }, {
     email: string;
     id: string;
     role: "CUSTOMER" | "RIDER" | "STORE_OWNER" | "ADMIN";
+    avatarUrl?: string | null | undefined;
+    emailVerified?: boolean | undefined;
     name?: string | undefined;
 }>;
 export declare const OrderSchema: z.ZodObject<{

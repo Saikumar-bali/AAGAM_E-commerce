@@ -1,17 +1,40 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient } from '@aagam/utils';
 import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, ShieldCheck, Sparkles } from 'lucide-react';
+import Script from 'next/script';
+
+declare global {
+  interface Window {
+    google?: any;
+    handleGoogleCredentialResponse?: (response: { credential?: string }) => void;
+  }
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const router = useRouter();
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+
+  const routeByRole = (role: string) => {
+    if (role === 'ADMIN') router.push('/admin');
+    else if (role === 'RIDER') router.push('/rider');
+    else router.push('/shop');
+  };
+
+  const persistUserContext = (user: any) => {
+    localStorage.setItem('user_role', user.role);
+    localStorage.setItem('user_name', user.name || '');
+    localStorage.setItem('user_email', user.email || '');
+    localStorage.setItem('user_avatar', user.avatarUrl || '');
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,11 +44,8 @@ export default function LoginPage() {
     try {
       const response = await apiClient.post('/auth/login', { email, password });
       const { user } = response.data;
-      localStorage.setItem('user_role', user.role);
-      localStorage.setItem('user_name', user.name);
-      if (user.role === 'ADMIN') router.push('/admin');
-      else if (user.role === 'RIDER') router.push('/rider');
-      else router.push('/shop');
+      persistUserContext(user);
+      routeByRole(user.role);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid credentials');
     } finally {
@@ -33,8 +53,59 @@ export default function LoginPage() {
     }
   };
 
+  useEffect(() => {
+    if (!googleClientId) return;
+    window.handleGoogleCredentialResponse = async (response: { credential?: string }) => {
+      if (!response?.credential) {
+        setError('Google sign-in failed. Please try again.');
+        return;
+      }
+      setError('');
+      setGoogleLoading(true);
+      try {
+        const result = await apiClient.post('/auth/google', { idToken: response.credential });
+        const { user } = result.data;
+        persistUserContext(user);
+        routeByRole(user.role);
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Google sign-in failed');
+      } finally {
+        setGoogleLoading(false);
+      }
+    };
+  }, [googleClientId, router]);
+
+  const initializeGoogleButton = () => {
+    if (!googleClientId || !window.google || !window.handleGoogleCredentialResponse) return;
+    const target = document.getElementById('google-signin-button');
+    if (!target) return;
+    target.innerHTML = '';
+    window.google.accounts.id.initialize({
+      client_id: googleClientId,
+      callback: window.handleGoogleCredentialResponse,
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
+    window.google.accounts.id.renderButton(target, {
+      type: 'standard',
+      shape: 'pill',
+      theme: 'outline',
+      text: 'continue_with',
+      size: 'large',
+      logo_alignment: 'left',
+      width: 360,
+    });
+  };
+
   return (
     <main className="relative min-h-screen overflow-hidden px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
+      {googleClientId ? (
+        <Script
+          src="https://accounts.google.com/gsi/client"
+          strategy="afterInteractive"
+          onLoad={initializeGoogleButton}
+        />
+      ) : null}
       <div className="pointer-events-none absolute inset-0 enterprise-subtle-grid opacity-60" />
       <div className="pointer-events-none absolute -left-24 top-12 h-96 w-96 rounded-full bg-teal-300/25 blur-3xl" />
       <div className="pointer-events-none absolute -right-16 bottom-0 h-[28rem] w-[28rem] rounded-full bg-amber-200/40 blur-3xl" />
@@ -103,6 +174,21 @@ export default function LoginPage() {
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Continue <ArrowRight className="h-4 w-4" /></>}
               </button>
             </form>
+            <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+              <span className="h-px flex-1 bg-slate-200" />
+              or
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
+            {googleClientId ? (
+              <div>
+                <div id="google-signin-button" className="flex min-h-[44px] items-center justify-center" />
+                {googleLoading ? (
+                  <p className="mt-2 text-center text-xs font-semibold text-slate-500">Verifying Google sign-in...</p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-center text-xs font-semibold text-slate-500">Google sign-in is not configured yet.</p>
+            )}
           </section>
         </div>
       </div>

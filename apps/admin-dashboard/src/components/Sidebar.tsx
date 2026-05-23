@@ -28,6 +28,27 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   const pathname = usePathname();
   const router = useRouter();
+  const [profile, setProfile] = React.useState<{ name: string; email: string; avatarUrl: string }>({
+    name: '',
+    email: '',
+    avatarUrl: '',
+  });
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || role !== 'CUSTOMER') return;
+    setProfile({
+      name: localStorage.getItem('user_name') || '',
+      email: localStorage.getItem('user_email') || '',
+      avatarUrl: localStorage.getItem('user_avatar') || '',
+    });
+  }, [role]);
+
+  const initials = (profile.name || profile.email || 'A')
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
   const handleLogout = async () => {
     try {
@@ -37,6 +58,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     } finally {
       localStorage.removeItem('user_role');
       localStorage.removeItem('user_name');
+      localStorage.removeItem('user_email');
+      localStorage.removeItem('user_avatar');
       router.push('/login');
     }
   };
@@ -72,7 +95,24 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     <aside className="relative z-10 hidden h-screen w-64 flex-col border-r border-white/10 bg-slate-950 text-white shadow-[28px_0_80px_rgba(15,23,42,0.22)] lg:flex">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.22),transparent_20rem),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.16),transparent_18rem)]" />
       <div className="relative p-6">
-        <AagamLogo inverse label={`${role} portal`} />
+        {role === 'CUSTOMER' ? (
+          <div className="flex items-center gap-3">
+            {profile.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={profile.avatarUrl} alt="Profile" className="h-12 w-12 rounded-2xl border border-white/20 object-cover" />
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-sm font-black text-white">
+                {initials}
+              </div>
+            )}
+            <div>
+              <p className="text-base font-black leading-tight text-white">{profile.name || 'Aagam Customer'}</p>
+              <p className="text-xs font-semibold text-slate-400">{profile.email || 'Customer Portal'}</p>
+            </div>
+          </div>
+        ) : (
+          <AagamLogo inverse label={`${role} portal`} />
+        )}
         <div className="mt-7 rounded-[1.5rem] border border-white/10 bg-white/8 p-4 backdrop-blur-xl">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Today signal</p>
           <div className="mt-3 flex items-end justify-between">

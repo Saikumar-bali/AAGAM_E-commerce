@@ -11,8 +11,11 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   password  String?  // Added for local auth
+  googleSub String?  @unique
   phone     String?  @unique
   name      String?
+  avatarUrl String?
+  emailVerified Boolean @default(false)
   role      Role     @default(CUSTOMER)
   fcmToken  String?
   createdAt DateTime @default(now())

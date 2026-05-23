@@ -20,6 +20,8 @@ export const UserSchema = z.object({
   id: z.string().cuid(),
   email: z.string().email(),
   name: z.string().optional(),
+  avatarUrl: z.string().url().nullable().optional(),
+  emailVerified: z.boolean().optional(),
   role: z.enum(ROLE_VALUES),
 });
 
