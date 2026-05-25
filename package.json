@@ -19,7 +19,8 @@
     "railway:start:api": "npm run db:push:prod && npm run start:api",
     "db:push:prod": "prisma db push --schema packages/database/prisma/schema.prisma",
     "db:migrate:prod": "prisma migrate deploy --schema packages/database/prisma/schema.prisma",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:eta:sim": "node tests/simulate_eta_lifecycle.js"
   },
   "devDependencies": {
     "turbo": "^2.9.6"
