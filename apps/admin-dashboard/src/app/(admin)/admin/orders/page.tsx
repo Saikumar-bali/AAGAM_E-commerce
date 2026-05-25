@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
 import { io } from 'socket.io-client';
@@ -16,7 +16,7 @@ interface OrderItem {
 
 interface Order {
   id: string;
-  status: 'PENDING' | 'CONFIRMED' | 'PICKING' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED';
+  status: 'PENDING' | 'CONFIRMED' | 'PICKING' | 'PACKED' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED';
   totalAmount: number;
   deliveryLat: number | null;
   deliveryLng: number | null;
@@ -48,6 +48,10 @@ export default function AdminOrdersPage() {
   const [updatingOrder, setUpdatingOrder] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [trackingDetail, setTrackingDetail] = useState<any | null>(null);
+  const [queueFilter, setQueueFilter] = useState<'ALL' | 'AT_RISK' | 'UNASSIGNED'>('ALL');
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [bulkStatus, setBulkStatus] = useState('CONFIRMED');
+  const [bulkUpdating, setBulkUpdating] = useState(false);
 
   const getAddressText = (order: Order) => {
     const a = order.addressSnapshot;
@@ -125,13 +129,34 @@ export default function AdminOrdersPage() {
   }, []);
 
   const filteredOrders = orders.filter((order) => {
+    const ageMinutes = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
+    const isUnassigned = !order.riderId && ['CONFIRMED', 'PICKING', 'PACKED'].includes(order.status);
+    const isAtRisk = (order.status === 'PENDING' && ageMinutes > 10) || (order.status === 'CONFIRMED' && ageMinutes > 20) || (order.status === 'OUT_FOR_DELIVERY' && ageMinutes > 45);
+
     const matchesSearch =
       order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.store?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      order.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customer?.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.addressSnapshot?.phoneE164?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'All' ? true : order.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesQueue =
+      queueFilter === 'ALL' ? true :
+      queueFilter === 'AT_RISK' ? isAtRisk :
+      isUnassigned;
+    return matchesSearch && matchesStatus && matchesQueue;
   });
+
+  const queueStats = useMemo(() => {
+    let atRisk = 0;
+    let unassigned = 0;
+    orders.forEach((order) => {
+      const ageMinutes = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
+      if (!order.riderId && ['CONFIRMED', 'PICKING', 'PACKED'].includes(order.status)) unassigned += 1;
+      if ((order.status === 'PENDING' && ageMinutes > 10) || (order.status === 'CONFIRMED' && ageMinutes > 20) || (order.status === 'OUT_FOR_DELIVERY' && ageMinutes > 45)) atRisk += 1;
+    });
+    return { atRisk, unassigned };
+  }, [orders]);
 
   const totalRevenue = orders.reduce((acc, o) => acc + o.totalAmount, 0);
   const pendingOrders = orders.filter((o) => o.status === 'PENDING').length;
@@ -179,6 +204,41 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const toggleSelectOrder = (orderId: string) => {
+    setSelectedOrderIds((prev) => (prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId]));
+  };
+
+  const toggleSelectAllVisible = () => {
+    const allVisibleIds = filteredOrders.map((o) => o.id);
+    const allSelected = allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedOrderIds.includes(id));
+    setSelectedOrderIds((prev) =>
+      allSelected ? prev.filter((id) => !allVisibleIds.includes(id)) : [...new Set([...prev, ...allVisibleIds])],
+    );
+  };
+
+  const runBulkStatusUpdate = async () => {
+    if (selectedOrderIds.length === 0) return;
+    if (!window.confirm(`Update ${selectedOrderIds.length} selected orders to ${bulkStatus.replace(/_/g, ' ')}?`)) return;
+
+    setBulkUpdating(true);
+    try {
+      const jobs = selectedOrderIds.map((id) =>
+        apiClient.patch(`/orders/${id}/status`, { status: bulkStatus }).catch((err) => ({ id, error: err })),
+      );
+      const results = await Promise.all(jobs);
+      const failures = results.filter((r: any) => r?.error);
+      if (failures.length > 0) {
+        alert(`Updated ${selectedOrderIds.length - failures.length}/${selectedOrderIds.length}. Some orders were skipped due to transition rules.`);
+      }
+      setSelectedOrderIds([]);
+      fetchOrders();
+    } catch (err) {
+      console.error('Bulk update failed', err);
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
+
   return (
     <DashboardLayout allowedRole="ADMIN">
       <div className="mb-8">
@@ -205,6 +265,20 @@ export default function AdminOrdersPage() {
             </div>
           ))}
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+          <button onClick={() => setQueueFilter('ALL')} className={`rounded-xl border px-4 py-3 text-left ${queueFilter === 'ALL' ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'}`}>
+            <p className="text-xs font-bold text-gray-500 uppercase">All Queue</p>
+            <p className="text-lg font-black text-gray-900">{orders.length}</p>
+          </button>
+          <button onClick={() => setQueueFilter('AT_RISK')} className={`rounded-xl border px-4 py-3 text-left ${queueFilter === 'AT_RISK' ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
+            <p className="text-xs font-bold text-gray-500 uppercase">At Risk SLA</p>
+            <p className="text-lg font-black text-amber-700">{queueStats.atRisk}</p>
+          </button>
+          <button onClick={() => setQueueFilter('UNASSIGNED')} className={`rounded-xl border px-4 py-3 text-left ${queueFilter === 'UNASSIGNED' ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+            <p className="text-xs font-bold text-gray-500 uppercase">Unassigned</p>
+            <p className="text-lg font-black text-blue-700">{queueStats.unassigned}</p>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -212,28 +286,44 @@ export default function AdminOrdersPage() {
           <div className="flex flex-col lg:flex-row gap-4 items-center">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input type="text" placeholder="Search by order ID, store or customer..." className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <input type="text" placeholder="Search by order/store/customer/phone..." className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
               <option value="All">All Status</option>
               {statusOptions.map((status) => <option key={status} value={status}>{getStatusConfig(status).label}</option>)}
             </select>
+            <div className="flex items-center gap-2">
+              <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700">
+                {statusOptions.map((status) => <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>)}
+              </select>
+              <button onClick={runBulkStatusUpdate} disabled={bulkUpdating || selectedOrderIds.length === 0} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold disabled:opacity-40">
+                {bulkUpdating ? 'Updating...' : `Bulk Update (${selectedOrderIds.length})`}
+              </button>
+            </div>
           </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead><tr className="bg-gray-50/50 border-b border-gray-100"><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Customer</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Store</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th></tr></thead>
+            <thead><tr className="bg-gray-50/50 border-b border-gray-100"><th className="px-4 py-4"><input type="checkbox" onChange={toggleSelectAllVisible} checked={filteredOrders.length > 0 && filteredOrders.every((o) => selectedOrderIds.includes(o.id))} /></th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Customer</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Store</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">SLA</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th></tr></thead>
             <tbody className="divide-y divide-gray-50">
               {filteredOrders.map((order) => {
                 const statusConfig = getStatusConfig(order.status);
+                const ageMinutes = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
+                const isAtRisk = (order.status === 'PENDING' && ageMinutes > 10) || (order.status === 'CONFIRMED' && ageMinutes > 20) || (order.status === 'OUT_FOR_DELIVERY' && ageMinutes > 45);
                 return (
                   <tr key={order.id} className="hover:bg-gray-50 transition-colors group">
+                    <td className="px-4 py-4"><input type="checkbox" checked={selectedOrderIds.includes(order.id)} onChange={() => toggleSelectOrder(order.id)} /></td>
                     <td className="px-6 py-4"><p className="text-sm font-mono font-bold text-gray-900">{order.id.substring(0, 8)}</p></td>
                     <td className="px-6 py-4"><div className="flex items-center"><div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 mr-3"><User className="h-4 w-4" /></div><p className="text-sm font-medium text-gray-900">{order.customer?.name || 'Unknown'}</p></div></td>
                     <td className="px-6 py-4"><div className="flex items-center text-sm text-gray-600"><Store className="h-4 w-4 mr-2 text-gray-400" />{order.store?.name || 'Unknown Store'}</div></td>
                     <td className="px-6 py-4"><div className="flex items-center text-sm font-bold text-gray-900"><span className="text-gray-400 mr-0.5">₹</span>{order.totalAmount.toFixed(2)}₹</div></td>
                     <td className="px-6 py-4"><span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${statusConfig.bg} ${statusConfig.text} border ${statusConfig.border}`}><statusConfig.icon className="h-3 w-3 mr-1.5" />{statusConfig.label}</span></td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold ${isAtRisk ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                        {isAtRisk ? `At Risk • ${ageMinutes}m` : `Healthy • ${ageMinutes}m`}
+                      </span>
+                    </td>
                     <td className="px-6 py-4"><div className="flex items-center text-sm text-gray-500"><Calendar className="h-4 w-4 mr-2 text-gray-400" />{new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div></td>
                     <td className="px-6 py-4 text-right"><div className="flex justify-end space-x-1.5"><button onClick={() => { setSelectedOrder(order); fetchOrderTracking(order.id); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"><Eye className="h-4 w-4" /></button><button onClick={() => { setSelectedOrder(order); setShowStatusModal(true); }} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"><ChevronDown className="h-4 w-4" /></button></div></td>
                   </tr>
