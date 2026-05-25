@@ -17,6 +17,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io, Socket } from 'socket.io-client';
 import Geolocation from 'react-native-geolocation-service';
+import messaging from '@react-native-firebase/messaging';
 import { API_URL as ENV_API_URL } from '@env';
 import { riderService } from '../../api/riderService';
 import { useAuthStore } from '../../store/authStore';
@@ -69,6 +70,7 @@ export const RiderDashboard = () => {
   });
 
   const [newOrder, setNewOrder] = useState<any>(null);
+  const [pendingNotificationOrderId, setPendingNotificationOrderId] = useState<string | null>(null);
 
   // Socket setup
   useEffect(() => {
@@ -104,6 +106,31 @@ export const RiderDashboard = () => {
   }, [currentLocation?.lat, currentLocation?.lng]);
 
   useEffect(() => {
+    const handleNotificationOpen = (remoteMessage: any) => {
+      const orderId =
+        remoteMessage?.data?.orderId ||
+        remoteMessage?.data?.order_id ||
+        remoteMessage?.data?.id ||
+        null;
+      if (!orderId) return;
+
+      setPendingNotificationOrderId(orderId);
+      setNewOrder({ id: orderId, orderId, store: { name: 'Aagam store' }, grandTotal: 0 });
+      handleRefresh();
+    };
+
+    const unsubscribeOpened = messaging().onNotificationOpenedApp(handleNotificationOpen);
+    messaging()
+      .getInitialNotification()
+      .then((message) => {
+        if (message) handleNotificationOpen(message);
+      })
+      .catch((error) => console.warn('[RiderDashboard] getInitialNotification failed', error));
+
+    return () => unsubscribeOpened();
+  }, []);
+
+  useEffect(() => {
     if (socket) {
       handleGoOnline();
     }
@@ -126,6 +153,18 @@ export const RiderDashboard = () => {
 
     previousQueueIdsRef.current = currentIds;
   }, [queueOrders, isOnline]);
+
+  useEffect(() => {
+    if (!pendingNotificationOrderId) return;
+    const queueList = Array.isArray(queueOrders) ? queueOrders : [];
+    const matched = queueList.find(
+      (order: any) => order.id === pendingNotificationOrderId || order.orderId === pendingNotificationOrderId,
+    );
+    if (matched) {
+      setNewOrder(matched);
+      setPendingNotificationOrderId(null);
+    }
+  }, [pendingNotificationOrderId, queueOrders]);
 
   const handleRefresh = () => {
     refetchAssigned();
@@ -339,8 +378,11 @@ export const RiderDashboard = () => {
               <View style={styles.pulseInner} />
             </View>
             <Text style={styles.modalTitle}>New Delivery Request!</Text>
-            <Text style={styles.modalAmount}>₹{newOrder.grandTotal}</Text>
+            <Text style={styles.modalAmount}>₹{newOrder.grandTotal || 0}</Text>
             <Text style={styles.modalStore}>{newOrder.store?.name || 'Aagam Partner'}</Text>
+            {pendingNotificationOrderId ? (
+              <Text style={styles.modalHint}>Refreshing nearby queue for this order...</Text>
+            ) : null}
             
             <View style={styles.modalActions}>
               <TouchableOpacity 
@@ -352,10 +394,14 @@ export const RiderDashboard = () => {
               <TouchableOpacity 
                 style={styles.acceptBtn}
                 onPress={() => confirmAcceptOrder(newOrder.orderId || newOrder.id)}
+                disabled={!newOrder.orderId && !newOrder.id}
               >
                 <Text style={styles.acceptBtnText}>Accept Order</Text>
               </TouchableOpacity>
             </View>
+            <TouchableOpacity onPress={handleRefresh} style={styles.modalRefreshBtn}>
+              <Text style={styles.modalRefreshText}>Refresh orders</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -689,7 +735,14 @@ const styles = StyleSheet.create({
   modalStore: {
     fontSize: 16,
     color: '#64748B',
-    marginBottom: 32,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalHint: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    marginBottom: 20,
     textAlign: 'center',
   },
   modalActions: {
@@ -722,5 +775,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFF',
+  },
+  modalRefreshBtn: {
+    marginTop: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  modalRefreshText: {
+    color: '#0F766E',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

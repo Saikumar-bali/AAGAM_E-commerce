@@ -65,6 +65,7 @@ export default function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
   const [creatingAddress, setCreatingAddress] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
@@ -209,7 +210,7 @@ export default function CheckoutPage() {
       return;
     }
 
-    setCreatingAddress(true);
+    setSavingAddress(true);
     try {
       const res = await apiClient.post('/customer/addresses', {
         label: draft.label,
@@ -231,10 +232,10 @@ export default function CheckoutPage() {
       const created = res.data as Address;
       setAddresses((prev) => [created, ...prev.map((a) => ({ ...a, isDefault: false }))]);
       setSelectedAddressId(created.id);
-      setCreatingAddress(false);
+      setSavingAddress(false);
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || 'Failed to save address');
-      setCreatingAddress(false);
+      setSavingAddress(false);
     }
   };
 
@@ -267,7 +268,7 @@ export default function CheckoutPage() {
       return;
     }
 
-    setCreatingAddress(true);
+    setSavingAddress(true);
     try {
       const res = await apiClient.patch(`/customer/addresses/${editingAddressId}`, {
         label: draft.label,
@@ -290,10 +291,11 @@ export default function CheckoutPage() {
       setAddresses((prev) => prev.map((a) => (a.id === editingAddressId ? updated : a)));
       setEditingAddressId(null);
       setCreatingAddress(false);
+      setSavingAddress(false);
       resetDraft();
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || 'Failed to update address');
-      setCreatingAddress(false);
+      setSavingAddress(false);
     }
   };
 
@@ -576,10 +578,10 @@ export default function CheckoutPage() {
                   <div className="mt-4">
                     <button
                       onClick={editingAddressId ? saveEditedAddress : createAddress}
-                      disabled={creatingAddress}
+                      disabled={savingAddress}
                       className="w-full md:w-auto px-4 py-3 rounded-2xl bg-emerald-700 text-white font-black hover:bg-emerald-800 disabled:opacity-50 flex items-center gap-2"
                     >
-                      {creatingAddress && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {savingAddress && <Loader2 className="h-4 w-4 animate-spin" />}
                       {editingAddressId ? 'Update address' : 'Save address'}
                     </button>
                   </div>

@@ -43,3 +43,7 @@ nul
 # Runtime uploads
 apps/api-gateway/uploads/
 backups/
+
+# Local docs and deployment notes (not for repo)
+docs/
+RAILWAY_DEPLOYMENT.md
