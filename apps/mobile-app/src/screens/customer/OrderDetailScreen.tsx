@@ -61,6 +61,9 @@ export const OrderDetailScreen = () => {
   const pricing = order.pricingSnapshot || order;
   const orderItems = order.itemsSnapshot?.length ? order.itemsSnapshot : trackingPayload.items || [];
   const latestLocation = liveTracking || trackingPayload.tracking?.latestLocation;
+  const etaMinutes = trackingPayload.tracking?.etaMinutes;
+  const etaStale = Boolean(trackingPayload.tracking?.etaStale);
+  const etaConfidence = trackingPayload.tracking?.etaConfidence || 'LOW';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -69,9 +72,11 @@ export const OrderDetailScreen = () => {
         <Text style={styles.statusText}>{order.status}</Text>
         <Text style={styles.metaText}>{new Date(order.createdAt).toLocaleString()}</Text>
         <Text style={styles.totalText}>₹{pricing.grandTotal ?? order.totalAmount}</Text>
-        {trackingPayload.tracking?.etaMinutes ? (
-          <Text style={styles.metaText}>ETA {trackingPayload.tracking.etaMinutes} min</Text>
-        ) : null}
+        {etaMinutes ? (
+          <Text style={styles.metaText}>ETA {etaMinutes} min ({etaConfidence})</Text>
+        ) : (
+          <Text style={styles.metaText}>ETA unavailable</Text>
+        )}
       </View>
 
       <View style={styles.card}>
@@ -141,6 +146,11 @@ export const OrderDetailScreen = () => {
             Live location: {Number(latestLocation.latitude).toFixed(5)}, {Number(latestLocation.longitude).toFixed(5)}
           </Text>
         ) : null}
+        {etaStale ? (
+          <Text style={styles.warningText}>
+            Waiting for fresh rider location to resume ETA.
+          </Text>
+        ) : null}
       </View>
     </ScrollView>
   );
@@ -163,6 +173,7 @@ const styles = StyleSheet.create({
   timelineRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#0F766E', marginTop: 5 },
   errorText: { color: '#B91C1C', fontWeight: '700' },
+  warningText: { marginTop: 8, color: '#B45309', fontWeight: '700' },
   callBtn: { marginTop: 10, alignSelf: 'flex-start', backgroundColor: '#0F766E', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   callBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
 });

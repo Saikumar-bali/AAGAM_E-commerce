@@ -84,9 +84,10 @@ export class OrderController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  async findOne(@Param('id') id: string) {
-    return this.orderService.findOne(id);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.RIDER, Role.STORE_OWNER, Role.CUSTOMER)
+  async findOne(@Param('id') id: string, @Req() req: any) {
+    return this.orderService.findOne(id, req.user);
   }
 
   @Patch(':id/status')

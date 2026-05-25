@@ -103,6 +103,16 @@ export default function CustomerOrderDetailPage() {
     return null;
   }, [order]);
   const livePoint = liveLocation || trackingPayload?.tracking?.latestLocation || null;
+  const trackingMeta = trackingPayload?.tracking || {};
+  const etaLabel = trackingMeta.etaMinutes ? `ETA ${trackingMeta.etaMinutes} min` : null;
+  const etaStale = Boolean(trackingMeta.etaStale);
+  const etaConfidence = trackingMeta.etaConfidence as 'HIGH' | 'MEDIUM' | 'LOW' | undefined;
+  const etaBadgeTone =
+    etaConfidence === 'HIGH'
+      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+      : etaConfidence === 'MEDIUM'
+        ? 'text-amber-700 bg-amber-50 border-amber-200'
+        : 'text-gray-700 bg-gray-50 border-gray-200';
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
@@ -143,11 +153,16 @@ export default function CustomerOrderDetailPage() {
                   <div className="mt-1 text-[11px] font-black uppercase tracking-widest text-emerald-900/60">
                     {order.payment?.method === 'COD' ? 'COD' : 'ONLINE'}
                   </div>
-                  {trackingPayload?.tracking?.etaMinutes ? (
-                    <div className="mt-2 text-xs font-black text-emerald-700">
-                      ETA {trackingPayload.tracking.etaMinutes} min
+                  {etaLabel ? (
+                    <div className={`mt-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-black ${etaBadgeTone}`}>
+                      {etaLabel}
+                      <span className="opacity-80">{etaConfidence || 'LOW'} confidence</span>
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="mt-2 text-xs font-bold text-gray-600">
+                      ETA unavailable right now.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -264,6 +279,11 @@ export default function CustomerOrderDetailPage() {
                       <div className="mt-1 text-emerald-900/70">
                         Updated {new Date(livePoint.createdAt).toLocaleTimeString('en-IN')}
                       </div>
+                      {etaStale ? (
+                        <div className="mt-1 text-[11px] font-bold text-amber-700">
+                          Waiting for a fresh rider GPS update before showing ETA.
+                        </div>
+                      ) : null}
                       <a
                         href={`https://www.google.com/maps/dir/?api=1&destination=${livePoint.latitude},${livePoint.longitude}`}
                         target="_blank"

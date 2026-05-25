@@ -15,6 +15,19 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   CANCELLED: [],
 };
 
+const RIDER_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
+  RIDER_ASSIGNED: [OrderStatus.OUT_FOR_DELIVERY],
+  OUT_FOR_DELIVERY: [OrderStatus.DELIVERED],
+};
+
+const STORE_OWNER_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
+  PENDING: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
+  PAYMENT_PENDING: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
+  CONFIRMED: [OrderStatus.PICKING, OrderStatus.PACKED, OrderStatus.CANCELLED],
+  PICKING: [OrderStatus.PACKED, OrderStatus.CANCELLED],
+  PACKED: [OrderStatus.CANCELLED],
+};
+
 @Injectable()
 export class OrderService {
   constructor(private readonly trackingGateway: TrackingGateway) {}
@@ -169,6 +182,9 @@ export class OrderService {
         lastPingAt: latestLocation?.createdAt || null,
         etaMinutes: eta.etaMinutes,
         distanceKm: eta.distanceKm,
+        speedKph: eta.speedKph,
+        etaStale: eta.stale,
+        etaConfidence: eta.confidence,
         tripSummary,
         routePath,
       },
@@ -176,6 +192,7 @@ export class OrderService {
   }
 
   private computeEta(order: any, latestLocation: any) {
+    const pingStaleThresholdMs = 6 * 60 * 1000;
     const destinationLat = order.deliveryLat;
     const destinationLng = order.deliveryLng;
     const sourceLat = latestLocation?.latitude ?? order.rider?.latitude;
@@ -186,12 +203,27 @@ export class OrderService {
       typeof sourceLat !== 'number' ||
       typeof sourceLng !== 'number'
     ) {
-      return { etaMinutes: null, distanceKm: null };
+      return { etaMinutes: null, distanceKm: null, speedKph: null, stale: true, confidence: 'LOW' as const };
     }
+
+    const lastPingAt = latestLocation?.createdAt ? new Date(latestLocation.createdAt) : null;
+    const stale = lastPingAt ? Date.now() - lastPingAt.getTime() > pingStaleThresholdMs : true;
+    if (stale) {
+      return { etaMinutes: null, distanceKm: null, speedKph: null, stale: true, confidence: 'LOW' as const };
+    }
+
     const distanceKm = this.haversineKm(sourceLat, sourceLng, destinationLat, destinationLng);
-    const citySpeedKmPerHour = 18;
-    const etaMinutes = Math.max(2, Math.ceil((distanceKm / citySpeedKmPerHour) * 60));
-    return { etaMinutes, distanceKm: Number(distanceKm.toFixed(2)) };
+    const speedFromPingMs = typeof latestLocation?.speed === 'number' && latestLocation.speed > 0 ? latestLocation.speed : null;
+    const speedKph = speedFromPingMs ? Math.max(8, Math.min(48, speedFromPingMs * 3.6)) : 18;
+    const etaMinutes = Math.max(2, Math.ceil((distanceKm / speedKph) * 60));
+    const confidence = speedFromPingMs ? ('HIGH' as const) : ('MEDIUM' as const);
+    return {
+      etaMinutes,
+      distanceKm: Number(distanceKm.toFixed(2)),
+      speedKph: Number(speedKph.toFixed(1)),
+      stale: false,
+      confidence,
+    };
   }
 
   private computeTripSummary(pings: Array<{ latitude: number; longitude: number; createdAt: Date }>, startedAt?: Date | null, endedAt?: Date | null) {
@@ -251,8 +283,8 @@ export class OrderService {
     });
   }
 
-  async findOne(id: string) {
-    return prisma.order.findUnique({
+  async findOne(id: string, actor?: { id: string; role: Role }) {
+    const order = await prisma.order.findUnique({
       where: { id },
       include: {
         customer: true,
@@ -265,6 +297,27 @@ export class OrderService {
         }
       }
     });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    if (!actor) return order;
+
+    if (actor.role === Role.CUSTOMER && order.customerId !== actor.id) {
+      throw new ForbiddenException('Not allowed');
+    }
+    if (actor.role === Role.RIDER) {
+      const riderProfile = await prisma.riderProfile.findUnique({ where: { userId: actor.id } });
+      if (!riderProfile || order.riderId !== riderProfile.id) {
+        throw new ForbiddenException('Not allowed');
+      }
+    }
+    if (actor.role === Role.STORE_OWNER) {
+      if (order.store.ownerId !== actor.id) {
+        throw new ForbiddenException('Not allowed');
+      }
+    }
+    return order;
   }
 
   async findMyOrder(userId: string, id: string) {
@@ -321,7 +374,8 @@ export class OrderService {
       return order;
     }
 
-    const allowedNextStatuses = ORDER_TRANSITIONS[order.status as OrderStatus] || [];
+    const currentStatus = order.status as OrderStatus;
+    const allowedNextStatuses = ORDER_TRANSITIONS[currentStatus] || [];
     if (!allowedNextStatuses.includes(nextStatus)) {
       throw new BadRequestException(`Cannot transition order from ${order.status} to ${nextStatus}`);
     }
@@ -331,10 +385,9 @@ export class OrderService {
       if (!riderProfile || order.riderId !== riderProfile.id) {
         throw new ForbiddenException('You can only update your assigned orders');
       }
-
-      const riderAllowed: OrderStatus[] = [OrderStatus.PICKING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED];
-      if (!riderAllowed.includes(nextStatus)) {
-        throw new ForbiddenException('Riders can only progress active deliveries');
+      const riderAllowedNext = RIDER_TRANSITIONS[currentStatus] || [];
+      if (!riderAllowedNext.includes(nextStatus)) {
+        throw new ForbiddenException(`Rider transition not allowed: ${currentStatus} -> ${nextStatus}`);
       }
     }
 
@@ -342,9 +395,9 @@ export class OrderService {
       if (order.store?.ownerId !== actor.id) {
         throw new ForbiddenException('Not allowed to update orders for this store');
       }
-      const ownerAllowed: OrderStatus[] = [OrderStatus.CONFIRMED, OrderStatus.PICKING, OrderStatus.CANCELLED];
-      if (!ownerAllowed.includes(nextStatus)) {
-        throw new ForbiddenException('Store owners can only confirm, begin picking, or cancel');
+      const ownerAllowedNext = STORE_OWNER_TRANSITIONS[currentStatus] || [];
+      if (!ownerAllowedNext.includes(nextStatus)) {
+        throw new ForbiddenException(`Store transition not allowed: ${currentStatus} -> ${nextStatus}`);
       }
     }
 
@@ -407,6 +460,17 @@ export class OrderService {
       }
       if (order.riderId) {
         throw new ConflictException('Order already assigned to a rider');
+      }
+
+      const activeOrderForRider = await tx.order.findFirst({
+        where: {
+          riderId: riderProfile.id,
+          status: { in: [OrderStatus.RIDER_ASSIGNED, OrderStatus.OUT_FOR_DELIVERY] },
+        },
+        select: { id: true, status: true },
+      });
+      if (activeOrderForRider) {
+        throw new ConflictException(`Complete active order ${activeOrderForRider.id} before accepting a new one`);
       }
 
       const updated = await tx.order.update({
@@ -544,7 +608,7 @@ export class OrderService {
     return prisma.order.findMany({
       where: {
         createdAt: { gte: since },
-        status: 'CONFIRMED',
+        status: { in: [OrderStatus.CONFIRMED, OrderStatus.PICKING, OrderStatus.PACKED] },
         riderId: null,
       },
       include: {

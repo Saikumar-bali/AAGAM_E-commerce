@@ -144,6 +144,14 @@ export default function AdminOrdersPage() {
     { label: 'Revenue', value: `₹${totalRevenue.toFixed(2)}`, icon: DollarSign, color: 'bg-purple-500' },
   ];
 
+  const renderEtaSummary = () => {
+    const tracking = trackingDetail?.tracking;
+    if (!tracking) return 'ETA unavailable';
+    if (tracking.etaStale) return 'ETA paused (stale rider location)';
+    if (!tracking.etaMinutes) return 'ETA unavailable';
+    return `ETA ${tracking.etaMinutes} min • ${tracking.etaConfidence || 'LOW'} confidence`;
+  };
+
   const getStatusConfig = (status: string) => {
     switch (status) {
       case 'PENDING': return { label: 'Pending', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: Clock };
@@ -264,6 +272,7 @@ export default function AdminOrdersPage() {
                 <div className="flex items-center justify-between mb-2"><p className="text-xs font-medium uppercase text-sky-700">Rider Trip History</p><button onClick={openTrackingRoute} className="text-xs font-bold text-sky-700">Open Blue Route</button></div>
                 <p className="text-sm font-semibold text-gray-900">{trackingDetail?.tracking?.tripSummary?.distanceKm ?? 0} km • {trackingDetail?.tracking?.tripSummary?.durationMinutes ?? 'N/A'} min</p>
                 <p className="text-xs text-gray-600 mt-1">GPS points: {trackingDetail?.tracking?.tripSummary?.points ?? 0}</p>
+                <p className="text-xs font-semibold text-sky-800 mt-2">{renderEtaSummary()}</p>
               </div>
 
               {selectedOrder.rider && (<div className="bg-gray-50 rounded-xl p-4 mb-6"><div className="flex items-center text-gray-500 mb-2"><Bike className="h-4 w-4 mr-2" /><p className="text-xs font-medium uppercase">Assigned Rider</p></div><p className="text-sm font-bold text-gray-900">{selectedOrder.rider.user?.name || 'Unknown'}</p></div>)}
@@ -308,4 +317,3 @@ export default function AdminOrdersPage() {
     </DashboardLayout>
   );
 }
-
