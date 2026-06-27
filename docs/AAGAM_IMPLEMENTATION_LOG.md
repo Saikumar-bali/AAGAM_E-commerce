@@ -317,3 +317,32 @@ Risks/follow-up:
 - Manual browser testing needed on running app.
 - Mobile bottom nav needs active state highlighting.
 - Backend coupon engine not implemented for deals page.
+
+## 2026-06-27 14:00 IST
+Model/reasoning: mimo-v2.5-free via opencode
+Task: Split mobile-app into AAGAM Customer and AAGAM Partners apps
+Files changed:
+- packages/mobile-shared/ (10 new files) — shared API, auth, hooks, LeafletMap, theme
+- apps/mobile-customer/ (31 new files) — full customer e-commerce app
+- apps/mobile-partners/ (31 new files) — rider/store/admin partner app
+- package.json (root) — updated turbo dev filter for new apps
+- docs/ai-runs/2026-06-27_mobile-split-aagam-and-partners-ui.md
+Verification:
+- npm install succeeded
+- npm run build:admin passed (20/20 pages)
+- TypeScript checks show expected @env and WebView errors (same as original mobile-app)
+Deployment:
+- Branch: feature/mobile-split-aagam-and-partners-ui
+- No production deployment
+Result:
+- AAGAM Customer app: Login, Shop, Cart, Checkout, Orders, Profile with address management
+- AAGAM Partners app: Login, Rider Dashboard (Socket.IO, FCM, GPS), Store Dashboard, History
+- Role-based routing: Customer app only accepts CUSTOMER, Partners blocks CUSTOMER
+- Both apps have complete Android native directories (com.aagamcustomer, com.aagampartners)
+- Shared code extracted to @aagam/mobile-shared package
+Risks/follow-up:
+- apps/mobile-app still exists and can be removed once new apps are validated
+- Store Inventory and Settings tabs are placeholders
+- Admin Panel tab in Partners app is a placeholder
+- Both apps need `npm install` and `npx react-native start` before APK build
+- Drawable resources (aagam_launcher) not copied to new Android dirs
