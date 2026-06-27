@@ -272,3 +272,48 @@ Result:
 Risks/follow-up:
 - Google Maps deep-link shows best-effort route path via waypoints; exact polyline rendering inside app/admin map can be added in a later dedicated map component iteration.
 - Older orders with sparse GPS pings may show low/zero distance.
+
+## 2026-06-27 14:30 IST
+Model/reasoning: OpenCode implementation session.
+Task: Major customer UI upgrade to professional quick-commerce design inspired by Blinkit/Zomato/Zepto patterns.
+Files changed:
+- `apps/admin-dashboard/src/components/customer/CustomerShell.tsx` (new)
+- `apps/admin-dashboard/src/components/customer/CategoryRail.tsx` (new)
+- `apps/admin-dashboard/src/components/customer/OfferBanner.tsx` (new)
+- `apps/admin-dashboard/src/components/customer/ProductCard.tsx` (new)
+- `apps/admin-dashboard/src/components/customer/CartSheet.tsx` (new)
+- `apps/admin-dashboard/src/components/customer/BillDetailsCard.tsx` (new)
+- `apps/admin-dashboard/src/components/customer/OrderTimeline.tsx` (new)
+- `apps/admin-dashboard/src/components/customer/EmptyState.tsx` (new)
+- `apps/admin-dashboard/src/app/(shop)/shop/page.tsx`
+- `apps/admin-dashboard/src/app/(shop)/shop/products/[id]/page.tsx`
+- `apps/admin-dashboard/src/app/(shop)/shop/checkout/page.tsx`
+- `apps/admin-dashboard/src/app/(shop)/shop/orders/page.tsx`
+- `apps/admin-dashboard/src/app/(shop)/shop/orders/[id]/page.tsx`
+- `apps/admin-dashboard/src/app/(shop)/shop/addresses/page.tsx`
+- `apps/admin-dashboard/src/app/(shop)/shop/wishlist/page.tsx`
+- `apps/admin-dashboard/src/app/(shop)/shop/deals/page.tsx`
+- `apps/admin-dashboard/src/app/(shop)/shop/reorder/page.tsx`
+- `docs/ai-runs/2026-06-27_customer-ui-blinkit-zomato-upgrade.md`
+- `docs/AAGAM_IMPLEMENTATION_LOG.md`
+Verification:
+- `npm run build:admin` passed (all 20 pages generated successfully).
+Deployment:
+- Not deployed.
+Result:
+- Created 8 reusable components for professional quick-commerce UI.
+- Redesigned all 9 customer pages with modern layouts.
+- Sticky top bar with location/ETA/search/cart.
+- Category rail with icons, offer banner carousel.
+- Rich product cards with ETA badges, wishlist, quantity stepper.
+- Step-based checkout layout with rich bill details.
+- Order timeline with status icons and activity log.
+- Address cards with Home/Work/Navigation icons.
+- Professional empty states throughout.
+- No backend changes required.
+- No copyrighted assets used.
+Risks/follow-up:
+- `ignoreBuildErrors: true` in next.config.js suppresses TS errors during build.
+- Manual browser testing needed on running app.
+- Mobile bottom nav needs active state highlighting.
+- Backend coupon engine not implemented for deals page.

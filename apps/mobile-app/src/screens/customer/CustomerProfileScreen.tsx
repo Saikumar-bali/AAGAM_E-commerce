@@ -12,8 +12,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import Geolocation from 'react-native-geolocation-service';
-import MapView, { Marker } from 'react-native-maps';
+import { LeafletMap } from '../../components/LeafletMap';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/authStore';
 import { apiClient } from '../../api/client';
@@ -60,10 +61,10 @@ export const CustomerProfileScreen = () => {
       setDraft(emptyDraft);
       setShowForm(false);
       await refetch();
-      Alert.alert('Address saved', 'Your address has been added.');
+      Toast.show({ type: 'success', text1: 'Address saved', text2: 'Your address has been added successfully.' });
     },
     onError: (error: any) => {
-      Alert.alert('Could not save address', error.response?.data?.message || 'Please check the form.');
+      Toast.show({ type: 'error', text1: 'Could not save address', text2: error.response?.data?.message || 'Please check the form.' });
     },
   });
 
@@ -169,36 +170,11 @@ export const CustomerProfileScreen = () => {
             <TouchableOpacity style={styles.locationButton} onPress={useCurrentLocation}>
               <Text style={styles.locationButtonText}>Use current location</Text>
             </TouchableOpacity>
-            <MapView
-              style={styles.map}
-              initialRegion={{
-                latitude: pinnedLatitude,
-                longitude: pinnedLongitude,
-                latitudeDelta: hasPinnedLocation ? 0.01 : 0.2,
-                longitudeDelta: hasPinnedLocation ? 0.01 : 0.2,
-              }}
-              region={{
-                latitude: pinnedLatitude,
-                longitude: pinnedLongitude,
-                latitudeDelta: hasPinnedLocation ? 0.01 : 0.2,
-                longitudeDelta: hasPinnedLocation ? 0.01 : 0.2,
-              }}
-              onPress={(event) => {
-                const { latitude, longitude } = event.nativeEvent.coordinate;
-                setPinnedLocation(latitude, longitude);
-              }}
-            >
-              {hasPinnedLocation ? (
-                <Marker
-                  draggable
-                  coordinate={{ latitude: pinnedLatitude, longitude: pinnedLongitude }}
-                  onDragEnd={(event) => {
-                    const { latitude, longitude } = event.nativeEvent.coordinate;
-                    setPinnedLocation(latitude, longitude);
-                  }}
-                />
-              ) : null}
-            </MapView>
+            <LeafletMap
+              latitude={pinnedLatitude}
+              longitude={pinnedLongitude}
+              onPinChange={(lat, lng) => setPinnedLocation(lat, lng)}
+            />
             <Text style={styles.locationHelp}>
               {hasPinnedLocation
                 ? `Pinned: ${pinnedLatitude.toFixed(5)}, ${pinnedLongitude.toFixed(5)}`
@@ -217,6 +193,8 @@ export const CustomerProfileScreen = () => {
             ['state', 'State'],
             ['pincode', 'Pincode'],
             ['instructions', 'Instructions'],
+            ['latitude', 'Latitude'],
+            ['longitude', 'Longitude'],
           ].map(([key, label]) => (
             <TextInput
               key={key}

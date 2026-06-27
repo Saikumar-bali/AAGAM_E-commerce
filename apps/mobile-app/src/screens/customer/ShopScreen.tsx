@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  Modal,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getProductImage } from '@aagam/utils';
 import { apiClient } from '../../api/client';
 import { useCartStore } from '../../store/cartStore';
+import { SlidersHorizontal } from 'lucide-react-native';
 
 const SORT_OPTIONS = [
   { label: 'Newest', value: 'newest' },
@@ -27,6 +30,7 @@ export const ShopScreen = () => {
   const [query, setQuery] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [sort, setSort] = useState('newest');
+  const [sortMenuVisible, setSortMenuVisible] = useState(false);
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
@@ -88,41 +92,65 @@ export const ShopScreen = () => {
           style={styles.searchInput}
         />
 
-        <FlatList
-          data={categoryPills}
-          horizontal
-          keyExtractor={(item) => item.id || 'all'}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryList}
-          renderItem={({ item }) => {
-            const active = selectedCategoryId === item.id;
-            return (
-              <TouchableOpacity
-                style={[styles.categoryPill, active && styles.categoryPillActive]}
-                onPress={() => setSelectedCategoryId(item.id)}
-              >
-                <Text style={[styles.categoryPillText, active && styles.categoryPillTextActive]}>
-                  {item.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
-
-        <View style={styles.sortRow}>
-          {SORT_OPTIONS.map((option) => {
-            const active = option.value === sort;
-            return (
-              <TouchableOpacity
-                key={option.value}
-                style={[styles.sortButton, active && styles.sortButtonActive]}
-                onPress={() => setSort(option.value)}
-              >
-                <Text style={[styles.sortButtonText, active && styles.sortButtonTextActive]}>{option.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
+        <View style={styles.filterRow}>
+          <FlatList
+            data={categoryPills}
+            horizontal
+            keyExtractor={(item) => item.id || 'all'}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryList}
+            renderItem={({ item }) => {
+              const active = selectedCategoryId === item.id;
+              return (
+                <TouchableOpacity
+                  style={[styles.categoryPill, active && styles.categoryPillActive]}
+                  onPress={() => setSelectedCategoryId(item.id)}
+                >
+                  <Text style={[styles.categoryPillText, active && styles.categoryPillTextActive]}>
+                    {item.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+          <TouchableOpacity
+            style={styles.sortIcon}
+            onPress={() => setSortMenuVisible(true)}
+          >
+            <SlidersHorizontal size={18} color="#0F766E" />
+          </TouchableOpacity>
         </View>
+
+        <Modal
+          visible={sortMenuVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSortMenuVisible(false)}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setSortMenuVisible(false)}>
+            <View style={styles.modalSheet}>
+              <Text style={styles.modalTitle}>Sort by</Text>
+              {SORT_OPTIONS.map((option) => {
+                const active = option.value === sort;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[styles.modalOption, active && styles.modalOptionActive]}
+                    onPress={() => {
+                      setSort(option.value);
+                      setSortMenuVisible(false);
+                    }}
+                  >
+                    <Text style={[styles.modalOptionText, active && styles.modalOptionTextActive]}>
+                      {option.label}
+                    </Text>
+                    {active && <Text style={styles.checkmark}>✓</Text>}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </Pressable>
+        </Modal>
       </View>
 
       <FlatList
@@ -198,7 +226,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     color: '#0F172A',
   },
-  categoryList: { paddingTop: 14, paddingBottom: 6 },
+  categoryList: { paddingTop: 0, paddingBottom: 0 },
+  filterRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 14, paddingBottom: 6 },
   categoryPill: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -209,18 +238,43 @@ const styles = StyleSheet.create({
   categoryPillActive: { backgroundColor: '#0F766E' },
   categoryPillText: { color: '#0F172A', fontWeight: '700' },
   categoryPillTextActive: { color: '#FFFFFF' },
-  sortRow: { flexDirection: 'row', marginTop: 10, gap: 8 },
-  sortButton: {
+  sortIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 42,
+    height: 42,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
+    borderColor: '#0F766E',
+    backgroundColor: '#CCFBF1',
+    marginLeft: 8,
   },
-  sortButtonActive: { borderColor: '#0F766E', backgroundColor: '#CCFBF1' },
-  sortButtonText: { color: '#334155', fontWeight: '700', fontSize: 12 },
-  sortButtonTextActive: { color: '#115E59' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 90,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A', marginBottom: 16 },
+  modalOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    marginBottom: 6,
+  },
+  modalOptionActive: { backgroundColor: '#CCFBF1' },
+  modalOptionText: { fontSize: 15, fontWeight: '600', color: '#334155' },
+  modalOptionTextActive: { color: '#115E59', fontWeight: '800' },
+  checkmark: { color: '#0F766E', fontSize: 18, fontWeight: '800' },
   listContainer: { paddingHorizontal: 16, paddingBottom: 24 },
   productRow: { gap: 12 },
   productCard: {

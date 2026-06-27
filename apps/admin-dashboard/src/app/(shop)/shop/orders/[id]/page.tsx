@@ -6,7 +6,12 @@ import { io, Socket } from 'socket.io-client';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
 import { formatINR } from '@/lib/currency';
-import { ArrowLeft, Calendar, MapPin, Package, Phone, Store, Truck } from 'lucide-react';
+import OrderTimeline from '@/components/customer/OrderTimeline';
+import BillDetailsCard from '@/components/customer/BillDetailsCard';
+import {
+  ArrowLeft, Calendar, MapPin, Package, Phone, Store, Truck,
+  RotateCcw, MessageSquare, ExternalLink,
+} from 'lucide-react';
 
 type Order = {
   id: string;
@@ -47,38 +52,25 @@ export default function CustomerOrderDetailPage() {
   useEffect(() => {
     if (!orderId) return;
     const run = async () => {
-      setLoading(true);
-      setError(null);
+      setLoading(true); setError(null);
       try {
         const res = await apiClient.get(`/orders/my/${orderId}`);
         const tracking = await apiClient.get(`/orders/my/${orderId}/tracking`);
         setOrder(res.data as Order);
         setTrackingPayload(tracking.data);
-      } catch (e: any) {
-        setError(e?.response?.data?.message || e?.message || 'Failed to load order');
-      } finally {
-        setLoading(false);
-      }
+      } catch (e: any) { setError(e?.response?.data?.message || 'Failed to load order'); }
+      finally { setLoading(false); }
     };
     run();
   }, [orderId]);
 
   useEffect(() => {
     if (!orderId) return;
-    const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005', {
-      withCredentials: true,
-      transports: ['websocket', 'polling'],
-    });
+    const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005', { withCredentials: true, transports: ['websocket', 'polling'] });
     socket.on('connect', () => socket.emit('joinOrder', { orderId }));
-    socket.on('riderLocationUpdated', (payload: any) => {
-      if (payload.orderId === orderId) setLiveLocation(payload);
-    });
-    socket.on('orderTimelineUpdated', (payload: any) => {
-      if (payload.order?.id === orderId) setTrackingPayload(payload);
-    });
-    return () => {
-      socket.disconnect();
-    };
+    socket.on('riderLocationUpdated', (payload: any) => { if (payload.orderId === orderId) setLiveLocation(payload); });
+    socket.on('orderTimelineUpdated', (payload: any) => { if (payload.order?.id === orderId) setTrackingPayload(payload); });
+    return () => { socket.disconnect(); };
   }, [orderId]);
 
   const items = useMemo(() => {
@@ -89,240 +81,150 @@ export default function CustomerOrderDetailPage() {
 
   const pricing = useMemo(() => {
     if (order?.pricingSnapshot && typeof order.pricingSnapshot === 'object') return order.pricingSnapshot;
-    return {
-      subtotal: order?.subtotal ?? 0,
-      deliveryFee: order?.deliveryFee ?? 0,
-      discountAmount: order?.discountAmount ?? 0,
-      taxAmount: order?.taxAmount ?? 0,
-      grandTotal: order?.grandTotal ?? order?.totalAmount ?? 0,
-    };
+    return { subtotal: order?.subtotal ?? 0, deliveryFee: order?.deliveryFee ?? 0, discountAmount: order?.discountAmount ?? 0, taxAmount: order?.taxAmount ?? 0, grandTotal: order?.grandTotal ?? order?.totalAmount ?? 0 };
   }, [order]);
 
   const address = useMemo(() => {
     if (order?.addressSnapshot && typeof order.addressSnapshot === 'object') return order.addressSnapshot;
     return null;
   }, [order]);
+
   const livePoint = liveLocation || trackingPayload?.tracking?.latestLocation || null;
   const trackingMeta = trackingPayload?.tracking || {};
   const etaLabel = trackingMeta.etaMinutes ? `ETA ${trackingMeta.etaMinutes} min` : null;
-  const etaStale = Boolean(trackingMeta.etaStale);
-  const etaConfidence = trackingMeta.etaConfidence as 'HIGH' | 'MEDIUM' | 'LOW' | undefined;
-  const etaBadgeTone =
-    etaConfidence === 'HIGH'
-      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-      : etaConfidence === 'MEDIUM'
-        ? 'text-amber-700 bg-amber-50 border-amber-200'
-        : 'text-gray-700 bg-gray-50 border-gray-200';
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
-      <div className="min-h-screen">
-        <button
-          onClick={() => router.push('/shop/orders')}
-          className="inline-flex items-center gap-2 text-emerald-900 font-black"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to orders
+      <div className="max-w-4xl mx-auto">
+        <button onClick={() => router.push('/shop/orders')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors mb-4">
+          <ArrowLeft className="h-4 w-4" /> Back to orders
         </button>
 
-        <div className="mt-6 rounded-2xl border border-emerald-100 bg-white p-6">
-          {loading ? (
-            <div className="text-sm text-gray-600">Loading order...</div>
-          ) : error ? (
-            <div className="text-sm text-red-800 font-bold">{error}</div>
-          ) : !order ? (
-            <div className="text-sm text-gray-600">Order not found.</div>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-xs text-gray-600">Order ID</div>
-                  <div className="mt-1 font-mono text-sm font-black text-gray-900 break-all">{order.id}</div>
-                  <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <span>{new Date(order.createdAt).toLocaleString('en-IN')}</span>
+        {loading ? (
+          <div className="rounded-2xl border border-slate-100 bg-white p-6 animate-pulse space-y-4">
+            <div className="h-6 w-48 bg-slate-100 rounded" />
+            <div className="h-4 w-32 bg-slate-100 rounded" />
+            <div className="h-32 bg-slate-100 rounded-2xl" />
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
+            <p className="text-sm font-bold text-red-700">{error}</p>
+          </div>
+        ) : !order ? (
+          <div className="rounded-2xl border border-slate-100 bg-white p-6 text-center">
+            <p className="text-sm text-slate-500">Order not found.</p>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-slate-100 bg-white p-5">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-mono text-lg font-black text-slate-950">#{order.id.slice(-8).toUpperCase()}</span>
                   </div>
-                  <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
-                    <Store className="h-4 w-4 text-gray-400" />
-                    <span>{order.store?.name || 'Assigned store'}</span>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-semibold">
+                    <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{new Date(order.createdAt).toLocaleString('en-IN')}</span>
+                    <span className="flex items-center gap-1"><Store className="h-3.5 w-3.5" />{order.store?.name || 'Store'}</span>
+                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${order.payment?.method === 'COD' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{order.payment?.method}</span>
                   </div>
                 </div>
-                <div className="shrink-0 text-right">
-                  <div className="text-xs font-black uppercase tracking-widest text-emerald-900/60">Total</div>
-                  <div className="mt-1 text-2xl font-black text-gray-900">{formatINR(Number(pricing.grandTotal) || 0)}</div>
-                  <div className="mt-1 text-[11px] font-black uppercase tracking-widest text-emerald-900/60">
-                    {order.payment?.method === 'COD' ? 'COD' : 'ONLINE'}
-                  </div>
-                  {etaLabel ? (
-                    <div className={`mt-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-black ${etaBadgeTone}`}>
-                      {etaLabel}
-                      <span className="opacity-80">{etaConfidence || 'LOW'} confidence</span>
-                    </div>
-                  ) : (
-                    <div className="mt-2 text-xs font-bold text-gray-600">
-                      ETA unavailable right now.
+                <div className="text-right">
+                  <div className="text-2xl font-black text-slate-950">{formatINR(Number(pricing.grandTotal) || 0)}</div>
+                  {etaLabel && (
+                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-teal-50 border border-teal-200 px-2.5 py-1 text-xs font-black text-teal-700">
+                      <Truck className="h-3 w-3" /> {etaLabel}
                     </div>
                   )}
-                </div>
-              </div>
-
-              {trackingPayload?.timeline?.length ? (
-                <div className="rounded-2xl border border-emerald-100 bg-white p-5">
-                  <div className="text-sm font-black text-gray-900">Timeline</div>
-                  <div className="mt-4 space-y-3">
-                    {trackingPayload.timeline.map((event: any) => (
-                      <div key={event.id} className="flex gap-3 text-sm">
-                        <div className="mt-1 h-2.5 w-2.5 rounded-full bg-emerald-600" />
-                        <div>
-                          <div className="font-black text-gray-900">{String(event.toStatus).replace(/_/g, ' ')}</div>
-                          <div className="text-xs text-gray-500">{new Date(event.createdAt).toLocaleString('en-IN')}</div>
-                          {event.note ? <div className="text-xs text-gray-600 mt-1">{event.note}</div> : null}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {address ? (
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/30 p-5">
-                  <div className="inline-flex items-center gap-2 text-sm font-black text-gray-900">
-                    <MapPin className="h-4 w-4 text-emerald-700" />
-                    Delivery address
-                  </div>
-                  <div className="mt-2 text-sm text-gray-800 font-bold">
-                    {address.recipientName}{' '}
-                    <span className="text-gray-500 font-black">({address.phoneE164}{address.alternatePhoneE164 ? `, ${address.alternatePhoneE164}` : ''})</span>
-                  </div>
-                  <div className="mt-1 text-sm text-gray-700">
-                    {address.line1}
-                    {address.line2 ? `, ${address.line2}` : ''}
-                    {address.landmark ? `, ${address.landmark}` : ''}
-                  </div>
-                  <div className="mt-1 text-sm text-gray-700">
-                    {address.city}, {address.state} {address.pincode}
-                  </div>
-                  {address.instructions ? (
-                    <div className="mt-2 text-xs text-gray-600">
-                      <span className="font-black text-gray-900">Instructions:</span> {address.instructions}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <div className="rounded-2xl border border-emerald-100 bg-white p-5">
-                <div className="inline-flex items-center gap-2 text-sm font-black text-gray-900">
-                  <Package className="h-4 w-4 text-emerald-700" />
-                  Items
-                </div>
-                <div className="mt-4 space-y-3">
-                  {items.map((it: any, idx: number) => {
-                    const name = it?.product?.name || it?.name || `Item ${idx + 1}`;
-                    const qty = Number(it.quantity) || 0;
-                    const unitPrice = Number(it.unitPrice ?? it.price) || 0;
-                    const lineTotal = Number(it.lineTotal) || unitPrice * qty;
-                    return (
-                      <div key={it.id || it.productId || idx} className="flex items-start justify-between gap-3 text-sm">
-                        <div className="min-w-0">
-                          <div className="font-black text-gray-900 truncate">{name}</div>
-                          <div className="text-gray-600 mt-0.5">
-                            {qty} × {formatINR(unitPrice)}
-                          </div>
-                        </div>
-                        <div className="font-black text-gray-900">{formatINR(lineTotal)}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="rounded-2xl border border-emerald-100 bg-white p-5">
-                  <div className="text-sm font-black text-gray-900">Invoice</div>
-                  <div className="mt-3 space-y-2 text-sm">
-                    <Row label="Subtotal" value={formatINR(Number(pricing.subtotal) || 0)} />
-                    <Row label="Delivery fee" value={formatINR(Number(pricing.deliveryFee) || 0)} />
-                    <Row label="Discount" value={formatINR(Number(pricing.discountAmount) || 0)} />
-                    <Row label="Tax" value={formatINR(Number(pricing.taxAmount) || 0)} />
-                    <div className="pt-2 border-t border-emerald-100">
-                      <Row
-                        label={<span className="font-black">Grand total</span>}
-                        value={<span className="font-black">{formatINR(Number(pricing.grandTotal) || 0)}</span>}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-emerald-100 bg-white p-5">
-                  <div className="text-sm font-black text-gray-900">Delivery</div>
-                  <div className="mt-3 text-sm text-gray-700">
-                    <div className="inline-flex items-center gap-2">
-                      <Truck className="h-4 w-4 text-emerald-700" />
-                      <span className="font-black text-gray-900">Status:</span> {order.status}
-                    </div>
-                  </div>
-                  <div className="mt-3 text-sm text-gray-700">
-                    <div className="inline-flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-emerald-700" />
-                      <span className="font-black text-gray-900">Rider:</span> {trackingPayload?.rider?.name || order.rider?.user?.name || 'Not assigned yet'}
-                    </div>
-                    {(trackingPayload?.rider?.phone || order.rider?.user?.phone) ? (
-                      <div className="mt-1 text-xs text-gray-600">Contact: {trackingPayload?.rider?.phone || order.rider?.user?.phone}</div>
-                    ) : null}
-                  </div>
-                  {(liveLocation || trackingPayload?.tracking?.latestLocation) ? (
-                    <div className="mt-4 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-900">
-                      <div className="font-black">Latest rider position</div>
-                      <div className="mt-1">
-                        {Number(livePoint.latitude).toFixed(5)}, {Number(livePoint.longitude).toFixed(5)}
-                      </div>
-                      <div className="mt-1 text-emerald-900/70">
-                        Updated {new Date(livePoint.createdAt).toLocaleTimeString('en-IN')}
-                      </div>
-                      {etaStale ? (
-                        <div className="mt-1 text-[11px] font-bold text-amber-700">
-                          Waiting for a fresh rider GPS update before showing ETA.
-                        </div>
-                      ) : null}
-                      <a
-                        href={`https://www.google.com/maps/dir/?api=1&destination=${livePoint.latitude},${livePoint.longitude}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-2 inline-block rounded-lg bg-emerald-700 px-2.5 py-1.5 text-[11px] font-black text-white"
-                      >
-                        Track rider on map
-                      </a>
-                    </div>
-                  ) : (
-                    <div className="mt-4 text-xs text-gray-600">
-                      Rider tracking will appear here once a rider is assigned and starts moving.
-                    </div>
-                  )}
-                  {livePoint ? (
-                    <div className="mt-3 overflow-hidden rounded-xl border border-emerald-100">
-                      <iframe
-                        title="Rider live location"
-                        className="h-44 w-full"
-                        loading="lazy"
-                        src={`https://maps.google.com/maps?q=${livePoint.latitude},${livePoint.longitude}&z=15&output=embed`}
-                      />
-                    </div>
-                  ) : null}
                 </div>
               </div>
             </div>
-          )}
-        </div>
+
+            <OrderTimeline currentStatus={order.status} timeline={trackingPayload?.timeline} />
+
+            {address && (
+              <div className="rounded-2xl border border-slate-100 bg-white p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="grid h-8 w-8 place-items-center rounded-lg bg-teal-100 text-teal-700"><MapPin className="h-4 w-4" /></div>
+                  <span className="text-sm font-black text-slate-950">Delivery Address</span>
+                </div>
+                <div className="text-sm font-bold text-slate-800">{address.recipientName} <span className="text-slate-500">({address.phoneE164})</span></div>
+                <div className="mt-1 text-sm text-slate-600">{address.line1}{address.line2 ? `, ${address.line2}` : ''}{address.landmark ? `, ${address.landmark}` : ''}</div>
+                <div className="text-sm text-slate-600">{address.city}, {address.state} {address.pincode}</div>
+              </div>
+            )}
+
+            <div className="rounded-2xl border border-slate-100 bg-white p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="grid h-8 w-8 place-items-center rounded-lg bg-violet-100 text-violet-700"><Package className="h-4 w-4" /></div>
+                <span className="text-sm font-black text-slate-950">Items ({items.length})</span>
+              </div>
+              <div className="space-y-2">
+                {items.map((it: any, idx: number) => {
+                  const name = it?.product?.name || it?.name || `Item ${idx + 1}`;
+                  const qty = Number(it.quantity) || 0;
+                  const unitPrice = Number(it.unitPrice ?? it.price) || 0;
+                  const lineTotal = Number(it.lineTotal) || unitPrice * qty;
+                  return (
+                    <div key={it.id || idx} className="flex items-center gap-3 rounded-xl border border-slate-50 bg-slate-50/50 px-3 py-2.5">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-black text-slate-950 truncate">{name}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{qty} × {formatINR(unitPrice)}</div>
+                      </div>
+                      <div className="text-sm font-black text-slate-950">{formatINR(lineTotal)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <BillDetailsCard
+                items={items.map((it: any) => ({ name: it?.product?.name || it?.name || 'Item', quantity: Number(it.quantity) || 0, unitPrice: Number(it.unitPrice ?? it.price) || 0, lineTotal: Number(it.lineTotal) || 0 }))}
+                subtotal={Number(pricing.subtotal) || 0}
+                deliveryFee={Number(pricing.deliveryFee) || 0}
+                discountAmount={Number(pricing.discountAmount) || 0}
+                taxAmount={Number(pricing.taxAmount) || 0}
+                grandTotal={Number(pricing.grandTotal) || 0}
+              />
+
+              <div className="rounded-2xl border border-slate-100 bg-white p-5">
+                <div className="text-sm font-black text-slate-950 mb-3">Delivery</div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2.5 text-sm">
+                    <Truck className="h-4 w-4 text-teal-600" />
+                    <span className="font-bold text-slate-800">Status: </span>
+                    <span className="font-black text-slate-950">{order.status.replace(/_/g, ' ')}</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-sm">
+                    <Phone className="h-4 w-4 text-teal-600" />
+                    <span className="font-bold text-slate-800">Rider: </span>
+                    <span className="font-black text-slate-950">{trackingPayload?.rider?.name || order.rider?.user?.name || 'Not assigned'}</span>
+                  </div>
+                  {livePoint && (
+                    <div className="rounded-xl bg-teal-50 border border-teal-100 p-3 mt-3">
+                      <div className="text-xs font-black text-teal-800">Live Location</div>
+                      <div className="mt-1 text-xs font-mono text-slate-600">{Number(livePoint.latitude).toFixed(5)}, {Number(livePoint.longitude).toFixed(5)}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Updated {new Date(livePoint.createdAt).toLocaleTimeString('en-IN')}</div>
+                      <a href={`https://www.google.com/maps/dir/?api=1&destination=${livePoint.latitude},${livePoint.longitude}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-lg bg-teal-700 px-2.5 py-1.5 text-[11px] font-black text-white hover:bg-teal-800">
+                        <ExternalLink className="h-3 w-3" /> Track on map
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button onClick={() => router.push('/shop')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 transition-colors">
+                <RotateCcw className="h-4 w-4" /> Reorder
+              </button>
+              <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 transition-colors">
+                <MessageSquare className="h-4 w-4" /> Support
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
-  );
-}
-
-function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="text-gray-600">{label}</div>
-      <div className="text-gray-900">{value}</div>
-    </div>
   );
 }

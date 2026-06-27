@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  Button,
 } from 'react-native';
 import { useCartStore } from '../../store/cartStore';
 import { useNavigation } from '@react-navigation/native';
@@ -59,35 +58,36 @@ export const CartScreen = () => {
   }
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={items}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.product.id}
-        contentContainerStyle={styles.list}
-      />
-      <View style={styles.footer}>
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Total Amount:</Text>
-          <Text style={styles.totalValue}>₹{total()}</Text>
+    <FlatList
+      data={items}
+      renderItem={renderItem}
+      keyExtractor={(item) => item.product.id}
+      contentContainerStyle={styles.list}
+      ListFooterComponent={
+        <View style={styles.footer}>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total Amount:</Text>
+            <Text style={styles.totalValue}>₹{total()}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.checkoutButton}
+            onPress={() => navigation.navigate('Checkout')}
+          >
+            <Text style={styles.checkoutText}>Checkout</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.clearButton} onPress={clearCart}>
+            <Text style={styles.clearButtonText}>Clear Cart</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity 
-          style={styles.checkoutButton}
-          onPress={() => navigation.navigate('Checkout')}
-        >
-          <Text style={styles.checkoutText}>Checkout</Text>
-        </TouchableOpacity>
-        <Button title="Clear Cart" onPress={clearCart} color="gray" />
-      </View>
-    </View>
+      }
+    />
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9f9f9' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9f9f9' },
   emptyText: { fontSize: 18, color: '#666' },
-  list: { padding: 15 },
+  list: { padding: 15, paddingBottom: 110 },
   cartItem: {
     flexDirection: 'row',
     backgroundColor: 'white',
@@ -110,9 +110,11 @@ const styles = StyleSheet.create({
   footer: {
     backgroundColor: 'white',
     padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    elevation: 10,
+    borderRadius: 20,
+    marginTop: 5,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 8,
   },
   totalRow: {
     flexDirection: 'row',
@@ -122,11 +124,19 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 18, fontWeight: '600' },
   totalValue: { fontSize: 18, fontWeight: 'bold', color: '#0F766E' },
   checkoutButton: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0F766E',
     paddingVertical: 15,
-    borderRadius: 10,
+    borderRadius: 14,
     alignItems: 'center',
     marginBottom: 10,
   },
   checkoutText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  clearButton: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  clearButtonText: { color: '#64748B', fontWeight: '700' },
 });
