@@ -2,14 +2,16 @@
 
 **Date:** 2026-06-28
 **Branch:** `phase-1-security-inventory-foundation`
-**Base:** `architect-phase-1-security-inventory-plan`
-**Commit:** `01ac986`
+**Base commit:** `9613392b92348d0bd0cc7bc9d1c14292160588c2`
+**Final commit:** `9f6960b`
+**GitHub PR:** https://github.com/Saikumar-bali/AAGAM_E-commerce/pull/new/phase-1-security-inventory-foundation
 
 ---
 
 ## 1. Schema Changes
 
 **Migration:** `20260628000000_phase1_security_inventory`
+**Command:** `npx prisma db execute --file packages/database/prisma/migrations/20260628000000_phase1_security_inventory/migration.sql`
 
 | Change | Table | Details |
 |--------|-------|---------|
@@ -31,11 +33,13 @@
 | `PATCH /riders/:id/status` | `JwtAuthGuard` only | `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles(ADMIN)` | `rider.controller.ts:43` |
 | `POST /upload/image` | **No guards at all** | `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles(ADMIN, STORE_OWNER)` at class level | `upload.controller.ts:10` |
 
-**Smoke test proof:**
-- `GET /auth/users` without token → 401
-- `GET /auth/users` with customer token → 403
-- `GET /auth/users` with admin token → 200
-- `POST /upload/image` without token → 401
+**API proof (masked tokens):**
+```
+GET /auth/users without token → 401
+GET /auth/users with customer token (***@aagam.com) → 403
+GET /auth/users with admin token (***@aagam.com) → 200
+POST /upload/image without token → 401
+```
 
 ---
 
@@ -71,7 +75,7 @@ async updateInventory(storeId, productId, quantity, actor?) {
 | `StoreService.delete()` | `update({ deletedAt: new Date(), isActive: false })` instead of hard delete |
 | `ProductService.resolveAvailabilityContext()` | `where: { isActive: true, deletedAt: null }` |
 
-**Test proof:** Soft-deleted product excluded from `findAll()`; soft-deleted store excluded from `findAll()`.
+**Test proof:** Soft-deleted product excluded from `findAll()`; soft-deleted store excluded from `findAll()`; historical orders preserved after store soft delete.
 
 ---
 
@@ -91,7 +95,7 @@ async updateInventory(storeId, productId, quantity, actor?) {
 ## 6. Tests
 
 **File:** `apps/api-gateway/src/inventory.spec.ts`
-**Framework:** Jest + ts-jest (9/9 passing)
+**Framework:** Jest + ts-jest (12/12 passing)
 
 ```
 Phase 1: RBAC Guards
@@ -110,11 +114,40 @@ Phase 1: Store Tenancy
 Phase 1: Inventory Ledger
   ✓ Manual inventory update should create ledger entry
   ✓ Second manual update should log correct delta
+
+Phase 1: Store Soft Delete Preserves Orders
+  ✓ Soft-deleted store should still have historical orders
+
+Phase 1: Checkout Inventory and Ledger
+  ✓ Checkout should decrement inventory and create ledger entry
+
+Phase 1: Cancellation Inventory Restore and Ledger
+  ✓ Cancellation should restore inventory and create ledger entry
 ```
 
 ---
 
-## 7. What This Phase Explicitly Excludes
+## 7. Commands Run
+
+| Command | Result |
+|---------|--------|
+| `npm run build --workspace=apps/api-gateway` | ✅ Pass |
+| `npm test --workspace=apps/api-gateway` | ✅ 12/12 pass |
+| `npx prisma generate --schema packages/database/prisma/schema.prisma` | ✅ Pass |
+| `npx prisma db execute --file .../migration.sql` | ✅ Pass |
+| `git push origin phase-1-security-inventory-foundation` | ✅ Pass |
+
+---
+
+## 8. GitHub Actions Proof
+
+Branch pushed to: `https://github.com/Saikumar-bali/AAGAM_E-commerce/tree/phase-1-security-inventory-foundation`
+
+**Note:** GitHub Actions workflows may not be configured in this repository. The branch is available for CI/CD verification when workflows are added.
+
+---
+
+## 9. What This Phase Explicitly Excludes
 
 - Payment gateway integration
 - Coupons / loyalty / rewards
@@ -127,7 +160,7 @@ Phase 1: Inventory Ledger
 
 ---
 
-## 8. Files Changed
+## 10. Files Changed
 
 | File | Summary |
 |------|---------|
@@ -141,7 +174,15 @@ Phase 1: Inventory Ledger
 | `apps/api-gateway/src/products/product.service.ts` | Soft delete filters, soft delete method |
 | `apps/api-gateway/src/orders/order.service.ts` | Ledger on cancel and delivery |
 | `apps/api-gateway/src/checkout/checkout.service.ts` | Ledger on checkout reservation, orderId linking |
-| `apps/api-gateway/src/inventory.spec.ts` | 9 tests |
+| `apps/api-gateway/src/inventory.spec.ts` | 12 tests (RBAC, soft delete, tenancy, ledger, checkout, cancel) |
 | `apps/api-gateway/jest.config.js` | Jest config |
 | `apps/api-gateway/package.json` | Added test script, devDependencies |
 | `apps/api-gateway/tsconfig.json` | Excluded spec files from build |
+
+---
+
+## 11. Known Limitations
+
+- **GitHub Actions:** No CI/CD workflows are configured in the repository. The branch is ready for review but automated checks are not available.
+- **Checkout test:** The checkout inventory/ledger test uses direct Prisma calls to simulate the flow rather than calling `CheckoutService.placeOrder()` directly (requires mocking `TrackingGateway` and `NotificationService`).
+- **No E2E tests:** RBAC tests are HTTP-level integration tests using `node-fetch` against the running API server.
