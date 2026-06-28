@@ -502,8 +502,9 @@ describe('Phase 2: Refund foundation', () => {
     const paymentsService = new PaymentsService();
     await paymentsService.captureSimulatedPayment(customerId, order.id);
 
+    const { RefundsService } = await import('./payments/refunds.service');
     const { OrderService } = await import('./orders/order.service');
-    const orderService = new OrderService(createTrackingGatewayMock() as any);
+    const orderService = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
     await orderService.cancelMyOrder(customerId, order.id);
 
     const refund = await prisma.refund.findFirst({
@@ -531,8 +532,9 @@ describe('Phase 2: Refund foundation', () => {
       paymentMethod: PaymentMethod.COD as any,
     });
 
+    const { RefundsService } = await import('./payments/refunds.service');
     const { OrderService } = await import('./orders/order.service');
-    const orderService = new OrderService(createTrackingGatewayMock() as any);
+    const orderService = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
     await orderService.cancelMyOrder(customerId, order.id);
 
     const refund = await prisma.refund.findFirst({
@@ -544,49 +546,143 @@ describe('Phase 2: Refund foundation', () => {
     expect(payment!.status).toBe('PENDING_COD');
   });
 
-  it('refund amount should not exceed captured payment amount', async () => {
+  it('refund larger than captured amount is rejected', async () => {
+    const { CheckoutService } = await import('./checkout/checkout.service');
+    const checkoutService = new CheckoutService(
+      createTrackingGatewayMock() as any,
+      createNotificationServiceMock() as any,
+    );
     const { PaymentsService } = await import('./payments/payments.service');
     const paymentsService = new PaymentsService();
+    const { RefundsService } = await import('./payments/refunds.service');
+    const refundsService = new RefundsService();
 
-    // Create a test payment with a specific amount
-    const payment = await prisma.payment.findFirst({
-      where: { order: { customerId } },
-      orderBy: { createdAt: 'desc' },
+    const prod = await prisma.product.create({
+      data: { name: `${TEST_PREFIX}RLCProd`, price: 400, pricePaise: 40000, categoryId },
     });
+    await prisma.inventory.create({ data: { storeId, productId: prod.id, quantity: 10 } });
+
+    const order = await checkoutService.placeOrder(customerId, {
+      items: [{ productId: prod.id, quantity: 1 }],
+      addressId,
+      paymentMethod: PaymentMethod.ONLINE as any,
+    });
+    await paymentsService.captureSimulatedPayment(customerId, order.id);
+
+    const payment = await prisma.payment.findUnique({ where: { orderId: order.id } });
     expect(payment).not.toBeNull();
 
-    // Total captured is the payment amount
     const capturedPaise = payment!.amountPaise;
 
-    // Creating a refund larger than captured should be prevented
-    // We simulate by trying to create a refund > capturedPaise
-    const refundTotal = capturedPaise + 1;
-
-    // Manually create a refund to test the invariant
     await expect(
-      prisma.refund.create({
-        data: {
-          orderId: payment!.orderId,
-          paymentId: payment!.id,
-          amountPaise: refundTotal,
-          status: RefundStatus.PROCESSED,
-          reason: 'Test - should not exceed',
-          requestedByUserId: customerId,
-        },
+      refundsService.createRefundForPayment({
+        orderId: order.id,
+        paymentId: payment!.id,
+        amountPaise: capturedPaise + 1,
+        reason: 'Test - should exceed',
+        requestedByUserId: customerId,
       }),
-    ).resolves.toBeDefined();
+    ).rejects.toThrow('exceed captured amount');
+  });
 
-    // Now get total captured vs refunded
-    const totalProcessedRefunds = await prisma.refund.aggregate({
-      where: { paymentId: payment!.id, status: RefundStatus.PROCESSED },
-      _sum: { amountPaise: true },
+  it('multiple refunds cannot exceed captured payment amount', async () => {
+    const { CheckoutService } = await import('./checkout/checkout.service');
+    const checkoutService = new CheckoutService(
+      createTrackingGatewayMock() as any,
+      createNotificationServiceMock() as any,
+    );
+    const { PaymentsService } = await import('./payments/payments.service');
+    const paymentsService = new PaymentsService();
+    const { RefundsService } = await import('./payments/refunds.service');
+    const refundsService = new RefundsService();
+    const { OrderService } = await import('./orders/order.service');
+
+    // Create a fresh order for this test
+    const prod = await prisma.product.create({
+      data: { name: `${TEST_PREFIX}MRProd`, price: 1000, pricePaise: 100000, categoryId },
+    });
+    await prisma.inventory.create({ data: { storeId, productId: prod.id, quantity: 10 } });
+
+    const order = await checkoutService.placeOrder(customerId, {
+      items: [{ productId: prod.id, quantity: 1 }],
+      addressId,
+      paymentMethod: PaymentMethod.ONLINE as any,
+    });
+    await paymentsService.captureSimulatedPayment(customerId, order.id);
+
+    const payment = await prisma.payment.findUnique({ where: { orderId: order.id } });
+    expect(payment).not.toBeNull();
+
+    const capturedPaise = payment!.amountPaise;
+    const halfPaise = Math.floor(capturedPaise / 2);
+
+    // First refund of half should succeed
+    await refundsService.createRefundForPayment({
+      orderId: order.id,
+      paymentId: payment!.id,
+      amountPaise: halfPaise,
+      reason: 'Partial refund 1',
+      requestedByUserId: customerId,
     });
 
-    const totalRefunded = totalProcessedRefunds._sum.amountPaise ?? 0;
+    // Second refund of the remaining half should succeed
+    await refundsService.createRefundForPayment({
+      orderId: order.id,
+      paymentId: payment!.id,
+      amountPaise: capturedPaise - halfPaise,
+      reason: 'Partial refund 2',
+      requestedByUserId: customerId,
+    });
 
-    // This is a soft check - the application layer should enforce this
-    // For now we check that refunds don't exceed captured amount
-    expect(totalRefunded).toBeLessThanOrEqual(capturedPaise + 1);
+    // Third refund should fail - no remaining captured amount
+    await expect(
+      refundsService.createRefundForPayment({
+        orderId: order.id,
+        paymentId: payment!.id,
+        amountPaise: 1,
+        reason: 'Should exceed',
+        requestedByUserId: customerId,
+      }),
+    ).rejects.toThrow('exceed captured amount');
+  });
+
+  it('duplicate cancellation cannot create duplicate refund', async () => {
+    const { CheckoutService } = await import('./checkout/checkout.service');
+    const checkoutService = new CheckoutService(
+      createTrackingGatewayMock() as any,
+      createNotificationServiceMock() as any,
+    );
+    const { PaymentsService } = await import('./payments/payments.service');
+    const paymentsService = new PaymentsService();
+    const { OrderService } = await import('./orders/order.service');
+
+    const prod = await prisma.product.create({
+      data: { name: `${TEST_PREFIX}DRProd`, price: 200, pricePaise: 20000, categoryId },
+    });
+    await prisma.inventory.create({ data: { storeId, productId: prod.id, quantity: 10 } });
+
+    const order = await checkoutService.placeOrder(customerId, {
+      items: [{ productId: prod.id, quantity: 1 }],
+      addressId,
+      paymentMethod: PaymentMethod.ONLINE as any,
+    });
+    await paymentsService.captureSimulatedPayment(customerId, order.id);
+
+    const orderService = new OrderService(
+      createTrackingGatewayMock() as any,
+      new (await import('./payments/refunds.service')).RefundsService(),
+    );
+
+    // First cancellation should succeed
+    await orderService.cancelMyOrder(customerId, order.id);
+
+    const refunds = await prisma.refund.findMany({ where: { orderId: order.id } });
+    expect(refunds.length).toBe(1);
+
+    // Second cancellation attempt should fail (order already CANCELLED)
+    await expect(
+      orderService.cancelMyOrder(customerId, order.id),
+    ).rejects.toThrow('can no longer be cancelled');
   });
 });
 
@@ -673,8 +769,9 @@ describe('Phase 2: Inventory regression', () => {
     });
     expect(order).not.toBeNull();
 
+    const { RefundsService } = await import('./payments/refunds.service');
     const { OrderService } = await import('./orders/order.service');
-    const orderService = new OrderService(createTrackingGatewayMock() as any);
+    const orderService = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
     await orderService.cancelMyOrder(customerId, order!.id);
 
     const invAfter = await prisma.inventory.findUnique({

@@ -383,8 +383,9 @@ describe('Phase 1: Cancellation Inventory Restore and Ledger', () => {
     expect(inventoryBefore!.quantity).toBe(10);
 
     const { OrderService } = await import('./orders/order.service');
+    const { RefundsService } = await import('./payments/refunds.service');
     const trackingGateway = { emitOrderStatusUpdated: jest.fn(), emitOrderTimelineUpdated: jest.fn() };
-    const orderService = new OrderService(trackingGateway as any);
+    const orderService = new OrderService(trackingGateway as any, new RefundsService());
 
     await orderService.cancelMyOrder(customer.id, order.id);
 

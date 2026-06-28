@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, PaymentMethod, PaymentStatus, RefundStatus, Role, prisma } from '@aagam/database';
 import { TrackingGateway } from '../tracking.gateway';
+import { RefundsService } from '../payments/refunds.service';
 
 const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ['CONFIRMED', 'CANCELLED'],
@@ -30,7 +31,10 @@ const STORE_OWNER_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
 
 @Injectable()
 export class OrderService {
-  constructor(private readonly trackingGateway: TrackingGateway) {}
+  constructor(
+    private readonly trackingGateway: TrackingGateway,
+    private readonly refundsService: RefundsService,
+  ) {}
   private statusNote(nextStatus: OrderStatus, actorRole?: Role) {
     if (actorRole === Role.RIDER) {
       if (nextStatus === OrderStatus.PICKING) return 'Rider reached store and started pickup.';
@@ -631,21 +635,13 @@ export class OrderService {
       // Handle payment/refund for cancellation
       if (order.payment) {
         if (order.payment.status === PaymentStatus.CAPTURED) {
-          // Create refund record for captured payment
-          await tx.payment.update({
-            where: { id: order.payment.id },
-            data: { status: PaymentStatus.REFUND_PENDING as any },
-          });
-          await tx.refund.create({
-            data: {
-              orderId: order.id,
-              paymentId: order.payment.id,
-              amountPaise: order.grandTotalPaise,
-              status: RefundStatus.PENDING,
-              reason: 'Order cancelled after payment captured',
-              requestedByUserId: userId,
-            },
-          });
+          await this.refundsService.createRefundForPayment({
+            orderId: order.id,
+            paymentId: order.payment.id,
+            amountPaise: order.grandTotalPaise,
+            reason: 'Order cancelled after payment captured',
+            requestedByUserId: userId,
+          }, tx);
         } else if (order.payment.status === PaymentStatus.PENDING_COD) {
           // COD cancellation: no refund needed
         }
