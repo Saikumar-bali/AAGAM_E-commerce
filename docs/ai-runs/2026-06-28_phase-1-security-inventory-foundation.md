@@ -230,4 +230,4 @@ steps:
 
 - **API smoke tests:** The 3 RBAC tests in `api-smoke.spec.ts` require a running API server on `localhost:3005` and are not included in CI.
 - **Checkout test store resolution:** Uses unique coordinates (`88.888, 88.888`) to ensure `resolveStoreForLocation` picks the test store.
-- **Migration files incomplete:** Existing migration SQL files are out of sync with the Prisma schema (many columns/tables added via `prisma db push` locally were never captured in migrations). CI uses `prisma db push` for the test database instead of `prisma migrate deploy`. Production should run `prisma db push` to sync.
+- **Migration drift resolved:** See Phase 1.1 (`docs/ai-runs/2026-06-28_phase-1-1-database-migration-release-safety.md`). CI now uses `prisma migrate deploy` and the migration gap has been closed.

@@ -79,14 +79,20 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate --schema packages/database/prisma/schema.prisma
 
+      - name: Validate Prisma schema
+        run: npx prisma validate --schema packages/database/prisma/schema.prisma
+
       - name: Build workspace packages for tests
         run: |
           npx tsc --project packages/types/tsconfig.json
           npx tsc --project packages/utils/tsconfig.json
           npx tsc --project packages/database/tsconfig.json
 
-      - name: Push schema to test database
-        run: npx prisma db push --schema packages/database/prisma/schema.prisma
+      - name: Apply all migrations to test database
+        run: npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+
+      - name: Verify migration status
+        run: npx prisma migrate status --schema packages/database/prisma/schema.prisma
 
       - name: Run CI-safe tests
         run: npm run test:ci --workspace=apps/api-gateway

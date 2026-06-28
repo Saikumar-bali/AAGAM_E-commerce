@@ -7,7 +7,13 @@
     "build": "prisma generate && tsc",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "node seed.js"
+    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:status": "prisma migrate status",
+    "db:migrate:reset": "prisma migrate reset --force",
+    "db:validate": "prisma validate",
+    "db:seed": "node seed.js",
+    "db:verify": "prisma validate && prisma migrate status"
   },
   "dependencies": {
     "@prisma/client": "^5.10.0",
