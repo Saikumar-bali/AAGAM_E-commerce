@@ -23,8 +23,11 @@ import { formatINR } from '@/lib/currency';
 
 type OrderStatus = 
   | 'PENDING'
+  | 'PAYMENT_PENDING'
   | 'CONFIRMED'
   | 'PICKING'
+  | 'PACKED'
+  | 'RIDER_ASSIGNED'
   | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
   | 'CANCELLED';
@@ -56,8 +59,11 @@ type NearbyOrder = {
 
 const statusConfig: Record<OrderStatus, { label: string; cls: string; step: number }> = {
   PENDING: { label: 'Pending', cls: 'bg-amber-100 text-amber-700', step: 1 },
+  PAYMENT_PENDING: { label: 'Payment Pending', cls: 'bg-orange-100 text-orange-700', step: 1 },
   CONFIRMED: { label: 'Confirmed', cls: 'bg-blue-100 text-blue-700', step: 2 },
   PICKING: { label: 'Picking', cls: 'bg-indigo-100 text-indigo-700', step: 3 },
+  PACKED: { label: 'Packed', cls: 'bg-violet-100 text-violet-700', step: 3 },
+  RIDER_ASSIGNED: { label: 'Assigned', cls: 'bg-purple-100 text-purple-700', step: 3 },
   OUT_FOR_DELIVERY: { label: 'On Way', cls: 'bg-cyan-100 text-cyan-700', step: 4 },
   DELIVERED: { label: 'Delivered', cls: 'bg-emerald-100 text-emerald-700', step: 5 },
   CANCELLED: { label: 'Cancelled', cls: 'bg-red-100 text-red-700', step: 0 },
@@ -441,23 +447,14 @@ export default function RiderDashboard() {
                   {/* Instruction */}
                   <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4">
                     <p className="text-sm text-blue-800">
-                      {activeOrder.status === 'CONFIRMED' && '📦 Go to store, collect all items, then tap "Start Picking"'}
-                      {activeOrder.status === 'PICKING' && '🚚 Load items in vehicle, tap "Start Delivery" to begin'}
+                      {activeOrder.status === 'RIDER_ASSIGNED' && '🏪 Head to the store, pick up the order, then tap "Start Delivery"'}
                       {activeOrder.status === 'OUT_FOR_DELIVERY' && '📍 Reach delivery address, hand items to customer, tap "Delivered"'}
                     </p>
                   </div>
 
                   {/* Actions */}
                   <div className="flex gap-3">
-                    {activeOrder.status === 'CONFIRMED' && (
-                      <button 
-                        onClick={() => handlePickOrder(activeOrder.id)}
-                        className="flex-1 bg-gray-900 text-white py-4 rounded-xl font-bold hover:bg-gray-800 transition-colors"
-                      >
-                        📦 Start Picking
-                      </button>
-                    )}
-                    {activeOrder.status === 'PICKING' && (
+                    {activeOrder.status === 'RIDER_ASSIGNED' && (
                       <button 
                         onClick={() => handleStartDelivery(activeOrder.id)}
                         className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition-colors"

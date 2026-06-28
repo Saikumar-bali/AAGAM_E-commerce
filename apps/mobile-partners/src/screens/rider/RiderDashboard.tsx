@@ -63,11 +63,8 @@ const getProgressWidth = (status: string) => {
 
 const getActionLabel = (status: string) => {
   switch (status) {
-    case 'CONFIRMED': return 'I have reached the store';
-    case 'PICKING': return 'Items are packed';
-    case 'PACKED': return 'Accept for delivery';
-    case 'RIDER_ASSIGNED': return 'Start live delivery';
-    case 'OUT_FOR_DELIVERY': return 'I have delivered the order';
+    case 'RIDER_ASSIGNED': return 'Start Delivery';
+    case 'OUT_FOR_DELIVERY': return 'Mark Delivered';
     default: return 'View Details';
   }
 };
@@ -228,13 +225,8 @@ export const RiderDashboard = () => {
   });
 
   const handleUpdateStatus = (orderId: string, currentStatus: string) => {
-    if (currentStatus === 'RIDER_ASSIGNED') { riderService.startTracking(orderId).then(handleRefresh).catch((e: any) => Alert.alert('Error', e.message)); return; }
-    if (currentStatus === 'OUT_FOR_DELIVERY') { riderService.stopTracking(orderId).then(handleRefresh).catch((e: any) => Alert.alert('Error', e.message)); return; }
-    let nextStatus = '';
-    if (currentStatus === 'CONFIRMED') nextStatus = 'PICKING';
-    else if (currentStatus === 'PICKING') nextStatus = 'PACKED';
-    else if (currentStatus === 'PACKED') nextStatus = 'RIDER_ASSIGNED';
-    if (nextStatus) updateStatusMutation.mutate({ orderId, status: nextStatus });
+    if (currentStatus === 'RIDER_ASSIGNED') { updateStatusMutation.mutate({ orderId, status: 'OUT_FOR_DELIVERY' }); riderService.startTracking(orderId).then(handleRefresh).catch(() => {}); return; }
+    if (currentStatus === 'OUT_FOR_DELIVERY') { updateStatusMutation.mutate({ orderId, status: 'DELIVERED' }); riderService.stopTracking(orderId).then(handleRefresh).catch(() => {}); return; }
   };
 
   const openMaps = (lat?: number, lng?: number) => {

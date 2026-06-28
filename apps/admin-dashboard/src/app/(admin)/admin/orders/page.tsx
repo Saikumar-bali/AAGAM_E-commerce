@@ -37,7 +37,7 @@ interface Order {
   rider?: { user?: { name: string | null } };
 }
 
-const statusOptions = ['PENDING', 'CONFIRMED', 'PICKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
+const statusOptions = ['PENDING', 'CONFIRMED', 'PICKING', 'PACKED', 'RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -52,6 +52,13 @@ export default function AdminOrdersPage() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [bulkStatus, setBulkStatus] = useState('CONFIRMED');
   const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [showForceCancelModal, setShowForceCancelModal] = useState(false);
+  const [forceCancelReason, setForceCancelReason] = useState('');
+  const [forceCancelling, setForceCancelling] = useState(false);
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [riders, setRiders] = useState<any[]>([]);
+  const [reassignUserId, setReassignUserId] = useState('');
+  const [reassigning, setReassigning] = useState(false);
 
   const getAddressText = (order: Order) => {
     const a = order.addressSnapshot;
@@ -182,7 +189,9 @@ export default function AdminOrdersPage() {
       case 'PENDING': return { label: 'Pending', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: Clock };
       case 'CONFIRMED': return { label: 'Confirmed', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: CheckCircle };
       case 'PICKING': return { label: 'Picking', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: Package };
-      case 'OUT_FOR_DELIVERY': return { label: 'Out for Delivery', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', icon: Truck };
+      case 'PACKED': return { label: 'Packed', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', icon: Package };
+      case 'RIDER_ASSIGNED': return { label: 'Rider Assigned', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', icon: Bike };
+      case 'OUT_FOR_DELIVERY': return { label: 'Out for Delivery', bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200', icon: Truck };
       case 'DELIVERED': return { label: 'Delivered', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle };
       case 'CANCELLED': return { label: 'Cancelled', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: XCircle };
       default: return { label: status, bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: ShoppingCart };
@@ -214,6 +223,47 @@ export default function AdminOrdersPage() {
     setSelectedOrderIds((prev) =>
       allSelected ? prev.filter((id) => !allVisibleIds.includes(id)) : [...new Set([...prev, ...allVisibleIds])],
     );
+  };
+
+  const fetchRiders = async () => {
+    try {
+      const res = await apiClient.get('/riders');
+      setRiders(res.data);
+    } catch (err) {
+      console.error('Failed to fetch riders', err);
+    }
+  };
+
+  const handleForceCancel = async () => {
+    if (!selectedOrder || !forceCancelReason.trim()) return;
+    setForceCancelling(true);
+    try {
+      await apiClient.patch(`/orders/${selectedOrder.id}/force-cancel`, { reason: forceCancelReason });
+      setShowForceCancelModal(false);
+      setForceCancelReason('');
+      setSelectedOrder(null);
+      fetchOrders();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Force cancel failed');
+    } finally {
+      setForceCancelling(false);
+    }
+  };
+
+  const handleReassignRider = async () => {
+    if (!selectedOrder || !reassignUserId) return;
+    setReassigning(true);
+    try {
+      await apiClient.post(`/orders/${selectedOrder.id}/reassign-rider`, { userId: reassignUserId });
+      setShowReassignModal(false);
+      setReassignUserId('');
+      setSelectedOrder(null);
+      fetchOrders();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Reassign rider failed');
+    } finally {
+      setReassigning(false);
+    }
   };
 
   const runBulkStatusUpdate = async () => {
@@ -317,7 +367,7 @@ export default function AdminOrdersPage() {
                     <td className="px-6 py-4"><p className="text-sm font-mono font-bold text-gray-900">{order.id.substring(0, 8)}</p></td>
                     <td className="px-6 py-4"><div className="flex items-center"><div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 mr-3"><User className="h-4 w-4" /></div><p className="text-sm font-medium text-gray-900">{order.customer?.name || 'Unknown'}</p></div></td>
                     <td className="px-6 py-4"><div className="flex items-center text-sm text-gray-600"><Store className="h-4 w-4 mr-2 text-gray-400" />{order.store?.name || 'Unknown Store'}</div></td>
-                    <td className="px-6 py-4"><div className="flex items-center text-sm font-bold text-gray-900"><span className="text-gray-400 mr-0.5">₹</span>{order.totalAmount.toFixed(2)}₹</div></td>
+                    <td className="px-6 py-4"><div className="flex items-center text-sm font-bold text-gray-900"><span className="text-gray-400 mr-0.5">₹</span>{order.totalAmount.toFixed(2)}</div></td>
                     <td className="px-6 py-4"><span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${statusConfig.bg} ${statusConfig.text} border ${statusConfig.border}`}><statusConfig.icon className="h-3 w-3 mr-1.5" />{statusConfig.label}</span></td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold ${isAtRisk ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
@@ -378,7 +428,72 @@ export default function AdminOrdersPage() {
                 </div>
               </div>
             </div>
-            <div className="p-6 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white"><button onClick={() => setSelectedOrder(null)} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all">Close</button><button onClick={() => setShowStatusModal(true)} className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all">Update Status</button></div>
+            <div className="p-6 border-t border-gray-100 flex flex-wrap gap-3 sticky bottom-0 bg-white">
+              <button onClick={() => setSelectedOrder(null)} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all">Close</button>
+              <button onClick={() => setShowStatusModal(true)} className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all">Update Status</button>
+              {selectedOrder.status !== 'CANCELLED' && selectedOrder.status !== 'DELIVERED' && (
+                <button onClick={() => { setShowForceCancelModal(true); setForceCancelReason(''); }} className="px-4 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all">Force Cancel</button>
+              )}
+              <button onClick={() => { fetchRiders(); setReassignUserId(''); setShowReassignModal(true); }} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all">Reassign Rider</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showForceCancelModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">Force Cancel Order</h2>
+              <button onClick={() => setShowForceCancelModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="h-5 w-5 text-gray-500" /></button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-500 mb-4">Order: {selectedOrder.id.substring(0, 8)}</p>
+              <textarea
+                value={forceCancelReason}
+                onChange={(e) => setForceCancelReason(e.target.value)}
+                placeholder="Enter cancellation reason (required)..."
+                className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 min-h-[80px]"
+              />
+              <div className="flex gap-3 mt-4">
+                <button onClick={() => setShowForceCancelModal(false)} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all">Cancel</button>
+                <button onClick={handleForceCancel} disabled={forceCancelling || !forceCancelReason.trim()} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all disabled:opacity-40">
+                  {forceCancelling ? 'Cancelling...' : 'Confirm Force Cancel'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReassignModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">Reassign Rider</h2>
+              <button onClick={() => setShowReassignModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="h-5 w-5 text-gray-500" /></button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-500 mb-4">Order: {selectedOrder.id.substring(0, 8)}</p>
+              <select
+                value={reassignUserId}
+                onChange={(e) => setReassignUserId(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Select a rider...</option>
+                {riders.map((rider: any) => (
+                  <option key={rider.userId} value={rider.userId}>
+                    {rider.user?.name || rider.email || rider.userId.slice(0, 8)} ({rider.status || 'OFFLINE'})
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-3 mt-4">
+                <button onClick={() => setShowReassignModal(false)} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all">Cancel</button>
+                <button onClick={handleReassignRider} disabled={reassigning || !reassignUserId} className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all disabled:opacity-40">
+                  {reassigning ? 'Reassigning...' : 'Confirm Reassign'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
