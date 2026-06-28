@@ -23,6 +23,7 @@
     "test:eta:sim": "node tests/simulate_eta_lifecycle.js"
   },
   "devDependencies": {
+    "react-native-dotenv": "^3.4.11",
     "turbo": "^2.9.6"
   },
   "dependencies": {

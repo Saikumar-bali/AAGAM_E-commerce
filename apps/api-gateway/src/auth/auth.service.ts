@@ -218,6 +218,23 @@ export class AuthService {
     });
   }
 
+  async updateProfile(userId: string, data: { name?: string }) {
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { ...(data.name !== undefined && { name: data.name }) },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        name: true,
+        avatarUrl: true,
+        emailVerified: true,
+        createdAt: true,
+      },
+    });
+    return updated;
+  }
+
   async updateFcmToken(userId: string, token: string) {
     if (process.env.NODE_ENV === 'development') {
       console.log(`[AuthService] Updating FCM token for user ${userId}`);

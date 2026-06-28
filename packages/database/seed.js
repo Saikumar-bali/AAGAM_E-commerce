@@ -32,17 +32,17 @@ async function main() {
     // Create Store Owner User
     const storeOwner = await prisma.user.upsert({
       where: { id: 'store-owner-id' },
-      update: { email: 'storeowner@aagam.com', role: 'STORE_OWNER', name: 'John Store Owner', password: demoPassword },
+      update: { email: 'store@aagam.com', role: 'STORE_OWNER', name: 'John Store Owner', password: demoPassword },
       create: {
         id: 'store-owner-id',
-        email: 'storeowner@aagam.com',
+        email: 'store@aagam.com',
         name: 'John Store Owner',
         phone: '+1234567890',
         role: 'STORE_OWNER',
         password: demoPassword,
       },
     });
-    console.log('✅ Store owner created');
+    console.log('✅ Store owner created (store@aagam.com)');
 
     // Create a second Store Owner
     const storeOwner2 = await prisma.user.upsert({

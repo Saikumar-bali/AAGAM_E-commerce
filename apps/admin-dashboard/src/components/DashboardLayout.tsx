@@ -9,7 +9,7 @@ import { apiClient } from '@aagam/utils';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
-  allowedRole: 'ADMIN' | 'RIDER' | 'CUSTOMER';
+  allowedRole: 'ADMIN' | 'RIDER' | 'CUSTOMER' | 'STORE_OWNER';
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole }) => {
@@ -30,6 +30,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
           // Simple RBAC check on client side
           if (user.role === 'ADMIN') router.push('/admin');
           else if (user.role === 'RIDER') router.push('/rider');
+          else if (user.role === 'STORE_OWNER') router.push('/store');
           else router.push('/shop');
           return;
         }
@@ -82,7 +83,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
             <div>
               <p className="enterprise-kicker">Aagam Commerce OS</p>
               <h2 className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950">
-                {allowedRole === 'ADMIN' ? 'Operations control tower' : allowedRole === 'RIDER' ? 'Rider live workspace' : 'Premium shopping workspace'}
+                {allowedRole === 'ADMIN' ? 'Operations control tower' : allowedRole === 'RIDER' ? 'Rider live workspace' : allowedRole === 'STORE_OWNER' ? 'Store management workspace' : 'Premium shopping workspace'}
               </h2>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
