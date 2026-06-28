@@ -3,7 +3,7 @@
 **Date:** 2026-06-28
 **Branch:** `phase-1-security-inventory-foundation`
 **Base commit:** `9613392b92348d0bd0cc7bc9d1c14292160588c2`
-**Final commit:** `06234f6`
+**Final commit:** `2fd95dc7ec906ffe46ef434fbf7094a912b2d469`
 **GitHub PR:** https://github.com/Saikumar-bali/AAGAM_E-commerce/pull/new/phase-1-security-inventory-foundation
 
 ---
@@ -158,15 +158,19 @@ services:
       POSTGRES_DB: aagam_ecom_test
 
 steps:
-  - Run Prisma migrations
-  - Run CI-safe tests (service-level, no HTTP calls)
+  - npm install
+  - prisma generate
+  - turbo build --force
+  - (test job) prisma db push
+  - (test job) Build @aagam/types, @aagam/utils, @aagam/database
+  - (test job) Run CI-safe tests (service-level, no HTTP calls)
 ```
 
 ### CI Run
 
-- **Triggered by:** Push to `phase-1-security-inventory-foundation` (SHA `06234f6`)
-- **Expected URL:** `https://github.com/Saikumar-bali/AAGAM_E-commerce/actions` (branch: `phase-1-security-inventory-foundation`)
-- **Status:** CI workflow is correctly configured and triggered. Actual run status requires GitHub auth to verify (see Known Limitations).
+- **Triggered by:** Push to `phase-1-security-inventory-foundation` (SHA `2fd95dc7ec906ffe46ef434fbf7094a912b2d469`)
+- **Run URL:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28323184184
+- **Status:** ✅ **PASSED** — Build job passed, Service Tests job passed (9/9 tests)
 
 ---
 
@@ -187,10 +191,11 @@ steps:
 
 | File | Summary |
 |------|---------|
-| `.github/workflows/ci.yml` | Postgres service, `test:ci` script, prisma migrate step |
+| `.github/workflows/ci.yml` | Postgres service, `test:ci` script, prisma generate + db push, turbo --force |
 | `apps/api-gateway/src/inventory.spec.ts` | CI-safe tests only (9 tests, no HTTP calls) |
 | `apps/api-gateway/src/api-smoke.spec.ts` | Manual RBAC smoke tests (3 tests, requires server) |
 | `apps/api-gateway/package.json` | Added `test:ci` and `test:api-smoke` scripts |
+| `apps/api-gateway/src/auth/auth.service.ts` | Added `updateProfile` method (was uncommitted, caused TS2339) |
 | `apps/api-gateway/src/products/product.service.ts` | `isActive: true` in `findAll`/`findOne` |
 | `apps/api-gateway/src/stores/store.service.ts` | `isActive: true` in `findAll`, `findOne` rejects deleted/inactive |
 | `apps/api-gateway/src/checkout/checkout.service.ts` | Product/store filters for inactive/deleted |
@@ -199,8 +204,11 @@ steps:
 | `apps/api-gateway/src/upload/upload.controller.ts` | Class-level guards |
 | `apps/api-gateway/src/stores/store.controller.ts` | Pass `req.user` to `updateInventory` |
 | `apps/api-gateway/src/orders/order.service.ts` | Ledger on cancel and delivery |
+| `apps/admin-dashboard/src/components/DashboardLayout.tsx` | STORE_OWNER role support |
+| `apps/admin-dashboard/src/app/(store)/store/*/page.tsx` | Store owner dashboard pages |
 | `packages/database/prisma/schema.prisma` | Schema changes |
 | `packages/database/prisma/migrations/20260628000000_phase1_security_inventory/migration.sql` | Migration |
+| `packages/database/seed.js` | Fixed store owner email to `store@aagam.com` |
 | `apps/api-gateway/jest.config.js` | Jest config |
 | `apps/api-gateway/tsconfig.json` | Excluded spec files |
 
@@ -220,6 +228,6 @@ steps:
 
 ## 12. Known Limitations
 
-- **GitHub Actions verification:** `gh` CLI is not authenticated on this machine, so I cannot provide a direct run URL or pass/fail status. The CI workflow is correctly configured and the push to `phase-1-security-inventory-foundation` should trigger it. To verify: visit `https://github.com/Saikumar-bali/AAGAM_E-commerce/actions` or authenticate `gh` with `gh auth login`.
 - **API smoke tests:** The 3 RBAC tests in `api-smoke.spec.ts` require a running API server on `localhost:3005` and are not included in CI.
 - **Checkout test store resolution:** Uses unique coordinates (`88.888, 88.888`) to ensure `resolveStoreForLocation` picks the test store.
+- **Migration files incomplete:** Existing migration SQL files are out of sync with the Prisma schema (many columns/tables added via `prisma db push` locally were never captured in migrations). CI uses `prisma db push` for the test database instead of `prisma migrate deploy`. Production should run `prisma db push` to sync.
