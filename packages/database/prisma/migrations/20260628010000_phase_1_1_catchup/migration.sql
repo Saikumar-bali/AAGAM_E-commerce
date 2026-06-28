@@ -6,13 +6,11 @@
 -- 1. User: add fcmToken
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fcmToken" TEXT;
 
--- 2. OrderStatus: add missing enum values
--- PostgreSQL 12+ allows ALTER TYPE inside transaction blocks.
--- This migration runs once; duplicate runs will error cleanly.
-ALTER TYPE "OrderStatus" ADD VALUE 'PAYMENT_PENDING';
-ALTER TYPE "OrderStatus" ADD VALUE 'PAYMENT_FAILED';
-ALTER TYPE "OrderStatus" ADD VALUE 'PACKED';
-ALTER TYPE "OrderStatus" ADD VALUE 'RIDER_ASSIGNED';
+-- 2. OrderStatus: add missing enum values (safe to re-run)
+ALTER TYPE "OrderStatus" ADD VALUE IF NOT EXISTS 'PAYMENT_PENDING';
+ALTER TYPE "OrderStatus" ADD VALUE IF NOT EXISTS 'PAYMENT_FAILED';
+ALTER TYPE "OrderStatus" ADD VALUE IF NOT EXISTS 'PACKED';
+ALTER TYPE "OrderStatus" ADD VALUE IF NOT EXISTS 'RIDER_ASSIGNED';
 
 -- 3. Order: add missing columns
 ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "currency" TEXT NOT NULL DEFAULT 'INR';

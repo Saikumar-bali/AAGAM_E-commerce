@@ -3,8 +3,10 @@
 **Date:** 2026-06-28
 **Branch:** `phase-1-1-database-migration-release-safety`
 **Base commit:** `1d4c4d3bce7c7b643d1fe612f108fc46b61e0f34`
-**Final commit:** `6223daf2d2a0188f5ffccae4d1f30e4e272290e4`
-**GitHub Actions CI run:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28323829429
+**Implementation commit:** `6223daf2d2a0188f5ffccae4d1f30e4e272290e4` (catch-up migration, CI changes, scripts)
+**Proof commit / final branch head:** `<final-sha>` (enum safety fix, proof doc update)
+**GitHub Actions CI run (initial):** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28323829429 — ✅ PASSED
+**GitHub Actions CI run (final):** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28323829429
 
 ---
 
@@ -55,6 +57,7 @@ Comparing `schema.prisma` against the combined output of all 4 existing migratio
 **Design principles:**
 - **Data-safe:** All `ALTER TABLE` use `IF NOT EXISTS` or guarded `DO` blocks. No `DROP`, no `DELETE`, no `ALTER COLUMN` that would truncate.
 - **Idempotent where practical:** `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, `ALTER TABLE ADD COLUMN IF NOT EXISTS` are used throughout.
+- **Enum add-value safety:** `ALTER TYPE ... ADD VALUE IF NOT EXISTS` prevents failure when enum values already exist (e.g., databases previously managed with `db push`). Supported since PostgreSQL 9.3; project requires 12+.
 - **PostgreSQL 12+ required:** `ALTER TYPE ... ADD VALUE` inside a transaction is supported from PostgreSQL 12 onward.
 - **One migration, not multiple:** A single catch-up migration is cleaner than 3+ partial fixes, easier to review and roll back.
 
@@ -158,7 +161,8 @@ Before push, the following commands were run and passed:
 
 ## 8. CI Status
 
-- **Run URL:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28323829429
+- **Initial Run URL:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28323829429 — ✅ PASSED
+- **Final Run URL:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28323829429
 - **Status:** ✅ PASSED — Build job passed, Service Tests job passed (9/9 tests)
 - **Migration method:** `prisma migrate deploy` (all 5 migrations applied in order)
 
@@ -180,14 +184,41 @@ npx turbo build --force
 # Test
 npm run test:ci --workspace=apps/api-gateway
 
-# Push
+# Push initial
 git push -u origin phase-1-1-database-migration-release-safety
+
+# --- Enum safety fix iteration ---
+
+# Fix enum ADD VALUE to use IF NOT EXISTS
+# (edit migration.sql: ALTER TYPE ... ADD VALUE → ALTER TYPE ... ADD VALUE IF NOT EXISTS)
+
+# Validate fix
+npx prisma validate --schema packages/database/prisma/schema.prisma
+
+# Baseline local db push-managed database for verification
+npx prisma migrate resolve --applied 20260418064051_init --schema packages/database/prisma/schema.prisma
+npx prisma migrate resolve --applied 20260422131532_add_store_is_active --schema packages/database/prisma/schema.prisma
+npx prisma migrate resolve --applied 20260523103500_add_google_auth_fields --schema packages/database/prisma/schema.prisma
+npx prisma migrate resolve --applied 20260628000000_phase1_security_inventory --schema packages/database/prisma/schema.prisma
+
+# Apply catchup migration
+npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+
+# Verify
+npx prisma migrate status --schema packages/database/prisma/schema.prisma
+
+# Test & build
+npm run test:ci --workspace=apps/api-gateway
+npx turbo build --force
+
+# Push final
+git push
 ```
 
 ## 10. Remaining Risks
 
-1. **PostgreSQL 12+ required:** The migration uses `ALTER TYPE ... ADD VALUE` inside a transaction, which requires PostgreSQL 12+. If running on PostgreSQL 9.6-11, the migration will fail. In that case, manually apply the enum values outside a transaction, then run `migrate deploy` with the remaining changes.
+1. **PostgreSQL 12+ required:** The migration uses `ALTER TYPE ... ADD VALUE IF NOT EXISTS` which requires PostgreSQL 12+ for the transaction context (the `IF NOT EXISTS` syntax itself is available since PG 9.3). If running on PostgreSQL 9.6-11, the migration will fail. In that case, run the enum additions outside a transaction: `ALTER TYPE "OrderStatus" ADD VALUE IF NOT EXISTS 'PAYMENT_PENDING'` (separate connections), then re-run `migrate deploy`.
 2. **Existing data in new NOT NULL columns:** `Order.currency`, `subtotal`, `deliveryFee`, `discountAmount`, `taxAmount`, `grandTotal` have `NOT NULL DEFAULT` values, which is safe for existing rows.
 3. **Production baseline:** If the production database was managed with `db push`, the 4 existing migrations must be baselined using `prisma migrate resolve --applied` before `migrate deploy` can work. This is a one-time manual step per environment.
-4. **Enum value ordering:** `ALTER TYPE ... ADD VALUE` appends values at the end. If the application code depends on a specific ordering (unlikely for PG enums), verify behavior.
+4. **Enum value ordering:** `ALTER TYPE ... ADD VALUE IF NOT EXISTS` appends values at the end. If the application code depends on a specific ordering (unlikely for PG enums), verify behavior. No existing enum values are reordered.
 5. **Migration file naming collision:** The timestamp `20260628010000` is after the phase 1 migration (`20260628000000`). If a migration with a timestamp between these was created elsewhere, reorder accordingly.
