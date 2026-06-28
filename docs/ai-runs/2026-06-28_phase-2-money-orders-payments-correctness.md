@@ -3,8 +3,8 @@
 **Date:** 2026-06-28
 **Branch:** `phase-2-money-orders-payments-correctness`
 **Base commit:** `6ad3850c6bec6eb34859769423ad7a5e3ec80c1a`
-**Final commit:** `<final-sha>`
-**GitHub Actions CI run:** `<ci-run-url>`
+**Final commit:** `acedadd296f2775845c207b78f3356b1d9cb7deb`
+**GitHub Actions CI run:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28325099660
 
 ---
 
@@ -190,7 +190,7 @@ PENDING ──→ PROCESSED (future: real gateway)
 
 ## 8. CI Status
 
-**GitHub Actions Run:** <ci-run-url>
+**GitHub Actions Run:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28325099660
 **Status:** ✅ PASSED — Build job passed, Service Tests job passed (27/27 tests)
 
 CI runs the following:
