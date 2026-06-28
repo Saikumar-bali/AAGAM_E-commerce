@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Res, Get, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Body, Res, Get, Patch, UseGuards, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Response, Request } from 'express';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -71,12 +71,20 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Throttle({ short: { limit: 30, ttl: 1000 }, medium: { limit: 120, ttl: 10000 }, long: { limit: 300, ttl: 60000 } })
   @Get('me')
   async getProfile(@Req() req: any) {
     if (process.env.NODE_ENV === 'development') {
       console.log('[AuthController] /me request received');
     }
     return req.user;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ short: { limit: 5, ttl: 1000 }, medium: { limit: 20, ttl: 10000 }, long: { limit: 60, ttl: 60000 } })
+  @Patch('me')
+  async updateProfile(@Req() req: any, @Body() body: { name?: string }) {
+    return this.authService.updateProfile(req.user.id, { name: body.name });
   }
 
   @Post('logout')

@@ -3,12 +3,12 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  Store, 
-  Package, 
-  Truck, 
-  ShoppingCart, 
+import {
+  LayoutDashboard,
+  Store,
+  Package,
+  Truck,
+  ShoppingCart,
   LogOut,
   User,
   MapPin,
@@ -22,7 +22,7 @@ import { apiClient } from '@aagam/utils';
 import AagamLogo from './AagamLogo';
 
 interface SidebarProps {
-  role: 'ADMIN' | 'RIDER' | 'CUSTOMER';
+  role: 'ADMIN' | 'RIDER' | 'CUSTOMER' | 'STORE_OWNER';
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ role }) => {
@@ -60,6 +60,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
       localStorage.removeItem('user_name');
       localStorage.removeItem('user_email');
       localStorage.removeItem('user_avatar');
+      localStorage.removeItem('access_token');
       router.push('/login');
     }
   };
@@ -86,96 +87,117 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
       { name: 'Reorder', href: '/shop/reorder', icon: RotateCcw },
       { name: 'Account', href: '/shop/account', icon: UserCircle },
     ],
+    STORE_OWNER: [
+      { name: 'Dashboard', href: '/store', icon: LayoutDashboard },
+      { name: 'My Stores', href: '/store/stores', icon: Store },
+      { name: 'Inventory', href: '/store/inventory', icon: Package },
+      { name: 'Orders', href: '/store/orders', icon: ShoppingCart },
+    ],
   };
 
   const currentMenu = menuItems[role] || [];
 
   return (
     <>
-    <aside className="relative z-10 hidden h-screen w-64 flex-col border-r border-white/10 bg-slate-950 text-white shadow-[28px_0_80px_rgba(15,23,42,0.22)] lg:flex">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.22),transparent_20rem),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.16),transparent_18rem)]" />
-      <div className="relative p-6">
-        {role === 'CUSTOMER' ? (
-          <div className="flex items-center gap-3">
-            {profile.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.avatarUrl} alt="Profile" className="h-12 w-12 rounded-2xl border border-white/20 object-cover" />
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-sm font-black text-white">
-                {initials}
-              </div>
-            )}
-            <div>
-              <p className="text-base font-black leading-tight text-white">{profile.name || 'Aagam Customer'}</p>
-              <p className="text-xs font-semibold text-slate-400">{profile.email || 'Customer Portal'}</p>
-            </div>
-          </div>
-        ) : (
-          <AagamLogo inverse label={`${role} portal`} />
-        )}
-        <div className="mt-7 rounded-[1.5rem] border border-white/10 bg-white/8 p-4 backdrop-blur-xl">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Today signal</p>
-          <div className="mt-3 flex items-end justify-between">
-            <div>
-              <p className="text-2xl font-black">98.4%</p>
-              <p className="text-xs font-semibold text-slate-400">Fulfillment health</p>
-            </div>
-            <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-black text-emerald-200">ONLINE</span>
-          </div>
-        </div>
-      </div>
+      {/* Desktop sidebar */}
+      <aside className="relative z-10 hidden h-screen w-[260px] flex-col bg-slate-950 text-white lg:flex">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.18),transparent_18rem),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.1),transparent_16rem)]" />
 
-      <nav className="relative flex-1 px-4 space-y-2">
-        {currentMenu.map((item) => {
+        {/* Header / Profile */}
+        <div className="relative px-5 pt-6 pb-4">
+          {role === 'CUSTOMER' ? (
+            <Link href="/shop/account" className="flex items-center gap-3 rounded-xl p-1.5 -m-1.5 transition-colors hover:bg-white/5">
+              {profile.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profile.avatarUrl} alt="Profile" className="h-11 w-11 rounded-xl border-2 border-white/10 object-cover" />
+              ) : (
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 border-white/10 bg-gradient-to-br from-teal-500/20 to-amber-500/20 text-sm font-black text-white">
+                  {initials}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-white">{profile.name || 'Aagam Customer'}</p>
+                <p className="truncate text-[11px] font-medium text-slate-400">{profile.email || 'Customer Portal'}</p>
+              </div>
+            </Link>
+          ) : (
+            <AagamLogo inverse label={`${role.toLowerCase()} portal`} />
+          )}
+        </div>
+
+        {/* Navigation */}
+        <nav className="relative flex-1 overflow-y-auto px-3">
+          <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Navigation</p>
+          <div className="space-y-0.5">
+            {currentMenu.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all ${
+                    isActive
+                      ? 'bg-white text-slate-950 shadow-lg shadow-black/10'
+                      : 'text-slate-400 hover:bg-white/7 hover:text-white'
+                  }`}
+                >
+                  <span
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition ${
+                      isActive
+                        ? 'bg-teal-600 text-white'
+                        : 'bg-white/5 text-slate-400 group-hover:text-teal-300'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  {item.name}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* Logout */}
+        <div className="relative border-t border-white/5 px-3 py-3">
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-400 transition hover:bg-red-500/10 hover:text-red-300"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5">
+              <LogOut className="h-4 w-4" />
+            </span>
+            Sign out
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile bottom nav */}
+      <nav className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between rounded-2xl border border-white/60 bg-slate-950/95 p-1.5 text-white shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-2xl lg:hidden">
+        {currentMenu.slice(0, 4).map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.name}
               href={item.href}
-              className={`group flex items-center rounded-2xl px-4 py-3 text-sm font-extrabold transition-all ${
-                isActive 
-                  ? 'bg-white text-slate-950 shadow-2xl shadow-teal-950/20' 
-                  : 'text-slate-400 hover:bg-white/10 hover:text-white'
+              className={`flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-bold transition ${
+                isActive ? 'bg-white text-slate-950' : 'text-slate-500 active:bg-white/10'
               }`}
             >
-              <span className={`mr-3 flex h-10 w-10 items-center justify-center rounded-xl transition ${isActive ? 'bg-teal-50 text-teal-700' : 'bg-white/5 text-slate-400 group-hover:text-teal-200'}`}>
-                <Icon className="h-5 w-5" />
-              </span>
-              {item.name}
+              <Icon className="h-4 w-4" />
+              <span className="max-w-full truncate">{item.name}</span>
             </Link>
           );
         })}
-      </nav>
-
-      <div className="relative p-4">
         <button
           onClick={handleLogout}
-          className="flex w-full items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-extrabold text-slate-300 transition hover:border-red-300/30 hover:bg-red-500/10 hover:text-red-200"
+          className="flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-bold text-slate-500 transition active:bg-red-500/15 active:text-red-400"
         >
-          <LogOut className="mr-3 h-5 w-5" />
-          Logout
+          <LogOut className="h-4 w-4" />
+          <span className="max-w-full truncate">Sign out</span>
         </button>
-      </div>
-    </aside>
-    <nav className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-around rounded-[1.5rem] border border-white/70 bg-slate-950/92 p-2 text-white shadow-[0_24px_70px_rgba(15,23,42,0.32)] backdrop-blur-2xl lg:hidden">
-      {currentMenu.slice(0, 4).map((item) => {
-        const Icon = item.icon;
-        const isActive = pathname === item.href;
-        return (
-          <Link
-            key={item.name}
-            href={item.href}
-            className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-black transition ${
-              isActive ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <Icon className="h-5 w-5" />
-            <span className="max-w-full truncate">{item.name}</span>
-          </Link>
-        );
-      })}
-    </nav>
+      </nav>
     </>
   );
 };

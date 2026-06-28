@@ -5,23 +5,21 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
 import {
-  UserCircle, Mail, Calendar, Shield, MapPin, Package, Heart, Tag,
-  LogOut, Loader2, Pencil, Check, X, RotateCcw,
+  UserCircle, Mail, Calendar, Shield, Truck, Star, LogOut, Loader2, Pencil, Check, X,
 } from 'lucide-react';
 
-type UserProfile = {
+type RiderProfile = {
   id: string;
   email: string;
   name: string | null;
   avatarUrl: string | null;
   role: string;
-  emailVerified: boolean;
   createdAt?: string;
 };
 
-export default function AccountPage() {
+export default function RiderProfilePage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<RiderProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
@@ -34,11 +32,6 @@ export default function AccountPage() {
         const res = await apiClient.get('/auth/me');
         setProfile(res.data);
         setNameDraft(res.data.name || '');
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('user_name', res.data.name || '');
-          localStorage.setItem('user_email', res.data.email || '');
-          localStorage.setItem('user_avatar', res.data.avatarUrl || '');
-        }
       } catch {
         router.push('/login');
       } finally {
@@ -79,7 +72,7 @@ export default function AccountPage() {
     }
   };
 
-  const initials = (profile?.name || profile?.email || 'A')
+  const initials = (profile?.name || profile?.email || 'R')
     .split(' ')
     .map((p) => p[0])
     .join('')
@@ -90,17 +83,9 @@ export default function AccountPage() {
     ? new Date(profile.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
     : null;
 
-  const quickLinks = [
-    { label: 'My Orders', icon: Package, href: '/shop/orders', color: 'bg-violet-100 text-violet-700' },
-    { label: 'Addresses', icon: MapPin, href: '/shop/addresses', color: 'bg-teal-100 text-teal-700' },
-    { label: 'Wishlist', icon: Heart, href: '/shop/wishlist', color: 'bg-rose-100 text-rose-700' },
-    { label: 'Deals', icon: Tag, href: '/shop/deals', color: 'bg-amber-100 text-amber-700' },
-    { label: 'Reorder', icon: RotateCcw, href: '/shop/reorder', color: 'bg-sky-100 text-sky-700' },
-  ];
-
   if (loading) {
     return (
-      <DashboardLayout allowedRole="CUSTOMER">
+      <DashboardLayout allowedRole="RIDER">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-7 w-7 animate-spin text-teal-600" />
         </div>
@@ -111,20 +96,15 @@ export default function AccountPage() {
   if (!profile) return null;
 
   return (
-    <DashboardLayout allowedRole="CUSTOMER">
+    <DashboardLayout allowedRole="RIDER">
       <div className="mx-auto max-w-2xl space-y-5">
-        {/* Profile Card */}
         <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-          <div className="h-24 bg-gradient-to-r from-teal-600 to-teal-500" />
+          <div className="h-24 bg-gradient-to-r from-emerald-600 to-emerald-500" />
           <div className="-mt-12 px-6 pb-6">
             <div className="flex items-end gap-4">
               {profile.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={profile.avatarUrl}
-                  alt="Profile"
-                  className="h-20 w-20 rounded-2xl border-4 border-white object-cover shadow-lg"
-                />
+                <img src={profile.avatarUrl} alt="Profile" className="h-20 w-20 rounded-2xl border-4 border-white object-cover shadow-lg" />
               ) : (
                 <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border-4 border-white bg-slate-950 text-2xl font-black text-white shadow-lg">
                   {initials}
@@ -135,7 +115,6 @@ export default function AccountPage() {
               </div>
             </div>
 
-            {/* Name */}
             <div className="mt-5">
               {editingName ? (
                 <div className="flex items-center gap-2">
@@ -175,7 +154,6 @@ export default function AccountPage() {
               {error && <p className="mt-2 text-xs font-bold text-red-600">{error}</p>}
             </div>
 
-            {/* Info rows */}
             <div className="mt-5 space-y-3">
               <div className="flex items-center gap-3 text-sm">
                 <span className="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-slate-500">
@@ -210,26 +188,6 @@ export default function AccountPage() {
           </div>
         </div>
 
-        {/* Quick Links */}
-        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-          <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">Quick links</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {quickLinks.map((link) => (
-              <button
-                key={link.label}
-                onClick={() => router.push(link.href)}
-                className="flex items-center gap-3 rounded-xl border border-slate-100 p-3 text-left transition hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-sm"
-              >
-                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${link.color}`}>
-                  <link.icon className="h-4 w-4" />
-                </span>
-                <span className="text-sm font-bold text-slate-900">{link.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Logout */}
         <button
           onClick={handleLogout}
           className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm font-bold text-red-700 transition hover:bg-red-100"

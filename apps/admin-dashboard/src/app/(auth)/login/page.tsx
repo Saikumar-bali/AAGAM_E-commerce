@@ -26,14 +26,18 @@ export default function LoginPage() {
   const routeByRole = (role: string) => {
     if (role === 'ADMIN') router.push('/admin');
     else if (role === 'RIDER') router.push('/rider');
+    else if (role === 'STORE_OWNER') router.push('/store');
     else router.push('/shop');
   };
 
-  const persistUserContext = (user: any) => {
+  const persistUserContext = (user: any, token?: string) => {
     localStorage.setItem('user_role', user.role);
     localStorage.setItem('user_name', user.name || '');
     localStorage.setItem('user_email', user.email || '');
     localStorage.setItem('user_avatar', user.avatarUrl || '');
+    if (token) {
+      localStorage.setItem('access_token', token);
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -43,8 +47,8 @@ export default function LoginPage() {
 
     try {
       const response = await apiClient.post('/auth/login', { email, password });
-      const { user } = response.data;
-      persistUserContext(user);
+      const { user, access_token } = response.data;
+      persistUserContext(user, access_token);
       routeByRole(user.role);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid credentials');
@@ -64,8 +68,8 @@ export default function LoginPage() {
       setGoogleLoading(true);
       try {
         const result = await apiClient.post('/auth/google', { idToken: response.credential });
-        const { user } = result.data;
-        persistUserContext(user);
+        const { user, access_token } = result.data;
+        persistUserContext(user, access_token);
         routeByRole(user.role);
       } catch (err: any) {
         setError(err.response?.data?.message || 'Google sign-in failed');
