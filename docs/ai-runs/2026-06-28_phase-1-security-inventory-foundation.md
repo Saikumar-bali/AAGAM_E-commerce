@@ -3,7 +3,7 @@
 **Date:** 2026-06-28
 **Branch:** `phase-1-security-inventory-foundation`
 **Base commit:** `9613392b92348d0bd0cc7bc9d1c14292160588c2`
-**Final commit:** `44d7b9f`
+**Final commit:** `06234f6`
 **GitHub PR:** https://github.com/Saikumar-bali/AAGAM_E-commerce/pull/new/phase-1-security-inventory-foundation
 
 ---
@@ -20,8 +20,6 @@
 | Audit ledger | `InventoryLedger` | New table with `storeId`, `productId`, `orderId`, `reason`, `quantityDelta`, `previousQuantity`, `newQuantity`, `actorUserId`, `note` |
 | Enum | `InventoryAdjustmentReason` | `MANUAL_ADJUSTMENT`, `CHECKOUT_RESERVATION`, `ORDER_CANCEL_RESTORE`, `ORDER_DELIVERED_FINALIZE`, `STOCK_CORRECTION` |
 
-**Prisma Client regenerated.** Verified `npx prisma generate` succeeds.
-
 ---
 
 ## 2. RBAC Guard Fixes
@@ -33,13 +31,14 @@
 | `PATCH /riders/:id/status` | `JwtAuthGuard` only | `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles(ADMIN)` | `rider.controller.ts:43` |
 | `POST /upload/image` | **No guards at all** | `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles(ADMIN, STORE_OWNER)` at class level | `upload.controller.ts:10` |
 
-**API proof (masked tokens):**
+**Manual API proof (local only):**
 ```
 GET /auth/users without token → 401
 GET /auth/users with customer token (***@aagam.com) → 403
 GET /auth/users with admin token (***@aagam.com) → 200
 POST /upload/image without token → 401
 ```
+These are in `api-smoke.spec.ts` and require a running API server.
 
 ---
 
@@ -55,27 +54,21 @@ async updateInventory(storeId, productId, quantity, actor?) {
       throw new ForbiddenException('You can only update inventory for your own stores');
     }
   }
-  // ... upsert + ledger
 }
 ```
 
-**Test proof:** Store-owner for Store A cannot update inventory for Store B → throws `ForbiddenException`.
-
 ---
 
-## 4. Soft Delete
+## 4. Soft Delete & Public Filtering
 
 | Method | Filter |
 |--------|--------|
 | `ProductService.findAll()` | `{ deletedAt: null, isActive: true }` |
-| `ProductService.findOne()` | `{ id, deletedAt: null, isActive: true }` |
+| `ProductService.findOne()` | `{ id, deletedAt: null, isActive: true }` — throws NotFoundException |
 | `ProductService.delete()` | `update({ deletedAt: new Date(), isActive: false })` |
 | `StoreService.findAll()` | `{ deletedAt: null, isActive: true }` |
-| `StoreService.findByOwnerId()` | `{ ownerId, deletedAt: null }` |
-| `StoreService.findOne()` | `{ id, deletedAt: null, isActive: true }` — throws `NotFoundException` if not found |
+| `StoreService.findOne()` | `{ id, deletedAt: null, isActive: true }` — throws NotFoundException |
 | `StoreService.delete()` | `update({ deletedAt: new Date(), isActive: false })` |
-
-**Test proof:** Soft-deleted product excluded from `findAll()`; soft-deleted store excluded from `findAll()`; historical orders preserved after store soft delete.
 
 ---
 
@@ -87,32 +80,26 @@ async updateInventory(storeId, productId, quantity, actor?) {
 | `CheckoutService.quote()` product lookup | `deletedAt: null, isActive: true` |
 | `CheckoutService.quote()` fallback store | `isActive: true, deletedAt: null` |
 
-**Result:** Requesting inactive/deleted products returns `BadRequestException: Missing or unavailable products`.
-
 ---
 
 ## 6. Inventory Ledger Integration
 
 | Event | Reason | Where |
 |-------|--------|-------|
-| Admin/store-owner manually updates stock | `MANUAL_ADJUSTMENT` | `store.service.ts:updateInventory` (inside `$transaction`) |
-| Customer places order (inventory decrement) | `CHECKOUT_RESERVATION` | `checkout.service.ts:placeOrder` (inside `$transaction`, linked to orderId after creation) |
-| Customer cancels order (inventory restore) | `ORDER_CANCEL_RESTORE` | `order.service.ts:cancelMyOrder` (inside `$transaction`) |
-| Order marked DELIVERED | `ORDER_DELIVERED_FINALIZE` | `order.service.ts:updateStatus` (inside `$transaction`) |
+| Manual stock update | `MANUAL_ADJUSTMENT` | `store.service.ts:updateInventory` |
+| Checkout reservation | `CHECKOUT_RESERVATION` | `checkout.service.ts:placeOrder` |
+| Order cancellation restore | `ORDER_CANCEL_RESTORE` | `order.service.ts:cancelMyOrder` |
+| Order delivered finalize | `ORDER_DELIVERED_FINALIZE` | `order.service.ts:updateStatus` |
 
 ---
 
-## 7. Tests
+## 7. Test Split
 
-**File:** `apps/api-gateway/src/inventory.spec.ts`
-**Framework:** Jest + ts-jest (12/12 passing)
+### CI-Safe Tests (`inventory.spec.ts` — 9 tests)
+
+Run in CI with `npm run test:ci`. Uses Prisma directly against a Postgres database.
 
 ```
-Phase 1: RBAC Guards
-  ✓ GET /auth/users should require authentication (no token = rejected)
-  ✓ GET /riders/:id should require admin role (customer token = rejected)
-  ✓ GET /upload/image should require authentication
-
 Phase 1: Soft Delete
   ✓ Soft-deleted product should not appear in findAll
   ✓ Soft-deleted store should not appear in store findAll
@@ -130,11 +117,20 @@ Phase 1: Store Soft Delete Preserves Orders
 
 Phase 1: Checkout Inventory and Ledger
   ✓ Checkout should decrement inventory and create ledger entry
-    (calls CheckoutService.placeOrder() with mocked TrackingGateway/NotificationService)
-    (verifies: order created, inventory decremented, ledger.orderId matches, delta correct)
 
 Phase 1: Cancellation Inventory Restore and Ledger
   ✓ Cancellation should restore inventory and create ledger entry
+```
+
+### Manual Smoke Tests (`api-smoke.spec.ts` — 3 tests)
+
+Run locally with `npm run test:api-smoke`. Requires running API server on `localhost:3005`.
+
+```
+Phase 1: RBAC API Smoke Tests (manual)
+  ✓ GET /auth/users should require authentication
+  ✓ GET /riders/:id should require admin role
+  ✓ GET /upload/image should require authentication
 ```
 
 ---
@@ -142,31 +138,46 @@ Phase 1: Cancellation Inventory Restore and Ledger
 ## 8. CI / GitHub Actions
 
 **Workflow:** `.github/workflows/ci.yml`
-**Change:** Updated push trigger to include `phase-*` branches; added test step.
+
+### Configuration
+
+- **Trigger:** Push to `main` or `phase-*` branches, PRs to `main`
+- **Jobs:**
+  1. `build` — Installs deps, runs `npx turbo build`
+  2. `test` — Runs after `build`, with Postgres 16 service, runs `npm run test:ci`
+
+### CI Architecture
 
 ```yaml
-on:
-  push:
-    branches: ["main", "phase-*"]
-  pull_request:
-    branches: ["main"]
+services:
+  postgres:
+    image: postgres:16
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: aagam_ecom_test
+
+steps:
+  - Run Prisma migrations
+  - Run CI-safe tests (service-level, no HTTP calls)
 ```
 
-**CI Run:** Triggered by push to `phase-1-security-inventory-foundation` (SHA `44d7b9f`).
-**Status:** The push to the `phase-*` branch triggers the CI workflow automatically per the updated trigger config. The workflow runs `npx turbo build` and `npm test --workspace=apps/api-gateway`.
+### CI Run
 
-**Note:** `gh` CLI is not authenticated on this machine, so a PR could not be created via CLI. The CI workflow triggers on direct push to `phase-*` branches, which was already done.
+- **Triggered by:** Push to `phase-1-security-inventory-foundation` (SHA `06234f6`)
+- **Expected URL:** `https://github.com/Saikumar-bali/AAGAM_E-commerce/actions` (branch: `phase-1-security-inventory-foundation`)
+- **Status:** CI workflow is correctly configured and triggered. Actual run status requires GitHub auth to verify (see Known Limitations).
 
 ---
 
-## 9. Commands Run
+## 9. Commands Run Locally
 
 | Command | Result |
 |---------|--------|
 | `npm run build --workspace=apps/api-gateway` | ✅ Pass |
-| `npm test --workspace=apps/api-gateway` | ✅ 12/12 pass |
-| `npx prisma generate --schema packages/database/prisma/schema.prisma` | ✅ Pass |
-| `npx prisma db execute --file .../migration.sql` | ✅ Pass |
+| `npm run test:ci --workspace=apps/api-gateway` | ✅ 9/9 pass |
+| `npm run test:api-smoke --workspace=apps/api-gateway` | ✅ 3/3 pass (requires running server) |
+| `npx prisma generate` | ✅ Pass |
 | `npx turbo build` | ✅ 7/7 tasks pass |
 | `git push origin phase-1-security-inventory-foundation` | ✅ Pass |
 
@@ -176,21 +187,22 @@ on:
 
 | File | Summary |
 |------|---------|
-| `.github/workflows/ci.yml` | Added `phase-*` push trigger, added test step |
-| `packages/database/prisma/schema.prisma` | `deletedAt` on Store/Product, `isActive` on Product, `InventoryLedger` model |
-| `packages/database/prisma/migrations/20260628000000_phase1_security_inventory/migration.sql` | Migration SQL |
+| `.github/workflows/ci.yml` | Postgres service, `test:ci` script, prisma migrate step |
+| `apps/api-gateway/src/inventory.spec.ts` | CI-safe tests only (9 tests, no HTTP calls) |
+| `apps/api-gateway/src/api-smoke.spec.ts` | Manual RBAC smoke tests (3 tests, requires server) |
+| `apps/api-gateway/package.json` | Added `test:ci` and `test:api-smoke` scripts |
+| `apps/api-gateway/src/products/product.service.ts` | `isActive: true` in `findAll`/`findOne` |
+| `apps/api-gateway/src/stores/store.service.ts` | `isActive: true` in `findAll`, `findOne` rejects deleted/inactive |
+| `apps/api-gateway/src/checkout/checkout.service.ts` | Product/store filters for inactive/deleted |
 | `apps/api-gateway/src/auth/auth.controller.ts` | Guards on `GET /auth/users` |
-| `apps/api-gateway/src/riders/rider.controller.ts` | `RolesGuard` on `GET /riders/:id`, `PATCH /riders/:id/status` |
-| `apps/api-gateway/src/upload/upload.controller.ts` | Class-level `JwtAuthGuard` + `RolesGuard` |
+| `apps/api-gateway/src/riders/rider.controller.ts` | `RolesGuard` on rider routes |
+| `apps/api-gateway/src/upload/upload.controller.ts` | Class-level guards |
 | `apps/api-gateway/src/stores/store.controller.ts` | Pass `req.user` to `updateInventory` |
-| `apps/api-gateway/src/stores/store.service.ts` | Tenancy check, soft delete, `isActive` filter, `findOne` throws on deleted/inactive |
-| `apps/api-gateway/src/products/product.service.ts` | `isActive: true` in `findAll`/`findOne`, soft delete |
 | `apps/api-gateway/src/orders/order.service.ts` | Ledger on cancel and delivery |
-| `apps/api-gateway/src/checkout/checkout.service.ts` | Ledger on checkout, `isActive`+`deletedAt` filter on products and stores |
-| `apps/api-gateway/src/inventory.spec.ts` | 12 tests including CheckoutService.placeOrder() integration |
+| `packages/database/prisma/schema.prisma` | Schema changes |
+| `packages/database/prisma/migrations/20260628000000_phase1_security_inventory/migration.sql` | Migration |
 | `apps/api-gateway/jest.config.js` | Jest config |
-| `apps/api-gateway/package.json` | Test script, devDependencies |
-| `apps/api-gateway/tsconfig.json` | Excluded spec files from build |
+| `apps/api-gateway/tsconfig.json` | Excluded spec files |
 
 ---
 
@@ -208,6 +220,6 @@ on:
 
 ## 12. Known Limitations
 
-- **GitHub CLI auth:** `gh` is installed but not authenticated, so a PR could not be created via CLI. The CI workflow triggers on direct push to `phase-*` branches.
+- **GitHub Actions verification:** `gh` CLI is not authenticated on this machine, so I cannot provide a direct run URL or pass/fail status. The CI workflow is correctly configured and the push to `phase-1-security-inventory-foundation` should trigger it. To verify: visit `https://github.com/Saikumar-bali/AAGAM_E-commerce/actions` or authenticate `gh` with `gh auth login`.
+- **API smoke tests:** The 3 RBAC tests in `api-smoke.spec.ts` require a running API server on `localhost:3005` and are not included in CI.
 - **Checkout test store resolution:** Uses unique coordinates (`88.888, 88.888`) to ensure `resolveStoreForLocation` picks the test store.
-- **No E2E tests:** RBAC tests are HTTP-level integration tests against a running API server.
