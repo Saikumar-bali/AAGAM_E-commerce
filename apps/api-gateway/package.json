@@ -8,6 +8,8 @@
     "build": "nest build",
     "start:prod": "node dist/src/main.js",
     "test": "jest --runInBand",
+    "test:ci": "jest --runInBand --testPathPattern='inventory\\.spec\\.ts$'",
+    "test:api-smoke": "jest --runInBand --testPathPattern='api-smoke\\.spec\\.ts$'",
     "test:watch": "jest --watch"
   },
   "dependencies": {

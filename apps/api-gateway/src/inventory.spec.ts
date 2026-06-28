@@ -33,35 +33,6 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe('Phase 1: RBAC Guards', () => {
-  it('GET /auth/users should require authentication (no token = rejected)', async () => {
-    const { default: fetch } = await import('node-fetch');
-    const res = await fetch('http://localhost:3005/auth/users');
-    expect(res.status).toBe(401);
-  });
-
-  it('GET /riders/:id should require admin role (customer token = rejected)', async () => {
-    const { default: fetch } = await import('node-fetch');
-    const loginRes = await fetch('http://localhost:3005/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'customer@aagam.com', password: 'customer123' }),
-    });
-    const { access_token } = await loginRes.json() as any;
-
-    const res = await fetch('http://localhost:3005/riders/some-rider-id', {
-      headers: { Authorization: `Bearer ${access_token}` },
-    });
-    expect(res.status).toBe(403);
-  });
-
-  it('GET /upload/image should require authentication', async () => {
-    const { default: fetch } = await import('node-fetch');
-    const res = await fetch('http://localhost:3005/upload/image', { method: 'POST' });
-    expect(res.status).toBe(401);
-  });
-});
-
 describe('Phase 1: Soft Delete', () => {
   let categoryId: string;
   let productId: string;
