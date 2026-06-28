@@ -6,9 +6,9 @@
 |-------|-------|
 | Branch | `phase-3-order-lifecycle-store-rider-hardening` |
 | Base commit | `a2c449b` |
-| Final commit | `eae7d6e` |
-| CI run URL | N/A (no CI triggered yet) |
-| CI status | Build+tests pass locally |
+| Final commit | `8a38882` |
+| CI run URL | https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28326812323 |
+| CI status | ✅ **PASSED** |
 
 ## State Machine Summary
 
@@ -133,6 +133,21 @@ On `DELIVERED` transition, `OrderStatusHistory.metadata` stores:
 }
 ```
 No schema migration required — uses existing `OrderStatusHistory.metadata` JSON field.
+
+## CI Results
+
+| Job | Status | Duration |
+|-----|--------|----------|
+| Build (`npx turbo build --force`) | ✅ **PASSED** | 1m 38s |
+| Service Tests | ✅ **PASSED** | 1m 43s |
+| ├─ prisma validate | ✅ passed | — |
+| ├─ prisma migrate deploy | ✅ passed | — |
+| ├─ prisma migrate status | ✅ passed | — |
+| └─ npm run test:ci (inventory\|payments\|orders) | ✅ **72 tests passed** | — |
+
+**Run URL:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28326812323
+
+**Note:** Node.js 20 deprecation warnings are non-blocking annotations from GitHub Actions.
 
 ## Known Limitations
 

@@ -34,9 +34,24 @@ PASS src/inventory.spec.ts    (all passed)
 ```
 ff0afce feat: harden order lifecycle with role-based state machine, rider ops, delivery proof, admin force-cancel
 eae7d6e fix: reassignRider sets order.status=RIDER_ASSIGNED and checks active-order conflict
+8a38882 docs: update proof files with final SHA eae7d6e
+8a38882 (pending) docs: add CI run URL and results
 ```
 
 Branch: `phase-3-order-lifecycle-store-rider-hardening`
+
+## CI
+
+| Job | Status |
+|-----|--------|
+| Build | ✅ **PASSED** (1m 38s) |
+| Service Tests | ✅ **PASSED** (1m 43s) |
+| ├─ prisma validate | ✅ |
+| ├─ prisma migrate deploy | ✅ |
+| ├─ prisma migrate status | ✅ |
+| └─ npm run test:ci | ✅ **72 tests passed** |
+
+**Run URL:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28326812323
 
 ## Key Design Decisions
 
