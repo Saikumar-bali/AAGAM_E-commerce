@@ -76,8 +76,11 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate --schema packages/database/prisma/schema.prisma
 
-      - name: Build @aagam/database package
-        run: npx tsc --project packages/database/tsconfig.json
+      - name: Build workspace packages for tests
+        run: |
+          npx tsc --project packages/types/tsconfig.json
+          npx tsc --project packages/utils/tsconfig.json
+          npx tsc --project packages/database/tsconfig.json
 
       - name: Push schema to test database
         run: npx prisma db push --schema packages/database/prisma/schema.prisma

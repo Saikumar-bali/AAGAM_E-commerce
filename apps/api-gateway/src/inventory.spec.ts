@@ -64,13 +64,20 @@ describe('Phase 1: Soft Delete', () => {
     const cacheManager = { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn() };
     const service = new ProductService(cacheManager as any);
 
+    const existingProduct = await prisma.product.findUnique({ where: { id: productId } });
+    expect(existingProduct).not.toBeNull();
+    expect(existingProduct!.isActive).toBe(true);
+    expect(existingProduct!.deletedAt).toBeNull();
+
     let result = await service.findAll({});
+    expect(Array.isArray(result)).toBe(true);
     const found = (result as any[]).find((p: any) => p.id === productId);
     expect(found).toBeDefined();
 
     await prisma.product.update({ where: { id: productId }, data: { deletedAt: new Date(), isActive: false } });
 
     result = await service.findAll({});
+    expect(Array.isArray(result)).toBe(true);
     const foundAfter = (result as any[]).find((p: any) => p.id === productId);
     expect(foundAfter).toBeUndefined();
 
