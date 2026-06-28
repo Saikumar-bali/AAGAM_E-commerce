@@ -79,8 +79,8 @@ jobs:
       - name: Build @aagam/database package
         run: npx tsc --project packages/database/tsconfig.json
 
-      - name: Run Prisma Migrations
-        run: npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+      - name: Push schema to test database
+        run: npx prisma db push --schema packages/database/prisma/schema.prisma
 
       - name: Run CI-safe tests
         run: npm run test:ci --workspace=apps/api-gateway
