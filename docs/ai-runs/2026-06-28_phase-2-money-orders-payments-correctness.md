@@ -3,8 +3,8 @@
 **Date:** 2026-06-28
 **Branch:** `phase-2-money-orders-payments-correctness`
 **Base commit:** `6ad3850c6bec6eb34859769423ad7a5e3ec80c1a`
-**Final commit:** `<pending-commit>`
-**GitHub Actions CI run:** `<pending-ci-run>`
+**Final commit:** `2c58327b8f2a35f530b7e4b1b4c80c21d1e9b2b2`
+**GitHub Actions CI run:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28325625321
 
 ---
 
@@ -214,7 +214,7 @@ This service is used by:
 
 ## 8. CI Status
 
-**GitHub Actions Run:** `<pending-ci-run>`
+**GitHub Actions Run:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28325625321
 **Status:** ✅ PASSED — Build job passed, Service Tests job passed (29/29 tests)
 
 CI runs the following:
