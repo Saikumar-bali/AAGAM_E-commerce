@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { Role } from '@aagam/database';
 
@@ -25,6 +25,11 @@ export class PaymentsController {
   async fail(@Req() req: Request, @Body() dto: SimulatedPaymentDto) {
     const userId = (req as any).user?.id as string;
     return this.paymentsService.failSimulatedPayment(userId, dto.orderId);
+  }
+
+  @Get(':orderId')
+  async getPayment(@Req() req: Request, @Param('orderId') orderId: string) {
+    return this.paymentsService.getPaymentByOrder(orderId);
   }
 }
 

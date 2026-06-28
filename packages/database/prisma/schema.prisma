@@ -63,6 +63,7 @@ model Product {
   name        String
   description String?
   price       Float
+  pricePaise  Int       @default(0)
   image       String?
   isActive    Boolean   @default(true)
   deletedAt   DateTime?
@@ -102,6 +103,11 @@ model Order {
   discountAmount Float    @default(0)
   taxAmount   Float       @default(0)
   grandTotal  Float       @default(0)
+  subtotalPaise    Int    @default(0)
+  deliveryFeePaise Int    @default(0)
+  discountPaise    Int    @default(0)
+  taxPaise         Int    @default(0)
+  grandTotalPaise  Int    @default(0)
   deliveryLat Float?
   deliveryLng Float?
   idempotencyKey String?  @unique
@@ -124,18 +130,21 @@ model Order {
 
   items OrderItem[]
   payment Payment?
+  refunds Refund[]
   statusHistory OrderStatusHistory[]
   riderLocationPings RiderLocationPing[]
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  productId String
-  quantity  Int
-  price     Float
-  order     Order   @relation(fields: [orderId], references: [id])
-  product   Product @relation(fields: [productId], references: [id])
+  id             String  @id @default(cuid())
+  orderId        String
+  productId      String
+  quantity       Int
+  price          Float
+  unitPricePaise Int     @default(0)
+  lineTotalPaise Int     @default(0)
+  order          Order   @relation(fields: [orderId], references: [id])
+  product        Product @relation(fields: [productId], references: [id])
 }
 
 model RiderProfile {
@@ -233,6 +242,8 @@ enum PaymentStatus {
   CAPTURED
   FAILED
   PENDING_COD
+  REFUND_PENDING
+  REFUNDED
 }
 
 model Payment {
@@ -245,15 +256,49 @@ model Payment {
   provider  String        @default("SIMULATED")
 
   amount    Float
+  amountPaise Int         @default(0)
   currency  String        @default("INR")
+
+  idempotencyKey String?  @unique
 
   providerOrderId  String?
   providerPaymentId String?
   verifiedAt DateTime?
   failureReason String?
 
+  refunds Refund[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+model Refund {
+  id               String       @id @default(cuid())
+  orderId          String
+  order            Order        @relation(fields: [orderId], references: [id])
+  paymentId        String
+  payment          Payment      @relation(fields: [paymentId], references: [id])
+
+  amountPaise      Int
+  status           RefundStatus @default(PENDING)
+  reason           String
+
+  providerRefundId String?
+
+  requestedByUserId String?
+  processedAt      DateTime?
+
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([orderId])
+  @@index([paymentId])
 }
 
 enum RiderStatus {

@@ -1,21 +1,31 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { PaymentMethod, PaymentStatus, prisma } from '@aagam/database';
+import { PaymentMethod, PaymentStatus, RefundStatus, prisma } from '@aagam/database';
 
 @Injectable()
 export class PaymentsService {
   async captureSimulatedPayment(userId: string, orderId: string) {
-    const order = await prisma.order.findUnique({ where: { id: orderId }, select: { id: true, customerId: true, status: true } });
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, customerId: true, status: true, grandTotalPaise: true },
+    });
     if (!order) throw new NotFoundException('Order not found');
     if (order.customerId !== userId) throw new ForbiddenException('Not allowed');
 
     const payment = await prisma.payment.findUnique({ where: { orderId } });
     if (!payment) throw new NotFoundException('Payment not found');
     if (payment.method !== PaymentMethod.ONLINE) throw new BadRequestException('Only online payments can be captured');
+
+    // Idempotency: already captured
     if (payment.status === PaymentStatus.CAPTURED) {
       return { success: true, status: PaymentStatus.CAPTURED };
     }
     if (payment.status !== PaymentStatus.CREATED || order.status !== 'PAYMENT_PENDING') {
       throw new BadRequestException('Payment is not awaiting capture');
+    }
+
+    // Validate payment amount matches order amount
+    if (payment.amountPaise !== order.grandTotalPaise) {
+      throw new BadRequestException(`Payment amount (${payment.amountPaise} paise) does not match order total (${order.grandTotalPaise} paise)`);
     }
 
     await prisma.$transaction(async (tx) => {
@@ -50,6 +60,8 @@ export class PaymentsService {
     const payment = await prisma.payment.findUnique({ where: { orderId } });
     if (!payment) throw new NotFoundException('Payment not found');
     if (payment.method !== PaymentMethod.ONLINE) throw new BadRequestException('Only online payments can fail through this endpoint');
+
+    // Idempotency: already failed
     if (payment.status === PaymentStatus.FAILED) {
       return { success: true, status: PaymentStatus.FAILED };
     }
@@ -79,5 +91,22 @@ export class PaymentsService {
     });
 
     return { success: true, status: PaymentStatus.FAILED };
+  }
+
+  async getPaymentByOrder(orderId: string) {
+    const payment = await prisma.payment.findUnique({
+      where: { orderId },
+      include: { refunds: true },
+    });
+    if (!payment) throw new NotFoundException('Payment not found');
+    return payment;
+  }
+
+  async getTotalCapturedPaise(paymentId: string): Promise<number> {
+    const refunds = await prisma.refund.findMany({
+      where: { paymentId, status: RefundStatus.PROCESSED },
+      select: { amountPaise: true },
+    });
+    return refunds.reduce((sum, r) => sum + r.amountPaise, 0);
   }
 }

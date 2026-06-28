@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus, Role, prisma } from '@aagam/database';
+import { OrderStatus, PaymentMethod, PaymentStatus, RefundStatus, Role, prisma } from '@aagam/database';
 import { TrackingGateway } from '../tracking.gateway';
 
 const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -592,7 +592,7 @@ export class OrderService {
   async cancelMyOrder(userId: string, orderId: string) {
     const order = await prisma.order.findFirst({
       where: { id: orderId, customerId: userId },
-      include: { items: true },
+      include: { items: true, payment: true },
     });
     if (!order) throw new NotFoundException('Order not found');
 
@@ -626,6 +626,30 @@ export class OrderService {
             note: `Cancelled order ${order.id}: restored ${item.quantity} units`,
           },
         });
+      }
+
+      // Handle payment/refund for cancellation
+      if (order.payment) {
+        if (order.payment.status === PaymentStatus.CAPTURED) {
+          // Create refund record for captured payment
+          await tx.payment.update({
+            where: { id: order.payment.id },
+            data: { status: PaymentStatus.REFUND_PENDING as any },
+          });
+          await tx.refund.create({
+            data: {
+              orderId: order.id,
+              paymentId: order.payment.id,
+              amountPaise: order.grandTotalPaise,
+              status: RefundStatus.PENDING,
+              reason: 'Order cancelled after payment captured',
+              requestedByUserId: userId,
+            },
+          });
+        } else if (order.payment.status === PaymentStatus.PENDING_COD) {
+          // COD cancellation: no refund needed
+        }
+        // FAILED payment: no refund needed
       }
 
       const updated = await tx.order.update({

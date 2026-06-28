@@ -76,7 +76,7 @@ export class CheckoutService {
     const productIds = normalizedItems.map((i) => i.productId);
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, deletedAt: null, isActive: true },
-      select: { id: true, name: true, price: true, image: true },
+      select: { id: true, name: true, price: true, pricePaise: true, image: true },
     });
     const byId = new Map(products.map((p) => [p.id, p]));
 
@@ -123,6 +123,8 @@ export class CheckoutService {
       const inStock = availableQty === null ? true : availableQty >= i.quantity;
       const unitPrice = Number(p.price) || 0;
       const lineTotal = unitPrice * i.quantity;
+      const unitPricePaise = p.pricePaise || Math.round(unitPrice * 100);
+      const lineTotalPaise = unitPricePaise * i.quantity;
 
       return {
         productId: p.id,
@@ -131,12 +133,17 @@ export class CheckoutService {
         quantity: i.quantity,
         unitPrice,
         lineTotal,
+        unitPricePaise,
+        lineTotalPaise,
         inStock,
         availableQty,
       };
     });
 
     const subtotal = items.reduce((sum, it) => sum + it.lineTotal, 0);
+    const subtotalPaise = items.reduce((sum, it) => sum + it.lineTotalPaise, 0);
+    const deliveryFeePaise = Math.round(deliveryFee * 100);
+    const grandTotalPaise = subtotalPaise + deliveryFeePaise;
     const grandTotal = subtotal + deliveryFee;
 
     return {
@@ -147,10 +154,15 @@ export class CheckoutService {
       invoice: {
         items,
         subtotal,
+        subtotalPaise,
         deliveryFee,
+        deliveryFeePaise,
         discountAmount: 0,
+        discountPaise: 0,
         taxAmount: 0,
+        taxPaise: 0,
         grandTotal,
+        grandTotalPaise,
       },
     };
   }
@@ -170,10 +182,34 @@ export class CheckoutService {
       }
     }
 
+    // Validate quantities: must be positive integers
+    for (const item of dto.items) {
+      if (!Number.isInteger(item.quantity) || item.quantity < 1) {
+        throw new BadRequestException(`Invalid quantity for product ${item.productId}: must be a positive integer`);
+      }
+    }
+
     const normalizedItems = normalizeItems(dto.items);
     const quote = await this.quote(userId, { items: normalizedItems, addressId: dto.addressId });
     if (!quote.serviceable) {
       throw new BadRequestException('Address is not serviceable');
+    }
+
+    // Validate grand total calculation
+    const computedGrandTotalPaise = quote.invoice.subtotalPaise + quote.invoice.deliveryFeePaise + quote.invoice.taxPaise - quote.invoice.discountPaise;
+    if (computedGrandTotalPaise !== quote.invoice.grandTotalPaise) {
+      throw new Error('Grand total mismatch in pricing');
+    }
+    if (quote.invoice.grandTotalPaise < 0) {
+      throw new BadRequestException('Grand total cannot be negative');
+    }
+
+    // Validate line totals
+    for (const item of quote.invoice.items) {
+      const expectedLineTotalPaise = item.unitPricePaise * item.quantity;
+      if (expectedLineTotalPaise !== item.lineTotalPaise) {
+        throw new Error(`Line total mismatch for ${item.name}`);
+      }
     }
 
     const outOfStock = quote.invoice.items.filter((i) => i.inStock === false);
@@ -193,12 +229,35 @@ export class CheckoutService {
     const orderStatus = dto.paymentMethod === PaymentMethod.COD ? 'CONFIRMED' : 'PAYMENT_PENDING';
     const paymentStatus = dto.paymentMethod === PaymentMethod.COD ? PaymentStatus.PENDING_COD : PaymentStatus.CREATED;
 
+    const pricingSnapshot = {
+      items: quote.invoice.items.map((it) => ({
+        productId: it.productId,
+        productName: it.name,
+        quantity: it.quantity,
+        unitPricePaise: it.unitPricePaise,
+        lineTotalPaise: it.lineTotalPaise,
+      })),
+      subtotalPaise: quote.invoice.subtotalPaise,
+      deliveryFeePaise: quote.invoice.deliveryFeePaise,
+      discountPaise: quote.invoice.discountPaise,
+      taxPaise: quote.invoice.taxPaise,
+      grandTotalPaise: quote.invoice.grandTotalPaise,
+      currency: 'INR',
+      paymentMethod: dto.paymentMethod,
+      calculatedAt: new Date().toISOString(),
+    };
+
     return prisma.$transaction(async (tx) => {
       for (const item of quote.invoice.items) {
         const existing = await tx.inventory.findUnique({
           where: { storeId_productId: { storeId, productId: item.productId } },
         });
         const previousQuantity = existing?.quantity ?? 0;
+
+        // Check inventory has enough stock
+        if ((existing?.quantity ?? 0) < item.quantity) {
+          throw new BadRequestException(`Insufficient inventory for ${item.name}: only ${existing?.quantity ?? 0} available`);
+        }
 
         const reserved = await tx.inventory.updateMany({
           where: {
@@ -245,6 +304,11 @@ export class CheckoutService {
           discountAmount: 0,
           taxAmount: 0,
           grandTotal: quote.invoice.grandTotal,
+          subtotalPaise: quote.invoice.subtotalPaise,
+          deliveryFeePaise: quote.invoice.deliveryFeePaise,
+          discountPaise: 0,
+          taxPaise: 0,
+          grandTotalPaise: quote.invoice.grandTotalPaise,
           deliveryLat: address.latitude,
           deliveryLng: address.longitude,
           idempotencyKey: idempotencyKey || null,
@@ -277,13 +341,17 @@ export class CheckoutService {
             quantity: it.quantity,
             unitPrice: it.unitPrice,
             lineTotal: it.lineTotal,
+            unitPricePaise: it.unitPricePaise,
+            lineTotalPaise: it.lineTotalPaise,
           })),
-          pricingSnapshot: quote.invoice,
+          pricingSnapshot,
           items: {
             create: quote.invoice.items.map((it) => ({
               productId: it.productId,
               quantity: it.quantity,
               price: it.unitPrice,
+              unitPricePaise: it.unitPricePaise,
+              lineTotalPaise: it.lineTotalPaise,
             })),
           },
         },
@@ -310,6 +378,7 @@ export class CheckoutService {
           status: paymentStatus,
           provider: dto.paymentMethod === PaymentMethod.COD ? 'COD' : 'SIMULATED',
           amount: quote.invoice.grandTotal,
+          amountPaise: quote.invoice.grandTotalPaise,
           currency: 'INR',
         },
       });

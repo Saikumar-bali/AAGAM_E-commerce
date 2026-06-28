@@ -44,8 +44,18 @@ export const PaymentStatus = {
   CAPTURED: 'CAPTURED',
   FAILED: 'FAILED',
   PENDING_COD: 'PENDING_COD',
+  REFUND_PENDING: 'REFUND_PENDING',
+  REFUNDED: 'REFUNDED',
 } as const
 
 export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus]
+
+export const RefundStatus = {
+  PENDING: 'PENDING',
+  PROCESSED: 'PROCESSED',
+  FAILED: 'FAILED',
+} as const
+
+export type RefundStatus = (typeof RefundStatus)[keyof typeof RefundStatus]
 
 export * from '@prisma/client'
