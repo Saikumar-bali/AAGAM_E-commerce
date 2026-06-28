@@ -29,6 +29,14 @@ PASS src/inventory.spec.ts    (all passed)
 - **Full Flow** (2): Complete lifecycle PENDING→DELIVERED (6 transitions), rider BUSY→ONLINE lifecycle
 - **Listing** (2): Store orders filtered by owner, statusHistory included
 
+## Commit
+
+```
+ff0afce feat: harden order lifecycle with role-based state machine, rider ops, delivery proof, admin force-cancel
+```
+
+Branch: `phase-3-order-lifecycle-store-rider-hardening`
+
 ## Key Design Decisions
 
 - **Delivery proof**: `OrderStatusHistory.metadata` stores `{deliveredAt, actorRole, riderProfileId, deliveryProof: {method: 'rider_confirmed', timestamp}}` — no schema migration needed
