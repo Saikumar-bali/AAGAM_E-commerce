@@ -42,7 +42,7 @@ export class CheckoutService {
 
   private async resolveStoreForLocation(lat: number, lng: number) {
     const stores = await prisma.store.findMany({
-      where: { isActive: true },
+      where: { isActive: true, deletedAt: null },
       select: { id: true, name: true, latitude: true, longitude: true },
     });
     if (stores.length === 0) {
@@ -75,14 +75,14 @@ export class CheckoutService {
 
     const productIds = normalizedItems.map((i) => i.productId);
     const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
+      where: { id: { in: productIds }, deletedAt: null, isActive: true },
       select: { id: true, name: true, price: true, image: true },
     });
     const byId = new Map(products.map((p) => [p.id, p]));
 
     const missing = productIds.filter((id) => !byId.has(id));
     if (missing.length) {
-      throw new BadRequestException(`Missing products: ${missing.join(', ')}`);
+      throw new BadRequestException(`Missing or unavailable products: ${missing.join(', ')}`);
     }
 
     let storeId: string | null = null;
@@ -100,7 +100,7 @@ export class CheckoutService {
       serviceable = fee.serviceable;
       deliveryFee = fee.deliveryFee;
     } else {
-      const store = await prisma.store.findFirst({ where: { isActive: true }, select: { id: true, name: true } });
+      const store = await prisma.store.findFirst({ where: { isActive: true, deletedAt: null }, select: { id: true, name: true } });
       if (store) {
         storeId = store.id;
         storeName = store.name;

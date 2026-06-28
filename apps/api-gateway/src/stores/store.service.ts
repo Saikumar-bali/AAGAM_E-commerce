@@ -16,7 +16,7 @@ export class StoreService {
 
   async findAll() {
     return prisma.store.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, isActive: true },
       include: { owner: true, inventory: true },
     });
   }
@@ -38,10 +38,12 @@ export class StoreService {
   }
 
   async findOne(id: string) {
-    return prisma.store.findUnique({
-      where: { id },
+    const store = await prisma.store.findUnique({
+      where: { id, deletedAt: null, isActive: true },
       include: { owner: true, inventory: { include: { product: true } } },
     });
+    if (!store) throw new NotFoundException('Store not found');
+    return store;
   }
 
   async create(data: { name: string; address: string; latitude: number; longitude: number; ownerEmail: string }) {

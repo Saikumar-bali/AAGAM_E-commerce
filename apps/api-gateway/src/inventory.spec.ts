@@ -3,9 +3,11 @@ import { prisma, Role } from '@aagam/database';
 const TEST_USER_PREFIX = '_test_phase1_';
 
 async function cleanup() {
+  const testUsers = await prisma.user.findMany({ where: { email: { contains: TEST_USER_PREFIX } }, select: { id: true } });
+  const testUserIds = testUsers.map(u => u.id);
   const testStores = await prisma.store.findMany({ where: { name: { contains: TEST_USER_PREFIX } }, select: { id: true } });
   const testStoreIds = testStores.map(s => s.id);
-  const testOrders = await prisma.order.findMany({ where: { storeId: { in: testStoreIds } }, select: { id: true } });
+  const testOrders = await prisma.order.findMany({ where: { OR: [{ storeId: { in: testStoreIds } }, { customerId: { in: testUserIds } }] }, select: { id: true } });
   const testOrderIds = testOrders.map(o => o.id);
 
   await prisma.inventoryLedger.deleteMany({ where: { OR: [{ storeId: { in: testStoreIds } }, { orderId: { in: testOrderIds } }] } });
@@ -14,6 +16,7 @@ async function cleanup() {
   await prisma.payment.deleteMany({ where: { orderId: { in: testOrderIds } } });
   await prisma.orderItem.deleteMany({ where: { orderId: { in: testOrderIds } } });
   await prisma.order.deleteMany({ where: { id: { in: testOrderIds } } });
+  await prisma.customerAddress.deleteMany({ where: { userId: { in: testUserIds } } });
   await prisma.inventory.deleteMany({ where: { storeId: { in: testStoreIds } } });
   await prisma.store.deleteMany({ where: { name: { contains: TEST_USER_PREFIX } } });
   await prisma.product.deleteMany({ where: { name: { contains: TEST_USER_PREFIX } } });
@@ -294,58 +297,74 @@ describe('Phase 1: Checkout Inventory and Ledger', () => {
     const owner = await prisma.user.create({
       data: { email: `${TEST_USER_PREFIX}co_owner@test.com`, role: 'STORE_OWNER', name: 'CO Owner' },
     });
+    const customer = await prisma.user.create({
+      data: { email: `${TEST_USER_PREFIX}co_customer@test.com`, role: 'CUSTOMER', name: 'CO Customer' },
+    });
     const cat = await prisma.category.create({ data: { name: `${TEST_USER_PREFIX}COCat` } });
     const product = await prisma.product.create({
       data: { name: `${TEST_USER_PREFIX}COProd`, price: 50, categoryId: cat.id },
     });
+    const uniqueLat = 88.888;
+    const uniqueLng = 88.888;
     const store = await prisma.store.create({
-      data: { name: `${TEST_USER_PREFIX}COStore`, address: 'Test', latitude: 0, longitude: 0, ownerId: owner.id },
+      data: { name: `${TEST_USER_PREFIX}COStore`, address: 'Test', latitude: uniqueLat, longitude: uniqueLng, ownerId: owner.id },
     });
     await prisma.inventory.create({
       data: { storeId: store.id, productId: product.id, quantity: 20 },
     });
-
-    const { StoreService } = await import('./stores/store.service');
-    const cacheManager = { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn() };
-    const storeService = new StoreService(cacheManager as any);
-
-    await storeService.updateInventory(store.id, product.id, 20, { id: owner.id, role: Role.STORE_OWNER });
+    const address = await prisma.customerAddress.create({
+      data: {
+        userId: customer.id,
+        recipientName: 'CO Customer',
+        phoneE164: '+919999999999',
+        line1: '123 Test St',
+        city: 'Testville',
+        state: 'TS',
+        pincode: '123456',
+        latitude: uniqueLat,
+        longitude: uniqueLng,
+      },
+    });
 
     const inventoryBefore = await prisma.inventory.findUnique({
       where: { storeId_productId: { storeId: store.id, productId: product.id } },
     });
     expect(inventoryBefore!.quantity).toBe(20);
 
-    await prisma.inventory.update({
-      where: { storeId_productId: { storeId: store.id, productId: product.id } },
-      data: { quantity: { decrement: 5 } },
+    const { CheckoutService } = await import('./checkout/checkout.service');
+    const trackingGateway = {
+      server: { to: jest.fn().mockReturnThis(), emit: jest.fn() },
+      emitOrderStatusUpdated: jest.fn(),
+      emitOrderTimelineUpdated: jest.fn(),
+    };
+    const notificationService = { sendNewOrderAlert: jest.fn() };
+    const checkoutService = new CheckoutService(trackingGateway as any, notificationService as any);
+
+    const order = await checkoutService.placeOrder(customer.id, {
+      items: [{ productId: product.id, quantity: 3 }],
+      addressId: address.id,
+      paymentMethod: 'COD' as any,
     });
 
-    await prisma.inventoryLedger.create({
-      data: {
-        storeId: store.id,
-        productId: product.id,
-        reason: 'CHECKOUT_RESERVATION',
-        quantityDelta: -5,
-        previousQuantity: 20,
-        newQuantity: 15,
-        note: 'Test checkout reservation',
-      },
-    });
+    expect(order).toBeDefined();
+    expect(order.customerId).toBe(customer.id);
+    expect(order.storeId).toBe(store.id);
 
     const inventoryAfter = await prisma.inventory.findUnique({
       where: { storeId_productId: { storeId: store.id, productId: product.id } },
     });
-    expect(inventoryAfter!.quantity).toBe(15);
+    expect(inventoryAfter!.quantity).toBe(17);
 
     const ledger = await prisma.inventoryLedger.findFirst({
       where: { storeId: store.id, productId: product.id, reason: 'CHECKOUT_RESERVATION' },
       orderBy: { createdAt: 'desc' },
     });
     expect(ledger).not.toBeNull();
-    expect(ledger!.quantityDelta).toBe(-5);
+    expect(ledger!.orderId).toBe(order.id);
+    expect(ledger!.quantityDelta).toBe(-3);
     expect(ledger!.previousQuantity).toBe(20);
-    expect(ledger!.newQuantity).toBe(15);
+    expect(ledger!.newQuantity).toBe(17);
+    expect(ledger!.actorUserId).toBe(customer.id);
   });
 });
 

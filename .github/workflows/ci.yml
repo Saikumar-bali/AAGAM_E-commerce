@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "phase-*"]
   pull_request:
     branches: ["main"]
 
@@ -36,3 +36,8 @@ jobs:
 
       - name: Build
         run: npx turbo build --cache-dir=".turbo"
+
+      - name: Test
+        run: npm test --workspace=apps/api-gateway
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"

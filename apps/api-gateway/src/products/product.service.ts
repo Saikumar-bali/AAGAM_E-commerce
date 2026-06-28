@@ -148,7 +148,7 @@ export class ProductService {
     const pageSize = query.pageSize ?? 12;
     const paginate = Boolean(query.page || query.pageSize);
 
-    const where: any = { deletedAt: null };
+    const where: any = { deletedAt: null, isActive: true };
     if (query.categoryId) where.categoryId = query.categoryId;
     if (query.search) {
       where.OR = [
@@ -216,7 +216,7 @@ export class ProductService {
     }
 
     const product = await prisma.product.findUnique({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, isActive: true },
       include: { category: true },
     });
     if (!product) {
