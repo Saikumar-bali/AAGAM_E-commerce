@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus, PaymentMethod, PaymentStatus, RefundStatus, Role, prisma } from '@aagam/database';
+import { OrderStatus, PaymentStatus, Role, prisma } from '@aagam/database';
 import { TrackingGateway } from '../tracking.gateway';
 import { RefundsService } from '../payments/refunds.service';
 
@@ -29,23 +29,35 @@ const STORE_OWNER_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
   PACKED: [OrderStatus.CANCELLED],
 };
 
+const STORE_OWNER_FORBIDDEN: OrderStatus[] = [
+  OrderStatus.DELIVERED,
+  OrderStatus.RIDER_ASSIGNED,
+  OrderStatus.OUT_FOR_DELIVERY,
+];
+
 @Injectable()
 export class OrderService {
   constructor(
     private readonly trackingGateway: TrackingGateway,
     private readonly refundsService: RefundsService,
   ) {}
+
   private statusNote(nextStatus: OrderStatus, actorRole?: Role) {
     if (actorRole === Role.RIDER) {
       if (nextStatus === OrderStatus.PICKING) return 'Rider reached store and started pickup.';
       if (nextStatus === OrderStatus.OUT_FOR_DELIVERY) return 'Rider picked the order and is on the way.';
       if (nextStatus === OrderStatus.DELIVERED) return 'Rider marked the order as delivered.';
     }
+    if (actorRole === Role.ADMIN) {
+      if (nextStatus === OrderStatus.CANCELLED) return 'Order cancelled by admin.';
+      return undefined;
+    }
     if (nextStatus === OrderStatus.CONFIRMED) return 'Store confirmed your order.';
     if (nextStatus === OrderStatus.PICKING) return 'Store is preparing your items.';
     if (nextStatus === OrderStatus.CANCELLED) return actorRole === Role.CUSTOMER ? 'Order cancelled by customer.' : 'Order cancelled.';
     return undefined;
   }
+
   private haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
     const toRad = (v: number) => (v * Math.PI) / 180;
     const R = 6371;
@@ -356,6 +368,35 @@ export class OrderService {
     return order;
   }
 
+  async findStoreOrders(ownerId: string) {
+    const stores = await prisma.store.findMany({
+      where: { ownerId },
+      select: { id: true },
+    });
+    const storeIds = stores.map((s) => s.id);
+    if (storeIds.length === 0) return [];
+
+    return prisma.order.findMany({
+      where: { storeId: { in: storeIds } },
+      include: {
+        customer: { select: { name: true, email: true, phone: true } },
+        payment: true,
+        items: {
+          include: {
+            product: { select: { name: true, image: true } },
+          },
+        },
+        rider: {
+          include: {
+            user: { select: { name: true } },
+          },
+        },
+        statusHistory: { orderBy: { createdAt: 'desc' }, take: 5 },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async updateStatus(
     id: string,
     nextStatus: OrderStatus,
@@ -379,11 +420,20 @@ export class OrderService {
     }
 
     const currentStatus = order.status as OrderStatus;
+
+    // Terminal state check
+    const terminalStatuses: OrderStatus[] = [OrderStatus.DELIVERED, OrderStatus.CANCELLED];
+    if (terminalStatuses.includes(currentStatus)) {
+      throw new BadRequestException(`Order is already ${currentStatus} and cannot be changed`);
+    }
+
+    // Generic transition validation
     const allowedNextStatuses = ORDER_TRANSITIONS[currentStatus] || [];
     if (!allowedNextStatuses.includes(nextStatus)) {
       throw new BadRequestException(`Cannot transition order from ${order.status} to ${nextStatus}`);
     }
 
+    // Role-specific validation
     if (actor.role === Role.RIDER) {
       const riderProfile = await prisma.riderProfile.findUnique({ where: { userId: actor.id } });
       if (!riderProfile || order.riderId !== riderProfile.id) {
@@ -399,11 +449,16 @@ export class OrderService {
       if (order.store?.ownerId !== actor.id) {
         throw new ForbiddenException('Not allowed to update orders for this store');
       }
+      if (STORE_OWNER_FORBIDDEN.includes(nextStatus)) {
+        throw new ForbiddenException(`Store owner cannot set status to ${nextStatus}`);
+      }
       const ownerAllowedNext = STORE_OWNER_TRANSITIONS[currentStatus] || [];
       if (!ownerAllowedNext.includes(nextStatus)) {
         throw new ForbiddenException(`Store transition not allowed: ${currentStatus} -> ${nextStatus}`);
       }
     }
+
+    // Admin can do all transitions (no additional restrictions)
 
     const data: any = { status: nextStatus };
     const timestampField = this.timestampFieldForStatus(nextStatus);
@@ -419,12 +474,31 @@ export class OrderService {
         where: { id },
         data,
       });
+
+      // Build metadata for delivery proof
+      const historyMetadata: any = {};
+      if (nextStatus === OrderStatus.DELIVERED) {
+        historyMetadata.deliveredAt = new Date().toISOString();
+        historyMetadata.actorRole = actor.role;
+        if (actor.role === Role.RIDER) {
+          const riderProfile = await prisma.riderProfile.findUnique({ where: { userId: actor.id } });
+          if (riderProfile) {
+            historyMetadata.riderProfileId = riderProfile.id;
+          }
+        }
+        historyMetadata.deliveryProof = {
+          method: 'rider_confirmed',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
       await this.recordStatusHistory({
         orderId: id,
         fromStatus: order.status as OrderStatus,
         toStatus: nextStatus,
         actor,
         note: this.statusNote(nextStatus, actor.role),
+        metadata: Object.keys(historyMetadata).length > 0 ? historyMetadata : undefined,
       }, tx);
 
       if (nextStatus === OrderStatus.DELIVERED) {
@@ -466,14 +540,15 @@ export class OrderService {
   }
 
   async assignRider(orderId: string, userId: string) {
-    const riderProfile = await prisma.riderProfile.upsert({
-      where: { userId },
-      update: {},
-      create: {
-        userId,
-        status: 'OFFLINE',
-      },
-    });
+    // Validate user exists and is a rider
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role !== 'RIDER') throw new BadRequestException('User is not a rider');
+
+    // Validate rider profile exists and is not OFFLINE
+    const riderProfile = await prisma.riderProfile.findUnique({ where: { userId } });
+    if (!riderProfile) throw new NotFoundException('Rider profile not found');
+    if (riderProfile.status === 'OFFLINE') throw new BadRequestException('Rider is offline and cannot be assigned');
 
     return prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
@@ -483,10 +558,18 @@ export class OrderService {
       if (!order) {
         throw new NotFoundException('Order not found');
       }
+
+      // Cannot assign to delivered or cancelled orders
+      const termStatuses: OrderStatus[] = [OrderStatus.DELIVERED, OrderStatus.CANCELLED];
+      if (termStatuses.includes(order.status as OrderStatus)) {
+        throw new BadRequestException(`Cannot assign rider to ${order.status} order`);
+      }
+
       const assignableStatuses: OrderStatus[] = [OrderStatus.CONFIRMED, OrderStatus.PICKING, OrderStatus.PACKED];
       if (!assignableStatuses.includes(order.status as OrderStatus)) {
         throw new BadRequestException('Only confirmed, picking, or packed orders can be assigned to riders');
       }
+
       if (order.riderId) {
         throw new ConflictException('Order already assigned to a rider');
       }
@@ -530,6 +613,67 @@ export class OrderService {
         riderId: riderProfile.id,
         status: OrderStatus.RIDER_ASSIGNED,
       });
+      return updated;
+    });
+  }
+
+  async reassignRider(orderId: string, newUserId: string, actor: { id: string; role: Role }) {
+    if (actor.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only admin can reassign rider');
+    }
+
+    const newUser = await prisma.user.findUnique({ where: { id: newUserId } });
+    if (!newUser) throw new NotFoundException('New rider user not found');
+    if (newUser.role !== 'RIDER') throw new BadRequestException('User is not a rider');
+
+    const newRiderProfile = await prisma.riderProfile.findUnique({ where: { userId: newUserId } });
+    if (!newRiderProfile) throw new NotFoundException('New rider profile not found');
+    if (newRiderProfile.status === 'OFFLINE') throw new BadRequestException('New rider is offline');
+
+    return prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: { id: true, status: true, riderId: true },
+      });
+      if (!order) throw new NotFoundException('Order not found');
+
+      const reassignTermStatuses: OrderStatus[] = [OrderStatus.DELIVERED, OrderStatus.CANCELLED];
+      if (reassignTermStatuses.includes(order.status as OrderStatus)) {
+        throw new BadRequestException(`Cannot reassign rider on ${order.status} order`);
+      }
+
+      const oldRiderProfileId = order.riderId;
+
+      const updated = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          riderId: newRiderProfile.id,
+          riderAssignedAt: new Date(),
+        },
+      });
+
+      await this.recordStatusHistory({
+        orderId,
+        fromStatus: order.status as OrderStatus,
+        toStatus: OrderStatus.RIDER_ASSIGNED,
+        actor,
+        note: `Rider reassigned from ${oldRiderProfileId || 'none'} to ${newRiderProfile.id}`,
+        metadata: { oldRiderProfileId, newRiderProfileId: newRiderProfile.id },
+      }, tx);
+
+      // Make old rider online if they had a profile
+      if (oldRiderProfileId) {
+        await tx.riderProfile.update({
+          where: { id: oldRiderProfileId },
+          data: { status: 'ONLINE' },
+        }).catch(() => null);
+      }
+
+      await tx.riderProfile.update({
+        where: { id: newRiderProfile.id },
+        data: { status: 'BUSY' },
+      });
+
       return updated;
     });
   }
@@ -663,6 +807,90 @@ export class OrderService {
         },
         tx,
       );
+
+      return updated;
+    });
+  }
+
+  async forceCancel(orderId: string, actor: { id: string; role: Role }, reason?: string) {
+    if (actor.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only admin can force cancel orders');
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true, payment: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+
+    const forceCancelTermStatuses: OrderStatus[] = [OrderStatus.DELIVERED, OrderStatus.CANCELLED];
+    if (forceCancelTermStatuses.includes(order.status as OrderStatus)) {
+      throw new BadRequestException(`Order is already ${order.status}`);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      // Restore inventory if not already restored
+      if (order.status !== 'PAYMENT_FAILED') {
+        for (const item of order.items) {
+          const existing = await tx.inventory.findUnique({
+            where: { storeId_productId: { storeId: order.storeId, productId: item.productId } },
+          });
+          const previousQuantity = existing?.quantity ?? 0;
+
+          await tx.inventory.updateMany({
+            where: { storeId: order.storeId, productId: item.productId },
+            data: { quantity: { increment: item.quantity } },
+          });
+
+          await tx.inventoryLedger.create({
+            data: {
+              storeId: order.storeId,
+              productId: item.productId,
+              orderId: order.id,
+              reason: 'ORDER_CANCEL_RESTORE',
+              quantityDelta: item.quantity,
+              previousQuantity,
+              newQuantity: previousQuantity + item.quantity,
+              actorUserId: actor.id,
+              note: `Admin force cancelled order ${order.id}: restored ${item.quantity} units`,
+            },
+          });
+        }
+      }
+
+      if (order.payment) {
+        if (order.payment.status === PaymentStatus.CAPTURED) {
+          await this.refundsService.createRefundForPayment({
+            orderId: order.id,
+            paymentId: order.payment.id,
+            amountPaise: order.grandTotalPaise,
+            reason: reason || 'Admin force cancelled order',
+            requestedByUserId: actor.id,
+          }, tx);
+        }
+      }
+
+      const updated = await tx.order.update({
+        where: { id: orderId },
+        data: { status: OrderStatus.CANCELLED, cancelledAt: new Date() },
+      });
+
+      await this.recordStatusHistory({
+        orderId,
+        fromStatus: order.status as OrderStatus,
+        toStatus: OrderStatus.CANCELLED,
+        actor,
+        note: reason || 'Force cancelled by admin',
+        metadata: { forceCancel: true, reason: reason || null },
+      }, tx);
+
+      // Set rider back to online if assigned
+      if (updated.riderId) {
+        await tx.riderProfile.update({
+          where: { id: updated.riderId },
+          data: { status: 'ONLINE' },
+        }).catch(() => null);
+      }
 
       return updated;
     });

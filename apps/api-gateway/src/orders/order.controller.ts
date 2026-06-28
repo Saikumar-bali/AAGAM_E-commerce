@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@aagam/database';
 import { OrderService } from './order.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { ForceCancelOrderDto } from './dto/force-cancel-order.dto';
+import { ReassignRiderDto } from './dto/reassign-rider.dto';
 
 @Controller('orders')
 export class OrderController {
@@ -26,6 +28,13 @@ export class OrderController {
   @Roles(Role.ADMIN)
   async findAll() {
     return this.orderService.findAll();
+  }
+
+  @Get('store')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.STORE_OWNER)
+  async findStoreOrders(@Req() req: any) {
+    return this.orderService.findStoreOrders(req.user.id);
   }
 
   @Get('my')
@@ -74,6 +83,28 @@ export class OrderController {
       return [];
     }
     return this.orderService.findByRiderId(riderProfile.id);
+  }
+
+  @Patch(':id/force-cancel')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async forceCancel(
+    @Param('id') id: string,
+    @Body() body: ForceCancelOrderDto,
+    @Req() req: any,
+  ) {
+    return this.orderService.forceCancel(id, req.user, body.reason);
+  }
+
+  @Post(':id/reassign-rider')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async reassignRider(
+    @Param('id') id: string,
+    @Body() body: ReassignRiderDto,
+    @Req() req: any,
+  ) {
+    return this.orderService.reassignRider(id, body.userId, req.user);
   }
 
   @Get(':id/tracking')
