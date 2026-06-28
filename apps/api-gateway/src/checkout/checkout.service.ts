@@ -195,6 +195,11 @@ export class CheckoutService {
 
     return prisma.$transaction(async (tx) => {
       for (const item of quote.invoice.items) {
+        const existing = await tx.inventory.findUnique({
+          where: { storeId_productId: { storeId, productId: item.productId } },
+        });
+        const previousQuantity = existing?.quantity ?? 0;
+
         const reserved = await tx.inventory.updateMany({
           where: {
             storeId,
@@ -211,6 +216,20 @@ export class CheckoutService {
         if (reserved.count !== 1) {
           throw new BadRequestException(`Out of stock: ${item.name}`);
         }
+
+        await tx.inventoryLedger.create({
+          data: {
+            storeId,
+            productId: item.productId,
+            orderId: null,
+            reason: 'CHECKOUT_RESERVATION',
+            quantityDelta: -item.quantity,
+            previousQuantity,
+            newQuantity: previousQuantity - item.quantity,
+            actorUserId: userId,
+            note: `Checkout reservation for ${item.name}`,
+          },
+        });
       }
 
       const created = await tx.order.create({
@@ -270,6 +289,19 @@ export class CheckoutService {
         },
         include: { items: true, store: { select: { name: true } } },
       });
+
+      // Link ledger entries to the created order
+      for (const item of quote.invoice.items) {
+        await tx.inventoryLedger.updateMany({
+          where: {
+            storeId,
+            productId: item.productId,
+            orderId: null,
+            reason: 'CHECKOUT_RESERVATION',
+          },
+          data: { orderId: created.id },
+        });
+      }
 
       await tx.payment.create({
         data: {

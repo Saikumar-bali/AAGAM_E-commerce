@@ -34,13 +34,15 @@ export class RiderController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   async findOne(@Param('id') id: string) {
     return this.riderService.findOne(id);
   }
 
   @Patch(':id/status')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   async updateStatus(
     @Param('id') id: string,
     @Body() data: { status: string; latitude?: number; longitude?: number }

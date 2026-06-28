@@ -6,7 +6,9 @@
     "start": "nest start",
     "dev": "nest start --watch",
     "build": "nest build",
-    "start:prod": "node dist/src/main.js"
+    "start:prod": "node dist/src/main.js",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@aagam/database": "*",
@@ -51,8 +53,13 @@
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
     "@nestjs/schematics": "^10.0.0",
+    "@nestjs/testing": "^10.4.22",
     "@types/cookie-parser": "^1.4.10",
+    "@types/jest": "^30.0.0",
     "@types/multer": "^2.1.0",
+    "@types/node-fetch": "^2.6.13",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.11",
     "typescript": "^5.0.0"
   }
 }

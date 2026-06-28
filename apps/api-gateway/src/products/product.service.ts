@@ -54,7 +54,7 @@ export class ProductService {
     }
 
     const stores = await prisma.store.findMany({
-      where: { isActive: true },
+      where: { isActive: true, deletedAt: null },
       select: { id: true, name: true, latitude: true, longitude: true },
     });
     if (!stores.length) return null;
@@ -148,7 +148,7 @@ export class ProductService {
     const pageSize = query.pageSize ?? 12;
     const paginate = Boolean(query.page || query.pageSize);
 
-    const where: any = {};
+    const where: any = { deletedAt: null };
     if (query.categoryId) where.categoryId = query.categoryId;
     if (query.search) {
       where.OR = [
@@ -216,7 +216,7 @@ export class ProductService {
     }
 
     const product = await prisma.product.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
       include: { category: true },
     });
     if (!product) {
@@ -274,17 +274,15 @@ export class ProductService {
   }
 
   async delete(id: string) {
-    await prisma.inventory.deleteMany({
-      where: { productId: id },
-    });
-    await prisma.orderItem.deleteMany({
-      where: { productId: id },
-    });
-    const product = await prisma.product.delete({
+    const product = await prisma.product.findUnique({ where: { id } });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const deleted = await prisma.product.update({
       where: { id },
+      data: { deletedAt: new Date(), isActive: false },
     });
     await this.cacheManager.del('all_products');
     await this.cacheManager.del(`product_${id}`);
-    return product;
+    return deleted;
   }
 }

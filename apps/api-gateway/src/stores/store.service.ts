@@ -1,6 +1,6 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Inject, Injectable } from '@nestjs/common';
-import { prisma } from '@aagam/database';
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { prisma, Role } from '@aagam/database';
 import { Cache } from 'cache-manager';
 
 @Injectable()
@@ -16,14 +16,24 @@ export class StoreService {
 
   async findAll() {
     return prisma.store.findMany({
+      where: { deletedAt: null },
       include: { owner: true, inventory: true },
     });
   }
 
   async findByOwnerId(ownerId: string) {
     return prisma.store.findMany({
-      where: { ownerId },
-      include: { inventory: { include: { product: true } } },
+      where: { ownerId, deletedAt: null },
+      include: {
+        inventory: { include: { product: true } },
+        orders: {
+          include: {
+            customer: { select: { id: true, name: true, email: true } },
+            items: { include: { product: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
     });
   }
 
@@ -70,43 +80,53 @@ export class StoreService {
   }
 
   async delete(id: string) {
-    // 1. Delete inventory first
-    await prisma.inventory.deleteMany({
-      where: { storeId: id },
-    });
-    
-    // 2. Delete OrderItems for all orders belonging to this store
-    // This resolves the foreign key constraint violation
-    await prisma.orderItem.deleteMany({
-      where: {
-        order: {
-          storeId: id
-        }
-      }
-    });
+    const store = await prisma.store.findUnique({ where: { id } });
+    if (!store) throw new NotFoundException('Store not found');
 
-    // 3. Delete orders related to the store
-    await prisma.order.deleteMany({
-      where: { storeId: id },
-    });
-
-    // 4. Finally delete the store
-    const deleted = await prisma.store.delete({
+    const deleted = await prisma.store.update({
       where: { id },
+      data: { deletedAt: new Date(), isActive: false },
     });
     await this.invalidateCommerceCache();
     return deleted;
   }
 
-  async updateInventory(storeId: string, productId: string, quantity: number) {
-    const inventory = await prisma.inventory.upsert({
-      where: {
-        storeId_productId: { storeId, productId },
-      },
-      update: { quantity },
-      create: { storeId, productId, quantity },
+  async updateInventory(storeId: string, productId: string, quantity: number, actor?: { id: string; role: Role }) {
+    if (actor?.role === Role.STORE_OWNER) {
+      const store = await prisma.store.findUnique({ where: { id: storeId } });
+      if (!store) throw new NotFoundException('Store not found');
+      if (store.ownerId !== actor.id) {
+        throw new ForbiddenException('You can only update inventory for your own stores');
+      }
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.inventory.findUnique({
+        where: { storeId_productId: { storeId, productId } },
+      });
+      const previousQuantity = existing?.quantity ?? 0;
+
+      const inventory = await tx.inventory.upsert({
+        where: { storeId_productId: { storeId, productId } },
+        update: { quantity },
+        create: { storeId, productId, quantity },
+      });
+
+      await tx.inventoryLedger.create({
+        data: {
+          storeId,
+          productId,
+          reason: 'MANUAL_ADJUSTMENT',
+          quantityDelta: quantity - previousQuantity,
+          previousQuantity,
+          newQuantity: quantity,
+          actorUserId: actor?.id ?? null,
+          note: `Manual adjustment: ${previousQuantity} -> ${quantity}`,
+        },
+      });
+
+      await this.invalidateCommerceCache();
+      return inventory;
     });
-    await this.invalidateCommerceCache();
-    return inventory;
   }
 }

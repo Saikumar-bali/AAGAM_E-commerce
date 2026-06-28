@@ -422,6 +422,31 @@ export class OrderService {
         actor,
         note: this.statusNote(nextStatus, actor.role),
       }, tx);
+
+      if (nextStatus === OrderStatus.DELIVERED) {
+        const orderItems = await tx.orderItem.findMany({ where: { orderId: id } });
+        for (const item of orderItems) {
+          const existing = await tx.inventory.findUnique({
+            where: { storeId_productId: { storeId: order.storeId, productId: item.productId } },
+          });
+          const previousQuantity = existing?.quantity ?? 0;
+
+          await tx.inventoryLedger.create({
+            data: {
+              storeId: order.storeId,
+              productId: item.productId,
+              orderId: id,
+              reason: 'ORDER_DELIVERED_FINALIZE',
+              quantityDelta: 0,
+              previousQuantity,
+              newQuantity: previousQuantity,
+              actorUserId: actor.id,
+              note: `Order ${id} delivered: ${item.quantity} units finalized`,
+            },
+          });
+        }
+      }
+
       return updatedOrder;
     });
 
@@ -578,9 +603,28 @@ export class OrderService {
 
     return prisma.$transaction(async (tx) => {
       for (const item of order.items) {
+        const existing = await tx.inventory.findUnique({
+          where: { storeId_productId: { storeId: order.storeId, productId: item.productId } },
+        });
+        const previousQuantity = existing?.quantity ?? 0;
+
         await tx.inventory.updateMany({
           where: { storeId: order.storeId, productId: item.productId },
           data: { quantity: { increment: item.quantity } },
+        });
+
+        await tx.inventoryLedger.create({
+          data: {
+            storeId: order.storeId,
+            productId: item.productId,
+            orderId: order.id,
+            reason: 'ORDER_CANCEL_RESTORE',
+            quantityDelta: item.quantity,
+            previousQuantity,
+            newQuantity: previousQuantity + item.quantity,
+            actorUserId: userId,
+            note: `Cancelled order ${order.id}: restored ${item.quantity} units`,
+          },
         });
       }
 

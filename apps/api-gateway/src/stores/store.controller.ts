@@ -54,7 +54,8 @@ export class StoreController {
     @Param('id') storeId: string,
     @Body('productId') productId: string,
     @Body('quantity') quantity: number,
+    @Req() req: any,
   ) {
-    return this.storeService.updateInventory(storeId, productId, quantity);
+    return this.storeService.updateInventory(storeId, productId, quantity, req.user);
   }
 }

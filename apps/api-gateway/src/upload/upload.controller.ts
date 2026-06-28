@@ -1,13 +1,19 @@
-import { BadRequestException, Controller, HttpCode, HttpStatus, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Controller, HttpCode, HttpStatus, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { UploadService } from './upload.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '@aagam/database';
 
 @Controller('upload')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class UploadController {
   constructor(private uploadService: UploadService) {}
 
   @Post('image')
+  @Roles(Role.ADMIN, Role.STORE_OWNER)
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(FileInterceptor('file', {
     storage: memoryStorage(),

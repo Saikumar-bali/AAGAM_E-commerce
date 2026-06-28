@@ -35,19 +35,21 @@ enum Role {
 }
 
 model Store {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   address   String
   latitude  Float
   longitude Float
-  isActive  Boolean  @default(true)
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
   ownerId   String
-  owner     User     @relation("StoreOwner", fields: [ownerId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  owner     User      @relation("StoreOwner", fields: [ownerId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  inventory Inventory[]
-  orders    Order[]
+  inventory         Inventory[]
+  orders            Order[]
+  inventoryLedgers  InventoryLedger[]
 }
 
 model Category {
@@ -57,18 +59,21 @@ model Category {
 }
 
 model Product {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   description String?
   price       Float
   image       String?
+  isActive    Boolean   @default(true)
+  deletedAt   DateTime?
   categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  category    Category  @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  inventory Inventory[]
-  orderItems OrderItem[]
+  inventory         Inventory[]
+  orderItems        OrderItem[]
+  inventoryLedgers  InventoryLedger[]
 }
 
 model Inventory {
@@ -255,4 +260,33 @@ enum RiderStatus {
   ONLINE
   OFFLINE
   BUSY
+}
+
+enum InventoryAdjustmentReason {
+  MANUAL_ADJUSTMENT
+  CHECKOUT_RESERVATION
+  ORDER_CANCEL_RESTORE
+  ORDER_DELIVERED_FINALIZE
+  STOCK_CORRECTION
+}
+
+model InventoryLedger {
+  id          String                   @id @default(cuid())
+  storeId     String
+  productId   String
+  orderId     String?
+  reason      InventoryAdjustmentReason
+  quantityDelta Int
+  previousQuantity Int
+  newQuantity    Int
+  actorUserId String?
+  note        String?
+  createdAt   DateTime                 @default(now())
+
+  store   Store   @relation(fields: [storeId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([storeId, createdAt])
+  @@index([productId, createdAt])
+  @@index([orderId])
 }
