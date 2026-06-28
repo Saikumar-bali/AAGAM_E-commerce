@@ -564,7 +564,7 @@ describe('Phase 3: Admin Operations', () => {
     expect(result.status).toBe('CONFIRMED');
   });
 
-  it('admin can reassign rider', async () => {
+  it('admin reassign on already RIDER_ASSIGNED order keeps status and changes rider', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'RIDER_ASSIGNED');
     await prisma.order.update({ where: { id: order.id }, data: { riderId: riderProfileId1 } });
 
@@ -573,6 +573,7 @@ describe('Phase 3: Admin Operations', () => {
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const result = await service.reassignRider(order.id, riderId2, { id: adminId, role: Role.ADMIN });
+    expect(result.status).toBe('RIDER_ASSIGNED');
     expect(result.riderId).toBe(riderProfileId2);
 
     const oldRiderProfile = await prisma.riderProfile.findUnique({ where: { id: riderProfileId1 } });
@@ -646,6 +647,120 @@ describe('Phase 3: Admin Operations', () => {
     await expect(
       service.forceCancel(order.id, { id: adminId, role: Role.ADMIN }),
     ).rejects.toThrow('Order is already DELIVERED');
+  });
+
+  // --- BLOCKER 1: reassign sets order.status = RIDER_ASSIGNED ---
+
+  it('admin reassign on CONFIRMED order sets status to RIDER_ASSIGNED', async () => {
+    await prisma.riderProfile.update({ where: { id: riderProfileId1 }, data: { status: 'ONLINE' } });
+    await prisma.riderProfile.update({ where: { id: riderProfileId2 }, data: { status: 'ONLINE' } });
+
+    const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
+    const { OrderService } = await import('./orders/order.service');
+    const { RefundsService } = await import('./payments/refunds.service');
+    const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
+
+    const result = await service.reassignRider(order.id, riderId1, { id: adminId, role: Role.ADMIN });
+    expect(result.status).toBe('RIDER_ASSIGNED');
+    expect(result.riderId).toBe(riderProfileId1);
+    expect(result.riderAssignedAt).not.toBeNull();
+
+    const history = await prisma.orderStatusHistory.findFirst({
+      where: { orderId: order.id, toStatus: 'RIDER_ASSIGNED' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(history).not.toBeNull();
+    expect(history!.fromStatus).toBe('CONFIRMED');
+    expect(history!.toStatus).toBe('RIDER_ASSIGNED');
+    expect(history!.actorRole).toBe('ADMIN');
+  });
+
+  it('admin reassign on PACKED order sets status to RIDER_ASSIGNED', async () => {
+    // Clear any active orders for rider2 from earlier tests
+    await prisma.order.updateMany({
+      where: { riderId: riderProfileId2, status: { in: ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'] as any } },
+      data: { status: 'DELIVERED' as any, deliveredAt: new Date() },
+    });
+    await prisma.riderProfile.update({ where: { id: riderProfileId2 }, data: { status: 'ONLINE' } });
+
+    const order = await createTestOrder(customerId, storeId, productId, 'PACKED');
+    const { OrderService } = await import('./orders/order.service');
+    const { RefundsService } = await import('./payments/refunds.service');
+    const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
+
+    const result = await service.reassignRider(order.id, riderId2, { id: adminId, role: Role.ADMIN });
+    expect(result.status).toBe('RIDER_ASSIGNED');
+    expect(result.riderId).toBe(riderProfileId2);
+
+    const history = await prisma.orderStatusHistory.findFirst({
+      where: { orderId: order.id, toStatus: 'RIDER_ASSIGNED' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(history).not.toBeNull();
+    expect(history!.fromStatus).toBe('PACKED');
+    expect(history!.toStatus).toBe('RIDER_ASSIGNED');
+  });
+
+  // --- BLOCKER 2: active-order conflict check ---
+
+  it('admin cannot reassign to rider with active RIDER_ASSIGNED order', async () => {
+    await prisma.riderProfile.update({ where: { id: riderProfileId1 }, data: { status: 'ONLINE' } });
+    await prisma.riderProfile.update({ where: { id: riderProfileId2 }, data: { status: 'ONLINE' } });
+
+    // Give rider1 an active order in RIDER_ASSIGNED status
+    const activeOrder = await createTestOrder(customerId, storeId, productId, 'RIDER_ASSIGNED');
+    await prisma.order.update({ where: { id: activeOrder.id }, data: { riderId: riderProfileId1 } });
+
+    // Try to reassign a different order to rider1 while rider1 has an active order
+    const targetOrder = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
+    const { OrderService } = await import('./orders/order.service');
+    const { RefundsService } = await import('./payments/refunds.service');
+    const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
+
+    await expect(
+      service.reassignRider(targetOrder.id, riderId1, { id: adminId, role: Role.ADMIN }),
+    ).rejects.toThrow('has active order');
+  });
+
+  it('admin cannot reassign to rider with active OUT_FOR_DELIVERY order', async () => {
+    await prisma.riderProfile.update({ where: { id: riderProfileId2 }, data: { status: 'ONLINE' } });
+
+    // Give rider2 an active order in OUT_FOR_DELIVERY status
+    const activeOrder = await createTestOrder(customerId, storeId, productId, 'OUT_FOR_DELIVERY');
+    await prisma.order.update({ where: { id: activeOrder.id }, data: { riderId: riderProfileId2 } });
+
+    // Try to reassign a different order to rider2 while rider2 has an active order
+    const targetOrder = await createTestOrder(customerId, storeId, productId, 'PACKED');
+    const { OrderService } = await import('./orders/order.service');
+    const { RefundsService } = await import('./payments/refunds.service');
+    const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
+
+    await expect(
+      service.reassignRider(targetOrder.id, riderId2, { id: adminId, role: Role.ADMIN }),
+    ).rejects.toThrow('has active order');
+  });
+
+  it('admin can reassign same order to same rider without false self-conflict', async () => {
+    // Clear any active orders for rider1 from earlier tests
+    await prisma.order.updateMany({
+      where: { riderId: riderProfileId1, status: { in: ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'] as any } },
+      data: { status: 'DELIVERED' as any, deliveredAt: new Date() },
+    });
+    await prisma.riderProfile.update({ where: { id: riderProfileId1 }, data: { status: 'ONLINE' } });
+
+    const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
+    const { OrderService } = await import('./orders/order.service');
+    const { RefundsService } = await import('./payments/refunds.service');
+    const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
+
+    const first = await service.reassignRider(order.id, riderId1, { id: adminId, role: Role.ADMIN });
+    expect(first.status).toBe('RIDER_ASSIGNED');
+    expect(first.riderId).toBe(riderProfileId1);
+
+    // Reassign same order to same rider — should not false-conflict (excluded by id)
+    const second = await service.reassignRider(order.id, riderId1, { id: adminId, role: Role.ADMIN });
+    expect(second.status).toBe('RIDER_ASSIGNED');
+    expect(second.riderId).toBe(riderProfileId1);
   });
 });
 

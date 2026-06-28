@@ -630,6 +630,21 @@ export class OrderService {
     if (!newRiderProfile) throw new NotFoundException('New rider profile not found');
     if (newRiderProfile.status === 'OFFLINE') throw new BadRequestException('New rider is offline');
 
+    // Check new rider does not already have an active order (exclude current order)
+    const activeOrderForNewRider = await prisma.order.findFirst({
+      where: {
+        riderId: newRiderProfile.id,
+        id: { not: orderId },
+        status: { in: [OrderStatus.RIDER_ASSIGNED, OrderStatus.OUT_FOR_DELIVERY] },
+      },
+      select: { id: true, status: true },
+    });
+    if (activeOrderForNewRider) {
+      throw new ConflictException(
+        `New rider has active order ${activeOrderForNewRider.id} (${activeOrderForNewRider.status}). Complete it before reassigning.`,
+      );
+    }
+
     return prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -643,13 +658,20 @@ export class OrderService {
       }
 
       const oldRiderProfileId = order.riderId;
+      const wasAlreadyAssigned = order.status === OrderStatus.RIDER_ASSIGNED;
+
+      // Set status to RIDER_ASSIGNED if not already, always update riderAssignedAt
+      const updateData: any = {
+        riderId: newRiderProfile.id,
+        riderAssignedAt: new Date(),
+      };
+      if (!wasAlreadyAssigned) {
+        updateData.status = OrderStatus.RIDER_ASSIGNED;
+      }
 
       const updated = await tx.order.update({
         where: { id: orderId },
-        data: {
-          riderId: newRiderProfile.id,
-          riderAssignedAt: new Date(),
-        },
+        data: updateData,
       });
 
       await this.recordStatusHistory({
@@ -658,7 +680,11 @@ export class OrderService {
         toStatus: OrderStatus.RIDER_ASSIGNED,
         actor,
         note: `Rider reassigned from ${oldRiderProfileId || 'none'} to ${newRiderProfile.id}`,
-        metadata: { oldRiderProfileId, newRiderProfileId: newRiderProfile.id },
+        metadata: {
+          oldRiderProfileId,
+          newRiderProfileId: newRiderProfile.id,
+          wasAlreadyAssigned,
+        },
       }, tx);
 
       // Make old rider online if they had a profile
