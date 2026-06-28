@@ -4,9 +4,9 @@
 **Branch:** `phase-1-1-database-migration-release-safety`
 **Base commit:** `1d4c4d3bce7c7b643d1fe612f108fc46b61e0f34`
 **Implementation commit:** `6223daf2d2a0188f5ffccae4d1f30e4e272290e4` (catch-up migration, CI changes, scripts)
-**Proof commit / final branch head:** `<final-sha>` (enum safety fix, proof doc update)
+**Proof commit / final branch head:** `60ff49c0dd660099014b3cc2075bc360e76888f4` (enum safety fix, proof doc update)
 **GitHub Actions CI run (initial):** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28323829429 — ✅ PASSED
-**GitHub Actions CI run (final):** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28323829429
+**GitHub Actions CI run (final):** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28324231509 — ✅ PASSED
 
 ---
 
@@ -47,6 +47,12 @@ Comparing `schema.prisma` against the combined output of all 4 existing migratio
 - `Store.deletedAt` — phase1 inventory ✓
 - `Product.isActive`, `deletedAt` — phase1 inventory ✓
 - `InventoryLedger` + `InventoryAdjustmentReason` — phase1 inventory ✓
+
+### Enum Duplicate-Value Risk
+
+The initial migration used plain `ALTER TYPE "OrderStatus" ADD VALUE '...'` for the 4 missing enum values. This fails on databases where those values already exist (e.g. a database previously managed with `prisma db push` that already has `PAYMENT_PENDING`, `PAYMENT_FAILED`, `PACKED`, and `RIDER_ASSIGNED` in the `OrderStatus` enum).
+
+**Fix:** Changed to `ALTER TYPE "OrderStatus" ADD VALUE IF NOT EXISTS '...'` for all 4 values. This silently skips values that already exist. Supported since PostgreSQL 9.3; the project requires 12+.
 
 ## 3. Migration Strategy
 
@@ -143,7 +149,7 @@ These are also available as package.json scripts:
 
 | File | Summary |
 |------|---------|
-| `packages/database/prisma/migrations/20260628010000_phase_1_1_catchup/migration.sql` | New catch-up migration (161 lines, all additive) |
+| `packages/database/prisma/migrations/20260628010000_phase_1_1_catchup/migration.sql` | New catch-up migration (161 lines, all additive). Later updated to use `ALTER TYPE ... ADD VALUE IF NOT EXISTS` for enum safety (lines 11-14). |
 | `.github/workflows/ci.yml` | Replaced `db push` with `migrate deploy` + validation steps |
 | `packages/database/package.json` | Added `db:migrate:deploy`, `db:migrate:status`, `db:migrate:reset`, `db:validate`, `db:verify` scripts |
 | `package.json` | Updated `railway:start:api` to use `db:migrate:prod` instead of `db:push:prod` |
@@ -162,7 +168,7 @@ Before push, the following commands were run and passed:
 ## 8. CI Status
 
 - **Initial Run URL:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28323829429 — ✅ PASSED
-- **Final Run URL:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28323829429
+- **Final Run URL:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28324231509 — ✅ PASSED
 - **Status:** ✅ PASSED — Build job passed, Service Tests job passed (9/9 tests)
 - **Migration method:** `prisma migrate deploy` (all 5 migrations applied in order)
 
