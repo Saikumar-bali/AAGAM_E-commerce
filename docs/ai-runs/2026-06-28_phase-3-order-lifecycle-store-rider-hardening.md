@@ -6,7 +6,7 @@
 |-------|-------|
 | Branch | `phase-3-order-lifecycle-store-rider-hardening` |
 | Base commit | `a2c449b` |
-| Final commit | `bf64961` → (pending) |
+| Final commit | `eae7d6e` |
 | CI run URL | N/A (no CI triggered yet) |
 | CI status | Build+tests pass locally |
 

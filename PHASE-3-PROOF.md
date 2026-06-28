@@ -29,10 +29,11 @@ PASS src/inventory.spec.ts    (all passed)
 - **Full Flow** (2): Complete lifecycle PENDING→DELIVERED (6 transitions), rider BUSY→ONLINE lifecycle
 - **Listing** (2): Store orders filtered by owner, statusHistory included
 
-## Commit
+## Commits
 
 ```
 ff0afce feat: harden order lifecycle with role-based state machine, rider ops, delivery proof, admin force-cancel
+eae7d6e fix: reassignRider sets order.status=RIDER_ASSIGNED and checks active-order conflict
 ```
 
 Branch: `phase-3-order-lifecycle-store-rider-hardening`
