@@ -3,7 +3,7 @@
 **Date:** 2026-06-28
 **Branch:** `phase-1-security-inventory-foundation`
 **Base commit:** `9613392b92348d0bd0cc7bc9d1c14292160588c2`
-**Final commit:** `9f6960b`
+**Final commit:** `44d7b9f`
 **GitHub PR:** https://github.com/Saikumar-bali/AAGAM_E-commerce/pull/new/phase-1-security-inventory-foundation
 
 ---
@@ -45,7 +45,7 @@ POST /upload/image without token → 401
 
 ## 3. Store-Owner Tenancy
 
-**File:** `stores/store.service.ts:110`
+**File:** `stores/store.service.ts:94`
 
 ```typescript
 async updateInventory(storeId, productId, quantity, actor?) {
@@ -65,21 +65,33 @@ async updateInventory(storeId, productId, quantity, actor?) {
 
 ## 4. Soft Delete
 
-| Method | Change |
+| Method | Filter |
 |--------|--------|
-| `ProductService.findAll()` | `where: { deletedAt: null }` |
-| `ProductService.findOne()` | `where: { id, deletedAt: null }` |
-| `ProductService.delete()` | `update({ deletedAt: new Date(), isActive: false })` instead of hard delete |
-| `StoreService.findAll()` | `where: { deletedAt: null }` |
-| `StoreService.findByOwnerId()` | `where: { ownerId, deletedAt: null }` |
-| `StoreService.delete()` | `update({ deletedAt: new Date(), isActive: false })` instead of hard delete |
-| `ProductService.resolveAvailabilityContext()` | `where: { isActive: true, deletedAt: null }` |
+| `ProductService.findAll()` | `{ deletedAt: null, isActive: true }` |
+| `ProductService.findOne()` | `{ id, deletedAt: null, isActive: true }` |
+| `ProductService.delete()` | `update({ deletedAt: new Date(), isActive: false })` |
+| `StoreService.findAll()` | `{ deletedAt: null, isActive: true }` |
+| `StoreService.findByOwnerId()` | `{ ownerId, deletedAt: null }` |
+| `StoreService.findOne()` | `{ id, deletedAt: null, isActive: true }` — throws `NotFoundException` if not found |
+| `StoreService.delete()` | `update({ deletedAt: new Date(), isActive: false })` |
 
 **Test proof:** Soft-deleted product excluded from `findAll()`; soft-deleted store excluded from `findAll()`; historical orders preserved after store soft delete.
 
 ---
 
-## 5. Inventory Ledger Integration
+## 5. Checkout Guards (Inactive/Deleted Rejection)
+
+| Location | Filter Added |
+|----------|-------------|
+| `CheckoutService.resolveStoreForLocation()` | `isActive: true, deletedAt: null` |
+| `CheckoutService.quote()` product lookup | `deletedAt: null, isActive: true` |
+| `CheckoutService.quote()` fallback store | `isActive: true, deletedAt: null` |
+
+**Result:** Requesting inactive/deleted products returns `BadRequestException: Missing or unavailable products`.
+
+---
+
+## 6. Inventory Ledger Integration
 
 | Event | Reason | Where |
 |-------|--------|-------|
@@ -88,11 +100,9 @@ async updateInventory(storeId, productId, quantity, actor?) {
 | Customer cancels order (inventory restore) | `ORDER_CANCEL_RESTORE` | `order.service.ts:cancelMyOrder` (inside `$transaction`) |
 | Order marked DELIVERED | `ORDER_DELIVERED_FINALIZE` | `order.service.ts:updateStatus` (inside `$transaction`) |
 
-**Test proof:** Manual inventory update creates `MANUAL_ADJUSTMENT` ledger entry with correct `previousQuantity`, `newQuantity`, `quantityDelta`, `actorUserId`.
-
 ---
 
-## 6. Tests
+## 7. Tests
 
 **File:** `apps/api-gateway/src/inventory.spec.ts`
 **Framework:** Jest + ts-jest (12/12 passing)
@@ -120,6 +130,8 @@ Phase 1: Store Soft Delete Preserves Orders
 
 Phase 1: Checkout Inventory and Ledger
   ✓ Checkout should decrement inventory and create ledger entry
+    (calls CheckoutService.placeOrder() with mocked TrackingGateway/NotificationService)
+    (verifies: order created, inventory decremented, ledger.orderId matches, delta correct)
 
 Phase 1: Cancellation Inventory Restore and Ledger
   ✓ Cancellation should restore inventory and create ledger entry
@@ -127,7 +139,27 @@ Phase 1: Cancellation Inventory Restore and Ledger
 
 ---
 
-## 7. Commands Run
+## 8. CI / GitHub Actions
+
+**Workflow:** `.github/workflows/ci.yml`
+**Change:** Updated push trigger to include `phase-*` branches; added test step.
+
+```yaml
+on:
+  push:
+    branches: ["main", "phase-*"]
+  pull_request:
+    branches: ["main"]
+```
+
+**CI Run:** Triggered by push to `phase-1-security-inventory-foundation` (SHA `44d7b9f`).
+**Status:** The push to the `phase-*` branch triggers the CI workflow automatically per the updated trigger config. The workflow runs `npx turbo build` and `npm test --workspace=apps/api-gateway`.
+
+**Note:** `gh` CLI is not authenticated on this machine, so a PR could not be created via CLI. The CI workflow triggers on direct push to `phase-*` branches, which was already done.
+
+---
+
+## 9. Commands Run
 
 | Command | Result |
 |---------|--------|
@@ -135,28 +167,8 @@ Phase 1: Cancellation Inventory Restore and Ledger
 | `npm test --workspace=apps/api-gateway` | ✅ 12/12 pass |
 | `npx prisma generate --schema packages/database/prisma/schema.prisma` | ✅ Pass |
 | `npx prisma db execute --file .../migration.sql` | ✅ Pass |
+| `npx turbo build` | ✅ 7/7 tasks pass |
 | `git push origin phase-1-security-inventory-foundation` | ✅ Pass |
-
----
-
-## 8. GitHub Actions Proof
-
-Branch pushed to: `https://github.com/Saikumar-bali/AAGAM_E-commerce/tree/phase-1-security-inventory-foundation`
-
-**Note:** GitHub Actions workflows may not be configured in this repository. The branch is available for CI/CD verification when workflows are added.
-
----
-
-## 9. What This Phase Explicitly Excludes
-
-- Payment gateway integration
-- Coupons / loyalty / rewards
-- Rider earnings / payouts
-- Support ticketing system
-- Analytics dashboards
-- UI redesign or theming changes
-- Push notification for cancellation
-- Refund processing
 
 ---
 
@@ -164,25 +176,38 @@ Branch pushed to: `https://github.com/Saikumar-bali/AAGAM_E-commerce/tree/phase-
 
 | File | Summary |
 |------|---------|
-| `packages/database/prisma/schema.prisma` | Added `deletedAt` to Store/Product, `isActive` to Product, `InventoryLedger` model + enum |
+| `.github/workflows/ci.yml` | Added `phase-*` push trigger, added test step |
+| `packages/database/prisma/schema.prisma` | `deletedAt` on Store/Product, `isActive` on Product, `InventoryLedger` model |
 | `packages/database/prisma/migrations/20260628000000_phase1_security_inventory/migration.sql` | Migration SQL |
-| `apps/api-gateway/src/auth/auth.controller.ts` | Added guards to `GET /auth/users` |
-| `apps/api-gateway/src/riders/rider.controller.ts` | Added `RolesGuard` to `GET /riders/:id` and `PATCH /riders/:id/status` |
-| `apps/api-gateway/src/upload/upload.controller.ts` | Added class-level `JwtAuthGuard` + `RolesGuard` with `@Roles(ADMIN, STORE_OWNER)` |
+| `apps/api-gateway/src/auth/auth.controller.ts` | Guards on `GET /auth/users` |
+| `apps/api-gateway/src/riders/rider.controller.ts` | `RolesGuard` on `GET /riders/:id`, `PATCH /riders/:id/status` |
+| `apps/api-gateway/src/upload/upload.controller.ts` | Class-level `JwtAuthGuard` + `RolesGuard` |
 | `apps/api-gateway/src/stores/store.controller.ts` | Pass `req.user` to `updateInventory` |
-| `apps/api-gateway/src/stores/store.service.ts` | Tenancy check, soft delete, ledger in `$transaction` |
-| `apps/api-gateway/src/products/product.service.ts` | Soft delete filters, soft delete method |
+| `apps/api-gateway/src/stores/store.service.ts` | Tenancy check, soft delete, `isActive` filter, `findOne` throws on deleted/inactive |
+| `apps/api-gateway/src/products/product.service.ts` | `isActive: true` in `findAll`/`findOne`, soft delete |
 | `apps/api-gateway/src/orders/order.service.ts` | Ledger on cancel and delivery |
-| `apps/api-gateway/src/checkout/checkout.service.ts` | Ledger on checkout reservation, orderId linking |
-| `apps/api-gateway/src/inventory.spec.ts` | 12 tests (RBAC, soft delete, tenancy, ledger, checkout, cancel) |
+| `apps/api-gateway/src/checkout/checkout.service.ts` | Ledger on checkout, `isActive`+`deletedAt` filter on products and stores |
+| `apps/api-gateway/src/inventory.spec.ts` | 12 tests including CheckoutService.placeOrder() integration |
 | `apps/api-gateway/jest.config.js` | Jest config |
-| `apps/api-gateway/package.json` | Added test script, devDependencies |
+| `apps/api-gateway/package.json` | Test script, devDependencies |
 | `apps/api-gateway/tsconfig.json` | Excluded spec files from build |
 
 ---
 
-## 11. Known Limitations
+## 11. What This Phase Explicitly Excludes
 
-- **GitHub Actions:** No CI/CD workflows are configured in the repository. The branch is ready for review but automated checks are not available.
-- **Checkout test:** The checkout inventory/ledger test uses direct Prisma calls to simulate the flow rather than calling `CheckoutService.placeOrder()` directly (requires mocking `TrackingGateway` and `NotificationService`).
-- **No E2E tests:** RBAC tests are HTTP-level integration tests using `node-fetch` against the running API server.
+- Payment gateway integration
+- Coupons / loyalty / rewards
+- Rider earnings / payouts
+- Support ticketing system
+- Analytics dashboards
+- UI redesign or theming changes
+- Refund processing
+
+---
+
+## 12. Known Limitations
+
+- **GitHub CLI auth:** `gh` is installed but not authenticated, so a PR could not be created via CLI. The CI workflow triggers on direct push to `phase-*` branches.
+- **Checkout test store resolution:** Uses unique coordinates (`88.888, 88.888`) to ensure `resolveStoreForLocation` picks the test store.
+- **No E2E tests:** RBAC tests are HTTP-level integration tests against a running API server.
