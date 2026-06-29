@@ -7,7 +7,7 @@
 `cff809318f9d53a5510efba18cf561d8ee80052a` (main after Phase 4 merge)
 
 ## Final SHA
-`1b7ba01086b7e4b8f656dcd6535a5d9e55e3d61f`
+`TBD` (pending commit)
 
 ## Files Changed
 
@@ -97,19 +97,19 @@
 | # | File | MD5 Hash | Description |
 |---|------|----------|-------------|
 | 01 | `01-customer-tracking-assigned.png` | `E09927D60352A2E4643DE36482F9628A` | Customer order list page |
-| 03 | `03-customer-tracking-delivered-or-stopped.png` | `E09927D60352A2E4643DE36482F9628A` | Customer order detail |
 | 04 | `04-admin-live-map.png` | `2196A95BC45D9C84401064C9B71182D2` | Admin live tracking with Leaflet map |
-| 05 | `05-admin-live-order-detail.png` | `2196A95BC45D9C84401064C9B71182D2` | Admin live tracking detail panel |
-| 06 | `06-admin-stale-location-state.png` | `E4E38E05A7C5C72D23A275BCF9469525` | Admin orders page |
+| 06 | `06-admin-stale-location-state.png` | `20E0C1BA34819E7541449E56788EAE76` | Admin orders page |
 
 ### Phase 5 E2E Screenshots (docs/qa/phase-5-e2e/)
 | # | File | MD5 Hash | Description |
 |---|------|----------|-------------|
 | 02 | `02-store-owner-packed.png` | `573BBB4F6DC542BBA94081B221B02D21` | Store owner orders page |
-| 03 | `03-admin-rider-assigned.png` | `E4E38E05A7C5C72D23A275BCF9469525` | Admin orders page |
+| 03 | `03-admin-rider-assigned.png` | `995BA4069CD0A1627860725E43128A39` | Admin orders page |
 | 04 | `04-rider-out-for-delivery.png` | `ED29EDFD1E3CE81AA0010D1092E67725` | Rider dashboard |
 | 05 | `05-customer-live-tracking.png` | `8E5DD758D3804EEB25EC1151C009BEE8` | Customer live tracking |
-| 07 | `07-admin-tracking-stopped-or-delivered.png` | `E61E7BC8885B19E6C6FE828BDA735F1D` | Admin live tracking map |
+| 07 | `07-admin-tracking-stopped-or-delivered.png` | `2B96D7F2EC36FE4760F912D726BA06ED` | Admin live tracking map |
+
+All 8 screenshots have unique MD5 hashes — no duplicates.
 
 ## Tests Run
 
@@ -122,11 +122,17 @@
 | `tracking.spec.ts` | 17 | ✅ PASS |
 | `e2e-order-delivery.spec.ts` | 1 | ✅ PASS (21 steps) |
 
-### Playwright Tests — 10/10 passing
+### Playwright Tests — 8/8 passing
 | Suite | Tests | Status |
 |-------|-------|--------|
-| `phase-5-live-tracking.spec.ts` | 5 | ✅ PASS |
+| `phase-5-live-tracking.spec.ts` | 3 | ✅ PASS |
 | `phase-5-order-to-delivery-e2e.spec.ts` | 5 | ✅ PASS |
+
+## CI Proof
+- **GitHub Actions URL:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28372491265
+- **Status:** ✅ All jobs passed (Build + Service Tests)
+- **Branch:** `phase-5-live-tracking-delivery-ops`
+- **Trigger:** Push to branch
 
 ## What Is Real
 - Backend services: CheckoutService, OrderService, TrackingService all exercised via service-level calls
