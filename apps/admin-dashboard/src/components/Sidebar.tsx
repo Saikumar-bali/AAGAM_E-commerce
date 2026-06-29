@@ -16,6 +16,7 @@ import {
   Tag,
   RotateCcw,
   UserCircle,
+  Radar,
 } from 'lucide-react';
 
 import { apiClient } from '@aagam/utils';
@@ -72,6 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
       { name: 'Products', href: '/admin/products', icon: Package },
       { name: 'Riders', href: '/admin/riders', icon: Truck },
       { name: 'Orders', href: '/admin/orders', icon: ShoppingCart },
+      { name: 'Live Tracking', href: '/admin/live-tracking', icon: Radar },
     ],
     RIDER: [
       { name: 'Queue', href: '/rider', icon: Truck },

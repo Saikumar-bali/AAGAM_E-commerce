@@ -8,10 +8,13 @@ import { apiClient } from '@aagam/utils';
 import { formatINR } from '@/lib/currency';
 import OrderTimeline from '@/components/customer/OrderTimeline';
 import BillDetailsCard from '@/components/customer/BillDetailsCard';
+import dynamic from 'next/dynamic';
 import {
   ArrowLeft, Calendar, MapPin, Package, Phone, Store, Truck,
-  RotateCcw, MessageSquare, ExternalLink,
+  RotateCcw, MessageSquare, ExternalLink, Clock, Navigation,
 } from 'lucide-react';
+
+const CustomerTrackingMap = dynamic(() => import('@/components/CustomerTrackingMap'), { ssr: false });
 
 type Order = {
   id: string;
@@ -23,8 +26,10 @@ type Order = {
   taxAmount: number;
   grandTotal: number;
   totalAmount: number;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
   createdAt: string;
-  store?: { name?: string | null; address?: string | null } | null;
+  store?: { name?: string | null; address?: string | null; latitude?: number | null; longitude?: number | null } | null;
   payment?: { method: 'ONLINE' | 'COD'; status: string; provider?: string | null } | null;
   rider?: { id: string; user?: { name?: string | null; phone?: string | null } | null } | null;
   items?: Array<{
@@ -36,6 +41,25 @@ type Order = {
   addressSnapshot?: any;
   itemsSnapshot?: any;
   pricingSnapshot?: any;
+};
+
+const TrackingStateBanner = ({ state }: { state: string }) => {
+  const config: Record<string, { bg: string; border: string; text: string; dot: string; label: string }> = {
+    NOT_ASSIGNED: { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', dot: 'bg-slate-400', label: 'Waiting for rider assignment...' },
+    ASSIGNED_NO_LOCATION: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', dot: 'bg-blue-500', label: 'Rider is heading to pick up your order' },
+    LIVE: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-500 animate-pulse', label: 'Live tracking active' },
+    STALE: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', dot: 'bg-amber-500', label: 'Tracking paused — waiting for rider location update' },
+    DELIVERED: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Order delivered!' },
+    CANCELLED: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', dot: 'bg-red-500', label: 'Order was cancelled' },
+    STOPPED: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Order delivered!' },
+  };
+  const c = config[state] || config.NOT_ASSIGNED;
+  return (
+    <div className={`rounded-2xl border ${c.border} ${c.bg} p-4 flex items-center gap-3`}>
+      <div className={`w-2.5 h-2.5 rounded-full ${c.dot}`} />
+      <span className={`text-sm font-bold ${c.text}`}>{c.label}</span>
+    </div>
+  );
 };
 
 export default function CustomerOrderDetailPage() {
@@ -55,7 +79,7 @@ export default function CustomerOrderDetailPage() {
       setLoading(true); setError(null);
       try {
         const res = await apiClient.get(`/orders/my/${orderId}`);
-        const tracking = await apiClient.get(`/orders/my/${orderId}/tracking`);
+        const tracking = await apiClient.get(`/tracking/my/order/${orderId}`);
         setOrder(res.data as Order);
         setTrackingPayload(tracking.data);
       } catch (e: any) { setError(e?.response?.data?.message || 'Failed to load order'); }
@@ -66,11 +90,26 @@ export default function CustomerOrderDetailPage() {
 
   useEffect(() => {
     if (!orderId) return;
-    const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005', { withCredentials: true, transports: ['websocket', 'polling'] });
+    const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005', {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      auth: { token: typeof document !== 'undefined' ? document.cookie.split('; ').find(c => c.startsWith('access_token='))?.split('=')[1] : undefined },
+    });
     socket.on('connect', () => socket.emit('joinOrder', { orderId }));
     socket.on('riderLocationUpdated', (payload: any) => { if (payload.orderId === orderId) setLiveLocation(payload); });
+    socket.on('riderMoved', (payload: any) => { if (payload.orderId === orderId) setLiveLocation(payload); });
     socket.on('orderTimelineUpdated', (payload: any) => { if (payload.order?.id === orderId) setTrackingPayload(payload); });
+    socket.on('orderStatusUpdated', (payload: any) => { if (payload.orderId === orderId) window.location.reload(); });
+    socket.on('trackingStopped', (payload: any) => { if (payload.orderId === orderId) window.location.reload(); });
     return () => { socket.disconnect(); };
+  }, [orderId]);
+
+  useEffect(() => {
+    if (!orderId) return;
+    const poll = setInterval(() => {
+      apiClient.get(`/tracking/my/order/${orderId}`).then(res => setTrackingPayload(res.data)).catch(() => {});
+    }, 10000);
+    return () => clearInterval(poll);
   }, [orderId]);
 
   const items = useMemo(() => {
@@ -91,7 +130,28 @@ export default function CustomerOrderDetailPage() {
 
   const livePoint = liveLocation || trackingPayload?.tracking?.latestLocation || null;
   const trackingMeta = trackingPayload?.tracking || {};
+  const trackingState = trackingMeta.trackingState || 'NOT_ASSIGNED';
   const etaLabel = trackingMeta.etaMinutes ? `ETA ${trackingMeta.etaMinutes} min` : null;
+  const distanceLabel = trackingMeta.distanceKm != null ? `${trackingMeta.distanceKm} km` : null;
+  const lastPingAt = livePoint?.createdAt || trackingMeta.lastPingAt;
+
+  const buildMapMarkers = () => {
+    const markers: { latitude: number; longitude: number; type: 'store' | 'delivery' | 'rider'; label?: string }[] = [];
+    if (trackingPayload?.store?.latitude && trackingPayload?.store?.longitude) {
+      markers.push({ latitude: trackingPayload.store.latitude, longitude: trackingPayload.store.longitude, type: 'store', label: trackingPayload.store.name || 'Store' });
+    }
+    if (order?.deliveryLat && order?.deliveryLng) {
+      markers.push({ latitude: order.deliveryLat, longitude: order.deliveryLng, type: 'delivery', label: 'Delivery' });
+    }
+    const riderLat = livePoint?.latitude ?? trackingPayload?.rider?.latitude;
+    const riderLng = livePoint?.longitude ?? trackingPayload?.rider?.longitude;
+    if (riderLat && riderLng) {
+      markers.push({ latitude: riderLat, longitude: riderLng, type: 'rider', label: trackingPayload?.rider?.name || 'Rider' });
+    }
+    return markers;
+  };
+
+  const showTrackingMap = trackingState !== 'NOT_ASSIGNED' && trackingState !== 'DELIVERED' && trackingState !== 'CANCELLED';
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
@@ -130,14 +190,37 @@ export default function CustomerOrderDetailPage() {
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-black text-slate-950">{formatINR(Number(pricing.grandTotal) || 0)}</div>
-                  {etaLabel && (
-                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-teal-50 border border-teal-200 px-2.5 py-1 text-xs font-black text-teal-700">
-                      <Truck className="h-3 w-3" /> {etaLabel}
-                    </div>
-                  )}
+                  <div className="flex flex-wrap justify-end gap-2 mt-2">
+                    {etaLabel && (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-teal-50 border border-teal-200 px-2.5 py-1 text-xs font-black text-teal-700">
+                        <Truck className="h-3 w-3" /> {etaLabel}
+                      </span>
+                    )}
+                    {distanceLabel && (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs font-black text-blue-700">
+                        <Navigation className="h-3 w-3" /> {distanceLabel}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
+
+            <TrackingStateBanner state={trackingState} />
+
+            {showTrackingMap && (
+              <div className="rounded-2xl border border-slate-100 bg-white overflow-hidden">
+                <CustomerTrackingMap markers={buildMapMarkers()} />
+                <div className="p-4 border-t border-slate-100">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Last update: {lastPingAt ? new Date(lastPingAt).toLocaleTimeString('en-IN') : 'Never'}</span>
+                    {trackingPayload?.rider?.name && (
+                      <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {trackingPayload.rider.name}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <OrderTimeline currentStatus={order.status} timeline={trackingPayload?.timeline} />
 

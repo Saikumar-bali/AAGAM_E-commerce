@@ -4,20 +4,36 @@ import {
   SubscribeMessage,
   MessageBody,
   ConnectedSocket,
+  OnGatewayConnection,
 } from '@nestjs/websockets';
+import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
+import { prisma, Role } from '@aagam/database';
 
 const isProduction = process.env.NODE_ENV === 'production';
-const allowedOrigins = isProduction 
+const allowedOrigins = isProduction
   ? process.env.CORS_ORIGINS?.split(',') || []
   : [
-      'http://localhost:3000', 
-      'http://localhost:3001', 
+      'http://localhost:3000',
+      'http://localhost:3001',
       'http://localhost:3005',
-      'http://127.0.0.1:3000', 
+      'http://127.0.0.1:3000',
       'http://127.0.0.1:3001',
-      'http://127.0.0.1:3005'
+      'http://127.0.0.1:3005',
     ];
+
+interface AuthenticatedSocket extends Socket {
+  data: {
+    user?: {
+      id: string;
+      email: string;
+      role: Role;
+      name: string | null;
+    };
+  };
+}
+
+const TRACKABLE_STATUSES = ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'];
 
 @WebSocketGateway({
   cors: {
@@ -25,9 +41,47 @@ const allowedOrigins = isProduction
     credentials: true,
   },
 })
-export class TrackingGateway {
+export class TrackingGateway implements OnGatewayConnection {
   @WebSocketServer()
   server!: Server;
+
+  constructor(private readonly jwtService: JwtService) {}
+
+  async handleConnection(client: AuthenticatedSocket) {
+    try {
+      const token =
+        client.handshake.auth?.token ||
+        client.handshake.headers?.authorization?.replace('Bearer ', '') ||
+        (client.handshake.headers?.cookie as string)
+          ?.split('; ')
+          .find((c) => c.startsWith('access_token='))
+          ?.split('=')[1];
+
+      if (!token) {
+        console.log('[Socket] Connection rejected: no token');
+        client.disconnect();
+        return;
+      }
+
+      const payload = this.jwtService.verify(token);
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, email: true, role: true, name: true },
+      });
+
+      if (!user) {
+        console.log('[Socket] Connection rejected: user not found');
+        client.disconnect();
+        return;
+      }
+
+      client.data.user = user;
+      console.log(`[Socket] Authenticated: ${user.email} (${user.role})`);
+    } catch (err) {
+      console.log('[Socket] Connection rejected: invalid token');
+      client.disconnect();
+    }
+  }
 
   emitOrderStatusUpdated(orderId: string, payload: any) {
     this.server?.to(`order_${orderId}`).emit('orderStatusUpdated', payload);
@@ -57,69 +111,134 @@ export class TrackingGateway {
     this.server?.to('admin_monitor').emit('trackingStopped', payload);
   }
 
-  // 1. Client (Admin/Customer) joins a room for a specific order
   @SubscribeMessage('joinOrder')
-  handleJoinOrder(
+  async handleJoinOrder(
     @MessageBody() data: { orderId: string },
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthenticatedSocket,
   ) {
+    const user = client.data.user;
+    if (!user) {
+      console.log('[Socket] joinOrder rejected: unauthenticated');
+      return;
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: data.orderId },
+      select: { id: true, customerId: true, riderId: true, store: { select: { ownerId: true } } },
+    });
+
+    if (!order) {
+      console.log(`[Socket] joinOrder rejected: order ${data.orderId} not found`);
+      return;
+    }
+
+    if (user.role === Role.CUSTOMER && order.customerId !== user.id) {
+      console.log(`[Socket] joinOrder rejected: customer ${user.id} cannot join order ${data.orderId}`);
+      return;
+    }
+
+    if (user.role === Role.RIDER) {
+      const riderProfile = await prisma.riderProfile.findUnique({ where: { userId: user.id } });
+      if (!riderProfile || order.riderId !== riderProfile.id) {
+        console.log(`[Socket] joinOrder rejected: rider ${user.id} not assigned to order ${data.orderId}`);
+        return;
+      }
+    }
+
+    if (user.role === Role.STORE_OWNER && order.store.ownerId !== user.id) {
+      console.log(`[Socket] joinOrder rejected: store owner ${user.id} does not own order ${data.orderId}`);
+      return;
+    }
+
     client.join(`order_${data.orderId}`);
-    console.log(`Client joined room: order_${data.orderId}`);
+    console.log(`[Socket] ${user.email} joined room: order_${data.orderId}`);
   }
 
-  // 2. Admin joins a global monitoring room for all active riders
   @SubscribeMessage('joinAdminMonitor')
-  handleJoinAdminMonitor(@ConnectedSocket() client: Socket) {
+  handleJoinAdminMonitor(@ConnectedSocket() client: AuthenticatedSocket) {
+    const user = client.data.user;
+    if (!user || user.role !== Role.ADMIN) {
+      console.log('[Socket] joinAdminMonitor rejected: not admin');
+      return;
+    }
     client.join('admin_monitor');
-    console.log('Admin joined global monitor room');
+    console.log('[Socket] Admin joined global monitor room');
   }
 
-  // Admin joins order notifications room
   @SubscribeMessage('joinAdminOrders')
-  handleJoinAdminOrders(@ConnectedSocket() client: Socket) {
+  handleJoinAdminOrders(@ConnectedSocket() client: AuthenticatedSocket) {
+    const user = client.data.user;
+    if (!user || user.role !== Role.ADMIN) {
+      console.log('[Socket] joinAdminOrders rejected: not admin');
+      return;
+    }
     client.join('admin_orders');
-    console.log('Admin joined admin_orders room');
+    console.log('[Socket] Admin joined admin_orders room');
   }
 
-  // 3. Rider sends location and status update
   @SubscribeMessage('updateRiderLocation')
-  handleRiderLocationUpdate(
-    @MessageBody() data: { 
+  async handleRiderLocationUpdate(
+    @MessageBody()
+    data: {
       riderId: string;
-      orderId?: string; 
-      latitude: number; 
+      orderId?: string;
+      latitude: number;
       longitude: number;
       bearing: number;
       status: string;
     },
+    @ConnectedSocket() client: AuthenticatedSocket,
   ) {
+    const user = client.data.user;
+    if (!user || user.role !== Role.RIDER) {
+      console.log('[Socket] updateRiderLocation rejected: not a rider');
+      return;
+    }
+
+    const riderProfile = await prisma.riderProfile.findUnique({ where: { userId: user.id } });
+    if (!riderProfile) {
+      console.log(`[Socket] updateRiderLocation rejected: no rider profile for ${user.id}`);
+      return;
+    }
+
+    if (data.orderId) {
+      const order = await prisma.order.findUnique({ where: { id: data.orderId } });
+      if (!order) {
+        console.log(`[Socket] updateRiderLocation rejected: order ${data.orderId} not found`);
+        return;
+      }
+      if (order.riderId !== riderProfile.id) {
+        console.log(`[Socket] updateRiderLocation rejected: rider ${user.id} not assigned to order ${data.orderId}`);
+        return;
+      }
+      if (!TRACKABLE_STATUSES.includes(order.status)) {
+        console.log(`[Socket] updateRiderLocation rejected: order ${data.orderId} status ${order.status} not trackable`);
+        return;
+      }
+    }
+
     const payload = {
       ...data,
+      riderId: riderProfile.id,
       timestamp: new Date().toISOString(),
     };
 
-    // Broadcast to the specific order room (for the customer)
     if (data.orderId) {
       this.server.to(`order_${data.orderId}`).volatile.emit('riderMoved', payload);
     }
-
-    // Broadcast to the admin monitor room
     this.server.to('admin_monitor').volatile.emit('adminRiderUpdate', payload);
   }
 
-  // 4. Rider joins zone-based room for nearby order notifications
   @SubscribeMessage('joinRiderZone')
   handleJoinRiderZone(
     @MessageBody() data: { latitude: number; longitude: number },
     @ConnectedSocket() client: Socket,
   ) {
-    // Join a zone room based on rounded coordinates (e.g., 28.6_77.5)
     const zoneKey = `${Math.round(data.latitude * 10)}_${Math.round(data.longitude * 10)}`;
     client.join(`zone_${zoneKey}`);
-    console.log(`Rider joined zone: ${zoneKey} (lat: ${data.latitude}, lng: ${data.longitude})`);
+    console.log(`Rider joined zone: ${zoneKey}`);
   }
 
-  // 5. Rider joins general queue for all orders (fallback)
   @SubscribeMessage('joinRidersQueue')
   handleJoinRidersQueue(@ConnectedSocket() client: Socket) {
     client.join('riders_queue');
