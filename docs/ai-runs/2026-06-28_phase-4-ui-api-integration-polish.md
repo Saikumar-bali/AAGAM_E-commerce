@@ -8,9 +8,10 @@
 
 ## CI Proof
 
-- **GitHub Actions run:** (set after final push)
-- **Build job:** ✓ passed
-- **Service Tests job:** ✓ passed
+- **GitHub Actions run:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28360830705
+- **Build job:** ✓ passed in 1m43s
+- **Service Tests job:** ✓ passed in 1m50s
+- **All steps green:** Set up → Checkout → Setup Node.js → Install dependencies → Generate Prisma Client → Validate schema → Build workspace → Apply migrations → Verify migration status → Run CI-safe tests → Stop containers
 
 ## Playwright Command
 
