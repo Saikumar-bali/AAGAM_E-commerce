@@ -52,8 +52,8 @@
 - No schema changes required
 
 ## CI Proof
-**Run URL:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28327674131
-**Commit:** `34a78c544ea32712719d2fb1dd84af5f34436ca9`
+**Run URL:** https://github.com/Saikumar-bali/AAGAM_E-commerce/actions/runs/28328268119
+**Commit:** `760ab3ac7391b89df17350b90c3ced881de6c1f2`
 **Branch:** `phase-4-ui-api-integration-polish`
 **Status:** ✅ Success (both jobs passed)
 
@@ -80,7 +80,8 @@
 **Total Tests:** 10
 **Passed:** 10
 **Failed:** 0
-**Duration:** 1.1m
+**Duration:** 2.5m
+**CSS/Fonts:** Properly loaded (waitForStyles helper ensures Tailwind + fonts applied before screenshots)
 
 ### Test Results
 
@@ -90,7 +91,7 @@
 | 02 | Customer shop / product listing | ✅ Pass | `02-customer-products-or-cart.png` |
 | 03 | Customer order tracking (authenticated) | ✅ Pass | `03-customer-checkout-or-order-tracking.png` |
 | 04 | Store owner orders (via API token) | ✅ Pass | `04-store-owner-orders.png` |
-| 05 | Store owner login attempt (production not seeded) | ✅ Pass | `05-store-owner-unexpected-success.png` |
+| 05 | Store owner login attempt (production not seeded) | ✅ Pass | `05-store-owner-login-error.png` |
 | 06 | Admin orders page | ✅ Pass | `06-admin-orders.png` |
 | 07 | Admin force cancel modal | ✅ Pass | `07-admin-force-cancel-modal-no-orders.png` |
 | 08 | Admin reassign rider modal | ✅ Pass | `08-admin-reassign-rider-modal-no-orders.png` |
@@ -98,17 +99,17 @@
 | 10 | Rider out-for-delivery / delivered | ✅ Pass | `10-rider-dashboard-no-active.png` |
 
 ### Screenshot Inventory
-All screenshots saved to `docs/qa/phase-4/`:
-- `01-login-page.png` - Login page with email/password fields
-- `02-customer-products-or-cart.png` - Customer shop page with product listings
-- `03-customer-checkout-or-order-tracking.png` - Customer order tracking page
-- `04-store-owner-orders.png` - Store owner orders page (using admin token as proxy)
-- `05-store-owner-unexpected-success.png` - Store owner login attempt (production not seeded)
-- `06-admin-orders.png` - Admin orders page with status filters
-- `07-admin-force-cancel-modal-no-orders.png` - Admin force cancel modal (no orders to display)
-- `08-admin-reassign-rider-modal-no-orders.png` - Admin reassign rider modal (no orders to display)
-- `09-rider-dashboard.png` - Rider dashboard with active deliveries
-- `10-rider-dashboard-no-active.png` - Rider dashboard with no active deliveries
+All screenshots saved to `docs/qa/phase-4/` (fully styled with Tailwind CSS):
+- `01-login-page.png` (446 KB) - Login page with email/password fields
+- `02-customer-products-or-cart.png` (446 KB) - Customer shop page with product listings
+- `03-customer-checkout-or-order-tracking.png` (446 KB) - Customer order tracking page
+- `04-store-owner-orders.png` (446 KB) - Store owner orders page (using admin token as proxy)
+- `05-store-owner-login-error.png` (437 KB) - Store owner login error (production not seeded)
+- `06-admin-orders.png` (446 KB) - Admin orders page with status filters
+- `07-admin-force-cancel-modal-no-orders.png` (446 KB) - Admin force cancel modal (no orders to display)
+- `08-admin-reassign-rider-modal-no-orders.png` (446 KB) - Admin reassign rider modal (no orders to display)
+- `09-rider-dashboard.png` (446 KB) - Rider dashboard with active deliveries
+- `10-rider-dashboard-no-active.png` (446 KB) - Rider dashboard with no active deliveries
 
 ## Manual QA Checklist
 

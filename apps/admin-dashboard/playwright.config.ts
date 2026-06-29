@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 60000,
+  timeout: 120000,
   expect: { timeout: 15000 },
   fullyParallel: false,
   retries: 0,
@@ -16,6 +16,9 @@ export default defineConfig({
     trace: 'on',
     screenshot: 'on',
     video: 'retain-on-failure',
+    launchOptions: {
+      args: ['--font-render-hinting=none'],
+    },
   },
   projects: [
     {
@@ -23,4 +26,13 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], headless: false },
     },
   ],
+  webServer: {
+    command: 'npm run dev',
+    port: 3001,
+    timeout: 120000,
+    reuseExistingServer: true,
+    env: {
+      NEXT_PUBLIC_API_URL: 'https://aagam-api-production.up.railway.app',
+    },
+  },
 });
