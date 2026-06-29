@@ -11,6 +11,9 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
 
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_build"
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
