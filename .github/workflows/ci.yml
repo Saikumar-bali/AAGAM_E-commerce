@@ -184,15 +184,6 @@ jobs:
         run: |
           npx turbo build --filter=@aagam/api-gateway --filter=@aagam/admin-dashboard --cache-dir=".turbo" --force
 
-      - name: Seed database
-        run: npx prisma db seed --schema packages/database/prisma/schema.prisma
-        env:
-          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
-          PLAYWRIGHT_QA: "true"
-          PLAYWRIGHT_QA_SEED: "true"
-          JWT_SECRET: "ci-test-secret-minimum-32-characters-long"
-          REDIS_URL: "redis://localhost:6379"
-
       - name: Start API gateway
         run: |
           node apps/api-gateway/dist/src/main.js &
