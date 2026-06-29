@@ -32,7 +32,7 @@ export default defineConfig({
     timeout: 120000,
     reuseExistingServer: true,
     env: {
-      NEXT_PUBLIC_API_URL: 'https://aagam-api-production.up.railway.app',
+      NEXT_PUBLIC_API_URL: 'http://localhost:3005',
     },
   },
 });

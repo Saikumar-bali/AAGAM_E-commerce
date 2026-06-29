@@ -16,13 +16,13 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('signup')
-  @Throttle({ short: { limit: 5, ttl: 60000 } }) // 5 requests per minute
+  @Throttle({ short: { limit: 5, ttl: 60000 } })
   async signUp(@Body() signupDto: SignupDto) {
     return this.authService.signUp(signupDto.email, signupDto.password, signupDto.name, signupDto.role);
   }
 
   @Post('login')
-  @Throttle({ short: { limit: 5, ttl: 900000 } }) // 5 attempts per 15 minutes
+  @Throttle({ short: { limit: 5, ttl: 900000 } })
   async signIn(@Body() loginDto: LoginDto, @Res({ passthrough: true }) response: Response) {
     if (process.env.NODE_ENV === 'development') {
       console.log('[AuthController] Login attempt');

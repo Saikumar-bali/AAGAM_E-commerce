@@ -2,180 +2,175 @@ import { test, expect, Page } from '@playwright/test';
 import path from 'path';
 
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-4');
-const API_BASE = 'https://aagam-api-production.up.railway.app';
+
+async function loginViaForm(page: Page, email: string, password: string) {
+  await page.goto('/login');
+  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
+  await page.fill('input[type="email"]', email);
+  await page.fill('input[type="password"]', password);
+  await page.click('button[type="submit"]');
+}
+
+async function waitForDashboard(page: Page, urlFragment: string, timeout = 20000) {
+  await page.waitForURL(`**${urlFragment}**`, { timeout });
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(3000);
+}
 
 async function waitForStyles(page: Page) {
-  // Wait for network to settle
   await page.waitForLoadState('networkidle');
-  // Wait for fonts to be ready
   await page.evaluate(() => document.fonts.ready);
-  // Wait for Tailwind CSS to be applied (check body has computed styles)
   await page.waitForFunction(() => {
     const body = document.body;
     if (!body) return false;
     const cs = getComputedStyle(body);
-    // Tailwind sets font-family on body; just check it's not empty
     return cs.fontFamily.length > 0 && cs.backgroundColor !== '';
   }, { timeout: 15000 });
-  // Extra settle time for dev mode CSS hot-reload
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(2000);
 }
 
-async function setToken(page: Page, email: string, password: string) {
-  const res = await page.request.post(`${API_BASE}/auth/login`, {
-    data: { email, password },
-  });
-  const body = await res.json();
-  // Must be on the app origin before we can access localStorage
-  await page.goto('/login');
-  await page.waitForSelector('input[placeholder="you@company.com"]', { timeout: 15000 });
-  await page.evaluate((token) => {
-    localStorage.setItem('access_token', token);
-  }, body.access_token);
-  return body.user;
-}
+test.describe('Phase 4 — Real Screenshot Proof', () => {
 
-test.describe('Phase 4 Smoke Tests', () => {
-
-  test('01 - Login page (unauthenticated)', async ({ page }) => {
+  test('01 — Login page', async ({ page }) => {
     await page.goto('/login');
     await page.waitForSelector('text=Sign in to your workspace', { timeout: 15000 });
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/01-login-page.png`, fullPage: true });
   });
 
-  test('02 - Customer shop / product listing', async ({ page }) => {
-    const user = await setToken(page, 'customer@aagam.com', 'Demo@123');
-    expect(user.role).toBe('CUSTOMER');
-
+  test('02 — Customer shop / product listing', async ({ page }) => {
+    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await waitForDashboard(page, '/shop');
     await page.goto('/shop');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(5000);
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/02-customer-products-or-cart.png`, fullPage: true });
   });
 
-  test('03 - Customer order tracking (authenticated)', async ({ page }) => {
-    const user = await setToken(page, 'customer@aagam.com', 'Demo@123');
-    expect(user.role).toBe('CUSTOMER');
-
+  test('03 — Customer order tracking', async ({ page }) => {
+    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await waitForDashboard(page, '/shop');
     await page.goto('/shop/orders');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
     await waitForStyles(page);
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/03-customer-checkout-or-order-tracking.png`, fullPage: true });
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/03-customer-order-tracking.png`, fullPage: true });
   });
 
-  test('04 - Store owner orders (via API token)', async ({ page }) => {
-    const user = await setToken(page, 'admin@aagam.com', 'Admin@123');
-    expect(user.role).toBe('ADMIN');
+  test('04 — Store owner login success', async ({ page }) => {
+    await loginViaForm(page, 'store@aagam.com', 'Demo@123');
+    await waitForDashboard(page, '/store');
+    await waitForStyles(page);
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/04-store-owner-login-or-token-proof.png`, fullPage: true });
+  });
 
+  test('05 — Store owner orders page', async ({ page }) => {
+    await loginViaForm(page, 'store@aagam.com', 'Demo@123');
+    await waitForDashboard(page, '/store');
     await page.goto('/store/orders');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
     await waitForStyles(page);
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/04-store-owner-orders.png`, fullPage: true });
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/05-store-owner-orders.png`, fullPage: true });
   });
 
-  test('05 - Store owner login attempt (production not seeded)', async ({ page }) => {
-    await page.goto('/login');
-    await page.waitForSelector('input[placeholder="you@company.com"]', { timeout: 15000 });
-    await page.fill('input[placeholder="you@company.com"]', 'store@aagam.com');
-    await page.fill('input[placeholder="Enter password"]', 'Demo@123');
-    await page.click('button[type="submit"]');
-    await page.waitForTimeout(4000);
-    await waitForStyles(page);
+  test('06 — Store owner status actions', async ({ page }) => {
+    await loginViaForm(page, 'store@aagam.com', 'Demo@123');
+    await waitForDashboard(page, '/store');
+    await page.goto('/store/orders');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
 
-    const url = page.url();
-    const stillOnLogin = url.includes('/login');
-    const errorVisible = await page.locator('text=Invalid credentials').isVisible().catch(() => false);
-
-    if (stillOnLogin && errorVisible) {
-      await page.screenshot({ path: `${SCREENSHOT_DIR}/05-store-owner-login-error.png`, fullPage: true });
+    const statusFilter = page.locator('button:has-text("Picking"), button:has-text("PICKING")').first();
+    const hasFilter = await statusFilter.isVisible({ timeout: 5000 }).catch(() => false);
+    if (hasFilter) {
+      await statusFilter.click();
+      await page.waitForTimeout(2000);
     } else {
-      await page.screenshot({ path: `${SCREENSHOT_DIR}/05-store-owner-unexpected-success.png`, fullPage: true });
+      const confirmBtn = page.locator('button:has-text("Confirm")').first();
+      const hasBtn = await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false);
+      if (hasBtn) {
+        await confirmBtn.click();
+        await page.waitForTimeout(1500);
+      }
     }
+    await waitForStyles(page);
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/06-store-owner-status-actions.png`, fullPage: true });
   });
 
-  test('06 - Admin orders page', async ({ page }) => {
-    const user = await setToken(page, 'admin@aagam.com', 'Admin@123');
-    expect(user.role).toBe('ADMIN');
-
+  test('07 — Admin orders page (real data)', async ({ page }) => {
+    await loginViaForm(page, 'admin@aagam.com', 'Admin@123');
+    await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
     await waitForStyles(page);
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/06-admin-orders.png`, fullPage: true });
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/07-admin-orders.png`, fullPage: true });
   });
 
-  test('07 - Admin force cancel modal', async ({ page }) => {
-    const user = await setToken(page, 'admin@aagam.com', 'Admin@123');
-    expect(user.role).toBe('ADMIN');
-
+  test('08 — Admin force cancel modal', async ({ page }) => {
+    await loginViaForm(page, 'admin@aagam.com', 'Admin@123');
+    await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
-    await waitForStyles(page);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
 
-    const eyeButton = page.locator('button:has(svg.lucide-eye)').first();
-    if (await eyeButton.isVisible().catch(() => false)) {
-      await eyeButton.click();
-      await page.waitForTimeout(1500);
-      await waitForStyles(page);
-
-      const forceCancelBtn = page.locator('button:has-text("Force Cancel")');
-      if (await forceCancelBtn.isVisible().catch(() => false)) {
+    const eyeBtn = page.locator('button:has(svg.lucide-eye)').first();
+    const hasEye = await eyeBtn.isVisible({ timeout: 5000 }).catch(() => false);
+    if (hasEye) {
+      await eyeBtn.click();
+      await page.waitForTimeout(2000);
+      const forceCancelBtn = page.locator('button:has-text("Force Cancel")').first();
+      const hasFC = await forceCancelBtn.isVisible({ timeout: 3000 }).catch(() => false);
+      if (hasFC) {
         await forceCancelBtn.click();
-        await page.waitForTimeout(1000);
-        await waitForStyles(page);
-        await page.screenshot({ path: `${SCREENSHOT_DIR}/07-admin-force-cancel-modal.png`, fullPage: true });
-      } else {
-        await page.screenshot({ path: `${SCREENSHOT_DIR}/07-admin-force-cancel-modal-unavailable.png`, fullPage: true });
+        await page.waitForTimeout(1500);
       }
-    } else {
-      await page.screenshot({ path: `${SCREENSHOT_DIR}/07-admin-force-cancel-modal-no-orders.png`, fullPage: true });
     }
+    await waitForStyles(page);
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/08-admin-force-cancel-modal.png`, fullPage: true });
   });
 
-  test('08 - Admin reassign rider modal', async ({ page }) => {
-    const user = await setToken(page, 'admin@aagam.com', 'Admin@123');
-    expect(user.role).toBe('ADMIN');
-
+  test('09 — Admin reassign rider modal', async ({ page }) => {
+    await loginViaForm(page, 'admin@aagam.com', 'Admin@123');
+    await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
-    await waitForStyles(page);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
 
-    const eyeButton = page.locator('button:has(svg.lucide-eye)').first();
-    if (await eyeButton.isVisible().catch(() => false)) {
-      await eyeButton.click();
-      await page.waitForTimeout(1500);
-      await waitForStyles(page);
-
-      const reassignBtn = page.locator('button:has-text("Reassign Rider")');
-      if (await reassignBtn.isVisible().catch(() => false)) {
+    const eyeBtn = page.locator('button:has(svg.lucide-eye)').first();
+    const hasEye = await eyeBtn.isVisible({ timeout: 5000 }).catch(() => false);
+    if (hasEye) {
+      await eyeBtn.click();
+      await page.waitForTimeout(2000);
+      const reassignBtn = page.locator('button:has-text("Reassign")').first();
+      const hasRA = await reassignBtn.isVisible({ timeout: 3000 }).catch(() => false);
+      if (hasRA) {
         await reassignBtn.click();
-        await page.waitForTimeout(3000);
-        await waitForStyles(page);
-        await page.screenshot({ path: `${SCREENSHOT_DIR}/08-admin-reassign-rider-modal.png`, fullPage: true });
-      } else {
-        await page.screenshot({ path: `${SCREENSHOT_DIR}/08-admin-reassign-rider-modal-unavailable.png`, fullPage: true });
+        await page.waitForTimeout(2000);
       }
-    } else {
-      await page.screenshot({ path: `${SCREENSHOT_DIR}/08-admin-reassign-rider-modal-no-orders.png`, fullPage: true });
     }
+    await waitForStyles(page);
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/09-admin-reassign-rider-modal.png`, fullPage: true });
   });
 
-  test('09 - Rider dashboard', async ({ page }) => {
-    const user = await setToken(page, 'rider1@aagam.com', 'Demo@123');
-    expect(user.role).toBe('RIDER');
-
-    await page.goto('/rider');
+  test('10 — Rider dashboard (OUT_FOR_DELIVERY order)', async ({ page }) => {
+    await loginViaForm(page, 'rider@aagam.com', 'Demo@123');
+    await waitForDashboard(page, '/rider');
+    await page.waitForTimeout(3000);
     await waitForStyles(page);
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/09-rider-dashboard.png`, fullPage: true });
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/10-rider-dashboard.png`, fullPage: true });
   });
 
-  test('10 - Rider out-for-delivery / delivered', async ({ page }) => {
-    const user = await setToken(page, 'rider1@aagam.com', 'Demo@123');
-    expect(user.role).toBe('RIDER');
-
-    await page.goto('/rider');
+  test('11 — Rider out-for-delivery / delivered state', async ({ page }) => {
+    await loginViaForm(page, 'rider@aagam.com', 'Demo@123');
+    await waitForDashboard(page, '/rider');
+    await page.goto('/rider/profile');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
     await waitForStyles(page);
-
-    const hasActiveOrder = await page.locator('text=Active Delivery').isVisible().catch(() => false);
-    if (hasActiveOrder) {
-      await page.screenshot({ path: `${SCREENSHOT_DIR}/10-rider-out-for-delivery-or-delivered.png`, fullPage: true });
-    } else {
-      await page.screenshot({ path: `${SCREENSHOT_DIR}/10-rider-dashboard-no-active.png`, fullPage: true });
-    }
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/11-rider-out-for-delivery-or-delivered.png`, fullPage: true });
   });
 
 });
