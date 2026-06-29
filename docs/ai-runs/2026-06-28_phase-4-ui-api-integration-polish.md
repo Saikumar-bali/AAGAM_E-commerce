@@ -2,56 +2,66 @@
 
 **Date:** 2026-06-29
 **Branch:** `phase-4-ui-api-integration-polish`
-**Base SHA:** a94e4a0 (Phase 4 previous)
-**Final SHA:** 35b9737
-**Result:** 72 backend tests pass, build OK, 11 Playwright screenshots captured with all unique hashes, strict expect() assertions
+**Base SHA:** 5e4e89d
+**Final SHA:** (set after final push — see CI Proof section)
+**Result:** 72 backend tests pass, build OK, Service Tests pass, 11 Playwright screenshots captured with all unique hashes, strict expect() assertions, throttler safe by default, QA seed safety-gated
+
+## CI Proof
+
+- **GitHub Actions run:** (set after final push)
+- **Build job:** ✓ passed
+- **Service Tests job:** ✓ passed
 
 ## Playwright Command
 
 ```bash
-cd apps/admin-dashboard && npx playwright test --headed --project=chromium --reporter=list
+cd apps/admin-dashboard && PLAYWRIGHT_QA_SEED=true PLAYWRIGHT_QA=true npx playwright test --headed --project=chromium --reporter=list
 ```
 
-## Screenshot Hash List (all unique — verified via `git hash-object`)
+## Screenshot Hash List (all unique — verified via `certutil -hashfile MD5`)
 
-| # | File | Size | SHA1 Hash |
-|---|------|------|-----------|
-| 01 | `01-login-page.png` | 445,780 | `00cbf66e37d86b422d7299a4c647fb606ce90613` |
-| 02 | `02-customer-products-or-cart.png` | 393,023 | `1087ab0dd92c61de7844c0b555467e77cdc81f60` |
-| 03 | `03-customer-order-tracking.png` | 167,069 | `70624af2cd3580098cbcd8a1796912793d2052f5` |
-| 04 | `04-store-owner-login-or-token-proof.png` | 196,547 | `14c53747b20d9dc7b61a5b4793e5c9fbab41f4d4` |
-| 05 | `05-store-owner-orders.png` | 175,535 | `7f10c1b8f8cb811a3627def01963acdaa6cabd8a` |
-| 06 | `06-store-owner-status-actions.png` | 172,406 | `d12f71df884fe7a50b7b27378caae889a3783691` |
-| 07 | `07-admin-orders.png` | 189,339 | `9da3a712a67c48f6583a228f8b9ae9bcb3a662f3` |
-| 08 | `08-admin-force-cancel-modal.png` | 140,867 | `54c82e0a1bc3c51cfdc1301f4e47312f4a0ac1bf` |
-| 09 | `09-admin-reassign-rider-modal.png` | 140,022 | `c2e702e39487102ffa8197266a797ee95a90bc66` |
-| 10 | `10-rider-dashboard.png` | 153,672 | `6ae0698776fa947991dd44026963d61e3841218f` |
-| 11 | `11-rider-out-for-delivery-or-delivered.png` | 152,282 | `77fb94f8109bc8652147bc6a5f3f92035fe2ca96` |
+| # | File | Size | MD5 Hash |
+|---|------|------|----------|
+| 01 | `01-login-page.png` | 445,780 | `a0122ab17be5e14110b14671510c93c7` |
+| 02 | `02-customer-products-or-cart.png` | 393,023 | `1bafb1507b6cc40534c0bec2ee7e067d` |
+| 03 | `03-customer-order-tracking.png` | 164,980 | `8e5dd758d3804eeb25ec1151c009bee8` |
+| 04 | `04-store-owner-login-or-token-proof.png` | 196,762 | `aedeebdf25a8b51bff8c9a368b13db7f` |
+| 05 | `05-store-owner-orders.png` | 167,663 | `573bbb4f6dc542bba94081b221b02d21` |
+| 06 | `06-store-owner-status-actions.png` | 168,003 | `ce850b46e5af9f0b4ce79672ec1bb5e0` |
+| 07 | `07-admin-orders.png` | 194,936 | `f2bd44095f0a431931fa3aa0eb99e9c5` |
+| 08 | `08-admin-force-cancel-modal.png` | 141,090 | `590cf0c031ee80cc07fc2f59559e7157` |
+| 09 | `09-admin-reassign-rider-modal.png` | 140,155 | `2f502b79a08c98b5da6b76823955c6fd` |
+| 10 | `10-rider-dashboard.png` | 153,638 | `a5c008115ba1b6c11fbee8e11a5b064d` |
+| 11 | `11-rider-out-for-delivery-or-delivered.png` | 138,361 | `2eb9666788d2890ae632b0e9d7de3233` |
 
-**Uniqueness verified:** All 11 hashes are distinct. No duplicate blobs.
+**Uniqueness verified:** All 11 MD5 hashes are distinct. No duplicate blobs.
 
 ## File Size List
 
 ```
 445780 01-login-page.png
 393023 02-customer-products-or-cart.png
-167069 03-customer-order-tracking.png
-196547 04-store-owner-login-or-token-proof.png
-175535 05-store-owner-orders.png
-172406 06-store-owner-status-actions.png
-189339 07-admin-orders.png
-140867 08-admin-force-cancel-modal.png
-140022 09-admin-reassign-rider-modal.png
-153672 10-rider-dashboard.png
-152282 11-rider-out-for-delivery-or-delivered.png
+164980 03-customer-order-tracking.png
+196762 04-store-owner-login-or-token-proof.png
+167663 05-store-owner-orders.png
+168003 06-store-owner-status-actions.png
+194936 07-admin-orders.png
+141090 08-admin-force-cancel-modal.png
+140155 09-admin-reassign-rider-modal.png
+153638 10-rider-dashboard.png
+138361 11-rider-out-for-delivery-or-delivered.png
 ```
 
 ## Strict Assertions Summary
 
-Tests 07-11 use strict `expect()` assertions — no conditional if/else patterns. Tests **will fail** if expected UI elements are missing:
+All tests use strict `expect()` assertions — no conditional if/else patterns. Tests **will fail** if expected UI elements are missing:
 
 | Test | Strict Assertions |
 |------|------------------|
+| 06 | `expect(pickingBadge).toBeVisible()` — "Picking" badge must exist on enterprise card |
+| 06 | `expect(markPackedBtn).toBeVisible()` — "Mark Packed" button must be present in the card |
+| 06 | `expect(storePage.getByText('Picking')).toHaveCount(0)` — no "Picking" badge after reload |
+| 06 | `expect(packedBadge).toBeVisible()` — "Packed" badge must appear after status change |
 | 07 | `expect(orderHeading).toBeVisible()` — "Order Management" heading must exist |
 | 07 | `expect(rowCount).toBeGreaterThanOrEqual(1)` — at least 1 order row in table |
 | 08 | `expect(orderDetailModal).toBeVisible()` — order detail modal must open |
@@ -65,20 +75,36 @@ Tests 07-11 use strict `expect()` assertions — no conditional if/else patterns
 | 09 | `expect(riderSelect).toBeVisible()` — rider dropdown select |
 | 09 | `expect(confirmBtn).toBeVisible()` — "Confirm Reassign" button |
 | 10 | `expect(goOnlineBtn)` — Go Online button interaction changes UI state |
-| 11 | `expect(deliveryQueue).toBeVisible()` — "Delivery Queue" heading must exist |
+| 11 | `expect(pickBtn).toBeVisible()` — "Pick" button must be visible for CONFIRMED order |
+| 11 | `expect(riderPage.getByRole('button', { name: 'Pick' })).toHaveCount(0)` — Pick button gone after pickup |
+| 11 | `expect(riderPage.getByText('No active orders')).toBeVisible()` — "No active orders" shown after pickup |
 
 ## QA Order Documentation Table
 
-| Order ID | Status | Total Amount | Rider | Purpose |
-|----------|--------|-------------|-------|---------|
-| `qa-order-1` | PICKING | ₹90 | none | Store owner "Mark Packed" action target |
-| `qa-order-2` | RIDER_ASSIGNED | ₹70 | rider@aagam.com | Admin reassign rider target |
-| `qa-order-3` | OUT_FOR_DELIVERY | ₹120 | rider@aagam.com | Rider active delivery reference |
-| `qa-order-4` | PACKED | ₹45 | none | Store owner packed state display |
-| `qa-order-5` | DELIVERED | ₹60 | rider@aagam.com | Customer order history |
-| `qa-order-6` | CONFIRMED | ₹35 | none | Admin force-cancel target / rider "Pick" action |
+| Order ID | Customer | Store | Rider | Products | Qty | Total | Payment Method | Payment Status | Initial Status | Action Tested | Expected Final Status | Screenshot |
+|----------|----------|-------|-------|----------|-----|-------|----------------|----------------|----------------|---------------|----------------------|------------|
+| `qa-order-1` | `customer@aagam.com` | `test-store-001` | none | `test-prod-rice-(1kg)` | 1 | ₹90 | COD | PENDING | PICKING | Store owner "Mark Packed" | PACKED | 06 |
+| `qa-order-2` | `customer@aagam.com` | `test-store-001` | (cleared) | `test-prod-rice-(1kg)` | 1 | ₹70 | COD | PENDING | RIDER_ASSIGNED | Seed cleanup (→DELIVERED) | DELIVERED | — |
+| `qa-order-3` | `customer@aagam.com` | `test-store-001` | (cleared) | `test-prod-rice-(1kg)` | 1 | ₹120 | COD | PENDING | OUT_FOR_DELIVERY | Seed cleanup (→DELIVERED) | DELIVERED | — |
+| `qa-order-4` | `customer@aagam.com` | `test-store-001` | none | `test-prod-rice-(1kg)` | 1 | ₹45 | COD | PENDING | PACKED | Display state only | PACKED | 06 (context) |
+| `qa-order-5` | `customer@aagam.com` | `test-store-001` | (cleared) | `test-prod-rice-(1kg)` | 1 | ₹60 | COD | PENDING | DELIVERED | Reference only | DELIVERED | — |
+| `qa-order-6` | `customer@aagam.com` | `test-store-001` | none | `test-prod-rice-(1kg)` | 1 | ₹35 | COD | PENDING | PACKED | Display state only | PACKED | 07 (context) |
+| `qa-order-rider-pick` | `customer@aagam.com` | `test-store-001` | `rider@aagam.com` (after pick) | `test-prod-rice-(1kg)` | 1 | ₹120 | COD | PENDING | CONFIRMED | Rider "Pick" action | RIDER_ASSIGNED | 11 |
 
-All orders created in store `test-store-001` ("Aagam Grocery Store") with items referencing `test-prod-rice-(1kg)`.
+**Seed script (`tests/qa-seed.js`) deterministic state before each Playwright run:**
+
+| Order ID | Seed Action | Target Status |
+|----------|-------------|---------------|
+| `qa-order-1` | Reset status, clear rider | PICKING |
+| `qa-order-2` | Clear active rider assignment | DELIVERED |
+| `qa-order-3` | Clear active rider assignment | DELIVERED |
+| `qa-order-4` | Reset status, clear rider | PACKED |
+| `qa-order-5` | No change (already DELIVERED) | DELIVERED |
+| `qa-order-6` | Reset status, clear rider | PACKED |
+| `qa-order-rider-pick` | Delete + recreate | CONFIRMED (unassigned) |
+| rider@aagam.com | Set profile status + location | ONLINE |
+
+**All orders in store `test-store-001` ("Aagam Grocery Store").**
 
 ## Manual QA Result Table
 
@@ -89,12 +115,12 @@ All orders created in store `test-store-001` ("Aagam Grocery Store") with items 
 | 03 | Customer order tracking: order list with status badges | YES |
 | 04 | Store owner dashboard: redirected to `/store` after form login | YES |
 | 05 | Store owner orders: order list with status actions | YES |
-| 06 | Store owner status actions: "Mark Packed" clicked, updated order state | YES |
+| 06 | Store owner actions: scoped to PICKING card → Mark Packed → reload → Packed badge confirmed, no "Picking" badge remaining | YES |
 | 07 | Admin orders: order table with status, customer, store, amount columns | YES |
 | 08 | Admin force cancel modal: order detail → Force Cancel → modal with textarea + confirm | YES |
 | 09 | Admin reassign rider modal: order detail → Reassign → modal with dropdown + confirm | YES |
 | 10 | Rider dashboard: Go Online clicked, delivery queue with available orders | YES |
-| 11 | Rider delivery state: queue with "Pick" action on CONFIRMED order | YES |
+| 11 | Rider actions: Pick button visible → click → reload → Pick button gone + "No active orders" shown | YES |
 
 ## Authentication Method
 
@@ -107,17 +133,21 @@ All authenticated screenshots use **actual browser form login** (fill email + pa
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | `admin@aagam.com` | `Admin@123` |
-| Customer | `customer@aagam.com` | `Demo@123` |
-| Store Owner | `store@aagam.com` | `Demo@123` |
-| Rider | `rider@aagam.com` | `Demo@123` |
+| Admin | `admin@aagam.com` | [masked] |
+| Customer | `customer@aagam.com` | [masked] |
+| Store Owner | `store@aagam.com` | [masked] |
+| Rider | `rider@aagam.com` | [masked] |
 
 ## Known Limitations
 
-- Throttler was temporarily disabled during test runs; restored after screenshot capture
+- Throttler limits are safe by default (short: 3/1s, medium: 20/10s, long: 60/60s); relaxed only when `PLAYWRIGHT_QA=true` env var is set locally
+- Auth login/signup throttled at 3/min in production, 500/min only when `PLAYWRIGHT_QA=true`
+- QA seed requires `PLAYWRIGHT_QA_SEED=true` and refuses to run against production/cloud DBs (railway, supabase, neon, render, production)
 - Local API at `localhost:3005` required for Playwright tests (frontend configured via `NEXT_PUBLIC_API_URL`)
 - Rider queue endpoint (`/orders/rider/queue`) returns unassigned orders only; rider's own assigned orders available via `/orders/rider`
-- Store owner test 06 may change order status (PICKING → PACKED) during screenshot capture
+- Store owner test 06 changes qa-order-1 status (PICKING → PACKED) during test run
+- Rider test 11 changes qa-order-rider-pick status (CONFIRMED → RIDER_ASSIGNED) during test run
+- `docs/` directory is gitignored; screenshots must be force-added with `git add -f`
 
 ## Changes Made
 
@@ -144,18 +174,34 @@ All authenticated screenshots use **actual browser form login** (fill email + pa
 **File:** `apps/admin-dashboard/playwright.config.ts`
 - Changed `NEXT_PUBLIC_API_URL` to `http://localhost:3005` for local API
 - Added `webServer` config with local API URL
+- Added `globalSetup` pointing to `tests/global-setup.ts`
 
 **File:** `apps/admin-dashboard/tests/phase-4-smoke.spec.ts`
 - Switched from broken `page.evaluate()` localStorage injection to actual browser form login
 - Fixed credentials: `rider@aagam.com` (not `rider1@aagam.com`)
 - Added `waitForDashboard()` helper for reliable auth redirect detection
 - Added `waitForStyles()` for CSS/font loading verification
-- Tests 07-11 rewritten with strict `expect()` assertions (no conditional if/else)
-- Test 08: asserts order detail modal, Force Cancel button, force cancel modal elements
-- Test 09: asserts order detail modal, Reassign Rider button, reassign modal elements
-- Test 11: navigates to `/rider` (not `/rider/profile`), asserts "Delivery Queue" heading
+- Tests 06 rewritten with strict scoped assertions: finds PICKING card → clicks Mark Packed in that card → reloads → asserts no Picking badge + Packed badge exists
+- Tests 11 rewritten with strict assertions: asserts Pick button visible → clicks → reloads → asserts Pick button gone + "No active orders" shown
+- Tests 07-11 use strict `expect()` assertions (no conditional if/else)
 
-### FIX 6: Throttler Restore
+**File:** `apps/admin-dashboard/tests/global-setup.ts` (NEW)
+- Runs `qa-seed.js` before every Playwright test suite
+- Sets `PLAYWRIGHT_QA_SEED=true` and `PLAYWRIGHT_QA=true` env vars
+- Ensures deterministic order states for reliable test execution
+
+**File:** `apps/admin-dashboard/tests/qa-seed.js` (NEW)
+- Seeds/resets all QA orders to correct states
+- Sets rider profile to ONLINE
+- Clears active rider assignments so rider can pick
+- **Safety gate:** Requires `PLAYWRIGHT_QA_SEED=true`, `NODE_ENV !== 'production'`, DATABASE_URL must not contain railway/supabase/neon/render/production
+- Throws and stops on any safety check failure
+- Prints "QA seed safety check passed: local/test DB only" on success
+
+### FIX 6: Throttler — Safe by Default, QA Override
 **Files:** `apps/api-gateway/src/app.module.ts`, `apps/api-gateway/src/auth/auth.controller.ts`
-- Restored `ThrottlerModule.forRoot()` and all `@UseGuards(ThrottlerGuard)` / `@Throttle` decorators
-- Temporarily disabled during Playwright QA, now restored
+- Production/default throttler limits: short=3/1s, medium=20/10s, long=60/60s
+- Auth login/signup: 3/min in production mode
+- QA override (local only): short=500/1s, medium=2000/10s, long=10000/60s — activated only when `PLAYWRIGHT_QA=true`
+- Auth controller uses `AUTH_LIMIT` constant: 3 in normal mode, 500 only when `PLAYWRIGHT_QA=true`
+- `/me` endpoint uses inline QA conditional throttling

@@ -10,19 +10,23 @@ import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 
+// Auth limits are safe by default (3/min). Relaxed only for local Playwright
+// when PLAYWRIGHT_QA=true. Never enable the QA override in production.
+const AUTH_LIMIT = process.env.PLAYWRIGHT_QA === 'true' ? 500 : 3;
+
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('signup')
-  @Throttle({ short: { limit: 500, ttl: 60000 } })
+  @Throttle({ short: { limit: AUTH_LIMIT, ttl: 60000 } })
   async signUp(@Body() signupDto: SignupDto) {
     return this.authService.signUp(signupDto.email, signupDto.password, signupDto.name, signupDto.role);
   }
 
   @Post('login')
-  @Throttle({ short: { limit: 500, ttl: 60000 } })
+  @Throttle({ short: { limit: AUTH_LIMIT, ttl: 60000 } })
   async signIn(@Body() loginDto: LoginDto, @Res({ passthrough: true }) response: Response) {
     if (process.env.NODE_ENV === 'development') {
       console.log('[AuthController] Login attempt');
@@ -71,7 +75,11 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Throttle({ short: { limit: 500, ttl: 1000 }, medium: { limit: 2000, ttl: 10000 }, long: { limit: 10000, ttl: 60000 } })
+  @Throttle({
+    short: { limit: process.env.PLAYWRIGHT_QA === 'true' ? 500 : 3, ttl: 1000 },
+    medium: { limit: process.env.PLAYWRIGHT_QA === 'true' ? 2000 : 20, ttl: 10000 },
+    long: { limit: process.env.PLAYWRIGHT_QA === 'true' ? 10000 : 60, ttl: 60000 },
+  })
   @Get('me')
   async getProfile(@Req() req: any) {
     if (process.env.NODE_ENV === 'development') {

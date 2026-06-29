@@ -6,7 +6,49 @@ dotenv.config({ path: path.join(__dirname, '../../../.env') });
 
 const prisma = new PrismaClient();
 
+/**
+ * Safety gate. The QA seed performs destructive writes (upserts, updates,
+ * deletions) to set up deterministic Playwright state. It must NEVER run
+ * against a production or staging database. Refuse to proceed unless all of:
+ *   - PLAYWRIGHT_QA_SEED === 'true'  (explicit opt-in)
+ *   - NODE_ENV !== 'production'
+ *   - DATABASE_URL has no production/cloud provider host substring
+ * Throws and stops the process on any failure.
+ */
+function assertSafeQaSeedTarget() {
+  const qaSeedFlag = process.env.PLAYWRIGHT_QA_SEED;
+  const nodeEnv = process.env.NODE_ENV;
+  const dbUrl = process.env.DATABASE_URL || '';
+
+  if (qaSeedFlag !== 'true') {
+    throw new Error(
+      'QA seed safety check FAILED: PLAYWRIGHT_QA_SEED is not set to "true". ' +
+        'Refusing to run destructive seed. Set PLAYWRIGHT_QA_SEED=true to allow local/test seeding only.'
+    );
+  }
+
+  if (nodeEnv === 'production') {
+    throw new Error(
+      'QA seed safety check FAILED: NODE_ENV is "production". ' +
+        'QA seed must never run in production.'
+    );
+  }
+
+  const FORBIDDEN_HOSTS = ['railway', 'supabase', 'neon', 'render', 'production'];
+  const lowerUrl = dbUrl.toLowerCase();
+  const matched = FORBIDDEN_HOSTS.find((h) => lowerUrl.includes(h));
+  if (matched) {
+    throw new Error(
+      `QA seed safety check FAILED: DATABASE_URL appears to target a production/cloud DB ` +
+        `(matched "${matched}" in connection string). QA seed is local/test only.`
+    );
+  }
+
+  console.log('QA seed safety check passed: local/test DB only');
+}
+
 async function main() {
+  assertSafeQaSeedTarget();
   console.log('QA Seed: Ensuring test orders are in correct state...');
 
   // 1. Ensure qa-order-1 is in PICKING status for store owner test

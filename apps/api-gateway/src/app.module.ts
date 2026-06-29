@@ -26,9 +26,9 @@ import { TrackingModule } from './tracking/tracking.module';
       envFilePath: '../../../.env',
     }),
     ThrottlerModule.forRoot([
-      { name: 'short', ttl: 1000, limit: 500 },
-      { name: 'medium', ttl: 10000, limit: 2000 },
-      { name: 'long', ttl: 60000, limit: 10000 },
+      { name: 'short', ttl: 1000, limit: process.env.PLAYWRIGHT_QA === 'true' ? 500 : 3 },
+      { name: 'medium', ttl: 10000, limit: process.env.PLAYWRIGHT_QA === 'true' ? 2000 : 20 },
+      { name: 'long', ttl: 60000, limit: process.env.PLAYWRIGHT_QA === 'true' ? 10000 : 60 },
     ]),
     CacheModule.register({
       isGlobal: true,
