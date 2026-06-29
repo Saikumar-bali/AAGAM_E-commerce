@@ -50,7 +50,7 @@ test.describe('Phase 5 — Live Tracking Screenshots', () => {
   });
 
   test('02 — Admin live tracking page', async ({ page }) => {
-    await loginViaForm(page, 'admin@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'admin@aagam.com', 'Admin@123');
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/live-tracking');
     await page.waitForLoadState('networkidle');
@@ -60,7 +60,7 @@ test.describe('Phase 5 — Live Tracking Screenshots', () => {
   });
 
   test('03 — Admin live tracking with order detail', async ({ page }) => {
-    await loginViaForm(page, 'admin@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'admin@aagam.com', 'Admin@123');
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/live-tracking');
     await page.waitForLoadState('networkidle');
@@ -77,12 +77,22 @@ test.describe('Phase 5 — Live Tracking Screenshots', () => {
   });
 
   test('04 — Admin orders page with tracking', async ({ page }) => {
-    await loginViaForm(page, 'admin@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'admin@aagam.com', 'Admin@123');
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/06-admin-stale-location-state.png`, fullPage: true });
+  });
+
+  test('05 — Customer order list', async ({ page }) => {
+    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await waitForDashboard(page, '/shop');
+    await page.goto('/shop/orders');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
+    await waitForStyles(page);
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/03-customer-tracking-delivered-or-stopped.png`, fullPage: true });
   });
 });
