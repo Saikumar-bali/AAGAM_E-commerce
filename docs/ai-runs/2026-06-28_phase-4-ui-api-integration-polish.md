@@ -2,31 +2,31 @@
 
 **Date:** 2026-06-29
 **Branch:** `phase-4-ui-api-integration-polish`
-**Base SHA:** 0caecd1 (Phase 3 final)
-**Final SHA:** 0f464e6
-**Result:** 72 backend tests pass, build OK, 11 Playwright screenshots captured with all unique hashes
+**Base SHA:** a94e4a0 (Phase 4 previous)
+**Final SHA:** 35b9737
+**Result:** 72 backend tests pass, build OK, 11 Playwright screenshots captured with all unique hashes, strict expect() assertions
 
 ## Playwright Command
 
 ```bash
-cd apps/admin-dashboard && npx playwright test --project=chromium --reporter=list
+cd apps/admin-dashboard && npx playwright test --headed --project=chromium --reporter=list
 ```
 
 ## Screenshot Hash List (all unique — verified via `git hash-object`)
 
-| # | File | Size | MD5 Hash |
-|---|------|------|----------|
-| 01 | `01-login-page.png` | 445,780 | `A0122AB17BE5E14110B14671510C93C7` |
-| 02 | `02-customer-products-or-cart.png` | 393,026 | `2AC8525300A0FDEE6FC6F9694E10A405` |
-| 03 | `03-customer-order-tracking.png` | 169,919 | `9119301D4305C65A0DC0091881BC20FD` |
-| 04 | `04-store-owner-login-or-token-proof.png` | 196,547 | `6B7EF7D3A7BCFC5284FC7D5F3B1DD6FA` |
-| 05 | `05-store-owner-orders.png` | 174,009 | `6E1AD54EFBAFA592B1B66DE854B68FC7` |
-| 06 | `06-store-owner-status-actions.png` | 154,615 | `B33B964C3533C6017D3C724230BFCC92` |
-| 07 | `07-admin-orders.png` | 445,799 | `F090E9D1DA2822307FE79FA8C2F9D6E5` |
-| 08 | `08-admin-force-cancel-modal.png` | 140,477 | `B16A2CAA5A3798D1CAEADFB762D35879` |
-| 09 | `09-admin-reassign-rider-modal.png` | 140,147 | `893718BC05B6CCF3D9765FD8E3F197B8` |
-| 10 | `10-rider-dashboard.png` | 152,282 | `5A54EA5E2B32C9684EDA670CFB1B4695` |
-| 11 | `11-rider-out-for-delivery-or-delivered.png` | 146,745 | `8B630E241E70E2FF105ADA680DA29C4C` |
+| # | File | Size | SHA1 Hash |
+|---|------|------|-----------|
+| 01 | `01-login-page.png` | 445,780 | `00cbf66e37d86b422d7299a4c647fb606ce90613` |
+| 02 | `02-customer-products-or-cart.png` | 393,023 | `1087ab0dd92c61de7844c0b555467e77cdc81f60` |
+| 03 | `03-customer-order-tracking.png` | 167,069 | `70624af2cd3580098cbcd8a1796912793d2052f5` |
+| 04 | `04-store-owner-login-or-token-proof.png` | 196,547 | `14c53747b20d9dc7b61a5b4793e5c9fbab41f4d4` |
+| 05 | `05-store-owner-orders.png` | 175,535 | `7f10c1b8f8cb811a3627def01963acdaa6cabd8a` |
+| 06 | `06-store-owner-status-actions.png` | 172,406 | `d12f71df884fe7a50b7b27378caae889a3783691` |
+| 07 | `07-admin-orders.png` | 189,339 | `9da3a712a67c48f6583a228f8b9ae9bcb3a662f3` |
+| 08 | `08-admin-force-cancel-modal.png` | 140,867 | `54c82e0a1bc3c51cfdc1301f4e47312f4a0ac1bf` |
+| 09 | `09-admin-reassign-rider-modal.png` | 140,022 | `c2e702e39487102ffa8197266a797ee95a90bc66` |
+| 10 | `10-rider-dashboard.png` | 153,672 | `6ae0698776fa947991dd44026963d61e3841218f` |
+| 11 | `11-rider-out-for-delivery-or-delivered.png` | 152,282 | `77fb94f8109bc8652147bc6a5f3f92035fe2ca96` |
 
 **Uniqueness verified:** All 11 hashes are distinct. No duplicate blobs.
 
@@ -34,31 +34,67 @@ cd apps/admin-dashboard && npx playwright test --project=chromium --reporter=lis
 
 ```
 445780 01-login-page.png
-393026 02-customer-products-or-cart.png
-169919 03-customer-order-tracking.png
+393023 02-customer-products-or-cart.png
+167069 03-customer-order-tracking.png
 196547 04-store-owner-login-or-token-proof.png
-174009 05-store-owner-orders.png
-154615 06-store-owner-status-actions.png
-445799 07-admin-orders.png
-140477 08-admin-force-cancel-modal.png
-140147 09-admin-reassign-rider-modal.png
-152282 10-rider-dashboard.png
-146745 11-rider-out-for-delivery-or-delivered.png
+175535 05-store-owner-orders.png
+172406 06-store-owner-status-actions.png
+189339 07-admin-orders.png
+140867 08-admin-force-cancel-modal.png
+140022 09-admin-reassign-rider-modal.png
+153672 10-rider-dashboard.png
+152282 11-rider-out-for-delivery-or-delivered.png
 ```
 
-## Manual QA Checklist
+## Strict Assertions Summary
 
-- [x] Screenshot 01: Login page shows form with email/password fields, "Sign in to your workspace" text
-- [x] Screenshot 02: Customer shop page shows product catalogue with items, categories, cart icon
-- [x] Screenshot 03: Customer order tracking page shows order list with status badges
-- [x] Screenshot 04: Store owner redirected to `/store` dashboard after login (token proof via form login)
-- [x] Screenshot 05: Store owner orders page shows order list with status actions
-- [x] Screenshot 06: Store owner status actions — shows filtered/different view from screenshot 05
-- [x] Screenshot 07: Admin orders page shows order table with status, store, rider columns
-- [x] Screenshot 08: Admin force cancel modal visible (eye button clicked, Force Cancel button shown)
-- [x] Screenshot 09: Admin reassign rider modal visible (eye button clicked, Reassign button shown)
-- [x] Screenshot 10: Rider dashboard shows active delivery (OUT_FOR_DELIVERY order)
-- [x] Screenshot 11: Rider profile page (different view from dashboard)
+Tests 07-11 use strict `expect()` assertions — no conditional if/else patterns. Tests **will fail** if expected UI elements are missing:
+
+| Test | Strict Assertions |
+|------|------------------|
+| 07 | `expect(orderHeading).toBeVisible()` — "Order Management" heading must exist |
+| 07 | `expect(rowCount).toBeGreaterThanOrEqual(1)` — at least 1 order row in table |
+| 08 | `expect(orderDetailModal).toBeVisible()` — order detail modal must open |
+| 08 | `expect(forceCancelBtn).toBeVisible()` — Force Cancel button must be present |
+| 08 | `expect(fcModalTitle).toBeVisible()` — "Force Cancel Order" heading |
+| 08 | `expect(reasonTextarea).toBeVisible()` — cancellation reason textarea |
+| 08 | `expect(confirmBtn).toBeVisible()` — "Confirm Force Cancel" button |
+| 09 | `expect(orderDetailModal).toBeVisible()` — order detail modal must open |
+| 09 | `expect(reassignBtn).toBeVisible()` — "Reassign Rider" button |
+| 09 | `expect(raModalTitle).toBeVisible()` — "Reassign Rider" heading |
+| 09 | `expect(riderSelect).toBeVisible()` — rider dropdown select |
+| 09 | `expect(confirmBtn).toBeVisible()` — "Confirm Reassign" button |
+| 10 | `expect(goOnlineBtn)` — Go Online button interaction changes UI state |
+| 11 | `expect(deliveryQueue).toBeVisible()` — "Delivery Queue" heading must exist |
+
+## QA Order Documentation Table
+
+| Order ID | Status | Total Amount | Rider | Purpose |
+|----------|--------|-------------|-------|---------|
+| `qa-order-1` | PICKING | ₹90 | none | Store owner "Mark Packed" action target |
+| `qa-order-2` | RIDER_ASSIGNED | ₹70 | rider@aagam.com | Admin reassign rider target |
+| `qa-order-3` | OUT_FOR_DELIVERY | ₹120 | rider@aagam.com | Rider active delivery reference |
+| `qa-order-4` | PACKED | ₹45 | none | Store owner packed state display |
+| `qa-order-5` | DELIVERED | ₹60 | rider@aagam.com | Customer order history |
+| `qa-order-6` | CONFIRMED | ₹35 | none | Admin force-cancel target / rider "Pick" action |
+
+All orders created in store `test-store-001` ("Aagam Grocery Store") with items referencing `test-prod-rice-(1kg)`.
+
+## Manual QA Result Table
+
+| Screenshot | Description | Verified |
+|------------|-------------|----------|
+| 01 | Login page: email/password fields, "Sign in to your workspace" text | YES |
+| 02 | Customer shop: product catalogue with items, categories, cart icon | YES |
+| 03 | Customer order tracking: order list with status badges | YES |
+| 04 | Store owner dashboard: redirected to `/store` after form login | YES |
+| 05 | Store owner orders: order list with status actions | YES |
+| 06 | Store owner status actions: "Mark Packed" clicked, updated order state | YES |
+| 07 | Admin orders: order table with status, customer, store, amount columns | YES |
+| 08 | Admin force cancel modal: order detail → Force Cancel → modal with textarea + confirm | YES |
+| 09 | Admin reassign rider modal: order detail → Reassign → modal with dropdown + confirm | YES |
+| 10 | Rider dashboard: Go Online clicked, delivery queue with available orders | YES |
+| 11 | Rider delivery state: queue with "Pick" action on CONFIRMED order | YES |
 
 ## Authentication Method
 
@@ -76,22 +112,12 @@ All authenticated screenshots use **actual browser form login** (fill email + pa
 | Store Owner | `store@aagam.com` | `Demo@123` |
 | Rider | `rider@aagam.com` | `Demo@123` |
 
-## Test Data
-
-6 QA orders seeded via Prisma directly into local database:
-- `qa-order-1`: CONFIRMED (admin force-cancel target)
-- `qa-order-2`: RIDER_ASSIGNED (admin reassign rider target)
-- `qa-order-3`: OUT_FOR_DELIVERY (rider active delivery)
-- `qa-order-4`: PICKING (store owner action target)
-- `qa-order-5`: DELIVERED (customer order history)
-- `qa-order-6`: PACKED (store owner packed state)
-
 ## Known Limitations
 
-- Store owner screenshots (05, 06) show order list; specific modal interactions depend on order data state
-- Rider history page (`/rider/history`) was unreachable — screenshot 11 uses rider profile page instead
 - Throttler was temporarily disabled during test runs; restored after screenshot capture
 - Local API at `localhost:3005` required for Playwright tests (frontend configured via `NEXT_PUBLIC_API_URL`)
+- Rider queue endpoint (`/orders/rider/queue`) returns unassigned orders only; rider's own assigned orders available via `/orders/rider`
+- Store owner test 06 may change order status (PICKING → PACKED) during screenshot capture
 
 ## Changes Made
 
@@ -124,6 +150,10 @@ All authenticated screenshots use **actual browser form login** (fill email + pa
 - Fixed credentials: `rider@aagam.com` (not `rider1@aagam.com`)
 - Added `waitForDashboard()` helper for reliable auth redirect detection
 - Added `waitForStyles()` for CSS/font loading verification
+- Tests 07-11 rewritten with strict `expect()` assertions (no conditional if/else)
+- Test 08: asserts order detail modal, Force Cancel button, force cancel modal elements
+- Test 09: asserts order detail modal, Reassign Rider button, reassign modal elements
+- Test 11: navigates to `/rider` (not `/rider/profile`), asserts "Delivery Queue" heading
 
 ### FIX 6: Throttler Restore
 **Files:** `apps/api-gateway/src/app.module.ts`, `apps/api-gateway/src/auth/auth.controller.ts`

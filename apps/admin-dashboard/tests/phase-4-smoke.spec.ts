@@ -29,6 +29,17 @@ async function waitForStyles(page: Page) {
   await page.waitForTimeout(2000);
 }
 
+async function openOrderDetail(page: Page) {
+  const firstRow = page.locator('tbody tr').first();
+  await expect(firstRow).toBeVisible({ timeout: 10000 });
+  await firstRow.hover();
+  await page.waitForTimeout(500);
+  const eyeBtn = firstRow.locator('button').first();
+  await expect(eyeBtn).toBeVisible({ timeout: 5000 });
+  await eyeBtn.click();
+  await page.waitForTimeout(2000);
+}
+
 test.describe('Phase 4 — Real Screenshot Proof', () => {
 
   test('01 — Login page', async ({ page }) => {
@@ -82,17 +93,17 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
-    const statusFilter = page.locator('button:has-text("Picking"), button:has-text("PICKING")').first();
-    const hasFilter = await statusFilter.isVisible({ timeout: 5000 }).catch(() => false);
-    if (hasFilter) {
-      await statusFilter.click();
+    const markPackedBtn = page.locator('button:has-text("Mark Packed")').first();
+    const hasMarkPacked = await markPackedBtn.isVisible({ timeout: 5000 }).catch(() => false);
+    if (hasMarkPacked) {
+      await markPackedBtn.click();
       await page.waitForTimeout(2000);
     } else {
-      const confirmBtn = page.locator('button:has-text("Confirm")').first();
-      const hasBtn = await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false);
-      if (hasBtn) {
-        await confirmBtn.click();
-        await page.waitForTimeout(1500);
+      const startPickingBtn = page.locator('button:has-text("Start Picking")').first();
+      const hasStartPicking = await startPickingBtn.isVisible({ timeout: 3000 }).catch(() => false);
+      if (hasStartPicking) {
+        await startPickingBtn.click();
+        await page.waitForTimeout(2000);
       }
     }
     await waitForStyles(page);
@@ -105,6 +116,14 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
     await page.goto('/admin/orders');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
+
+    const orderHeading = page.locator('h1:has-text("Order Management")');
+    await expect(orderHeading).toBeVisible({ timeout: 10000 });
+
+    const orderRows = page.locator('tbody tr');
+    const rowCount = await orderRows.count();
+    expect(rowCount).toBeGreaterThanOrEqual(1);
+
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/07-admin-orders.png`, fullPage: true });
   });
@@ -116,18 +135,25 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
-    const eyeBtn = page.locator('button:has(svg.lucide-eye)').first();
-    const hasEye = await eyeBtn.isVisible({ timeout: 5000 }).catch(() => false);
-    if (hasEye) {
-      await eyeBtn.click();
-      await page.waitForTimeout(2000);
-      const forceCancelBtn = page.locator('button:has-text("Force Cancel")').first();
-      const hasFC = await forceCancelBtn.isVisible({ timeout: 3000 }).catch(() => false);
-      if (hasFC) {
-        await forceCancelBtn.click();
-        await page.waitForTimeout(1500);
-      }
-    }
+    await openOrderDetail(page);
+
+    const orderDetailModal = page.locator('text=Order Details');
+    await expect(orderDetailModal).toBeVisible({ timeout: 5000 });
+
+    const forceCancelBtn = page.locator('button:has-text("Force Cancel")').first();
+    await expect(forceCancelBtn).toBeVisible({ timeout: 5000 });
+    await forceCancelBtn.click();
+    await page.waitForTimeout(1500);
+
+    const fcModalTitle = page.locator('h2:has-text("Force Cancel Order")');
+    await expect(fcModalTitle).toBeVisible({ timeout: 5000 });
+
+    const reasonTextarea = page.locator('textarea');
+    await expect(reasonTextarea).toBeVisible({ timeout: 3000 });
+
+    const confirmBtn = page.locator('button:has-text("Confirm Force Cancel")');
+    await expect(confirmBtn).toBeVisible({ timeout: 3000 });
+
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/08-admin-force-cancel-modal.png`, fullPage: true });
   });
@@ -139,36 +165,62 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
-    const eyeBtn = page.locator('button:has(svg.lucide-eye)').first();
-    const hasEye = await eyeBtn.isVisible({ timeout: 5000 }).catch(() => false);
-    if (hasEye) {
-      await eyeBtn.click();
-      await page.waitForTimeout(2000);
-      const reassignBtn = page.locator('button:has-text("Reassign")').first();
-      const hasRA = await reassignBtn.isVisible({ timeout: 3000 }).catch(() => false);
-      if (hasRA) {
-        await reassignBtn.click();
-        await page.waitForTimeout(2000);
-      }
-    }
+    await openOrderDetail(page);
+
+    const orderDetailModal = page.locator('text=Order Details');
+    await expect(orderDetailModal).toBeVisible({ timeout: 5000 });
+
+    const reassignBtn = page.locator('button:has-text("Reassign Rider")').first();
+    await expect(reassignBtn).toBeVisible({ timeout: 5000 });
+    await reassignBtn.click();
+    await page.waitForTimeout(2000);
+
+    const raModalTitle = page.locator('h2:has-text("Reassign Rider")');
+    await expect(raModalTitle).toBeVisible({ timeout: 5000 });
+
+    const riderSelect = page.locator('select').filter({ hasText: 'Select a rider' });
+    await expect(riderSelect).toBeVisible({ timeout: 3000 });
+
+    const confirmBtn = page.locator('button:has-text("Confirm Reassign")');
+    await expect(confirmBtn).toBeVisible({ timeout: 3000 });
+
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/09-admin-reassign-rider-modal.png`, fullPage: true });
   });
 
-  test('10 — Rider dashboard (OUT_FOR_DELIVERY order)', async ({ page }) => {
+  test('10 — Rider dashboard (active delivery queue)', async ({ page }) => {
     await loginViaForm(page, 'rider@aagam.com', 'Demo@123');
     await waitForDashboard(page, '/rider');
-    await page.waitForTimeout(3000);
+
+    const goOnlineBtn = page.locator('button:has-text("Go Online")').first();
+    const hasGoOnline = await goOnlineBtn.isVisible({ timeout: 5000 }).catch(() => false);
+    if (hasGoOnline) {
+      await goOnlineBtn.click();
+      await page.waitForTimeout(3000);
+    }
+
+    await page.waitForTimeout(2000);
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/10-rider-dashboard.png`, fullPage: true });
   });
 
-  test('11 — Rider out-for-delivery / delivered state', async ({ page }) => {
+  test('11 — Rider delivery state (queue and available orders)', async ({ page }) => {
     await loginViaForm(page, 'rider@aagam.com', 'Demo@123');
     await waitForDashboard(page, '/rider');
-    await page.goto('/rider/profile');
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+
+    const deliveryQueue = page.locator('h1:has-text("Delivery Queue")');
+    await expect(deliveryQueue).toBeVisible({ timeout: 10000 });
+
+    const pickBtn = page.locator('button:has-text("Pick")').first();
+    const hasPick = await pickBtn.isVisible({ timeout: 5000 }).catch(() => false);
+    if (hasPick) {
+      await pickBtn.click();
+      await page.waitForTimeout(3000);
+    } else {
+      await page.evaluate(() => window.scrollTo(0, 600));
+      await page.waitForTimeout(1000);
+    }
+
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/11-rider-out-for-delivery-or-delivered.png`, fullPage: true });
   });
