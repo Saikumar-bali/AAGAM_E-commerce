@@ -168,9 +168,51 @@ jobs:
           npx tsc --project packages/utils/tsconfig.json
           npx tsc --project packages/database/tsconfig.json
 
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
         working-directory: apps/admin-dashboard
+
+      - name: Build API gateway and dashboard
+        run: |
+          npx turbo build --filter=api-gateway --filter=admin-dashboard --cache-dir=".turbo" --force
+
+      - name: Seed database
+        run: npx prisma db seed --schema packages/database/prisma/schema.prisma
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
+          PLAYWRIGHT_QA: "true"
+          PLAYWRIGHT_QA_SEED: "true"
+          JWT_SECRET: "ci-test-secret-minimum-32-characters-long"
+          REDIS_URL: "redis://localhost:6379"
+
+      - name: Start API gateway
+        run: |
+          node apps/api-gateway/dist/src/main.js &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3005/health > /dev/null 2>&1; then
+              echo "API gateway is ready"
+              break
+            fi
+            echo "Waiting for API gateway... ($i/30)"
+            sleep 2
+          done
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
+          REDIS_URL: "redis://localhost:6379"
+          JWT_SECRET: "ci-test-secret-minimum-32-characters-long"
+          NODE_ENV: test
+          PORT: "3005"
+          PLAYWRIGHT_QA: "true"
+          PLAYWRIGHT_QA_SEED: "true"
+          CORS_ORIGINS: "http://localhost:3001"
 
       - name: Run Playwright tests
         run: npx playwright test --project=chromium --reporter=list
