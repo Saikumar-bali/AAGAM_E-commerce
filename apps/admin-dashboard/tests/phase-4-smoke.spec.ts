@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { execSync } from 'child_process';
 import path from 'path';
 
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-4');
@@ -86,26 +87,42 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
     await page.screenshot({ path: `${SCREENSHOT_DIR}/05-store-owner-orders.png`, fullPage: true });
   });
 
-  test('06 — Store owner status actions', async ({ page }) => {
+  test('06 — Store owner status actions (strict)', async ({ page }) => {
     await loginViaForm(page, 'store@aagam.com', 'Demo@123');
     await waitForDashboard(page, '/store');
     await page.goto('/store/orders');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
-    const markPackedBtn = page.locator('button:has-text("Mark Packed")').first();
-    const hasMarkPacked = await markPackedBtn.isVisible({ timeout: 5000 }).catch(() => false);
-    if (hasMarkPacked) {
-      await markPackedBtn.click();
-      await page.waitForTimeout(2000);
-    } else {
-      const startPickingBtn = page.locator('button:has-text("Start Picking")').first();
-      const hasStartPicking = await startPickingBtn.isVisible({ timeout: 3000 }).catch(() => false);
-      if (hasStartPicking) {
-        await startPickingBtn.click();
-        await page.waitForTimeout(2000);
-      }
-    }
+    // qa-order-1 is seeded as PICKING — find the card containing the "Picking" badge
+    const pickingBadge = page.locator('span:has-text("Picking")').first();
+    await expect(pickingBadge).toBeVisible({ timeout: 10000 });
+
+    // Scope to the enterprise-card that contains the Picking badge
+    const pickingCard = page.locator('.enterprise-card').filter({ has: pickingBadge });
+    await expect(pickingCard).toBeVisible({ timeout: 5000 });
+
+    // The "Mark Packed" button MUST be in this card
+    const markPackedBtn = pickingCard.locator('button:has-text("Mark Packed")').first();
+    await expect(markPackedBtn).toBeVisible({ timeout: 10000 });
+
+    await markPackedBtn.click();
+    await page.waitForTimeout(3000);
+
+    // After clicking, reload to get fresh state and verify the order is now PACKED
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
+
+    // The order that was PICKING must now show "Packed" badge — assert no "Picking" badge remains
+    const pickingBadgeAfter = page.locator('span:has-text("Picking")').first();
+    const anyPicking = await pickingBadgeAfter.isVisible({ timeout: 3000 }).catch(() => false);
+    expect(anyPicking).toBe(false);
+
+    // At least one "Packed" badge must exist (qa-order-1 is now PACKED)
+    const packedBadge = page.locator('span:has-text("Packed")').first();
+    await expect(packedBadge).toBeVisible({ timeout: 5000 });
+
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/06-store-owner-status-actions.png`, fullPage: true });
   });
@@ -204,22 +221,40 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
     await page.screenshot({ path: `${SCREENSHOT_DIR}/10-rider-dashboard.png`, fullPage: true });
   });
 
-  test('11 — Rider delivery state (queue and available orders)', async ({ page }) => {
+  test('11 — Rider delivery state (strict — picks available order)', async ({ page }) => {
     await loginViaForm(page, 'rider@aagam.com', 'Demo@123');
     await waitForDashboard(page, '/rider');
 
+    // "Delivery Queue" heading MUST exist
     const deliveryQueue = page.locator('h1:has-text("Delivery Queue")');
     await expect(deliveryQueue).toBeVisible({ timeout: 10000 });
 
+    // qa-order-rider-pick is seeded as CONFIRMED, unassigned — "Pick" button MUST exist
     const pickBtn = page.locator('button:has-text("Pick")').first();
-    const hasPick = await pickBtn.isVisible({ timeout: 5000 }).catch(() => false);
-    if (hasPick) {
-      await pickBtn.click();
-      await page.waitForTimeout(3000);
-    } else {
-      await page.evaluate(() => window.scrollTo(0, 600));
-      await page.waitForTimeout(1000);
-    }
+    await expect(pickBtn).toBeVisible({ timeout: 15000 });
+
+    // Scroll to the Pick button and click it
+    await pickBtn.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500);
+    await pickBtn.click();
+
+    // Wait for the API call to complete
+    await page.waitForTimeout(5000);
+
+    // Reload page to get fresh state from server
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
+
+    // After picking, the order is RIDER_ASSIGNED — no longer in the unassigned queue
+    // "Pick" button should NOT exist for any order
+    const pickBtnAfter = page.locator('button:has-text("Pick")').first();
+    const anyPickBtn = await pickBtnAfter.isVisible({ timeout: 5000 }).catch(() => false);
+    expect(anyPickBtn).toBe(false);
+
+    // The queue should show "No active orders" since all CONFIRMED orders have been picked
+    const noActive = page.locator('text=No active orders');
+    await expect(noActive).toBeVisible({ timeout: 10000 });
 
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/11-rider-out-for-delivery-or-delivered.png`, fullPage: true });

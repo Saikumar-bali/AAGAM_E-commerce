@@ -16,13 +16,13 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('signup')
-  @Throttle({ short: { limit: 5, ttl: 60000 } })
+  @Throttle({ short: { limit: 500, ttl: 60000 } })
   async signUp(@Body() signupDto: SignupDto) {
     return this.authService.signUp(signupDto.email, signupDto.password, signupDto.name, signupDto.role);
   }
 
   @Post('login')
-  @Throttle({ short: { limit: 5, ttl: 900000 } })
+  @Throttle({ short: { limit: 500, ttl: 60000 } })
   async signIn(@Body() loginDto: LoginDto, @Res({ passthrough: true }) response: Response) {
     if (process.env.NODE_ENV === 'development') {
       console.log('[AuthController] Login attempt');
@@ -71,7 +71,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Throttle({ short: { limit: 30, ttl: 1000 }, medium: { limit: 120, ttl: 10000 }, long: { limit: 300, ttl: 60000 } })
+  @Throttle({ short: { limit: 500, ttl: 1000 }, medium: { limit: 2000, ttl: 10000 }, long: { limit: 10000, ttl: 60000 } })
   @Get('me')
   async getProfile(@Req() req: any) {
     if (process.env.NODE_ENV === 'development') {
