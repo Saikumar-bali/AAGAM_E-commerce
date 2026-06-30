@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, Role, prisma } from '@aagam/database';
+import { calculateDistance } from '@aagam/utils';
 import { TrackingGateway } from '../tracking.gateway';
 import { OrderService } from '../orders/order.service';
 import { RiderLocationDto } from './dto/rider-location.dto';
@@ -8,6 +9,8 @@ const TRACKABLE_STATUSES: OrderStatus[] = [
   OrderStatus.RIDER_ASSIGNED,
   OrderStatus.OUT_FOR_DELIVERY,
 ];
+
+const STALE_AFTER_SECONDS = 360;
 
 @Injectable()
 export class TrackingService {
@@ -129,6 +132,9 @@ export class TrackingService {
       createdAt: ping.createdAt,
       etaMinutes: tracking.tracking.etaMinutes,
       distanceKm: tracking.tracking.distanceKm,
+      trackingState: tracking.tracking.trackingState,
+      isStale: false,
+      staleAfterSeconds: STALE_AFTER_SECONDS,
     };
 
     this.trackingGateway.emitRiderLocationUpdated(dto.orderId, payload);
@@ -150,13 +156,6 @@ export class TrackingService {
   }
 
   private haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-    const toRad = (v: number) => (v * Math.PI) / 180;
-    const R = 6371;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(a));
+    return calculateDistance(lat1, lon1, lat2, lon2);
   }
 }

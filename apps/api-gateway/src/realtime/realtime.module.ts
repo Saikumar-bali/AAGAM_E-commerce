@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 
 import { TrackingGateway } from '../tracking.gateway';
+import { AuthModule } from '../auth/auth.module';
 
 /**
  * Global realtime module so any feature module (checkout, orders, etc.)
@@ -8,6 +9,7 @@ import { TrackingGateway } from '../tracking.gateway';
  */
 @Global()
 @Module({
+  imports: [AuthModule],
   providers: [TrackingGateway],
   exports: [TrackingGateway],
 })

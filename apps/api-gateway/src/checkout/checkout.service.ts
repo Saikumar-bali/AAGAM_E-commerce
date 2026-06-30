@@ -1,20 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PaymentMethod, PaymentStatus, prisma } from '@aagam/database';
+import { calculateDistance } from '@aagam/utils';
 
 import { CheckoutPlaceOrderDto, CheckoutQuoteDto } from './dto/checkout.dto';
 import { TrackingGateway } from '../tracking.gateway';
 import { NotificationService } from '../notifications/notification.service';
 
-function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const toRad = (v: number) => (v * Math.PI) / 180;
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
+const haversineKm = calculateDistance;
 
 function computeDeliveryFee(distanceKm: number): { serviceable: boolean; deliveryFee: number } {
   if (!Number.isFinite(distanceKm)) return { serviceable: false, deliveryFee: 0 };

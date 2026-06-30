@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, PaymentStatus, Role, prisma } from '@aagam/database';
+import { calculateDistance } from '@aagam/utils';
 import { TrackingGateway } from '../tracking.gateway';
 import { RefundsService } from '../payments/refunds.service';
 
@@ -59,14 +60,7 @@ export class OrderService {
   }
 
   private haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-    const toRad = (v: number) => (v * Math.PI) / 180;
-    const R = 6371;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(a));
+    return calculateDistance(lat1, lon1, lat2, lon2);
   }
 
   private timestampFieldForStatus(status: OrderStatus) {
@@ -194,6 +188,9 @@ export class OrderService {
       items: order.items,
       tracking: {
         isLive: ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'].includes(order.status),
+        trackingState: this.computeTrackingState(order.status, order.riderId, latestLocation, eta.stale),
+        isStale: eta.stale,
+        staleAfterSeconds: 360,
         latestLocation,
         lastPingAt: latestLocation?.createdAt || null,
         etaMinutes: eta.etaMinutes,
@@ -267,6 +264,24 @@ export class OrderService {
       durationMinutes,
       points: pings.length,
     };
+  }
+
+  private computeTrackingState(
+    orderStatus: string,
+    riderId: string | null,
+    latestLocation: any,
+    isStale: boolean,
+  ): string {
+    if (orderStatus === 'DELIVERED') return 'DELIVERED';
+    if (orderStatus === 'CANCELLED') return 'CANCELLED';
+    if (orderStatus === 'RIDER_ASSIGNED' || orderStatus === 'OUT_FOR_DELIVERY') {
+      if (!riderId) return 'NOT_ASSIGNED';
+      if (!latestLocation) return 'ASSIGNED_NO_LOCATION';
+      if (isStale) return 'STALE';
+      return 'LIVE';
+    }
+    if (!riderId) return 'NOT_ASSIGNED';
+    return 'STOPPED';
   }
 
   async findAll() {

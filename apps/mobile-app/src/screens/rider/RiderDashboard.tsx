@@ -52,6 +52,9 @@ export const RiderDashboard = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
+  const [trackingStatus, setTrackingStatus] = useState<'waiting' | 'sending' | 'live' | 'failed'>('waiting');
+  const [lastLocationSentAt, setLastLocationSentAt] = useState<Date | null>(null);
+  const [gpsDenied, setGpsDenied] = useState(false);
   const previousQueueIdsRef = useRef<string[]>([]);
   const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
 
@@ -227,10 +230,12 @@ export const RiderDashboard = () => {
   };
 
   const sendLiveLocation = (orderId: string) => {
+    setTrackingStatus('sending');
     Geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude, accuracy, speed, heading } = position.coords;
         setCurrentLocation({ lat: latitude, lng: longitude });
+        setGpsDenied(false);
         try {
           await riderService.updateMyStatus('BUSY', { latitude, longitude });
           await riderService.sendLocationPing(orderId, {
@@ -248,11 +253,30 @@ export const RiderDashboard = () => {
             bearing: heading || 0,
             status: 'LIVE',
           });
+          setTrackingStatus('live');
+          setLastLocationSentAt(new Date());
         } catch (error) {
           console.warn('[RiderDashboard] Location ping failed', error);
+          setTrackingStatus('failed');
+          setTimeout(() => {
+            riderService.sendLocationPing(orderId, {
+              latitude,
+              longitude,
+              accuracy: accuracy ?? undefined,
+              speed: speed ?? undefined,
+              heading: heading ?? undefined,
+            }).then(() => {
+              setTrackingStatus('live');
+              setLastLocationSentAt(new Date());
+            }).catch(() => {});
+          }, 3000);
         }
       },
-      () => {},
+      (error) => {
+        console.warn('[RiderDashboard] GPS error', error);
+        setGpsDenied(true);
+        setTrackingStatus('failed');
+      },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
     );
   };
@@ -262,7 +286,10 @@ export const RiderDashboard = () => {
       ? assignedOrders.find((order: any) => ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'].includes(order.status))
       : null;
 
-    if (!activeTrackableOrder || !isOnline) return;
+    if (!activeTrackableOrder || !isOnline) {
+      setTrackingStatus('waiting');
+      return;
+    }
 
     sendLiveLocation(activeTrackableOrder.id);
     const interval = setInterval(() => {
@@ -444,6 +471,31 @@ export const RiderDashboard = () => {
           <Text style={styles.sectionTitle}>Current Delivery</Text>
           {assignedOrders?.length > 0 && <View style={styles.livePulse} />}
         </View>
+
+        {/* GPS Denied Warning */}
+        {gpsDenied && (
+          <View style={styles.gpsWarning}>
+            <MapPin size={16} color="#EF4444" />
+            <Text style={styles.gpsWarningText}>Location permission required. Please enable in Settings.</Text>
+          </View>
+        )}
+
+        {/* Foreground Tracking Indicator */}
+        {trackingStatus !== 'waiting' && (
+          <View style={[styles.trackingIndicator, trackingStatus === 'live' && styles.trackingLive, trackingStatus === 'sending' && styles.trackingSending, trackingStatus === 'failed' && styles.trackingFailed]}>
+            <View style={[styles.trackingDot, trackingStatus === 'live' && styles.trackingDotLive, trackingStatus === 'sending' && styles.trackingDotSending, trackingStatus === 'failed' && styles.trackingDotFailed]} />
+            <Text style={styles.trackingIndicatorText}>
+              {trackingStatus === 'sending' && 'Getting GPS fix...'}
+              {trackingStatus === 'live' && 'Tracking active'}
+              {trackingStatus === 'failed' && 'Location send failed'}
+            </Text>
+            {lastLocationSentAt && trackingStatus === 'live' && (
+              <Text style={styles.trackingLastSent}>
+                Last sent {Math.floor((Date.now() - lastLocationSentAt.getTime()) / 1000)}s ago
+              </Text>
+            )}
+          </View>
+        )}
 
         {Array.isArray(assignedOrders) && assignedOrders.length > 0 ? (
           assignedOrders.map((order: any) => (
@@ -789,5 +841,75 @@ const styles = StyleSheet.create({
     color: '#0F766E',
     fontSize: 12,
     fontWeight: '800',
+  },
+  gpsWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  gpsWarningText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#991B1B',
+  },
+  trackingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  trackingLive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  trackingSending: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  trackingFailed: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  trackingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#94A3B8',
+  },
+  trackingDotLive: {
+    backgroundColor: '#10B981',
+  },
+  trackingDotSending: {
+    backgroundColor: '#3B82F6',
+  },
+  trackingDotFailed: {
+    backgroundColor: '#EF4444',
+  },
+  trackingIndicatorText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  trackingLastSent: {
+    marginLeft: 'auto',
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#94A3B8',
   },
 });

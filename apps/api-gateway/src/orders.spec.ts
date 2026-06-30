@@ -44,6 +44,8 @@ function createTrackingGatewayMock() {
     emitOrderStatusUpdated: jest.fn(),
     emitOrderTimelineUpdated: jest.fn(),
     emitRiderAssigned: jest.fn(),
+    emitRiderLocationUpdated: jest.fn(),
+    emitTrackingStopped: jest.fn(),
   };
 }
 

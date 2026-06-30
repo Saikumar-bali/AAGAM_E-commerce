@@ -1,20 +1,11 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
-import { getProductImage } from '@aagam/utils';
+import { getProductImage, calculateDistance } from '@aagam/utils';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { QueryProductsDto } from './dto/query-products.dto';
 
-function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const toRad = (v: number) => (v * Math.PI) / 180;
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
+const haversineKm = calculateDistance;
 
 function computeServiceable(distanceKm: number | null): boolean | null {
   if (distanceKm === null || !Number.isFinite(distanceKm)) return null;
