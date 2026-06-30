@@ -76,14 +76,14 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
 
     await expect(page.getByRole('heading', { name: 'My Orders' })).toBeVisible({ timeout: 10000 });
 
-    const orderLinks = page.locator('[href*="/shop/orders/"]');
-    const count = await orderLinks.count();
-    if (count > 0) {
-      await orderLinks.first().click();
-      await page.waitForLoadState('networkidle');
-      await page.waitForTimeout(3000);
-      await expect(page.getByText('Order #').first()).toBeVisible({ timeout: 10000 });
-    }
+    const orderCards = page.locator('[class*="cursor-pointer"]').filter({ hasText: /Confirmed|Pending|Picking|Delivered|Cancelled/ });
+    await expect(orderCards.first()).toBeVisible({ timeout: 10000 });
+    await orderCards.first().click();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
+
+    await expect(page.getByText('#').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Back to orders')).toBeVisible({ timeout: 10000 });
 
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/05-customer-live-tracking.png`, fullPage: true });

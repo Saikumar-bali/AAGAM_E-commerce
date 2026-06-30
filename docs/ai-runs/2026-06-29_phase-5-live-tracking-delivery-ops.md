@@ -156,5 +156,4 @@ All 8 screenshots have unique MD5 hashes — no duplicates.
 3. **No push notifications for tracking events**: FCM exists but tracking-specific push not implemented.
 4. **No real-time ETA countdown**: ETA computed on each ping, not continuously updated client-side.
 5. **Zone-based dispatch**: Zone rooms exist but no server-side zone matching logic.
-6. **Playwright screenshots**: Some screenshots identical when no active orders with riders exist in test DB.
-7. **Rider GPS simulation**: Backend tests use backdated pings to avoid jump detection; real GPS flow requires device.
+6. **Rider GPS simulation**: Backend tests use backdated pings to avoid jump detection; real GPS flow requires device.
