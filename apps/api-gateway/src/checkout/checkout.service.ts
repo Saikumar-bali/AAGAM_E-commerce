@@ -16,6 +16,11 @@ function computeDeliveryFee(distanceKm: number): { serviceable: boolean; deliver
   return { serviceable: false, deliveryFee: 0 };
 }
 
+function computeEtaMinutes(distanceKm: number | null): number | null {
+  if (distanceKm === null || !Number.isFinite(distanceKm)) return null;
+  return Math.max(10, Math.ceil(distanceKm * 6 + 8));
+}
+
 function normalizeItems(items: Array<{ productId: string; quantity: number }>) {
   const byProduct = new Map<string, number>();
   for (const item of items) {
@@ -52,6 +57,37 @@ export class CheckoutService {
     }
 
     return { store: best, distanceKm: bestDistance };
+  }
+
+  async serviceability(userId: string, addressId: string) {
+    if (!addressId) throw new BadRequestException('addressId is required');
+    const address = await prisma.customerAddress.findFirst({ where: { id: addressId, userId } });
+    if (!address) throw new NotFoundException('Address not found');
+
+    const resolved = await this.resolveStoreForLocation(address.latitude, address.longitude);
+    const fee = computeDeliveryFee(resolved.distanceKm);
+
+    return {
+      serviceable: fee.serviceable,
+      address: {
+        id: address.id,
+        label: address.label,
+        line1: address.line1,
+        city: address.city,
+        state: address.state,
+        pincode: address.pincode,
+        latitude: address.latitude,
+        longitude: address.longitude,
+      },
+      store: {
+        id: resolved.store.id,
+        name: resolved.store.name,
+      },
+      distanceKm: resolved.distanceKm,
+      deliveryFee: fee.deliveryFee,
+      deliveryFeePaise: Math.round(fee.deliveryFee * 100),
+      etaMinutes: computeEtaMinutes(resolved.distanceKm),
+    };
   }
 
   async quote(userId: string, dto: CheckoutQuoteDto) {
@@ -143,6 +179,7 @@ export class CheckoutService {
       serviceable,
       store: storeId ? { id: storeId, name: storeName } : null,
       distanceKm,
+      etaMinutes: computeEtaMinutes(distanceKm),
       invoice: {
         items,
         subtotal,
@@ -237,6 +274,8 @@ export class CheckoutService {
       currency: 'INR',
       paymentMethod: dto.paymentMethod,
       calculatedAt: new Date().toISOString(),
+      etaMinutes: quote.etaMinutes,
+      distanceKm: quote.distanceKm,
     };
 
     return prisma.$transaction(async (tx) => {
