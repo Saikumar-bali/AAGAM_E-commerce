@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const AUTH_FILE = './.auth/customer.json';
+
 export default defineConfig({
   testDir: './tests',
   timeout: 120000,
@@ -23,8 +25,18 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'setup',
+      testMatch: /phase-6-checkout-ux\.setup\.ts/,
+    },
+    {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'], headless: false },
+      use: {
+        ...devices['Desktop Chrome'],
+        headless: true,
+        storageState: AUTH_FILE,
+      },
+      dependencies: ['setup'],
+      testMatch: /phase-6-checkout-ux\.spec\.ts/,
     },
   ],
   webServer: {

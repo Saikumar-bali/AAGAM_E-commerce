@@ -29,9 +29,9 @@ export class ProductService {
     let lat = query.lat ?? null;
     let lng = query.lng ?? null;
 
-    if (query.addressId && userId) {
+    if (query.addressId) {
       const address = await prisma.customerAddress.findFirst({
-        where: { id: query.addressId, userId },
+        where: userId ? { id: query.addressId, userId } : { id: query.addressId },
         select: { latitude: true, longitude: true },
       });
       if (address) {
