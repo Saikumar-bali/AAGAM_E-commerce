@@ -40,6 +40,21 @@ export class ProductService {
       }
     }
 
+    if (query.storeId) {
+      const store = await prisma.store.findFirst({
+        where: { id: query.storeId, isActive: true, deletedAt: null },
+        select: { id: true, name: true, latitude: true, longitude: true },
+      });
+      if (!store) return null;
+      const distanceKm = lat !== null && lng !== null ? haversineKm(lat, lng, store.latitude, store.longitude) : null;
+      return {
+        storeId: store.id,
+        storeName: store.name,
+        distanceKm,
+        serviceable: computeServiceable(distanceKm),
+      };
+    }
+
     if (lat === null || lng === null) {
       return null;
     }
@@ -74,7 +89,7 @@ export class ProductService {
     query: QueryProductsDto,
     userId?: string,
   ) {
-    const shouldAttach = Boolean(query.includeAvailability || query.addressId || (query.lat != null && query.lng != null));
+    const shouldAttach = Boolean(query.includeAvailability || query.addressId || query.storeId || (query.lat != null && query.lng != null));
     if (!products.length || !shouldAttach) return products;
 
     const context = await this.resolveAvailabilityContext(query, userId);
@@ -125,6 +140,7 @@ export class ProductService {
       !query.page &&
       !query.pageSize &&
       !query.addressId &&
+      !query.storeId &&
       query.lat == null &&
       query.lng == null &&
       !query.includeAvailability;
@@ -196,6 +212,7 @@ export class ProductService {
   async findOne(id: string, query: QueryProductsDto = {}, userId?: string) {
     const shouldUseCache =
       !query.addressId &&
+      !query.storeId &&
       query.lat == null &&
       query.lng == null &&
       !query.includeAvailability;
@@ -221,6 +238,54 @@ export class ProductService {
     }
 
     return enrichedProduct;
+  }
+
+  async getSubstitutes(id: string, query: QueryProductsDto = {}, userId?: string) {
+    const product = await prisma.product.findUnique({
+      where: { id, deletedAt: null, isActive: true },
+      select: { id: true, categoryId: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const context = query.storeId ? await this.resolveAvailabilityContext(query, userId) : await this.resolveAvailabilityContext(query, userId);
+    const storeId = context?.storeId ?? null;
+    if (!storeId) return [];
+
+    const substitutes = await prisma.product.findMany({
+      where: {
+        id: { not: id },
+        categoryId: product.categoryId,
+        deletedAt: null,
+        isActive: true,
+        inventory: { some: { storeId, quantity: { gt: 0 } } },
+      },
+      include: {
+        category: true,
+        inventory: {
+          where: { storeId },
+          select: { quantity: true, storeId: true },
+          take: 1,
+        },
+      },
+      orderBy: [{ name: 'asc' }],
+      take: 8,
+    });
+
+    return this.withFallbackImages(substitutes).map((substitute: any) => {
+      const inventory = substitute.inventory?.[0];
+      const { inventory: _inventory, ...rest } = substitute;
+      const availableQty = inventory?.quantity ?? 0;
+      return {
+        ...rest,
+        availability: {
+          storeId,
+          availableQty,
+          inStock: availableQty > 0,
+          serviceable: context?.serviceable ?? null,
+          distanceKm: context?.distanceKm ?? null,
+        },
+      };
+    });
   }
 
   async create(data: { name: string; description?: string; price: number; categoryId: string; image?: string }) {
