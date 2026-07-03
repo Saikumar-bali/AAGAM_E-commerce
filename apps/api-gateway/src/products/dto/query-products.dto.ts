@@ -34,6 +34,10 @@ export class QueryProductsDto {
   addressId?: string;
 
   @IsOptional()
+  @IsString()
+  storeId?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   lat?: number;
