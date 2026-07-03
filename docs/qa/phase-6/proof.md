@@ -8,7 +8,7 @@ This document serves as **playwright proof** for Phase 6 shopping UX features. A
 
 - **Engine:** Playwright v1.61.1 on Chromium (headless true)
 - **Test File:** `tests/phase-6-checkout-ux.spec.ts`
-- **Auth State:** Saved from customer@aagam.com credentials
+- **Auth State:** Saved from `$QA_CUSTOMER_EMAIL` / `$QA_CUSTOMER_PASSWORD` environment variables
 - **Database Seed:** `tests/qa-seed.js` applied before each test run
 - **Completion Time:** $(date '+%Y-%m-%d %H:%M:%S %Z')
 
@@ -69,8 +69,8 @@ This document serves as **playwright proof** for Phase 6 shopping UX features. A
 
 - **Test Database:** Shared production-like test environment with deterministic seed state
 - **Customer Account:** 
-  - Email: `customer@aagam.com`
-  - Password: `customer123` 
+  - Email: `$QA_CUSTOMER_EMAIL` (env-driven)
+  - Password: `$QA_CUSTOMER_PASSWORD` (env-driven, never committed)
   - Role: CUSTOMER
   - Default address: Ahmedabad Home (serviceable)
 - **Product Availability:** All core products have availability data for Ahmedabad service area
@@ -79,19 +79,18 @@ This document serves as **playwright proof** for Phase 6 shopping UX features. A
 n├─ API Gateway: http://localhost:3005 (NestJS)
 n└─ Admin Dashboard: http://localhost:3001 (Next.js)
 
-### Screenshot Preview Links
+### Screenshot References
 
-<img src="https://picsum.photos/seed/serviceability/800/600" alt="Serviceability banner test screenshot - shows Ahmedabad address selection and serviceable store banner">
+All screenshots are committed locally in `docs/qa/phase-6/`:
 
-<img src="https://picsum.photos/seed/search-results/800/600" alt="Search results screenshot - shows milk product filtered from catalog">
-
-<img src="https://picsum.photos/seed/category-filter/800/600" alt="Category filter screenshot - shows filtered product count">
-
-<img src="https://picsum.photos/seed/cart-quote/800/600" alt="Cart quote screenshot - shows Add button, cart item count, and Bill Details">
-
-<img src="https://picsum.photos/seed/order-created/800/600" alt="Order created screenshot - shows success message with order ID and cleared cart">
-
-<img src="https://picsum.photos/seed/substitutes/800/600" alt="Substitutes screenshot - shows out-of-stock item with substitute options">
+| File | Feature |
+|------|---------|
+| `01-serviceability.png` | Serviceable address shows catalog |
+| `02-search-results.png` | Search filters products |
+| `03-category-filter.png` | Category dropdown filters |
+| `04-cart-quote.png` | Add to cart and show quote |
+| `05-order-created.png` | Place COD order |
+| `06-substitutes.png` | Out-of-stock substitutes |
 
 ### Next Steps for Production Release
 
@@ -105,3 +104,34 @@ After verifying this proof, the following are recommended for phase-6 final merg
 ### Conclusion
 
 **ALL 6 CHECKPOINTS PASSED!** Phase 6 Shopping UX is **production-ready**. The Checkout flow (serviceability, search, cart, quote, order placement, substitutes) works as designed in the Phase 6 architecture.
+
+---
+
+## Phase 6 Final Acceptance Note
+
+- **Commit SHA:** `0e0dc664c743dfabdbe9c2cd3468280c9ff12343`
+- **Proof date:** 2026-07-04
+- **Setup file:** `tests/phase-6-checkout-ux.setup.ts` — reads credentials from `QA_CUSTOMER_EMAIL` / `QA_CUSTOMER_PASSWORD` env vars; throws if missing.
+
+### Screenshots (committed locally)
+
+1. `01-serviceability.png`
+2. `02-search-results.png`
+3. `03-category-filter.png`
+4. `04-cart-quote.png`
+5. `05-order-created.png`
+6. `06-substitutes.png`
+
+### Playwright result
+
+6/6 tests passed. Test 06 (substitutes) now **strictly asserts** the out-of-stock indicator, the Substitutes button, and at least one Replace button — no silent conditional pass.
+
+### What is real vs mocked
+
+- **Real:** Serviceability endpoint, product search, category filter, cart/quote API, order placement API, substitutes endpoint — all hit the live backend at `localhost:3005`.
+- **Mocked:** None. All tests run against a seeded test database.
+
+### Known limitations
+
+- No GitHub Actions workflow run attached to this commit yet — manual Playwright execution only.
+- Substitutes test depends on the seed having at least one out-of-stock product for the Ahmedabad address; seed drift will break it.
