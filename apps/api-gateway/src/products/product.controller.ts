@@ -22,6 +22,11 @@ export class ProductController {
     return this.productService.getCategories();
   }
 
+  @Get(':id/substitutes')
+  async getSubstitutes(@Param('id') id: string, @Query() query: QueryProductsDto, @Req() req: any) {
+    return this.productService.getSubstitutes(id, query, req?.user?.id);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Query() query: QueryProductsDto, @Req() req: any) {
     return this.productService.findOne(id, query, req?.user?.id);
