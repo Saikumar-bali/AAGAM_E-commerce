@@ -162,19 +162,15 @@ test.describe('Phase 6 Checkout UX', () => {
     await selectAhmedabadAddress(page);
 
     const outOfStock = page.locator('text=Out').first();
+    await expect(outOfStock).toBeVisible({ timeout: 10000 });
+
     const substituteBtn = page.locator('button').filter({ hasText: /Substitutes/ }).first();
+    await expect(substituteBtn).toBeVisible({ timeout: 5000 });
+    await substituteBtn.click();
+    await page.waitForTimeout(2000);
 
-    if (await outOfStock.isVisible({ timeout: 3000 }).catch(() => false)) {
-      if (await substituteBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await substituteBtn.click();
-        await page.waitForTimeout(2000);
-
-        const replaceButtons = page.locator('button').filter({ hasText: /Replace with/ });
-        if (await replaceButtons.count() > 0) {
-          await expect(replaceButtons.first()).toBeVisible();
-        }
-      }
-    }
+    const replaceButtons = page.locator('button').filter({ hasText: /Replace with/ });
+    await expect(replaceButtons.first()).toBeVisible({ timeout: 5000 });
 
     await waitForReady(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/06-substitutes.png`, fullPage: true });
