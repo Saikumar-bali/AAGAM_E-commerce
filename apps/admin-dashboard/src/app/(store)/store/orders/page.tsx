@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
-import { ShoppingCart, RefreshCw, Clock, CheckCircle, XCircle, Package, User } from 'lucide-react';
+import { ShoppingCart, RefreshCw, Clock, CheckCircle, XCircle, Package, User, ClipboardList } from 'lucide-react';
 
 type OrderItem = {
   id: string;
@@ -33,41 +33,41 @@ type Order = {
   rider?: RiderInfo | null;
 };
 
-const statusConfig: Record<string, { label: string; cls: string; icon: React.ElementType }> = {
-  PENDING: { label: 'Pending', cls: 'bg-amber-100 text-amber-700', icon: Clock },
-  PAYMENT_PENDING: { label: 'Payment Pending', cls: 'bg-orange-100 text-orange-700', icon: Clock },
-  CONFIRMED: { label: 'Confirmed', cls: 'bg-blue-100 text-blue-700', icon: CheckCircle },
-  PICKING: { label: 'Picking', cls: 'bg-indigo-100 text-indigo-700', icon: Package },
-  PACKED: { label: 'Packed', cls: 'bg-violet-100 text-violet-700', icon: Package },
-  RIDER_ASSIGNED: { label: 'Rider Assigned', cls: 'bg-purple-100 text-purple-700', icon: User },
-  OUT_FOR_DELIVERY: { label: 'Out for Delivery', cls: 'bg-cyan-100 text-cyan-700', icon: ShoppingCart },
-  DELIVERED: { label: 'Delivered', cls: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
-  CANCELLED: { label: 'Cancelled', cls: 'bg-red-100 text-red-700', icon: XCircle },
+const statusConfig: Record<string, { label: string; cls: string; icon: React.ElementType; lane: string }> = {
+  PENDING: { label: 'New order', cls: 'bg-amber-100 text-amber-700', icon: Clock, lane: 'New' },
+  PAYMENT_PENDING: { label: 'Payment Pending', cls: 'bg-orange-100 text-orange-700', icon: Clock, lane: 'New' },
+  CONFIRMED: { label: 'Accepted', cls: 'bg-blue-100 text-blue-700', icon: CheckCircle, lane: 'Accepted' },
+  PICKING: { label: 'Preparing', cls: 'bg-indigo-100 text-indigo-700', icon: Package, lane: 'Preparing' },
+  PACKED: { label: 'Ready for Pickup', cls: 'bg-violet-100 text-violet-700', icon: Package, lane: 'Ready' },
+  RIDER_ASSIGNED: { label: 'Rider Assigned', cls: 'bg-purple-100 text-purple-700', icon: User, lane: 'Rider' },
+  OUT_FOR_DELIVERY: { label: 'Out for Delivery', cls: 'bg-cyan-100 text-cyan-700', icon: ShoppingCart, lane: 'Rider' },
+  DELIVERED: { label: 'Delivered', cls: 'bg-emerald-100 text-emerald-700', icon: CheckCircle, lane: 'Done' },
+  CANCELLED: { label: 'Cancelled', cls: 'bg-red-100 text-red-700', icon: XCircle, lane: 'Done' },
 };
 
 type StoreAction = { status: string; label: string };
 const STORE_ACTIONS: Record<string, StoreAction[]> = {
   PENDING: [
-    { status: 'CONFIRMED', label: 'Confirm' },
-    { status: 'CANCELLED', label: 'Cancel' },
+    { status: 'CONFIRMED', label: 'Accept Order' },
+    { status: 'CANCELLED', label: 'Reject' },
   ],
   PAYMENT_PENDING: [
-    { status: 'CONFIRMED', label: 'Confirm' },
-    { status: 'CANCELLED', label: 'Cancel' },
+    { status: 'CONFIRMED', label: 'Accept Order' },
+    { status: 'CANCELLED', label: 'Reject' },
   ],
   CONFIRMED: [
-    { status: 'PICKING', label: 'Start Picking' },
-    { status: 'PACKED', label: 'Mark Packed' },
+    { status: 'PICKING', label: 'Start Preparing' },
+    { status: 'PACKED', label: 'Ready for Pickup' },
     { status: 'CANCELLED', label: 'Cancel' },
   ],
   PICKING: [
-    { status: 'PACKED', label: 'Mark Packed' },
+    { status: 'PACKED', label: 'Ready for Pickup' },
     { status: 'CANCELLED', label: 'Cancel' },
   ],
-  PACKED: [
-    { status: 'CANCELLED', label: 'Cancel' },
-  ],
+  PACKED: [],
 };
+
+const lanes = ['New', 'Accepted', 'Preparing', 'Ready', 'Rider', 'Done'];
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -113,18 +113,36 @@ export default function OrdersPage() {
   }, [fetchOrders]);
 
   const actions = (status: string) => STORE_ACTIONS[status] || [];
+  const laneCounts = useMemo(() => {
+    const counts: Record<string, number> = Object.fromEntries(lanes.map((lane) => [lane, 0]));
+    for (const order of orders) {
+      const lane = statusConfig[order.status]?.lane || 'New';
+      counts[lane] = (counts[lane] || 0) + 1;
+    }
+    return counts;
+  }, [orders]);
 
   return (
     <DashboardLayout allowedRole="STORE_OWNER">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <p className="enterprise-kicker">Order management</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight">Orders</h1>
+          <p className="enterprise-kicker">Store fulfillment</p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight">Order Queue</h1>
+          <p className="mt-2 text-sm text-slate-500">Accept, prepare, pack, and mark orders ready for rider pickup.</p>
         </div>
         <button onClick={fetchOrders} disabled={loading} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50">
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
+      </div>
+
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-6">
+        {lanes.map((lane) => (
+          <div key={lane} className="rounded-2xl border bg-white p-4 shadow-sm">
+            <p className="text-xs font-black uppercase text-slate-400">{lane}</p>
+            <p className="mt-1 text-2xl font-black text-slate-950">{laneCounts[lane] || 0}</p>
+          </div>
+        ))}
       </div>
 
       {error && <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
@@ -142,7 +160,7 @@ export default function OrdersPage() {
           <p className="mt-2 text-sm text-slate-500">Orders will appear here once customers start ordering.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {orders.map((order) => {
             const config = statusConfig[order.status] || statusConfig.PENDING;
             const Icon = config.icon;
@@ -155,48 +173,50 @@ export default function OrdersPage() {
                     <Icon className={`h-5 w-5 ${config.cls.split(' ')[1]}`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-black text-slate-950">#{order.id.slice(-8).toUpperCase()}</p>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${config.cls}`}>
-                        {config.label}
-                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${config.cls}`}>{config.label}</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">{config.lane}</span>
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
-                      {order.customer?.name || 'Customer'} · {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {order.customer?.name || 'Customer'} · {order.customer?.phone || order.customer?.email || 'No contact'} · {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
-                    {order.rider && (
-                      <p className="mt-0.5 text-xs text-purple-600">Rider: {order.rider.user.name}</p>
-                    )}
+                    {order.rider && <p className="mt-0.5 text-xs text-purple-600">Rider: {order.rider.user.name}</p>}
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-black text-slate-950">₹{Number(order.grandTotal).toLocaleString('en-IN')}</p>
-                    <p className="text-xs text-slate-500">{order.items?.length || 0} item{(order.items?.length || 0) > 1 ? 's' : ''}</p>
-                    {order.payment && (
-                      <p className={`mt-0.5 text-[10px] font-bold ${order.payment.status === 'COMPLETED' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {order.payment.method} · {order.payment.status}
-                      </p>
-                    )}
+                    <p className="text-xs text-slate-500">{order.items?.length || 0} line item{(order.items?.length || 0) > 1 ? 's' : ''}</p>
+                    {order.payment && <p className={`mt-0.5 text-[10px] font-bold ${order.payment.status === 'COMPLETED' ? 'text-emerald-600' : 'text-amber-600'}`}>{order.payment.method} · {order.payment.status}</p>}
                   </div>
                 </div>
+
+                <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase text-slate-500"><ClipboardList className="h-4 w-4" /> Picking list</div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {(order.items || []).map((item) => (
+                      <div key={item.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm">
+                        <span className="font-bold text-slate-700">{item.product?.name || 'Product'}</span>
+                        <span className="rounded-lg bg-slate-900 px-2 py-1 text-xs font-black text-white">x{item.quantity}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {order.status === 'PACKED' && <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-black text-violet-700">Ready for rider pickup. Store work is complete.</div>}
+
                 {orderActions.length > 0 && (
-                  <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3">
+                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
                     {orderActions.map((action) => (
                       <button
                         key={action.status}
                         onClick={() => updateStatus(order.id, action.status)}
                         disabled={actionLoading === `${order.id}-${action.status}`}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition disabled:opacity-50 ${
-                          action.status === 'CANCELLED'
-                            ? 'border border-red-200 text-red-600 hover:bg-red-50'
-                            : 'bg-slate-900 text-white hover:bg-slate-700'
-                        }`}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition disabled:opacity-50 ${action.status === 'CANCELLED' ? 'border border-red-200 text-red-600 hover:bg-red-50' : 'bg-slate-900 text-white hover:bg-slate-700'}`}
                       >
                         {actionLoading === `${order.id}-${action.status}` ? '...' : action.label}
                       </button>
                     ))}
-                    {actionErr && (
-                      <p className="ml-2 text-[11px] font-medium text-red-600">{actionErr}</p>
-                    )}
+                    {actionErr && <p className="ml-2 text-[11px] font-medium text-red-600">{actionErr}</p>}
                   </div>
                 )}
               </div>
