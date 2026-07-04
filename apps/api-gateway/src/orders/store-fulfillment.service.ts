@@ -40,7 +40,7 @@ export class StoreFulfillmentService {
   }
 
   private assertEditable(status: OrderStatus) {
-    if (!this.editableStatuses.includes(status)) {
+    if (!(this.editableStatuses as OrderStatus[]).includes(status)) {
       throw new BadRequestException(`Cannot edit item issues when order is ${status}`);
     }
   }

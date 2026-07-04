@@ -197,6 +197,13 @@ export class CheckoutService {
   }
 
   async placeOrder(userId: string, dto: CheckoutPlaceOrderDto, idempotencyKey?: string) {
+    // Validate quantities early (pure input validation, no DB needed)
+    for (const item of dto.items) {
+      if (!Number.isInteger(item.quantity) || item.quantity < 1) {
+        throw new BadRequestException(`Invalid quantity for product ${item.productId}: must be a positive integer`);
+      }
+    }
+
     const address = await prisma.customerAddress.findFirst({ where: { id: dto.addressId, userId } });
     if (!address) throw new NotFoundException('Address not found');
     if (!address.phoneE164) throw new BadRequestException('Delivery contact number missing for address');
@@ -208,13 +215,6 @@ export class CheckoutService {
           throw new ConflictException('Idempotency-Key already used');
         }
         return existing;
-      }
-    }
-
-    // Validate quantities: must be positive integers
-    for (const item of dto.items) {
-      if (!Number.isInteger(item.quantity) || item.quantity < 1) {
-        throw new BadRequestException(`Invalid quantity for product ${item.productId}: must be a positive integer`);
       }
     }
 

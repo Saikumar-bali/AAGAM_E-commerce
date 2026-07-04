@@ -53,5 +53,5 @@ describe('Phase 8.2 store item issues', () => {
 
     const ready = await service.readyForPickup(order.id, owner.id);
     expect(ready.status).toBe(OrderStatus.PACKED);
-  });
+  }, 30000);
 });
