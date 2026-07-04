@@ -16,10 +16,12 @@
     "build:admin": "npm run build --workspace @aagam/types && npm run build --workspace @aagam/utils && npm run build --workspace @aagam/ui && npm run build --workspace @aagam/admin-dashboard",
     "start:api": "npm run start:prod --workspace @aagam/api-gateway",
     "start:admin": "npm run start:railway --workspace @aagam/admin-dashboard",
-    "railway:start:api": "npm run db:migrate:prod && npm run start:api",
+    "railway:start:api": "npm run check:env:prod && npm run db:migrate:prod && npm run start:api",
+    "check:env:prod": "node scripts/validate-prod-env.js",
     "db:push:prod": "prisma db push --schema packages/database/prisma/schema.prisma",
     "db:migrate:prod": "prisma migrate deploy --schema packages/database/prisma/schema.prisma",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "ci:api": "npx prisma validate --schema packages/database/prisma/schema.prisma && npm run test:ci --workspace=apps/api-gateway",
+    "test": "npm run ci:api",
     "test:eta:sim": "node tests/simulate_eta_lifecycle.js"
   },
   "devDependencies": {
