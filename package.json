@@ -22,6 +22,14 @@
     "db:migrate:prod": "prisma migrate deploy --schema packages/database/prisma/schema.prisma",
     "ci:api": "npx prisma validate --schema packages/database/prisma/schema.prisma && npm run test:ci --workspace=apps/api-gateway",
     "test": "npm run ci:api",
+    "test:api": "npm run test --workspace=apps/api-gateway",
+    "test:api-smoke": "npm run test:api-smoke --workspace=apps/api-gateway",
+    "test:phase6": "npm run test:phase6 --workspace=apps/api-gateway",
+    "test:phase8": "npm run test:phase8 --workspace=apps/api-gateway",
+    "test:phase9": "npm run test:phase9 --workspace=apps/api-gateway",
+    "test:phase10": "npm run test:phase10 --workspace=apps/api-gateway",
+    "test:phase11": "npm run test:phase11 --workspace=apps/api-gateway",
+    "test:phase12": "npm run test:phase12 --workspace=apps/api-gateway",
     "test:eta:sim": "node tests/simulate_eta_lifecycle.js"
   },
   "devDependencies": {
