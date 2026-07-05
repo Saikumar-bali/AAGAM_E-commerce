@@ -12,6 +12,13 @@ interface DashboardLayoutProps {
   allowedRole: 'ADMIN' | 'RIDER' | 'CUSTOMER' | 'STORE_OWNER';
 }
 
+const notificationHrefByRole: Record<DashboardLayoutProps['allowedRole'], string> = {
+  ADMIN: '/admin/notifications',
+  CUSTOMER: '/shop/notifications',
+  STORE_OWNER: '/store/orders',
+  RIDER: '/rider',
+};
+
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole }) => {
   const [mounted, setMounted] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -27,7 +34,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
         
         if (user.role !== allowedRole) {
           console.warn(`[DashboardLayout] Role mismatch. Expected ${allowedRole}, got ${user.role}. Redirecting...`);
-          // Simple RBAC check on client side
           if (user.role === 'ADMIN') router.push('/admin');
           else if (user.role === 'RIDER') router.push('/rider');
           else if (user.role === 'STORE_OWNER') router.push('/store');
@@ -102,7 +108,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
                   Live systems
                 </div>
               ) : null}
-              <button className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:text-teal-700">
+              <button
+                onClick={() => router.push(notificationHrefByRole[allowedRole])}
+                aria-label="Open notifications"
+                className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:text-teal-700"
+              >
                 <Bell className="h-5 w-5" />
               </button>
             </div>
