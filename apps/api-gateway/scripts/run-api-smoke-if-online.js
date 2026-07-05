@@ -26,7 +26,7 @@ function checkServer(url) {
     process.exit(0);
   }
 
-  const result = spawnSync('npx', ['jest', '--runInBand', '--testPathPatterns=api-smoke.spec.ts'], {
+  const result = spawnSync('npx', ['jest', '--runInBand', 'api-smoke.spec.ts'], {
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
