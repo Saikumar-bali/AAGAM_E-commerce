@@ -17,6 +17,10 @@ import {
   RotateCcw,
   UserCircle,
   Radar,
+  BarChart3,
+  Headphones,
+  Bell,
+  Bike,
 } from 'lucide-react';
 
 import { apiClient } from '@aagam/utils';
@@ -29,11 +33,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const [profile, setProfile] = React.useState<{ name: string; email: string; avatarUrl: string }>({
-    name: '',
-    email: '',
-    avatarUrl: '',
-  });
+  const [profile, setProfile] = React.useState<{ name: string; email: string; avatarUrl: string }>({ name: '', email: '', avatarUrl: '' });
 
   React.useEffect(() => {
     if (typeof window === 'undefined' || role !== 'CUSTOMER') return;
@@ -69,6 +69,10 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   const menuItems = {
     ADMIN: [
       { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+      { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+      { name: 'Notifications', href: '/admin/notifications', icon: Bell },
+      { name: 'Support', href: '/admin/support', icon: Headphones },
+      { name: 'Dispatch', href: '/admin/dispatch', icon: Bike },
       { name: 'Stores', href: '/admin/stores', icon: Store },
       { name: 'Products', href: '/admin/products', icon: Package },
       { name: 'Riders', href: '/admin/riders', icon: Truck },
@@ -83,6 +87,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     CUSTOMER: [
       { name: 'Shop', href: '/shop', icon: ShoppingCart },
       { name: 'My Orders', href: '/shop/orders', icon: Package },
+      { name: 'Notifications', href: '/shop/notifications', icon: Bell },
       { name: 'Addresses', href: '/shop/addresses', icon: MapPin },
       { name: 'Wishlist', href: '/shop/wishlist', icon: Heart },
       { name: 'Deals', href: '/shop/deals', icon: Tag },
@@ -101,11 +106,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside className="relative z-10 hidden h-screen w-[260px] flex-col bg-slate-950 text-white lg:flex">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.18),transparent_18rem),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.1),transparent_16rem)]" />
-
-        {/* Header / Profile */}
         <div className="relative px-5 pt-6 pb-4">
           {role === 'CUSTOMER' ? (
             <Link href="/shop/account" className="flex items-center gap-3 rounded-xl p-1.5 -m-1.5 transition-colors hover:bg-white/5">
@@ -117,85 +119,47 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
                   {initials}
                 </div>
               )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-white">{profile.name || 'Aagam Customer'}</p>
-                <p className="truncate text-[11px] font-medium text-slate-400">{profile.email || 'Customer Portal'}</p>
-              </div>
+              <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-white">{profile.name || 'Aagam Customer'}</p><p className="truncate text-[11px] font-medium text-slate-400">{profile.email || 'Customer Portal'}</p></div>
             </Link>
           ) : (
             <AagamLogo inverse label={`${role.toLowerCase()} portal`} />
           )}
         </div>
-
-        {/* Navigation */}
         <nav className="relative flex-1 overflow-y-auto px-3">
           <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Navigation</p>
           <div className="space-y-0.5">
             {currentMenu.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href;
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all ${
-                    isActive
-                      ? 'bg-white text-slate-950 shadow-lg shadow-black/10'
-                      : 'text-slate-400 hover:bg-white/7 hover:text-white'
-                  }`}
-                >
-                  <span
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition ${
-                      isActive
-                        ? 'bg-teal-600 text-white'
-                        : 'bg-white/5 text-slate-400 group-hover:text-teal-300'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </span>
+                <Link key={item.name} href={item.href} className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all ${isActive ? 'bg-white text-slate-950 shadow-lg shadow-black/10' : 'text-slate-400 hover:bg-white/7 hover:text-white'}`}>
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition ${isActive ? 'bg-teal-600 text-white' : 'bg-white/5 text-slate-400 group-hover:text-teal-300'}`}><Icon className="h-4 w-4" /></span>
                   {item.name}
                 </Link>
               );
             })}
           </div>
         </nav>
-
-        {/* Logout */}
         <div className="relative border-t border-white/5 px-3 py-3">
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-400 transition hover:bg-red-500/10 hover:text-red-300"
-          >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5">
-              <LogOut className="h-4 w-4" />
-            </span>
+          <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-400 transition hover:bg-red-500/10 hover:text-red-300">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5"><LogOut className="h-4 w-4" /></span>
             Sign out
           </button>
         </div>
       </aside>
 
-      {/* Mobile bottom nav */}
       <nav className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between rounded-2xl border border-white/60 bg-slate-950/95 p-1.5 text-white shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-2xl lg:hidden">
         {currentMenu.slice(0, 4).map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-bold transition ${
-                isActive ? 'bg-white text-slate-950' : 'text-slate-500 active:bg-white/10'
-              }`}
-            >
+            <Link key={item.name} href={item.href} className={`flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-bold transition ${isActive ? 'bg-white text-slate-950' : 'text-slate-500 active:bg-white/10'}`}>
               <Icon className="h-4 w-4" />
               <span className="max-w-full truncate">{item.name}</span>
             </Link>
           );
         })}
-        <button
-          onClick={handleLogout}
-          className="flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-bold text-slate-500 transition active:bg-red-500/15 active:text-red-400"
-        >
+        <button onClick={handleLogout} className="flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-bold text-slate-500 transition active:bg-red-500/15 active:text-red-400">
           <LogOut className="h-4 w-4" />
           <span className="max-w-full truncate">Sign out</span>
         </button>
