@@ -18,6 +18,7 @@ import { RealtimeModule } from './realtime/realtime.module';
 import * as redisStore from 'cache-manager-redis-yet';
 import { NotificationsModule } from './notifications/notifications.module';
 import { TrackingModule } from './tracking/tracking.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { TrackingModule } from './tracking/tracking.module';
     RealtimeModule,
     NotificationsModule,
     TrackingModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
