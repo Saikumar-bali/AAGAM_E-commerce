@@ -5,6 +5,8 @@ import { StoreFulfillmentController } from './store-fulfillment.controller';
 import { StoreFulfillmentService } from './store-fulfillment.service';
 import { DispatchController } from './dispatch.controller';
 import { DispatchService } from './dispatch.service';
+import { PostDeliveryController } from './post-delivery.controller';
+import { PostDeliveryService } from './post-delivery.service';
 import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
@@ -13,11 +15,13 @@ import { PaymentsModule } from '../payments/payments.module';
     OrderController,
     StoreFulfillmentController,
     DispatchController,
+    PostDeliveryController,
   ],
   providers: [
     OrderService,
     StoreFulfillmentService,
     DispatchService,
+    PostDeliveryService,
   ],
   exports: [OrderService],
 })
