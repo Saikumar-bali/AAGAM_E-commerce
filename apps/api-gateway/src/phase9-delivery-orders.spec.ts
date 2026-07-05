@@ -9,10 +9,13 @@ async function cleanup() {
   const storeIds = stores.map((s) => s.id);
   const orders = await prisma.order.findMany({ where: { OR: [{ storeId: { in: storeIds } }, { customerId: { in: userIds } }] }, select: { id: true } });
   const orderIds = orders.map((o) => o.id);
+  const ledger = (prisma as any).inventoryLedger;
   await prisma.riderLocationPing.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.orderStatusHistory.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.payment.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
+  await ledger.deleteMany({ where: { orderId: { in: orderIds } } });
+  await ledger.deleteMany({ where: { storeId: { in: storeIds } } });
   await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
   await prisma.inventory.deleteMany({ where: { storeId: { in: storeIds } } });
   await prisma.store.deleteMany({ where: { id: { in: storeIds } } });
@@ -32,33 +35,12 @@ async function seed() {
   const product = await prisma.product.create({ data: { name: `${PREFIX}bread`, price: 40, pricePaise: 4000, categoryId: category.id } });
   const store = await prisma.store.create({ data: { name: `${PREFIX}store`, address: 'Delivery Store', latitude: 17.7, longitude: 83.3, ownerId: owner.id } });
   await prisma.inventory.create({ data: { storeId: store.id, productId: product.id, quantity: 10 } });
-  const order = await prisma.order.create({
-    data: {
-      customerId: customer.id,
-      storeId: store.id,
-      status: OrderStatus.PACKED,
-      totalAmount: 40,
-      subtotal: 40,
-      grandTotal: 40,
-      subtotalPaise: 4000,
-      grandTotalPaise: 4000,
-      deliveryLat: 17.71,
-      deliveryLng: 83.31,
-      packedAt: new Date(),
-      items: { create: [{ productId: product.id, quantity: 1, price: 40, unitPricePaise: 4000, lineTotalPaise: 4000 }] },
-    },
-  });
+  const order = await prisma.order.create({ data: { customerId: customer.id, storeId: store.id, status: OrderStatus.PACKED, totalAmount: 40, subtotal: 40, grandTotal: 40, subtotalPaise: 4000, grandTotalPaise: 4000, deliveryLat: 17.71, deliveryLng: 83.31, packedAt: new Date(), items: { create: [{ productId: product.id, quantity: 1, price: 40, unitPricePaise: 4000, lineTotalPaise: 4000 }] } } });
   return { admin, riderUser, rider, order };
 }
 
 function gatewayMock() {
-  return {
-    emitOrderStatusUpdated: jest.fn(),
-    emitOrderTimelineUpdated: jest.fn(),
-    emitRiderAssigned: jest.fn(),
-    emitRiderLocationUpdated: jest.fn(),
-    emitTrackingStopped: jest.fn(),
-  } as any;
+  return { emitOrderStatusUpdated: jest.fn(), emitOrderTimelineUpdated: jest.fn(), emitRiderAssigned: jest.fn(), emitRiderLocationUpdated: jest.fn(), emitTrackingStopped: jest.fn() } as any;
 }
 
 describe('Phase 9.2 delivery proof completion', () => {
@@ -79,42 +61,21 @@ describe('Phase 9.2 delivery proof completion', () => {
     await dispatch.assignPackedOrder(data.order.id, data.riderUser.id, { id: data.admin.id, role: Role.ADMIN });
     await dispatch.markPickedUp(data.order.id, data.riderUser.id);
 
-    const ping = await tracking.ingestRiderLocation(data.riderUser.id, {
-      orderId: data.order.id,
-      latitude: 17.705,
-      longitude: 83.305,
-      accuracy: 8,
-      speed: 6,
-      heading: 90,
-      source: 'MOBILE',
-    });
+    const ping = await tracking.ingestRiderLocation(data.riderUser.id, { orderId: data.order.id, latitude: 17.705, longitude: 83.305, accuracy: 8, speed: 6, heading: 90, source: 'MOBILE' });
     expect(ping.orderId).toBe(data.order.id);
 
-    const delivered = await dispatch.markDelivered(data.order.id, data.riderUser.id, {
-      proofType: 'RIDER_CONFIRMATION',
-      code: '1234',
-      note: 'Handed to customer',
-      latitude: 17.71,
-      longitude: 83.31,
-    });
+    const delivered = await dispatch.markDelivered(data.order.id, data.riderUser.id, { proofType: 'RIDER_CONFIRMATION', code: '1234', note: 'Handed to customer', latitude: 17.71, longitude: 83.31 });
     expect(delivered.status).toBe(OrderStatus.DELIVERED);
     expect(delivered.deliveredAt).not.toBeNull();
 
     const riderAfterDelivery = await prisma.riderProfile.findUnique({ where: { id: data.rider.id } });
     expect(riderAfterDelivery?.status).toBe('ONLINE');
 
-    const proofHistory = await prisma.orderStatusHistory.findFirst({
-      where: { orderId: data.order.id, note: 'Rider submitted delivery proof.' },
-    });
+    const proofHistory = await prisma.orderStatusHistory.findFirst({ where: { orderId: data.order.id, note: 'Rider submitted delivery proof.' } });
     expect((proofHistory?.metadata as any)?.event).toBe('DELIVERY_PROOF_RECORDED');
     expect((proofHistory?.metadata as any)?.code).toBe('1234');
 
-    await expect(tracking.ingestRiderLocation(data.riderUser.id, {
-      orderId: data.order.id,
-      latitude: 17.711,
-      longitude: 83.311,
-      source: 'MOBILE',
-    })).rejects.toThrow('Order is not currently live-trackable');
+    await expect(tracking.ingestRiderLocation(data.riderUser.id, { orderId: data.order.id, latitude: 17.711, longitude: 83.311, source: 'MOBILE' })).rejects.toThrow('Order is not currently live-trackable');
   });
 
   it('delivery proof is blocked before rider pickup', async () => {
