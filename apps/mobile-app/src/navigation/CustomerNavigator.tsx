@@ -7,13 +7,14 @@ import { CheckoutScreen } from '../screens/customer/CheckoutScreen';
 import { OrdersScreen } from '../screens/customer/OrdersScreen';
 import { ProductDetailScreen } from '../screens/customer/ProductDetailScreen';
 import { OrderDetailScreen } from '../screens/customer/OrderDetailScreen';
+import { OrderFeedbackScreen } from '../screens/customer/OrderFeedbackScreen';
 import { CustomerProfileScreen } from '../screens/customer/CustomerProfileScreen';
+import { NotificationsScreen } from '../screens/customer/NotificationsScreen';
 import { useCartStore } from '../store/cartStore';
+import { ShoppingBag, ShoppingCart, User, ClipboardList, Bell } from 'lucide-react-native';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
-
-import { ShoppingBag, ShoppingCart, User, ClipboardList } from 'lucide-react-native';
 
 const CustomerTabs = () => {
   const cartItemsCount = useCartStore((state) => state.items.length);
@@ -26,11 +27,11 @@ const CustomerTabs = () => {
         headerShown: false,
         tabBarStyle: {
           position: 'absolute',
-          left: 18,
-          right: 18,
-          bottom: 16,
-          height: 74,
-          paddingBottom: 14,
+          left: 14,
+          right: 14,
+          bottom: 12,
+          height: 76,
+          paddingBottom: 12,
           paddingTop: 8,
           backgroundColor: '#FFFFFF',
           borderTopWidth: 0,
@@ -41,41 +42,14 @@ const CustomerTabs = () => {
           shadowOpacity: 0.14,
           shadowRadius: 24,
         },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '900',
-        },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '900' },
       }}
     >
-      <Tab.Screen 
-        name="Shop" 
-        component={ShopScreen} 
-        options={{
-          tabBarIcon: ({ color, size }) => <ShoppingBag size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen 
-        name="Cart" 
-        component={CartScreen} 
-        options={{ 
-          tabBarIcon: ({ color, size }) => <ShoppingCart size={size} color={color} />,
-          tabBarBadge: cartItemsCount > 0 ? cartItemsCount : undefined 
-        }} 
-      />
-      <Tab.Screen 
-        name="Orders" 
-        component={OrdersScreen} 
-        options={{
-          tabBarIcon: ({ color, size }) => <ClipboardList size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen 
-        name="Profile"
-        component={CustomerProfileScreen}
-        options={{
-          tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
-        }} 
-      />
+      <Tab.Screen name="Shop" component={ShopScreen} options={{ tabBarIcon: ({ color, size }) => <ShoppingBag size={size} color={color} /> }} />
+      <Tab.Screen name="Cart" component={CartScreen} options={{ tabBarIcon: ({ color, size }) => <ShoppingCart size={size} color={color} />, tabBarBadge: cartItemsCount > 0 ? cartItemsCount : undefined }} />
+      <Tab.Screen name="Orders" component={OrdersScreen} options={{ tabBarIcon: ({ color, size }) => <ClipboardList size={size} color={color} /> }} />
+      <Tab.Screen name="Alerts" component={NotificationsScreen} options={{ tabBarIcon: ({ color, size }) => <Bell size={size} color={color} /> }} />
+      <Tab.Screen name="Profile" component={CustomerProfileScreen} options={{ tabBarIcon: ({ color, size }) => <User size={size} color={color} /> }} />
     </Tab.Navigator>
   );
 };
@@ -83,26 +57,11 @@ const CustomerTabs = () => {
 export const CustomerNavigator = () => {
   return (
     <Stack.Navigator>
-      <Stack.Screen 
-        name="MainTabs" 
-        component={CustomerTabs} 
-        options={{ headerShown: false }} 
-      />
-      <Stack.Screen 
-        name="Checkout" 
-        component={CheckoutScreen} 
-        options={{ title: 'Checkout', headerShadowVisible: false }}
-      />
-      <Stack.Screen 
-        name="ProductDetail" 
-        component={ProductDetailScreen} 
-        options={{ title: 'Product Details', headerShadowVisible: false }}
-      />
-      <Stack.Screen 
-        name="OrderDetail" 
-        component={OrderDetailScreen} 
-        options={{ title: 'Order Details', headerShadowVisible: false }}
-      />
+      <Stack.Screen name="MainTabs" component={CustomerTabs} options={{ headerShown: false }} />
+      <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'Checkout', headerShadowVisible: false }} />
+      <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: 'Product Details', headerShadowVisible: false }} />
+      <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Order Details', headerShadowVisible: false }} />
+      <Stack.Screen name="OrderFeedback" component={OrderFeedbackScreen} options={{ title: 'Rate & Support', headerShadowVisible: false }} />
     </Stack.Navigator>
   );
 };
