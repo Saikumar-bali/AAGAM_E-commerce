@@ -8,6 +8,8 @@ import { NotificationService } from '../notifications/notification.service';
 
 const haversineKm = calculateDistance;
 
+type CartItem = { productId: string; quantity: number };
+
 function computeDeliveryFee(distanceKm: number): { serviceable: boolean; deliveryFee: number } {
   if (!Number.isFinite(distanceKm)) return { serviceable: false, deliveryFee: 0 };
   if (distanceKm <= 3) return { serviceable: true, deliveryFee: 19 };
@@ -37,7 +39,20 @@ export class CheckoutService {
     private readonly notificationService: NotificationService
   ) {}
 
-  private async resolveStoreForLocation(lat: number, lng: number) {
+  private nearestStore(lat: number, lng: number, stores: Array<{ id: string; name: string; latitude: number; longitude: number }>) {
+    let best = stores[0];
+    let bestDistance = haversineKm(lat, lng, best.latitude, best.longitude);
+    for (const store of stores.slice(1)) {
+      const distance = haversineKm(lat, lng, store.latitude, store.longitude);
+      if (distance < bestDistance) {
+        best = store;
+        bestDistance = distance;
+      }
+    }
+    return { store: best, distanceKm: bestDistance };
+  }
+
+  private async resolveStoreForLocation(lat: number, lng: number, requiredItems: CartItem[] = []) {
     const stores = await prisma.store.findMany({
       where: { isActive: true, deletedAt: null },
       select: { id: true, name: true, latitude: true, longitude: true },
@@ -46,17 +61,30 @@ export class CheckoutService {
       throw new NotFoundException('No active stores available');
     }
 
-    let best = stores[0];
-    let bestDistance = haversineKm(lat, lng, best.latitude, best.longitude);
-    for (const s of stores.slice(1)) {
-      const d = haversineKm(lat, lng, s.latitude, s.longitude);
-      if (d < bestDistance) {
-        bestDistance = d;
-        best = s;
-      }
+    if (requiredItems.length === 0) {
+      return this.nearestStore(lat, lng, stores);
     }
 
-    return { store: best, distanceKm: bestDistance };
+    const productIds = requiredItems.map((item) => item.productId);
+    const inventoryRows = await prisma.inventory.findMany({
+      where: { storeId: { in: stores.map((store) => store.id) }, productId: { in: productIds } },
+      select: { storeId: true, productId: true, quantity: true },
+    });
+
+    const byStore = new Map<string, Map<string, number>>();
+    for (const row of inventoryRows) {
+      if (!byStore.has(row.storeId)) byStore.set(row.storeId, new Map<string, number>());
+      byStore.get(row.storeId)!.set(row.productId, row.quantity);
+    }
+
+    const capableStores = stores.filter((store) => {
+      const stock = byStore.get(store.id);
+      return requiredItems.every((item) => (stock?.get(item.productId) ?? 0) >= item.quantity);
+    });
+
+    // Prefer the nearest store that can fully serve the cart. If none can, fall back to nearest
+    // active store so quote can still expose item-level stock state instead of hiding the cart.
+    return this.nearestStore(lat, lng, capableStores.length > 0 ? capableStores : stores);
   }
 
   async serviceability(userId: string, addressId: string) {
@@ -120,7 +148,7 @@ export class CheckoutService {
     let serviceable = true;
 
     if (address) {
-      const resolved = await this.resolveStoreForLocation(address.latitude, address.longitude);
+      const resolved = await this.resolveStoreForLocation(address.latitude, address.longitude, normalizedItems);
       storeId = resolved.store.id;
       storeName = resolved.store.name;
       distanceKm = resolved.distanceKm;
@@ -135,7 +163,6 @@ export class CheckoutService {
       }
     }
 
-    // Inventory check is store-specific. If we don't have an address/store, skip availability.
     const inventoryByProduct = new Map<string, number>();
     if (storeId) {
       const inventory = await prisma.inventory.findMany({
@@ -197,7 +224,6 @@ export class CheckoutService {
   }
 
   async placeOrder(userId: string, dto: CheckoutPlaceOrderDto, idempotencyKey?: string) {
-    // Validate quantities early (pure input validation, no DB needed)
     for (const item of dto.items) {
       if (!Number.isInteger(item.quantity) || item.quantity < 1) {
         throw new BadRequestException(`Invalid quantity for product ${item.productId}: must be a positive integer`);
@@ -224,7 +250,6 @@ export class CheckoutService {
       throw new BadRequestException('Address is not serviceable');
     }
 
-    // Validate grand total calculation
     const computedGrandTotalPaise = quote.invoice.subtotalPaise + quote.invoice.deliveryFeePaise + quote.invoice.taxPaise - quote.invoice.discountPaise;
     if (computedGrandTotalPaise !== quote.invoice.grandTotalPaise) {
       throw new Error('Grand total mismatch in pricing');
@@ -233,7 +258,6 @@ export class CheckoutService {
       throw new BadRequestException('Grand total cannot be negative');
     }
 
-    // Validate line totals
     for (const item of quote.invoice.items) {
       const expectedLineTotalPaise = item.unitPricePaise * item.quantity;
       if (expectedLineTotalPaise !== item.lineTotalPaise) {
@@ -285,7 +309,6 @@ export class CheckoutService {
         });
         const previousQuantity = existing?.quantity ?? 0;
 
-        // Check inventory has enough stock
         if ((existing?.quantity ?? 0) < item.quantity) {
           throw new BadRequestException(`Insufficient inventory for ${item.name}: only ${existing?.quantity ?? 0} available`);
         }
@@ -389,7 +412,6 @@ export class CheckoutService {
         include: { items: true, store: { select: { name: true } } },
       });
 
-      // Link ledger entries to the created order
       for (const item of quote.invoice.items) {
         await tx.inventoryLedger.updateMany({
           where: {
@@ -425,7 +447,6 @@ export class CheckoutService {
         },
       });
 
-      // Emit Socket.IO event for real-time notifications
       try {
         const payload = {
           id: created.id,
@@ -449,14 +470,10 @@ export class CheckoutService {
         this.trackingGateway.server?.to('admin_orders').emit('orderPlaced', payload);
         this.trackingGateway.server?.to('admin_monitor').emit('orderPlaced', payload);
 
-        // Zone-based notification for riders (within ~5km)
         const zoneKey = `${Math.round(address.latitude * 10)}_${Math.round(address.longitude * 10)}`;
         this.trackingGateway.server?.to(`zone_${zoneKey}`).emit('newOrderNearby', payload);
-        
-        // Also emit to all riders queue (fallback)
         this.trackingGateway.server?.to('riders_queue').emit('newOrderNearby', payload);
-        
-        // Push Notification to Riders
+
         try {
           const riders = await prisma.user.findMany({
             where: { role: 'RIDER', fcmToken: { not: null } },
@@ -484,7 +501,6 @@ export class CheckoutService {
         }
       } catch (err) {
         console.error('[CheckoutService] Failed to emit order events:', err);
-        // Non-fatal - don't fail order placement if Socket/Push emit fails
       }
 
       return created;
