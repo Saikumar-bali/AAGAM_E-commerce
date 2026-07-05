@@ -148,7 +148,7 @@ export class NotificationService implements OnModuleInit {
 
     if (actor.role === Role.CUSTOMER) {
       return prisma.orderStatusHistory.findMany({
-        where: { ...baseWhere, order: { customerId: actor.id } },
+        where: { ...baseWhere, order: { is: { customerId: actor.id } } },
         include: { order: { include: { store: { select: { name: true } }, rider: { include: { user: { select: { name: true } } } } } } },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -157,7 +157,7 @@ export class NotificationService implements OnModuleInit {
 
     if (actor.role === Role.STORE_OWNER) {
       return prisma.orderStatusHistory.findMany({
-        where: { ...baseWhere, order: { store: { ownerId: actor.id } } },
+        where: { ...baseWhere, order: { is: { store: { is: { ownerId: actor.id } } } } },
         include: { order: { include: { store: { select: { name: true } }, customer: { select: { name: true, phone: true } } } } },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -168,7 +168,7 @@ export class NotificationService implements OnModuleInit {
       const rider = await prisma.riderProfile.findUnique({ where: { userId: actor.id }, select: { id: true } });
       if (!rider) return [];
       return prisma.orderStatusHistory.findMany({
-        where: { ...baseWhere, order: { riderId: rider.id } },
+        where: { ...baseWhere, order: { is: { riderId: rider.id } } },
         include: { order: { include: { store: { select: { name: true } }, customer: { select: { name: true, phone: true } } } } },
         orderBy: { createdAt: 'desc' },
         take: limit,
