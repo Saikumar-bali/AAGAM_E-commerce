@@ -15,13 +15,17 @@ interface AuthState {
   signUp: (name: string, email: string, pass: string, role: string) => Promise<void>;
 }
 
+async function persistAuth(user: UserType, token: string) {
+  await Keychain.setGenericPassword('auth', JSON.stringify({ user, token }));
+  setAuthToken(token);
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
   isLoading: true,
   setAuth: async (user, token) => {
-    await Keychain.setGenericPassword('auth', JSON.stringify({ user, token }));
-    setAuthToken(token);
+    await persistAuth(user, token);
     set({ user, token, isLoading: false });
   },
   login: async (email, password) => {
@@ -29,12 +33,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isLoading: true });
       const response = await apiClient.post('/auth/login', { email, password });
       const { user, access_token } = response.data;
-      await Keychain.setGenericPassword('auth', JSON.stringify({ user, token: access_token }));
-      setAuthToken(access_token);
+      await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
       set({ isLoading: false });
-      throw new Error(error.response?.data?.message || 'Login failed');
+      throw new Error(error.response?.data?.message || error.message || 'Login failed');
     }
   },
   googleLogin: async (idToken) => {
@@ -42,25 +45,24 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isLoading: true });
       const response = await apiClient.post('/auth/google', { idToken });
       const { user, access_token } = response.data;
-      await Keychain.setGenericPassword('auth', JSON.stringify({ user, token: access_token }));
-      setAuthToken(access_token);
+      await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
       set({ isLoading: false });
-      throw new Error(error.response?.data?.message || 'Google login failed');
+      throw new Error(error.response?.data?.message || error.message || 'Google login failed');
     }
   },
   signUp: async (name, email, password, role) => {
     try {
       set({ isLoading: true });
-      const response = await apiClient.post('/auth/signup', { name, email, password, role });
+      await apiClient.post('/auth/signup', { name, email, password, role });
+      const response = await apiClient.post('/auth/login', { email, password });
       const { user, access_token } = response.data;
-      await Keychain.setGenericPassword('auth', JSON.stringify({ user, token: access_token }));
-      setAuthToken(access_token);
+      await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
       set({ isLoading: false });
-      throw new Error(error.response?.data?.message || 'Registration failed');
+      throw new Error(error.response?.data?.message || error.message || 'Registration failed');
     }
   },
   logout: async () => {
@@ -79,12 +81,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const credentials = await Keychain.getGenericPassword();
       if (credentials) {
-        const { user, token } = JSON.parse(credentials.password);
+        const { token } = JSON.parse(credentials.password);
         setAuthToken(token);
         try {
-          const response = await apiClient.get('/auth/me', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          const response = await apiClient.get('/auth/me', { headers: { Authorization: `Bearer ${token}` } });
           set({ user: response.data, token, isLoading: false });
         } catch (e) {
           await Keychain.resetGenericPassword();
