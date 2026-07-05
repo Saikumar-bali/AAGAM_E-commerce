@@ -13,6 +13,7 @@ import { GoogleLoginDto } from './dto/google-login.dto';
 // Auth limits are safe by default (3/min). Relaxed only for local Playwright
 // when PLAYWRIGHT_QA=true. Never enable the QA override in production.
 const AUTH_LIMIT = process.env.PLAYWRIGHT_QA === 'true' ? 500 : 3;
+const PROFILE_LIMIT = process.env.PLAYWRIGHT_QA === 'true' ? 2000 : 180;
 
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
@@ -75,11 +76,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Throttle({
-    short: { limit: process.env.PLAYWRIGHT_QA === 'true' ? 500 : 3, ttl: 1000 },
-    medium: { limit: process.env.PLAYWRIGHT_QA === 'true' ? 2000 : 20, ttl: 10000 },
-    long: { limit: process.env.PLAYWRIGHT_QA === 'true' ? 10000 : 60, ttl: 60000 },
-  })
+  @Throttle({ short: { limit: PROFILE_LIMIT, ttl: 60000 } })
   @Get('me')
   async getProfile(@Req() req: any) {
     if (process.env.NODE_ENV === 'development') {
