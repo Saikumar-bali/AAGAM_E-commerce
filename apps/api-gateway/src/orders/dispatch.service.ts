@@ -3,7 +3,7 @@ import { OrderStatus, Role, prisma } from '@aagam/database';
 import { OrderService } from './order.service';
 
 const ACTIVE_RIDER_ORDER_STATUSES = [OrderStatus.RIDER_ASSIGNED, OrderStatus.OUT_FOR_DELIVERY];
-const DISPATCH_ASSIGNABLE_STATUSES = [OrderStatus.PACKED];
+const DISPATCH_ASSIGNABLE_STATUSES: OrderStatus[] = [OrderStatus.PACKED];
 
 type Actor = { id: string; role: Role };
 
