@@ -6,7 +6,7 @@ type Actor = { id: string; role: Role };
 type DateRange = { from: Date; to: Date; days: number };
 
 function resolveDateRange(daysInput?: string | number): DateRange {
-  const days = Number(daysInput || 30);
+  const days = Number(daysInput ?? 30);
   if (!Number.isInteger(days) || days < 1 || days > 180) {
     throw new BadRequestException('days must be an integer from 1 to 180');
   }
@@ -48,7 +48,8 @@ export class AnalyticsService {
 
     const delivered = orders.filter((order) => order.status === OrderStatus.DELIVERED);
     const cancelled = orders.filter((order) => order.status === OrderStatus.CANCELLED);
-    const active = orders.filter((order) => ![OrderStatus.DELIVERED, OrderStatus.CANCELLED, OrderStatus.PAYMENT_FAILED].includes(order.status as OrderStatus));
+    const inactiveStatuses: OrderStatus[] = [OrderStatus.DELIVERED, OrderStatus.CANCELLED, OrderStatus.PAYMENT_FAILED];
+    const active = orders.filter((order) => !inactiveStatuses.includes(order.status as OrderStatus));
     const revenuePaise = delivered.reduce((sum, order) => sum + safeNumber(order.grandTotalPaise), 0);
     const revenue = delivered.reduce((sum, order) => sum + safeNumber(order.grandTotal), 0);
     const averageOrderValuePaise = delivered.length ? Math.round(revenuePaise / delivered.length) : 0;
@@ -67,12 +68,13 @@ export class AnalyticsService {
       return map;
     }, new Map<string, any>()).values()).sort((a, b) => b.revenuePaise - a.revenuePaise).slice(0, 10);
 
+    const activeRiderStatuses: OrderStatus[] = [OrderStatus.RIDER_ASSIGNED, OrderStatus.OUT_FOR_DELIVERY];
     const riderPerformance = Array.from(orders.filter((order) => order.riderId).reduce((map, order) => {
       const key = order.riderId as string;
       const row = map.get(key) || { riderProfileId: key, riderName: order.rider?.user?.name || order.rider?.user?.email || 'Rider', assigned: 0, delivered: 0, active: 0 };
       row.assigned += 1;
       if (order.status === OrderStatus.DELIVERED) row.delivered += 1;
-      if ([OrderStatus.RIDER_ASSIGNED, OrderStatus.OUT_FOR_DELIVERY].includes(order.status as OrderStatus)) row.active += 1;
+      if (activeRiderStatuses.includes(order.status as OrderStatus)) row.active += 1;
       map.set(key, row);
       return map;
     }, new Map<string, any>()).values()).sort((a, b) => b.delivered - a.delivered).slice(0, 10);
