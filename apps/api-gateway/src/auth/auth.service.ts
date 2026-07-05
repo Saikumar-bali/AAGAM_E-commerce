@@ -6,8 +6,6 @@ import * as jwt from 'jsonwebtoken';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 
-const ALLOWED_ROLES: Role[] = [Role.CUSTOMER, Role.RIDER, Role.STORE_OWNER];
-
 @Injectable()
 export class AuthService {
   private jwtSecret: string;
@@ -50,40 +48,29 @@ export class AuthService {
   }
 
   async signUp(email: string, pass: string, name: string, role: string = 'CUSTOMER') {
-    const validRole = (role || 'CUSTOMER').toUpperCase() as Role;
-    const userRole = ALLOWED_ROLES.includes(validRole) ? validRole : Role.CUSTOMER;
+    const requestedRole = (role || 'CUSTOMER').toUpperCase();
+    if (requestedRole !== Role.CUSTOMER) {
+      throw new BadRequestException('Public signup is customer-only. Riders and store partners must apply through the partner onboarding flow.');
+    }
 
-    // 1. Check if user exists in local database
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('User already exists');
 
-    // 2. Hash password securely
     const hashedPassword = await bcrypt.hash(pass, 10);
 
-    // 3. Create user in local PostgreSQL
     try {
       const user = await prisma.user.create({
         data: {
           email,
           name,
           password: hashedPassword,
-          role: userRole,
+          role: Role.CUSTOMER,
         },
       });
 
-      // 4. If registering as RIDER, automatically create rider profile
-      if (userRole === Role.RIDER) {
-        await prisma.riderProfile.create({
-          data: {
-            userId: user.id,
-            status: 'OFFLINE',
-          },
-        });
-      }
-
-      return { 
-        message: 'User created successfully',
-        user: { id: user.id, email: user.email, role: user.role } 
+      return {
+        message: 'Customer account created successfully',
+        user: { id: user.id, email: user.email, role: user.role },
       };
     } catch (error) {
       console.error('DB Signup Error:', error);
@@ -95,26 +82,23 @@ export class AuthService {
     if (process.env.NODE_ENV === 'development') {
       console.log('SignIn Attempt: Authentication request received');
     }
-    // 1. Find user in local database
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       console.log('SignIn Error: Invalid credentials');
       throw new UnauthorizedException('Invalid credentials');
     }
-    
+
     if (!user.password) {
       console.log('SignIn Error: Invalid credentials (no password)');
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // 2. Compare hashed password
     const isMatch = await bcrypt.compare(pass, user.password);
     if (!isMatch) {
       console.log('SignIn Error: Password verification failed');
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // 3. Generate secure JWT token
     if (process.env.NODE_ENV === 'development') {
       console.log('SignIn Success: User authenticated successfully');
     }
@@ -163,18 +147,12 @@ export class AuthService {
     const avatarUrl = payload.picture || null;
     const emailVerified = Boolean(payload.email_verified);
 
-    const existingByGoogleSub = await prisma.user.findFirst({
-      where: { googleSub: payload.sub },
-    });
+    const existingByGoogleSub = await prisma.user.findFirst({ where: { googleSub: payload.sub } });
 
     if (existingByGoogleSub) {
       const updated = await prisma.user.update({
         where: { id: existingByGoogleSub.id },
-        data: {
-          name,
-          avatarUrl,
-          emailVerified,
-        },
+        data: { name, avatarUrl, emailVerified },
       });
       return this.buildAuthResponse(updated);
     }
@@ -194,27 +172,14 @@ export class AuthService {
     }
 
     const createdUser = await prisma.user.create({
-      data: {
-        email,
-        name,
-        role: Role.CUSTOMER,
-        googleSub: payload.sub,
-        avatarUrl,
-        emailVerified,
-      },
+      data: { email, name, role: Role.CUSTOMER, googleSub: payload.sub, avatarUrl, emailVerified },
     });
     return this.buildAuthResponse(createdUser);
   }
 
   async findAll() {
     return prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true,
-      },
+      select: { id: true, email: true, name: true, role: true, createdAt: true },
     });
   }
 
@@ -222,15 +187,7 @@ export class AuthService {
     const updated = await prisma.user.update({
       where: { id: userId },
       data: { ...(data.name !== undefined && { name: data.name }) },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        name: true,
-        avatarUrl: true,
-        emailVerified: true,
-        createdAt: true,
-      },
+      select: { id: true, email: true, role: true, name: true, avatarUrl: true, emailVerified: true, createdAt: true },
     });
     return updated;
   }
@@ -239,9 +196,7 @@ export class AuthService {
     if (process.env.NODE_ENV === 'development') {
       console.log(`[AuthService] Updating FCM token for user ${userId}`);
     }
-    return prisma.user.update({
-      where: { id: userId },
-      data: { fcmToken: token },
-    });
+    await prisma.user.update({ where: { id: userId }, data: { fcmToken: token } });
+    return { message: 'FCM token updated' };
   }
 }
