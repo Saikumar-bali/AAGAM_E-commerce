@@ -4,6 +4,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ApiDocsController } from './api-docs.controller';
 import { AuthModule } from './auth/auth.module';
 import { ProductModule } from './products/product.module';
 import { StoreModule } from './stores/store.module';
@@ -52,7 +53,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     TrackingModule,
     AnalyticsModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, ApiDocsController],
   providers: [AppService],
 })
 export class AppModule {}
