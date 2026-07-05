@@ -8,7 +8,6 @@ import { CheckoutScreen } from '../screens/customer/CheckoutScreen';
 import { OrdersScreen } from '../screens/customer/OrdersScreen';
 import { ProductDetailScreen } from '../screens/customer/ProductDetailScreen';
 import { OrderDetailScreen } from '../screens/customer/OrderDetailScreen';
-import { OrderFeedbackScreen } from '../screens/customer/OrderFeedbackScreen';
 import { NotificationsScreen } from '../screens/customer/NotificationsScreen';
 import { CustomerProfileScreen } from '../screens/customer/CustomerProfileScreen';
 import { useCartStore } from '../store/cartStore';
@@ -61,7 +60,6 @@ export const CustomerNavigator = () => {
       <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'Checkout', headerShadowVisible: false }} />
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: 'Product Details', headerShadowVisible: false }} />
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Order Details', headerShadowVisible: false }} />
-      <Stack.Screen name="OrderFeedback" component={OrderFeedbackScreen} options={{ title: 'Rate & Support', headerShadowVisible: false }} />
     </Stack.Navigator>
   );
 };
