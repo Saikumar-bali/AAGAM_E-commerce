@@ -39,4 +39,14 @@ export class DispatchController {
   pickup(@Param('orderId') orderId: string, @Req() req: any) {
     return this.dispatch.markPickedUp(orderId, req.user.id);
   }
+
+  @Patch(':orderId/rider/deliver')
+  @Roles(Role.RIDER)
+  deliver(
+    @Param('orderId') orderId: string,
+    @Body() body: { proofType?: string; code?: string; note?: string; latitude?: number; longitude?: number },
+    @Req() req: any,
+  ) {
+    return this.dispatch.markDelivered(orderId, req.user.id, body || {});
+  }
 }
