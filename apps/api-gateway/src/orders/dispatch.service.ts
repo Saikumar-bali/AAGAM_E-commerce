@@ -6,6 +6,7 @@ const ACTIVE_RIDER_ORDER_STATUSES = [OrderStatus.RIDER_ASSIGNED, OrderStatus.OUT
 const DISPATCH_ASSIGNABLE_STATUSES: OrderStatus[] = [OrderStatus.PACKED];
 
 type Actor = { id: string; role: Role };
+type DeliveryProofInput = { proofType?: string; code?: string; note?: string; latitude?: number; longitude?: number };
 
 @Injectable()
 export class DispatchService {
@@ -133,6 +134,31 @@ export class DispatchService {
     const { order } = await this.assignedOrder(orderId, riderUserId);
     if (order.status !== OrderStatus.RIDER_ASSIGNED) throw new BadRequestException('Only assigned orders can be picked up');
     return this.orderService.updateStatus(orderId, OrderStatus.OUT_FOR_DELIVERY, { id: riderUserId, role: Role.RIDER });
+  }
+
+  async markDelivered(orderId: string, riderUserId: string, proof: DeliveryProofInput = {}) {
+    const { order, rider } = await this.assignedOrder(orderId, riderUserId);
+    if (order.status !== OrderStatus.OUT_FOR_DELIVERY) throw new BadRequestException('Only out-for-delivery orders can be delivered');
+
+    const delivered = await this.orderService.updateStatus(orderId, OrderStatus.DELIVERED, { id: riderUserId, role: Role.RIDER });
+    await this.orderService.recordStatusHistory({
+      orderId,
+      fromStatus: OrderStatus.DELIVERED,
+      toStatus: OrderStatus.DELIVERED,
+      actor: { id: riderUserId, role: Role.RIDER },
+      note: 'Rider submitted delivery proof.',
+      metadata: {
+        event: 'DELIVERY_PROOF_RECORDED',
+        riderProfileId: rider.id,
+        proofType: proof.proofType || 'RIDER_CONFIRMATION',
+        code: proof.code || null,
+        note: proof.note || null,
+        latitude: typeof proof.latitude === 'number' ? proof.latitude : null,
+        longitude: typeof proof.longitude === 'number' ? proof.longitude : null,
+        submittedAt: new Date().toISOString(),
+      },
+    });
+    return delivered;
   }
 
   private async assignedOrder(orderId: string, riderUserId: string) {
