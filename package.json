@@ -18,6 +18,8 @@
     "start:admin": "npm run start:railway --workspace @aagam/admin-dashboard",
     "railway:start:api": "npm run check:env:prod && npm run db:migrate:prod && npm run start:api",
     "check:env:prod": "node scripts/validate-prod-env.js",
+    "predeploy:audit": "node scripts/predeploy-readiness-audit.js",
+    "predeploy:audit:live": "node scripts/predeploy-readiness-audit.js --live",
     "db:push:prod": "prisma db push --schema packages/database/prisma/schema.prisma",
     "db:migrate:prod": "prisma migrate deploy --schema packages/database/prisma/schema.prisma",
     "ci:api": "npx prisma validate --schema packages/database/prisma/schema.prisma && npm run test:ci --workspace=apps/api-gateway",
