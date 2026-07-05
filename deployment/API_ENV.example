@@ -1,0 +1,31 @@
+# AAGAM API deployment environment
+# Copy these keys into your API hosting provider secrets.
+# Do not commit real secrets.
+
+NODE_ENV=production
+PORT=3005
+
+# Required external services
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE
+REDIS_URL=redis://USER:PASSWORD@HOST:PORT
+
+# Required auth
+JWT_SECRET=replace-with-at-least-32-random-characters
+
+# Public frontend origins allowed to call this API. Comma-separated.
+CORS_ORIGINS=https://admin.example.com,https://customer.example.com
+
+# Optional provider integrations. Fill only when that feature is enabled.
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+FIREBASE_PROJECT_ID=
+FIREBASE_SERVICE_ACCOUNT_JSON=
+AWS_REGION=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_S3_BUCKET=
+
+# Deployment notes
+# 1. DATABASE_URL must not point to localhost in production.
+# 2. REDIS_URL must not point to localhost in production.
+# 3. /ready/realtime must pass before production traffic.
