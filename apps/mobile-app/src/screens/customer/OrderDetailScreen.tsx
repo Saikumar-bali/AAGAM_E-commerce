@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../api/client';
 import { useSocket } from '../../hooks/useSocket';
 
 export const OrderDetailScreen = () => {
   const route = useRoute<RouteProp<Record<string, { orderId: string }>, string>>();
+  const navigation = useNavigation<any>();
   const orderId = route.params?.orderId;
   const { emit, on, off } = useSocket();
   const [liveTracking, setLiveTracking] = useState<any | null>(null);
@@ -14,7 +15,7 @@ export const OrderDetailScreen = () => {
   const { data: trackingPayload, isLoading, error, refetch } = useQuery({
     queryKey: ['order-detail', orderId],
     queryFn: async () => {
-      const response = await apiClient.get(`/orders/my/${orderId}/tracking`);
+      const response = await apiClient.get(`/tracking/my/order/${orderId}`);
       return response.data;
     },
     enabled: Boolean(orderId),
@@ -23,15 +24,9 @@ export const OrderDetailScreen = () => {
   useEffect(() => {
     if (!orderId) return;
     emit('joinOrder', { orderId });
-    on('riderLocationUpdated', (payload) => {
-      if (payload.orderId === orderId) setLiveTracking(payload);
-    });
-    on('orderTimelineUpdated', (payload) => {
-      if (payload.order?.id === orderId) refetch();
-    });
-    on('trackingStopped', (payload) => {
-      if (payload.orderId === orderId) refetch();
-    });
+    on('riderLocationUpdated', (payload) => { if (payload.orderId === orderId) setLiveTracking(payload); });
+    on('orderTimelineUpdated', (payload) => { if (payload.order?.id === orderId) refetch(); });
+    on('trackingStopped', (payload) => { if (payload.orderId === orderId) refetch(); });
     return () => {
       off('riderLocationUpdated');
       off('orderTimelineUpdated');
@@ -41,21 +36,8 @@ export const OrderDetailScreen = () => {
 
   const order = trackingPayload?.order;
 
-  if (isLoading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#0F766E" />
-      </View>
-    );
-  }
-
-  if (error || !order) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>Unable to load order details.</Text>
-      </View>
-    );
-  }
+  if (isLoading) return <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View>;
+  if (error || !order) return <View style={styles.centered}><Text style={styles.errorText}>Unable to load order details.</Text></View>;
 
   const address = order.addressSnapshot;
   const pricing = order.pricingSnapshot || order;
@@ -64,67 +46,31 @@ export const OrderDetailScreen = () => {
   const etaMinutes = trackingPayload.tracking?.etaMinutes;
   const etaStale = Boolean(trackingPayload.tracking?.etaStale);
   const etaConfidence = trackingPayload.tracking?.etaConfidence || 'LOW';
+  const canFeedback = order.status === 'DELIVERED';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.heroCard}>
         <Text style={styles.orderId}>Order #{order.id.slice(-8).toUpperCase()}</Text>
-        <Text style={styles.statusText}>{order.status}</Text>
+        <Text style={styles.statusText}>{String(order.status).replace(/_/g, ' ')}</Text>
         <Text style={styles.metaText}>{new Date(order.createdAt).toLocaleString()}</Text>
         <Text style={styles.totalText}>₹{pricing.grandTotal ?? order.totalAmount}</Text>
-        {etaMinutes ? (
-          <Text style={styles.metaText}>ETA {etaMinutes} min ({etaConfidence})</Text>
-        ) : (
-          <Text style={styles.metaText}>ETA unavailable</Text>
-        )}
+        {etaMinutes ? <Text style={styles.metaText}>ETA {etaMinutes} min ({etaConfidence})</Text> : <Text style={styles.metaText}>ETA unavailable</Text>}
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Timeline</Text>
-        {(trackingPayload.timeline || []).map((event: any) => (
-          <View key={event.id} style={styles.timelineRow}>
-            <View style={styles.timelineDot} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.boldText}>{String(event.toStatus).replace(/_/g, ' ')}</Text>
-              <Text style={styles.bodyText}>{new Date(event.createdAt).toLocaleString()}</Text>
-              {event.note ? <Text style={styles.bodyText}>{event.note}</Text> : null}
-            </View>
-          </View>
-        ))}
+        {(trackingPayload.timeline || []).map((event: any) => <View key={event.id} style={styles.timelineRow}><View style={styles.timelineDot} /><View style={{ flex: 1 }}><Text style={styles.boldText}>{String(event.toStatus).replace(/_/g, ' ')}</Text><Text style={styles.bodyText}>{new Date(event.createdAt).toLocaleString()}</Text>{event.note ? <Text style={styles.bodyText}>{event.note}</Text> : null}</View></View>)}
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Delivery Address</Text>
-        {address ? (
-          <>
-            <Text style={styles.boldText}>{address.recipientName}</Text>
-            <Text style={styles.bodyText}>{address.phoneE164}</Text>
-            <Text style={styles.bodyText}>
-              {address.line1}
-              {address.line2 ? `, ${address.line2}` : ''}
-            </Text>
-            <Text style={styles.bodyText}>
-              {address.city}, {address.state} - {address.pincode}
-            </Text>
-          </>
-        ) : (
-          <Text style={styles.bodyText}>Address snapshot unavailable.</Text>
-        )}
+        {address ? <><Text style={styles.boldText}>{address.recipientName}</Text><Text style={styles.bodyText}>{address.phoneE164}</Text><Text style={styles.bodyText}>{address.line1}{address.line2 ? `, ${address.line2}` : ''}</Text><Text style={styles.bodyText}>{address.city}, {address.state} - {address.pincode}</Text></> : <Text style={styles.bodyText}>Address snapshot unavailable.</Text>}
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Items</Text>
-        {orderItems.map((item: any, index: number) => (
-          <View key={item.id || item.productId || index} style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.boldText}>{item.name || item.product?.name || 'Item'}</Text>
-              <Text style={styles.bodyText}>
-                Qty {item.quantity} x ₹{item.unitPrice ?? item.price}
-              </Text>
-            </View>
-            <Text style={styles.boldText}>₹{item.lineTotal ?? item.quantity * (item.unitPrice ?? item.price ?? 0)}</Text>
-          </View>
-        ))}
+        {orderItems.map((item: any, index: number) => <View key={item.id || item.productId || index} style={styles.row}><View style={{ flex: 1 }}><Text style={styles.boldText}>{item.name || item.product?.name || 'Item'}</Text><Text style={styles.bodyText}>Qty {item.quantity} x ₹{item.unitPrice ?? item.price}</Text></View><Text style={styles.boldText}>₹{item.lineTotal ?? item.quantity * (item.unitPrice ?? item.price ?? 0)}</Text></View>)}
       </View>
 
       <View style={styles.card}>
@@ -133,25 +79,12 @@ export const OrderDetailScreen = () => {
         <Text style={styles.bodyText}>Payment status: {order.payment?.status || 'N/A'}</Text>
         <Text style={styles.bodyText}>Store: {trackingPayload.store?.name || 'Assigned Store'}</Text>
         <Text style={styles.bodyText}>Rider: {trackingPayload.rider?.name || 'Not assigned yet'}</Text>
-        {trackingPayload.rider?.phone ? (
-          <TouchableOpacity
-            style={styles.callBtn}
-            onPress={() => Linking.openURL(`tel:${trackingPayload.rider?.phone}`)}
-          >
-            <Text style={styles.callBtnText}>Call Rider</Text>
-          </TouchableOpacity>
-        ) : null}
-        {latestLocation ? (
-          <Text style={styles.bodyText}>
-            Live location: {Number(latestLocation.latitude).toFixed(5)}, {Number(latestLocation.longitude).toFixed(5)}
-          </Text>
-        ) : null}
-        {etaStale ? (
-          <Text style={styles.warningText}>
-            Waiting for fresh rider location to resume ETA.
-          </Text>
-        ) : null}
+        {trackingPayload.rider?.phone ? <TouchableOpacity style={styles.callBtn} onPress={() => Linking.openURL(`tel:${trackingPayload.rider?.phone}`)}><Text style={styles.callBtnText}>Call Rider</Text></TouchableOpacity> : null}
+        {latestLocation ? <Text style={styles.bodyText}>Live location: {Number(latestLocation.latitude).toFixed(5)}, {Number(latestLocation.longitude).toFixed(5)}</Text> : null}
+        {etaStale ? <Text style={styles.warningText}>Waiting for fresh rider location to resume ETA.</Text> : null}
       </View>
+
+      {canFeedback ? <TouchableOpacity style={styles.feedbackBtn} onPress={() => navigation.navigate('OrderFeedback', { orderId })}><Text style={styles.feedbackBtnText}>Rate order or get support</Text></TouchableOpacity> : null}
     </ScrollView>
   );
 };
@@ -176,4 +109,6 @@ const styles = StyleSheet.create({
   warningText: { marginTop: 8, color: '#B45309', fontWeight: '700' },
   callBtn: { marginTop: 10, alignSelf: 'flex-start', backgroundColor: '#0F766E', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   callBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
+  feedbackBtn: { marginTop: 16, borderRadius: 18, backgroundColor: '#0F172A', paddingVertical: 15, alignItems: 'center' },
+  feedbackBtnText: { color: '#FFFFFF', fontWeight: '900' },
 });
