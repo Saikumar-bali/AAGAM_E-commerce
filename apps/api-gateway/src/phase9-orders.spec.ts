@@ -1,9 +1,10 @@
 import { OrderStatus, Role, prisma } from '@aagam/database';
 
 const PREFIX = '_test_p9dispatch_';
+const TEST_RIDER_PHONES = ['+919000009999', '+919222229999'];
 
 async function cleanup() {
-  const users = await prisma.user.findMany({ where: { email: { contains: PREFIX } }, select: { id: true } });
+  const users = await prisma.user.findMany({ where: { OR: [{ email: { contains: PREFIX } }, { phone: { in: TEST_RIDER_PHONES } }] }, select: { id: true } });
   const userIds = users.map((u) => u.id);
   const stores = await prisma.store.findMany({ where: { name: { contains: PREFIX } }, select: { id: true } });
   const storeIds = stores.map((s) => s.id);
@@ -26,7 +27,7 @@ async function seed(status: OrderStatus = OrderStatus.PACKED) {
   const owner = await prisma.user.create({ data: { email: `${PREFIX}owner@test.com`, role: Role.STORE_OWNER, name: 'Store Owner' } });
   const admin = await prisma.user.create({ data: { email: `${PREFIX}admin@test.com`, role: Role.ADMIN, name: 'Admin' } });
   const customer = await prisma.user.create({ data: { email: `${PREFIX}customer@test.com`, role: Role.CUSTOMER, name: 'Customer' } });
-  const riderUser = await prisma.user.create({ data: { email: `${PREFIX}rider@test.com`, role: Role.RIDER, name: 'Rider', phone: '+919000009999' } });
+  const riderUser = await prisma.user.create({ data: { email: `${PREFIX}rider@test.com`, role: Role.RIDER, name: 'Rider', phone: '+919222229999' } });
   const rider = await prisma.riderProfile.create({ data: { userId: riderUser.id, status: 'ONLINE', latitude: 17.7, longitude: 83.3 } });
   const category = await prisma.category.create({ data: { name: `${PREFIX}cat` } });
   const product = await prisma.product.create({ data: { name: `${PREFIX}milk`, price: 50, pricePaise: 5000, categoryId: category.id } });
