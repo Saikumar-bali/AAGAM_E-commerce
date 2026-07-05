@@ -84,26 +84,22 @@ export class NotificationService implements OnModuleInit {
   async listInbox(actor: Actor, limitInput?: string | number) {
     const limit = Math.min(100, Math.max(1, Number(limitInput || 50)));
     const rows = await this.notificationSourceRows(actor, limit);
-    const sourceIds = rows.map((row) => row.id);
+    const sourceIds = new Set(rows.map((row) => row.id));
     const reads = await prisma.orderStatusHistory.findMany({
-      where: {
-        note: READ_NOTE,
-        metadata: { path: ['sourceHistoryId'], in: sourceIds } as any,
-      },
+      where: { note: READ_NOTE, actorUserId: actor.id },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
     });
     const readMap = new Map<string, any>();
     for (const read of reads) {
       const metadata = read.metadata as any;
-      if (metadata?.recipientUserId === actor.id && metadata?.sourceHistoryId) {
+      if (metadata?.recipientUserId === actor.id && metadata?.sourceHistoryId && sourceIds.has(metadata.sourceHistoryId)) {
         readMap.set(metadata.sourceHistoryId, metadata);
       }
     }
 
     const items = rows.map((row) => this.toInboxItem(row, actor, readMap.get(row.id)?.readAt || null));
-    return {
-      items,
-      unreadCount: items.filter((item) => !item.readAt).length,
-    };
+    return { items, unreadCount: items.filter((item) => !item.readAt).length };
   }
 
   async markRead(actor: Actor, sourceHistoryId: string) {
@@ -123,12 +119,7 @@ export class NotificationService implements OnModuleInit {
         actorUserId: actor.id,
         actorRole: actor.role,
         note: READ_NOTE,
-        metadata: {
-          event: 'NOTIFICATION_MARKED_READ',
-          sourceHistoryId: item.sourceHistoryId,
-          recipientUserId: actor.id,
-          readAt,
-        },
+        metadata: { event: 'NOTIFICATION_MARKED_READ', sourceHistoryId: item.sourceHistoryId, recipientUserId: actor.id, readAt },
       },
     });
     return { ok: true, readAt };
@@ -153,10 +144,7 @@ export class NotificationService implements OnModuleInit {
   }
 
   private async notificationSourceRows(actor: Actor, limit: number) {
-    const baseWhere: any = {
-      note: { notIn: [READ_NOTE] },
-      createdAt: { lte: new Date() },
-    };
+    const baseWhere: any = { note: { notIn: [READ_NOTE] }, createdAt: { lte: new Date() } };
 
     if (actor.role === Role.CUSTOMER) {
       return prisma.orderStatusHistory.findMany({
@@ -205,17 +193,7 @@ export class NotificationService implements OnModuleInit {
     const statusLabel = String(row.toStatus || '').replace(/_/g, ' ');
     const title = this.titleFor(type, row.toStatus, actor.role);
     const body = this.bodyFor(type, row, statusLabel, actor.role);
-    return {
-      id: row.id,
-      sourceHistoryId: row.id,
-      orderId: row.orderId,
-      type,
-      title,
-      body,
-      createdAt: row.createdAt,
-      readAt,
-      metadata,
-    };
+    return { id: row.id, sourceHistoryId: row.id, orderId: row.orderId, type, title, body, createdAt: row.createdAt, readAt, metadata };
   }
 
   private titleFor(type: string, status: OrderStatus, role: Role) {
@@ -232,9 +210,7 @@ export class NotificationService implements OnModuleInit {
   }
 
   private bodyFor(type: string, row: any, statusLabel: string, role: Role) {
-    if (type === 'CUSTOMER_SUPPORT_TICKET_OPENED') {
-      return `${row.order?.customer?.name || 'Customer'} opened a ${row.metadata?.category || 'support'} ticket.`;
-    }
+    if (type === 'CUSTOMER_SUPPORT_TICKET_OPENED') return `${row.order?.customer?.name || 'Customer'} opened a ${row.metadata?.category || 'support'} ticket.`;
     if (type === 'CUSTOMER_RATING_SUBMITTED') return 'A customer submitted a post-delivery rating.';
     const storeName = row.order?.store?.name || 'store';
     if (role === Role.CUSTOMER) return row.note || `Your order is now ${statusLabel}.`;
