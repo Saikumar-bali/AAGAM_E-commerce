@@ -12,7 +12,11 @@ interface AuthState {
   googleLogin: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
-  signUp: (name: string, email: string, pass: string, role: string) => Promise<void>;
+  signUp: (name: string, email: string, pass: string) => Promise<void>;
+}
+
+async function persistAuth(user: UserType, token: string) {
+  await Keychain.setGenericPassword('auth', JSON.stringify({ user, token }));
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -20,28 +24,22 @@ export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   isLoading: true,
   setAuth: async (user, token) => {
-    await Keychain.setGenericPassword('auth', JSON.stringify({ user, token }));
+    await persistAuth(user, token);
     set({ user, token, isLoading: false });
   },
   login: async (email, password) => {
     try {
       set({ isLoading: true });
-      console.log('[AuthStore] Attempting login for:', email);
       const response = await apiClient.post('/auth/login', { email, password });
-      console.log('[AuthStore] Login response received');
-      
       const { user, access_token } = response.data;
-      await Keychain.setGenericPassword('auth', JSON.stringify({ user, token: access_token }));
+      if (user?.role !== 'CUSTOMER') {
+        throw new Error('Use the dedicated partner app for operational accounts.');
+      }
+      await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
       set({ isLoading: false });
-      console.error('[AuthStore] Login error:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        config: error.config?.url
-      });
-      throw new Error(error.response?.data?.message || 'Login failed - check server connection');
+      throw new Error(error.response?.data?.message || error.message || 'Login failed - check server connection');
     }
   },
   googleLogin: async (idToken) => {
@@ -49,32 +47,27 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isLoading: true });
       const response = await apiClient.post('/auth/google', { idToken });
       const { user, access_token } = response.data;
-      await Keychain.setGenericPassword('auth', JSON.stringify({ user, token: access_token }));
+      if (user?.role !== 'CUSTOMER') {
+        throw new Error('Use the dedicated partner app for operational accounts.');
+      }
+      await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
       set({ isLoading: false });
-      throw new Error(error.response?.data?.message || 'Google login failed');
+      throw new Error(error.response?.data?.message || error.message || 'Google login failed');
     }
   },
-  signUp: async (name, email, password, role) => {
+  signUp: async (name, email, password) => {
     try {
       set({ isLoading: true });
-      console.log('[AuthStore] Attempting sign-up for:', email, 'as', role);
-      const response = await apiClient.post('/auth/signup', { name, email, password, role });
-      console.log('[AuthStore] Sign-up response received');
-      
+      await apiClient.post('/auth/signup', { name, email, password, role: 'CUSTOMER' });
+      const response = await apiClient.post('/auth/login', { email, password });
       const { user, access_token } = response.data;
-      await Keychain.setGenericPassword('auth', JSON.stringify({ user, token: access_token }));
+      await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
       set({ isLoading: false });
-      console.error('[AuthStore] Sign-up error:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        config: error.config?.url
-      });
-      throw new Error(error.response?.data?.message || 'Registration failed - check server connection');
+      throw new Error(error.response?.data?.message || error.message || 'Registration failed - check server connection');
     }
   },
   logout: async () => {
@@ -92,11 +85,13 @@ export const useAuthStore = create<AuthState>((set) => ({
       const credentials = await Keychain.getGenericPassword();
       if (credentials) {
         const { user, token } = JSON.parse(credentials.password);
-        // Verify token validity by calling /auth/me
         try {
-          const response = await apiClient.get('/auth/me', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          const response = await apiClient.get('/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+          if (response.data?.role !== 'CUSTOMER') {
+            await Keychain.resetGenericPassword();
+            set({ user: null, token: null, isLoading: false });
+            return;
+          }
           set({ user: response.data, token, isLoading: false });
         } catch (e) {
           await Keychain.resetGenericPassword();
