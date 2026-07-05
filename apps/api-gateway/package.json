@@ -7,9 +7,15 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start:prod": "node dist/src/main.js",
-    "test": "jest --runInBand",
-    "test:ci": "jest --runInBand --testPathPattern='(inventory|payments|orders|tracking|e2e-order-delivery|phase6-catalog)\\.spec\\.ts$'",
-    "test:api-smoke": "jest --runInBand --testPathPattern='api-smoke\\.spec\\.ts$'",
+    "test": "jest --runInBand --testPathIgnorePatterns=api-smoke.spec.ts",
+    "test:ci": "jest --runInBand --testPathIgnorePatterns=api-smoke.spec.ts",
+    "test:api-smoke": "node scripts/run-api-smoke-if-online.js",
+    "test:phase6": "jest --runInBand --testPathPatterns=phase6-catalog.spec.ts",
+    "test:phase8": "jest --runInBand --testPathPatterns=phase8",
+    "test:phase9": "jest --runInBand --testPathPatterns=phase9",
+    "test:phase10": "jest --runInBand --testPathPatterns=phase10",
+    "test:phase11": "jest --runInBand --testPathPatterns=phase11",
+    "test:phase12": "jest --runInBand --testPathPatterns=phase12",
     "test:watch": "jest --watch"
   },
   "dependencies": {
