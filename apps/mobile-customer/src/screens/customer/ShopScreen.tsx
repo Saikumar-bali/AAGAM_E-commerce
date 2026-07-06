@@ -33,8 +33,10 @@ export const ShopScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Shop Groceries</Text>
-        <Text style={styles.subtitle}>Search, filter, compare, and add to cart.</Text>
+        <View style={styles.brandRow}>
+          <View style={styles.logoMark}><Text style={styles.logoMarkText}>A</Text></View>
+          <View><Text style={styles.logoText}>aagam</Text><Text style={styles.subtitle}>Quick commerce, delivered fast.</Text></View>
+        </View>
         <TextInput value={query} onChangeText={setQuery} placeholder="Search products" placeholderTextColor="#94A3B8" style={styles.searchInput} />
         <View style={styles.filterRow}>
           <FlatList data={categoryPills} horizontal keyExtractor={(item) => item.id || 'all'} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList} renderItem={({ item }) => { const active = selectedCategoryId === item.id; return <TouchableOpacity style={[styles.categoryPill, active && styles.categoryPillActive]} onPress={() => setSelectedCategoryId(item.id)}><Text style={[styles.categoryPillText, active && styles.categoryPillTextActive]}>{item.name}</Text></TouchableOpacity>; }} />
@@ -87,8 +89,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   header: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8 },
-  title: { fontSize: 28, fontWeight: '800', color: '#0F172A' },
-  subtitle: { marginTop: 4, fontSize: 14, color: '#64748B' },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  logoMark: { width: 44, height: 44, borderRadius: 16, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' },
+  logoMarkText: { color: '#FFFFFF', fontSize: 22, fontWeight: '900' },
+  logoText: { fontSize: 30, fontWeight: '900', color: '#0F172A', letterSpacing: -1 },
+  subtitle: { marginTop: 2, fontSize: 13, color: '#64748B', fontWeight: '700' },
   searchInput: { marginTop: 16, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 14, paddingVertical: 12, color: '#0F172A' },
   categoryList: { paddingTop: 0, paddingBottom: 0 },
   filterRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 14, paddingBottom: 6 },
