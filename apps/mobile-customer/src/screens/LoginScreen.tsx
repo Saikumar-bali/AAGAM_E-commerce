@@ -1,15 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { Mail, Lock, ArrowRight, Chrome, Phone } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -22,26 +12,17 @@ export const LoginScreen = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [carrierLoading, setCarrierLoading] = useState(false);
   const login = useAuthStore((state) => state.login);
   const googleLogin = useAuthStore((state) => state.googleLogin);
+  const carrierLogin = useAuthStore((state) => state.phonePnvLogin);
 
-  React.useEffect(() => {
-    GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID, offlineAccess: false });
-  }, []);
+  React.useEffect(() => { GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID, offlineAccess: false }); }, []);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Missing details', 'Please enter email and password.');
-      return;
-    }
+    if (!email || !password) { Alert.alert('Missing details', 'Please enter email and password.'); return; }
     setLoading(true);
-    try {
-      await login(email, password);
-    } catch (error: any) {
-      Alert.alert('Login Failed', error.message);
-    } finally {
-      setLoading(false);
-    }
+    try { await login(email, password); } catch (error: any) { Alert.alert('Login Failed', error.message); } finally { setLoading(false); }
   };
 
   const handleGoogleLogin = async () => {
@@ -55,13 +36,12 @@ export const LoginScreen = () => {
     } catch (error: any) {
       if (error?.code === statusCodes.SIGN_IN_CANCELLED) return;
       Alert.alert('Google Sign-In Failed', error?.message || 'Unable to sign in with Google');
-    } finally {
-      setGoogleLoading(false);
-    }
+    } finally { setGoogleLoading(false); }
   };
 
-  const explainPhoneLogin = () => {
-    Alert.alert('Phone login not enabled yet', 'Firebase Phone Number Verification can support carrier-backed phone verification, but Aagam must verify the Firebase token on the backend before issuing a customer session. Use email or Google for local testing now.');
+  const handleCarrierLogin = async () => {
+    setCarrierLoading(true);
+    try { await carrierLogin(); } catch (error: any) { Alert.alert('Carrier sign-in failed', error.message); } finally { setCarrierLoading(false); }
   };
 
   return (
@@ -74,28 +54,18 @@ export const LoginScreen = () => {
           <Text style={styles.title}>AAGAM</Text>
           <Text style={styles.subtitle}>Customer shopping, live tracking, support, and alerts</Text>
         </View>
-
         <View style={styles.glassCard}>
           <Text style={styles.cardTitle}>Customer Sign In</Text>
           <View style={styles.inputGroup}>
             <View style={styles.inputWrapper}><Mail size={18} color="#94A3B8" /><TextInput style={styles.input} placeholder="Email" placeholderTextColor="#94A3B8" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" /></View>
             <View style={styles.inputWrapper}><Lock size={18} color="#94A3B8" /><TextInput style={styles.input} placeholder="Password" placeholderTextColor="#94A3B8" value={password} onChangeText={setPassword} secureTextEntry /></View>
           </View>
-
-          <TouchableOpacity style={[styles.loginBtn, loading && styles.loginBtnDisabled]} onPress={handleLogin} disabled={loading}>
-            {loading ? <ActivityIndicator color="#FFF" /> : <><Text style={styles.loginBtnText}>Continue</Text><ArrowRight size={20} color="#FFF" /></>}
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.phoneBtn} onPress={explainPhoneLogin}>
-            <Phone size={18} color="#0F766E" />
-            <View style={{ flex: 1 }}><Text style={styles.phoneTitle}>Phone login path</Text><Text style={styles.phoneText}>Firebase phone verification needs backend token verification before enabling.</Text></View>
-          </TouchableOpacity>
-
+          <TouchableOpacity style={[styles.loginBtn, loading && styles.loginBtnDisabled]} onPress={handleLogin} disabled={loading}>{loading ? <ActivityIndicator color="#FFF" /> : <><Text style={styles.loginBtnText}>Continue</Text><ArrowRight size={20} color="#FFF" /></>}</TouchableOpacity>
+          <TouchableOpacity style={styles.phoneBtn} onPress={handleCarrierLogin} disabled={carrierLoading}><Phone size={18} color="#0F766E" /><View style={{ flex: 1 }}><Text style={styles.phoneTitle}>{carrierLoading ? 'Verifying...' : 'Continue with carrier verification'}</Text><Text style={styles.phoneText}>Uses Firebase PNV and Aagam backend validation.</Text></View></TouchableOpacity>
           <View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>Or continue with</Text><View style={styles.line} /></View>
           <View style={styles.socialRow}><TouchableOpacity style={styles.socialBtn} onPress={handleGoogleLogin} disabled={googleLoading}><Chrome size={24} color="#1E293B" /></TouchableOpacity></View>
           {googleLoading ? <ActivityIndicator style={styles.socialLoader} color="#0F766E" /> : null}
         </View>
-
         <View style={styles.footer}><Text style={styles.footerText}>New customer? </Text><TouchableOpacity onPress={() => navigation.navigate('SignUp')}><Text style={styles.registerText}>Create account</Text></TouchableOpacity></View>
       </KeyboardAvoidingView>
     </View>
