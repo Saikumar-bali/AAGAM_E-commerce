@@ -153,7 +153,7 @@ export default function ShopPage() {
                 <span className="bg-gradient-to-r from-teal-300 to-amber-300 bg-clip-text text-transparent">delivered in 10 min.</span>
               </h1>
               <p className="mt-3 max-w-lg text-sm font-semibold leading-6 text-slate-400">
-                Browse category-wise shelves, scroll each shelf, save favourites, and checkout with live availability.
+                Daily essentials from nearby stores with live availability and fast checkout.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -228,9 +228,6 @@ export default function ShopPage() {
                     </span>
                   )}
                 </div>
-                {!selectedCategoryId && !query && (
-                  <p className="mt-1 text-xs font-semibold text-slate-500">Each category has its own scrollable row. Swipe or scroll sideways to see all items.</p>
-                )}
               </div>
 
               <div className="relative shrink-0">
