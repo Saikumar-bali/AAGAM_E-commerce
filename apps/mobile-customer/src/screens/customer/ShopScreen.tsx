@@ -13,6 +13,8 @@ const SORT_OPTIONS = [
   { label: 'High-Low', value: 'price_desc' },
 ];
 
+const isUnavailable = (product: any) => Boolean(product.availability) && product.availability?.inStock === false;
+
 export const ShopScreen = () => {
   const navigation = useNavigation<any>();
   const addItem = useCartStore((state) => state.addItem);
@@ -22,7 +24,7 @@ export const ShopScreen = () => {
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
 
   const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: async () => { const response = await apiClient.get('/products/categories'); return Array.isArray(response.data) ? response.data : []; } });
-  const { data: products, isLoading, error, refetch, isRefetching } = useQuery({ queryKey: ['products', query, selectedCategoryId, sort], queryFn: async () => { const response = await apiClient.get('/products', { params: { search: query || undefined, categoryId: selectedCategoryId || undefined, sort } }); return Array.isArray(response.data) ? response.data : response.data?.items || []; } });
+  const { data: products, isLoading, error, refetch, isRefetching } = useQuery({ queryKey: ['products', query, selectedCategoryId, sort], queryFn: async () => { const response = await apiClient.get('/products', { params: { search: query || undefined, categoryId: selectedCategoryId || undefined, sort } }); const rows = Array.isArray(response.data) ? response.data : response.data?.items || []; return [...rows].sort((a, b) => { const aUnavailable = isUnavailable(a); const bUnavailable = isUnavailable(b); if (aUnavailable !== bUnavailable) return aUnavailable ? 1 : -1; return 0; }); } });
   const categoryPills = useMemo(() => [{ id: '', name: 'All' }, ...categories], [categories]);
 
   if (isLoading) return <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View>;
@@ -45,18 +47,27 @@ export const ShopScreen = () => {
         numColumns={2}
         columnWrapperStyle={styles.productRow}
         renderItem={({ item }) => {
+          const unavailable = isUnavailable(item);
           const inStock = item.availability?.inStock ?? true;
           const productImage = getProductImage(item);
           return (
-            <TouchableOpacity style={styles.productCard} onPress={() => navigation.navigate('ProductDetail', { productId: item.id })} activeOpacity={0.92}>
-              <Image source={{ uri: productImage }} style={styles.productImage} />
+            <TouchableOpacity
+              style={[styles.productCard, unavailable && styles.productCardDisabled]}
+              disabled={unavailable}
+              onPress={() => navigation.navigate('ProductDetail', { productId: item.id })}
+              activeOpacity={0.92}
+            >
+              <View style={styles.imageWrap}>
+                <Image source={{ uri: productImage }} style={[styles.productImage, unavailable && styles.productImageDisabled]} />
+                {unavailable && <View style={styles.unavailableOverlay}><Text style={styles.unavailableBadge}>Unavailable</Text></View>}
+              </View>
               <View style={styles.productInfo}>
                 <Text style={styles.productCategory}>{item.category?.name || 'General'}</Text>
-                <Text style={styles.productName}>{item.name}</Text>
+                <Text style={[styles.productName, unavailable && styles.productNameDisabled]}>{item.name}</Text>
                 <Text numberOfLines={2} style={styles.productDescription}>{item.description || 'Fast local delivery available.'}</Text>
                 <View style={styles.cardFooter}>
-                  <View><Text style={styles.productPrice}>₹{item.price}</Text><Text style={[styles.stockText, !inStock && styles.stockTextOut]}>{inStock ? 'In stock' : 'Out of stock'}</Text></View>
-                  <TouchableOpacity style={[styles.addButton, !inStock && styles.addButtonDisabled]} disabled={!inStock} onPress={(event) => { event.stopPropagation(); addItem(item); }}><Text style={styles.addButtonText}>Add</Text></TouchableOpacity>
+                  <View><Text style={[styles.productPrice, unavailable && styles.productNameDisabled]}>₹{item.price}</Text><Text style={[styles.stockText, !inStock && styles.stockTextOut]}>{inStock ? 'In stock' : 'Currently unavailable'}</Text></View>
+                  <TouchableOpacity style={[styles.addButton, !inStock && styles.addButtonDisabled]} disabled={!inStock} onPress={(event) => { event.stopPropagation(); addItem(item); }}><Text style={styles.addButtonText}>{inStock ? 'Add' : 'N/A'}</Text></TouchableOpacity>
                 </View>
               </View>
             </TouchableOpacity>
@@ -97,10 +108,16 @@ const styles = StyleSheet.create({
   listContainer: { paddingHorizontal: 16, paddingBottom: 140 },
   productRow: { gap: 12 },
   productCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, marginHorizontal: 0, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0' },
+  productCardDisabled: { opacity: 0.72 },
+  imageWrap: { position: 'relative' },
   productImage: { width: '100%', height: 112, resizeMode: 'cover' },
+  productImageDisabled: { opacity: 0.5 },
+  unavailableOverlay: { position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.72)' },
+  unavailableBadge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#FEE2E2', color: '#B91C1C', fontSize: 11, fontWeight: '900', paddingHorizontal: 10, paddingVertical: 5 },
   productInfo: { padding: 12 },
   productCategory: { fontSize: 11, fontWeight: '800', color: '#0F766E', textTransform: 'uppercase' },
   productName: { marginTop: 4, fontSize: 15, fontWeight: '800', color: '#0F172A' },
+  productNameDisabled: { color: '#94A3B8' },
   productDescription: { marginTop: 6, fontSize: 12, lineHeight: 16, color: '#64748B' },
   cardFooter: { marginTop: 12, gap: 8 },
   productPrice: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
