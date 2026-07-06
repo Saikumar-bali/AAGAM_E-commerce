@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   imageWrap: { position: 'relative' },
   productImage: { width: '100%', height: 112, resizeMode: 'cover' },
   productImageDisabled: { opacity: 0.5 },
-  unavailableOverlay: { position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.72)' },
+  unavailableOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.72)' },
   unavailableBadge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#FEE2E2', color: '#B91C1C', fontSize: 11, fontWeight: '900', paddingHorizontal: 10, paddingVertical: 5 },
   productInfo: { padding: 12 },
   productCategory: { fontSize: 11, fontWeight: '800', color: '#0F766E', textTransform: 'uppercase' },
