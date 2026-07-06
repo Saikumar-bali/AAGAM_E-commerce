@@ -6,6 +6,7 @@ import { Cache } from 'cache-manager';
 import { QueryProductsDto } from './dto/query-products.dto';
 
 const haversineKm = calculateDistance;
+type ProductDetails = Record<string, unknown>;
 
 function computeServiceable(distanceKm: number | null): boolean | null {
   if (distanceKm === null || !Number.isFinite(distanceKm)) return null;
@@ -14,6 +15,20 @@ function computeServiceable(distanceKm: number | null): boolean | null {
 
 function cleanCategoryName(name: string) {
   return String(name || '').trim().replace(/\s+/g, ' ');
+}
+
+function cleanProductDetails(details?: ProductDetails | null) {
+  if (!details || typeof details !== 'object' || Array.isArray(details)) return null;
+  const cleaned = Object.entries(details).reduce<ProductDetails>((acc, [key, value]) => {
+    if (typeof value === 'string') {
+      const nextValue = value.trim();
+      if (nextValue) acc[key] = nextValue;
+    } else if (value !== undefined && value !== null && value !== '') {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+  return Object.keys(cleaned).length ? cleaned : null;
 }
 
 @Injectable()
@@ -292,10 +307,13 @@ export class ProductService {
     });
   }
 
-  async create(data: { name: string; description?: string; price: number; categoryId: string; image?: string }) {
+  async create(data: { name: string; description?: string | null; price: number; categoryId: string; image?: string | null; details?: ProductDetails | null }) {
     try {
       const product = await prisma.product.create({
-        data,
+        data: {
+          ...data,
+          details: cleanProductDetails(data.details),
+        },
       });
       await this.cacheManager.del('all_products');
       return product;
@@ -345,10 +363,28 @@ export class ProductService {
     return updated;
   }
 
-  async update(id: string, data: { name?: string; description?: string | null; price?: number; categoryId?: string; image?: string | null }) {
+  async deleteCategory(id: string) {
+    const existing = await prisma.category.findUnique({
+      where: { id },
+      include: { _count: { select: { products: true } } },
+    });
+    if (!existing) throw new NotFoundException('Category not found');
+    if (existing._count.products > 0) {
+      throw new BadRequestException('Move or delete products in this category before deleting it.');
+    }
+    const deleted = await prisma.category.delete({ where: { id } });
+    await this.cacheManager.del('all_categories');
+    await this.cacheManager.del('all_products');
+    return deleted;
+  }
+
+  async update(id: string, data: { name?: string; description?: string | null; price?: number; categoryId?: string; image?: string | null; details?: ProductDetails | null }) {
     const product = await prisma.product.update({
       where: { id },
-      data,
+      data: {
+        ...data,
+        ...(data.details !== undefined ? { details: cleanProductDetails(data.details) } : {}),
+      },
     });
     await this.cacheManager.del('all_products');
     await this.cacheManager.del(`product_${id}`);
