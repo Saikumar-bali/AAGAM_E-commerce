@@ -3,63 +3,15 @@ import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, Touchabl
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@aagam/mobile-shared';
 
-type NotificationItem = {
-  id: string;
-  sourceHistoryId: string;
-  orderId: string;
-  title: string;
-  body: string;
-  createdAt: string;
-  readAt?: string | null;
-};
+type NotificationItem = { id: string; sourceHistoryId: string; orderId: string; title: string; body: string; createdAt: string; readAt?: string | null };
 
 export const NotificationsScreen = () => {
   const queryClient = useQueryClient();
-  const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['customer-notifications'],
-    queryFn: async () => {
-      const response = await apiClient.get('/notifications/inbox');
-      return response.data || { items: [], unreadCount: 0 };
-    },
-  });
-
-  const markRead = useMutation({
-    mutationFn: async (sourceHistoryId: string) => apiClient.patch(`/notifications/${sourceHistoryId}/read`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['customer-notifications'] }),
-  });
-
+  const { data, isLoading, refetch, isRefetching } = useQuery({ queryKey: ['customer-notifications'], queryFn: async () => (await apiClient.get('/notifications/inbox')).data || { items: [], unreadCount: 0 } });
+  const markRead = useMutation({ mutationFn: async (sourceHistoryId: string) => apiClient.patch(`/notifications/${sourceHistoryId}/read`), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['customer-notifications'] }) });
   if (isLoading) return <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View>;
-
   const items: NotificationItem[] = data?.items || [];
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.kicker}>Communication center</Text>
-        <Text style={styles.title}>Alerts</Text>
-        <Text style={styles.subtitle}>{data?.unreadCount || 0} unread update{data?.unreadCount === 1 ? '' : 's'}</Text>
-      </View>
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
-        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>No alerts yet</Text><Text style={styles.emptyText}>Order updates, support replies, and delivery alerts will appear here.</Text></View>}
-        renderItem={({ item }) => (
-          <View style={[styles.card, item.readAt && styles.cardRead]}>
-            <Text style={styles.cardTitle}>{item.title}</Text>
-            <Text style={styles.cardBody}>{item.body}</Text>
-            <Text style={styles.cardMeta}>#{item.orderId?.slice(-8)?.toUpperCase()} · {new Date(item.createdAt).toLocaleString()}</Text>
-            {!item.readAt ? (
-              <TouchableOpacity style={styles.readButton} onPress={() => markRead.mutate(item.sourceHistoryId)} disabled={markRead.isPending}>
-                <Text style={styles.readButtonText}>Mark read</Text>
-              </TouchableOpacity>
-            ) : <Text style={styles.readMeta}>Read</Text>}
-          </View>
-        )}
-      />
-    </View>
-  );
+  return <View style={styles.container}><View style={styles.header}><Text style={styles.kicker}>Communication center</Text><Text style={styles.title}>Alerts</Text><Text style={styles.subtitle}>{data?.unreadCount || 0} unread update{data?.unreadCount === 1 ? '' : 's'}</Text></View><FlatList data={items} keyExtractor={(item) => item.id} contentContainerStyle={styles.list} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />} ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>No alerts yet</Text><Text style={styles.emptyText}>Order updates, support replies, and delivery alerts will appear here.</Text></View>} renderItem={({ item }) => <View style={[styles.card, item.readAt && styles.cardRead]}><Text style={styles.cardTitle}>{item.title}</Text><Text style={styles.cardBody}>{item.body}</Text><Text style={styles.cardMeta}>#{item.orderId?.slice(-8)?.toUpperCase()} · {new Date(item.createdAt).toLocaleString()}</Text>{!item.readAt ? <TouchableOpacity style={styles.readButton} onPress={() => markRead.mutate(item.sourceHistoryId)} disabled={markRead.isPending}><Text style={styles.readButtonText}>Mark read</Text></TouchableOpacity> : <Text style={styles.readMeta}>Read</Text>}</View>} /></View>;
 };
 
 const styles = StyleSheet.create({
@@ -69,7 +21,7 @@ const styles = StyleSheet.create({
   kicker: { color: '#0F766E', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.4 },
   title: { marginTop: 6, fontSize: 30, fontWeight: '900', color: '#0F172A', letterSpacing: -1 },
   subtitle: { marginTop: 4, color: '#64748B', fontWeight: '700' },
-  list: { padding: 16, paddingBottom: 110 },
+  list: { padding: 16, paddingBottom: 140 },
   card: { backgroundColor: '#FFFFFF', borderRadius: 22, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#CCFBF1' },
   cardRead: { opacity: 0.68, borderColor: '#E2E8F0' },
   cardTitle: { fontSize: 16, fontWeight: '900', color: '#0F172A' },
