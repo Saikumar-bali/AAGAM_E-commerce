@@ -72,7 +72,7 @@ export const CustomerProfileScreen = () => {
 function MenuRow({ title, subtitle, onPress }: { title: string; subtitle: string; onPress: () => void }) { return <TouchableOpacity style={styles.menuRow} onPress={onPress}><View style={{ flex: 1 }}><Text style={styles.menuTitle}>{title}</Text><Text style={styles.menuSubtitle}>{subtitle}</Text></View><Text style={styles.chevron}>›</Text></TouchableOpacity>; }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' }, content: { padding: 16, paddingBottom: 24 }, centered: { paddingVertical: 24 },
+  container: { flex: 1, backgroundColor: '#F8FAFC' }, content: { padding: 16, paddingBottom: 170 }, centered: { paddingVertical: 24 },
   heroCard: { position: 'relative', flexDirection: 'row', gap: 14, alignItems: 'center', borderRadius: 26, backgroundColor: '#0F766E', padding: 20 },
   headerLogout: { position: 'absolute', right: 14, top: 14, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#CCFBF1' }, headerLogoutText: { color: '#115E59', fontSize: 22, fontWeight: '900' },
   avatar: { width: 56, height: 56, borderRadius: 20, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#115E59', fontSize: 24, fontWeight: '900' }, name: { fontSize: 24, fontWeight: '900', color: '#FFFFFF' }, email: { marginTop: 6, color: '#CCFBF1', fontWeight: '700' },
