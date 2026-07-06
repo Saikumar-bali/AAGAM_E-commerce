@@ -21,7 +21,7 @@ const styles = StyleSheet.create({
   kicker: { color: '#0F766E', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.4 },
   title: { marginTop: 6, fontSize: 30, fontWeight: '900', color: '#0F172A', letterSpacing: -1 },
   subtitle: { marginTop: 4, color: '#64748B', fontWeight: '700' },
-  list: { padding: 16, paddingBottom: 140 },
+  list: { padding: 16, paddingBottom: 170 },
   card: { backgroundColor: '#FFFFFF', borderRadius: 22, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#CCFBF1' },
   cardRead: { opacity: 0.68, borderColor: '#E2E8F0' },
   cardTitle: { fontSize: 16, fontWeight: '900', color: '#0F172A' },
