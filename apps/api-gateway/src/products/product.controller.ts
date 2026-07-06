@@ -36,6 +36,13 @@ export class ProductController {
     return this.productService.updateCategory(id, name);
   }
 
+  @Delete('categories/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async deleteCategory(@Param('id') id: string) {
+    return this.productService.deleteCategory(id);
+  }
+
   @Get(':id/substitutes')
   async getSubstitutes(@Param('id') id: string, @Query() query: QueryProductsDto, @Req() req: any) {
     return this.productService.getSubstitutes(id, query, req?.user?.id);
