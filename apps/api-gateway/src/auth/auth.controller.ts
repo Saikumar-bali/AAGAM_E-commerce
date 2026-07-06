@@ -20,13 +20,7 @@ export class AuthController {
 
   private setSessionCookie(response: Response, token: string) {
     const isProduction = process.env.NODE_ENV === 'production';
-    response.cookie('access_token', token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    response.cookie('access_token', token, { httpOnly: true, secure: isProduction, sameSite: isProduction ? 'none' : 'lax', path: '/', maxAge: 7 * 24 * 60 * 60 * 1000 });
   }
 
   @Post('signup')
@@ -47,14 +41,6 @@ export class AuthController {
   @Throttle({ short: { limit: 10, ttl: 60000 } })
   async signInWithGoogle(@Body() body: GoogleLoginDto, @Res({ passthrough: true }) response: Response) {
     const result = await this.authService.signInWithGoogle(body.idToken);
-    this.setSessionCookie(response, result.session.access_token);
-    return { message: 'Logged in successfully', user: result.user, access_token: result.session.access_token };
-  }
-
-  @Post('phone/pnv')
-  @Throttle({ short: { limit: 10, ttl: 60000 } })
-  async signInWithPhonePnv(@Body() body: { token: string; name?: string }, @Res({ passthrough: true }) response: Response) {
-    const result = await this.authService.signInWithPhonePnv(body.token, body.name);
     this.setSessionCookie(response, result.session.access_token);
     return { message: 'Logged in successfully', user: result.user, access_token: result.session.access_token };
   }
