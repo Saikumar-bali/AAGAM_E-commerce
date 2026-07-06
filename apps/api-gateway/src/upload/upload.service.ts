@@ -78,6 +78,14 @@ export class UploadService {
     }
   }
 
+  async uploadImages(files: Express.Multer.File[]): Promise<{ publicUrls: string[]; images: { publicUrl: string }[] }> {
+    const images = await Promise.all(files.map((file) => this.uploadImage(file.buffer, file.originalname)));
+    return {
+      publicUrls: images.map((image) => image.publicUrl),
+      images,
+    };
+  }
+
   private getContentType(ext: string): string {
     const types: Record<string, string> = {
       jpg: 'image/jpeg',
