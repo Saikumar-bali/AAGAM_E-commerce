@@ -1,16 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { getProductImage } from '@aagam/utils';
@@ -32,117 +21,25 @@ export const ShopScreen = () => {
   const [sort, setSort] = useState('newest');
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
 
-  const { data: categories = [] } = useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      const response = await apiClient.get('/products/categories');
-      return Array.isArray(response.data) ? response.data : [];
-    },
-  });
-
-  const { data: products, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ['products', query, selectedCategoryId, sort],
-    queryFn: async () => {
-      const response = await apiClient.get('/products', {
-        params: { search: query || undefined, categoryId: selectedCategoryId || undefined, sort },
-      });
-      return Array.isArray(response.data) ? response.data : response.data?.items || [];
-    },
-  });
-
+  const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: async () => { const response = await apiClient.get('/products/categories'); return Array.isArray(response.data) ? response.data : []; } });
+  const { data: products, isLoading, error, refetch, isRefetching } = useQuery({ queryKey: ['products', query, selectedCategoryId, sort], queryFn: async () => { const response = await apiClient.get('/products', { params: { search: query || undefined, categoryId: selectedCategoryId || undefined, sort } }); return Array.isArray(response.data) ? response.data : response.data?.items || []; } });
   const categoryPills = useMemo(() => [{ id: '', name: 'All' }, ...categories], [categories]);
 
-  if (isLoading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#0F766E" />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>Failed to load products. Make sure the API is running.</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
-          <Text style={styles.retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  if (isLoading) return <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View>;
+  if (error) return <View style={styles.centered}><Text style={styles.errorText}>Failed to load products. Make sure the API is running.</Text><TouchableOpacity style={styles.retryButton} onPress={() => refetch()}><Text style={styles.retryButtonText}>Try Again</Text></TouchableOpacity></View>;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Shop Groceries</Text>
         <Text style={styles.subtitle}>Search, filter, compare, and add to cart.</Text>
-
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search products"
-          placeholderTextColor="#94A3B8"
-          style={styles.searchInput}
-        />
-
+        <TextInput value={query} onChangeText={setQuery} placeholder="Search products" placeholderTextColor="#94A3B8" style={styles.searchInput} />
         <View style={styles.filterRow}>
-          <FlatList
-            data={categoryPills}
-            horizontal
-            keyExtractor={(item) => item.id || 'all'}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryList}
-            renderItem={({ item }) => {
-              const active = selectedCategoryId === item.id;
-              return (
-                <TouchableOpacity
-                  style={[styles.categoryPill, active && styles.categoryPillActive]}
-                  onPress={() => setSelectedCategoryId(item.id)}
-                >
-                  <Text style={[styles.categoryPillText, active && styles.categoryPillTextActive]}>
-                    {item.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            }}
-          />
-          <TouchableOpacity
-            style={styles.sortIcon}
-            onPress={() => setSortMenuVisible(true)}
-          >
-            <SlidersHorizontal size={18} color="#0F766E" />
-          </TouchableOpacity>
+          <FlatList data={categoryPills} horizontal keyExtractor={(item) => item.id || 'all'} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList} renderItem={({ item }) => { const active = selectedCategoryId === item.id; return <TouchableOpacity style={[styles.categoryPill, active && styles.categoryPillActive]} onPress={() => setSelectedCategoryId(item.id)}><Text style={[styles.categoryPillText, active && styles.categoryPillTextActive]}>{item.name}</Text></TouchableOpacity>; }} />
+          <TouchableOpacity style={styles.sortIcon} onPress={() => setSortMenuVisible(true)}><SlidersHorizontal size={18} color="#0F766E" /></TouchableOpacity>
         </View>
-
-        <Modal
-          visible={sortMenuVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setSortMenuVisible(false)}
-        >
-          <Pressable style={styles.modalOverlay} onPress={() => setSortMenuVisible(false)}>
-            <View style={styles.modalSheet}>
-              <Text style={styles.modalTitle}>Sort by</Text>
-              {SORT_OPTIONS.map((option) => {
-                const active = option.value === sort;
-                return (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[styles.modalOption, active && styles.modalOptionActive]}
-                    onPress={() => { setSort(option.value); setSortMenuVisible(false); }}
-                  >
-                    <Text style={[styles.modalOptionText, active && styles.modalOptionTextActive]}>
-                      {option.label}
-                    </Text>
-                    {active && <Text style={styles.checkmark}>✓</Text>}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </Pressable>
-        </Modal>
+        <Modal visible={sortMenuVisible} transparent animationType="fade" onRequestClose={() => setSortMenuVisible(false)}><Pressable style={styles.modalOverlay} onPress={() => setSortMenuVisible(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Sort by</Text>{SORT_OPTIONS.map((option) => { const active = option.value === sort; return <TouchableOpacity key={option.value} style={[styles.modalOption, active && styles.modalOptionActive]} onPress={() => { setSort(option.value); setSortMenuVisible(false); }}><Text style={[styles.modalOptionText, active && styles.modalOptionTextActive]}>{option.label}</Text>{active && <Text style={styles.checkmark}>✓</Text>}</TouchableOpacity>; })}</View></Pressable></Modal>
       </View>
-
       <FlatList
         data={products}
         numColumns={2}
@@ -151,32 +48,15 @@ export const ShopScreen = () => {
           const inStock = item.availability?.inStock ?? true;
           const productImage = getProductImage(item);
           return (
-            <TouchableOpacity
-              style={styles.productCard}
-              onPress={() => navigation.navigate('ProductDetail', { productId: item.id })}
-              activeOpacity={0.92}
-            >
+            <TouchableOpacity style={styles.productCard} onPress={() => navigation.navigate('ProductDetail', { productId: item.id })} activeOpacity={0.92}>
               <Image source={{ uri: productImage }} style={styles.productImage} />
               <View style={styles.productInfo}>
                 <Text style={styles.productCategory}>{item.category?.name || 'General'}</Text>
                 <Text style={styles.productName}>{item.name}</Text>
-                <Text numberOfLines={2} style={styles.productDescription}>
-                  {item.description || 'Fast local delivery available.'}
-                </Text>
+                <Text numberOfLines={2} style={styles.productDescription}>{item.description || 'Fast local delivery available.'}</Text>
                 <View style={styles.cardFooter}>
-                  <View>
-                    <Text style={styles.productPrice}>₹{item.price}</Text>
-                    <Text style={[styles.stockText, !inStock && styles.stockTextOut]}>
-                      {inStock ? 'In stock' : 'Out of stock'}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.addButton, !inStock && styles.addButtonDisabled]}
-                    disabled={!inStock}
-                    onPress={() => addItem(item)}
-                  >
-                    <Text style={styles.addButtonText}>Add</Text>
-                  </TouchableOpacity>
+                  <View><Text style={styles.productPrice}>₹{item.price}</Text><Text style={[styles.stockText, !inStock && styles.stockTextOut]}>{inStock ? 'In stock' : 'Out of stock'}</Text></View>
+                  <TouchableOpacity style={[styles.addButton, !inStock && styles.addButtonDisabled]} disabled={!inStock} onPress={(event) => { event.stopPropagation(); addItem(item); }}><Text style={styles.addButtonText}>Add</Text></TouchableOpacity>
                 </View>
               </View>
             </TouchableOpacity>
@@ -186,12 +66,7 @@ export const ShopScreen = () => {
         contentContainerStyle={styles.listContainer}
         refreshing={isRefetching}
         onRefresh={refetch}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No products found</Text>
-            <Text style={styles.emptyText}>Try a different search or category.</Text>
-          </View>
-        }
+        ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyTitle}>No products found</Text><Text style={styles.emptyText}>Try a different search or category.</Text></View>}
       />
     </View>
   );
@@ -219,7 +94,7 @@ const styles = StyleSheet.create({
   modalOptionText: { fontSize: 15, fontWeight: '600', color: '#334155' },
   modalOptionTextActive: { color: '#115E59', fontWeight: '800' },
   checkmark: { color: '#0F766E', fontSize: 18, fontWeight: '800' },
-  listContainer: { paddingHorizontal: 16, paddingBottom: 24 },
+  listContainer: { paddingHorizontal: 16, paddingBottom: 140 },
   productRow: { gap: 12 },
   productCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, marginHorizontal: 0, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0' },
   productImage: { width: '100%', height: 112, resizeMode: 'cover' },
