@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@aagam/utils';
-import { Edit, Eye, EyeOff, Image as ImageIcon, Loader2, Plus, Search, Upload, X } from 'lucide-react';
+import { Edit, Eye, EyeOff, Image as ImageIcon, Loader2, Plus, Search, X } from 'lucide-react';
 
 type Category = { id: string; name: string };
 type Store = { id: string; name: string; inventory?: Array<{ productId: string; quantity: number }> };
