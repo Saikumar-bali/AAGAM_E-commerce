@@ -7,6 +7,16 @@ import { QueryProductsDto } from './dto/query-products.dto';
 
 const haversineKm = calculateDistance;
 type ProductDetails = Record<string, unknown>;
+type ProductWriteData = {
+  name?: string;
+  description?: string | null;
+  price?: number;
+  categoryId?: string;
+  image?: string | null;
+  images?: unknown;
+  details?: ProductDetails | null;
+  isActive?: boolean;
+};
 
 function computeServiceable(distanceKm: number | null): boolean | null {
   if (distanceKm === null || !Number.isFinite(distanceKm)) return null;
@@ -17,12 +27,20 @@ function cleanCategoryName(name: string) {
   return String(name || '').trim().replace(/\s+/g, ' ');
 }
 
+function cleanStringList(value?: unknown): string[] {
+  const rows = Array.isArray(value) ? value : String(value || '').split(/[\n,]+/);
+  return Array.from(new Set(rows.map((item) => String(item || '').trim()).filter(Boolean)));
+}
+
 function cleanProductDetails(details?: ProductDetails | null) {
   if (!details || typeof details !== 'object' || Array.isArray(details)) return null;
   const cleaned = Object.entries(details).reduce<ProductDetails>((acc, [key, value]) => {
     if (typeof value === 'string') {
       const nextValue = value.trim();
       if (nextValue) acc[key] = nextValue;
+    } else if (Array.isArray(value)) {
+      const nextValues = cleanStringList(value);
+      if (nextValues.length) acc[key] = nextValues;
     } else if (value !== undefined && value !== null && value !== '') {
       acc[key] = value;
     }
@@ -31,12 +49,21 @@ function cleanProductDetails(details?: ProductDetails | null) {
   return Object.keys(cleaned).length ? cleaned : null;
 }
 
+function cleanProductImages(images?: unknown, primaryImage?: string | null) {
+  return cleanStringList([primaryImage, ...cleanStringList(images)]).filter(Boolean);
+}
+
 @Injectable()
 export class ProductService {
   constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
 
   private withFallbackImages<T extends { id?: string | null; name?: string | null; image?: string | null; category?: { name?: string | null } | null }>(products: T[]) {
     return products.map((product) => ({ ...product, image: getProductImage(product) }));
+  }
+
+  private async clearProductCache(productId?: string) {
+    await this.cacheManager.del('all_products');
+    if (productId) await this.cacheManager.del(`product_${productId}`);
   }
 
   private async resolveAvailabilityContext(query: QueryProductsDto, userId?: string) {
@@ -104,6 +131,14 @@ export class ProductService {
     return { items: enrichedProducts, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
+  async findAdminAll() {
+    return prisma.product.findMany({
+      where: { deletedAt: null },
+      include: { category: true },
+      orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
   async findOne(id: string, query: QueryProductsDto = {}, userId?: string) {
     const shouldUseCache = !query.addressId && !query.storeId && query.lat == null && query.lng == null && !query.includeAvailability;
     const cacheKey = `product_${id}`;
@@ -138,15 +173,22 @@ export class ProductService {
     });
   }
 
-  async create(data: { name: string; description?: string | null; price: number; categoryId: string; image?: string | null; details?: ProductDetails | null }) {
-    try {
-      const product = await prisma.product.create({ data: { ...data, details: cleanProductDetails(data.details) as any } });
-      await this.cacheManager.del('all_products');
-      return product;
-    } catch (error) {
-      console.error('[PRODUCT SERVICE] Error creating product:', error);
-      throw error;
-    }
+  async create(data: Required<Pick<ProductWriteData, 'name' | 'price' | 'categoryId'>> & ProductWriteData) {
+    const images = cleanProductImages(data.images, data.image ?? null);
+    const product = await prisma.product.create({
+      data: {
+        name: data.name,
+        description: data.description ?? null,
+        price: data.price,
+        categoryId: data.categoryId,
+        image: data.image || images[0] || null,
+        images: images.length ? images as any : undefined,
+        details: cleanProductDetails(data.details) as any,
+        isActive: data.isActive ?? true,
+      },
+    });
+    await this.clearProductCache();
+    return product;
   }
 
   async getCategories() {
@@ -163,7 +205,7 @@ export class ProductService {
     if (cleanName.length < 2) throw new BadRequestException('Category name must be at least 2 characters.');
     const category = await prisma.category.create({ data: { name: cleanName } });
     await this.cacheManager.del('all_categories');
-    await this.cacheManager.del('all_products');
+    await this.clearProductCache();
     return category;
   }
 
@@ -174,7 +216,7 @@ export class ProductService {
     if (!existing) throw new NotFoundException('Category not found');
     const updated = await prisma.category.update({ where: { id }, data: { name: cleanName } });
     await this.cacheManager.del('all_categories');
-    await this.cacheManager.del('all_products');
+    await this.clearProductCache();
     return updated;
   }
 
@@ -184,23 +226,44 @@ export class ProductService {
     if (existing._count.products > 0) throw new BadRequestException('Move or delete products in this category before deleting it.');
     const deleted = await prisma.category.delete({ where: { id } });
     await this.cacheManager.del('all_categories');
-    await this.cacheManager.del('all_products');
+    await this.clearProductCache();
     return deleted;
   }
 
-  async update(id: string, data: { name?: string; description?: string | null; price?: number; categoryId?: string; image?: string | null; details?: ProductDetails | null }) {
-    const product = await prisma.product.update({ where: { id }, data: { ...data, ...(data.details !== undefined ? { details: cleanProductDetails(data.details) as any } : {}) } });
-    await this.cacheManager.del('all_products');
-    await this.cacheManager.del(`product_${id}`);
+  async update(id: string, data: ProductWriteData) {
+    const existing = await prisma.product.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Product not found');
+    const images = data.images !== undefined ? cleanProductImages(data.images, data.image ?? existing.image) : undefined;
+    const product = await prisma.product.update({
+      where: { id },
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.description !== undefined ? { description: data.description } : {}),
+        ...(data.price !== undefined ? { price: data.price } : {}),
+        ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
+        ...(data.image !== undefined ? { image: data.image || images?.[0] || null } : {}),
+        ...(images !== undefined ? { images: images.length ? images as any : [] } : {}),
+        ...(data.details !== undefined ? { details: cleanProductDetails(data.details) as any } : {}),
+        ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+      },
+    });
+    await this.clearProductCache(id);
     return product;
+  }
+
+  async setActive(id: string, isActive: boolean) {
+    const product = await prisma.product.findUnique({ where: { id } });
+    if (!product || product.deletedAt) throw new NotFoundException('Product not found');
+    const updated = await prisma.product.update({ where: { id }, data: { isActive } });
+    await this.clearProductCache(id);
+    return updated;
   }
 
   async delete(id: string) {
     const product = await prisma.product.findUnique({ where: { id } });
     if (!product) throw new NotFoundException('Product not found');
     const deleted = await prisma.product.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
-    await this.cacheManager.del('all_products');
-    await this.cacheManager.del(`product_${id}`);
+    await this.clearProductCache(id);
     return deleted;
   }
 }
