@@ -22,6 +22,20 @@ export class ProductController {
     return this.productService.getCategories();
   }
 
+  @Post('categories')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async createCategory(@Body('name') name: string) {
+    return this.productService.createCategory(name);
+  }
+
+  @Patch('categories/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async updateCategory(@Param('id') id: string, @Body('name') name: string) {
+    return this.productService.updateCategory(id, name);
+  }
+
   @Get(':id/substitutes')
   async getSubstitutes(@Param('id') id: string, @Query() query: QueryProductsDto, @Req() req: any) {
     return this.productService.getSubstitutes(id, query, req?.user?.id);
@@ -37,13 +51,6 @@ export class ProductController {
   @Roles(Role.ADMIN)
   async create(@Body() data: CreateProductDto) {
     return this.productService.create(data);
-  }
-
-  @Post('categories')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  async createCategory(@Body('name') name: string) {
-    return this.productService.createCategory(name);
   }
 
   @Patch(':id')
