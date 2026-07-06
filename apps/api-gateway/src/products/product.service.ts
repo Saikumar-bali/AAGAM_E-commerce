@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
 import { getProductImage, calculateDistance } from '@aagam/utils';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -10,6 +10,10 @@ const haversineKm = calculateDistance;
 function computeServiceable(distanceKm: number | null): boolean | null {
   if (distanceKm === null || !Number.isFinite(distanceKm)) return null;
   return distanceKm <= 8;
+}
+
+function cleanCategoryName(name: string) {
+  return String(name || '').trim().replace(/\s+/g, ' ');
 }
 
 @Injectable()
@@ -247,7 +251,7 @@ export class ProductService {
     });
     if (!product) throw new NotFoundException('Product not found');
 
-    const context = query.storeId ? await this.resolveAvailabilityContext(query, userId) : await this.resolveAvailabilityContext(query, userId);
+    const context = await this.resolveAvailabilityContext(query, userId);
     const storeId = context?.storeId ?? null;
     if (!storeId) return [];
 
@@ -293,7 +297,7 @@ export class ProductService {
       const product = await prisma.product.create({
         data,
       });
-      await this.cacheManager.del('all_products'); // Invalidate cache
+      await this.cacheManager.del('all_products');
       return product;
     } catch (error) {
       console.error('[PRODUCT SERVICE] Error creating product:', error);
@@ -306,17 +310,39 @@ export class ProductService {
     const cachedCategories = await this.cacheManager.get(cacheKey);
     if (cachedCategories) return cachedCategories;
 
-    const categories = await prisma.category.findMany();
-    await this.cacheManager.set(cacheKey, categories, 3600000); // 1 hour
+    const categories = await prisma.category.findMany({ orderBy: { name: 'asc' } });
+    await this.cacheManager.set(cacheKey, categories, 3600000);
     return categories;
   }
 
   async createCategory(name: string) {
+    const cleanName = cleanCategoryName(name);
+    if (cleanName.length < 2) {
+      throw new BadRequestException('Category name must be at least 2 characters.');
+    }
     const category = await prisma.category.create({
-      data: { name },
+      data: { name: cleanName },
     });
     await this.cacheManager.del('all_categories');
+    await this.cacheManager.del('all_products');
     return category;
+  }
+
+  async updateCategory(id: string, name: string) {
+    const cleanName = cleanCategoryName(name);
+    if (cleanName.length < 2) {
+      throw new BadRequestException('Category name must be at least 2 characters.');
+    }
+    const existing = await prisma.category.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Category not found');
+
+    const updated = await prisma.category.update({
+      where: { id },
+      data: { name: cleanName },
+    });
+    await this.cacheManager.del('all_categories');
+    await this.cacheManager.del('all_products');
+    return updated;
   }
 
   async update(id: string, data: { name?: string; description?: string | null; price?: number; categoryId?: string; image?: string | null }) {
