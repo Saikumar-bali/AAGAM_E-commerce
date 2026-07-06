@@ -16,6 +16,7 @@ interface StoreLocationPickerProps {
   onAddressChange?: (address: { address: string; city: string; state: string; pincode: string }) => void;
   apiClient: any;
   searchPlaceholder?: string;
+  compact?: boolean;
 }
 
 export function StoreLocationPicker({
@@ -24,6 +25,7 @@ export function StoreLocationPicker({
   onAddressChange,
   apiClient,
   searchPlaceholder = 'Search for address...',
+  compact = false,
 }: StoreLocationPickerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -34,11 +36,12 @@ export function StoreLocationPicker({
   const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  React.useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  React.useEffect(() => { setIsMounted(true); }, []);
 
   const hasCoords = coords.lat != null && coords.lng != null;
+  const mapLat = Number(coords.lat);
+  const mapLng = Number(coords.lng);
+  const hasValidCoords = hasCoords && Number.isFinite(mapLat) && Number.isFinite(mapLng);
 
   const doReverseGeocode = useCallback(
     async (lat: number, lng: number) => {
@@ -51,7 +54,7 @@ export function StoreLocationPicker({
           onAddressChange({ address: a.line1 || '', city: a.city || '', state: a.state || '', pincode: a.pincode || '' });
         }
       } catch {
-        // Reverse geocode is helpful, but address saving must not fail if it is unavailable.
+        // Reverse geocode is optional. Coordinates remain usable even when it fails.
       }
     },
     [apiClient, onAddressChange]
@@ -94,8 +97,8 @@ export function StoreLocationPicker({
     setSearchQuery(result.displayName.split(',')[0]);
     setSearchResults([]);
     setLocationAccuracy(null);
-    onCoordsChange(result.lat, result.lng);
-    await doReverseGeocode(result.lat, result.lng);
+    onCoordsChange(Number(result.lat), Number(result.lng));
+    await doReverseGeocode(Number(result.lat), Number(result.lng));
   };
 
   const handleUseCurrentLocation = async () => {
@@ -107,8 +110,8 @@ export function StoreLocationPicker({
     setSearchError('');
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
+        const lat = Number(pos.coords.latitude);
+        const lng = Number(pos.coords.longitude);
         setLocationAccuracy(pos.coords.accuracy ?? null);
         setSearchQuery('Current location');
         onCoordsChange(lat, lng);
@@ -128,31 +131,34 @@ export function StoreLocationPicker({
     const { MapContainer, TileLayer, Circle, CircleMarker, useMap, useMapEvents } = require('react-leaflet');
     require('leaflet/dist/leaflet.css');
 
-    const markerPos: [number, number] = hasCoords ? [coords.lat as number, coords.lng as number] : [20.5937, 78.9629];
-    const mapZoom = hasCoords ? 18 : 5;
-    const mapKey = hasCoords ? `${coords.lat?.toFixed(6)}-${coords.lng?.toFixed(6)}` : 'india-default';
+    const markerPos: [number, number] = hasValidCoords ? [mapLat, mapLng] : [20.5937, 78.9629];
+    const mapZoom = hasValidCoords ? 18 : 5;
+    const mapKey = hasValidCoords ? `map-${mapLat.toFixed(7)}-${mapLng.toFixed(7)}-${compact ? 'compact' : 'full'}` : 'map-india-default';
 
-    const MapRecenter = ({ center, zoom }: { center: [number, number]; zoom: number }) => {
+    const MapController = ({ center, zoom }: { center: [number, number]; zoom: number }) => {
       const map = useMap();
       React.useEffect(() => {
-        const recenter = () => {
-          map.invalidateSize(true);
+        let stopped = false;
+        const hardRecenter = () => {
+          if (stopped) return;
+          map.stop();
+          map.invalidateSize({ animate: false, pan: false });
+          map.setZoom(zoom, { animate: false });
+          map.panTo(center, { animate: false });
           map.setView(center, zoom, { animate: false });
-          map.flyTo(center, zoom, { animate: true, duration: 0.35 });
         };
-        recenter();
-        const first = window.setTimeout(recenter, 80);
-        const second = window.setTimeout(recenter, 350);
+        hardRecenter();
+        const timers = [50, 150, 350, 700, 1200].map((delay) => window.setTimeout(hardRecenter, delay));
         return () => {
-          window.clearTimeout(first);
-          window.clearTimeout(second);
+          stopped = true;
+          timers.forEach((timer) => window.clearTimeout(timer));
         };
       }, [map, center[0], center[1], zoom]);
       return null;
     };
 
     const MapClick = ({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) => {
-      useMapEvents({ click: (e: any) => onMapClick(e.latlng.lat, e.latlng.lng) });
+      useMapEvents({ click: (e: any) => onMapClick(Number(e.latlng.lat), Number(e.latlng.lng)) });
       return null;
     };
 
@@ -163,32 +169,34 @@ export function StoreLocationPicker({
         zoom={mapZoom}
         minZoom={3}
         maxZoom={19}
+        zoomControl={true}
+        attributionControl={true}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
-        <MapRecenter center={markerPos} zoom={mapZoom} />
+        <MapController center={markerPos} zoom={mapZoom} />
         <TileLayer
           attribution='&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
           url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
         />
-        {hasCoords && locationAccuracy && locationAccuracy < 5000 && (
+        {hasValidCoords && locationAccuracy && locationAccuracy < 5000 && (
           <Circle
-            center={[coords.lat as number, coords.lng as number]}
+            center={markerPos}
             radius={locationAccuracy}
             pathOptions={{ color: '#0f766e', fillColor: '#14b8a6', fillOpacity: 0.12, weight: 1 }}
           />
         )}
-        {hasCoords && (
+        {hasValidCoords && (
           <CircleMarker
-            center={[coords.lat as number, coords.lng as number]}
-            radius={10}
-            pathOptions={{ color: '#ffffff', fillColor: '#ef4444', fillOpacity: 1, weight: 4 }}
+            center={markerPos}
+            radius={12}
+            pathOptions={{ color: '#ffffff', fillColor: '#ef4444', fillOpacity: 1, weight: 5 }}
           />
         )}
-        {hasCoords && (
+        {hasValidCoords && (
           <CircleMarker
-            center={[coords.lat as number, coords.lng as number]}
-            radius={3}
+            center={markerPos}
+            radius={4}
             pathOptions={{ color: '#7f1d1d', fillColor: '#7f1d1d', fillOpacity: 1, weight: 1 }}
           />
         )}
@@ -198,7 +206,7 @@ export function StoreLocationPicker({
   };
 
   return (
-    <div className="space-y-3">
+    <div className={compact ? 'space-y-2' : 'space-y-3'}>
       <button
         type="button"
         onClick={handleUseCurrentLocation}
@@ -218,9 +226,7 @@ export function StoreLocationPicker({
             placeholder={searchPlaceholder}
             className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder:text-gray-400"
           />
-          {searching && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
-          )}
+          {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />}
         </div>
 
         {searchResults.length > 0 && (
@@ -242,14 +248,14 @@ export function StoreLocationPicker({
         {searchError && <p className="mt-1 text-xs text-red-600 font-medium">{searchError}</p>}
       </div>
 
-      {hasCoords && (
+      {hasValidCoords && (
         <div className="flex items-center gap-2 text-xs font-mono text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
           <MapPin className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
-          <span>Lat: {coords.lat?.toFixed(6)}, Lng: {coords.lng?.toFixed(6)}{locationAccuracy ? `, Accuracy: ${Math.round(locationAccuracy)}m` : ''}</span>
+          <span>Lat: {mapLat.toFixed(6)}, Lng: {mapLng.toFixed(6)}{locationAccuracy ? `, Accuracy: ${Math.round(locationAccuracy)}m` : ''}</span>
         </div>
       )}
 
-      <div className="rounded-xl overflow-hidden border border-gray-200 h-72 bg-gray-50">
+      <div className={`rounded-xl overflow-hidden border border-gray-200 bg-gray-50 ${compact ? 'h-56' : 'h-72'}`}>
         {isMounted ? renderMap() : (
           <div className="h-full w-full flex items-center justify-center bg-gray-100">
             <span className="text-xs text-gray-400">Loading map...</span>
@@ -257,9 +263,7 @@ export function StoreLocationPicker({
         )}
       </div>
 
-      {hasCoords && (
-        <p className="text-xs text-gray-500 text-center">Click the map to fine-tune location</p>
-      )}
+      {hasValidCoords && <p className="text-xs text-gray-500 text-center">Click the map to fine-tune location</p>}
     </div>
   );
 }
