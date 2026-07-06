@@ -12,7 +12,19 @@ import OfferBanner from '@/components/customer/OfferBanner';
 import ProductCard from '@/components/customer/ProductCard';
 import CartSheet from '@/components/customer/CartSheet';
 import EmptyState from '@/components/customer/EmptyState';
-import { Sparkles, Package, SlidersHorizontal, TrendingUp, Zap, Star, PackageCheck } from 'lucide-react';
+import { Sparkles, Package, SlidersHorizontal, Zap, Star, PackageCheck, ArrowRight } from 'lucide-react';
+
+function isUnavailable(product: any) {
+  return Boolean(product.availability) && product.availability?.inStock === false;
+}
+
+function getCategoryId(product: any) {
+  return product.categoryId || product.category?.id || 'uncategorized';
+}
+
+function getCategoryName(product: any) {
+  return product.category?.name || 'Other Products';
+}
 
 export default function ShopPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -41,7 +53,13 @@ export default function ShopPage() {
           }),
           apiClient.get('/products/categories'),
         ]);
-        setProducts(Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data?.items || []);
+        const nextProducts = Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data?.items || [];
+        setProducts([...nextProducts].sort((a, b) => {
+          const aUnavailable = isUnavailable(a);
+          const bUnavailable = isUnavailable(b);
+          if (aUnavailable !== bUnavailable) return aUnavailable ? 1 : -1;
+          return 0;
+        }));
         setCategories(Array.isArray(categoriesResponse.data) ? categoriesResponse.data : []);
       } catch (error) {
         console.error('Failed to fetch products', error);
@@ -58,6 +76,20 @@ export default function ShopPage() {
     return map;
   }, [cart]);
 
+  const groupedSections = useMemo(() => {
+    const grouped = new Map<string, { id: string; name: string; products: any[] }>();
+    for (const category of categories) grouped.set(category.id, { id: category.id, name: category.name, products: [] });
+
+    for (const product of products) {
+      const id = getCategoryId(product);
+      const name = getCategoryName(product);
+      if (!grouped.has(id)) grouped.set(id, { id, name, products: [] });
+      grouped.get(id)?.products.push(product);
+    }
+
+    return Array.from(grouped.values()).filter((section) => section.products.length > 0);
+  }, [categories, products]);
+
   const SORT_OPTIONS = [
     { label: 'Newest first', value: 'newest' },
     { label: 'Price: Low to High', value: 'price_asc' },
@@ -67,12 +99,38 @@ export default function ShopPage() {
   ];
 
   const quickLinks = [
-    { label: 'Deals', icon: '🏷️', href: '/shop/deals', color: 'from-amber-500 to-orange-500' },
-    { label: 'Reorder', icon: '🔄', href: '/shop/reorder', color: 'from-blue-500 to-indigo-500' },
-    { label: 'Wishlist', icon: '❤️', href: '/shop/wishlist', count: wishlist.count, color: 'from-rose-500 to-pink-500' },
-    { label: 'Orders', icon: '📦', href: '/shop/orders', color: 'from-violet-500 to-purple-500' },
-    { label: 'Addresses', icon: '📍', href: '/shop/addresses', color: 'from-teal-500 to-emerald-500' },
+    { label: 'Deals', icon: '🏷️', href: '/shop/deals' },
+    { label: 'Reorder', icon: '🔄', href: '/shop/reorder' },
+    { label: 'Wishlist', icon: '❤️', href: '/shop/wishlist', count: wishlist.count },
+    { label: 'Orders', icon: '📦', href: '/shop/orders' },
+    { label: 'Addresses', icon: '📍', href: '/shop/addresses' },
   ];
+
+  const activeHeading = selectedCategoryId
+    ? categories.find((c) => c.id === selectedCategoryId)?.name || 'Products'
+    : query
+      ? `Results for "${query}"`
+      : 'Shop by Category';
+
+  const renderProduct = (product: any) => {
+    const qty = qtyById.get(product.id) || 0;
+    const wished = wishlist.has(product.id);
+    const price = typeof product.price === 'number' ? product.price : Number(product.price) || 0;
+
+    return (
+      <div key={product.id} className="w-[172px] shrink-0 sm:w-[190px] lg:w-[204px]">
+        <ProductCard
+          product={product}
+          qty={qty}
+          wished={wished}
+          onAdd={() => addToCart({ id: product.id, name: product.name, price, image: product.image || undefined })}
+          onIncrement={() => updateQuantity(product.id, qty + 1)}
+          onDecrement={() => updateQuantity(product.id, qty - 1)}
+          onToggleWish={() => wishlist.toggle({ id: product.id, name: product.name, price })}
+        />
+      </div>
+    );
+  };
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
@@ -83,19 +141,19 @@ export default function ShopPage() {
         onCartOpen={() => setIsCartOpen(true)}
       >
         <div className="space-y-6 pb-24 md:pb-8">
-          <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-teal-950 p-6 md:p-8 text-white">
+          <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-teal-950 p-6 text-white md:p-8">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(45,212,191,0.15),transparent_40%)]" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(245,158,11,0.1),transparent_40%)]" />
             <div className="relative">
               <p className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/30 bg-teal-500/10 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-teal-300">
                 <Sparkles className="h-3 w-3" /> Quick Commerce
               </p>
-              <h1 className="mt-4 text-3xl md:text-5xl font-black tracking-tight leading-[1.1]">
+              <h1 className="mt-4 text-3xl font-black leading-[1.1] tracking-tight md:text-5xl">
                 Fresh groceries,<br />
                 <span className="bg-gradient-to-r from-teal-300 to-amber-300 bg-clip-text text-transparent">delivered in 10 min.</span>
               </h1>
-              <p className="mt-3 max-w-lg text-sm font-semibold text-slate-400 leading-6">
-                Search, browse by category, save favourites, and check out with live availability.
+              <p className="mt-3 max-w-lg text-sm font-semibold leading-6 text-slate-400">
+                Browse category-wise shelves, scroll each shelf, save favourites, and checkout with live availability.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -104,7 +162,7 @@ export default function ShopPage() {
                   { icon: Star, label: 'Best prices', sub: 'Guaranteed' },
                   { icon: PackageCheck, label: 'Fresh items', sub: 'Quality assured' },
                 ].map((item) => (
-                  <div key={item.label} className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm px-3.5 py-2.5">
+                  <div key={item.label} className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 backdrop-blur-sm">
                     <div className="grid h-8 w-8 place-items-center rounded-lg bg-teal-500/20 text-teal-300">
                       <item.icon className="h-4 w-4" />
                     </div>
@@ -119,21 +177,21 @@ export default function ShopPage() {
           </section>
 
           <section>
-            <div className="flex items-center gap-2 mb-3">
+            <div className="mb-3 flex items-center gap-2">
               <span className="text-lg">⚡</span>
-              <h2 className="text-sm font-black text-slate-950 uppercase tracking-wider">Quick Links</h2>
+              <h2 className="text-sm font-black uppercase tracking-wider text-slate-950">Quick Links</h2>
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <div className="scrollbar-none flex gap-2 overflow-x-auto pb-1">
               {quickLinks.map((link) => (
                 <button
                   key={link.label}
                   onClick={() => router.push(link.href)}
-                  className="shrink-0 flex items-center gap-2.5 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-teal-200 group"
+                  className="group flex shrink-0 items-center gap-2.5 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md"
                 >
                   <span className="text-xl">{link.icon}</span>
-                  <span className="text-sm font-black text-slate-950 group-hover:text-teal-700 transition-colors">{link.label}</span>
+                  <span className="text-sm font-black text-slate-950 transition-colors group-hover:text-teal-700">{link.label}</span>
                   {link.count != null && link.count > 0 && (
-                    <span className="ml-1 grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-amber-400 text-[10px] font-black text-slate-950 px-1">
+                    <span className="ml-1 grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-amber-400 px-1 text-[10px] font-black text-slate-950">
                       {link.count}
                     </span>
                   )}
@@ -143,65 +201,57 @@ export default function ShopPage() {
           </section>
 
           <section>
-            <div className="flex items-center gap-2 mb-3">
+            <div className="mb-3 flex items-center gap-2">
               <span className="text-lg">🎉</span>
-              <h2 className="text-sm font-black text-slate-950 uppercase tracking-wider">Today&apos;s Offers</h2>
+              <h2 className="text-sm font-black uppercase tracking-wider text-slate-950">Today&apos;s Offers</h2>
             </div>
             <OfferBanner />
           </section>
 
           <section>
-            <div className="flex items-center gap-2 mb-3">
+            <div className="mb-3 flex items-center gap-2">
               <span className="text-lg">📂</span>
-              <h2 className="text-sm font-black text-slate-950 uppercase tracking-wider">Categories</h2>
+              <h2 className="text-sm font-black uppercase tracking-wider text-slate-950">Categories</h2>
             </div>
-            <CategoryRail
-              categories={categories}
-              selectedId={selectedCategoryId}
-              onSelect={setSelectedCategoryId}
-            />
+            <CategoryRail categories={categories} selectedId={selectedCategoryId} onSelect={setSelectedCategoryId} />
           </section>
 
           <section>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">
-                  {selectedCategoryId ? '🔍' : '🛒'}
-                </span>
-                <h2 className="text-sm font-black text-slate-950 uppercase tracking-wider">
-                  {selectedCategoryId
-                    ? categories.find((c) => c.id === selectedCategoryId)?.name || 'Products'
-                    : query
-                      ? `Results for "${query}"`
-                      : 'All Products'}
-                </h2>
-                {products.length > 0 && (
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">
-                    {products.length} items
-                  </span>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{selectedCategoryId || query ? '🔍' : '🛒'}</span>
+                  <h2 className="truncate text-sm font-black uppercase tracking-wider text-slate-950">{activeHeading}</h2>
+                  {products.length > 0 && (
+                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">
+                      {products.length} items
+                    </span>
+                  )}
+                </div>
+                {!selectedCategoryId && !query && (
+                  <p className="mt-1 text-xs font-semibold text-slate-500">Each category has its own scrollable row. Swipe or scroll sideways to see all items.</p>
                 )}
               </div>
 
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button
                   onClick={() => setSortMenuOpen(!sortMenuOpen)}
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50"
                 >
                   <SlidersHorizontal className="h-3.5 w-3.5" />
-                  {SORT_OPTIONS.find((o) => o.value === sort)?.label}
+                  <span className="hidden sm:inline">{SORT_OPTIONS.find((o) => o.value === sort)?.label}</span>
+                  <span className="sm:hidden">Sort</span>
                 </button>
                 {sortMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-30" onClick={() => setSortMenuOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-40 w-52 rounded-2xl border border-slate-100 bg-white p-1.5 shadow-xl">
+                    <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-2xl border border-slate-100 bg-white p-1.5 shadow-xl">
                       {SORT_OPTIONS.map((option) => (
                         <button
                           key={option.value}
                           onClick={() => { setSort(option.value); setSortMenuOpen(false); }}
-                          className={`w-full text-left rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
-                            sort === option.value
-                              ? 'bg-teal-50 text-teal-800 font-black'
-                              : 'text-slate-700 hover:bg-slate-50'
+                          className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition-colors ${
+                            sort === option.value ? 'bg-teal-50 font-black text-teal-800' : 'text-slate-700 hover:bg-slate-50'
                           }`}
                         >
                           {option.label}
@@ -215,19 +265,29 @@ export default function ShopPage() {
           </section>
 
           {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="rounded-2xl border border-slate-100 bg-white overflow-hidden animate-pulse">
-                  <div className="aspect-[4/3] bg-slate-100" />
-                  <div className="p-3 space-y-2">
-                    <div className="h-3 w-3/4 rounded bg-slate-100" />
-                    <div className="h-3 w-1/2 rounded bg-slate-100" />
-                    <div className="flex justify-between items-center pt-2">
-                      <div className="h-4 w-16 rounded bg-slate-100" />
-                      <div className="h-8 w-16 rounded-xl bg-slate-100" />
-                    </div>
+            <div className="space-y-6">
+              {Array.from({ length: 4 }).map((_, sectionIndex) => (
+                <section key={sectionIndex} className="rounded-3xl border border-slate-100 bg-white p-4">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="h-5 w-36 rounded bg-slate-100" />
+                    <div className="h-4 w-16 rounded bg-slate-100" />
                   </div>
-                </div>
+                  <div className="flex gap-3 overflow-hidden">
+                    {Array.from({ length: 5 }).map((__, i) => (
+                      <div key={i} className="w-[172px] shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-white animate-pulse sm:w-[190px] lg:w-[204px]">
+                        <div className="aspect-[4/3] bg-slate-100" />
+                        <div className="space-y-2 p-3">
+                          <div className="h-3 w-3/4 rounded bg-slate-100" />
+                          <div className="h-3 w-1/2 rounded bg-slate-100" />
+                          <div className="flex items-center justify-between pt-2">
+                            <div className="h-4 w-16 rounded bg-slate-100" />
+                            <div className="h-8 w-16 rounded-xl bg-slate-100" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           ) : products.length === 0 ? (
@@ -238,30 +298,43 @@ export default function ShopPage() {
               action={query ? { label: 'Clear search', onClick: () => setQuery('') } : undefined}
             />
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {products.map((product) => {
-                const qty = qtyById.get(product.id) || 0;
-                const wished = wishlist.has(product.id);
-                const price = typeof product.price === 'number' ? product.price : Number(product.price) || 0;
+            <div className="space-y-7">
+              {groupedSections.map((section) => (
+                <section key={section.id} id={`category-${section.id}`} className="rounded-3xl border border-slate-100 bg-white/80 p-4 shadow-sm shadow-slate-200/40">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-teal-50 text-lg">🛍️</span>
+                        <div className="min-w-0">
+                          <h3 className="truncate text-lg font-black text-slate-950">{section.name}</h3>
+                          <p className="text-xs font-bold text-slate-400">{section.products.length} item{section.products.length !== 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                    </div>
+                    {!selectedCategoryId && (
+                      <button
+                        onClick={() => setSelectedCategoryId(section.id === 'uncategorized' ? '' : section.id)}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition-colors hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800"
+                      >
+                        View all <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
 
-                return (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    qty={qty}
-                    wished={wished}
-                    onAdd={() => addToCart({ id: product.id, name: product.name, price, image: undefined })}
-                    onIncrement={() => updateQuantity(product.id, qty + 1)}
-                    onDecrement={() => updateQuantity(product.id, qty - 1)}
-                    onToggleWish={() => wishlist.toggle({ id: product.id, name: product.name, price })}
-                  />
-                );
-              })}
+                  <div className="scrollbar-none -mx-4 flex gap-3 overflow-x-auto px-4 pb-2 snap-x snap-mandatory">
+                    {section.products.map((product) => (
+                      <div key={product.id} className="snap-start">
+                        {renderProduct(product)}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
             </div>
           )}
 
           {totalItems > 0 && (
-            <div className="fixed bottom-4 inset-x-0 z-40 px-4 md:px-0 md:max-w-7xl md:mx-auto pointer-events-none">
+            <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 px-4 md:mx-auto md:max-w-7xl md:px-0">
               <div className="pointer-events-auto flex items-center justify-between rounded-2xl bg-slate-950 px-5 py-3.5 shadow-2xl shadow-slate-950/30">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-black text-white">
@@ -272,7 +345,7 @@ export default function ShopPage() {
                 </div>
                 <button
                   onClick={() => router.push('/shop/checkout')}
-                  className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-teal-900/20 transition-all hover:bg-teal-500 hover:-translate-y-0.5"
+                  className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-teal-900/20 transition-all hover:-translate-y-0.5 hover:bg-teal-500"
                 >
                   Checkout →
                 </button>

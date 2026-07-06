@@ -65,6 +65,8 @@ model Product {
   price       Float
   pricePaise  Int       @default(0)
   image       String?
+  images      Json?
+  details     Json?
   isActive    Boolean   @default(true)
   deletedAt   DateTime?
   categoryId  String
