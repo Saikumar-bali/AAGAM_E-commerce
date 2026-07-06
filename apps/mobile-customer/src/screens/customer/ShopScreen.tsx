@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   modalOptionText: { fontSize: 15, fontWeight: '600', color: '#334155' },
   modalOptionTextActive: { color: '#115E59', fontWeight: '800' },
   checkmark: { color: '#0F766E', fontSize: 18, fontWeight: '800' },
-  listContainer: { paddingHorizontal: 16, paddingBottom: 140 },
+  listContainer: { paddingHorizontal: 16, paddingBottom: 170 },
   productRow: { gap: 12 },
   productCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, marginHorizontal: 0, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0' },
   productCardDisabled: { opacity: 0.72 },
