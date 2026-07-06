@@ -32,7 +32,7 @@ export const CartScreen = () => {
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9f9f9' },
   emptyText: { fontSize: 18, color: '#666' },
-  list: { padding: 15, paddingBottom: 150 },
+  list: { padding: 15, paddingBottom: 170 },
   cartItem: { flexDirection: 'row', backgroundColor: 'white', borderRadius: 10, padding: 10, marginBottom: 15, alignItems: 'center', elevation: 2 },
   itemImage: { width: 70, height: 70, borderRadius: 5 },
   itemDetails: { flex: 1, marginLeft: 15 },
