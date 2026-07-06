@@ -14,6 +14,10 @@ import CartSheet from '@/components/customer/CartSheet';
 import EmptyState from '@/components/customer/EmptyState';
 import { Sparkles, Package, SlidersHorizontal, TrendingUp, Zap, Star, PackageCheck } from 'lucide-react';
 
+function isUnavailable(product: any) {
+  return Boolean(product.availability) && product.availability?.inStock === false;
+}
+
 export default function ShopPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -41,7 +45,13 @@ export default function ShopPage() {
           }),
           apiClient.get('/products/categories'),
         ]);
-        setProducts(Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data?.items || []);
+        const nextProducts = Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data?.items || [];
+        setProducts([...nextProducts].sort((a, b) => {
+          const aUnavailable = isUnavailable(a);
+          const bUnavailable = isUnavailable(b);
+          if (aUnavailable !== bUnavailable) return aUnavailable ? 1 : -1;
+          return 0;
+        }));
         setCategories(Array.isArray(categoriesResponse.data) ? categoriesResponse.data : []);
       } catch (error) {
         console.error('Failed to fetch products', error);
