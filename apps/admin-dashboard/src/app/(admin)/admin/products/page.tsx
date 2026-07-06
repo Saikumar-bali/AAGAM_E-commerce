@@ -7,7 +7,7 @@ import { AlertTriangle, Check, DollarSign, Edit, Image as ImageIcon, Loader2, Pa
 
 type Category = { id: string; name: string };
 type Store = { id: string; name: string; isActive?: boolean; inventory?: Array<{ productId: string; quantity: number }> };
-type Product = { id: string; name: string; description: string | null; price: number; image: string | null; details?: Record<string, string> | null; categoryId: string; createdAt: string; category?: Category };
+type Product = { id: string; name: string; description: string | null; price: number; image: string | null; details?: any; categoryId: string; createdAt: string; category?: Category };
 type DetailField = { key: string; label: string; multiline?: boolean };
 type ProductForm = { name: string; description: string; price: string; categoryId: string; image: string; details: Record<string, string> };
 
