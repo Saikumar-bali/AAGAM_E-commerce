@@ -51,7 +51,7 @@ export function StoreLocationPicker({
           onAddressChange({ address: a.line1 || '', city: a.city || '', state: a.state || '', pincode: a.pincode || '' });
         }
       } catch {
-        // non-fatal
+        // Reverse geocode is helpful, but address saving must not fail if it is unavailable.
       }
     },
     [apiClient, onAddressChange]
@@ -125,25 +125,28 @@ export function StoreLocationPicker({
   };
 
   const renderMap = () => {
-    const { MapContainer, TileLayer, Marker, Circle, useMap, useMapEvents } = require('react-leaflet');
-    const L = require('leaflet');
+    const { MapContainer, TileLayer, Circle, CircleMarker, useMap, useMapEvents } = require('react-leaflet');
     require('leaflet/dist/leaflet.css');
 
     const markerPos: [number, number] = hasCoords ? [coords.lat as number, coords.lng as number] : [20.5937, 78.9629];
-    const mapZoom: number = hasCoords ? 17 : 5;
-
-    const markerIcon = L.divIcon({
-      className: 'aagam-location-pin',
-      html: '<div style="position:relative;width:34px;height:42px;transform:translate(-17px,-42px);"><div style="position:absolute;left:5px;top:0;width:24px;height:24px;border-radius:999px 999px 999px 0;background:#ef4444;border:3px solid #ffffff;box-shadow:0 8px 18px rgba(15,23,42,.35);transform:rotate(-45deg);"></div><div style="position:absolute;left:14px;top:9px;width:6px;height:6px;border-radius:999px;background:#ffffff;"></div><div style="position:absolute;left:8px;top:31px;border-radius:999px;background:rgba(15,23,42,.18);width:18px;height:7px;"></div></div>',
-      iconSize: [34, 42],
-      iconAnchor: [17, 42],
-    });
+    const mapZoom = hasCoords ? 18 : 5;
+    const mapKey = hasCoords ? `${coords.lat?.toFixed(6)}-${coords.lng?.toFixed(6)}` : 'india-default';
 
     const MapRecenter = ({ center, zoom }: { center: [number, number]; zoom: number }) => {
       const map = useMap();
       React.useEffect(() => {
-        map.invalidateSize();
-        map.setView(center, zoom, { animate: true });
+        const recenter = () => {
+          map.invalidateSize(true);
+          map.setView(center, zoom, { animate: false });
+          map.flyTo(center, zoom, { animate: true, duration: 0.35 });
+        };
+        recenter();
+        const first = window.setTimeout(recenter, 80);
+        const second = window.setTimeout(recenter, 350);
+        return () => {
+          window.clearTimeout(first);
+          window.clearTimeout(second);
+        };
       }, [map, center[0], center[1], zoom]);
       return null;
     };
@@ -155,8 +158,11 @@ export function StoreLocationPicker({
 
     return (
       <MapContainer
+        key={mapKey}
         center={markerPos}
         zoom={mapZoom}
+        minZoom={3}
+        maxZoom={19}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
@@ -173,11 +179,17 @@ export function StoreLocationPicker({
           />
         )}
         {hasCoords && (
-          <Marker
-            icon={markerIcon}
-            draggable={true}
-            eventHandlers={{ dragend: async (e: any) => { const { lat, lng } = e.target.getLatLng(); setLocationAccuracy(null); onCoordsChange(lat, lng); await doReverseGeocode(lat, lng); } }}
-            position={[coords.lat as number, coords.lng as number]}
+          <CircleMarker
+            center={[coords.lat as number, coords.lng as number]}
+            radius={10}
+            pathOptions={{ color: '#ffffff', fillColor: '#ef4444', fillOpacity: 1, weight: 4 }}
+          />
+        )}
+        {hasCoords && (
+          <CircleMarker
+            center={[coords.lat as number, coords.lng as number]}
+            radius={3}
+            pathOptions={{ color: '#7f1d1d', fillColor: '#7f1d1d', fillOpacity: 1, weight: 1 }}
           />
         )}
         <MapClick onMapClick={async (lat: number, lng: number) => { setLocationAccuracy(null); onCoordsChange(lat, lng); await doReverseGeocode(lat, lng); }} />
@@ -237,7 +249,7 @@ export function StoreLocationPicker({
         </div>
       )}
 
-      <div className="rounded-xl overflow-hidden border border-gray-200 h-64 bg-gray-50">
+      <div className="rounded-xl overflow-hidden border border-gray-200 h-72 bg-gray-50">
         {isMounted ? renderMap() : (
           <div className="h-full w-full flex items-center justify-center bg-gray-100">
             <span className="text-xs text-gray-400">Loading map...</span>
@@ -246,7 +258,7 @@ export function StoreLocationPicker({
       </div>
 
       {hasCoords && (
-        <p className="text-xs text-gray-500 text-center">Drag the red pin or click the map to fine-tune location</p>
+        <p className="text-xs text-gray-500 text-center">Click the map to fine-tune location</p>
       )}
     </div>
   );
