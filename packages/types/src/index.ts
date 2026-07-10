@@ -13,8 +13,53 @@ export const ORDER_STATUS_VALUES = [
   'DELIVERED',
   'CANCELLED',
 ] as const;
+export const DELIVERY_JOB_STATUS_VALUES = [
+  'WAITING_FOR_DISPATCH',
+  'RIDER_ASSIGNED',
+  'RIDER_EN_ROUTE_TO_STORE',
+  'RIDER_AT_STORE',
+  'PICKUP_VERIFIED',
+  'OUT_FOR_DELIVERY',
+  'RIDER_AT_CUSTOMER',
+  'DELIVERED',
+  'DELIVERY_FAILED',
+  'RETURNING_TO_STORE',
+  'RETURNED_TO_STORE',
+  'CANCELLED',
+] as const;
+export const DISPATCH_ASSIGNMENT_STATUS_VALUES = [
+  'CREATED',
+  'OFFERED',
+  'ACCEPTED',
+  'REJECTED',
+  'EXPIRED',
+  'CANCELLED',
+  'REASSIGNED',
+] as const;
+export const DELIVERY_EVENT_TYPE_VALUES = [
+  'JOB_CREATED',
+  'JOB_STATUS_CHANGED',
+  'ASSIGNMENT_CREATED',
+  'ASSIGNMENT_OFFERED',
+  'ASSIGNMENT_ACCEPTED',
+  'ASSIGNMENT_REJECTED',
+  'ASSIGNMENT_EXPIRED',
+  'ASSIGNMENT_CANCELLED',
+  'ASSIGNMENT_REASSIGNED',
+  'LEGACY_ADAPTER_USED',
+] as const;
 export const PAYMENT_METHOD_VALUES = ['ONLINE', 'COD'] as const;
 export const PAYMENT_STATUS_VALUES = ['CREATED', 'CAPTURED', 'FAILED', 'PENDING_COD'] as const;
+
+export const DeliveryJobStatus = Object.freeze(
+  DELIVERY_JOB_STATUS_VALUES.reduce((acc, value) => ({ ...acc, [value]: value }), {} as Record<(typeof DELIVERY_JOB_STATUS_VALUES)[number], (typeof DELIVERY_JOB_STATUS_VALUES)[number]>),
+);
+export const DispatchAssignmentStatus = Object.freeze(
+  DISPATCH_ASSIGNMENT_STATUS_VALUES.reduce((acc, value) => ({ ...acc, [value]: value }), {} as Record<(typeof DISPATCH_ASSIGNMENT_STATUS_VALUES)[number], (typeof DISPATCH_ASSIGNMENT_STATUS_VALUES)[number]>),
+);
+export const DeliveryEventType = Object.freeze(
+  DELIVERY_EVENT_TYPE_VALUES.reduce((acc, value) => ({ ...acc, [value]: value }), {} as Record<(typeof DELIVERY_EVENT_TYPE_VALUES)[number], (typeof DELIVERY_EVENT_TYPE_VALUES)[number]>),
+);
 
 export const UserSchema = z.object({
   id: z.string().cuid(),
@@ -33,10 +78,66 @@ export const OrderSchema = z.object({
   totalAmount: z.number(),
 });
 
+export const OfferDispatchAssignmentSchema = z.object({
+  riderUserId: z.string().min(1),
+  expiresInSeconds: z.number().int().min(15).max(300).optional().default(60),
+});
+
+export const RejectDispatchAssignmentSchema = z.object({
+  reason: z.string().trim().min(2).max(300).optional(),
+});
+
+export const DeliveryProofSchema = z.object({
+  proofType: z.string().trim().min(2).max(80).optional(),
+  code: z.string().trim().max(32).optional(),
+  note: z.string().trim().max(500).optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+});
+
+export const DeliveryJobTransitionSchema = z.object({
+  metadata: z.record(z.unknown()).optional(),
+});
+
 export type RoleType = (typeof ROLE_VALUES)[number];
 export type OrderStatusType = (typeof ORDER_STATUS_VALUES)[number];
+export type DeliveryJobStatusType = (typeof DELIVERY_JOB_STATUS_VALUES)[number];
+export type DispatchAssignmentStatusType = (typeof DISPATCH_ASSIGNMENT_STATUS_VALUES)[number];
+export type DeliveryEventTypeType = (typeof DELIVERY_EVENT_TYPE_VALUES)[number];
 export type PaymentMethodType = (typeof PAYMENT_METHOD_VALUES)[number];
 export type PaymentStatusType = (typeof PAYMENT_STATUS_VALUES)[number];
+export type OfferDispatchAssignmentDto = z.infer<typeof OfferDispatchAssignmentSchema>;
+export type RejectDispatchAssignmentDto = z.infer<typeof RejectDispatchAssignmentSchema>;
+export type DeliveryProofDto = z.infer<typeof DeliveryProofSchema>;
+export type DeliveryJobTransitionDto = z.infer<typeof DeliveryJobTransitionSchema>;
+
+export interface DeliveryActorDto {
+  id: string;
+  role: RoleType;
+}
+
+export interface DispatchAssignmentDto {
+  id: string;
+  deliveryJobId: string;
+  riderProfileId: string;
+  status: DispatchAssignmentStatusType;
+  offeredAt?: string | Date | null;
+  respondedAt?: string | Date | null;
+  expiresAt?: string | Date | null;
+  rejectionReason?: string | null;
+  createdByUserId?: string | null;
+}
+
+export interface DeliveryJobDto {
+  id: string;
+  orderId: string;
+  status: DeliveryJobStatusType;
+  currentRiderId?: string | null;
+  version: number;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+  assignments?: DispatchAssignmentDto[];
+}
 
 export interface AddressType {
   id: string;
@@ -103,6 +204,7 @@ export interface OrderDetailType {
   grandTotal?: number;
   createdAt: string;
   updatedAt?: string;
+  deliveryJob?: DeliveryJobDto | null;
   payment?: {
     method: PaymentMethodType;
     status: PaymentStatusType | string;
