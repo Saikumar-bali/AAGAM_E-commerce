@@ -95,6 +95,18 @@ if [ -n "$CODESPACE_NAME" ] && [ -n "$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN" 
   echo "CORS_ORIGINS=$WEB_URL,http://localhost:3001,http://localhost:3000" >> .env
   echo "  -> Public API: $API_URL"
   echo "  -> Public Web: $WEB_URL"
+  # Write NEXT_PUBLIC_API_URL so Next.js admin dashboard uses the right API
+  echo "NEXT_PUBLIC_API_URL=$API_URL" >> .env
+  mkdir -p apps/admin-dashboard
+  echo "NEXT_PUBLIC_API_URL=$API_URL" > apps/admin-dashboard/.env.local
+  export NEXT_PUBLIC_API_URL="$API_URL"
+fi
+
+# Fallback: if no Codespace URL, still set for local dev
+if [ -z "$NEXT_PUBLIC_API_URL" ]; then
+  echo "NEXT_PUBLIC_API_URL=http://localhost:4000" >> .env
+  echo "NEXT_PUBLIC_API_URL=http://localhost:4000" > apps/admin-dashboard/.env.local
+  export NEXT_PUBLIC_API_URL="http://localhost:4000"
 fi
 
 # --------------------------------------------------
