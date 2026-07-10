@@ -83,11 +83,13 @@ export class DispatchService {
     if (assignment.status !== 'ACCEPTED') {
       throw new ForbiddenException('Accept the assignment before pickup');
     }
-    const result = await this.workflow.legacyPickup(
+    await this.workflow.legacyPickup(
       assignment.deliveryJob.id,
       { id: riderUserId, role: Role.RIDER },
     );
-    return { ...(result?.order || {}), deliveryJob: result };
+    const detailedJob = await this.jobs.getByOrderId(orderId);
+    if (!detailedJob) throw new NotFoundException('Delivery job not found after pickup');
+    return { ...detailedJob.order, deliveryJob: detailedJob };
   }
 
   async markDelivered(
@@ -97,11 +99,13 @@ export class DispatchService {
   ) {
     const assignment = await this.assignments.findCurrentForOrderAndRider(orderId, riderUserId);
     if (!assignment.deliveryJob) throw new NotFoundException('Delivery job not found');
-    const result = await this.workflow.legacyDeliver(
+    await this.workflow.legacyDeliver(
       assignment.deliveryJob.id,
       { id: riderUserId, role: Role.RIDER },
       proof,
     );
-    return { ...(result?.order || {}), deliveryJob: result };
+    const detailedJob = await this.jobs.getByOrderId(orderId);
+    if (!detailedJob) throw new NotFoundException('Delivery job not found after completion');
+    return { ...detailedJob.order, deliveryJob: detailedJob };
   }
 }
