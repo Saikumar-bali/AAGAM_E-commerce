@@ -1,4 +1,9 @@
 import { prisma, Role } from '@aagam/database';
+import { OrderService } from './orders/order.service';
+import { RefundsService } from './payments/refunds.service';
+import { ProductService } from './products/product.service';
+import { StoreService } from './stores/store.service';
+import { CheckoutService } from './checkout/checkout.service';
 
 const TEST_USER_PREFIX = '_test_phase1_';
 
@@ -60,7 +65,6 @@ describe('Phase 1: Soft Delete', () => {
   });
 
   it('Soft-deleted product should not appear in findAll', async () => {
-    const { ProductService } = await import('./products/product.service');
     const cacheManager = { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn() };
     const service = new ProductService(cacheManager as any);
 
@@ -85,7 +89,6 @@ describe('Phase 1: Soft Delete', () => {
   });
 
   it('Soft-deleted store should not appear in store findAll', async () => {
-    const { StoreService } = await import('./stores/store.service');
     const cacheManager = { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn() };
     const service = new StoreService(cacheManager as any);
 
@@ -133,7 +136,7 @@ describe('Phase 1: Store Tenancy', () => {
   });
 
   it('Store-owner cannot update inventory of another owners store', async () => {
-    const { StoreService } = await import('./stores/store.service');
+
     const cacheManager = { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn() };
     const service = new StoreService(cacheManager as any);
 
@@ -143,7 +146,7 @@ describe('Phase 1: Store Tenancy', () => {
   });
 
   it('Admin can update any store inventory', async () => {
-    const { StoreService } = await import('./stores/store.service');
+
     const cacheManager = { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn() };
     const service = new StoreService(cacheManager as any);
 
@@ -185,7 +188,7 @@ describe('Phase 1: Inventory Ledger', () => {
   });
 
   it('Manual inventory update should create ledger entry', async () => {
-    const { StoreService } = await import('./stores/store.service');
+
     const cacheManager = { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn() };
     const service = new StoreService(cacheManager as any);
 
@@ -202,7 +205,7 @@ describe('Phase 1: Inventory Ledger', () => {
   });
 
   it('Second manual update should log correct delta', async () => {
-    const { StoreService } = await import('./stores/store.service');
+
     const cacheManager = { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn() };
     const service = new StoreService(cacheManager as any);
 
@@ -254,7 +257,7 @@ describe('Phase 1: Store Soft Delete Preserves Orders', () => {
     expect(order).toBeDefined();
     expect(order.storeId).toBe(store.id);
 
-    const { StoreService } = await import('./stores/store.service');
+
     const cacheManager = { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn() };
     const service = new StoreService(cacheManager as any);
     await service.delete(store.id);
@@ -309,7 +312,7 @@ describe('Phase 1: Checkout Inventory and Ledger', () => {
     });
     expect(inventoryBefore!.quantity).toBe(20);
 
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const trackingGateway = {
       server: { to: jest.fn().mockReturnThis(), emit: jest.fn() },
       emitOrderStatusUpdated: jest.fn(),
@@ -382,8 +385,6 @@ describe('Phase 1: Cancellation Inventory Restore and Ledger', () => {
     });
     expect(inventoryBefore!.quantity).toBe(10);
 
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const trackingGateway = { emitOrderStatusUpdated: jest.fn(), emitOrderTimelineUpdated: jest.fn() };
     const orderService = new OrderService(trackingGateway as any, new RefundsService());
 

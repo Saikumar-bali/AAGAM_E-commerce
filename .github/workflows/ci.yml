@@ -38,7 +38,19 @@ jobs:
             turbo-${{ runner.os }}-
 
       - name: Build
-        run: npx turbo build --cache-dir=".turbo" --force
+        shell: bash
+        run: |
+          set -o pipefail
+          npx turbo build --cache-dir=".turbo" --force 2>&1 | tee build-output.log
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-0-build-output-${{ github.run_id }}
+          path: build-output.log
+          if-no-files-found: ignore
+          retention-days: 1
 
   test:
     name: Service Tests
@@ -95,4 +107,16 @@ jobs:
         run: npx prisma migrate status --schema packages/database/prisma/schema.prisma
 
       - name: Run CI-safe tests
-        run: npm run test:ci --workspace=apps/api-gateway
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:ci --workspace=apps/api-gateway 2>&1 | tee test-output.log
+
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-0-test-output-${{ github.run_id }}
+          path: test-output.log
+          if-no-files-found: ignore
+          retention-days: 1

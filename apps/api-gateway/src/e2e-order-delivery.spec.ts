@@ -1,4 +1,8 @@
 import { OrderStatus, PaymentMethod, PaymentStatus, Role, prisma } from '@aagam/database';
+import { CheckoutService } from './checkout/checkout.service';
+import { OrderService } from './orders/order.service';
+import { TrackingService } from './tracking/tracking.service';
+import { RefundsService } from './payments/refunds.service';
 
 const PREFIX = '_test_phase5e2e_';
 
@@ -94,13 +98,9 @@ describe('Phase 5 E2E: Complete Order-to-Delivery Workflow', () => {
   });
 
   it('complete workflow: customer order → store prepare → assign rider → rider deliver', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
-    const { OrderService } = await import('./orders/order.service');
-    const { TrackingService } = await import('./tracking/tracking.service');
-
     const mockGateway = createTrackingGatewayMock();
     const mockNotification = createNotificationServiceMock();
-    const refundService = new (await import('./payments/refunds.service')).RefundsService();
+    const refundService = new RefundsService();
     const checkoutService = new CheckoutService(mockGateway as any, mockNotification as any);
     const orderService = new OrderService(mockGateway as any, refundService);
     const trackingService = new TrackingService(mockGateway as any, orderService);

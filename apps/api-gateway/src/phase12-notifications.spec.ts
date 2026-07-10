@@ -1,4 +1,5 @@
 import { OrderStatus, Role, prisma } from '@aagam/database';
+import { NotificationService } from './notifications/notification.service';
 
 const PREFIX = '_test_phase12_notifications_';
 
@@ -58,7 +59,6 @@ async function seed() {
 }
 
 function service() {
-  const { NotificationService } = require('./notifications/notification.service');
   return new NotificationService();
 }
 

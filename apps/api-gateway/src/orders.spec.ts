@@ -1,4 +1,6 @@
 import { OrderStatus, PaymentMethod, PaymentStatus, Role, prisma } from '@aagam/database';
+import { OrderService } from './orders/order.service';
+import { RefundsService } from './payments/refunds.service';
 
 const TEST_PREFIX = '_test_phase3order_';
 
@@ -109,8 +111,6 @@ describe('Phase 3: Order Status State Machine', () => {
 
   it('should reject transition from PENDING to OUT_FOR_DELIVERY', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'PENDING');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -120,8 +120,6 @@ describe('Phase 3: Order Status State Machine', () => {
 
   it('should reject transition from CONFIRMED to DELIVERED', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -131,8 +129,6 @@ describe('Phase 3: Order Status State Machine', () => {
 
   it('should allow valid transition CONFIRMED -> PICKING', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const result = await service.updateStatus(order.id, OrderStatus.PICKING, { id: ownerId, role: Role.STORE_OWNER });
@@ -142,8 +138,6 @@ describe('Phase 3: Order Status State Machine', () => {
 
   it('terminal state DELIVERED should be immutable', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'DELIVERED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -153,8 +147,6 @@ describe('Phase 3: Order Status State Machine', () => {
 
   it('terminal state CANCELLED should be immutable', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'CANCELLED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -164,8 +156,6 @@ describe('Phase 3: Order Status State Machine', () => {
 
   it('should record status history on every transition', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await service.updateStatus(order.id, OrderStatus.PICKING, { id: ownerId, role: Role.STORE_OWNER });
@@ -224,8 +214,6 @@ describe('Phase 3: Store Owner Operations', () => {
 
   it('should find store orders for owner', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'PENDING');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const orders = await service.findStoreOrders(ownerId);
@@ -236,8 +224,6 @@ describe('Phase 3: Store Owner Operations', () => {
   });
 
   it('should return empty array for owner with no stores', async () => {
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const noStoreOwner = await prisma.user.create({
@@ -251,8 +237,6 @@ describe('Phase 3: Store Owner Operations', () => {
 
   it('should not allow store owner to update order of another store', async () => {
     const order = await createTestOrder(customerId, otherStoreId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -263,8 +247,6 @@ describe('Phase 3: Store Owner Operations', () => {
   it('should not allow store owner to set DELIVERED status', async () => {
     // OUT_FOR_DELIVERY -> DELIVERED is valid generically but forbidden for store owner
     const order = await createTestOrder(customerId, storeId, productId, 'OUT_FOR_DELIVERY');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -274,8 +256,6 @@ describe('Phase 3: Store Owner Operations', () => {
 
   it('should not allow store owner to set RIDER_ASSIGNED status', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'PACKED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -285,8 +265,6 @@ describe('Phase 3: Store Owner Operations', () => {
 
   it('should allow store owner to set CONFIRMED, PICKING, PACKED, CANCELLED', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const result = await service.updateStatus(order.id, OrderStatus.PICKING, { id: ownerId, role: Role.STORE_OWNER });
@@ -295,8 +273,6 @@ describe('Phase 3: Store Owner Operations', () => {
 
   it('should not allow store owner to transition to OUT_FOR_DELIVERY', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'RIDER_ASSIGNED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -349,8 +325,6 @@ describe('Phase 3: Rider Operations', () => {
 
   it('should assign rider to an unassigned order', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const result = await service.assignRider(order.id, riderId);
@@ -367,8 +341,6 @@ describe('Phase 3: Rider Operations', () => {
     // Create as CONFIRMED (assignable) but set riderId to simulate already assigned
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
     await prisma.order.update({ where: { id: order.id }, data: { riderId: riderProfileId } });
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -378,8 +350,6 @@ describe('Phase 3: Rider Operations', () => {
 
   it('should not assign rider to delivered order', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'DELIVERED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -393,8 +363,6 @@ describe('Phase 3: Rider Operations', () => {
       data: { email: `${TEST_PREFIX}ro_offlinerider@test.com`, role: 'RIDER', name: 'RO Offline Rider' },
     });
     await prisma.riderProfile.create({ data: { userId: offlineRider.id, status: 'OFFLINE' } });
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -404,8 +372,6 @@ describe('Phase 3: Rider Operations', () => {
 
   it('should not assign non-rider user', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -416,8 +382,6 @@ describe('Phase 3: Rider Operations', () => {
   it('rider should set OUT_FOR_DELIVERY on own assigned order', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'RIDER_ASSIGNED');
     await prisma.order.update({ where: { id: order.id }, data: { riderId: riderProfileId } });
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const result = await service.updateStatus(order.id, OrderStatus.OUT_FOR_DELIVERY, { id: riderId, role: Role.RIDER });
@@ -427,8 +391,6 @@ describe('Phase 3: Rider Operations', () => {
   it('rider should not set status on order assigned to another rider', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'RIDER_ASSIGNED');
     await prisma.order.update({ where: { id: order.id }, data: { riderId: riderProfileId } });
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -440,8 +402,6 @@ describe('Phase 3: Rider Operations', () => {
     // RIDER_ASSIGNED -> CANCELLED is valid in ORDER_TRANSITIONS but not in RIDER_TRANSITIONS
     const order = await createTestOrder(customerId, storeId, productId, 'RIDER_ASSIGNED');
     await prisma.order.update({ where: { id: order.id }, data: { riderId: riderProfileId } });
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -452,8 +412,6 @@ describe('Phase 3: Rider Operations', () => {
   it('rider should set DELIVERED on own assigned order and record delivery proof', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'OUT_FOR_DELIVERY');
     await prisma.order.update({ where: { id: order.id }, data: { riderId: riderProfileId } });
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const result = await service.updateStatus(order.id, OrderStatus.DELIVERED, { id: riderId, role: Role.RIDER });
@@ -489,8 +447,6 @@ describe('Phase 3: Rider Operations', () => {
     await prisma.riderProfile.update({ where: { id: riderProfileId }, data: { status: 'ONLINE' } });
 
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await service.assignRider(order.id, riderId);
@@ -558,8 +514,6 @@ describe('Phase 3: Admin Operations', () => {
 
   it('admin can update any status within valid transitions', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'PENDING');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const result = await service.updateStatus(order.id, OrderStatus.CONFIRMED, { id: adminId, role: Role.ADMIN });
@@ -570,8 +524,6 @@ describe('Phase 3: Admin Operations', () => {
     const order = await createTestOrder(customerId, storeId, productId, 'RIDER_ASSIGNED');
     await prisma.order.update({ where: { id: order.id }, data: { riderId: riderProfileId1 } });
 
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const result = await service.reassignRider(order.id, riderId2, { id: adminId, role: Role.ADMIN });
@@ -587,8 +539,6 @@ describe('Phase 3: Admin Operations', () => {
 
   it('non-admin cannot reassign rider', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -607,8 +557,6 @@ describe('Phase 3: Admin Operations', () => {
     });
     expect(beforeInv!.quantity).toBe(20);
 
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const result = await service.forceCancel(order.id, { id: adminId, role: Role.ADMIN }, 'Test force cancel');
@@ -631,8 +579,6 @@ describe('Phase 3: Admin Operations', () => {
 
   it('non-admin cannot force cancel', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -642,8 +588,6 @@ describe('Phase 3: Admin Operations', () => {
 
   it('force cancel on already delivered order should fail', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'DELIVERED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -658,8 +602,6 @@ describe('Phase 3: Admin Operations', () => {
     await prisma.riderProfile.update({ where: { id: riderProfileId2 }, data: { status: 'ONLINE' } });
 
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const result = await service.reassignRider(order.id, riderId1, { id: adminId, role: Role.ADMIN });
@@ -686,8 +628,6 @@ describe('Phase 3: Admin Operations', () => {
     await prisma.riderProfile.update({ where: { id: riderProfileId2 }, data: { status: 'ONLINE' } });
 
     const order = await createTestOrder(customerId, storeId, productId, 'PACKED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const result = await service.reassignRider(order.id, riderId2, { id: adminId, role: Role.ADMIN });
@@ -715,8 +655,6 @@ describe('Phase 3: Admin Operations', () => {
 
     // Try to reassign a different order to rider1 while rider1 has an active order
     const targetOrder = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -733,8 +671,6 @@ describe('Phase 3: Admin Operations', () => {
 
     // Try to reassign a different order to rider2 while rider2 has an active order
     const targetOrder = await createTestOrder(customerId, storeId, productId, 'PACKED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -751,8 +687,6 @@ describe('Phase 3: Admin Operations', () => {
     await prisma.riderProfile.update({ where: { id: riderProfileId1 }, data: { status: 'ONLINE' } });
 
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const first = await service.reassignRider(order.id, riderId1, { id: adminId, role: Role.ADMIN });
@@ -795,8 +729,6 @@ describe('Phase 3: Customer Cancellation', () => {
 
   it('customer can cancel own PENDING order', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'PENDING');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await service.cancelMyOrder(customerId, order.id);
@@ -811,8 +743,6 @@ describe('Phase 3: Customer Cancellation', () => {
     const otherCustomer = await prisma.user.create({
       data: { email: `${TEST_PREFIX}cc_other@test.com`, role: 'CUSTOMER', name: 'CC Other' },
     });
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -824,8 +754,6 @@ describe('Phase 3: Customer Cancellation', () => {
 
   it('customer cannot cancel once rider is assigned', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'RIDER_ASSIGNED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await expect(
@@ -839,8 +767,6 @@ describe('Phase 3: Customer Cancellation', () => {
       where: { storeId_productId: { storeId, productId } },
       data: { quantity: 10 },
     });
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await service.cancelMyOrder(customerId, order.id);
@@ -859,8 +785,6 @@ describe('Phase 3: Customer Cancellation', () => {
 
   it('cancellation records status history', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await service.cancelMyOrder(customerId, order.id);
@@ -912,8 +836,6 @@ describe('Phase 3: Ride Lifecycle Full Flow', () => {
 
   it('full flow: PENDING -> CONFIRMED -> PICKING -> PACKED -> RIDER_ASSIGNED -> OUT_FOR_DELIVERY -> DELIVERED', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'PENDING');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const adminActor = { id: riderId, role: Role.ADMIN };
@@ -961,8 +883,6 @@ describe('Phase 3: Ride Lifecycle Full Flow', () => {
 
   it('rider goes BUSY on assignment and ONLINE on delivery', async () => {
     const order = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     await service.assignRider(order.id, riderId);
@@ -1008,8 +928,6 @@ describe('Phase 3: Store Owner Listing and Access', () => {
     const order1 = await createTestOrder(customerId, storeId, productId, 'PENDING');
     const order2 = await createTestOrder(customerId, storeId, productId, 'CONFIRMED');
 
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const orders = await service.findStoreOrders(ownerId);
@@ -1019,8 +937,6 @@ describe('Phase 3: Store Owner Listing and Access', () => {
   });
 
   it('findStoreOrders should include statusHistory', async () => {
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
     const service = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
 
     const orders = await service.findStoreOrders(ownerId);

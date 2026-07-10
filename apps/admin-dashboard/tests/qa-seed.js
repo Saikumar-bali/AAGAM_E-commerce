@@ -51,6 +51,56 @@ async function main() {
   assertSafeQaSeedTarget();
   console.log('QA Seed: Ensuring test orders are in correct state...');
 
+  // --- Ensure reference entities exist using upsert by unique field ---
+
+  // Upsert QA customer by email, retain returned ID
+  const qaCustomer = await prisma.user.upsert({
+    where: { email: 'qa-rider-pick-customer@aagam.com' },
+    update: { role: 'CUSTOMER', name: 'QA Rider Pick Customer' },
+    create: { email: 'qa-rider-pick-customer@aagam.com', role: 'CUSTOMER', name: 'QA Rider Pick Customer' },
+  });
+  console.log('  QA customer ready:', qaCustomer.id);
+
+  // Upsert QA store owner
+  const qaStoreOwner = await prisma.user.upsert({
+    where: { email: 'qa-rider-pick-store@aagam.com' },
+    update: { role: 'STORE_OWNER', name: 'QA Rider Pick Store Owner' },
+    create: { email: 'qa-rider-pick-store@aagam.com', role: 'STORE_OWNER', name: 'QA Rider Pick Store Owner' },
+  });
+  console.log('  QA store owner ready:', qaStoreOwner.id);
+
+  // Upsert QA store
+  const qaStore = await prisma.store.upsert({
+    where: { id: 'qa-store-rider-pick' },
+    update: { name: 'QA Rider Pick Store', ownerId: qaStoreOwner.id },
+    create: { id: 'qa-store-rider-pick', name: 'QA Rider Pick Store', address: 'QA Address', latitude: 23.0225, longitude: 72.5714, ownerId: qaStoreOwner.id },
+  });
+  console.log('  QA store ready:', qaStore.id);
+
+  // Upsert QA category
+  const qaCat = await prisma.category.upsert({
+    where: { id: 'qa-cat-rider-pick' },
+    update: { name: 'QA Rider Pick Cat' },
+    create: { id: 'qa-cat-rider-pick', name: 'QA Rider Pick Cat' },
+  });
+  console.log('  QA category ready:', qaCat.id);
+
+  // Upsert QA product
+  const qaProduct = await prisma.product.upsert({
+    where: { id: 'qa-prod-rice' },
+    update: { name: 'QA Rice (1kg)', price: 120, pricePaise: 12000, categoryId: qaCat.id },
+    create: { id: 'qa-prod-rice', name: 'QA Rice (1kg)', price: 120, pricePaise: 12000, categoryId: qaCat.id },
+  });
+  console.log('  QA product ready:', qaProduct.id);
+
+  // Upsert QA inventory
+  await prisma.inventory.upsert({
+    where: { storeId_productId: { storeId: qaStore.id, productId: qaProduct.id } },
+    update: { quantity: 50 },
+    create: { storeId: qaStore.id, productId: qaProduct.id, quantity: 50 },
+  });
+  console.log('  QA inventory ready');
+
   // 1. Ensure qa-order-1 is in PICKING status for store owner test
   const order1 = await prisma.order.findUnique({ where: { id: 'qa-order-1' } });
   if (order1 && order1.status !== 'PICKING') {
@@ -80,16 +130,15 @@ async function main() {
     console.log('  Cleared rider from qa-order-1');
   }
 
-  // 3. Create a fresh CONFIRMED order for rider pickup test
-  // Delete if exists from previous runs
+  // 3. Create a fresh CONFIRMED order for rider pickup test using upserted entities
   await prisma.orderItem.deleteMany({ where: { orderId: 'qa-order-rider-pick' } });
   await prisma.order.deleteMany({ where: { id: 'qa-order-rider-pick' } }).catch(() => {});
 
   await prisma.order.create({
     data: {
       id: 'qa-order-rider-pick',
-      customerId: 'cmqvw49hb0000any88lusq1se',
-      storeId: 'test-store-001',
+      customerId: qaCustomer.id,
+      storeId: qaStore.id,
       status: 'CONFIRMED',
       totalAmount: 120,
       grandTotal: 120,
@@ -101,7 +150,7 @@ async function main() {
         create: [
           {
             id: 'qa-rider-item-1',
-            productId: 'test-prod-rice-(1kg)',
+            productId: qaProduct.id,
             quantity: 1,
             price: 120,
           },
@@ -109,7 +158,7 @@ async function main() {
       },
     },
   });
-  console.log('  Created qa-order-rider-pick (CONFIRMED, no rider)');
+  console.log('  Created qa-order-rider-pick (CONFIRMED, no rider) using upserted entities');
 
   // 4. Reset qa-order-4 to PACKED (in case test changed it)
   const order4 = await prisma.order.findUnique({ where: { id: 'qa-order-4' } });
@@ -151,30 +200,29 @@ async function main() {
     console.log('  qa-order-6 already PACKED');
   }
 
-  // 6. Ensure rider@aagam.com profile is ONLINE so they can pick orders
-  const riderProfile = await prisma.riderProfile.findUnique({ where: { userId: 'cmqvw49jc0001any8xza96dvn' } });
-  if (riderProfile && riderProfile.status !== 'ONLINE') {
-    await prisma.riderProfile.update({
-      where: { userId: 'cmqvw49jc0001any8xza96dvn' },
-      data: { status: 'ONLINE', latitude: 23.0225, longitude: 72.5714 },
+  // 6. Ensure rider@aagam.com exists and profile is ONLINE
+  const riderUser = await prisma.user.findUnique({ where: { email: 'rider@aagam.com' } });
+  if (!riderUser) {
+    console.log('  rider@aagam.com not found — creating rider user');
+    const newRider = await prisma.user.create({
+      data: { email: 'rider@aagam.com', role: 'RIDER', name: 'QA Rider' },
     });
-    console.log('  Set rider@aagam.com profile to ONLINE');
-  } else if (!riderProfile) {
-    await prisma.riderProfile.create({
-      data: {
-        userId: 'cmqvw49jc0001any8xza96dvn',
-        status: 'ONLINE',
-        latitude: 23.0225,
-        longitude: 72.5714,
-      },
+    const rp = await prisma.riderProfile.upsert({
+      where: { userId: newRider.id },
+      update: { status: 'ONLINE', latitude: 23.0225, longitude: 72.5714 },
+      create: { userId: newRider.id, status: 'ONLINE', latitude: 23.0225, longitude: 72.5714 },
     });
-    console.log('  Created rider@aagam.com profile as ONLINE');
+    console.log('  Created rider profile:', rp.id);
   } else {
-    console.log('  rider@aagam.com profile already ONLINE');
+    const rp = await prisma.riderProfile.upsert({
+      where: { userId: riderUser.id },
+      update: { status: 'ONLINE', latitude: 23.0225, longitude: 72.5714 },
+      create: { userId: riderUser.id, status: 'ONLINE', latitude: 23.0225, longitude: 72.5714 },
+    });
+    console.log('  rider@aagam.com profile ONLINE:', rp.id);
   }
 
   // 7. Clear active rider orders so rider@aagam.com can pick new ones
-  // Rider cannot pick if they have RIDER_ASSIGNED or OUT_FOR_DELIVERY orders
   await prisma.order.updateMany({
     where: {
       id: { in: ['qa-order-2', 'qa-order-3'] },

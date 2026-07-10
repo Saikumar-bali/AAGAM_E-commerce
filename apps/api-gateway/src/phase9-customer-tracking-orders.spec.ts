@@ -1,4 +1,6 @@
 import { OrderStatus, Role, prisma } from '@aagam/database';
+import { OrderService } from './orders/order.service';
+import { RefundsService } from './payments/refunds.service';
 
 const PREFIX = '_test_p9customer_tracking_';
 
@@ -82,9 +84,7 @@ async function seed(status: OrderStatus, pingAgeMinutes = 0) {
 }
 
 function orderService() {
-  const { OrderService } = require('./orders/order.service');
-  const { RefundsService } = require('./payments/refunds.service');
-  const gateway = { emitOrderStatusUpdated: jest.fn(), emitOrderTimelineUpdated: jest.fn(), emitRiderAssigned: jest.fn() };
+  const gateway = { emitOrderStatusUpdated: jest.fn(), emitOrderTimelineUpdated: jest.fn(), emitRiderAssigned: jest.fn() } as any;
   return new OrderService(gateway, new RefundsService());
 }
 

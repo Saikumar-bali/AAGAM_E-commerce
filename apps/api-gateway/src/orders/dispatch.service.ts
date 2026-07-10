@@ -1,172 +1,111 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus, Role, prisma } from '@aagam/database';
-import { OrderService } from './order.service';
-
-const ACTIVE_RIDER_ORDER_STATUSES = [OrderStatus.RIDER_ASSIGNED, OrderStatus.OUT_FOR_DELIVERY];
-const DISPATCH_ASSIGNABLE_STATUSES: OrderStatus[] = [OrderStatus.PACKED];
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Role } from '@aagam/database';
+import {
+  DeliveryJobStatusType,
+  DeliveryProofDto,
+} from '@aagam/types';
+import { DeliveryJobService } from './delivery-job.service';
+import { DispatchAssignmentService } from './dispatch-assignment.service';
+import { DeliveryWorkflowService } from './delivery-workflow.service';
 
 type Actor = { id: string; role: Role };
-type DeliveryProofInput = { proofType?: string; code?: string; note?: string; latitude?: number; longitude?: number };
 
 @Injectable()
 export class DispatchService {
-  constructor(private readonly orderService: OrderService) {}
+  constructor(
+    private readonly jobs: DeliveryJobService,
+    private readonly assignments: DispatchAssignmentService,
+    private readonly workflow: DeliveryWorkflowService,
+  ) {}
 
-  async getBoard(actor: Actor) {
-    const storeWhere = actor.role === Role.STORE_OWNER ? { ownerId: actor.id } : {};
-    const stores = await prisma.store.findMany({ where: storeWhere, select: { id: true } });
-    const storeIds = stores.map((store) => store.id);
-
-    const orders = await prisma.order.findMany({
-      where: {
-        status: { in: [OrderStatus.PACKED, OrderStatus.RIDER_ASSIGNED, OrderStatus.OUT_FOR_DELIVERY] },
-        ...(actor.role === Role.STORE_OWNER ? { storeId: { in: storeIds } } : {}),
-      },
-      include: {
-        customer: { select: { name: true, email: true, phone: true } },
-        store: { select: { id: true, name: true, ownerId: true, address: true, latitude: true, longitude: true } },
-        rider: { include: { user: { select: { id: true, name: true, phone: true, email: true } } } },
-        items: { include: { product: { select: { name: true, image: true } } } },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    const riders = await prisma.riderProfile.findMany({
-      where: { status: { in: ['ONLINE', 'BUSY'] as any } },
-      include: { user: { select: { id: true, name: true, email: true, phone: true } } },
-      orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
-    });
-
-    const activeOrders = await prisma.order.groupBy({
-      by: ['riderId'],
-      where: { riderId: { not: null }, status: { in: ACTIVE_RIDER_ORDER_STATUSES } },
-      _count: { _all: true },
-    });
-    const activeByRiderId = new Map(activeOrders.map((row) => [row.riderId, row._count._all]));
-
-    return {
-      waitingForRider: orders.filter((order) => order.status === OrderStatus.PACKED && !order.riderId),
-      activeDeliveries: orders.filter((order) => order.status === OrderStatus.RIDER_ASSIGNED || order.status === OrderStatus.OUT_FOR_DELIVERY),
-      riders: riders.map((rider) => ({ ...rider, activeOrderCount: activeByRiderId.get(rider.id) || 0, available: rider.status === 'ONLINE' && (activeByRiderId.get(rider.id) || 0) === 0 })),
-    };
+  getBoard(actor: Actor) {
+    return this.jobs.getBoard(actor);
   }
 
-  async assignPackedOrder(orderId: string, riderUserId: string, actor: Actor) {
-    if (actor.role !== Role.ADMIN && actor.role !== Role.STORE_OWNER) {
-      throw new ForbiddenException('Only admin or store owner can assign riders');
-    }
-
-    const riderUser = await prisma.user.findUnique({ where: { id: riderUserId } });
-    if (!riderUser || riderUser.role !== Role.RIDER) throw new BadRequestException('User is not a rider');
-
-    const rider = await prisma.riderProfile.findUnique({ where: { userId: riderUserId } });
-    if (!rider) throw new NotFoundException('Rider profile not found');
-    if (rider.status === 'OFFLINE') throw new BadRequestException('Rider is offline');
-
-    const activeOrder = await prisma.order.findFirst({
-      where: { riderId: rider.id, status: { in: ACTIVE_RIDER_ORDER_STATUSES } },
-      select: { id: true, status: true },
-    });
-    if (activeOrder) throw new ConflictException(`Rider already has active order ${activeOrder.id}`);
-
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { store: true } });
-    if (!order) throw new NotFoundException('Order not found');
-    if (actor.role === Role.STORE_OWNER && order.store.ownerId !== actor.id) {
-      throw new ForbiddenException('Not allowed to assign rider for this store');
-    }
-    if (!DISPATCH_ASSIGNABLE_STATUSES.includes(order.status as OrderStatus)) {
-      throw new BadRequestException('Only ready-for-pickup orders can be assigned');
-    }
-    if (order.riderId) throw new ConflictException('Order already has a rider');
-
-    const updated = await prisma.$transaction(async (tx) => {
-      const next = await tx.order.update({ where: { id: orderId }, data: { status: OrderStatus.RIDER_ASSIGNED, riderId: rider.id, riderAssignedAt: new Date() } });
-      await this.orderService.recordStatusHistory({
-        orderId,
-        fromStatus: order.status as OrderStatus,
-        toStatus: OrderStatus.RIDER_ASSIGNED,
-        actor,
-        note: 'Dispatcher assigned rider to ready order.',
-        metadata: { riderProfileId: rider.id, riderUserId },
-      }, tx);
-      await tx.riderProfile.update({ where: { id: rider.id }, data: { status: 'BUSY' } });
-      return next;
-    });
-
-    return updated;
+  getRiderWorkspace(riderUserId: string) {
+    return this.jobs.getRiderWorkspace(riderUserId);
   }
 
+  getLegacyRiderQueue(riderUserId: string) {
+    return this.jobs.getLegacyRiderQueue(riderUserId);
+  }
+
+  offerAssignment(
+    deliveryJobId: string,
+    riderUserId: string,
+    actor: Actor,
+    expiresInSeconds?: number,
+  ) {
+    return this.assignments.offer(deliveryJobId, riderUserId, actor, expiresInSeconds);
+  }
+
+  acceptOffer(assignmentId: string, riderUserId: string) {
+    return this.assignments.accept(assignmentId, riderUserId);
+  }
+
+  rejectOffer(assignmentId: string, riderUserId: string, reason?: string) {
+    return this.assignments.reject(assignmentId, riderUserId, reason);
+  }
+
+  transitionJob(
+    deliveryJobId: string,
+    nextStatus: DeliveryJobStatusType,
+    actor: Actor,
+    metadata?: Record<string, unknown>,
+  ) {
+    return this.workflow.transition(deliveryJobId, nextStatus, actor, metadata);
+  }
+
+  // Compatibility adapter retained for the current admin/store dispatch client.
+  assignPackedOrder(orderId: string, riderUserId: string, actor: Actor) {
+    return this.assignments.offerForOrder(orderId, riderUserId, actor);
+  }
+
+  // Compatibility adapter retained while clients migrate from order IDs to
+  // assignment IDs.
   async acceptAssignment(orderId: string, riderUserId: string) {
-    const { order, rider } = await this.assignedOrder(orderId, riderUserId);
-    if (order.status !== OrderStatus.RIDER_ASSIGNED) throw new BadRequestException('Assignment is not active');
-    await this.orderService.recordStatusHistory({
-      orderId,
-      fromStatus: order.status as OrderStatus,
-      toStatus: order.status as OrderStatus,
-      actor: { id: riderUserId, role: Role.RIDER },
-      note: 'Rider accepted the assignment.',
-      metadata: { riderProfileId: rider.id, event: 'RIDER_ACCEPTED_ASSIGNMENT' },
-    });
-    return this.orderService.findOne(orderId, { id: riderUserId, role: Role.RIDER });
+    const assignment = await this.assignments.findCurrentForOrderAndRider(orderId, riderUserId);
+    return this.assignments.accept(assignment.id, riderUserId);
   }
 
   async rejectAssignment(orderId: string, riderUserId: string, reason?: string) {
-    const { order, rider } = await this.assignedOrder(orderId, riderUserId);
-    if (order.status !== OrderStatus.RIDER_ASSIGNED) throw new BadRequestException('Only assigned orders can be rejected');
-
-    const updated = await prisma.$transaction(async (tx) => {
-      const next = await tx.order.update({ where: { id: orderId }, data: { status: OrderStatus.PACKED, riderId: null, riderAssignedAt: null } });
-      await this.orderService.recordStatusHistory({
-        orderId,
-        fromStatus: OrderStatus.RIDER_ASSIGNED,
-        toStatus: OrderStatus.PACKED,
-        actor: { id: riderUserId, role: Role.RIDER },
-        note: 'Rider rejected the assignment.',
-        metadata: { riderProfileId: rider.id, reason: reason || null, event: 'RIDER_REJECTED_ASSIGNMENT' },
-      }, tx);
-      await tx.riderProfile.update({ where: { id: rider.id }, data: { status: 'ONLINE' } });
-      return next;
-    });
-    return updated;
+    const assignment = await this.assignments.findCurrentForOrderAndRider(orderId, riderUserId);
+    return this.assignments.reject(assignment.id, riderUserId, reason);
   }
 
   async markPickedUp(orderId: string, riderUserId: string) {
-    const { order } = await this.assignedOrder(orderId, riderUserId);
-    if (order.status !== OrderStatus.RIDER_ASSIGNED) throw new BadRequestException('Only assigned orders can be picked up');
-    return this.orderService.updateStatus(orderId, OrderStatus.OUT_FOR_DELIVERY, { id: riderUserId, role: Role.RIDER });
+    const assignment = await this.assignments.findCurrentForOrderAndRider(orderId, riderUserId);
+    if (!assignment.deliveryJob) throw new NotFoundException('Delivery job not found');
+    if (assignment.status !== 'ACCEPTED') {
+      throw new ForbiddenException('Accept the assignment before pickup');
+    }
+    await this.workflow.legacyPickup(
+      assignment.deliveryJob.id,
+      { id: riderUserId, role: Role.RIDER },
+    );
+    const detailedJob = await this.jobs.getByOrderId(orderId);
+    if (!detailedJob) throw new NotFoundException('Delivery job not found after pickup');
+    return { ...detailedJob.order, deliveryJob: detailedJob };
   }
 
-  async markDelivered(orderId: string, riderUserId: string, proof: DeliveryProofInput = {}) {
-    const { order, rider } = await this.assignedOrder(orderId, riderUserId);
-    if (order.status !== OrderStatus.OUT_FOR_DELIVERY) throw new BadRequestException('Only out-for-delivery orders can be delivered');
-
-    const delivered = await this.orderService.updateStatus(orderId, OrderStatus.DELIVERED, { id: riderUserId, role: Role.RIDER });
-    await this.orderService.recordStatusHistory({
-      orderId,
-      fromStatus: OrderStatus.DELIVERED,
-      toStatus: OrderStatus.DELIVERED,
-      actor: { id: riderUserId, role: Role.RIDER },
-      note: 'Rider submitted delivery proof.',
-      metadata: {
-        event: 'DELIVERY_PROOF_RECORDED',
-        riderProfileId: rider.id,
-        proofType: proof.proofType || 'RIDER_CONFIRMATION',
-        code: proof.code || null,
-        note: proof.note || null,
-        latitude: typeof proof.latitude === 'number' ? proof.latitude : null,
-        longitude: typeof proof.longitude === 'number' ? proof.longitude : null,
-        submittedAt: new Date().toISOString(),
-      },
-    });
-    return delivered;
-  }
-
-  private async assignedOrder(orderId: string, riderUserId: string) {
-    const rider = await prisma.riderProfile.findUnique({ where: { userId: riderUserId } });
-    if (!rider) throw new NotFoundException('Rider profile not found');
-    const order = await prisma.order.findUnique({ where: { id: orderId }, select: { id: true, status: true, riderId: true } });
-    if (!order) throw new NotFoundException('Order not found');
-    if (order.riderId !== rider.id) throw new ForbiddenException('You can only manage your assigned orders');
-    return { order, rider };
+  async markDelivered(
+    orderId: string,
+    riderUserId: string,
+    proof: DeliveryProofDto = {},
+  ) {
+    const assignment = await this.assignments.findCurrentForOrderAndRider(orderId, riderUserId);
+    if (!assignment.deliveryJob) throw new NotFoundException('Delivery job not found');
+    await this.workflow.legacyDeliver(
+      assignment.deliveryJob.id,
+      { id: riderUserId, role: Role.RIDER },
+      proof,
+    );
+    const detailedJob = await this.jobs.getByOrderId(orderId);
+    if (!detailedJob) throw new NotFoundException('Delivery job not found after completion');
+    return { ...detailedJob.order, deliveryJob: detailedJob };
   }
 }
