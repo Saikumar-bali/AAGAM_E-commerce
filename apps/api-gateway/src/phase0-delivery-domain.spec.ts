@@ -141,7 +141,8 @@ describe('Phase 0 delivery domain and state-machine foundation', () => {
 
     const offer = await api.assignments.offer(job.id, data.riderUserA.id, { id: data.admin.id, role: Role.ADMIN });
     const accepted = await api.assignments.accept(offer.id, data.riderUserA.id);
-    expect(accepted.deliveryJob.status).toBe(DeliveryJobStatus.RIDER_ASSIGNED);
+    expect(accepted.deliveryJob).not.toBeNull();
+    expect(accepted.deliveryJob!.status).toBe(DeliveryJobStatus.RIDER_ASSIGNED);
 
     await api.workflow.transition(job.id, DeliveryJobStatus.RIDER_EN_ROUTE_TO_STORE, { id: data.riderUserA.id, role: Role.RIDER });
     await api.workflow.transition(job.id, DeliveryJobStatus.RIDER_AT_STORE, { id: data.riderUserA.id, role: Role.RIDER });
