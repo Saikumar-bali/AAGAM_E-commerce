@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, GoneException, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@aagam/database';
 import { OrderService } from './order.service';
+import { DispatchService } from './dispatch.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -10,17 +11,18 @@ import { ReassignRiderDto } from './dto/reassign-rider.dto';
 
 @Controller('orders')
 export class OrderController {
-  constructor(private readonly orderService: OrderService) {}
+  constructor(
+    private readonly orderService: OrderService,
+    private readonly dispatchService: DispatchService,
+  ) {}
 
-  // Body-based assign for reliability
   @Patch('assign')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.RIDER)
-  async assignOrderByBody(
-    @Body() body: { orderId: string },
-    @Req() req: any
-  ) {
-    return this.orderService.assignRider(body.orderId, req.user.id);
+  deprecatedSelfAssignment() {
+    throw new GoneException(
+      'Rider self-assignment has been removed. Open your dispatch offer and accept it through /orders/dispatch/assignments/:assignmentId/accept.',
+    );
   }
 
   @Get()
@@ -67,8 +69,9 @@ export class OrderController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.RIDER)
   async findRiderQueue(@Req() req: any) {
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    return this.orderService.findRecentForRiders(twoHoursAgo);
+    // Compatibility response: only this rider's offers and active delivery.
+    // CONFIRMED and PICKING orders are never exposed to riders.
+    return this.dispatchService.getLegacyRiderQueue(req.user.id);
   }
 
   @Get('rider')
@@ -79,9 +82,7 @@ export class OrderController {
     const riderProfile = await prisma.riderProfile.findUnique({
       where: { userId: req.user.id },
     });
-    if (!riderProfile) {
-      return [];
-    }
+    if (!riderProfile) return [];
     return this.orderService.findByRiderId(riderProfile.id);
   }
 
@@ -123,7 +124,7 @@ export class OrderController {
 
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.RIDER, Role.STORE_OWNER)
+  @Roles(Role.ADMIN, Role.STORE_OWNER)
   async updateStatus(
     @Param('id') id: string,
     @Body() body: UpdateOrderStatusDto,
