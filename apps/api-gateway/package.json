@@ -43,7 +43,7 @@
     "@types/uuid": "^9.0.0",
     "bcrypt": "^6.0.0",
     "cache-manager": "^7.2.8",
-    "cache-manager-redis-yet": "^1.5.5",
+    "cache-manager-redis-yet": "^5.1.5",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
