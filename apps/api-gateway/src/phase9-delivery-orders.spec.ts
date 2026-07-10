@@ -1,6 +1,22 @@
 import { OrderStatus, Role, prisma } from '@aagam/database';
+import { DeliveryEventService } from './orders/delivery-event.service';
+import { DeliveryJobService } from './orders/delivery-job.service';
+import { DeliveryWorkflowService } from './orders/delivery-workflow.service';
+import { DispatchAssignmentService } from './orders/dispatch-assignment.service';
+import { DispatchService } from './orders/dispatch.service';
+import { OrderService } from './orders/order.service';
+import { RefundsService } from './payments/refunds.service';
+import { TrackingService } from './tracking/tracking.service';
 
 const PREFIX = '_test_p9delivery_';
+
+function dispatchFactory() {
+  const events = new DeliveryEventService();
+  const jobs = new DeliveryJobService(events);
+  const workflow = new DeliveryWorkflowService(events);
+  const assignments = new DispatchAssignmentService(jobs, workflow, events);
+  return new DispatchService(jobs, assignments, workflow);
+}
 
 async function cleanup() {
   const users = await prisma.user.findMany({ where: { email: { contains: PREFIX } }, select: { id: true } });
@@ -9,13 +25,11 @@ async function cleanup() {
   const storeIds = stores.map((s) => s.id);
   const orders = await prisma.order.findMany({ where: { OR: [{ storeId: { in: storeIds } }, { customerId: { in: userIds } }] }, select: { id: true } });
   const orderIds = orders.map((o) => o.id);
-  const ledger = (prisma as any).inventoryLedger;
   await prisma.riderLocationPing.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.orderStatusHistory.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.payment.deleteMany({ where: { orderId: { in: orderIds } } });
+  await prisma.inventoryLedger.deleteMany({ where: { OR: [{ orderId: { in: orderIds } }, { storeId: { in: storeIds } }] } });
   await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
-  await ledger.deleteMany({ where: { orderId: { in: orderIds } } });
-  await ledger.deleteMany({ where: { storeId: { in: storeIds } } });
   await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
   await prisma.inventory.deleteMany({ where: { storeId: { in: storeIds } } });
   await prisma.store.deleteMany({ where: { id: { in: storeIds } } });
@@ -48,17 +62,14 @@ describe('Phase 9.2 delivery proof completion', () => {
   afterAll(async () => { await cleanup(); await prisma.$disconnect(); });
 
   it('rider completes delivery with proof and tracking rejects post-delivery pings', async () => {
-    const { DispatchService } = await import('./orders/dispatch.service');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
-    const { TrackingService } = await import('./tracking/tracking.service');
     const gateway = gatewayMock();
     const orderService = new OrderService(gateway, new RefundsService());
-    const dispatch = new DispatchService(orderService);
+    const dispatch = dispatchFactory();
     const tracking = new TrackingService(gateway, orderService);
     const data = await seed();
 
     await dispatch.assignPackedOrder(data.order.id, data.riderUser.id, { id: data.admin.id, role: Role.ADMIN });
+    await dispatch.acceptAssignment(data.order.id, data.riderUser.id);
     await dispatch.markPickedUp(data.order.id, data.riderUser.id);
 
     const ping = await tracking.ingestRiderLocation(data.riderUser.id, { orderId: data.order.id, latitude: 17.705, longitude: 83.305, accuracy: 8, speed: 6, heading: 90, source: 'MOBILE' });
@@ -71,23 +82,21 @@ describe('Phase 9.2 delivery proof completion', () => {
     const riderAfterDelivery = await prisma.riderProfile.findUnique({ where: { id: data.rider.id } });
     expect(riderAfterDelivery?.status).toBe('ONLINE');
 
-    const proofHistory = await prisma.orderStatusHistory.findFirst({ where: { orderId: data.order.id, note: 'Rider submitted delivery proof.' } });
-    expect((proofHistory?.metadata as any)?.event).toBe('DELIVERY_PROOF_RECORDED');
-    expect((proofHistory?.metadata as any)?.code).toBe('1234');
+    const proofHistory = await prisma.orderStatusHistory.findFirst({
+      where: { orderId: data.order.id, toStatus: OrderStatus.DELIVERED },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect((proofHistory?.metadata as any)?.deliveryProof?.code).toBe('1234');
 
     await expect(tracking.ingestRiderLocation(data.riderUser.id, { orderId: data.order.id, latitude: 17.711, longitude: 83.311, source: 'MOBILE' })).rejects.toThrow('Order is not currently live-trackable');
   });
 
   it('delivery proof is blocked before rider pickup', async () => {
-    const { DispatchService } = await import('./orders/dispatch.service');
-    const { OrderService } = await import('./orders/order.service');
-    const { RefundsService } = await import('./payments/refunds.service');
-    const gateway = gatewayMock();
-    const orderService = new OrderService(gateway, new RefundsService());
-    const dispatch = new DispatchService(orderService);
+    const dispatch = dispatchFactory();
     const data = await seed();
 
     await dispatch.assignPackedOrder(data.order.id, data.riderUser.id, { id: data.admin.id, role: Role.ADMIN });
-    await expect(dispatch.markDelivered(data.order.id, data.riderUser.id, { code: '1234' })).rejects.toThrow('Only out-for-delivery orders can be delivered');
+    await dispatch.acceptAssignment(data.order.id, data.riderUser.id);
+    await expect(dispatch.markDelivered(data.order.id, data.riderUser.id, { code: '1234' })).rejects.toThrow('Cannot transition delivery');
   });
 });

@@ -1,4 +1,8 @@
 import { PaymentMethod, PaymentStatus, RefundStatus, Role, prisma } from '@aagam/database';
+import { OrderService } from './orders/order.service';
+import { RefundsService } from './payments/refunds.service';
+import { PaymentsService } from './payments/payments.service';
+import { CheckoutService } from './checkout/checkout.service';
 
 const TEST_PREFIX = '_test_phase2_';
 
@@ -138,7 +142,7 @@ describe('Phase 2: Money - Quantity validation', () => {
   });
 
   it('should reject zero quantity', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
@@ -153,7 +157,7 @@ describe('Phase 2: Money - Quantity validation', () => {
   });
 
   it('should reject negative quantity', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
@@ -221,7 +225,7 @@ describe('Phase 2: Checkout - Pricing snapshot', () => {
   });
 
   it('should store immutable pricing snapshot on order creation', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
@@ -279,7 +283,7 @@ describe('Phase 2: Checkout - Pricing snapshot', () => {
   });
 
   it('should reject checkout when inventory insufficient', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
@@ -347,7 +351,7 @@ describe('Phase 2: Payment lifecycle', () => {
   });
 
   it('COD should create PENDING_COD payment', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
@@ -366,7 +370,7 @@ describe('Phase 2: Payment lifecycle', () => {
   });
 
   it('online payment capture should succeed', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
@@ -378,7 +382,6 @@ describe('Phase 2: Payment lifecycle', () => {
       paymentMethod: PaymentMethod.ONLINE as any,
     });
 
-    const { PaymentsService } = await import('./payments/payments.service');
     const paymentsService = new PaymentsService();
 
     const result = await paymentsService.captureSimulatedPayment(customerId, order.id);
@@ -391,7 +394,7 @@ describe('Phase 2: Payment lifecycle', () => {
   });
 
   it('failed payment should set order to PAYMENT_FAILED', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
@@ -403,7 +406,6 @@ describe('Phase 2: Payment lifecycle', () => {
       paymentMethod: PaymentMethod.ONLINE as any,
     });
 
-    const { PaymentsService } = await import('./payments/payments.service');
     const paymentsService = new PaymentsService();
 
     await paymentsService.failSimulatedPayment(customerId, order.id, 'INSUFFICIENT_FUNDS');
@@ -418,7 +420,7 @@ describe('Phase 2: Payment lifecycle', () => {
   });
 
   it('duplicate capture should be idempotent', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
@@ -430,7 +432,6 @@ describe('Phase 2: Payment lifecycle', () => {
       paymentMethod: PaymentMethod.ONLINE as any,
     });
 
-    const { PaymentsService } = await import('./payments/payments.service');
     const paymentsService = new PaymentsService();
 
     const first = await paymentsService.captureSimulatedPayment(customerId, order.id);
@@ -488,7 +489,7 @@ describe('Phase 2: Refund foundation', () => {
   });
 
   it('captured payment cancellation should create refund record', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
@@ -500,12 +501,9 @@ describe('Phase 2: Refund foundation', () => {
       paymentMethod: PaymentMethod.ONLINE as any,
     });
 
-    const { PaymentsService } = await import('./payments/payments.service');
     const paymentsService = new PaymentsService();
     await paymentsService.captureSimulatedPayment(customerId, order.id);
 
-    const { RefundsService } = await import('./payments/refunds.service');
-    const { OrderService } = await import('./orders/order.service');
     const orderService = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
     await orderService.cancelMyOrder(customerId, order.id);
 
@@ -522,7 +520,7 @@ describe('Phase 2: Refund foundation', () => {
   });
 
   it('COD cancellation should NOT create refund', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
@@ -534,8 +532,6 @@ describe('Phase 2: Refund foundation', () => {
       paymentMethod: PaymentMethod.COD as any,
     });
 
-    const { RefundsService } = await import('./payments/refunds.service');
-    const { OrderService } = await import('./orders/order.service');
     const orderService = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
     await orderService.cancelMyOrder(customerId, order.id);
 
@@ -549,14 +545,12 @@ describe('Phase 2: Refund foundation', () => {
   });
 
   it('refund larger than captured amount is rejected', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
     );
-    const { PaymentsService } = await import('./payments/payments.service');
     const paymentsService = new PaymentsService();
-    const { RefundsService } = await import('./payments/refunds.service');
     const refundsService = new RefundsService();
 
     const prod = await prisma.product.create({
@@ -588,16 +582,13 @@ describe('Phase 2: Refund foundation', () => {
   });
 
   it('multiple refunds cannot exceed captured payment amount', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
     );
-    const { PaymentsService } = await import('./payments/payments.service');
     const paymentsService = new PaymentsService();
-    const { RefundsService } = await import('./payments/refunds.service');
     const refundsService = new RefundsService();
-    const { OrderService } = await import('./orders/order.service');
 
     // Create a fresh order for this test
     const prod = await prisma.product.create({
@@ -649,14 +640,12 @@ describe('Phase 2: Refund foundation', () => {
   });
 
   it('duplicate cancellation cannot create duplicate refund', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
     );
-    const { PaymentsService } = await import('./payments/payments.service');
     const paymentsService = new PaymentsService();
-    const { OrderService } = await import('./orders/order.service');
 
     const prod = await prisma.product.create({
       data: { name: `${TEST_PREFIX}DRProd`, price: 200, pricePaise: 20000, categoryId },
@@ -672,7 +661,7 @@ describe('Phase 2: Refund foundation', () => {
 
     const orderService = new OrderService(
       createTrackingGatewayMock() as any,
-      new (await import('./payments/refunds.service')).RefundsService(),
+      new RefundsService(),
     );
 
     // First cancellation should succeed
@@ -728,7 +717,7 @@ describe('Phase 2: Inventory regression', () => {
   });
 
   it('checkout should create CHECKOUT_RESERVATION ledger', async () => {
-    const { CheckoutService } = await import('./checkout/checkout.service');
+
     const checkoutService = new CheckoutService(
       createTrackingGatewayMock() as any,
       createNotificationServiceMock() as any,
@@ -771,8 +760,6 @@ describe('Phase 2: Inventory regression', () => {
     });
     expect(order).not.toBeNull();
 
-    const { RefundsService } = await import('./payments/refunds.service');
-    const { OrderService } = await import('./orders/order.service');
     const orderService = new OrderService(createTrackingGatewayMock() as any, new RefundsService());
     await orderService.cancelMyOrder(customerId, order!.id);
 

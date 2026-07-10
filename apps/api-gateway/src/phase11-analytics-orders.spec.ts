@@ -1,4 +1,5 @@
 import { OrderStatus, Role, prisma } from '@aagam/database';
+import { AnalyticsService } from './analytics/analytics.service';
 
 const PREFIX = '_test_phase11_analytics_';
 
@@ -67,7 +68,6 @@ async function seed() {
 }
 
 function service() {
-  const { AnalyticsService } = require('./analytics/analytics.service');
   return new AnalyticsService();
 }
 

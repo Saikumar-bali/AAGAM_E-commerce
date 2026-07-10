@@ -10,6 +10,7 @@
     "test": "jest --runInBand --testPathIgnorePatterns=api-smoke.spec.ts",
     "test:ci": "jest --runInBand --testPathIgnorePatterns=api-smoke.spec.ts",
     "test:api-smoke": "node scripts/run-api-smoke-if-online.js",
+    "test:phase0": "jest --runInBand phase0-delivery-domain.spec.ts phase8b-orders.spec.ts phase9-orders.spec.ts phase9-delivery-orders.spec.ts",
     "test:phase6": "jest --runInBand phase6-catalog.spec.ts",
     "test:phase8": "jest --runInBand phase8",
     "test:phase9": "jest --runInBand phase9",

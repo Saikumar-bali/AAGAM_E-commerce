@@ -8,18 +8,18 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String?  // Added for local auth
-  googleSub String?
-  phone     String?  @unique
-  name      String?
-  avatarUrl String?
-  emailVerified Boolean @default(false)
-  role      Role     @default(CUSTOMER)
-  fcmToken  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String?
+  googleSub     String?
+  phone         String?  @unique
+  name          String?
+  avatarUrl     String?
+  emailVerified Boolean  @default(false)
+  role          Role     @default(CUSTOMER)
+  fcmToken      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   riderProfile RiderProfile?
   orders       Order[]
@@ -47,15 +47,15 @@ model Store {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  inventory         Inventory[]
-  orders            Order[]
-  inventoryLedgers  InventoryLedger[]
+  inventory        Inventory[]
+  orders           Order[]
+  inventoryLedgers InventoryLedger[]
 }
 
 model Category {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  products  Product[]
+  id       String    @id @default(cuid())
+  name     String    @unique
+  products Product[]
 }
 
 model Product {
@@ -74,9 +74,9 @@ model Product {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  inventory         Inventory[]
-  orderItems        OrderItem[]
-  inventoryLedgers  InventoryLedger[]
+  inventory        Inventory[]
+  orderItems       OrderItem[]
+  inventoryLedgers InventoryLedger[]
 }
 
 model Inventory {
@@ -92,49 +92,50 @@ model Inventory {
 }
 
 model Order {
-  id          String      @id @default(cuid())
-  customerId  String
-  customer    User        @relation(fields: [customerId], references: [id])
-  storeId     String
-  store       Store       @relation(fields: [storeId], references: [id])
-  status      OrderStatus @default(PENDING)
-  totalAmount Float
-  currency    String      @default("INR")
-  subtotal    Float       @default(0)
-  deliveryFee Float       @default(0)
-  discountAmount Float    @default(0)
-  taxAmount   Float       @default(0)
-  grandTotal  Float       @default(0)
-  subtotalPaise    Int    @default(0)
-  deliveryFeePaise Int    @default(0)
-  discountPaise    Int    @default(0)
-  taxPaise         Int    @default(0)
-  grandTotalPaise  Int    @default(0)
-  deliveryLat Float?
-  deliveryLng Float?
-  idempotencyKey String?  @unique
-  customerSnapshot Json?
-  addressSnapshot  Json?
-  itemsSnapshot    Json?
-  pricingSnapshot  Json?
-  riderId     String?
-  rider       RiderProfile? @relation(fields: [riderId], references: [id])
-  confirmedAt DateTime?
-  pickingAt   DateTime?
-  packedAt    DateTime?
-  riderAssignedAt DateTime?
-  outForDeliveryAt DateTime?
-  deliveredAt DateTime?
-  cancelledAt DateTime?
-  paymentFailedAt DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id                  String      @id @default(cuid())
+  customerId          String
+  customer            User        @relation(fields: [customerId], references: [id])
+  storeId             String
+  store               Store       @relation(fields: [storeId], references: [id])
+  status              OrderStatus @default(PENDING)
+  totalAmount         Float
+  currency            String      @default("INR")
+  subtotal            Float       @default(0)
+  deliveryFee         Float       @default(0)
+  discountAmount      Float       @default(0)
+  taxAmount           Float       @default(0)
+  grandTotal          Float       @default(0)
+  subtotalPaise       Int         @default(0)
+  deliveryFeePaise    Int         @default(0)
+  discountPaise       Int         @default(0)
+  taxPaise            Int         @default(0)
+  grandTotalPaise     Int         @default(0)
+  deliveryLat         Float?
+  deliveryLng         Float?
+  idempotencyKey      String?     @unique
+  customerSnapshot    Json?
+  addressSnapshot     Json?
+  itemsSnapshot       Json?
+  pricingSnapshot     Json?
+  riderId             String?
+  rider               RiderProfile? @relation(fields: [riderId], references: [id])
+  confirmedAt         DateTime?
+  pickingAt           DateTime?
+  packedAt            DateTime?
+  riderAssignedAt     DateTime?
+  outForDeliveryAt    DateTime?
+  deliveredAt         DateTime?
+  cancelledAt         DateTime?
+  paymentFailedAt     DateTime?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 
-  items OrderItem[]
-  payment Payment?
-  refunds Refund[]
-  statusHistory OrderStatusHistory[]
+  items              OrderItem[]
+  payment            Payment?
+  refunds            Refund[]
+  statusHistory      OrderStatusHistory[]
   riderLocationPings RiderLocationPing[]
+  deliveryJob        DeliveryJob?
 }
 
 model OrderItem {
@@ -150,15 +151,17 @@ model OrderItem {
 }
 
 model RiderProfile {
-  id        String      @id @default(cuid())
-  userId    String      @unique
-  user      User        @relation(fields: [userId], references: [id])
-  status    RiderStatus @default(OFFLINE)
-  latitude  Float?
-  longitude Float?
-  orders    Order[]
-  locationPings RiderLocationPing[]
-  updatedAt DateTime    @updatedAt
+  id                  String      @id @default(cuid())
+  userId              String      @unique
+  user                User        @relation(fields: [userId], references: [id])
+  status              RiderStatus @default(OFFLINE)
+  latitude            Float?
+  longitude           Float?
+  orders              Order[]
+  locationPings       RiderLocationPing[]
+  deliveryJobs        DeliveryJob[]        @relation("DeliveryJobCurrentRider")
+  dispatchAssignments DispatchAssignment[]
+  updatedAt           DateTime    @updatedAt
 }
 
 enum OrderStatus {
@@ -172,6 +175,103 @@ enum OrderStatus {
   OUT_FOR_DELIVERY
   DELIVERED
   CANCELLED
+}
+
+enum DeliveryJobStatus {
+  WAITING_FOR_DISPATCH
+  RIDER_ASSIGNED
+  RIDER_EN_ROUTE_TO_STORE
+  RIDER_AT_STORE
+  PICKUP_VERIFIED
+  OUT_FOR_DELIVERY
+  RIDER_AT_CUSTOMER
+  DELIVERED
+  DELIVERY_FAILED
+  RETURNING_TO_STORE
+  RETURNED_TO_STORE
+  CANCELLED
+}
+
+enum DispatchAssignmentStatus {
+  CREATED
+  OFFERED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+  REASSIGNED
+}
+
+enum DeliveryEventType {
+  JOB_CREATED
+  JOB_STATUS_CHANGED
+  ASSIGNMENT_CREATED
+  ASSIGNMENT_OFFERED
+  ASSIGNMENT_ACCEPTED
+  ASSIGNMENT_REJECTED
+  ASSIGNMENT_EXPIRED
+  ASSIGNMENT_CANCELLED
+  ASSIGNMENT_REASSIGNED
+  LEGACY_ADAPTER_USED
+}
+
+model DeliveryJob {
+  id             String            @id @default(cuid())
+  orderId        String            @unique
+  order          Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status         DeliveryJobStatus @default(WAITING_FOR_DISPATCH)
+  currentRiderId String?
+  currentRider   RiderProfile?     @relation("DeliveryJobCurrentRider", fields: [currentRiderId], references: [id], onDelete: SetNull)
+  version        Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  assignments DispatchAssignment[]
+  events      DeliveryEvent[]
+
+  @@index([status, createdAt])
+  @@index([currentRiderId, status])
+}
+
+model DispatchAssignment {
+  id              String                   @id @default(cuid())
+  deliveryJobId   String
+  deliveryJob     DeliveryJob              @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  riderProfileId  String
+  riderProfile    RiderProfile             @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
+  status          DispatchAssignmentStatus @default(CREATED)
+  offeredAt       DateTime?
+  respondedAt     DateTime?
+  expiresAt       DateTime?
+  rejectionReason String?
+  createdByUserId String?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  events DeliveryEvent[]
+
+  @@index([deliveryJobId, status])
+  @@index([riderProfileId, status])
+  @@index([expiresAt, status])
+}
+
+model DeliveryEvent {
+  id            String            @id @default(cuid())
+  deliveryJobId String
+  deliveryJob   DeliveryJob       @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  assignmentId  String?
+  assignment    DispatchAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  eventType     DeliveryEventType
+  fromStatus    DeliveryJobStatus?
+  toStatus      DeliveryJobStatus?
+  actorUserId   String?
+  actorRole     Role?
+  metadata      Json?
+  createdAt     DateTime          @default(now())
+
+  @@index([deliveryJobId, createdAt])
+  @@index([assignmentId, createdAt])
+  @@index([eventType, createdAt])
 }
 
 model OrderStatusHistory {
@@ -190,48 +290,44 @@ model OrderStatusHistory {
 }
 
 model RiderLocationPing {
-  id             String        @id @default(cuid())
+  id             String       @id @default(cuid())
   riderProfileId String
-  riderProfile   RiderProfile  @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
+  riderProfile   RiderProfile @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
   orderId        String
-  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   latitude       Float
   longitude      Float
   accuracy       Float?
   speed          Float?
   heading        Float?
-  source         String        @default("MOBILE")
-  createdAt      DateTime      @default(now())
+  source         String       @default("MOBILE")
+  createdAt      DateTime     @default(now())
 
   @@index([orderId, createdAt])
   @@index([riderProfileId, createdAt])
 }
 
 model CustomerAddress {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-
-  label     String?
-  recipientName String
-  phoneE164 String
-  alternatePhoneE164 String?
-
-  line1     String
-  line2     String?
-  landmark  String?
-  city      String
-  state     String
-  pincode   String
-  country   String   @default("IN")
-
-  latitude  Float
-  longitude Float
-  instructions String?
-
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id])
+  label                 String?
+  recipientName         String
+  phoneE164             String
+  alternatePhoneE164    String?
+  line1                 String
+  line2                 String?
+  landmark              String?
+  city                  String
+  state                 String
+  pincode               String
+  country               String   @default("IN")
+  latitude              Float
+  longitude             Float
+  instructions          String?
+  isDefault             Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 enum PaymentMethod {
@@ -249,29 +345,23 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id        String        @id @default(cuid())
-  orderId   String        @unique
-  order     Order         @relation(fields: [orderId], references: [id])
-
-  method    PaymentMethod
-  status    PaymentStatus @default(CREATED)
-  provider  String        @default("SIMULATED")
-
-  amount    Float
-  amountPaise Int         @default(0)
-  currency  String        @default("INR")
-
-  idempotencyKey String?  @unique
-
-  providerOrderId  String?
+  id                String        @id @default(cuid())
+  orderId           String        @unique
+  order             Order         @relation(fields: [orderId], references: [id])
+  method            PaymentMethod
+  status            PaymentStatus @default(CREATED)
+  provider          String        @default("SIMULATED")
+  amount            Float
+  amountPaise       Int           @default(0)
+  currency          String        @default("INR")
+  idempotencyKey    String?       @unique
+  providerOrderId   String?
   providerPaymentId String?
-  verifiedAt DateTime?
-  failureReason String?
-
-  refunds Refund[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  verifiedAt        DateTime?
+  failureReason     String?
+  refunds           Refund[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 }
 
 enum RefundStatus {
@@ -281,23 +371,19 @@ enum RefundStatus {
 }
 
 model Refund {
-  id               String       @id @default(cuid())
-  orderId          String
-  order            Order        @relation(fields: [orderId], references: [id])
-  paymentId        String
-  payment          Payment      @relation(fields: [paymentId], references: [id])
-
-  amountPaise      Int
-  status           RefundStatus @default(PENDING)
-  reason           String
-
-  providerRefundId String?
-
+  id                String       @id @default(cuid())
+  orderId           String
+  order             Order        @relation(fields: [orderId], references: [id])
+  paymentId         String
+  payment           Payment      @relation(fields: [paymentId], references: [id])
+  amountPaise       Int
+  status            RefundStatus @default(PENDING)
+  reason            String
+  providerRefundId  String?
   requestedByUserId String?
-  processedAt      DateTime?
-
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  processedAt       DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   @@index([orderId])
   @@index([paymentId])
@@ -318,20 +404,19 @@ enum InventoryAdjustmentReason {
 }
 
 model InventoryLedger {
-  id          String                   @id @default(cuid())
-  storeId     String
-  productId   String
-  orderId     String?
-  reason      InventoryAdjustmentReason
-  quantityDelta Int
+  id               String                    @id @default(cuid())
+  storeId          String
+  productId        String
+  orderId          String?
+  reason           InventoryAdjustmentReason
+  quantityDelta    Int
   previousQuantity Int
-  newQuantity    Int
-  actorUserId String?
-  note        String?
-  createdAt   DateTime                 @default(now())
-
-  store   Store   @relation(fields: [storeId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
+  newQuantity      Int
+  actorUserId      String?
+  note             String?
+  createdAt        DateTime                  @default(now())
+  store            Store                     @relation(fields: [storeId], references: [id])
+  product          Product                   @relation(fields: [productId], references: [id])
 
   @@index([storeId, createdAt])
   @@index([productId, createdAt])
