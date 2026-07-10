@@ -38,6 +38,14 @@ export default defineConfig({
       dependencies: ['setup'],
       testMatch: /phase-6-checkout-ux\.spec\.ts/,
     },
+    {
+      name: 'phase-0-dispatch',
+      use: {
+        ...devices['Desktop Chrome'],
+        headless: true,
+      },
+      testMatch: /phase-0-dispatch-ui\.spec\.ts/,
+    },
   ],
   webServer: {
     command: 'npm run dev',
