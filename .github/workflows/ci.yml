@@ -38,7 +38,19 @@ jobs:
             turbo-${{ runner.os }}-
 
       - name: Build
-        run: npx turbo build --cache-dir=".turbo" --force
+        shell: bash
+        run: |
+          set -o pipefail
+          npx turbo build --cache-dir=".turbo" --force 2>&1 | tee build-output.log
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-0-build-output-${{ github.run_id }}
+          path: build-output.log
+          if-no-files-found: ignore
+          retention-days: 1
 
   test:
     name: Service Tests
