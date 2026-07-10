@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
 import { formatINR } from '@/lib/currency';
+import type { LucideIcon } from 'lucide-react';
 import {
   AlertCircle,
   ArrowRight,
@@ -39,7 +40,7 @@ type DeliveryJob = {
     id: string;
     status: string;
     grandTotal?: number;
-    addressSnapshot?: any;
+    addressSnapshot?: Record<string, unknown> | null;
     customer?: { name?: string | null; phone?: string | null };
     store?: {
       name?: string | null;
@@ -68,6 +69,13 @@ type Workspace = {
   }>;
 };
 
+type RiderAction = {
+  label: string;
+  endpoint: string;
+  success: string;
+  icon: LucideIcon;
+};
+
 const emptyWorkspace: Workspace = { pendingOffers: [], activeJob: null, assignmentHistory: [] };
 
 const statusMeta: Record<string, { label: string; help: string; cls: string }> = {
@@ -80,9 +88,47 @@ const statusMeta: Record<string, { label: string; help: string; cls: string }> =
   DELIVERED: { label: 'Delivered', help: 'Delivery is complete.', cls: 'bg-emerald-50 text-emerald-800 ring-emerald-200' },
 };
 
+const riderActions: Record<string, RiderAction> = {
+  RIDER_ASSIGNED: {
+    label: 'Start trip to store',
+    endpoint: 'en-route-to-store',
+    success: 'Trip to store started.',
+    icon: Navigation,
+  },
+  RIDER_EN_ROUTE_TO_STORE: {
+    label: 'I arrived at store',
+    endpoint: 'arrived-at-store',
+    success: 'Store arrival recorded.',
+    icon: Store,
+  },
+  PICKUP_VERIFIED: {
+    label: 'Start delivery',
+    endpoint: 'out-for-delivery',
+    success: 'Order is now out for delivery.',
+    icon: Bike,
+  },
+  OUT_FOR_DELIVERY: {
+    label: 'I arrived at customer',
+    endpoint: 'arrived-at-customer',
+    success: 'Customer arrival recorded.',
+    icon: MapPin,
+  },
+  RIDER_AT_CUSTOMER: {
+    label: 'Confirm delivered',
+    endpoint: 'delivered',
+    success: 'Delivery completed.',
+    icon: CheckCircle2,
+  },
+};
+
 function secondsLeft(expiresAt?: string | null) {
   if (!expiresAt) return null;
   return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000));
+}
+
+function addressValue(snapshot: Record<string, unknown> | null | undefined, key: string) {
+  const value = snapshot?.[key];
+  return typeof value === 'string' ? value : '';
 }
 
 export default function RiderDashboard() {
@@ -118,6 +164,8 @@ export default function RiderDashboard() {
   const pendingOffer = workspace.pendingOffers[0] || null;
   const activeJob = workspace.activeJob;
   const meta = activeJob ? statusMeta[activeJob.status] : null;
+  const nextAction = activeJob ? riderActions[activeJob.status] : undefined;
+  const NextActionIcon = nextAction?.icon;
 
   const completedOffers = useMemo(
     () => workspace.assignmentHistory.filter((entry) => entry.status === 'ACCEPTED').length,
@@ -155,39 +203,6 @@ export default function RiderDashboard() {
     );
   };
 
-  const nextAction = activeJob ? {
-    RIDER_ASSIGNED: {
-      label: 'Start trip to store',
-      endpoint: 'en-route-to-store',
-      success: 'Trip to store started.',
-      icon: Navigation,
-    },
-    RIDER_EN_ROUTE_TO_STORE: {
-      label: 'I arrived at store',
-      endpoint: 'arrived-at-store',
-      success: 'Store arrival recorded.',
-      icon: Store,
-    },
-    PICKUP_VERIFIED: {
-      label: 'Start delivery',
-      endpoint: 'out-for-delivery',
-      success: 'Order is now out for delivery.',
-      icon: Bike,
-    },
-    OUT_FOR_DELIVERY: {
-      label: 'I arrived at customer',
-      endpoint: 'arrived-at-customer',
-      success: 'Customer arrival recorded.',
-      icon: MapPin,
-    },
-    RIDER_AT_CUSTOMER: {
-      label: 'Confirm delivered',
-      endpoint: 'delivered',
-      success: 'Delivery completed.',
-      icon: CheckCircle2,
-    },
-  }[activeJob.status] : undefined;
-
   const openDirections = (latitude?: number | null, longitude?: number | null, address?: string | null) => {
     const destination = typeof latitude === 'number' && typeof longitude === 'number'
       ? `${latitude},${longitude}`
@@ -195,6 +210,17 @@ export default function RiderDashboard() {
     if (!destination) return;
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank', 'noopener,noreferrer');
   };
+
+  const offerAddress = pendingOffer
+    ? addressValue(pendingOffer.deliveryJob.order.addressSnapshot, 'city') ||
+      addressValue(pendingOffer.deliveryJob.order.addressSnapshot, 'line1') ||
+      'Customer address provided after acceptance'
+    : '';
+  const activeAddress = activeJob
+    ? addressValue(activeJob.order.addressSnapshot, 'line1') ||
+      addressValue(activeJob.order.addressSnapshot, 'city') ||
+      'Address available in order details'
+    : '';
 
   return (
     <DashboardLayout allowedRole="RIDER">
@@ -210,7 +236,7 @@ export default function RiderDashboard() {
               <span className={`rounded-full px-3 py-1.5 text-xs font-black ${workspace.rider?.status === 'ONLINE' ? 'bg-emerald-400/20 text-emerald-200' : workspace.rider?.status === 'BUSY' ? 'bg-amber-400/20 text-amber-200' : 'bg-slate-400/20 text-slate-300'}`}>
                 {workspace.rider?.status || 'OFFLINE'}
               </span>
-              <button onClick={fetchWorkspace} disabled={loading} className="rounded-xl bg-white/10 p-2.5 hover:bg-white/20 disabled:opacity-50">
+              <button onClick={fetchWorkspace} disabled={loading} className="rounded-xl bg-white/10 p-2.5 hover:bg-white/20 disabled:opacity-50" aria-label="Refresh rider workspace">
                 <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
               </button>
             </div>
@@ -251,7 +277,7 @@ export default function RiderDashboard() {
                 <p className="flex items-center gap-2 text-sm font-black text-slate-900"><Store className="h-4 w-4 text-violet-500" />{pendingOffer.deliveryJob.order.store?.name || 'Store'}</p>
                 <p className="mt-1 text-sm text-slate-500">{pendingOffer.deliveryJob.order.store?.address || 'Store address unavailable'}</p>
                 <p className="mt-4 flex items-center gap-2 text-sm font-black text-slate-900"><UserRound className="h-4 w-4 text-violet-500" />Delivery area</p>
-                <p className="mt-1 text-sm text-slate-500">{pendingOffer.deliveryJob.order.addressSnapshot?.city || pendingOffer.deliveryJob.order.addressSnapshot?.line1 || 'Customer address provided after acceptance'}</p>
+                <p className="mt-1 text-sm text-slate-500">{offerAddress}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {(pendingOffer.deliveryJob.order.items || []).map((item) => <span key={item.id} className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600">{item.product?.name || 'Item'} × {item.quantity}</span>)}
                 </div>
@@ -291,7 +317,7 @@ export default function RiderDashboard() {
               <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
                 <p className="flex items-center gap-2 text-sm font-black text-slate-900"><MapPin className="h-4 w-4 text-emerald-500" />Customer delivery</p>
                 <p className="mt-2 text-sm font-bold text-slate-800">{activeJob.order.customer?.name || 'Customer'}</p>
-                <p className="mt-1 text-sm text-slate-500">{activeJob.order.addressSnapshot?.line1 || activeJob.order.addressSnapshot?.city || 'Address available in order details'}</p>
+                <p className="mt-1 text-sm text-slate-500">{activeAddress}</p>
                 {activeJob.order.customer?.phone && <a href={`tel:${activeJob.order.customer.phone}`} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-black text-emerald-700 shadow-sm"><Phone className="h-4 w-4" />Call customer</a>}
               </div>
             </div>
@@ -310,18 +336,21 @@ export default function RiderDashboard() {
               </div>
             )}
 
-            {nextAction && (
+            {nextAction && NextActionIcon && (
               <div className="mt-5 flex justify-end">
                 <button
                   onClick={() => act(
                     `job-${activeJob.id}`,
-                    () => apiClient.patch(`/orders/dispatch/jobs/${activeJob.id}/${nextAction.endpoint}`, activeJob.status === 'RIDER_AT_CUSTOMER' ? { proofType: 'RIDER_CONFIRMATION' } : {}),
+                    () => apiClient.patch(
+                      `/orders/dispatch/jobs/${activeJob.id}/${nextAction.endpoint}`,
+                      activeJob.status === 'RIDER_AT_CUSTOMER' ? { proofType: 'RIDER_CONFIRMATION' } : {},
+                    ),
                     nextAction.success,
                   )}
                   disabled={working !== null}
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-950 px-6 text-sm font-black text-white disabled:opacity-50"
                 >
-                  <nextAction.icon className="h-4 w-4" />{working === `job-${activeJob.id}` ? 'Updating...' : nextAction.label}<ArrowRight className="h-4 w-4" />
+                  <NextActionIcon className="h-4 w-4" />{working === `job-${activeJob.id}` ? 'Updating...' : nextAction.label}<ArrowRight className="h-4 w-4" />
                 </button>
               </div>
             )}
