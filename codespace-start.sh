@@ -8,11 +8,17 @@ echo "============================================"
 # --------------------------------------------------
 # 1. Start system services (PostgreSQL + Redis)
 # --------------------------------------------------
-echo "[1/9] Starting PostgreSQL and Redis..."
+echo "[1/9] Installing and starting PostgreSQL and Redis..."
 export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y -qq postgresql postgresql-client redis-server sudo 2>&1 | tail -3
 
-service postgresql start 2>/dev/null || true
-pg_isready -q || { echo "PostgreSQL failed to start"; exit 1; }
+service postgresql start
+for i in 1 2 3 4 5; do
+  pg_isready -q && break
+  [ $i -eq 5 ] && { echo "PostgreSQL failed to start"; exit 1; }
+  sleep 1
+done
 
 killall redis-server 2>/dev/null || true
 rm -f /var/run/redis/redis-server.pid 2>/dev/null || true
