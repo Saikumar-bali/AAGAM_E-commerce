@@ -80,7 +80,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
     let active = true;
     const loadUnread = async () => {
       try {
-        const response = await apiClient.get('/notifications/inbox?limit=1');
+        const response = await apiClient.get('/notifications/inbox?limit=100');
         if (active) setUnreadCount(Number(response.data?.unreadCount || 0));
       } catch {
         if (active) setUnreadCount(0);
