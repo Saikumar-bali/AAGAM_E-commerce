@@ -3,6 +3,15 @@ import { prisma } from '@aagam/database';
 import { NotificationService } from './notification.service';
 import { OutboxService } from './outbox.service';
 
+export type NotificationBatchResult = {
+  claimed: number;
+  processed: number;
+  failed: number;
+  skipped: boolean;
+  expiredAssignments: number;
+  backfilledExpiryEvents: number;
+};
+
 @Injectable()
 export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
@@ -93,8 +102,17 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
     return { expiredNow, backfilled };
   }
 
-  async processBatch(limit = 20) {
-    if (this.running) return { claimed: 0, processed: 0, failed: 0, skipped: true };
+  async processBatch(limit = 20): Promise<NotificationBatchResult> {
+    if (this.running) {
+      return {
+        claimed: 0,
+        processed: 0,
+        failed: 0,
+        skipped: true,
+        expiredAssignments: 0,
+        backfilledExpiryEvents: 0,
+      };
+    }
     this.running = true;
     let processed = 0;
     let failed = 0;
