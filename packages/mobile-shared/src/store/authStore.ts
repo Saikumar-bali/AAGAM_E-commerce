@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import * as Keychain from 'react-native-keychain';
 import { UserType } from '@aagam/types';
 import { apiClient, setAuthToken } from '../api/client';
+import { disableCurrentMobilePushSubscription } from '../utils/notifications';
 
 interface AuthState {
   user: UserType | null;
@@ -18,6 +19,11 @@ interface AuthState {
 async function persistAuth(user: UserType, token: string) {
   await Keychain.setGenericPassword('auth', JSON.stringify({ user, token }));
   setAuthToken(token);
+}
+
+async function clearLocalAuth() {
+  await Keychain.resetGenericPassword();
+  setAuthToken(null);
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -67,13 +73,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   logout: async () => {
     try {
-      await apiClient.post('/auth/logout');
-      await Keychain.resetGenericPassword();
-      setAuthToken(null);
-      set({ user: null, token: null, isLoading: false });
-    } catch (error) {
-      await Keychain.resetGenericPassword();
-      setAuthToken(null);
+      // Keep authentication active until the current device subscription has
+      // been deactivated. Other devices for the user are left untouched.
+      await disableCurrentMobilePushSubscription().catch(() => undefined);
+      await apiClient.post('/auth/logout').catch(() => undefined);
+    } finally {
+      await clearLocalAuth();
       set({ user: null, token: null, isLoading: false });
     }
   },
@@ -84,17 +89,18 @@ export const useAuthStore = create<AuthState>((set) => ({
         const { token } = JSON.parse(credentials.password);
         setAuthToken(token);
         try {
-          const response = await apiClient.get('/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+          const response = await apiClient.get('/auth/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
           set({ user: response.data, token, isLoading: false });
-        } catch (e) {
-          await Keychain.resetGenericPassword();
-          setAuthToken(null);
+        } catch {
+          await clearLocalAuth();
           set({ user: null, token: null, isLoading: false });
         }
       } else {
         set({ isLoading: false });
       }
-    } catch (error) {
+    } catch {
       set({ isLoading: false });
     }
   },
