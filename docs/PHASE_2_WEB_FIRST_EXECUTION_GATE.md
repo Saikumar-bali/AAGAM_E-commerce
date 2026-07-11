@@ -10,13 +10,15 @@ e081c166c4fa42a4eb1e3d8bd1734bbf42f1e005
 
 ## Decision
 
-Phase 2 will remain on the current branch, but execution is split into two hard stages.
+Phase 2 remains on the current branch, but execution is split into two hard stages.
 
 No mobile application implementation, mobile folder deletion, Android build change, rider API migration, or background-location work may begin until Stage A is accepted.
 
 ## Stage A — Complete and verify the web platform
 
-### Web push worker stabilization
+### Implemented on this branch
+
+#### Web push worker stabilization
 
 - API reports push enabled only when all required public Firebase values and the VAPID key exist.
 - Missing and whitespace-only variables are named explicitly.
@@ -24,10 +26,10 @@ No mobile application implementation, mobile folder deletion, Android build chan
 - The worker does not execute Firebase imports when configuration is absent.
 - Firebase import/initialization failures are caught and exposed through worker health diagnostics instead of causing an opaque script-evaluation failure.
 - Worker install, activation, update and health-check behavior is explicit.
-- Existing workers are updated safely; the client waits for the new worker to activate before checking health.
+- Existing workers are updated safely; the client waits for the newly installed worker to activate before checking health.
 - The UI distinguishes configuration, permission, worker, browser Firebase, token and backend subscription failures.
 
-### Notification preference completion
+#### Notification preference completion
 
 - Admin, customer, store and rider each have a dedicated notification settings page.
 - Global push and in-app defaults remain supported.
@@ -36,7 +38,7 @@ No mobile application implementation, mobile folder deletion, Android build chan
 - Notification centers provide a direct Preferences link.
 - Responsive and mobile-width web layouts are covered.
 
-### Existing customer web tracking
+#### Existing customer web tracking
 
 The customer order detail already contains:
 
@@ -71,7 +73,7 @@ Required proof:
 
 ## Stage A manual gate
 
-With the API configured using:
+Configure the **API service** using:
 
 ```text
 FIREBASE_SERVICE_ACCOUNT_JSON
@@ -83,6 +85,8 @@ FIREBASE_WEB_MESSAGING_SENDER_ID
 FIREBASE_WEB_APP_ID
 FIREBASE_WEB_VAPID_KEY
 ```
+
+The dashboard no longer requires a duplicate Firebase configuration for normal registration. It receives the public values from the authenticated API endpoint and passes them to the worker script URL.
 
 Prove in Chrome:
 
