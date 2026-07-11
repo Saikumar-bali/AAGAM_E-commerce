@@ -100,10 +100,10 @@ export class TrackingService {
 
     const result = await prisma.$transaction(async (tx) => {
       if (clientPingId) {
-        // PostgreSQL transaction-scoped lock closes the race between duplicate
-        // HTTP retries without requiring a schema migration for legacy pings.
-        await tx.$queryRawUnsafe(
-          'SELECT pg_advisory_xact_lock(hashtext($1))',
+        // Return a supported scalar while taking the transaction-scoped lock;
+        // selecting the void function directly cannot be deserialized by Prisma.
+        await tx.$queryRawUnsafe<Array<{ locked: number }>>(
+          'SELECT 1::int AS locked FROM pg_advisory_xact_lock(hashtext($1))',
           `${riderProfile.id}:${clientPingId}`,
         );
 
@@ -221,6 +221,11 @@ export class TrackingService {
       startedAt: new Date().toISOString(),
       lastPingAt: latest?.createdAt || null,
       staleAfterSeconds: STALE_AFTER_SECONDS,
+      // Compatibility fields for existing tracking clients. They reflect the
+      // current order and never perform a commercial state transition.
+      status: deliveryJob.order.status,
+      outForDeliveryAt: deliveryJob.order.outForDeliveryAt,
+      deliveredAt: deliveryJob.order.deliveredAt,
     };
   }
 
@@ -239,6 +244,9 @@ export class TrackingService {
       riderProfileId: riderProfile.id,
       reason,
       stoppedAt: new Date().toISOString(),
+      status: deliveryJob.order.status,
+      outForDeliveryAt: deliveryJob.order.outForDeliveryAt,
+      deliveredAt: deliveryJob.order.deliveredAt,
     };
     this.trackingGateway.emitTrackingStopped(orderId, payload);
     return payload;
@@ -254,15 +262,21 @@ export class TrackingService {
     });
     if (!deliveryJob) throw new NotFoundException('Delivery job not found');
     if (deliveryJob.currentRiderId !== riderProfile.id) {
-      throw new ForbiddenException('You can only track your active delivery');
+      throw new ForbiddenException(
+        'You can only update location for assigned orders and track your active delivery',
+      );
     }
 
     const status = deliveryJob.status as DeliveryJobStatusType;
     if (requireTrackable && !TRACKABLE_JOB_STATUSES.includes(status)) {
       if (TERMINAL_JOB_STATUSES.includes(status)) {
-        throw new BadRequestException(`Delivery tracking ended at ${status}`);
+        throw new BadRequestException(
+          `Order is not currently live-trackable: delivery tracking ended at ${status}`,
+        );
       }
-      throw new BadRequestException(`Delivery is not trackable while ${status}`);
+      throw new BadRequestException(
+        `Order is not currently live-trackable: delivery is not trackable while ${status}`,
+      );
     }
     return { riderProfile, deliveryJob };
   }
