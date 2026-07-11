@@ -5,9 +5,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { LoginScreen } from '../screens/LoginScreen';
 import { SignUpScreen } from '../screens/SignUpScreen';
-import RiderNavigator from './RiderNavigator';
-import StoreNavigator from './StoreNavigator';
-import HomeScreen from '../screens/HomeScreen';
+import { RiderNavigator } from './RiderNavigator';
+import { StoreNavigator } from './StoreNavigator';
+import { HomeScreen } from '../screens/HomeScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -42,12 +42,10 @@ const RootNavigator = () => {
   const { user, isLoading, initialize } = useAuthStore();
 
   useEffect(() => {
-    initialize();
-  }, []);
+    void initialize();
+  }, [initialize]);
 
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
+  if (isLoading) return <LoadingScreen />;
 
   return (
     <NavigationContainer>
@@ -65,7 +63,7 @@ const RootNavigator = () => {
               )}
               {user.role === 'ADMIN' && (
                 <Stack.Screen name="AdminHome" options={{ headerShown: false }}>
-                  {(props) => <HomeScreen {...props} role="Admin Panel" />}
+                  {(props: any) => <HomeScreen {...props} role="Admin Panel" />}
                 </Stack.Screen>
               )}
             </>
