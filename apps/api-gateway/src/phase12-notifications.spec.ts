@@ -10,13 +10,18 @@ async function cleanup() {
   const storeIds = stores.map((s) => s.id);
   const orders = await prisma.order.findMany({ where: { OR: [{ storeId: { in: storeIds } }, { customerId: { in: userIds } }] }, select: { id: true } });
   const orderIds = orders.map((o) => o.id);
-  const ledger = (prisma as any).inventoryLedger;
+
+  await prisma.notificationDeliveryAttempt.deleteMany({ where: { recipient: { userId: { in: userIds } } } });
+  await prisma.notificationRecipient.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.notification.deleteMany({ where: { orderId: { in: orderIds } } });
+  await prisma.pushSubscription.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.notificationPreference.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.outboxEvent.deleteMany({ where: { OR: [{ aggregateId: { in: orderIds } }, { aggregateId: { in: userIds } }] } });
   await prisma.riderLocationPing.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.orderStatusHistory.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.payment.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
-  await ledger.deleteMany({ where: { orderId: { in: orderIds } } });
-  await ledger.deleteMany({ where: { storeId: { in: storeIds } } });
+  await prisma.inventoryLedger.deleteMany({ where: { OR: [{ orderId: { in: orderIds } }, { storeId: { in: storeIds } }] } });
   await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
   await prisma.inventory.deleteMany({ where: { storeId: { in: storeIds } } });
   await prisma.store.deleteMany({ where: { id: { in: storeIds } } });
@@ -62,27 +67,28 @@ function service() {
   return new NotificationService();
 }
 
-describe('Phase 12 notification inbox and communication layer', () => {
+describe('Phase 12 compatibility over the dedicated notification layer', () => {
   beforeEach(async () => cleanup());
   afterAll(async () => { await cleanup(); await prisma.$disconnect(); });
 
-  it('customer sees own order notifications and can mark one read', async () => {
+  it('customer sees legacy notifications during migration and read state moves to NotificationRecipient', async () => {
     const data = await seed();
     const notifications = service();
+    const beforeHistoryCount = await prisma.orderStatusHistory.count({ where: { orderId: data.order.id } });
     const inbox = await notifications.listInbox({ id: data.customer.id, role: Role.CUSTOMER }, 20);
     expect(inbox.items.length).toBeGreaterThanOrEqual(3);
     expect(inbox.items.some((item: any) => item.title === 'Order confirmed')).toBe(true);
     expect(inbox.items.some((item: any) => item.type === 'CUSTOMER_SUPPORT_TICKET_OPENED')).toBe(true);
-    expect(inbox.unreadCount).toBe(inbox.items.length);
 
     await notifications.markRead({ id: data.customer.id, role: Role.CUSTOMER }, data.confirmed.id);
     const afterRead = await notifications.listInbox({ id: data.customer.id, role: Role.CUSTOMER }, 20);
     const readItem = afterRead.items.find((item: any) => item.sourceHistoryId === data.confirmed.id);
     expect(readItem?.readAt).toBeTruthy();
-    expect(afterRead.unreadCount).toBe(inbox.items.length - 1);
+    expect(await prisma.orderStatusHistory.count({ where: { orderId: data.order.id } })).toBe(beforeHistoryCount);
+    expect(await prisma.notificationRecipient.count({ where: { userId: data.customer.id, status: 'READ' } })).toBe(1);
   });
 
-  it('does not leak customer inbox notifications to another customer', async () => {
+  it('does not leak customer notifications to another customer', async () => {
     const data = await seed();
     const notifications = service();
     const inbox = await notifications.listInbox({ id: data.otherCustomer.id, role: Role.CUSTOMER }, 20);
@@ -90,7 +96,7 @@ describe('Phase 12 notification inbox and communication layer', () => {
     await expect(notifications.markRead({ id: data.otherCustomer.id, role: Role.CUSTOMER }, data.confirmed.id)).rejects.toThrow('Notification not found');
   });
 
-  it('store owner and rider see role-scoped order notifications', async () => {
+  it('store owner and rider retain role-scoped legacy fallback during migration', async () => {
     const data = await seed();
     const notifications = service();
     const storeInbox = await notifications.listInbox({ id: data.owner.id, role: Role.STORE_OWNER }, 20);
@@ -99,7 +105,7 @@ describe('Phase 12 notification inbox and communication layer', () => {
     expect(riderInbox.items.some((item: any) => item.orderId === data.order.id)).toBe(true);
   });
 
-  it('admin sees support alerts and broadcast placeholder is admin-only', async () => {
+  it('admin sees support alerts and broadcasts are durable outbox events', async () => {
     const data = await seed();
     const notifications = service();
     const adminInbox = await notifications.listInbox({ id: data.admin.id, role: Role.ADMIN }, 20);
@@ -107,7 +113,8 @@ describe('Phase 12 notification inbox and communication layer', () => {
 
     const broadcast = await notifications.createBroadcastPlaceholder({ id: data.admin.id, role: Role.ADMIN }, { title: 'Service update', body: 'Test broadcast', audience: 'ALL_USERS' });
     expect(broadcast.ok).toBe(true);
-    expect(broadcast.status).toBe('PLACEHOLDER_ONLY');
-    await expect(notifications.createBroadcastPlaceholder({ id: data.customer.id, role: Role.CUSTOMER }, { title: 'No', body: 'No' })).rejects.toThrow('Only admin can create broadcast placeholder');
+    expect(broadcast.status).toBe('QUEUED');
+    expect(await prisma.outboxEvent.count({ where: { id: broadcast.outboxEventId } })).toBe(1);
+    await expect(notifications.createBroadcastPlaceholder({ id: data.customer.id, role: Role.CUSTOMER }, { title: 'No', body: 'No' })).rejects.toThrow('Only admin can create broadcasts');
   });
 });

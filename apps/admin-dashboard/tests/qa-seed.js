@@ -9,11 +9,7 @@ const prisma = new PrismaClient();
 /**
  * Safety gate. The QA seed performs destructive writes (upserts, updates,
  * deletions) to set up deterministic Playwright state. It must NEVER run
- * against a production or staging database. Refuse to proceed unless all of:
- *   - PLAYWRIGHT_QA_SEED === 'true'  (explicit opt-in)
- *   - NODE_ENV !== 'production'
- *   - DATABASE_URL has no production/cloud provider host substring
- * Throws and stops the process on any failure.
+ * against a production or staging database.
  */
 function assertSafeQaSeedTarget() {
   const qaSeedFlag = process.env.PLAYWRIGHT_QA_SEED;
@@ -23,24 +19,24 @@ function assertSafeQaSeedTarget() {
   if (qaSeedFlag !== 'true') {
     throw new Error(
       'QA seed safety check FAILED: PLAYWRIGHT_QA_SEED is not set to "true". ' +
-        'Refusing to run destructive seed. Set PLAYWRIGHT_QA_SEED=true to allow local/test seeding only.'
+        'Refusing to run destructive seed. Set PLAYWRIGHT_QA_SEED=true to allow local/test seeding only.',
     );
   }
 
   if (nodeEnv === 'production') {
     throw new Error(
       'QA seed safety check FAILED: NODE_ENV is "production". ' +
-        'QA seed must never run in production.'
+        'QA seed must never run in production.',
     );
   }
 
-  const FORBIDDEN_HOSTS = ['railway', 'supabase', 'neon', 'render', 'production'];
+  const forbiddenHosts = ['railway', 'supabase', 'neon', 'render', 'production'];
   const lowerUrl = dbUrl.toLowerCase();
-  const matched = FORBIDDEN_HOSTS.find((h) => lowerUrl.includes(h));
+  const matched = forbiddenHosts.find((host) => lowerUrl.includes(host));
   if (matched) {
     throw new Error(
       `QA seed safety check FAILED: DATABASE_URL appears to target a production/cloud DB ` +
-        `(matched "${matched}" in connection string). QA seed is local/test only.`
+        `(matched "${matched}" in connection string). QA seed is local/test only.`,
     );
   }
 
@@ -51,9 +47,6 @@ async function main() {
   assertSafeQaSeedTarget();
   console.log('QA Seed: Ensuring test orders are in correct state...');
 
-  // --- Ensure reference entities exist using upsert by unique field ---
-
-  // Upsert QA customer by email, retain returned ID
   const qaCustomer = await prisma.user.upsert({
     where: { email: 'qa-rider-pick-customer@aagam.com' },
     update: { role: 'CUSTOMER', name: 'QA Rider Pick Customer' },
@@ -61,7 +54,6 @@ async function main() {
   });
   console.log('  QA customer ready:', qaCustomer.id);
 
-  // Upsert QA store owner
   const qaStoreOwner = await prisma.user.upsert({
     where: { email: 'qa-rider-pick-store@aagam.com' },
     update: { role: 'STORE_OWNER', name: 'QA Rider Pick Store Owner' },
@@ -69,31 +61,34 @@ async function main() {
   });
   console.log('  QA store owner ready:', qaStoreOwner.id);
 
-  // Upsert QA store
   const qaStore = await prisma.store.upsert({
     where: { id: 'qa-store-rider-pick' },
     update: { name: 'QA Rider Pick Store', ownerId: qaStoreOwner.id },
-    create: { id: 'qa-store-rider-pick', name: 'QA Rider Pick Store', address: 'QA Address', latitude: 23.0225, longitude: 72.5714, ownerId: qaStoreOwner.id },
+    create: {
+      id: 'qa-store-rider-pick',
+      name: 'QA Rider Pick Store',
+      address: 'QA Address',
+      latitude: 23.0225,
+      longitude: 72.5714,
+      ownerId: qaStoreOwner.id,
+    },
   });
   console.log('  QA store ready:', qaStore.id);
 
-  // Upsert QA category
-  const qaCat = await prisma.category.upsert({
+  const qaCategory = await prisma.category.upsert({
     where: { id: 'qa-cat-rider-pick' },
     update: { name: 'QA Rider Pick Cat' },
     create: { id: 'qa-cat-rider-pick', name: 'QA Rider Pick Cat' },
   });
-  console.log('  QA category ready:', qaCat.id);
+  console.log('  QA category ready:', qaCategory.id);
 
-  // Upsert QA product
   const qaProduct = await prisma.product.upsert({
     where: { id: 'qa-prod-rice' },
-    update: { name: 'QA Rice (1kg)', price: 120, pricePaise: 12000, categoryId: qaCat.id },
-    create: { id: 'qa-prod-rice', name: 'QA Rice (1kg)', price: 120, pricePaise: 12000, categoryId: qaCat.id },
+    update: { name: 'QA Rice (1kg)', price: 120, pricePaise: 12000, categoryId: qaCategory.id },
+    create: { id: 'qa-prod-rice', name: 'QA Rice (1kg)', price: 120, pricePaise: 12000, categoryId: qaCategory.id },
   });
   console.log('  QA product ready:', qaProduct.id);
 
-  // Upsert QA inventory
   await prisma.inventory.upsert({
     where: { storeId_productId: { storeId: qaStore.id, productId: qaProduct.id } },
     update: { quantity: 50 },
@@ -101,7 +96,6 @@ async function main() {
   });
   console.log('  QA inventory ready');
 
-  // 1. Ensure qa-order-1 is in PICKING status for store owner test
   const order1 = await prisma.order.findUnique({ where: { id: 'qa-order-1' } });
   if (order1 && order1.status !== 'PICKING') {
     await prisma.order.update({
@@ -121,19 +115,13 @@ async function main() {
     console.log('  qa-order-1 already PICKING');
   }
 
-  // 2. Ensure qa-order-1 has no rider
   if (order1 && order1.riderId) {
-    await prisma.order.update({
-      where: { id: 'qa-order-1' },
-      data: { riderId: null },
-    });
+    await prisma.order.update({ where: { id: 'qa-order-1' }, data: { riderId: null } });
     console.log('  Cleared rider from qa-order-1');
   }
 
-  // 3. Create a fresh CONFIRMED order for rider pickup test using upserted entities
   await prisma.orderItem.deleteMany({ where: { orderId: 'qa-order-rider-pick' } });
-  await prisma.order.deleteMany({ where: { id: 'qa-order-rider-pick' } }).catch(() => {});
-
+  await prisma.order.deleteMany({ where: { id: 'qa-order-rider-pick' } });
   await prisma.order.create({
     data: {
       id: 'qa-order-rider-pick',
@@ -147,101 +135,64 @@ async function main() {
       deliveryLng: 72.5714,
       confirmedAt: new Date(),
       items: {
-        create: [
-          {
-            id: 'qa-rider-item-1',
-            productId: qaProduct.id,
-            quantity: 1,
-            price: 120,
-          },
-        ],
+        create: [{ id: 'qa-rider-item-1', productId: qaProduct.id, quantity: 1, price: 120 }],
       },
     },
   });
-  console.log('  Created qa-order-rider-pick (CONFIRMED, no rider) using upserted entities');
+  console.log('  Created qa-order-rider-pick using current upserted foreign keys');
 
-  // 4. Reset qa-order-4 to PACKED (in case test changed it)
-  const order4 = await prisma.order.findUnique({ where: { id: 'qa-order-4' } });
-  if (order4 && order4.status !== 'PACKED') {
-    await prisma.order.update({
-      where: { id: 'qa-order-4' },
-      data: {
-        status: 'PACKED',
-        packedAt: new Date(),
-        riderId: null,
-        riderAssignedAt: null,
-        outForDeliveryAt: null,
-        deliveredAt: null,
-        cancelledAt: null,
-      },
-    });
-    console.log('  Reset qa-order-4 to PACKED');
-  } else {
-    console.log('  qa-order-4 already PACKED');
-  }
+  const resetPackedOrder = async (id) => {
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (order && order.status !== 'PACKED') {
+      await prisma.order.update({
+        where: { id },
+        data: {
+          status: 'PACKED',
+          packedAt: new Date(),
+          riderId: null,
+          riderAssignedAt: null,
+          outForDeliveryAt: null,
+          deliveredAt: null,
+          cancelledAt: null,
+        },
+      });
+      console.log(`  Reset ${id} to PACKED`);
+    } else {
+      console.log(`  ${id} already PACKED`);
+    }
+  };
 
-  // 5. Reset qa-order-6 to PACKED (in case test changed it)
-  const order6 = await prisma.order.findUnique({ where: { id: 'qa-order-6' } });
-  if (order6 && order6.status !== 'PACKED') {
-    await prisma.order.update({
-      where: { id: 'qa-order-6' },
-      data: {
-        status: 'PACKED',
-        packedAt: new Date(),
-        riderId: null,
-        riderAssignedAt: null,
-        outForDeliveryAt: null,
-        deliveredAt: null,
-        cancelledAt: null,
-      },
-    });
-    console.log('  Reset qa-order-6 to PACKED');
-  } else {
-    console.log('  qa-order-6 already PACKED');
-  }
+  await resetPackedOrder('qa-order-4');
+  await resetPackedOrder('qa-order-6');
 
-  // 6. Ensure rider@aagam.com exists and profile is ONLINE
-  const riderUser = await prisma.user.findUnique({ where: { email: 'rider@aagam.com' } });
-  if (!riderUser) {
-    console.log('  rider@aagam.com not found — creating rider user');
-    const newRider = await prisma.user.create({
-      data: { email: 'rider@aagam.com', role: 'RIDER', name: 'QA Rider' },
-    });
-    const rp = await prisma.riderProfile.upsert({
-      where: { userId: newRider.id },
-      update: { status: 'ONLINE', latitude: 23.0225, longitude: 72.5714 },
-      create: { userId: newRider.id, status: 'ONLINE', latitude: 23.0225, longitude: 72.5714 },
-    });
-    console.log('  Created rider profile:', rp.id);
-  } else {
-    const rp = await prisma.riderProfile.upsert({
-      where: { userId: riderUser.id },
-      update: { status: 'ONLINE', latitude: 23.0225, longitude: 72.5714 },
-      create: { userId: riderUser.id, status: 'ONLINE', latitude: 23.0225, longitude: 72.5714 },
-    });
-    console.log('  rider@aagam.com profile ONLINE:', rp.id);
-  }
+  const riderUser = await prisma.user.upsert({
+    where: { email: 'rider@aagam.com' },
+    update: { role: 'RIDER', name: 'QA Rider' },
+    create: { email: 'rider@aagam.com', role: 'RIDER', name: 'QA Rider' },
+  });
+  const riderProfile = await prisma.riderProfile.upsert({
+    where: { userId: riderUser.id },
+    update: { status: 'ONLINE', latitude: 23.0225, longitude: 72.5714 },
+    create: { userId: riderUser.id, status: 'ONLINE', latitude: 23.0225, longitude: 72.5714 },
+  });
+  console.log('  rider@aagam.com profile ONLINE:', riderProfile.id);
 
-  // 7. Clear active rider orders so rider@aagam.com can pick new ones
   await prisma.order.updateMany({
     where: {
       id: { in: ['qa-order-2', 'qa-order-3'] },
       status: { in: ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'] },
     },
-    data: {
-      status: 'DELIVERED',
-      deliveredAt: new Date(),
-      riderId: null,
-    },
+    data: { status: 'DELIVERED', deliveredAt: new Date(), riderId: null },
   });
-  console.log('  Cleared active rider orders (qa-order-2, qa-order-3 → DELIVERED)');
-
+  console.log('  Cleared active rider orders');
   console.log('QA Seed complete.');
 }
 
 main()
-  .then(() => prisma.$disconnect())
-  .catch((e) => {
-    console.error('QA Seed failed:', e);
-    return prisma.$disconnect();
+  .catch((error) => {
+    console.error('QA Seed failed:', error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
   });
