@@ -67,35 +67,41 @@ export class WebPushService implements OnModuleInit {
       return { status: 'SKIPPED', reason: 'Firebase push provider is not configured' };
     }
 
-    const data = Object.fromEntries(
+    const data: Record<string, string> = Object.fromEntries(
       Object.entries(payload.data || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)]),
     );
+    data.title = payload.title;
+    data.body = payload.body;
     if (payload.deepLink) data.deepLink = payload.deepLink;
 
+    // Web receives a data-only message. The service worker is the single owner
+    // of background display, preventing Firebase auto-display plus a second
+    // custom notification. Android/APNs may still use their native configs.
     const responseId = await admin.messaging().send({
       token: subscription.token,
-      notification: { title: payload.title, body: payload.body },
       data,
       webpush: {
-        notification: {
-          title: payload.title,
-          body: payload.body,
-          icon: '/icons/icon-192.png',
-          badge: '/icons/icon-192.png',
-          tag: data.notificationId || data.eventType || 'aagam-notification',
-          renotify: true,
-        },
+        headers: { Urgency: 'high' },
         ...(payload.deepLink ? { fcmOptions: { link: payload.deepLink } } : {}),
       },
       android: {
         priority: 'high',
         notification: {
+          title: payload.title,
+          body: payload.body,
           sound: 'default',
           channelId: 'high_priority_orders',
+          tag: data.notificationId || data.eventType || 'aagam-notification',
         },
       },
       apns: {
-        payload: { aps: { sound: 'default', contentAvailable: true } },
+        payload: {
+          aps: {
+            alert: { title: payload.title, body: payload.body },
+            sound: 'default',
+            contentAvailable: true,
+          },
+        },
       },
     });
 
