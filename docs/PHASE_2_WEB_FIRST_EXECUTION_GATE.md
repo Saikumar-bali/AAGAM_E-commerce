@@ -1,0 +1,117 @@
+# Phase 2 — Web-First Execution Gate
+
+Branch: `phase-2-mobile-delivery-live-tracking`
+
+Base:
+
+```text
+e081c166c4fa42a4eb1e3d8bd1734bbf42f1e005
+```
+
+## Decision
+
+Phase 2 will remain on the current branch, but execution is split into two hard stages.
+
+No mobile application implementation, mobile folder deletion, Android build change, rider API migration, or background-location work may begin until Stage A is accepted.
+
+## Stage A — Complete and verify the web platform
+
+### Web push worker stabilization
+
+- API reports push enabled only when all required public Firebase values and the VAPID key exist.
+- Missing and whitespace-only variables are named explicitly.
+- Browser registration passes the exact API-provided Firebase config to the service-worker URL.
+- The worker does not execute Firebase imports when configuration is absent.
+- Firebase import/initialization failures are caught and exposed through worker health diagnostics instead of causing an opaque script-evaluation failure.
+- Worker install, activation, update and health-check behavior is explicit.
+- Existing workers are updated safely; the client waits for the new worker to activate before checking health.
+- The UI distinguishes configuration, permission, worker, browser Firebase, token and backend subscription failures.
+
+### Notification preference completion
+
+- Admin, customer, store and rider each have a dedicated notification settings page.
+- Global push and in-app defaults remain supported.
+- Event-specific push and in-app preferences are available for events relevant to each role.
+- Settings persist through the existing notification preference API.
+- Notification centers provide a direct Preferences link.
+- Responsive and mobile-width web layouts are covered.
+
+### Existing customer web tracking
+
+The customer order detail already contains:
+
+- live rider/store/destination map markers
+- Socket.IO location updates with polling fallback
+- live, stale, assigned-no-location, completed and cancelled states
+- last-update time
+- ETA and distance labels when available
+- safe empty states when coordinates are missing
+
+This functionality must remain regression-green during Stage A.
+
+## Stage A automated gate
+
+```bash
+npm install
+npm run test:phase1 --workspace=apps/api-gateway
+npm test
+npx turbo build --force
+npx playwright test --project=phase-1-notifications --headed
+```
+
+Required proof:
+
+- Firebase config contract tests pass.
+- Service-worker endpoint returns JavaScript, not HTML.
+- Health-only worker installs and activates without Firebase credentials.
+- All four role settings pages render.
+- Preference persistence test passes and restores its original value.
+- Notification settings have no mobile-width overflow.
+- Full API tests, build, CodeQL and CodeQL Advanced pass.
+
+## Stage A manual gate
+
+With the API configured using:
+
+```text
+FIREBASE_SERVICE_ACCOUNT_JSON
+FIREBASE_WEB_API_KEY
+FIREBASE_WEB_AUTH_DOMAIN
+FIREBASE_WEB_PROJECT_ID
+FIREBASE_WEB_STORAGE_BUCKET
+FIREBASE_WEB_MESSAGING_SENDER_ID
+FIREBASE_WEB_APP_ID
+FIREBASE_WEB_VAPID_KEY
+```
+
+Prove in Chrome:
+
+1. Remove old localhost service-worker registrations and clear site storage once.
+2. Sign in as each role and open its notification center.
+3. Click **Enable background alerts**.
+4. Confirm `/firebase-messaging-sw.js?...` is installed and active for scope `/`.
+5. Confirm the UI shows background alerts enabled only after worker health, FCM token creation and backend subscription storage succeed.
+6. Close or background the tab and send a role-addressed notification.
+7. Confirm the operating-system notification appears.
+8. Click it and verify the correct role-safe deep link and `openedAt` acknowledgement.
+9. Change an event-specific preference and verify routing respects it.
+10. Verify another role or unselected rider receives nothing.
+
+## Stage B — Mobile consolidation and delivery operations
+
+Stage B starts only after Stage A is explicitly accepted.
+
+Planned first actions:
+
+1. Remove obsolete `apps/mobile-app` and all references.
+2. Keep `apps/mobile-customer` for customers.
+3. Keep one `apps/mobile-partners` application for rider, store owner and limited admin workflows using role-based navigation.
+4. Migrate the Partners rider workspace away from public rider queues, self-assignment and generic order-status mutations.
+5. Register `FCM_MOBILE` subscriptions through the Phase 1 multi-device notification domain.
+6. Implement and honestly verify foreground/background rider tracking.
+
+The detailed Stage B scope remains in:
+
+```text
+docs/PHASE_2_MOBILE_DELIVERY_LIVE_TRACKING_PLAN.md
+```
