@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { prisma, Role } from '@aagam/database';
+import { prisma, Prisma, Role } from '@aagam/database';
 import { NotificationEventTypeType } from '@aagam/types';
 
 export type RoutedRecipient = {
@@ -13,7 +13,7 @@ export type RoutedNotification = {
   body: string;
   orderId: string | null;
   deliveryJobId: string | null;
-  data: Record<string, unknown>;
+  data: Prisma.InputJsonValue;
   recipients: RoutedRecipient[];
 };
 
