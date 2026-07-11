@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { prisma } from '@aagam/database';
+import { prisma, Role } from '@aagam/database';
 import { WebPushService } from './web-push.service';
 
 @Injectable()
@@ -15,10 +15,21 @@ export class NotificationDeliveryService {
     return (specific || fallback)?.pushEnabled !== false;
   }
 
+  private recipientDeepLink(role: Role, orderId?: string | null, configured?: string | null) {
+    if (configured) return configured;
+    if (role === Role.ADMIN) return orderId ? `/admin/orders/${orderId}` : '/admin/notifications';
+    if (role === Role.STORE_OWNER) return '/store/notifications';
+    if (role === Role.RIDER) return '/rider';
+    return orderId ? `/shop/orders/${orderId}` : '/shop/notifications';
+  }
+
   async deliverRecipient(recipientId: string) {
     const recipient = await prisma.notificationRecipient.findUnique({
       where: { id: recipientId },
-      include: { notification: true },
+      include: {
+        notification: true,
+        user: { select: { role: true } },
+      },
     });
     if (!recipient) throw new NotFoundException('Notification recipient not found');
     if (['READ', 'OPENED'].includes(recipient.status)) return recipient;
@@ -45,6 +56,11 @@ export class NotificationDeliveryService {
     let sentCount = 0;
     let skippedCount = 0;
     const failures: string[] = [];
+    const deepLink = this.recipientDeepLink(
+      recipient.user.role,
+      recipient.notification.orderId,
+      recipient.notification.deepLink,
+    );
 
     for (const subscription of subscriptions) {
       const previousAttempts = await prisma.notificationDeliveryAttempt.count({
@@ -56,12 +72,13 @@ export class NotificationDeliveryService {
         const result = await this.webPush.send(subscription, {
           title: recipient.notification.title,
           body: recipient.notification.body,
-          deepLink: recipient.notification.deepLink,
+          deepLink,
           data: {
             ...(recipient.notification.data as any || {}),
             notificationId: recipient.notification.id,
             recipientId: recipient.id,
             eventType: recipient.notification.eventType,
+            deepLink,
           },
         });
 
