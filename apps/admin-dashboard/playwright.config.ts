@@ -53,7 +53,7 @@ export default defineConfig({
         headless: true,
         permissions: [],
       },
-      testMatch: /phase-1-notifications(?:-ui|-e2e|-worker)?\.spec\.ts/,
+      testMatch: /phase-1-notifications(?:-ui|-e2e|-worker|-settings)?\.spec\.ts/,
     },
   ],
   webServer: {
