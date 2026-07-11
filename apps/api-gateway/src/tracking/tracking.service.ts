@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Role, prisma } from '@aagam/database';
+import { OrderStatus, Role, prisma } from '@aagam/database';
 import { DeliveryJobStatus, DeliveryJobStatusType } from '@aagam/types';
 import { calculateDistance } from '@aagam/utils';
 import { OrderService } from '../orders/order.service';
@@ -32,6 +32,15 @@ const STALE_AFTER_SECONDS = 360;
 const MOBILE_SOURCE_PREFIX = 'MOBILE_PARTNERS|';
 const MAX_CAPTURE_AGE_MS = 24 * 60 * 60 * 1000;
 const MAX_FUTURE_SKEW_MS = 2 * 60 * 1000;
+
+type TrackingDeliveryView = {
+  id: string;
+  orderId: string;
+  status: DeliveryJobStatusType;
+  currentRiderId: string | null;
+  order: any;
+  legacyAdapter?: boolean;
+};
 
 @Injectable()
 export class TrackingService {
@@ -100,8 +109,6 @@ export class TrackingService {
 
     const result = await prisma.$transaction(async (tx) => {
       if (clientPingId) {
-        // Return a supported scalar while taking the transaction-scoped lock;
-        // selecting the void function directly cannot be deserialized by Prisma.
         await tx.$queryRawUnsafe<Array<{ locked: number }>>(
           'SELECT 1::int AS locked FROM pg_advisory_xact_lock(hashtext($1))',
           `${riderProfile.id}:${clientPingId}`,
@@ -181,6 +188,7 @@ export class TrackingService {
       orderId: dto.orderId,
       deliveryJobId: deliveryJob.id,
       deliveryStatus: deliveryJob.status,
+      legacyDeliveryAdapter: Boolean(deliveryJob.legacyAdapter),
       riderId: riderProfile.id,
       latitude: result.ping.latitude,
       longitude: result.ping.longitude,
@@ -217,12 +225,11 @@ export class TrackingService {
       orderId,
       deliveryJobId: deliveryJob.id,
       deliveryStatus: deliveryJob.status,
+      legacyDeliveryAdapter: Boolean(deliveryJob.legacyAdapter),
       riderProfileId: riderProfile.id,
       startedAt: new Date().toISOString(),
       lastPingAt: latest?.createdAt || null,
       staleAfterSeconds: STALE_AFTER_SECONDS,
-      // Compatibility fields for existing tracking clients. They reflect the
-      // current order and never perform a commercial state transition.
       status: deliveryJob.order.status,
       outForDeliveryAt: deliveryJob.order.outForDeliveryAt,
       deliveredAt: deliveryJob.order.deliveredAt,
@@ -241,6 +248,7 @@ export class TrackingService {
       orderId,
       deliveryJobId: deliveryJob.id,
       deliveryStatus: deliveryJob.status,
+      legacyDeliveryAdapter: Boolean(deliveryJob.legacyAdapter),
       riderProfileId: riderProfile.id,
       reason,
       stoppedAt: new Date().toISOString(),
@@ -256,11 +264,7 @@ export class TrackingService {
     const riderProfile = await prisma.riderProfile.findUnique({ where: { userId } });
     if (!riderProfile) throw new NotFoundException('Rider profile not found');
 
-    const deliveryJob = await prisma.deliveryJob.findUnique({
-      where: { orderId },
-      include: { order: true },
-    });
-    if (!deliveryJob) throw new NotFoundException('Delivery job not found');
+    const deliveryJob = await this.deliveryView(orderId);
     if (deliveryJob.currentRiderId !== riderProfile.id) {
       throw new ForbiddenException(
         'You can only update location for assigned orders and track your active delivery',
@@ -279,6 +283,42 @@ export class TrackingService {
       );
     }
     return { riderProfile, deliveryJob };
+  }
+
+  private async deliveryView(orderId: string): Promise<TrackingDeliveryView> {
+    const canonical = await prisma.deliveryJob.findUnique({
+      where: { orderId },
+      include: { order: true },
+    });
+    if (canonical) {
+      return {
+        id: canonical.id,
+        orderId: canonical.orderId,
+        status: canonical.status as DeliveryJobStatusType,
+        currentRiderId: canonical.currentRiderId,
+        order: canonical.order,
+      };
+    }
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Delivery job not found');
+
+    return {
+      id: `legacy-order:${order.id}`,
+      orderId: order.id,
+      status: this.deliveryStatusFromLegacyOrder(order.status),
+      currentRiderId: order.riderId,
+      order,
+      legacyAdapter: true,
+    };
+  }
+
+  private deliveryStatusFromLegacyOrder(status: OrderStatus): DeliveryJobStatusType {
+    if (status === OrderStatus.RIDER_ASSIGNED) return DeliveryJobStatus.RIDER_ASSIGNED;
+    if (status === OrderStatus.OUT_FOR_DELIVERY) return DeliveryJobStatus.OUT_FOR_DELIVERY;
+    if (status === OrderStatus.DELIVERED) return DeliveryJobStatus.DELIVERED;
+    if (status === OrderStatus.CANCELLED) return DeliveryJobStatus.CANCELLED;
+    return DeliveryJobStatus.WAITING_FOR_DISPATCH;
   }
 
   private parseCapturedAt(value?: string) {
