@@ -211,15 +211,15 @@ jobs:
         run: |
           set -o pipefail
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee ../../../android-build-output.log
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee android-build-output.log
 
       - name: Upload Android diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: android-build-output-${{ github.run_id }}
-          path: android-build-output.log
-          if-no-files-found: ignore
+          path: apps/mobile-partners/android/android-build-output.log
+          if-no-files-found: error
           retention-days: 1
 
       - name: Upload debug APK
