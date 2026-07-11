@@ -1,4 +1,5 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { prisma } from '@aagam/database';
 import { NotificationService } from './notification.service';
 import { OutboxService } from './outbox.service';
 
@@ -30,6 +31,68 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
     if (this.timer) clearInterval(this.timer);
   }
 
+  private async createExpiryEvent(assignment: any, source: string) {
+    try {
+      return await prisma.deliveryEvent.create({
+        data: {
+          deliveryJobId: assignment.deliveryJobId,
+          assignmentId: assignment.id,
+          eventType: 'ASSIGNMENT_EXPIRED',
+          metadata: {
+            source,
+            riderProfileId: assignment.riderProfileId,
+            expiresAt: assignment.expiresAt?.toISOString?.() || assignment.expiresAt || null,
+          },
+        },
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2002') return null;
+      throw error;
+    }
+  }
+
+  private async reconcileExpiredAssignments(limit = 100) {
+    const now = new Date();
+    let expiredNow = 0;
+    let backfilled = 0;
+
+    const overdue = await prisma.dispatchAssignment.findMany({
+      where: {
+        status: 'OFFERED',
+        expiresAt: { lt: now },
+      },
+      orderBy: { expiresAt: 'asc' },
+      take: Math.max(1, Math.min(500, limit)),
+    });
+
+    for (const assignment of overdue) {
+      const changed = await prisma.dispatchAssignment.updateMany({
+        where: { id: assignment.id, status: 'OFFERED', expiresAt: { lt: now } },
+        data: { status: 'EXPIRED', respondedAt: now },
+      });
+      if (changed.count === 1) {
+        expiredNow += 1;
+        await this.createExpiryEvent(assignment, 'NOTIFICATION_WORKER');
+      }
+    }
+
+    const missingEvents = await prisma.dispatchAssignment.findMany({
+      where: {
+        status: 'EXPIRED',
+        events: { none: { eventType: 'ASSIGNMENT_EXPIRED' } },
+      },
+      orderBy: { respondedAt: 'asc' },
+      take: Math.max(1, Math.min(500, limit)),
+    });
+
+    for (const assignment of missingEvents) {
+      const event = await this.createExpiryEvent(assignment, 'EXPIRY_EVENT_BACKFILL');
+      if (event) backfilled += 1;
+    }
+
+    return { expiredNow, backfilled };
+  }
+
   async processBatch(limit = 20) {
     if (this.running) return { claimed: 0, processed: 0, failed: 0, skipped: true };
     this.running = true;
@@ -37,6 +100,7 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
     let failed = 0;
 
     try {
+      const expiry = await this.reconcileExpiredAssignments(Math.max(limit, 20));
       const events = await this.outbox.claimBatch(limit);
       for (const event of events) {
         try {
@@ -48,7 +112,14 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
           await this.outbox.markFailed(event.id, error);
         }
       }
-      return { claimed: events.length, processed, failed, skipped: false };
+      return {
+        claimed: events.length,
+        processed,
+        failed,
+        skipped: false,
+        expiredAssignments: expiry.expiredNow,
+        backfilledExpiryEvents: expiry.backfilled,
+      };
     } finally {
       this.running = false;
     }
