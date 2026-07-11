@@ -1,4 +1,13 @@
-import { RiderJobAction, RiderWorkspace, normalizeRiderWorkspace } from '../domain/riderWorkspace';
+import {
+  DeliveryJobStatus,
+  RiderJobAction,
+  RiderWorkspace,
+  normalizeRiderWorkspace,
+} from '../domain/riderWorkspace';
+import {
+  NativeRiderTracking,
+  nativeRiderTrackingSupported,
+} from '../services/NativeRiderTracking';
 import { apiClient } from './client';
 
 export type RiderLocationPayload = {
@@ -19,6 +28,11 @@ const TRANSITION_PATHS: Record<RiderJobAction, string> = {
   ARRIVED_AT_CUSTOMER: 'arrived-at-customer',
   DELIVERED: 'delivered',
 };
+
+function currentBearerToken() {
+  const value = apiClient.defaults.headers.common.Authorization;
+  return typeof value === 'string' ? value.replace(/^Bearer\s+/i, '') : '';
+}
 
 export const riderService = {
   getWorkspace: async (): Promise<RiderWorkspace> => {
@@ -54,18 +68,44 @@ export const riderService = {
     return response.data;
   },
 
-  startTracking: async (orderId: string) => {
+  startTracking: async (
+    orderId: string,
+    deliveryJobId?: string,
+    deliveryStatus?: DeliveryJobStatus,
+  ) => {
     const response = await apiClient.post(`/tracking/start/${encodeURIComponent(orderId)}`);
-    return response.data;
+    let nativeTracking = false;
+
+    if (
+      nativeRiderTrackingSupported()
+      && deliveryJobId
+      && deliveryStatus
+      && apiClient.defaults.baseURL
+      && currentBearerToken()
+    ) {
+      await NativeRiderTracking.start({
+        apiUrl: String(apiClient.defaults.baseURL),
+        authToken: currentBearerToken(),
+        orderId,
+        deliveryJobId,
+        deliveryStatus,
+      });
+      nativeTracking = true;
+    }
+
+    return { ...response.data, nativeTracking };
   },
 
   stopTracking: async (orderId: string, reason = 'WORKSPACE_INACTIVE') => {
+    await NativeRiderTracking.stop(reason).catch(() => false);
     const response = await apiClient.post(
       `/tracking/stop/${encodeURIComponent(orderId)}`,
       { reason },
     );
     return response.data;
   },
+
+  getNativeTrackingStatus: () => NativeRiderTracking.status(),
 
   sendLocationPing: async (orderId: string, location: RiderLocationPayload) => {
     const response = await apiClient.post('/tracking/rider-location', {
