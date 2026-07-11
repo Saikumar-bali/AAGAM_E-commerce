@@ -2,7 +2,17 @@ import { expect, Page, test } from '@playwright/test';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
 
-async function login(page: Page, email: string, password = 'Test@1234') {
+const PASSWORDS: Record<string, string> = {
+  'admin@aagam.com': 'admin@2026!',
+  'customer@aagam.com': 'customer@2026!',
+  'store@aagam.com': 'store@2026!',
+  'store2@aagam.com': 'store@2026!',
+  'rider@aagam.com': 'rider@2026!',
+  'rider1@aagam.com': 'rider@2026!',
+  'rider2@aagam.com': 'rider@2026!',
+};
+
+async function login(page: Page, email: string, password = PASSWORDS[email] || 'Test@1234') {
   await page.goto('/login');
   await page.waitForSelector('input[type="email"]', { timeout: 15000 });
   await page.fill('input[type="email"]', email);

@@ -214,7 +214,7 @@ describe('Phase 1 web push and transactional notification foundation', () => {
     expect(await prisma.notificationDeliveryAttempt.count({ where: { recipientId: recipient.id, status: 'FAILED' } })).toBe(2);
   });
 
-  it('honours in-app preferences without creating recipient rows', async () => {
+  it('creates no recipient when both push and in-app delivery are disabled', async () => {
     const data = await seed();
     const api = services();
     await api.notifications.updatePreference(data.owner.id, {
@@ -230,5 +230,69 @@ describe('Phase 1 web push and transactional notification foundation', () => {
       where: { notificationId: notification!.id, userId: data.owner.id },
     });
     expect(ownerRecipient).toBeNull();
+  });
+
+  it('delivers push-only events without exposing them in the in-app inbox', async () => {
+    const data = await seed();
+    const send = jest.fn().mockResolvedValue({ status: 'SENT', responseId: 'push-only-response' });
+    const api = services({ send });
+    await api.notifications.updatePreference(data.owner.id, {
+      eventType: 'ORDER_PLACED',
+      inAppEnabled: false,
+      pushEnabled: true,
+    });
+    await api.subscriptions.register(data.owner.id, {
+      provider: 'FCM_WEB',
+      token: `push-only-${Date.now()}`,
+    });
+
+    const event = await prisma.outboxEvent.findUnique({
+      where: { idempotencyKey: `order:${data.order.id}:ORDER_PLACED` },
+    });
+    const notification = await api.notifications.materializeOutboxEvent(event);
+    const ownerRecipient = await prisma.notificationRecipient.findFirst({
+      where: { notificationId: notification!.id, userId: data.owner.id },
+    });
+    expect(ownerRecipient).not.toBeNull();
+
+    await api.delivery.deliverRecipient(ownerRecipient!.id);
+    expect(send).toHaveBeenCalledTimes(1);
+
+    const ownerInbox = await api.notifications.listInbox({ id: data.owner.id, role: Role.STORE_OWNER }, 100);
+    expect(ownerInbox.items.some((item) => item.recipientId === ownerRecipient!.id)).toBe(false);
+
+    const adminInbox = await api.notifications.listInbox({ id: data.admin.id, role: Role.ADMIN }, 100);
+    const adminItem = adminInbox.items.find((item) => item.orderId === data.order.id);
+    expect(adminItem?.metadata?.inAppHiddenRecipientIds).toBeUndefined();
+  });
+
+  it('keeps in-app-only events visible without attempting device push', async () => {
+    const data = await seed();
+    const send = jest.fn().mockResolvedValue({ status: 'SENT', responseId: 'should-not-send' });
+    const api = services({ send });
+    await api.notifications.updatePreference(data.owner.id, {
+      eventType: 'ORDER_PLACED',
+      inAppEnabled: true,
+      pushEnabled: false,
+    });
+    await api.subscriptions.register(data.owner.id, {
+      provider: 'FCM_WEB',
+      token: `in-app-only-${Date.now()}`,
+    });
+
+    const event = await prisma.outboxEvent.findUnique({
+      where: { idempotencyKey: `order:${data.order.id}:ORDER_PLACED` },
+    });
+    const notification = await api.notifications.materializeOutboxEvent(event);
+    const ownerRecipient = await prisma.notificationRecipient.findFirst({
+      where: { notificationId: notification!.id, userId: data.owner.id },
+    });
+    expect(ownerRecipient).not.toBeNull();
+
+    await api.delivery.deliverRecipient(ownerRecipient!.id);
+    expect(send).not.toHaveBeenCalled();
+
+    const ownerInbox = await api.notifications.listInbox({ id: data.owner.id, role: Role.STORE_OWNER }, 100);
+    expect(ownerInbox.items.some((item) => item.recipientId === ownerRecipient!.id)).toBe(true);
   });
 });

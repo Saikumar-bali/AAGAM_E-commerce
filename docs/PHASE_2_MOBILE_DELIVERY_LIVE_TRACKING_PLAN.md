@@ -1,0 +1,281 @@
+# Phase 2 — Web Completion, Mobile Delivery and Live Tracking
+
+Branch: `phase-2-mobile-delivery-live-tracking`
+
+Base commit:
+
+```text
+e081c166c4fa42a4eb1e3d8bd1734bbf42f1e005
+```
+
+## Execution order
+
+Phase 2 is intentionally split into two hard stages:
+
+1. **Stage A — complete and accept the web platform**
+2. **Stage B — consolidate and implement mobile operations**
+
+No mobile implementation, Android change, legacy mobile deletion, rider API migration or background-location work may begin until Stage A is explicitly accepted.
+
+The Stage A implementation and gate are defined in:
+
+```text
+docs/PHASE_2_WEB_FIRST_EXECUTION_GATE.md
+```
+
+## Stage A objective — complete the web platform
+
+Finish and prove:
+
+- service-worker registration and Firebase web-push diagnostics
+- complete Firebase configuration validation
+- background notification registration for all roles
+- event-level notification settings for admin, customer, store and rider
+- existing customer live/stale tracking behavior remains regression-green
+- full API, build, Playwright and security gates
+
+## Stage B objective — mobile delivery and live tracking
+
+After Stage A acceptance, move the rider mobile application from the retired public-order queue and generic order-status mutations to the canonical Phase 0 delivery domain, then make mobile push and rider location tracking reliable enough for customer-facing live delivery.
+
+Stage B must preserve the Phase 0/1 guarantees:
+
+- riders see only offers addressed to them
+- an offer must be accepted before a rider becomes busy
+- one active delivery per rider
+- explicit delivery-job transitions only
+- notification intent remains transactional and deduplicated
+- push or location failures never roll back committed order/delivery state
+
+## Verified current mobile gaps
+
+The current mobile rider application still:
+
+- calls `GET /orders/rider/queue`
+- emits `joinRidersQueue` and `joinRiderZone`
+- listens for `newOrderNearby`
+- accepts work through retired `PATCH /orders/assign`
+- calls generic `PATCH /orders/:id/status`
+- derives active delivery from legacy order statuses
+- registers one FCM token through `/auth/fcm-token`
+- polls single GPS fixes instead of managing a clear tracking session
+
+Those paths conflict with the accepted delivery domain and must not be retained as fallbacks.
+
+## Mobile consolidation decision
+
+When Stage B begins:
+
+- delete obsolete `apps/mobile-app`
+- keep `apps/mobile-customer` for the CUSTOMER role
+- keep one `apps/mobile-partners` application for RIDER, STORE_OWNER and limited ADMIN workflows
+- use role-based navigation after login
+- do not create a separate rider APK unless an independent release/security boundary becomes necessary later
+
+## Workstream 1 — Canonical mobile delivery API
+
+Replace legacy rider-service methods with:
+
+```text
+GET   /orders/dispatch/rider/workspace
+PATCH /orders/dispatch/assignments/:assignmentId/accept
+PATCH /orders/dispatch/assignments/:assignmentId/reject
+PATCH /orders/dispatch/jobs/:deliveryJobId/en-route-to-store
+PATCH /orders/dispatch/jobs/:deliveryJobId/arrived-at-store
+PATCH /orders/dispatch/jobs/:deliveryJobId/out-for-delivery
+PATCH /orders/dispatch/jobs/:deliveryJobId/arrived-at-customer
+PATCH /orders/dispatch/jobs/:deliveryJobId/delivered
+```
+
+Requirements:
+
+- typed mobile DTOs for workspace, offers, assignments, delivery jobs and transitions
+- no mobile calls to `/orders/rider/queue`, `/orders/assign`, or rider generic status mutation
+- errors must expose actionable messages for expired offers, wrong rider, stale state and invalid transition
+- query-cache invalidation must be based on workspace/assignment/job identifiers
+
+## Workstream 2 — Rider mobile workspace
+
+Replace the public queue UI with two explicit sections:
+
+1. **Addressed offers**
+   - store and destination summary
+   - offer expiry countdown
+   - accept and reject actions
+   - rejection reason selection
+   - expired offer removed without accepting it
+
+2. **Current delivery**
+   - exactly one active job
+   - canonical job status
+   - next valid action only
+   - store navigation and call action
+   - customer navigation and call action
+   - pickup waiting state until store verification
+   - delivery confirmation with proof payload foundation
+
+The screen must never infer rider ownership from the first order in a queue.
+
+## Workstream 3 — Mobile Firebase subscriptions
+
+Migrate device registration to:
+
+```text
+POST /notifications/push/subscriptions
+provider: FCM_MOBILE
+```
+
+Requirements:
+
+- register one row per device token
+- include user agent/device label where available
+- refresh registration when Firebase rotates the token
+- disable the current subscription on logout
+- preserve other active devices for the same user
+- deep-link assignment offers to the rider workspace
+- foreground and background handlers refresh the canonical workspace
+- no use of legacy `/auth/fcm-token` for new mobile sessions
+
+## Workstream 4 — Rider tracking session
+
+Create an explicit tracking lifecycle tied to the active `DeliveryJob`:
+
+- no tracking before assignment acceptance
+- start lower-frequency location updates while travelling to store
+- increase frequency after pickup/out-for-delivery
+- stop tracking on delivered, returned or cancelled terminal states
+- use `watchPosition` rather than repeated one-shot timers for foreground tracking
+- prevent overlapping watchers
+- persist last successful send time and GPS accuracy
+- retry transient network failures without duplicating state transitions
+- expose stale/offline GPS status to the rider
+
+Background-location implementation must be honest:
+
+- Android foreground-service/background-location permission requirements must be documented
+- if the current native stack cannot reliably execute JS while backgrounded, add the required native/background-task capability rather than claiming a timer is background tracking
+- battery and network trade-offs must be documented
+
+## Workstream 5 — Customer live tracking regression
+
+The existing customer web order detail already provides:
+
+- customer live map when active rider location exists
+- store, rider and destination markers
+- last-updated timestamp
+- stale-location warning
+- delivery-state timeline
+- safe behavior when coordinates are absent
+
+Stage B must preserve this behavior while replacing the mobile rider source with canonical job-based tracking.
+
+Server ETA may be included only when distance inputs are trustworthy; otherwise show a clear unavailable state.
+
+## Workstream 6 — Notification preferences
+
+Stage A provides:
+
+- global push and in-app defaults
+- role-aware event-specific controls
+- dedicated settings pages for customer, rider, store and admin
+
+Stage B may extend the same preferences to mobile UI, but must reuse the existing backend contract.
+
+## Workstream 7 — Firebase and tracking observability
+
+Add operational diagnostics for:
+
+- active mobile subscriptions by user/device
+- last token refresh
+- last push delivery attempt and provider error
+- last rider location ping and age
+- active tracking session state
+- invalid/deactivated tokens
+
+Do not log raw FCM tokens, auth secrets, customer phone numbers or full addresses.
+
+## Automated tests
+
+### Web Stage A tests
+
+- complete/partial Firebase configuration contract
+- worker endpoint is JavaScript, not HTML
+- worker installs in health-only mode without Firebase credentials
+- role notification settings render and persist
+- notification settings mobile-width overflow check
+- Phase 0/1 regression gates
+
+### API/service tests
+
+- mobile workspace returns only addressed offers and current job
+- wrong rider cannot accept/reject/transition
+- expired offer cannot be accepted
+- accepted offer becomes the single active job
+- mobile FCM token registration is multi-device and idempotent
+- token refresh moves the device safely without duplicating active rows
+- logout disables only the current device
+- location ping rejected before assignment and after terminal state
+- stale location calculation is deterministic
+
+### Mobile tests
+
+- legacy queue/self-assignment functions are absent from rider service
+- offer countdown and expiry behavior
+- valid action matrix for every delivery state
+- tracking watcher starts once and stops on terminal state
+- notification-open deep link refreshes the correct workspace
+- permission-denied and GPS-disabled states do not crash
+
+## Manual acceptance
+
+### Stage A
+
+1. Worker registers and becomes active for every web role.
+2. Background operating-system notification appears with the tab closed/backgrounded.
+3. Click opens the correct role route and records `openedAt`.
+4. Event-specific preferences persist and affect routing.
+5. Full web/API/CI/security gates are green.
+
+### Stage B
+
+Use two rider accounts, one customer, one store owner and one admin.
+
+Prove:
+
+1. Rider A receives an addressed offer; Rider B receives nothing.
+2. Rider A accepts through the mobile canonical assignment endpoint.
+3. Mobile UI follows the full explicit delivery sequence.
+4. Foreground location updates appear on customer web tracking.
+5. Background/locked-device tracking behavior is tested on a physical Android device and reported honestly.
+6. FCM mobile offer notification opens the rider workspace.
+7. A second device for the same rider remains registered when the first logs out.
+8. Event-specific notification preferences persist and route correctly.
+9. Delivery completion stops location tracking and releases the rider.
+10. Phase 0 and Phase 1 regression gates remain green.
+
+## Out of scope
+
+Keep these for later phases unless required by a blocking dependency:
+
+- automatic rider recommendation/dispatch
+- rider KYC, shifts, zones and capacity planning
+- COD cash settlement
+- rider earnings and payouts
+- proof-photo/signature storage
+- advanced failed-delivery retry/return orchestration
+
+## Merge gate
+
+Do not merge Phase 2 until:
+
+- Stage A is explicitly accepted
+- Prisma validation and migrations pass
+- full API tests pass
+- web/admin build passes
+- focused web and Phase 2 tests pass
+- Phase 0 and Phase 1 regression tests pass
+- mobile TypeScript and Android release build pass after Stage B begins
+- physical Android rider workflow is proven
+- real FCM mobile notification-open behavior is proven
+- foreground live tracking is visible to a customer
+- background tracking capability is either proven or explicitly excluded with a technically valid reason
