@@ -53,6 +53,11 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
 
   const handleLogout = async () => {
     try {
+      const subscriptionId = localStorage.getItem('aagam_push_subscription_id');
+      if (subscriptionId) {
+        await apiClient.delete(`/notifications/push/subscriptions/${encodeURIComponent(subscriptionId)}`)
+          .catch((error) => console.warn('Push subscription cleanup failed during logout', error));
+      }
       await apiClient.post('/auth/logout');
     } catch (error) {
       console.error('Logout failed', error);
