@@ -180,3 +180,140 @@ ALTER TABLE "NotificationDeliveryAttempt"
 ALTER TABLE "NotificationDeliveryAttempt"
   ADD CONSTRAINT "NotificationDeliveryAttempt_subscriptionId_fkey"
   FOREIGN KEY ("subscriptionId") REFERENCES "PushSubscription"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- The database trigger is the final guarantee that business state and the outbox
+-- are committed atomically, including older service paths that do not yet call
+-- OutboxService explicitly.
+CREATE OR REPLACE FUNCTION "phase1_order_outbox_trigger"()
+RETURNS TRIGGER AS $$
+DECLARE
+  notification_event "NotificationEventType";
+  notification_key TEXT;
+  payload JSONB;
+BEGIN
+  notification_event := NULL;
+
+  IF TG_OP = 'INSERT' THEN
+    notification_event := 'ORDER_PLACED';
+  ELSIF OLD."status" IS DISTINCT FROM NEW."status" THEN
+    IF NEW."status" = 'CONFIRMED' AND OLD."status" IN ('PENDING', 'PAYMENT_PENDING') THEN
+      notification_event := 'STORE_ACCEPTED_ORDER';
+    ELSIF NEW."status" = 'PICKING' THEN
+      notification_event := 'STORE_STARTED_PICKING';
+    ELSIF NEW."status" = 'PACKED' AND OLD."status" IN ('CONFIRMED', 'PICKING') THEN
+      notification_event := 'ORDER_PACKED';
+    ELSIF NEW."status" = 'CANCELLED' THEN
+      notification_event := 'DELIVERY_CANCELLED';
+    END IF;
+  END IF;
+
+  IF notification_event IS NOT NULL THEN
+    notification_key := CONCAT('order:', NEW."id", ':', notification_event::TEXT);
+    payload := jsonb_build_object(
+      'orderId', NEW."id",
+      'fromStatus', CASE WHEN TG_OP = 'UPDATE' THEN OLD."status"::TEXT ELSE NULL END,
+      'toStatus', NEW."status"::TEXT
+    );
+
+    INSERT INTO "OutboxEvent" (
+      "id", "eventType", "aggregateType", "aggregateId", "payload",
+      "idempotencyKey", "status", "attempts", "availableAt", "createdAt", "updatedAt"
+    ) VALUES (
+      CONCAT('ob_', md5(random()::TEXT || clock_timestamp()::TEXT || NEW."id")),
+      notification_event,
+      'ORDER',
+      NEW."id",
+      payload,
+      notification_key,
+      'PENDING',
+      0,
+      CURRENT_TIMESTAMP,
+      CURRENT_TIMESTAMP,
+      CURRENT_TIMESTAMP
+    ) ON CONFLICT ("idempotencyKey") DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "Order_phase1_notification_outbox"
+AFTER INSERT OR UPDATE OF "status" ON "Order"
+FOR EACH ROW EXECUTE FUNCTION "phase1_order_outbox_trigger"();
+
+CREATE OR REPLACE FUNCTION "phase1_delivery_event_outbox_trigger"()
+RETURNS TRIGGER AS $$
+DECLARE
+  notification_event "NotificationEventType";
+  notification_key TEXT;
+  payload JSONB;
+BEGIN
+  notification_event := NULL;
+
+  IF NEW."eventType" = 'JOB_CREATED' THEN
+    notification_event := 'DISPATCH_JOB_CREATED';
+  ELSIF NEW."eventType" = 'ASSIGNMENT_OFFERED' THEN
+    notification_event := 'ASSIGNMENT_OFFERED';
+  ELSIF NEW."eventType" = 'ASSIGNMENT_ACCEPTED' THEN
+    notification_event := 'ASSIGNMENT_ACCEPTED';
+  ELSIF NEW."eventType" = 'ASSIGNMENT_REJECTED' THEN
+    notification_event := 'ASSIGNMENT_REJECTED';
+  ELSIF NEW."eventType" = 'ASSIGNMENT_EXPIRED' THEN
+    notification_event := 'ASSIGNMENT_EXPIRED';
+  ELSIF NEW."eventType" = 'JOB_STATUS_CHANGED' THEN
+    IF NEW."toStatus" = 'RIDER_EN_ROUTE_TO_STORE' THEN
+      notification_event := 'RIDER_EN_ROUTE_TO_STORE';
+    ELSIF NEW."toStatus" = 'RIDER_AT_STORE' THEN
+      notification_event := 'RIDER_AT_STORE';
+    ELSIF NEW."toStatus" = 'PICKUP_VERIFIED' THEN
+      notification_event := 'PICKUP_VERIFIED';
+    ELSIF NEW."toStatus" = 'OUT_FOR_DELIVERY' THEN
+      notification_event := 'OUT_FOR_DELIVERY';
+    ELSIF NEW."toStatus" = 'RIDER_AT_CUSTOMER' THEN
+      notification_event := 'RIDER_AT_CUSTOMER';
+    ELSIF NEW."toStatus" = 'DELIVERED' THEN
+      notification_event := 'DELIVERY_COMPLETED';
+    ELSIF NEW."toStatus" = 'DELIVERY_FAILED' THEN
+      notification_event := 'DELIVERY_FAILED';
+    ELSIF NEW."toStatus" = 'CANCELLED' THEN
+      notification_event := 'DELIVERY_CANCELLED';
+    END IF;
+  END IF;
+
+  IF notification_event IS NOT NULL THEN
+    notification_key := CONCAT('delivery-event:', NEW."id", ':', notification_event::TEXT);
+    payload := jsonb_build_object(
+      'deliveryJobId', NEW."deliveryJobId",
+      'assignmentId', NEW."assignmentId",
+      'actorUserId', NEW."actorUserId",
+      'actorRole', NEW."actorRole",
+      'fromStatus', NEW."fromStatus",
+      'toStatus', NEW."toStatus",
+      'metadata', COALESCE(NEW."metadata", '{}'::jsonb)
+    ) || COALESCE(NEW."metadata", '{}'::jsonb);
+
+    INSERT INTO "OutboxEvent" (
+      "id", "eventType", "aggregateType", "aggregateId", "payload",
+      "idempotencyKey", "status", "attempts", "availableAt", "createdAt", "updatedAt"
+    ) VALUES (
+      CONCAT('ob_', md5(random()::TEXT || clock_timestamp()::TEXT || NEW."id")),
+      notification_event,
+      'DELIVERY_JOB',
+      NEW."deliveryJobId",
+      payload,
+      notification_key,
+      'PENDING',
+      0,
+      CURRENT_TIMESTAMP,
+      CURRENT_TIMESTAMP,
+      CURRENT_TIMESTAMP
+    ) ON CONFLICT ("idempotencyKey") DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "DeliveryEvent_phase1_notification_outbox"
+AFTER INSERT ON "DeliveryEvent"
+FOR EACH ROW EXECUTE FUNCTION "phase1_delivery_event_outbox_trigger"();
