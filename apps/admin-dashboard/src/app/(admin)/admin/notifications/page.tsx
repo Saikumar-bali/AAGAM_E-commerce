@@ -21,7 +21,6 @@ export default function AdminNotificationsPage() {
         title,
         body,
         audience,
-        deepLink: '/admin/notifications',
       }, {
         headers: { 'Idempotency-Key': `admin-broadcast-${Date.now()}` },
       });
@@ -43,7 +42,7 @@ export default function AdminNotificationsPage() {
                 <Megaphone className="h-5 w-5 text-indigo-600" />
                 <h2 className="text-xl font-black text-slate-950">Operations broadcast</h2>
               </div>
-              <p className="mt-1 text-sm font-semibold text-slate-500">Creates a durable, deduplicated outbox event instead of a placeholder response.</p>
+              <p className="mt-1 text-sm font-semibold text-slate-500">Creates a durable, deduplicated outbox event with a role-safe destination for every recipient.</p>
             </div>
             <div className="grid flex-1 gap-3 lg:max-w-4xl lg:grid-cols-[1fr_1.4fr_180px_auto]">
               <input
