@@ -245,8 +245,8 @@ export class NotificationService {
           if (!inAppEnabled) inAppHiddenRecipientIds.push(recipient.id);
         }
 
-        const routedData = routed.data && typeof routed.data === 'object' && !Array.isArray(routed.data)
-          ? routed.data as Record<string, unknown>
+        const routedData: any = routed.data && typeof routed.data === 'object' && !Array.isArray(routed.data)
+          ? routed.data
           : {};
         await tx.notification.update({
           where: { id: notification.id },
