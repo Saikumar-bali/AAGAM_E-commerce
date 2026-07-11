@@ -92,7 +92,9 @@ export class RiderTrackingManager {
   subscribe(listener: (snapshot: TrackingSnapshot) => void) {
     this.listeners.add(listener);
     listener(this.snapshot);
-    return () => this.listeners.delete(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   async start(input: { orderId: string; deliveryJobId: string; status: DeliveryJobStatus }) {
