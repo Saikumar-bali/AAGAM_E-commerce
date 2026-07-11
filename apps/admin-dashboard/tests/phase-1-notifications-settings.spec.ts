@@ -3,7 +3,17 @@ import path from 'path';
 
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-1-notifications');
 
-async function login(page: Page, email: string, password = 'Test@1234') {
+const PASSWORDS: Record<string, string> = {
+  'admin@aagam.com': 'admin@2026!',
+  'customer@aagam.com': 'customer@2026!',
+  'store@aagam.com': 'store@2026!',
+  'store2@aagam.com': 'store@2026!',
+  'rider@aagam.com': 'rider@2026!',
+  'rider1@aagam.com': 'rider@2026!',
+  'rider2@aagam.com': 'rider@2026!',
+};
+
+async function login(page: Page, email: string, password = PASSWORDS[email] || 'Test@1234') {
   await page.goto('/login');
   await page.waitForSelector('input[type="email"]', { timeout: 15000 });
   await page.fill('input[type="email"]', email);
@@ -56,7 +66,7 @@ test.describe('Phase 1.1: event-level notification preferences', () => {
       await expect(page.getByRole('heading', { name: item.heading })).toBeVisible({ timeout: 15000 });
       await expect(page.getByRole('heading', { name: 'Global defaults' })).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Event-specific controls' })).toBeVisible();
-      await expect(page.getByRole('heading', { name: item.event })).toBeVisible();
+      await expect(page.getByRole('heading', { name: item.event, exact: true })).toBeVisible();
       await expect(page.getByRole('switch', { name: /Global device push/i })).toBeVisible();
       await expect(page.getByRole('switch', { name: /Global in-app inbox/i })).toBeVisible();
       await expect(page.locator('body')).not.toContainText('Could not load notification preferences');
