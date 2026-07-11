@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { LegacyRiderBroadcastBlockerService } from './legacy-rider-broadcast-blocker.service';
 import { NotificationDeliveryService } from './notification-delivery.service';
 import { NotificationRoutingService } from './notification-routing.service';
 import { NotificationService } from './notification.service';
@@ -19,6 +20,7 @@ import { WebPushService } from './web-push.service';
     NotificationDeliveryService,
     NotificationService,
     NotificationWorkerService,
+    LegacyRiderBroadcastBlockerService,
   ],
   exports: [
     WebPushService,
