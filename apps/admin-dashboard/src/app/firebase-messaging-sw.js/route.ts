@@ -70,6 +70,9 @@ self.addEventListener('message', (event) => {
 
 if (firebaseConfigReady) {
   try {
+    if (typeof window === 'undefined') {
+      self.window = self;
+    }
     importScripts('/firebase/firebase-app-compat.js');
     importScripts('/firebase/firebase-messaging-compat.js');
 
