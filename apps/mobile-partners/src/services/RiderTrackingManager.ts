@@ -50,7 +50,7 @@ export type TrackingSnapshot = {
   stopReason?: string | null;
 };
 
-type NativeTrackingStatus = {
+export type NativeTrackingStatus = {
   supported?: boolean;
   active?: boolean;
   orderId?: string | null;
@@ -65,6 +65,7 @@ type NativeTrackingStatus = {
 
 type SessionStartResult = {
   nativeTracking?: boolean;
+  getNativeStatus?: () => Promise<NativeTrackingStatus>;
 };
 
 type TrackingDependencies = {
@@ -93,6 +94,7 @@ export class RiderTrackingManager {
   private readonly dependencies: TrackingDependencies;
   private watchId: number | null = null;
   private nativeStatusTimer: ReturnType<typeof setInterval> | null = null;
+  private nativeStatusReader: (() => Promise<NativeTrackingStatus>) | null = null;
   private nativeManaged = false;
   private sequence = 0;
   private lastCaptureAt = 0;
@@ -115,6 +117,7 @@ export class RiderTrackingManager {
 
   constructor(dependencies: TrackingDependencies) {
     this.dependencies = dependencies;
+    this.nativeStatusReader = dependencies.getNativeStatus || null;
   }
 
   getSnapshot() {
@@ -142,11 +145,14 @@ export class RiderTrackingManager {
         stopReason: null,
       });
       if (this.nativeManaged) {
-        await this.dependencies.startSession(
+        const refreshed = await this.dependencies.startSession(
           input.orderId,
           input.deliveryJobId,
           input.status,
-        );
+        ) as SessionStartResult | undefined;
+        if (refreshed?.getNativeStatus) {
+          this.nativeStatusReader = refreshed.getNativeStatus;
+        }
         await this.pollNativeStatus();
       }
       return;
@@ -161,6 +167,9 @@ export class RiderTrackingManager {
       input.status,
     ) as SessionStartResult | undefined;
     this.nativeManaged = Boolean(session?.nativeTracking);
+    this.nativeStatusReader = session?.getNativeStatus
+      || this.dependencies.getNativeStatus
+      || null;
     this.sequence = this.nextSequenceForOrder(input.orderId);
     this.lastCaptureAt = 0;
     this.setSnapshot({
@@ -213,7 +222,13 @@ export class RiderTrackingManager {
         this.snapshot.orderId,
         this.snapshot.deliveryJobId,
         status,
-      ).then(() => this.pollNativeStatus()).catch((error: any) => {
+      ).then((result) => {
+        const refreshed = result as SessionStartResult | undefined;
+        if (refreshed?.getNativeStatus) {
+          this.nativeStatusReader = refreshed.getNativeStatus;
+        }
+        return this.pollNativeStatus();
+      }).catch((error: any) => {
         this.setSnapshot({
           error: error?.response?.data?.message
             || error?.message
@@ -240,6 +255,7 @@ export class RiderTrackingManager {
     }
 
     this.nativeManaged = false;
+    this.nativeStatusReader = this.dependencies.getNativeStatus || null;
     this.setSnapshot({
       active: false,
       orderId: null,
@@ -291,7 +307,7 @@ export class RiderTrackingManager {
 
   private startNativeStatusPolling() {
     this.stopNativeStatusPolling();
-    if (!this.dependencies.getNativeStatus) return;
+    if (!this.nativeStatusReader) return;
     this.nativeStatusTimer = setInterval(() => {
       void this.pollNativeStatus();
     }, NATIVE_STATUS_POLL_MS);
@@ -305,12 +321,12 @@ export class RiderTrackingManager {
   }
 
   private async pollNativeStatus() {
-    if (!this.nativeManaged || !this.dependencies.getNativeStatus || this.pollingNativeStatus) {
+    if (!this.nativeManaged || !this.nativeStatusReader || this.pollingNativeStatus) {
       return;
     }
     this.pollingNativeStatus = true;
     try {
-      const status = await this.dependencies.getNativeStatus();
+      const status = await this.nativeStatusReader();
       this.setSnapshot({
         active: status.active !== false,
         orderId: status.orderId ?? this.snapshot.orderId,
