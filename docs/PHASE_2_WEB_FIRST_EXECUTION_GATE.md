@@ -90,18 +90,27 @@ The dashboard no longer requires a duplicate Firebase configuration for normal r
 
 Opening `http://localhost:3001/firebase-messaging-sw.js` directly may still show an empty fallback config when dashboard-side Firebase variables are not set. That direct response is no longer the normal registration path. Clicking **Enable background alerts** registers a query-configured worker using the complete values returned by the API.
 
-Prove in Chrome:
+Before retesting once, run in the browser console:
 
-1. Remove old localhost service-worker registrations and clear site storage once.
-2. Sign in as each role and open its notification center.
-3. Click **Enable background alerts**.
-4. Confirm `/firebase-messaging-sw.js?...` is installed and active for scope `/`.
-5. Confirm the UI shows background alerts enabled only after worker health, FCM token creation and backend subscription storage succeed.
-6. Close or background the tab and send a role-addressed notification.
-7. Confirm the operating-system notification appears.
-8. Click it and verify the correct role-safe deep link and `openedAt` acknowledgement.
-9. Change an event-specific preference and verify routing respects it.
-10. Verify another role or unselected rider receives nothing.
+```js
+const registrations = await navigator.serviceWorker.getRegistrations();
+await Promise.all(registrations.map((registration) => registration.unregister()));
+localStorage.removeItem('aagam_push_enabled');
+localStorage.removeItem('aagam_push_subscription_id');
+location.reload();
+```
+
+Then prove in Chrome:
+
+1. Sign in as each role and open its notification center.
+2. Click **Enable background alerts**.
+3. Confirm `/firebase-messaging-sw.js?...` is installed and active for scope `/`.
+4. Confirm the UI shows background alerts enabled only after worker health, FCM token creation and backend subscription storage succeed.
+5. Close or background the tab and send a role-addressed notification.
+6. Confirm the operating-system notification appears.
+7. Click it and verify the correct role-safe deep link and `openedAt` acknowledgement.
+8. Change an event-specific preference and verify routing respects it.
+9. Verify another role or unselected rider receives nothing.
 
 ## Stage B — Mobile consolidation and delivery operations
 
