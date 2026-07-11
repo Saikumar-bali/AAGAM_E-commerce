@@ -1,61 +1,94 @@
+import { RiderJobAction, RiderWorkspace, normalizeRiderWorkspace } from '../domain/riderWorkspace';
 import { apiClient } from './client';
 
+export type RiderLocationPayload = {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  speed?: number;
+  heading?: number;
+  clientPingId: string;
+  sequence: number;
+  capturedAt: string;
+};
+
+const TRANSITION_PATHS: Record<RiderJobAction, string> = {
+  EN_ROUTE_TO_STORE: 'en-route-to-store',
+  ARRIVED_AT_STORE: 'arrived-at-store',
+  OUT_FOR_DELIVERY: 'out-for-delivery',
+  ARRIVED_AT_CUSTOMER: 'arrived-at-customer',
+  DELIVERED: 'delivered',
+};
+
 export const riderService = {
-  getAssignedOrders: async () => {
-    const r = await apiClient.get('/orders/rider');
-    return r.data;
+  getWorkspace: async (): Promise<RiderWorkspace> => {
+    const response = await apiClient.get('/orders/dispatch/rider/workspace');
+    return normalizeRiderWorkspace(response.data);
   },
 
-  getAvailableQueue: async () => {
-    const r = await apiClient.get('/orders/rider/queue');
-    return r.data;
+  acceptOffer: async (assignmentId: string) => {
+    const response = await apiClient.patch(
+      `/orders/dispatch/assignments/${encodeURIComponent(assignmentId)}/accept`,
+    );
+    return response.data;
   },
 
-  updateOrderStatus: async (orderId: string, status: string, riderId?: string) => {
-    const r = await apiClient.patch(`/orders/${orderId}/status`, { status, riderId });
-    return r.data;
+  rejectOffer: async (assignmentId: string, reason?: string) => {
+    const response = await apiClient.patch(
+      `/orders/dispatch/assignments/${encodeURIComponent(assignmentId)}/reject`,
+      reason ? { reason } : {},
+    );
+    return response.data;
+  },
+
+  transitionJob: async (
+    deliveryJobId: string,
+    action: RiderJobAction,
+    proof?: { proofType?: string; code?: string; note?: string; latitude?: number; longitude?: number },
+  ) => {
+    const path = TRANSITION_PATHS[action];
+    const response = await apiClient.patch(
+      `/orders/dispatch/jobs/${encodeURIComponent(deliveryJobId)}/${path}`,
+      action === 'DELIVERED' ? (proof || { proofType: 'RIDER_CONFIRMATION' }) : {},
+    );
+    return response.data;
   },
 
   startTracking: async (orderId: string) => {
-    const r = await apiClient.post(`/tracking/start/${orderId}`);
-    return r.data;
+    const response = await apiClient.post(`/tracking/start/${encodeURIComponent(orderId)}`);
+    return response.data;
   },
 
-  stopTracking: async (orderId: string) => {
-    const r = await apiClient.post(`/tracking/stop/${orderId}`);
-    return r.data;
+  stopTracking: async (orderId: string, reason = 'WORKSPACE_INACTIVE') => {
+    const response = await apiClient.post(
+      `/tracking/stop/${encodeURIComponent(orderId)}`,
+      { reason },
+    );
+    return response.data;
   },
 
-  sendLocationPing: async (
-    orderId: string,
-    location: {
-      latitude: number;
-      longitude: number;
-      accuracy?: number;
-      speed?: number;
-      heading?: number;
-    }
-  ) => {
-    const r = await apiClient.post('/tracking/rider-location', {
+  sendLocationPing: async (orderId: string, location: RiderLocationPayload) => {
+    const response = await apiClient.post('/tracking/rider-location', {
       orderId,
       ...location,
-      source: 'MOBILE',
+      source: 'MOBILE_PARTNERS',
     });
-    return r.data;
+    return response.data;
   },
 
-  updateMyStatus: async (status: string, location?: { latitude: number; longitude: number }) => {
-    const r = await apiClient.patch('/riders/me/status', { status, ...location });
-    return r.data;
-  },
-
-  assignOrder: async (orderId: string) => {
-    const r = await apiClient.patch('/orders/assign', { orderId });
-    return r.data;
+  updateMyStatus: async (
+    status: 'ONLINE' | 'OFFLINE' | 'BUSY',
+    location?: { latitude: number; longitude: number },
+  ) => {
+    const response = await apiClient.patch('/riders/me/status', {
+      status,
+      ...(location || {}),
+    });
+    return response.data;
   },
 
   getProfile: async (userId: string) => {
-    const r = await apiClient.get(`/riders/${userId}`);
-    return r.data;
+    const response = await apiClient.get(`/riders/${encodeURIComponent(userId)}`);
+    return response.data;
   },
 };
