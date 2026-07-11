@@ -28,7 +28,7 @@ import { NotificationWorkerService } from './notification-worker.service';
 import { OutboxService } from './outbox.service';
 import { PushSubscriptionService } from './push-subscription.service';
 
-function getFirebaseWebPushConfig() {
+export function getFirebaseWebPushConfig() {
   const firebaseConfig = {
     apiKey: process.env.FIREBASE_WEB_API_KEY || '',
     authDomain: process.env.FIREBASE_WEB_AUTH_DOMAIN || '',
