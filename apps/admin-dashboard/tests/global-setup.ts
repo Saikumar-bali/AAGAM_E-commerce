@@ -9,6 +9,11 @@ async function globalSetup() {
       cwd: path.resolve(__dirname, '..'),
       stdio: 'inherit',
       timeout: 30000,
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        PLAYWRIGHT_QA_SEED: 'true',
+      },
     });
     console.log('[global-setup] QA seed completed successfully.');
   } catch (e: any) {
