@@ -62,8 +62,8 @@ async function loadFirebaseCompat() {
   if (window.firebase?.messaging) return window.firebase;
   if (!firebaseLoadPromise) {
     firebaseLoadPromise = (async () => {
-      await loadScript('https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js');
-      await loadScript('https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js');
+      await loadScript('/firebase/firebase-app-compat.js');
+      await loadScript('/firebase/firebase-messaging-compat.js');
       if (!window.firebase?.messaging) throw new Error('Firebase Messaging did not initialize');
       return window.firebase;
     })();
