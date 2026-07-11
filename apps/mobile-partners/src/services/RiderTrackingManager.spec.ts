@@ -1,6 +1,8 @@
 import { RiderTrackingManager, TrackingPosition } from './RiderTrackingManager';
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+const flush = () => new Promise<void>((resolve) => {
+  setTimeout(() => resolve(), 0);
+});
 
 describe('RiderTrackingManager', () => {
   let now: number;
