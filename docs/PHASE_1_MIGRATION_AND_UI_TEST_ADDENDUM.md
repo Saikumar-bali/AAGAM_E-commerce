@@ -4,14 +4,21 @@ Use this addendum together with `docs/PHASE_1_NOTIFICATION_SCENARIO_TESTING.md`.
 
 ## Required migrations
 
-Both migrations must be applied, in order:
+All three migrations must be applied, in order:
 
 ```text
 20260711083000_phase_1_notification_outbox
 20260711084500_phase_1_expiry_event_dedupe
+20260711090000_phase_1_payment_safe_order_outbox
 ```
 
 The second migration prevents multiple workers or legacy workspace reconciliation from producing duplicate `ASSIGNMENT_EXPIRED` delivery events.
+
+The third migration makes order notifications payment-safe:
+
+- COD/non-payment-pending orders enqueue `ORDER_PLACED` immediately.
+- online `PAYMENT_PENDING` orders do not notify store/admin yet.
+- online orders enqueue `ORDER_PLACED` only when payment capture changes the order to `CONFIRMED`.
 
 Verify:
 
@@ -22,6 +29,14 @@ WHERE indexname = 'DeliveryEvent_one_assignment_expiry';
 ```
 
 Expected: one row.
+
+Verify the active trigger function definition:
+
+```sql
+SELECT pg_get_functiondef('phase1_order_outbox_trigger'::regproc);
+```
+
+Expected: the function contains the `PAYMENT_PENDING` to `CONFIRMED` payment-safe branch.
 
 ## Additional automated UI gate
 
