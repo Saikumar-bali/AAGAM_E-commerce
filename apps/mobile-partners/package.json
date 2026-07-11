@@ -8,7 +8,10 @@
     "lint": "eslint .",
     "start": "react-native start",
     "dev": "react-native start",
-    "test": "jest"
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "jest --runInBand",
+    "test:phase2b": "jest --runInBand src/domain/riderWorkspace.spec.ts src/services/RiderTrackingManager.spec.ts"
   },
   "dependencies": {
     "@aagam/mobile-shared": "*",
