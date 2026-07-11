@@ -40,7 +40,7 @@
     "@supabase/supabase-js": "^2.103.3",
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/passport-jwt": "^1.0.1",
+    "@types/passport-jwt": "^4.0.1",
     "@types/uuid": "^9.0.0",
     "bcrypt": "^6.0.0",
     "cache-manager": "^7.2.8",
