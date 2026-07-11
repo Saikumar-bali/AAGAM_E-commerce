@@ -148,8 +148,17 @@ jobs:
             exit 1
           fi
 
-      - name: Partners and shared TypeScript
-        run: npm run build:partners
+      - name: Shared mobile TypeScript
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build --workspace=@aagam/mobile-shared 2>&1 | tee mobile-shared-typecheck.log
+
+      - name: Partners TypeScript
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build --workspace=AagamPartners 2>&1 | tee partners-typecheck.log
 
       - name: Focused Partners tests
         shell: bash
@@ -157,12 +166,15 @@ jobs:
           set -o pipefail
           npm run test:phase2b --workspace=AagamPartners 2>&1 | tee mobile-test-output.log
 
-      - name: Upload mobile test diagnostics
+      - name: Upload mobile diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mobile-test-output-${{ github.run_id }}
-          path: mobile-test-output.log
+          name: mobile-diagnostics-${{ github.run_id }}
+          path: |
+            mobile-shared-typecheck.log
+            partners-typecheck.log
+            mobile-test-output.log
           if-no-files-found: ignore
           retention-days: 1
 
