@@ -17,7 +17,7 @@ Phase 2 is intentionally split into two hard stages:
 
 No mobile implementation, Android change, legacy mobile deletion, rider API migration or background-location work may begin until Stage A is explicitly accepted.
 
-The Stage A gate is defined in:
+The Stage A implementation and gate are defined in:
 
 ```text
 docs/PHASE_2_WEB_FIRST_EXECUTION_GATE.md
