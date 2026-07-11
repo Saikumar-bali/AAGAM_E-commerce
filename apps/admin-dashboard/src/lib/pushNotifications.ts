@@ -8,12 +8,30 @@ declare global {
   }
 }
 
+type FirebaseWebConfig = {
+  apiKey: string;
+  authDomain?: string;
+  projectId: string;
+  storageBucket?: string;
+  messagingSenderId: string;
+  appId: string;
+};
+
+type WorkerHealth = {
+  type: 'AAGAM_SW_HEALTH';
+  version: string;
+  status: 'READY' | 'CONFIG_MISSING' | 'INITIALIZING' | 'ERROR';
+  error?: string | null;
+  firebaseConfigReady: boolean;
+};
+
 type PushSetupResult = {
   enabled: boolean;
   permission: NotificationPermission;
   subscriptionId?: string;
   token?: string;
   reason?: string;
+  code?: string;
 };
 
 let firebaseLoadPromise: Promise<any> | null = null;
@@ -59,6 +77,42 @@ function notificationTarget(deepLink?: string, recipientId?: string) {
   return target.href;
 }
 
+function workerScriptUrl(firebaseConfig: FirebaseWebConfig) {
+  const url = new URL('/firebase-messaging-sw.js', window.location.origin);
+  Object.entries(firebaseConfig).forEach(([key, value]) => {
+    if (value) url.searchParams.set(key, value);
+  });
+  return `${url.pathname}${url.search}`;
+}
+
+function waitForWorkerHealth(registration: ServiceWorkerRegistration) {
+  return new Promise<WorkerHealth>((resolve, reject) => {
+    const worker = registration.active || registration.waiting || registration.installing;
+    if (!worker) {
+      reject(new Error('Service worker installed without an active worker instance'));
+      return;
+    }
+
+    const channel = new MessageChannel();
+    const timeout = window.setTimeout(() => {
+      channel.port1.close();
+      reject(new Error('Service worker health check timed out'));
+    }, 8000);
+
+    channel.port1.onmessage = (event: MessageEvent<WorkerHealth>) => {
+      window.clearTimeout(timeout);
+      channel.port1.close();
+      resolve(event.data);
+    };
+
+    worker.postMessage({ type: 'AAGAM_SW_HEALTH_CHECK' }, [channel.port2]);
+  });
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function pushNotificationsSupported() {
   return typeof window !== 'undefined'
     && 'Notification' in window
@@ -68,16 +122,36 @@ export function pushNotificationsSupported() {
 
 export async function enablePushNotifications(): Promise<PushSetupResult> {
   if (!pushNotificationsSupported()) {
-    return { enabled: false, permission: 'denied', reason: 'This browser does not support push notifications.' };
+    return {
+      enabled: false,
+      permission: 'denied',
+      code: 'BROWSER_UNSUPPORTED',
+      reason: 'This browser does not support push notifications.',
+    };
   }
 
-  const configResponse = await apiClient.get('/notifications/push/config');
-  const config = configResponse.data || {};
-  if (!config.enabled || !config.firebaseConfig || !config.vapidKey) {
+  let config: any;
+  try {
+    const configResponse = await apiClient.get('/notifications/push/config');
+    config = configResponse.data || {};
+  } catch (error) {
     return {
       enabled: false,
       permission: Notification.permission,
-      reason: 'Firebase web push is not configured on the server.',
+      code: 'CONFIG_REQUEST_FAILED',
+      reason: `Could not load push configuration: ${errorMessage(error)}`,
+    };
+  }
+
+  if (!config.enabled || !config.firebaseConfig || !config.vapidKey) {
+    const missing = Array.isArray(config.missing) && config.missing.length
+      ? ` Missing: ${config.missing.join(', ')}.`
+      : '';
+    return {
+      enabled: false,
+      permission: Notification.permission,
+      code: 'FIREBASE_CONFIG_MISSING',
+      reason: `Firebase web push is not fully configured on the API.${missing}`,
     };
   }
 
@@ -85,27 +159,98 @@ export async function enablePushNotifications(): Promise<PushSetupResult> {
     ? await Notification.requestPermission()
     : Notification.permission;
   if (permission !== 'granted') {
-    return { enabled: false, permission, reason: 'Notification permission was not granted.' };
+    return {
+      enabled: false,
+      permission,
+      code: 'PERMISSION_NOT_GRANTED',
+      reason: 'Notification permission was not granted.',
+    };
   }
 
-  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
-  await navigator.serviceWorker.ready;
+  let registration: ServiceWorkerRegistration;
+  try {
+    registration = await navigator.serviceWorker.register(
+      workerScriptUrl(config.firebaseConfig as FirebaseWebConfig),
+      { scope: '/', updateViaCache: 'none' },
+    );
+    await navigator.serviceWorker.ready;
+  } catch (error) {
+    return {
+      enabled: false,
+      permission,
+      code: 'WORKER_REGISTRATION_FAILED',
+      reason: `Background worker registration failed: ${errorMessage(error)}`,
+    };
+  }
 
-  const firebase = await loadFirebaseCompat();
-  const app = firebase.apps?.length ? firebase.app() : firebase.initializeApp(config.firebaseConfig);
-  const messaging = firebase.messaging(app);
-  const token = await messaging.getToken({
-    vapidKey: config.vapidKey,
-    serviceWorkerRegistration: registration,
-  });
-  if (!token) throw new Error('Firebase did not return a web push token');
+  try {
+    const health = await waitForWorkerHealth(registration);
+    if (health.status !== 'READY') {
+      return {
+        enabled: false,
+        permission,
+        code: `WORKER_${health.status}`,
+        reason: health.error
+          ? `Background worker could not initialize Firebase: ${health.error}`
+          : `Background worker is not ready (${health.status}).`,
+      };
+    }
+  } catch (error) {
+    return {
+      enabled: false,
+      permission,
+      code: 'WORKER_HEALTH_FAILED',
+      reason: `Background worker health check failed: ${errorMessage(error)}`,
+    };
+  }
 
-  const response = await apiClient.post('/notifications/push/subscriptions', {
-    provider: 'FCM_WEB',
-    token,
-    userAgent: navigator.userAgent,
-    deviceName: `${navigator.platform || 'Browser'} web`,
-  });
+  let firebase: any;
+  let messaging: any;
+  try {
+    firebase = await loadFirebaseCompat();
+    const app = firebase.apps?.length ? firebase.app() : firebase.initializeApp(config.firebaseConfig);
+    messaging = firebase.messaging(app);
+  } catch (error) {
+    return {
+      enabled: false,
+      permission,
+      code: 'FIREBASE_BROWSER_INIT_FAILED',
+      reason: `Firebase could not initialize in the browser: ${errorMessage(error)}`,
+    };
+  }
+
+  let token: string;
+  try {
+    token = await messaging.getToken({
+      vapidKey: config.vapidKey,
+      serviceWorkerRegistration: registration,
+    });
+    if (!token) throw new Error('Firebase did not return a web push token');
+  } catch (error) {
+    return {
+      enabled: false,
+      permission,
+      code: 'FCM_TOKEN_FAILED',
+      reason: `Firebase token registration failed: ${errorMessage(error)}`,
+    };
+  }
+
+  let response: any;
+  try {
+    response = await apiClient.post('/notifications/push/subscriptions', {
+      provider: 'FCM_WEB',
+      token,
+      userAgent: navigator.userAgent,
+      deviceName: `${navigator.platform || 'Browser'} web`,
+    });
+  } catch (error) {
+    return {
+      enabled: false,
+      permission,
+      code: 'SUBSCRIPTION_API_FAILED',
+      reason: `The browser token could not be saved: ${errorMessage(error)}`,
+    };
+  }
 
   localStorage.setItem('aagam_push_enabled', 'true');
   localStorage.setItem('aagam_push_subscription_id', response.data?.id || '');
