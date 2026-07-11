@@ -1,4 +1,4 @@
-# Phase 2 — Mobile Delivery and Live Tracking Foundation
+# Phase 2 — Web Completion, Mobile Delivery and Live Tracking
 
 Branch: `phase-2-mobile-delivery-live-tracking`
 
@@ -8,11 +8,37 @@ Base commit:
 e081c166c4fa42a4eb1e3d8bd1734bbf42f1e005
 ```
 
-## Objective
+## Execution order
 
-Move the rider mobile application from the retired public-order queue and generic order-status mutations to the canonical Phase 0 delivery domain, then make mobile push and rider location tracking reliable enough for customer-facing live delivery.
+Phase 2 is intentionally split into two hard stages:
 
-Phase 2 must preserve the Phase 0/1 guarantees:
+1. **Stage A — complete and accept the web platform**
+2. **Stage B — consolidate and implement mobile operations**
+
+No mobile implementation, Android change, legacy mobile deletion, rider API migration or background-location work may begin until Stage A is explicitly accepted.
+
+The Stage A gate is defined in:
+
+```text
+docs/PHASE_2_WEB_FIRST_EXECUTION_GATE.md
+```
+
+## Stage A objective — complete the web platform
+
+Finish and prove:
+
+- service-worker registration and Firebase web-push diagnostics
+- complete Firebase configuration validation
+- background notification registration for all roles
+- event-level notification settings for admin, customer, store and rider
+- existing customer live/stale tracking behavior remains regression-green
+- full API, build, Playwright and security gates
+
+## Stage B objective — mobile delivery and live tracking
+
+After Stage A acceptance, move the rider mobile application from the retired public-order queue and generic order-status mutations to the canonical Phase 0 delivery domain, then make mobile push and rider location tracking reliable enough for customer-facing live delivery.
+
+Stage B must preserve the Phase 0/1 guarantees:
 
 - riders see only offers addressed to them
 - an offer must be accepted before a rider becomes busy
@@ -21,7 +47,7 @@ Phase 2 must preserve the Phase 0/1 guarantees:
 - notification intent remains transactional and deduplicated
 - push or location failures never roll back committed order/delivery state
 
-## Verified current gaps
+## Verified current mobile gaps
 
 The current mobile rider application still:
 
@@ -35,6 +61,16 @@ The current mobile rider application still:
 - polls single GPS fixes instead of managing a clear tracking session
 
 Those paths conflict with the accepted delivery domain and must not be retained as fallbacks.
+
+## Mobile consolidation decision
+
+When Stage B begins:
+
+- delete obsolete `apps/mobile-app`
+- keep `apps/mobile-customer` for the CUSTOMER role
+- keep one `apps/mobile-partners` application for RIDER, STORE_OWNER and limited ADMIN workflows
+- use role-based navigation after login
+- do not create a separate rider APK unless an independent release/security boundary becomes necessary later
 
 ## Workstream 1 — Canonical mobile delivery API
 
@@ -120,37 +156,30 @@ Background-location implementation must be honest:
 - if the current native stack cannot reliably execute JS while backgrounded, add the required native/background-task capability rather than claiming a timer is background tracking
 - battery and network trade-offs must be documented
 
-## Workstream 5 — Customer live tracking
+## Workstream 5 — Customer live tracking regression
 
-Use the existing tracking payload and rider pings to provide:
+The existing customer web order detail already provides:
 
-- customer web live map when an active rider location exists
-- customer mobile map or safe coordinate/route fallback
+- customer live map when active rider location exists
+- store, rider and destination markers
 - last-updated timestamp
 - stale-location warning
-- store, rider and customer markers
-- delivery state timeline from `DeliveryJob`
-- no map crash when coordinates are absent
+- delivery-state timeline
+- safe behavior when coordinates are absent
+
+Stage B must preserve this behavior while replacing the mobile rider source with canonical job-based tracking.
 
 Server ETA may be included only when distance inputs are trustworthy; otherwise show a clear unavailable state.
 
-## Workstream 6 — Notification preferences UI
+## Workstream 6 — Notification preferences
 
-The shared notification center already has a global push toggle. Add a dedicated settings experience for event-level controls:
+Stage A provides:
 
-- order preparation updates
-- rider assignment/pickup updates
-- out-for-delivery/arrival updates
-- delivery completion/failure updates
-- administrative broadcasts where role-appropriate
+- global push and in-app defaults
+- role-aware event-specific controls
+- dedicated settings pages for customer, rider, store and admin
 
-Requirements:
-
-- read existing `/notifications/preferences`
-- upsert per-event push/in-app values
-- global preference remains the fallback
-- critical operational events must be clearly identified if they cannot be fully disabled
-- responsive web UI for customer, rider, store and admin roles
+Stage B may extend the same preferences to mobile UI, but must reuse the existing backend contract.
 
 ## Workstream 7 — Firebase and tracking observability
 
@@ -166,6 +195,15 @@ Add operational diagnostics for:
 Do not log raw FCM tokens, auth secrets, customer phone numbers or full addresses.
 
 ## Automated tests
+
+### Web Stage A tests
+
+- complete/partial Firebase configuration contract
+- worker endpoint is JavaScript, not HTML
+- worker installs in health-only mode without Firebase credentials
+- role notification settings render and persist
+- notification settings mobile-width overflow check
+- Phase 0/1 regression gates
 
 ### API/service tests
 
@@ -188,14 +226,17 @@ Do not log raw FCM tokens, auth secrets, customer phone numbers or full addresse
 - notification-open deep link refreshes the correct workspace
 - permission-denied and GPS-disabled states do not crash
 
-### Web tests
-
-- event-level preference page loads/saves
-- customer tracking map empty/loading/live/stale states
-- role-safe navigation
-- mobile-width overflow checks
-
 ## Manual acceptance
+
+### Stage A
+
+1. Worker registers and becomes active for every web role.
+2. Background operating-system notification appears with the tab closed/backgrounded.
+3. Click opens the correct role route and records `openedAt`.
+4. Event-specific preferences persist and affect routing.
+5. Full web/API/CI/security gates are green.
+
+### Stage B
 
 Use two rider accounts, one customer, one store owner and one admin.
 
@@ -227,12 +268,13 @@ Keep these for later phases unless required by a blocking dependency:
 
 Do not merge Phase 2 until:
 
+- Stage A is explicitly accepted
 - Prisma validation and migrations pass
 - full API tests pass
-- mobile TypeScript and Android release build pass
 - web/admin build passes
-- focused Phase 2 tests pass
+- focused web and Phase 2 tests pass
 - Phase 0 and Phase 1 regression tests pass
+- mobile TypeScript and Android release build pass after Stage B begins
 - physical Android rider workflow is proven
 - real FCM mobile notification-open behavior is proven
 - foreground live tracking is visible to a customer
