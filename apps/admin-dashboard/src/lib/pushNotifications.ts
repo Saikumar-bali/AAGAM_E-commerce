@@ -85,14 +85,37 @@ function workerScriptUrl(firebaseConfig: FirebaseWebConfig) {
   return `${url.pathname}${url.search}`;
 }
 
-function waitForWorkerHealth(registration: ServiceWorkerRegistration) {
-  return new Promise<WorkerHealth>((resolve, reject) => {
-    const worker = registration.active || registration.waiting || registration.installing;
-    if (!worker) {
-      reject(new Error('Service worker installed without an active worker instance'));
-      return;
-    }
+function waitForWorkerActivation(registration: ServiceWorkerRegistration) {
+  const worker = registration.installing || registration.waiting || registration.active;
+  if (!worker) return Promise.reject(new Error('Service worker instance missing after registration'));
+  if (worker.state === 'activated') return Promise.resolve(worker);
 
+  return new Promise<ServiceWorker>((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      worker.removeEventListener('statechange', handleStateChange);
+      reject(new Error(`Service worker activation timed out in state ${worker.state}`));
+    }, 12000);
+
+    const handleStateChange = () => {
+      if (worker.state === 'activated') {
+        window.clearTimeout(timeout);
+        worker.removeEventListener('statechange', handleStateChange);
+        resolve(worker);
+      } else if (worker.state === 'redundant') {
+        window.clearTimeout(timeout);
+        worker.removeEventListener('statechange', handleStateChange);
+        reject(new Error('Service worker became redundant before activation'));
+      }
+    };
+
+    worker.addEventListener('statechange', handleStateChange);
+  });
+}
+
+async function waitForWorkerHealth(registration: ServiceWorkerRegistration) {
+  const worker = await waitForWorkerActivation(registration);
+
+  return new Promise<WorkerHealth>((resolve, reject) => {
     const channel = new MessageChannel();
     const timeout = window.setTimeout(() => {
       channel.port1.close();
