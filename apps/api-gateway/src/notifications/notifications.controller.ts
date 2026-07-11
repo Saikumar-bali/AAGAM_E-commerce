@@ -38,14 +38,14 @@ export function getFirebaseWebPushConfig() {
     appId: process.env.FIREBASE_WEB_APP_ID || '',
   };
   const vapidKey = process.env.FIREBASE_WEB_VAPID_KEY || '';
-  const requiredValues = [
+  const blank = (value: string) => value.trim().length === 0;
+  const enabled = [
     firebaseConfig.apiKey,
     firebaseConfig.projectId,
     firebaseConfig.messagingSenderId,
     firebaseConfig.appId,
     vapidKey,
-  ];
-  const enabled = requiredValues.every((value) => value.trim().length > 0);
+  ].every((value) => !blank(value));
 
   return {
     enabled,
@@ -54,11 +54,11 @@ export function getFirebaseWebPushConfig() {
     missing: enabled
       ? []
       : [
-          !firebaseConfig.apiKey && 'FIREBASE_WEB_API_KEY',
-          !firebaseConfig.projectId && 'FIREBASE_WEB_PROJECT_ID',
-          !firebaseConfig.messagingSenderId && 'FIREBASE_WEB_MESSAGING_SENDER_ID',
-          !firebaseConfig.appId && 'FIREBASE_WEB_APP_ID',
-          !vapidKey && 'FIREBASE_WEB_VAPID_KEY',
+          blank(firebaseConfig.apiKey) && 'FIREBASE_WEB_API_KEY',
+          blank(firebaseConfig.projectId) && 'FIREBASE_WEB_PROJECT_ID',
+          blank(firebaseConfig.messagingSenderId) && 'FIREBASE_WEB_MESSAGING_SENDER_ID',
+          blank(firebaseConfig.appId) && 'FIREBASE_WEB_APP_ID',
+          blank(vapidKey) && 'FIREBASE_WEB_VAPID_KEY',
         ].filter(Boolean),
   };
 }
