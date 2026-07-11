@@ -35,6 +35,8 @@ export type QueuedLocationPing = RiderLocationPayload & {
   orderId: string;
 };
 
+export type TrackingMode = 'NATIVE_FOREGROUND_SERVICE' | 'JAVASCRIPT_WATCHER' | null;
+
 export type TrackingSnapshot = {
   active: boolean;
   orderId: string | null;
@@ -44,19 +46,44 @@ export type TrackingSnapshot = {
   lastAccuracy: number | null;
   queuedCount: number;
   error: string | null;
+  mode?: TrackingMode;
+  stopReason?: string | null;
+};
+
+type NativeTrackingStatus = {
+  supported?: boolean;
+  active?: boolean;
+  orderId?: string | null;
+  deliveryJobId?: string | null;
+  deliveryStatus?: DeliveryJobStatus | null;
+  lastSentAt?: string | null;
+  lastAccuracy?: number | null;
+  queuedCount?: number;
+  error?: string | null;
+  stopReason?: string | null;
+};
+
+type SessionStartResult = {
+  nativeTracking?: boolean;
 };
 
 type TrackingDependencies = {
   location: LocationProvider;
   storage: TrackingStorage;
   sendPing: (orderId: string, payload: RiderLocationPayload) => Promise<unknown>;
-  startSession: (orderId: string) => Promise<unknown>;
+  startSession: (
+    orderId: string,
+    deliveryJobId: string,
+    status: DeliveryJobStatus,
+  ) => Promise<unknown>;
   stopSession: (orderId: string, reason: string) => Promise<unknown>;
+  getNativeStatus?: () => Promise<NativeTrackingStatus>;
   now?: () => number;
   createId?: () => string;
 };
 
 const QUEUE_KEY = 'aagam:rider:location-queue:v1';
+const NATIVE_STATUS_POLL_MS = 5_000;
 
 function defaultId() {
   return `ping-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
@@ -65,10 +92,13 @@ function defaultId() {
 export class RiderTrackingManager {
   private readonly dependencies: TrackingDependencies;
   private watchId: number | null = null;
+  private nativeStatusTimer: ReturnType<typeof setInterval> | null = null;
+  private nativeManaged = false;
   private sequence = 0;
   private lastCaptureAt = 0;
   private queue: QueuedLocationPing[] = [];
   private flushing = false;
+  private pollingNativeStatus = false;
   private listeners = new Set<(snapshot: TrackingSnapshot) => void>();
   private snapshot: TrackingSnapshot = {
     active: false,
@@ -79,6 +109,8 @@ export class RiderTrackingManager {
     lastAccuracy: null,
     queuedCount: 0,
     error: null,
+    mode: null,
+    stopReason: null,
   };
 
   constructor(dependencies: TrackingDependencies) {
@@ -104,14 +136,31 @@ export class RiderTrackingManager {
     }
 
     if (this.snapshot.active && this.snapshot.orderId === input.orderId) {
-      this.updateStatus(input.status);
+      this.setSnapshot({
+        deliveryJobId: input.deliveryJobId,
+        status: input.status,
+        stopReason: null,
+      });
+      if (this.nativeManaged) {
+        await this.dependencies.startSession(
+          input.orderId,
+          input.deliveryJobId,
+          input.status,
+        );
+        await this.pollNativeStatus();
+      }
       return;
     }
 
     if (this.snapshot.active) await this.stop('DELIVERY_CHANGED');
 
     await this.restoreQueue();
-    await this.dependencies.startSession(input.orderId);
+    const session = await this.dependencies.startSession(
+      input.orderId,
+      input.deliveryJobId,
+      input.status,
+    ) as SessionStartResult | undefined;
+    this.nativeManaged = Boolean(session?.nativeTracking);
     this.sequence = this.nextSequenceForOrder(input.orderId);
     this.lastCaptureAt = 0;
     this.setSnapshot({
@@ -121,7 +170,19 @@ export class RiderTrackingManager {
       status: input.status,
       error: null,
       queuedCount: this.queue.length,
+      mode: this.nativeManaged ? 'NATIVE_FOREGROUND_SERVICE' : 'JAVASCRIPT_WATCHER',
+      stopReason: null,
     });
+
+    // A queue created by a previous JS fallback is flushed once before native
+    // ownership begins. Android then owns all new location collection and retry.
+    await this.flushQueue();
+
+    if (this.nativeManaged) {
+      this.startNativeStatusPolling();
+      await this.pollNativeStatus();
+      return;
+    }
 
     this.watchId = this.dependencies.location.watchPosition(
       (position) => void this.capture(position),
@@ -134,8 +195,6 @@ export class RiderTrackingManager {
         showsBackgroundLocationIndicator: true,
       },
     );
-
-    await this.flushQueue();
   }
 
   updateStatus(status: DeliveryJobStatus) {
@@ -143,27 +202,52 @@ export class RiderTrackingManager {
       void this.stop('STATUS_TERMINAL');
       return;
     }
+
     this.setSnapshot({ status });
+    if (
+      this.nativeManaged
+      && this.snapshot.orderId
+      && this.snapshot.deliveryJobId
+    ) {
+      void this.dependencies.startSession(
+        this.snapshot.orderId,
+        this.snapshot.deliveryJobId,
+        status,
+      ).then(() => this.pollNativeStatus()).catch((error: any) => {
+        this.setSnapshot({
+          error: error?.response?.data?.message
+            || error?.message
+            || 'Could not update native tracking cadence.',
+        });
+      });
+    }
   }
 
   async stop(reason = 'MANUAL_STOP') {
     const orderId = this.snapshot.orderId;
+    this.stopNativeStatusPolling();
+
     if (this.watchId !== null) {
       this.dependencies.location.clearWatch(this.watchId);
       this.watchId = null;
     }
 
-    await this.flushQueue();
+    if (!this.nativeManaged) {
+      await this.flushQueue();
+    }
     if (orderId) {
       await this.dependencies.stopSession(orderId, reason).catch(() => undefined);
     }
 
+    this.nativeManaged = false;
     this.setSnapshot({
       active: false,
       orderId: null,
       deliveryJobId: null,
       status: null,
       error: null,
+      mode: null,
+      stopReason: reason,
     });
   }
 
@@ -205,10 +289,56 @@ export class RiderTrackingManager {
     }
   }
 
+  private startNativeStatusPolling() {
+    this.stopNativeStatusPolling();
+    if (!this.dependencies.getNativeStatus) return;
+    this.nativeStatusTimer = setInterval(() => {
+      void this.pollNativeStatus();
+    }, NATIVE_STATUS_POLL_MS);
+  }
+
+  private stopNativeStatusPolling() {
+    if (this.nativeStatusTimer !== null) {
+      clearInterval(this.nativeStatusTimer);
+      this.nativeStatusTimer = null;
+    }
+  }
+
+  private async pollNativeStatus() {
+    if (!this.nativeManaged || !this.dependencies.getNativeStatus || this.pollingNativeStatus) {
+      return;
+    }
+    this.pollingNativeStatus = true;
+    try {
+      const status = await this.dependencies.getNativeStatus();
+      this.setSnapshot({
+        active: status.active !== false,
+        orderId: status.orderId ?? this.snapshot.orderId,
+        deliveryJobId: status.deliveryJobId ?? this.snapshot.deliveryJobId,
+        status: status.deliveryStatus ?? this.snapshot.status,
+        lastSentAt: status.lastSentAt ?? this.snapshot.lastSentAt,
+        lastAccuracy: status.lastAccuracy ?? this.snapshot.lastAccuracy,
+        queuedCount: Number(status.queuedCount || 0),
+        error: status.error || null,
+        mode: 'NATIVE_FOREGROUND_SERVICE',
+        stopReason: status.stopReason || null,
+      });
+      if (status.active === false) {
+        this.stopNativeStatusPolling();
+      }
+    } catch (error: any) {
+      this.setSnapshot({
+        error: error?.message || 'Could not read native tracking status.',
+      });
+    } finally {
+      this.pollingNativeStatus = false;
+    }
+  }
+
   private async capture(position: TrackingPosition) {
     const orderId = this.snapshot.orderId;
     const status = this.snapshot.status;
-    if (!this.snapshot.active || !orderId || !status) return;
+    if (this.nativeManaged || !this.snapshot.active || !orderId || !status) return;
 
     const now = this.now();
     if (this.lastCaptureAt > 0 && now - this.lastCaptureAt < trackingIntervalForStatus(status)) return;
