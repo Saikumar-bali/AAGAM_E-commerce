@@ -46,6 +46,7 @@
     "@react-native-community/cli": "latest",
     "@react-native/babel-preset": "0.85.2",
     "@react-native/eslint-config": "0.85.2",
+    "@react-native/jest-preset": "0.85.2",
     "@react-native/metro-config": "0.85.2",
     "@react-native/typescript-config": "0.85.2",
     "@types/react": "^19.0.0",
