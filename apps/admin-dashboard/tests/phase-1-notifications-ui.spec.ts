@@ -9,6 +9,7 @@ async function login(page: Page, email: string, password = 'Test@1234') {
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
+  await page.waitForFunction(() => localStorage.getItem('access_token') !== null, { timeout: 15000 });
   await page.waitForLoadState('networkidle');
 }
 
@@ -32,7 +33,7 @@ test.describe('Phase 1: Professional notification centers', () => {
     await verifyNotificationCenter(page, '/admin/notifications', /Operations Notifications/i, '01-admin-notifications.png');
     await expect(page.getByRole('heading', { name: /Operations broadcast/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Queue/i })).toBeVisible();
-    await expect(page.getByText('All users')).toBeVisible();
+    await expect(page.locator('select')).toHaveValue('ALL_USERS');
   });
 
   test('Customer notification center renders with durable inbox controls', async ({ page }) => {
@@ -53,8 +54,8 @@ test.describe('Phase 1: Professional notification centers', () => {
   });
 
   test('Notification centers have no mobile horizontal overflow', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
     await login(page, 'rider@aagam.com');
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/rider/notifications');
     await page.waitForLoadState('networkidle');
     await expect(page.getByRole('heading', { name: /Rider Notifications/i })).toBeVisible({ timeout: 15000 });
