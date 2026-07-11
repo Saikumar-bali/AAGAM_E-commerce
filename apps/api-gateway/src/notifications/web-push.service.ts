@@ -52,6 +52,14 @@ export class WebPushService implements OnModuleInit {
   async send(subscription: any, payload: PushPayload): Promise<PushSendResult> {
     this.initializeFirebase();
 
+    // The pre-Phase-0 checkout path broadcast every new order to every rider.
+    // Keep the compatibility method callable, but explicitly block that unsafe
+    // fan-out. Riders now receive only ASSIGNMENT_OFFERED events addressed to
+    // their user ID through the durable outbox.
+    if ((payload.data as any)?.type === 'NEW_ORDER') {
+      return { status: 'SKIPPED', reason: 'Legacy all-rider order broadcast is disabled' };
+    }
+
     if (!subscription?.token) {
       return { status: 'SKIPPED', reason: 'Subscription has no FCM token' };
     }
