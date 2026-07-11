@@ -53,6 +53,11 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
 
   const handleLogout = async () => {
     try {
+      const subscriptionId = localStorage.getItem('aagam_push_subscription_id');
+      if (subscriptionId) {
+        await apiClient.delete(`/notifications/push/subscriptions/${encodeURIComponent(subscriptionId)}`)
+          .catch((error) => console.warn('Push subscription cleanup failed during logout', error));
+      }
       await apiClient.post('/auth/logout');
     } catch (error) {
       console.error('Logout failed', error);
@@ -62,6 +67,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
       localStorage.removeItem('user_email');
       localStorage.removeItem('user_avatar');
       localStorage.removeItem('access_token');
+      localStorage.removeItem('aagam_push_enabled');
+      localStorage.removeItem('aagam_push_subscription_id');
       router.push('/login');
     }
   };
@@ -80,7 +87,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
       { name: 'Live Tracking', href: '/admin/live-tracking', icon: Radar },
     ],
     RIDER: [
-      { name: 'Queue', href: '/rider', icon: Truck },
+      { name: 'Current Delivery', href: '/rider', icon: Truck },
+      { name: 'Notifications', href: '/rider/notifications', icon: Bell },
       { name: 'History', href: '/rider/history', icon: ShoppingCart },
       { name: 'Profile', href: '/rider/profile', icon: User },
     ],
@@ -96,9 +104,10 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     ],
     STORE_OWNER: [
       { name: 'Dashboard', href: '/store', icon: LayoutDashboard },
-      { name: 'My Stores', href: '/store/stores', icon: Store },
-      { name: 'Inventory', href: '/store/inventory', icon: Package },
+      { name: 'Notifications', href: '/store/notifications', icon: Bell },
       { name: 'Orders', href: '/store/orders', icon: ShoppingCart },
+      { name: 'Inventory', href: '/store/inventory', icon: Package },
+      { name: 'My Stores', href: '/store/stores', icon: Store },
     ],
   };
 

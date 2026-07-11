@@ -46,6 +46,15 @@ export default defineConfig({
       },
       testMatch: /phase-0-dispatch-ui\.spec\.ts/,
     },
+    {
+      name: 'phase-1-notifications',
+      use: {
+        ...devices['Desktop Chrome'],
+        headless: true,
+        permissions: [],
+      },
+      testMatch: /phase-1-notifications(?:-ui|-e2e)?\.spec\.ts/,
+    },
   ],
   webServer: {
     command: 'npm run dev',

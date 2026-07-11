@@ -34,6 +34,11 @@ interface AuthenticatedSocket extends Socket {
 }
 
 const TRACKABLE_STATUSES = ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'];
+const LEGACY_RIDER_QUEUE_ERROR = {
+  ok: false,
+  code: 'RIDER_PUBLIC_QUEUE_REMOVED',
+  message: 'Public rider queues are disabled. Riders receive only addressed dispatch assignment offers.',
+};
 
 @WebSocketGateway({
   cors: {
@@ -230,18 +235,14 @@ export class TrackingGateway implements OnGatewayConnection {
   }
 
   @SubscribeMessage('joinRiderZone')
-  handleJoinRiderZone(
-    @MessageBody() data: { latitude: number; longitude: number },
-    @ConnectedSocket() client: Socket,
-  ) {
-    const zoneKey = `${Math.round(data.latitude * 10)}_${Math.round(data.longitude * 10)}`;
-    client.join(`zone_${zoneKey}`);
-    console.log(`Rider joined zone: ${zoneKey}`);
+  handleJoinRiderZone(@ConnectedSocket() client: AuthenticatedSocket) {
+    console.log(`[Socket] joinRiderZone rejected for ${client.data.user?.id || 'unknown'}: public queue removed`);
+    return LEGACY_RIDER_QUEUE_ERROR;
   }
 
   @SubscribeMessage('joinRidersQueue')
-  handleJoinRidersQueue(@ConnectedSocket() client: Socket) {
-    client.join('riders_queue');
-    console.log('Rider joined riders_queue room');
+  handleJoinRidersQueue(@ConnectedSocket() client: AuthenticatedSocket) {
+    console.log(`[Socket] joinRidersQueue rejected for ${client.data.user?.id || 'unknown'}: public queue removed`);
+    return LEGACY_RIDER_QUEUE_ERROR;
   }
 }
