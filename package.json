@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo dev --filter=!AagamMobile --filter=!AagamCustomer --filter=!AagamPartners",
+    "dev": "turbo dev --filter=!AagamCustomer --filter=!AagamPartners",
     "build": "npm run build:api",
     "build:all": "turbo build",
     "start": "npm run railway:start:api",
