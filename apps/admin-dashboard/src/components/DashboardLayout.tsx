@@ -56,6 +56,26 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
   }, [allowedRole, router]);
 
   useEffect(() => {
+    if (!mounted || typeof window === 'undefined') return;
+    const currentUrl = new URL(window.location.href);
+    const recipientId = currentUrl.searchParams.get('aagamNotificationRecipient');
+    if (!recipientId) return;
+
+    currentUrl.searchParams.delete('aagamNotificationRecipient');
+    window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+
+    void apiClient.patch(`/notifications/${encodeURIComponent(recipientId)}/opened`)
+      .then(() => {
+        window.dispatchEvent(new CustomEvent('aagam:push-message', {
+          detail: { recipientId, source: 'notification-click' },
+        }));
+      })
+      .catch((error) => {
+        console.warn('[DashboardLayout] Notification open acknowledgement failed:', error);
+      });
+  }, [mounted]);
+
+  useEffect(() => {
     if (!mounted) return;
     let active = true;
     const loadUnread = async () => {
