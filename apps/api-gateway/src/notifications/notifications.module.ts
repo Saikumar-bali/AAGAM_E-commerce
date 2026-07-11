@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { RealtimeModule } from '../realtime/realtime.module';
 import { LegacyRiderBroadcastBlockerService } from './legacy-rider-broadcast-blocker.service';
 import { NotificationDeliveryService } from './notification-delivery.service';
 import { NotificationRoutingService } from './notification-routing.service';
@@ -11,6 +12,7 @@ import { WebPushService } from './web-push.service';
 
 @Global()
 @Module({
+  imports: [RealtimeModule],
   controllers: [NotificationsController],
   providers: [
     WebPushService,
