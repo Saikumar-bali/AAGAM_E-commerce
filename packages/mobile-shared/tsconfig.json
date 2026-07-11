@@ -3,9 +3,11 @@
     "target": "esnext",
     "module": "commonjs",
     "lib": ["es2019"],
+    "allowJs": true,
     "jsx": "react-jsx",
     "strict": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
@@ -14,8 +16,11 @@
     "moduleResolution": "node",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
-    }
+      "@/*": ["./src/*"],
+      "@aagam/types": ["../types/src"],
+      "@aagam/utils": ["../utils/src"]
+    },
+    "types": ["react", "react-native"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]
