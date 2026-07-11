@@ -70,8 +70,8 @@ self.addEventListener('message', (event) => {
 
 if (firebaseConfigReady) {
   try {
-    importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js');
-    importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js');
+    importScripts('/firebase/firebase-app-compat.js');
+    importScripts('/firebase/firebase-messaging-compat.js');
 
     const firebaseNamespace = self.firebase;
     if (!firebaseNamespace?.initializeApp || !firebaseNamespace?.messaging) {
