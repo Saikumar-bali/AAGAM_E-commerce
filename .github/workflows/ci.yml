@@ -199,8 +199,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Setup Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
       - name: Install dependencies
         run: npm install
@@ -210,8 +212,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee android-build-output.log
+          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee android-build-output.log
 
       - name: Upload Android diagnostics
         if: always()
