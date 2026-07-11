@@ -39,19 +39,27 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.messagin
   });
 }
 
+function notificationTarget(data) {
+  const target = new URL(data?.deepLink || '/', self.location.origin);
+  if (data?.recipientId) {
+    target.searchParams.set('aagamNotificationRecipient', data.recipientId);
+  }
+  return target.href;
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const deepLink = event.notification?.data?.deepLink || '/';
+  const target = notificationTarget(event.notification?.data || {});
   event.waitUntil((async () => {
     const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of windows) {
       if ('focus' in client) {
         await client.focus();
-        if ('navigate' in client) await client.navigate(deepLink);
+        if ('navigate' in client) await client.navigate(target);
         return;
       }
     }
-    if (clients.openWindow) await clients.openWindow(deepLink);
+    if (clients.openWindow) await clients.openWindow(target);
   })());
 });
 `;
