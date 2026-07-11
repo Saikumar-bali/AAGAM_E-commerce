@@ -88,6 +88,8 @@ FIREBASE_WEB_VAPID_KEY
 
 The dashboard no longer requires a duplicate Firebase configuration for normal registration. It receives the public values from the authenticated API endpoint and passes them to the worker script URL.
 
+Opening `http://localhost:3001/firebase-messaging-sw.js` directly may still show an empty fallback config when dashboard-side Firebase variables are not set. That direct response is no longer the normal registration path. Clicking **Enable background alerts** registers a query-configured worker using the complete values returned by the API.
+
 Prove in Chrome:
 
 1. Remove old localhost service-worker registrations and clear site storage once.
