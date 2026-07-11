@@ -17,6 +17,7 @@ type PushSetupResult = {
 };
 
 let firebaseLoadPromise: Promise<any> | null = null;
+let foregroundHandlerRegistered = false;
 
 function loadScript(src: string) {
   return new Promise<void>((resolve, reject) => {
@@ -50,6 +51,12 @@ async function loadFirebaseCompat() {
     })();
   }
   return firebaseLoadPromise;
+}
+
+function notificationTarget(deepLink?: string, recipientId?: string) {
+  const target = new URL(deepLink || '/', window.location.origin);
+  if (recipientId) target.searchParams.set('aagamNotificationRecipient', recipientId);
+  return target.href;
 }
 
 export function pushNotificationsSupported() {
@@ -103,24 +110,28 @@ export async function enablePushNotifications(): Promise<PushSetupResult> {
   localStorage.setItem('aagam_push_enabled', 'true');
   localStorage.setItem('aagam_push_subscription_id', response.data?.id || '');
 
-  messaging.onMessage((payload: any) => {
-    const title = payload?.notification?.title || payload?.data?.title || 'AAGAM update';
-    const body = payload?.notification?.body || payload?.data?.body || 'You have a new notification.';
-    const deepLink = payload?.data?.deepLink;
-    window.dispatchEvent(new CustomEvent('aagam:push-message', { detail: payload }));
-    if (document.visibilityState === 'visible' && Notification.permission === 'granted') {
-      const notification = new Notification(title, {
-        body,
-        icon: '/icons/icon-192.png',
-        tag: payload?.data?.notificationId || payload?.data?.eventType || 'aagam-update',
-        data: { deepLink },
-      });
-      notification.onclick = () => {
-        window.focus();
-        if (deepLink) window.location.assign(deepLink);
-      };
-    }
-  });
+  if (!foregroundHandlerRegistered) {
+    foregroundHandlerRegistered = true;
+    messaging.onMessage((payload: any) => {
+      const title = payload?.notification?.title || payload?.data?.title || 'AAGAM update';
+      const body = payload?.notification?.body || payload?.data?.body || 'You have a new notification.';
+      const deepLink = payload?.data?.deepLink;
+      const recipientId = payload?.data?.recipientId;
+      window.dispatchEvent(new CustomEvent('aagam:push-message', { detail: payload }));
+      if (document.visibilityState === 'visible' && Notification.permission === 'granted') {
+        const notification = new Notification(title, {
+          body,
+          icon: '/icons/icon-192.png',
+          tag: payload?.data?.notificationId || payload?.data?.eventType || 'aagam-update',
+          data: { deepLink, recipientId },
+        });
+        notification.onclick = () => {
+          window.focus();
+          window.location.assign(notificationTarget(deepLink, recipientId));
+        };
+      }
+    });
+  }
 
   return { enabled: true, permission, subscriptionId: response.data?.id, token };
 }
