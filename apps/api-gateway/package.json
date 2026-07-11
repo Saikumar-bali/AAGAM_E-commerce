@@ -11,7 +11,7 @@
     "test:ci": "jest --runInBand --testPathIgnorePatterns=api-smoke.spec.ts",
     "test:api-smoke": "node scripts/run-api-smoke-if-online.js",
     "test:phase0": "jest --runInBand phase0-delivery-domain.spec.ts phase8b-orders.spec.ts phase9-orders.spec.ts phase9-delivery-orders.spec.ts",
-    "test:phase1": "jest --runInBand phase1-notifications.spec.ts phase1-notification-routing.spec.ts phase1-payment-notification.spec.ts phase1-rider-socket-queue.spec.ts phase12-notifications.spec.ts",
+    "test:phase1": "jest --runInBand phase1-notifications.spec.ts phase1-notification-routing.spec.ts phase1-payment-notification.spec.ts phase1-rider-socket-queue.spec.ts phase1-web-push-config.spec.ts phase12-notifications.spec.ts",
     "test:phase6": "jest --runInBand phase6-catalog.spec.ts",
     "test:phase8": "jest --runInBand phase8",
     "test:phase9": "jest --runInBand phase9",
@@ -68,6 +68,7 @@
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.1.0",
     "@types/node-fetch": "^2.6.13",
+    "@types/node": "^20.0.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.4.11",
     "typescript": "^5.0.0"
