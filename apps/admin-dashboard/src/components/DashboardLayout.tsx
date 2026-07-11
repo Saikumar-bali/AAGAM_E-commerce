@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
+import PushNotificationManager from './PushNotificationManager';
 import { Bell, CheckCircle2, Command, Loader2, Search } from 'lucide-react';
-
 import { apiClient } from '@aagam/utils';
 
 interface DashboardLayoutProps {
@@ -15,25 +15,23 @@ interface DashboardLayoutProps {
 const notificationHrefByRole: Record<DashboardLayoutProps['allowedRole'], string> = {
   ADMIN: '/admin/notifications',
   CUSTOMER: '/shop/notifications',
-  STORE_OWNER: '/store/orders',
-  RIDER: '/rider',
+  STORE_OWNER: '/store/notifications',
+  RIDER: '/rider/notifications',
 };
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole }) => {
   const [mounted, setMounted] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
     const verifySession = async () => {
-      console.log(`[DashboardLayout] Verifying session for role: ${allowedRole}`);
       try {
         const response = await apiClient.get('/auth/me');
         const user = response.data;
-        console.log('[DashboardLayout] Session verified. User:', user);
-        
+
         if (user.role !== allowedRole) {
-          console.warn(`[DashboardLayout] Role mismatch. Expected ${allowedRole}, got ${user.role}. Redirecting...`);
           if (user.role === 'ADMIN') router.push('/admin');
           else if (user.role === 'RIDER') router.push('/rider');
           else if (user.role === 'STORE_OWNER') router.push('/store');
@@ -48,14 +46,36 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
           localStorage.setItem('user_avatar', user.avatarUrl || '');
         }
         setMounted(true);
-      } catch (error: any) {
-        console.error('[DashboardLayout] Session verification failed:', error.response?.data || error.message);
+      } catch (error) {
+        console.error('[DashboardLayout] Session verification failed:', error);
         router.push('/login');
       }
     };
 
-    verifySession();
+    void verifySession();
   }, [allowedRole, router]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    let active = true;
+    const loadUnread = async () => {
+      try {
+        const response = await apiClient.get('/notifications/inbox?limit=1');
+        if (active) setUnreadCount(Number(response.data?.unreadCount || 0));
+      } catch {
+        if (active) setUnreadCount(0);
+      }
+    };
+    void loadUnread();
+    const interval = window.setInterval(loadUnread, 30000);
+    const handlePush = () => void loadUnread();
+    window.addEventListener('aagam:push-message', handlePush);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('aagam:push-message', handlePush);
+    };
+  }, [mounted]);
 
   if (!mounted) {
     return (
@@ -108,18 +128,22 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
                   Live systems
                 </div>
               ) : null}
+              <PushNotificationManager />
               <button
                 onClick={() => router.push(notificationHrefByRole[allowedRole])}
                 aria-label="Open notifications"
-                className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:text-teal-700"
+                className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:text-teal-700"
               >
                 <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </button>
             </div>
           </div>
-          <div className="relative">
-          {children}
-          </div>
+          <div className="relative">{children}</div>
         </div>
       </main>
     </div>
