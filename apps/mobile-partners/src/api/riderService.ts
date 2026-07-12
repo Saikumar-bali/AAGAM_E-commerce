@@ -26,6 +26,7 @@ const TRANSITION_PATHS: Record<RiderJobAction, string> = {
   ARRIVED_AT_STORE: 'arrived-at-store',
   OUT_FOR_DELIVERY: 'out-for-delivery',
   ARRIVED_AT_CUSTOMER: 'arrived-at-customer',
+  DELIVERED: 'delivered',
 };
 
 function currentBearerToken() {
@@ -54,11 +55,17 @@ export const riderService = {
     return response.data;
   },
 
-  transitionJob: async (deliveryJobId: string, action: RiderJobAction) => {
+  // DELIVERED is retained only for older compiled callers. The current action
+  // policy never emits it; Phase 3 completion uses deliveryOperationsService.
+  transitionJob: async (
+    deliveryJobId: string,
+    action: RiderJobAction,
+    proof?: { proofType?: string; code?: string; note?: string; latitude?: number; longitude?: number },
+  ) => {
     const path = TRANSITION_PATHS[action];
     const response = await apiClient.patch(
       `/orders/dispatch/jobs/${encodeURIComponent(deliveryJobId)}/${path}`,
-      {},
+      action === 'DELIVERED' ? (proof || { proofType: 'RIDER_CONFIRMATION' }) : {},
     );
     return response.data;
   },
