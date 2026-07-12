@@ -51,7 +51,7 @@ function roleFallback(role: Role, item: InboxItem) {
     return item.orderId ? `/admin/orders/${item.orderId}` : '/admin/notifications';
   }
   if (role === 'STORE_OWNER') return '/store/orders';
-  if (role === 'RIDER') return '/rider';
+  if (role === 'RIDER') return item.deliveryJobId ? `/rider/delivery?job=${encodeURIComponent(item.deliveryJobId)}` : '/rider/notifications';
   return item.orderId ? `/shop/orders/${item.orderId}` : '/shop/notifications';
 }
 
