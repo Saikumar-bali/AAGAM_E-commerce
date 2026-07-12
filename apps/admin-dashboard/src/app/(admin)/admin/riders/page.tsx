@@ -4,29 +4,26 @@ import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
-import { io, Socket } from 'socket.io-client';
-import { 
-  Bike, 
-  Plus, 
-  Search, 
-  Edit,
+import { createRealtimeSocket } from '@/lib/realtimeSocket';
+import {
+  Bike,
+  Plus,
+  Search,
   Trash2,
   Eye,
   Clock,
   CheckCircle,
   XCircle,
   Package,
-  Calendar,
   User,
   Mail,
   Phone,
   X,
   Loader2,
   MapPin,
-  AlertTriangle
 } from 'lucide-react';
 
-const LiveTrackingMap = dynamic(() => import('@/components/LiveTrackingMap'), { 
+const LiveTrackingMap = dynamic(() => import('@/components/LiveTrackingMap'), {
   ssr: false,
   loading: () => (
     <div className="h-full w-full bg-gray-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-gray-200">
@@ -35,7 +32,7 @@ const LiveTrackingMap = dynamic(() => import('@/components/LiveTrackingMap'), {
         <p className="text-gray-500 font-bold">Initializing live map...</p>
       </div>
     </div>
-  )
+  ),
 });
 
 interface Rider {
@@ -63,7 +60,6 @@ export default function AdminRidersPage() {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
   const [error, setError] = useState('');
   const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
 
   const fetchRiders = async () => {
     try {
@@ -79,44 +75,45 @@ export default function AdminRidersPage() {
   useEffect(() => {
     fetchRiders();
 
-    // Initialize WebSocket connection
-    const newSocket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
-    
+    const newSocket = createRealtimeSocket();
+
     newSocket.on('connect', () => {
       console.log('✅ Admin dashboard connected to tracking socket');
       newSocket.emit('joinAdminMonitor');
     });
 
-    newSocket.on('adminRiderUpdate', (data: any) => {
-      setRiders(prevRiders => 
-        prevRiders.map(rider => 
-          rider.id === data.riderId 
-            ? { ...rider, latitude: data.latitude, longitude: data.longitude, bearing: data.bearing, status: data.status as any, updatedAt: data.timestamp }
-            : rider
-        )
-      );
+    newSocket.on('connect_error', (socketError) => {
+      console.error('Admin tracking socket connection failed', socketError.message);
     });
 
-    setSocket(newSocket);
+    newSocket.on('adminRiderUpdate', (data: any) => {
+      setRiders((prevRiders) =>
+        prevRiders.map((rider) =>
+          rider.id === data.riderId
+            ? { ...rider, latitude: data.latitude, longitude: data.longitude, bearing: data.bearing, status: data.status as any, updatedAt: data.timestamp }
+            : rider,
+        ),
+      );
+    });
 
     return () => {
       newSocket.disconnect();
     };
   }, []);
 
-  const filteredRiders = riders.filter(rider => {
+  const filteredRiders = riders.filter((rider) => {
     const name = rider.user?.name?.toLowerCase() || '';
     const email = rider.user?.email?.toLowerCase() || '';
     const matchesSearch = name.includes(searchTerm.toLowerCase()) || email.includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'All' || 
+    const matchesStatus = statusFilter === 'All' ||
       (statusFilter === 'Online' && rider.status === 'ONLINE') ||
       (statusFilter === 'Offline' && rider.status === 'OFFLINE') ||
       (statusFilter === 'Busy' && rider.status === 'BUSY');
     return matchesSearch && matchesStatus;
   });
 
-  const onlineRiders = riders.filter(r => r.status === 'ONLINE').length;
-  const busyRiders = riders.filter(r => r.status === 'BUSY').length;
+  const onlineRiders = riders.filter((r) => r.status === 'ONLINE').length;
+  const busyRiders = riders.filter((r) => r.status === 'BUSY').length;
   const totalDeliveries = riders.reduce((acc, r) => acc + (r.orders?.length || 0), 0);
 
   const stats = [
@@ -149,7 +146,7 @@ export default function AdminRidersPage() {
       await apiClient.post('/riders', {
         name: formData.name,
         email: formData.email,
-        phone: formData.phone
+        phone: formData.phone,
       });
       setShowModal(false);
       setFormData({ name: '', email: '', phone: '' });
@@ -183,14 +180,14 @@ export default function AdminRidersPage() {
             <p className="text-gray-500 font-medium">Track and manage your delivery riders in real-time.</p>
           </div>
           <div className="flex gap-3">
-            <button 
+            <button
               onClick={() => { setSelectedRider(null); setShowMapModal(true); }}
               className="flex items-center justify-center px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-900/10"
             >
               <MapPin className="h-5 w-5 mr-2" />
               Live Global Map
             </button>
-            <button 
+            <button
               onClick={() => setShowModal(true)}
               className="flex items-center justify-center px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10"
             >
@@ -222,16 +219,16 @@ export default function AdminRidersPage() {
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div className="relative flex-1 max-w-md w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input 
-                type="text" 
-                placeholder="Search riders..." 
+              <input
+                type="text"
+                placeholder="Search riders..."
                 className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <div className="flex gap-2 w-full lg:w-auto overflow-x-auto pb-1">
-              {statusOptions.map(status => (
+              {statusOptions.map((status) => (
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
@@ -260,7 +257,7 @@ export default function AdminRidersPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
-                [1, 2, 3].map(i => (
+                [1, 2, 3].map((i) => (
                   <tr key={i} className="animate-pulse">
                     <td className="px-6 py-4"><div className="h-12 bg-gray-100 rounded w-48"></div></td>
                     <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-40"></div></td>
@@ -319,7 +316,7 @@ export default function AdminRidersPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end space-x-1.5">
-                          <button 
+                          <button
                             onClick={() => handleTrackLive(rider)}
                             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                             title="Track Live"
@@ -343,7 +340,6 @@ export default function AdminRidersPage() {
         </div>
       </div>
 
-      {/* Map Modal */}
       {showMapModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-0 md:p-8">
           <div className="bg-white rounded-none md:rounded-3xl w-full h-full max-w-6xl shadow-2xl flex flex-col overflow-hidden">
@@ -355,19 +351,16 @@ export default function AdminRidersPage() {
                 </h2>
                 <p className="text-sm text-gray-500 font-bold">Real-time GPS updates from active riders</p>
               </div>
-              <button 
-                onClick={() => { setShowMapModal(false); setSelectedRider(null); }} 
+              <button
+                onClick={() => { setShowMapModal(false); setSelectedRider(null); }}
                 className="p-2.5 hover:bg-gray-100 rounded-xl transition-all"
               >
                 <X className="h-6 w-6 text-gray-500" />
               </button>
             </div>
             <div className="flex-1 relative bg-gray-100">
-              <LiveTrackingMap 
-                riders={riders} 
-                selectedRiderId={selectedRider?.id} 
-              />
-              
+              <LiveTrackingMap riders={riders} selectedRiderId={selectedRider?.id} />
+
               {selectedRider && (
                 <div className="absolute top-4 left-4 z-[1000] bg-white/90 backdrop-blur shadow-xl rounded-2xl p-4 border border-white max-w-xs">
                   <div className="flex items-center gap-3 mb-3">
@@ -396,7 +389,6 @@ export default function AdminRidersPage() {
         </div>
       )}
 
-      {/* Add Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
@@ -416,7 +408,7 @@ export default function AdminRidersPage() {
                     required
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Enter full name"
                   />
                 </div>
@@ -427,7 +419,7 @@ export default function AdminRidersPage() {
                     required
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="rider@email.com"
                   />
                 </div>
@@ -438,7 +430,7 @@ export default function AdminRidersPage() {
                     required
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+1234567890"
                   />
                 </div>
@@ -497,7 +489,7 @@ export default function AdminRidersPage() {
             </div>
             <div className="p-6 border-t border-gray-100 flex gap-3">
               <button onClick={() => setSelectedRider(null)} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all">Close</button>
-              <button 
+              <button
                 onClick={() => setShowMapModal(true)}
                 className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center"
               >
