@@ -1,8 +1,18 @@
 import { Role } from '@aagam/database';
+import { ROLES_KEY } from './auth/decorators/roles.decorator';
+import { DeliveryOperationsController } from './orders/delivery-operations.controller';
 import { DispatchController } from './orders/dispatch.controller';
 import { DispatchService } from './orders/dispatch.service';
 
 describe('Phase 3 delivery completion compatibility gates', () => {
+  it('restricts plaintext OTP retrieval to the customer role', () => {
+    const allowedRoles = Reflect.getMetadata(
+      ROLES_KEY,
+      DeliveryOperationsController.prototype.customerOtp,
+    );
+    expect(allowedRoles).toEqual([Role.CUSTOMER]);
+  });
+
   it('routes the job-based delivered endpoint through DeliveryOperationsService', async () => {
     const dispatch = {} as any;
     const operations = {
