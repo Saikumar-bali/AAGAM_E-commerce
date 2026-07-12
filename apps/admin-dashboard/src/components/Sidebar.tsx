@@ -21,6 +21,7 @@ import {
   Headphones,
   Bell,
   Bike,
+  ShieldAlert,
 } from 'lucide-react';
 
 import { apiClient } from '@aagam/utils';
@@ -80,6 +81,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
       { name: 'Notifications', href: '/admin/notifications', icon: Bell },
       { name: 'Support', href: '/admin/support', icon: Headphones },
       { name: 'Dispatch', href: '/admin/dispatch', icon: Bike },
+      { name: 'Delivery Exceptions', href: '/admin/delivery-exceptions', icon: ShieldAlert },
       { name: 'Stores', href: '/admin/stores', icon: Store },
       { name: 'Products', href: '/admin/products', icon: Package },
       { name: 'Riders', href: '/admin/riders', icon: Truck },
