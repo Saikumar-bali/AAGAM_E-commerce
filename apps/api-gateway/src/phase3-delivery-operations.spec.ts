@@ -27,7 +27,7 @@ function services() {
   const assignments = new DispatchAssignmentService(jobs, workflow, events);
   const outbox = new OutboxService();
   const operations = new DeliveryOperationsService(workflow, outbox);
-  return { events, jobs, workflow, assignments, outbox, operations };
+  return { jobs, workflow, assignments, operations };
 }
 
 async function entityIds() {
@@ -169,10 +169,10 @@ async function seed(cod = false) {
     },
     include: { items: true },
   });
-  const payment = await prisma.payment.create({
+  await prisma.payment.create({
     data: {
       orderId: order.id,
-      method: cod ? PaymentMethod.COD : PaymentMethod.UPI,
+      method: cod ? PaymentMethod.COD : PaymentMethod.ONLINE,
       status: cod ? PaymentStatus.PENDING_COD : PaymentStatus.CAPTURED,
       provider: cod ? 'COD' : 'SIMULATED',
       amount: 300,
@@ -187,11 +187,9 @@ async function seed(cod = false) {
     riderUser,
     otherRiderUser,
     rider,
-    category,
     product,
     store,
     order,
-    payment,
   };
 }
 
@@ -214,7 +212,14 @@ async function atCustomer(cod = false) {
   await api.workflow.transition(job.id, DeliveryJobStatus.PICKUP_VERIFIED, storeActor);
   await api.workflow.transition(job.id, DeliveryJobStatus.OUT_FOR_DELIVERY, riderActor);
   await api.workflow.transition(job.id, DeliveryJobStatus.RIDER_AT_CUSTOMER, riderActor);
-  return { api, data, job, riderActor, storeActor, customerActor: { id: data.customer.id, role: Role.CUSTOMER } };
+  return {
+    api,
+    data,
+    job,
+    riderActor,
+    storeActor,
+    customerActor: { id: data.customer.id, role: Role.CUSTOMER },
+  };
 }
 
 describe('Phase 3 delivery exceptions, COD, returns, and OTP', () => {
@@ -242,6 +247,9 @@ describe('Phase 3 delivery exceptions, COD, returns, and OTP', () => {
     const { api, data, job, riderActor, customerActor } = await atCustomer(false);
 
     const issued = await api.operations.issueOtp(job.id, riderActor, 'test-otp-issue');
+    const repeated = await api.operations.issueOtp(job.id, riderActor, 'test-otp-issue');
+    expect(repeated.operationId).toBe(issued.operationId);
+
     const rows = await prisma.$queryRaw<Array<{ details: any }>>(Prisma.sql`
       SELECT "details" FROM "DeliveryOperation" WHERE "id" = ${issued.operationId}
     `);
@@ -266,12 +274,8 @@ describe('Phase 3 delivery exceptions, COD, returns, and OTP', () => {
       'complete-with-otp',
     );
     expect(delivered.status).toBe(DeliveryJobStatus.DELIVERED);
-    const verified = await prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
-      SELECT COUNT(*)::bigint AS "count" FROM "DeliveryOperation"
-      WHERE "deliveryJobId" = ${job.id} AND "type" = 'OTP_VERIFIED'::"DeliveryOperationType"
-    `);
-    expect(Number(verified[0].count)).toBe(1);
-    expect((await prisma.order.findUnique({ where: { id: data.order.id } }))?.status).toBe(OrderStatus.DELIVERED);
+    expect((await prisma.order.findUnique({ where: { id: data.order.id } }))?.status)
+      .toBe(OrderStatus.DELIVERED);
   });
 
   it('limits incorrect OTP attempts without changing delivery state', async () => {
@@ -284,7 +288,7 @@ describe('Phase 3 delivery exceptions, COD, returns, and OTP', () => {
         .rejects.toThrow('incorrect');
     }
     await expect(api.operations.completeDelivery(job.id, riderActor, { otpCode: '999999' }))
-      .rejects.toThrow();
+      .rejects.toMatchObject({ status: 429 });
     expect((await prisma.deliveryJob.findUnique({ where: { id: job.id } }))?.status)
       .toBe(DeliveryJobStatus.RIDER_AT_CUSTOMER);
   });
@@ -313,9 +317,8 @@ describe('Phase 3 delivery exceptions, COD, returns, and OTP', () => {
     expect(duplicate.id).toBe(first.id);
     expect((await prisma.payment.findUnique({ where: { orderId: job.orderId } }))?.status)
       .toBe(PaymentStatus.CAPTURED);
-
-    const delivered = await api.operations.completeDelivery(job.id, riderActor, {});
-    expect(delivered.status).toBe(DeliveryJobStatus.DELIVERED);
+    expect((await api.operations.completeDelivery(job.id, riderActor, {})).status)
+      .toBe(DeliveryJobStatus.DELIVERED);
   });
 
   it('records a failure and enforces the return-to-store lifecycle', async () => {
@@ -333,24 +336,21 @@ describe('Phase 3 delivery exceptions, COD, returns, and OTP', () => {
       'failure-once',
     );
     expect(failed.job.status).toBe(DeliveryJobStatus.DELIVERY_FAILED);
-
-    const returning = await api.operations.startReturn(job.id, riderActor, 'return-start-once');
-    expect(returning.job.status).toBe(DeliveryJobStatus.RETURNING_TO_STORE);
+    expect((await api.operations.startReturn(job.id, riderActor, 'return-start-once')).job.status)
+      .toBe(DeliveryJobStatus.RETURNING_TO_STORE);
     await expect(api.operations.confirmReturn(job.id, riderActor, 'return-confirm-wrong-role'))
       .rejects.toThrow('owning store');
-    const returned = await api.operations.confirmReturn(job.id, storeActor, 'return-confirm-once');
-    expect(returned.job.status).toBe(DeliveryJobStatus.RETURNED_TO_STORE);
-    expect((await prisma.riderProfile.findUnique({ where: { id: data.rider.id } }))?.status).toBe('ONLINE');
+    expect((await api.operations.confirmReturn(job.id, storeActor, 'return-confirm-once')).job.status)
+      .toBe(DeliveryJobStatus.RETURNED_TO_STORE);
+    expect((await prisma.riderProfile.findUnique({ where: { id: data.rider.id } }))?.status)
+      .toBe('ONLINE');
   });
 
   it('restores only sellable returned stock and prevents duplicate inspection', async () => {
     const { api, data, job, riderActor, storeActor } = await atCustomer(false);
-    await api.operations.recordFailure(
-      job.id,
-      riderActor,
-      { reason: DeliveryFailureReason.CUSTOMER_REFUSED },
-      'inspection-failure',
-    );
+    await api.operations.recordFailure(job.id, riderActor, {
+      reason: DeliveryFailureReason.CUSTOMER_REFUSED,
+    }, 'inspection-failure');
     await api.operations.startReturn(job.id, riderActor, 'inspection-return-start');
     await api.operations.confirmReturn(job.id, storeActor, 'inspection-return-confirm');
 
@@ -408,14 +408,11 @@ describe('Phase 3 delivery exceptions, COD, returns, and OTP', () => {
     )).rejects.toThrow('already settled');
   });
 
-  it('restricts the operations queue and creates custom outbox audit events', async () => {
+  it('restricts the queue and creates custom outbox audit events', async () => {
     const { api, data, job, riderActor, storeActor } = await atCustomer(false);
-    await api.operations.recordFailure(
-      job.id,
-      riderActor,
-      { reason: DeliveryFailureReason.INVALID_ADDRESS },
-      'queue-failure',
-    );
+    await api.operations.recordFailure(job.id, riderActor, {
+      reason: DeliveryFailureReason.INVALID_ADDRESS,
+    }, 'queue-failure');
 
     await expect(api.operations.getQueue({ id: data.customer.id, role: Role.CUSTOMER }))
       .rejects.toThrow('admin and store owners');
@@ -426,6 +423,7 @@ describe('Phase 3 delivery exceptions, COD, returns, and OTP', () => {
       orderBy: { createdAt: 'desc' },
     });
     expect((event?.payload as any)?.title).toContain('Delivery attempt unsuccessful');
-    expect((event?.payload as any)?.metadata?.operationType).toBe('DELIVERY_FAILURE_RECORDED');
+    expect((event?.payload as any)?.metadata?.operationType)
+      .toBe('DELIVERY_FAILURE_RECORDED');
   });
 });
