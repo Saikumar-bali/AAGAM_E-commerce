@@ -5,6 +5,11 @@ import { Cache } from 'cache-manager';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
 
+const SAFE_STORE_OWNER_SELECT = {
+  id: true,
+  name: true,
+} as const;
+
 @Injectable()
 export class StoreService {
   constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
@@ -19,7 +24,10 @@ export class StoreService {
   async findAll() {
     return prisma.store.findMany({
       where: { deletedAt: null, isActive: true },
-      include: { owner: true, inventory: true },
+      include: {
+        owner: { select: SAFE_STORE_OWNER_SELECT },
+        inventory: true,
+      },
     });
   }
 
@@ -42,7 +50,10 @@ export class StoreService {
   async findOne(id: string) {
     const store = await prisma.store.findUnique({
       where: { id, deletedAt: null, isActive: true },
-      include: { owner: true, inventory: { include: { product: true } } },
+      include: {
+        owner: { select: SAFE_STORE_OWNER_SELECT },
+        inventory: { include: { product: true } },
+      },
     });
     if (!store) throw new NotFoundException('Store not found');
     return store;
