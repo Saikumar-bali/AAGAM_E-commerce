@@ -1,6 +1,8 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+
+const CompatibleWebView = WebView as unknown as React.ComponentType<any>;
 
 interface Marker {
   latitude: number;
@@ -15,7 +17,10 @@ interface TrackingMapProps {
   style?: any;
 }
 
-const TRACKING_HTML = (markers: Marker[], routePath: { latitude: number; longitude: number }[]) => {
+const TRACKING_HTML = (
+  markers: Marker[],
+  routePath: { latitude: number; longitude: number }[],
+) => {
   const markersJson = JSON.stringify(markers);
   const routeJson = JSON.stringify(routePath);
   return `
@@ -47,10 +52,8 @@ const TRACKING_HTML = (markers: Marker[], routePath: { latitude: number; longitu
       document.getElementById('map').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:14px;">No location data</div>';
     } else {
       var map = L.map('map', { zoomControl: false, attributionControl: false });
-
       var bounds = L.latLngBounds(markers.map(function(m) { return [m.latitude, m.longitude]; }));
       map.fitBounds(bounds, { padding: [40, 40] });
-
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
       markers.forEach(function(m) {
@@ -78,23 +81,21 @@ const TRACKING_HTML = (markers: Marker[], routePath: { latitude: number; longitu
 };
 
 export const TrackingMap = ({ markers, routePath = [], style }: TrackingMapProps) => {
-  const webViewRef = useRef<WebView>(null);
+  const webViewRef = useRef<any>(null);
 
   useEffect(() => {
-    if (webViewRef.current) {
-      webViewRef.current.reload();
-    }
+    webViewRef.current?.reload?.();
   }, [markers, routePath]);
 
-  const validMarkers = markers.filter(m => typeof m.latitude === 'number' && typeof m.longitude === 'number');
+  const validMarkers = markers.filter(
+    (marker) => typeof marker.latitude === 'number' && typeof marker.longitude === 'number',
+  );
 
   if (validMarkers.length === 0) {
     return (
       <View style={[styles.container, styles.empty, style]}>
         <View style={styles.emptyContent}>
-          <View style={styles.emptyIcon}>
-            <View style={styles.emptyDot} />
-          </View>
+          <View style={styles.emptyIcon}><View style={styles.emptyDot} /></View>
           <View style={styles.emptyTextContainer}>
             <View style={styles.emptyLine1} />
             <View style={styles.emptyLine2} />
@@ -106,7 +107,7 @@ export const TrackingMap = ({ markers, routePath = [], style }: TrackingMapProps
 
   return (
     <View style={[styles.container, style]}>
-      <WebView
+      <CompatibleWebView
         ref={webViewRef}
         originWhitelist={['*']}
         source={{ html: TRACKING_HTML(validMarkers, routePath) }}
