@@ -1,31 +1,12 @@
-import { expect, Page, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import path from 'path';
+import { loginWithCookieSession } from './helpers/login';
 
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-3-delivery-operations');
 
-async function login(page: Page, email: string, password: string) {
-  await page.goto('/login');
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
-  await page.click('button[type="submit"]');
-  await page.waitForFunction(() => localStorage.getItem('access_token') !== null, { timeout: 15000 });
-}
-
-const adminEmail = process.env.QA_ADMIN_EMAIL || 'admin@aagam.com';
-const adminPassword = process.env.QA_ADMIN_PASSWORD || '';
-const customerEmail = process.env.QA_CUSTOMER_EMAIL || 'customer@aagam.com';
-const customerPassword = process.env.QA_CUSTOMER_PASSWORD || '';
-
 test.describe('Phase 3: Delivery operations UI', () => {
-  test.beforeAll(() => {
-    if (!adminPassword || !customerPassword) {
-      throw new Error('QA_ADMIN_PASSWORD and QA_CUSTOMER_PASSWORD are required for Phase 3 headed tests');
-    }
-  });
-
   test('admin exception command centre renders and exposes safe queues', async ({ page }) => {
-    await login(page, adminEmail, adminPassword);
+    await loginWithCookieSession(page, 'ADMIN');
     await page.goto('/admin/delivery-exceptions');
     await expect(page.getByRole('heading', { name: 'Delivery Exceptions' })).toBeVisible();
     await expect(page.getByText('Failed attempts', { exact: true })).toBeVisible();
@@ -38,7 +19,7 @@ test.describe('Phase 3: Delivery operations UI', () => {
   });
 
   test('admin exception page has no mobile horizontal overflow', async ({ page }) => {
-    await login(page, adminEmail, adminPassword);
+    await loginWithCookieSession(page, 'ADMIN');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/admin/delivery-exceptions');
     await expect(page.getByRole('heading', { name: 'Delivery Exceptions' })).toBeVisible();
@@ -48,7 +29,7 @@ test.describe('Phase 3: Delivery operations UI', () => {
   });
 
   test('customer delivery code route keeps the code customer-scoped', async ({ page }) => {
-    await login(page, customerEmail, customerPassword);
+    await loginWithCookieSession(page, 'CUSTOMER');
     await page.goto('/shop/delivery-code/non-existent-proof-job');
     await expect(page.getByRole('heading', { name: 'Delivery verification' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Customer-only delivery code' })).toBeVisible();
