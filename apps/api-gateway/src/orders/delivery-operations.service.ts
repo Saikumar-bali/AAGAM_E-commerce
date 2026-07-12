@@ -2,9 +2,10 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
-  TooManyRequestsException,
 } from '@nestjs/common';
 import {
   PaymentMethod,
@@ -33,7 +34,7 @@ import {
 } from './delivery-operations.dto';
 import { DeliveryWorkflowService } from './delivery-workflow.service';
 
-type DbClient = typeof prisma | any;
+type DbClient = Prisma.TransactionClient | typeof prisma;
 type Actor = { id: string; role: Role };
 
 type DeliveryOperationType =
@@ -73,13 +74,12 @@ type OperationInput = {
   details?: Record<string, unknown>;
 };
 
-const FAILURE_STATUSES = new Set([
+const FAILURE_STATUSES = new Set<string>([
   DeliveryJobStatus.RIDER_EN_ROUTE_TO_STORE,
   DeliveryJobStatus.RIDER_AT_STORE,
   DeliveryJobStatus.OUT_FOR_DELIVERY,
   DeliveryJobStatus.RIDER_AT_CUSTOMER,
 ]);
-
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 
@@ -120,6 +120,10 @@ export class DeliveryOperationsService {
     return createHash('sha256').update(`${salt}:${code}`).digest('hex');
   }
 
+  private async queryRows<T>(tx: DbClient, query: Prisma.Sql): Promise<T[]> {
+    return (await tx.$queryRaw(query)) as T[];
+  }
+
   private async lock(tx: DbClient, key: string) {
     await tx.$queryRaw(Prisma.sql`
       SELECT pg_advisory_xact_lock(hashtext(${key}))::text AS "lock"
@@ -127,9 +131,8 @@ export class DeliveryOperationsService {
   }
 
   private async findOperationByKey(tx: DbClient, idempotencyKey: string) {
-    const rows = await tx.$queryRaw<DeliveryOperationRow[]>(Prisma.sql`
-      SELECT *
-      FROM "DeliveryOperation"
+    const rows = await this.queryRows<DeliveryOperationRow>(tx, Prisma.sql`
+      SELECT * FROM "DeliveryOperation"
       WHERE "idempotencyKey" = ${idempotencyKey}
       LIMIT 1
     `);
@@ -142,23 +145,18 @@ export class DeliveryOperationsService {
 
     const id = `dop_${randomUUID()}`;
     const details = JSON.stringify(input.details || {});
-    const rows = await tx.$queryRaw<DeliveryOperationRow[]>(Prisma.sql`
+    const rows = await this.queryRows<DeliveryOperationRow>(tx, Prisma.sql`
       INSERT INTO "DeliveryOperation" (
         "id", "deliveryJobId", "orderId", "type", "status",
         "actorUserId", "actorRole", "idempotencyKey", "details",
         "createdAt", "updatedAt"
       ) VALUES (
-        ${id},
-        ${input.deliveryJobId},
-        ${input.orderId},
+        ${id}, ${input.deliveryJobId}, ${input.orderId},
         ${input.type}::"DeliveryOperationType",
         ${(input.status || 'COMPLETED')}::"DeliveryOperationStatus",
-        ${input.actor?.id || null},
-        ${input.actor?.role || null}::"Role",
-        ${input.idempotencyKey},
-        ${details}::jsonb,
-        CURRENT_TIMESTAMP,
-        CURRENT_TIMESTAMP
+        ${input.actor?.id || null}, ${input.actor?.role || null}::"Role",
+        ${input.idempotencyKey}, ${details}::jsonb,
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
       ON CONFLICT ("idempotencyKey") DO NOTHING
       RETURNING *
@@ -173,10 +171,10 @@ export class DeliveryOperationsService {
     tx: DbClient,
     id: string,
     status: DeliveryOperationStatus,
-    detailsPatch?: Record<string, unknown>,
+    detailsPatch: Record<string, unknown> = {},
   ) {
-    const patch = JSON.stringify(detailsPatch || {});
-    const rows = await tx.$queryRaw<DeliveryOperationRow[]>(Prisma.sql`
+    const patch = JSON.stringify(detailsPatch);
+    const rows = await this.queryRows<DeliveryOperationRow>(tx, Prisma.sql`
       UPDATE "DeliveryOperation"
       SET "status" = ${status}::"DeliveryOperationStatus",
           "details" = "details" || ${patch}::jsonb,
@@ -187,10 +185,9 @@ export class DeliveryOperationsService {
     return rows[0] || null;
   }
 
-  private async listOperations(tx: DbClient, deliveryJobId: string) {
-    return tx.$queryRaw<DeliveryOperationRow[]>(Prisma.sql`
-      SELECT *
-      FROM "DeliveryOperation"
+  private listOperations(tx: DbClient, deliveryJobId: string) {
+    return this.queryRows<DeliveryOperationRow>(tx, Prisma.sql`
+      SELECT * FROM "DeliveryOperation"
       WHERE "deliveryJobId" = ${deliveryJobId}
       ORDER BY "createdAt" DESC, "id" DESC
     `);
@@ -205,9 +202,8 @@ export class DeliveryOperationsService {
     const statusFilter = statuses?.length
       ? Prisma.sql`AND "status"::text IN (${Prisma.join(statuses)})`
       : Prisma.empty;
-    const rows = await tx.$queryRaw<DeliveryOperationRow[]>(Prisma.sql`
-      SELECT *
-      FROM "DeliveryOperation"
+    const rows = await this.queryRows<DeliveryOperationRow>(tx, Prisma.sql`
+      SELECT * FROM "DeliveryOperation"
       WHERE "deliveryJobId" = ${deliveryJobId}
         AND "type" = ${type}::"DeliveryOperationType"
         ${statusFilter}
@@ -296,10 +292,10 @@ export class DeliveryOperationsService {
     else if (actor.role !== Role.ADMIN) throw new ForbiddenException('Role cannot access delivery operations');
 
     const operations = await this.listOperations(prisma, deliveryJobId);
-    const activeOtp = operations.find((operation) => operation.type === 'OTP_ISSUED' && operation.status === 'PENDING');
-    const codCollected = operations.find((operation) => operation.type === 'COD_COLLECTED' && operation.status === 'COMPLETED');
-    const codSettled = operations.find((operation) => operation.type === 'COD_SETTLED' && operation.status === 'COMPLETED');
-    const inspection = operations.find((operation) => operation.type === 'RETURN_INSPECTION_COMPLETED' && operation.status === 'COMPLETED');
+    const activeOtp = operations.find((operation: DeliveryOperationRow) => operation.type === 'OTP_ISSUED' && operation.status === 'PENDING');
+    const codCollected = operations.find((operation: DeliveryOperationRow) => operation.type === 'COD_COLLECTED' && operation.status === 'COMPLETED');
+    const codSettled = operations.find((operation: DeliveryOperationRow) => operation.type === 'COD_SETTLED' && operation.status === 'COMPLETED');
+    const inspection = operations.find((operation: DeliveryOperationRow) => operation.type === 'RETURN_INSPECTION_COMPLETED' && operation.status === 'COMPLETED');
 
     return {
       job,
@@ -327,7 +323,7 @@ export class DeliveryOperationsService {
   }
 
   async getQueue(actor: Actor) {
-    if (![Role.ADMIN, Role.STORE_OWNER].includes(actor.role)) {
+    if (actor.role !== Role.ADMIN && actor.role !== Role.STORE_OWNER) {
       throw new ForbiddenException('Only admin and store owners can view the delivery operations queue');
     }
     const storeFilter = actor.role === Role.STORE_OWNER
@@ -355,8 +351,7 @@ export class DeliveryOperationsService {
       orderBy: { updatedAt: 'desc' },
       take: 100,
     });
-
-    return Promise.all(jobs.map(async (job) => ({
+    return Promise.all(jobs.map(async (job: any) => ({
       ...job,
       operations: await this.listOperations(prisma, job.id),
     })));
@@ -369,6 +364,15 @@ export class DeliveryOperationsService {
       this.assertRiderOrAdmin(job, actor);
       if (job.status !== DeliveryJobStatus.RIDER_AT_CUSTOMER) {
         throw new BadRequestException('Delivery OTP can be issued only after the rider arrives at the customer');
+      }
+
+      const key = idempotencyKey || `otp-issued:${deliveryJobId}:${randomUUID()}`;
+      const existing = await this.findOperationByKey(tx, key);
+      if (existing) {
+        if (existing.deliveryJobId !== deliveryJobId || existing.type !== 'OTP_ISSUED') {
+          throw new ConflictException('Idempotency key is already used by another operation');
+        }
+        return { operation: existing, expiresAt: new Date(String(existing.details?.expiresAt)) };
       }
 
       await tx.$executeRaw(Prisma.sql`
@@ -390,7 +394,7 @@ export class DeliveryOperationsService {
         type: 'OTP_ISSUED',
         status: 'PENDING',
         actor,
-        idempotencyKey: idempotencyKey || `otp-issued:${deliveryJobId}:${randomUUID()}`,
+        idempotencyKey: key,
         details: {
           nonce,
           salt,
@@ -412,7 +416,7 @@ export class DeliveryOperationsService {
     }, { isolationLevel: 'Serializable' as any });
 
     return {
-      issued: true,
+      issued: result.operation.status === 'PENDING',
       operationId: result.operation.id,
       expiresAt: result.expiresAt,
       maxAttempts: OTP_MAX_ATTEMPTS,
@@ -450,7 +454,7 @@ export class DeliveryOperationsService {
       return { ok: false, reason: 'Delivery OTP expired', attempts: OTP_MAX_ATTEMPTS };
     }
 
-    const failedRows = await tx.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+    const failedRows = await this.queryRows<{ count: bigint }>(tx, Prisma.sql`
       SELECT COUNT(*)::bigint AS "count"
       FROM "DeliveryOperation"
       WHERE "deliveryJobId" = ${job.id}
@@ -464,10 +468,9 @@ export class DeliveryOperationsService {
 
     const suppliedHash = this.otpHash(String(code || '').trim(), String(issue.details?.salt || ''));
     const expectedHash = String(issue.details?.codeHash || '');
-    const valid = expectedHash.length === suppliedHash.length && timingSafeEqual(
-      Buffer.from(expectedHash, 'hex'),
-      Buffer.from(suppliedHash, 'hex'),
-    );
+    const valid = expectedHash.length === suppliedHash.length
+      && expectedHash.length > 0
+      && timingSafeEqual(Buffer.from(expectedHash, 'hex'), Buffer.from(suppliedHash, 'hex'));
 
     if (!valid) {
       const nextAttempts = attempts + 1;
@@ -513,8 +516,7 @@ export class DeliveryOperationsService {
         throw new BadRequestException('Rider must arrive at the customer before completing delivery');
       }
 
-      const otpRequired = this.enabled('DELIVERY_OTP_REQUIRED');
-      if (otpRequired && !input.otpCode) {
+      if (this.enabled('DELIVERY_OTP_REQUIRED') && !input.otpCode) {
         throw new BadRequestException('Delivery OTP is required');
       }
       if (input.otpCode) {
@@ -524,9 +526,9 @@ export class DeliveryOperationsService {
 
       const payment = job.order.payment;
       if (
-        payment?.method === PaymentMethod.COD &&
-        this.enabled('COD_COLLECTION_REQUIRED') &&
-        payment.status !== PaymentStatus.CAPTURED
+        payment?.method === PaymentMethod.COD
+        && this.enabled('COD_COLLECTION_REQUIRED')
+        && payment.status !== PaymentStatus.CAPTURED
       ) {
         throw new BadRequestException('Collect the full COD amount before completing delivery');
       }
@@ -551,7 +553,7 @@ export class DeliveryOperationsService {
 
     if ('otpError' in outcome && outcome.otpError) {
       if (outcome.otpError.attempts >= OTP_MAX_ATTEMPTS) {
-        throw new TooManyRequestsException(outcome.otpError.reason);
+        throw new HttpException(outcome.otpError.reason, HttpStatus.TOO_MANY_REQUESTS);
       }
       throw new BadRequestException(outcome.otpError.reason);
     }
@@ -772,11 +774,7 @@ export class DeliveryOperationsService {
         type: 'RETURN_INSPECTION_COMPLETED',
         actor,
         idempotencyKey: key,
-        details: {
-          lines,
-          note: input.note || null,
-          inspectedAt: new Date().toISOString(),
-        },
+        details: { lines, note: input.note || null, inspectedAt: new Date().toISOString() },
       });
       await this.notify(
         tx,
