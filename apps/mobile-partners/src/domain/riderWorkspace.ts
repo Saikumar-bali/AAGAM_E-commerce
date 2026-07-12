@@ -84,8 +84,7 @@ export type RiderJobAction =
   | 'EN_ROUTE_TO_STORE'
   | 'ARRIVED_AT_STORE'
   | 'OUT_FOR_DELIVERY'
-  | 'ARRIVED_AT_CUSTOMER'
-  | 'DELIVERED';
+  | 'ARRIVED_AT_CUSTOMER';
 
 export type RiderActionDescriptor = {
   action: RiderJobAction;
@@ -114,11 +113,8 @@ const ACTIONS: Partial<Record<DeliveryJobStatus, RiderActionDescriptor>> = {
     label: 'I arrived at the customer',
     confirmation: 'Confirm that you reached the delivery address.',
   },
-  RIDER_AT_CUSTOMER: {
-    action: 'DELIVERED',
-    label: 'Confirm delivery',
-    confirmation: 'Confirm that the order was handed to the customer.',
-  },
+  // Completion at RIDER_AT_CUSTOMER intentionally lives in the Phase 3
+  // operations screen so OTP and COD gates cannot be bypassed.
 };
 
 const TRACKABLE_STATUSES = new Set<DeliveryJobStatus>([
