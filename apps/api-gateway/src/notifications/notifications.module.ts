@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { NotificationDeliveryService } from './notification-delivery.service';
 import { NotificationRoutingService } from './notification-routing.service';
+import { OperationalNotificationRoutingService } from './operational-notification-routing.service';
 import { NotificationService } from './notification.service';
 import { NotificationWorkerService } from './notification-worker.service';
 import { NotificationsController } from './notifications.controller';
@@ -15,7 +16,8 @@ import { WebPushService } from './web-push.service';
     WebPushService,
     PushSubscriptionService,
     OutboxService,
-    NotificationRoutingService,
+    OperationalNotificationRoutingService,
+    { provide: NotificationRoutingService, useExisting: OperationalNotificationRoutingService },
     NotificationDeliveryService,
     NotificationService,
     NotificationWorkerService,
