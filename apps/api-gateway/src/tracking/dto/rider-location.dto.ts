@@ -1,5 +1,15 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsISO8601,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class RiderLocationDto {
   @IsString()
@@ -38,5 +48,23 @@ export class RiderLocationDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(80)
   source?: string;
+
+  // Optional for backwards compatibility. New mobile clients always send it.
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(160)
+  clientPingId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  sequence?: number;
+
+  @IsOptional()
+  @IsISO8601()
+  capturedAt?: string;
 }

@@ -43,7 +43,14 @@ export class TrackingController {
 
   @Post('stop/:orderId')
   @Roles(Role.RIDER)
-  async stopTracking(@Param('orderId') orderId: string, @Req() req: any) {
-    return this.trackingService.stopTracking(orderId, req.user);
+  async stopTracking(
+    @Param('orderId') orderId: string,
+    @Req() req: any,
+    @Body() body?: { reason?: string },
+  ) {
+    const reason = typeof body?.reason === 'string'
+      ? body.reason.trim().slice(0, 120) || 'CLIENT_STOPPED'
+      : 'CLIENT_STOPPED';
+    return this.trackingService.stopTracking(orderId, req.user, reason);
   }
 }
