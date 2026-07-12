@@ -166,6 +166,21 @@ jobs:
           set -o pipefail
           npm run test:phase2b --workspace=AagamPartners 2>&1 | tee mobile-test-output.log
 
+      - name: Metro Android bundle smoke
+        working-directory: apps/mobile-partners
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ../../.metro-smoke/assets
+          npx react-native bundle \
+            --platform android \
+            --dev true \
+            --entry-file index.js \
+            --bundle-output ../../.metro-smoke/index.android.bundle \
+            --assets-dest ../../.metro-smoke/assets \
+            2>&1 | tee ../../metro-bundle-output.log
+          test -s ../../.metro-smoke/index.android.bundle
+
       - name: Upload mobile diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -175,6 +190,7 @@ jobs:
             mobile-shared-typecheck.log
             partners-typecheck.log
             mobile-test-output.log
+            metro-bundle-output.log
           if-no-files-found: ignore
           retention-days: 1
 
