@@ -183,10 +183,22 @@ describe('Phase 5 E2E: Complete Order-to-Delivery Workflow', () => {
     });
     await expect(trackingService.getMyOrderTracking(order.id, otherCustomer.id)).rejects.toThrow('Not allowed');
 
-    // ── STEP 13: Rider starts delivery (OUT_FOR_DELIVERY) ──
-    const outForDelivery = await trackingService.startTracking(order.id, { id: riderUser.id, role: Role.RIDER });
-    expect(outForDelivery.status).toBe('OUT_FOR_DELIVERY');
-    expect(outForDelivery.outForDeliveryAt).not.toBeNull();
+    // ── STEP 13: Commercial state moves separately, then tracking session starts ──
+    const deliveryStarted = await orderService.updateStatus(
+      order.id,
+      OrderStatus.OUT_FOR_DELIVERY,
+      { id: riderUser.id, role: Role.RIDER },
+    );
+    expect(deliveryStarted.status).toBe('OUT_FOR_DELIVERY');
+    expect(deliveryStarted.outForDeliveryAt).not.toBeNull();
+
+    const trackingSession = await trackingService.startTracking(
+      order.id,
+      { id: riderUser.id, role: Role.RIDER },
+    );
+    expect(trackingSession.active).toBe(true);
+    expect(trackingSession.status).toBe('OUT_FOR_DELIVERY');
+    expect(trackingSession.outForDeliveryAt).not.toBeNull();
 
     // ── STEP 14: Rider sends location ping 1 (backdate 5s to avoid jump detection) ──
     const ping1Raw = await prisma.riderLocationPing.create({
@@ -230,14 +242,27 @@ describe('Phase 5 E2E: Complete Order-to-Delivery Workflow', () => {
     const otherRider = await prisma.user.create({
       data: { email: `${PREFIX}other-rider@test.com`, name: 'Other Rider', role: Role.RIDER },
     });
-    const otherRiderProfile = await prisma.riderProfile.create({ data: { userId: otherRider.id } });
+    await prisma.riderProfile.create({ data: { userId: otherRider.id } });
     await expect(trackingService.ingestRiderLocation(otherRider.id, {
       orderId: order.id, latitude: 12.96, longitude: 77.60,
     })).rejects.toThrow('You can only update location for assigned orders');
 
-    // ── STEP 18: Rider marks DELIVERED ──
-    const delivered = await trackingService.stopTracking(order.id, { id: riderUser.id, role: Role.RIDER });
-    expect(delivered.status).toBe('DELIVERED');
+    // ── STEP 18: Commercial delivery completes, then tracking session stops ──
+    const deliveredOrder = await orderService.updateStatus(
+      order.id,
+      OrderStatus.DELIVERED,
+      { id: riderUser.id, role: Role.RIDER },
+    );
+    expect(deliveredOrder.status).toBe('DELIVERED');
+    expect(deliveredOrder.deliveredAt).not.toBeNull();
+
+    const stoppedSession = await trackingService.stopTracking(
+      order.id,
+      { id: riderUser.id, role: Role.RIDER },
+      'DELIVERY_COMPLETED',
+    );
+    expect(stoppedSession.active).toBe(false);
+    expect(stoppedSession.status).toBe('DELIVERED');
     expect(mockGateway.emitTrackingStopped).toHaveBeenCalled();
 
     // ── STEP 19: Verify delivered state ──

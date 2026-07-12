@@ -307,18 +307,6 @@ export class DeliveryJobService {
     };
   }
 
-  async getLegacyRiderQueue(riderUserId: string) {
-    const workspace = await this.getRiderWorkspace(riderUserId);
-    const offeredOrders = workspace.pendingOffers.map((offer) => ({
-      ...offer.deliveryJob.order,
-      deliveryJob: offer.deliveryJob,
-      dispatchAssignment: offer,
-    }));
-    const activeOrder = workspace.activeJob
-      ? [{ ...workspace.activeJob.order, deliveryJob: workspace.activeJob }]
-      : [];
-    return [...activeOrder, ...offeredOrders];
-  }
 }
 
 export { ACTIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES };

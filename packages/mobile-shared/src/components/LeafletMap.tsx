@@ -2,6 +2,12 @@ import React, { useCallback, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
+// react-native-webview 14 currently exposes a class overload that collapses to
+// `never` under React 19's JSX types. Runtime props remain supported; keep the
+// compatibility cast at this single third-party boundary rather than weakening
+// the package TypeScript configuration.
+const CompatibleWebView = WebView as unknown as React.ComponentType<any>;
+
 type Props = {
   latitude: number;
   longitude: number;
@@ -48,7 +54,7 @@ const LEAFLET_HTML = (lat: number, lng: number) => `
 `;
 
 export const LeafletMap = ({ latitude, longitude, onPinChange, style }: Props) => {
-  const webViewRef = useRef<WebView>(null);
+  const webViewRef = useRef<any>(null);
   const lastSentRef = useRef('');
 
   const onMessage = useCallback(
@@ -67,7 +73,7 @@ export const LeafletMap = ({ latitude, longitude, onPinChange, style }: Props) =
 
   return (
     <View style={[styles.container, style]}>
-      <WebView
+      <CompatibleWebView
         ref={webViewRef}
         originWhitelist={['*']}
         source={{ html: LEAFLET_HTML(latitude, longitude) }}
