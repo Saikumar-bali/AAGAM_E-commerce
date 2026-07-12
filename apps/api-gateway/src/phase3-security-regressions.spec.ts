@@ -94,6 +94,22 @@ describe('Phase 3 security regression gates', () => {
     });
   });
 
+  it('does not expose private owner credentials from public store queries', async () => {
+    const findMany = jest.spyOn(prisma.store, 'findMany').mockResolvedValue([] as never);
+    const cache = { del: jest.fn().mockResolvedValue(undefined) };
+    const service = new StoreService(cache as any);
+
+    await service.findAll();
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: { deletedAt: null, isActive: true },
+      include: {
+        owner: { select: { id: true, name: true } },
+        inventory: true,
+      },
+    });
+  });
+
   it('uses credentialed cookie sockets and the API port in both admin realtime pages', () => {
     const dashboardRoot = path.resolve(__dirname, '../../admin-dashboard/src');
     const helper = readFileSync(path.join(dashboardRoot, 'lib/realtimeSocket.ts'), 'utf8');
