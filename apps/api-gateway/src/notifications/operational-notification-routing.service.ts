@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Role } from '@aagam/database';
 import { NotificationRoutingService } from './notification-routing.service';
 
 @Injectable()
@@ -16,13 +17,27 @@ export class OperationalNotificationRoutingService extends NotificationRoutingSe
       ? payload.metadata
       : {};
 
+    const deliveryJobId = payload.deliveryJobId || routed.deliveryJobId;
+    const otpDeepLink = metadata.operationType === 'OTP_ISSUED' && deliveryJobId
+      ? `/shop/delivery-code/${encodeURIComponent(String(deliveryJobId))}`
+      : null;
+    const recipients = otpDeepLink
+      ? routed.recipients.map((recipient) => (
+          recipient.role === Role.CUSTOMER
+            ? { ...recipient, deepLink: otpDeepLink }
+            : recipient
+        ))
+      : routed.recipients;
+
     return {
       ...routed,
       title,
       body,
+      recipients,
       data: {
         ...((routed.data || {}) as Record<string, unknown>),
         ...metadata,
+        ...(otpDeepLink ? { deepLink: otpDeepLink } : {}),
       },
     };
   }
