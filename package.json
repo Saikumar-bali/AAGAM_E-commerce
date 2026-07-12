@@ -44,5 +44,15 @@
   },
   "dependencies": {
     "playwright": "^1.61.1"
+  },
+  "overrides": {
+    "AagamPartners": {
+      "react": "19.2.3",
+      "react-dom": "19.2.3"
+    },
+    "@aagam/mobile-shared": {
+      "react": "19.2.3",
+      "react-dom": "19.2.3"
+    }
   }
 }

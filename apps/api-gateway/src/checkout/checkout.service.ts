@@ -470,10 +470,6 @@ export class CheckoutService {
         this.trackingGateway.server?.to('admin_orders').emit('orderPlaced', payload);
         this.trackingGateway.server?.to('admin_monitor').emit('orderPlaced', payload);
 
-        const zoneKey = `${Math.round(address.latitude * 10)}_${Math.round(address.longitude * 10)}`;
-        this.trackingGateway.server?.to(`zone_${zoneKey}`).emit('newOrderNearby', payload);
-        this.trackingGateway.server?.to('riders_queue').emit('newOrderNearby', payload);
-
         try {
           const riders = await prisma.user.findMany({
             where: { role: 'RIDER', fcmToken: { not: null } },
