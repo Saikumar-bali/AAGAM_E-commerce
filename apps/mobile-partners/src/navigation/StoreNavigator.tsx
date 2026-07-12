@@ -1,10 +1,19 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StoreDashboard } from '../screens/store/StoreDashboard';
-import { HomeScreen } from '../screens/HomeScreen';
-import { LayoutGrid, Package, Settings } from 'lucide-react-native';
+import { StoreOrdersScreen } from '../screens/store/StoreOrdersScreen';
+import { LayoutGrid, ShoppingBag, Settings } from 'lucide-react-native';
+import { View, Text, StyleSheet } from 'react-native';
 
 const Tab = createBottomTabNavigator();
+
+const StoreSettingsScreen = () => (
+  <View style={styles.placeholder}>
+    <Settings size={48} color="#CBD5E1" />
+    <Text style={styles.placeholderTitle}>Store Settings</Text>
+    <Text style={styles.placeholderText}>Settings and store configuration coming soon.</Text>
+  </View>
+);
 
 export const StoreNavigator = () => {
   return (
@@ -39,17 +48,21 @@ export const StoreNavigator = () => {
         options={{ tabBarIcon: ({ color, size }) => <LayoutGrid size={size} color={color} /> }}
       />
       <Tab.Screen
-        name="Inventory"
-        options={{ tabBarIcon: ({ color, size }) => <Package size={size} color={color} /> }}
-      >
-        {(props) => <HomeScreen {...props} role="Store Inventory" />}
-      </Tab.Screen>
+        name="Orders"
+        component={StoreOrdersScreen}
+        options={{ tabBarIcon: ({ color, size }) => <ShoppingBag size={size} color={color} /> }}
+      />
       <Tab.Screen
         name="Settings"
+        component={StoreSettingsScreen}
         options={{ tabBarIcon: ({ color, size }) => <Settings size={size} color={color} /> }}
-      >
-        {(props) => <HomeScreen {...props} role="Store Settings" />}
-      </Tab.Screen>
+      />
     </Tab.Navigator>
   );
 };
+
+const styles = StyleSheet.create({
+  placeholder: { flex: 1, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', padding: 32 },
+  placeholderTitle: { marginTop: 12, fontSize: 18, fontWeight: '900', color: '#0F172A' },
+  placeholderText: { marginTop: 6, fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20 },
+});

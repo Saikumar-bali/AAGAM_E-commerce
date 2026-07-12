@@ -411,19 +411,26 @@ describe('Phase 5: Tracking - Stop Tracking', () => {
     await cleanup();
   });
 
-  test('tracking stopped after delivery', async () => {
+  test('stopping a tracking session does not change delivery state', async () => {
     const order = await createTestOrder(customer.id, store.id, product.id, 'OUT_FOR_DELIVERY', riderProfile.id);
     const mockGateway = createTrackingGatewayMock();
-    const service = new TrackingService(mockGateway as any, {
-      getTracking: jest.fn(),
-      updateStatus: jest.fn().mockResolvedValue({ id: order.id, status: 'DELIVERED' }),
-    } as any);
+    const service = new TrackingService(mockGateway as any, { getTracking: jest.fn() } as any);
 
-    const result = await service.stopTracking(order.id, { id: riderUser.id, role: Role.RIDER });
-    expect(result.status).toBe('DELIVERED');
+    const result = await service.stopTracking(
+      order.id,
+      { id: riderUser.id, role: Role.RIDER },
+      'TEST_SESSION_STOP',
+    );
+    expect(result.active).toBe(false);
+    expect(result.status).toBe('OUT_FOR_DELIVERY');
+    expect(result.deliveryStatus).toBe('OUT_FOR_DELIVERY');
     expect(mockGateway.emitTrackingStopped).toHaveBeenCalledWith(order.id, expect.objectContaining({
       orderId: order.id,
-      status: 'DELIVERED',
+      status: 'OUT_FOR_DELIVERY',
+      reason: 'TEST_SESSION_STOP',
     }));
+
+    const unchangedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(unchangedOrder?.status).toBe('OUT_FOR_DELIVERY');
   }, 10000);
 });
