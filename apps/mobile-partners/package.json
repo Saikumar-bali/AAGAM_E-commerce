@@ -11,7 +11,7 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
-    "test:phase2b": "jest --runInBand src/domain/riderWorkspace.spec.ts src/services/RiderTrackingManager.spec.ts",
+    "test:phase2b": "jest --runInBand src/domain/riderWorkspace.spec.ts src/domain/deliveryOperations.spec.ts src/services/RiderTrackingManager.spec.ts",
     "test:phase3": "jest --runInBand src/domain/riderWorkspace.spec.ts src/domain/deliveryOperations.spec.ts src/services/RiderTrackingManager.spec.ts"
   },
   "dependencies": {
