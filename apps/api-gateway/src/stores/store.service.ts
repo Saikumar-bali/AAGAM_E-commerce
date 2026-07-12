@@ -1,7 +1,9 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { prisma, Role } from '@aagam/database';
 import { Cache } from 'cache-manager';
+import { CreateStoreDto } from './dto/create-store.dto';
+import { UpdateStoreDto } from './dto/update-store.dto';
 
 @Injectable()
 export class StoreService {
@@ -46,23 +48,24 @@ export class StoreService {
     return store;
   }
 
-  async create(data: { name: string; address: string; latitude: number; longitude: number; ownerEmail: string }) {
-    let owner = await prisma.user.findUnique({ where: { email: data.ownerEmail } });
-    
+  async create(data: CreateStoreDto) {
+    const ownerEmail = data.ownerEmail.trim().toLowerCase();
+    let owner = await prisma.user.findUnique({ where: { email: ownerEmail } });
+
     if (!owner) {
       owner = await prisma.user.create({
         data: {
-          email: data.ownerEmail,
-          name: data.ownerEmail.split('@')[0],
+          email: ownerEmail,
+          name: ownerEmail.split('@')[0],
           role: 'STORE_OWNER',
         },
       });
     }
-    
+
     const store = await prisma.store.create({
       data: {
-        name: data.name,
-        address: data.address,
+        name: data.name.trim(),
+        address: data.address.trim(),
         latitude: data.latitude,
         longitude: data.longitude,
         ownerId: owner.id,
@@ -72,10 +75,28 @@ export class StoreService {
     return store;
   }
 
-  async update(id: string, data: { name?: string; address?: string; latitude?: number; longitude?: number; isActive?: boolean }) {
+  async update(id: string, data: UpdateStoreDto) {
+    const updateData: {
+      name?: string;
+      address?: string;
+      latitude?: number;
+      longitude?: number;
+      isActive?: boolean;
+    } = {};
+
+    if (data.name !== undefined) updateData.name = data.name.trim();
+    if (data.address !== undefined) updateData.address = data.address.trim();
+    if (data.latitude !== undefined) updateData.latitude = data.latitude;
+    if (data.longitude !== undefined) updateData.longitude = data.longitude;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException('No supported store fields were provided');
+    }
+
     const store = await prisma.store.update({
       where: { id },
-      data,
+      data: updateData,
     });
     await this.invalidateCommerceCache();
     return store;
