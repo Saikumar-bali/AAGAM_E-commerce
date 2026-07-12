@@ -5,6 +5,11 @@ const required = [
   'DATABASE_URL',
   'REDIS_URL',
   'JWT_SECRET',
+  'RIDER_BANK_ENCRYPTION_KEY',
+  'R2_ENDPOINT',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
+  'R2_EVIDENCE_BUCKET_NAME',
 ];
 
 const recommended = [
@@ -20,6 +25,14 @@ if (process.env.NODE_ENV && process.env.NODE_ENV !== 'production') {
 
 if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
   weak.push('JWT_SECRET must be at least 32 characters');
+}
+
+if (process.env.RIDER_BANK_ENCRYPTION_KEY && process.env.RIDER_BANK_ENCRYPTION_KEY.length < 32) {
+  weak.push('RIDER_BANK_ENCRYPTION_KEY must be at least 32 characters');
+}
+
+if (process.env.RIDER_BANK_ENCRYPTION_KEY && process.env.RIDER_BANK_ENCRYPTION_KEY === process.env.JWT_SECRET) {
+  weak.push('RIDER_BANK_ENCRYPTION_KEY must be different from JWT_SECRET');
 }
 
 if (process.env.DATABASE_URL && /localhost|127\.0\.0\.1/i.test(process.env.DATABASE_URL)) {
