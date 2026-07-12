@@ -80,11 +80,15 @@ export type RiderWorkspace = {
   assignmentHistory: RiderAssignmentOffer[];
 };
 
+// DELIVERED remains in the transport type for compatibility with older callers,
+// but it is intentionally absent from ACTIONS below. The Partners UI can no
+// longer expose generic completion; Phase 3 operations enforce OTP/COD gates.
 export type RiderJobAction =
   | 'EN_ROUTE_TO_STORE'
   | 'ARRIVED_AT_STORE'
   | 'OUT_FOR_DELIVERY'
-  | 'ARRIVED_AT_CUSTOMER';
+  | 'ARRIVED_AT_CUSTOMER'
+  | 'DELIVERED';
 
 export type RiderActionDescriptor = {
   action: RiderJobAction;
@@ -113,8 +117,6 @@ const ACTIONS: Partial<Record<DeliveryJobStatus, RiderActionDescriptor>> = {
     label: 'I arrived at the customer',
     confirmation: 'Confirm that you reached the delivery address.',
   },
-  // Completion at RIDER_AT_CUSTOMER intentionally lives in the Phase 3
-  // operations screen so OTP and COD gates cannot be bypassed.
 };
 
 const TRACKABLE_STATUSES = new Set<DeliveryJobStatus>([
