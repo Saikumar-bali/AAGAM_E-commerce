@@ -49,7 +49,7 @@ export class DeliveryOperationsController {
   }
 
   @Get('jobs/:deliveryJobId/otp/customer')
-  @Roles(Role.ADMIN, Role.CUSTOMER)
+  @Roles(Role.CUSTOMER)
   customerOtp(@Param('deliveryJobId') deliveryJobId: string, @Req() req: any) {
     return this.operations.getCustomerOtp(deliveryJobId, req.user);
   }
