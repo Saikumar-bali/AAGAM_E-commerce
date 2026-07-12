@@ -68,10 +68,10 @@ export class OrderController {
   @Get('rider/queue')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.RIDER)
-  async findRiderQueue(@Req() req: any) {
-    // Compatibility response: only this rider's offers and active delivery.
-    // CONFIRMED and PICKING orders are never exposed to riders.
-    return this.dispatchService.getLegacyRiderQueue(req.user.id);
+  deprecatedRiderQueue() {
+    throw new GoneException(
+      'Public rider queue is removed. Use the rider workspace at /orders/dispatch/rider/workspace for offers and active deliveries.',
+    );
   }
 
   @Get('rider')

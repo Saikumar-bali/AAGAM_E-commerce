@@ -353,11 +353,15 @@ export const RiderDashboard = () => {
     const refreshWorkspace = () => {
       void queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
     };
-    unsubscribeForeground = messaging().onMessage(async () => refreshWorkspace());
-    unsubscribeOpened = messaging().onNotificationOpenedApp(() => refreshWorkspace());
-    messaging().getInitialNotification().then((message) => {
-      if (message) refreshWorkspace();
-    }).catch(() => undefined);
+    try {
+      unsubscribeForeground = messaging().onMessage(async () => refreshWorkspace());
+      unsubscribeOpened = messaging().onNotificationOpenedApp(() => refreshWorkspace());
+      messaging().getInitialNotification().then((message) => {
+        if (message) refreshWorkspace();
+      }).catch(() => undefined);
+    } catch (_e) {
+      // Firebase not configured in dev builds without google-services.json
+    }
 
     return () => {
       alive = false;

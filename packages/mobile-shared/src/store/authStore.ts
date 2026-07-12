@@ -16,13 +16,22 @@ interface AuthState {
   signUp: (name: string, email: string, pass: string, role: string) => Promise<void>;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)),
+  ]);
+}
+
+const KEYCHAIN_TIMEOUT = 5000;
+
 async function persistAuth(user: UserType, token: string) {
-  await Keychain.setGenericPassword('auth', JSON.stringify({ user, token }));
+  await withTimeout(Keychain.setGenericPassword('auth', JSON.stringify({ user, token })), KEYCHAIN_TIMEOUT);
   setAuthToken(token);
 }
 
 async function clearLocalAuth() {
-  await Keychain.resetGenericPassword();
+  await withTimeout(Keychain.resetGenericPassword(), KEYCHAIN_TIMEOUT).catch(() => undefined);
   setAuthToken(null);
 }
 
@@ -84,7 +93,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   initialize: async () => {
     try {
-      const credentials = await Keychain.getGenericPassword();
+      const credentials = await withTimeout(Keychain.getGenericPassword(), KEYCHAIN_TIMEOUT);
       if (credentials) {
         const { token } = JSON.parse(credentials.password);
         setAuthToken(token);
@@ -101,7 +110,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ isLoading: false });
       }
     } catch {
-      set({ isLoading: false });
+      set({ user: null, token: null, isLoading: false });
     }
   },
 }));
