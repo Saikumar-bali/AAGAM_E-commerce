@@ -1,54 +1,41 @@
-import { expect, Page, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import path from 'path';
+import { loginWithCookieSession, QaRole } from './helpers/login';
 
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-1-notifications');
 
-const PASSWORDS: Record<string, string> = {
-  'admin@aagam.com': 'admin@2026!',
-  'customer@aagam.com': 'customer@2026!',
-  'store@aagam.com': 'store@2026!',
-  'store2@aagam.com': 'store@2026!',
-  'rider@aagam.com': 'rider@2026!',
-  'rider1@aagam.com': 'rider@2026!',
-  'rider2@aagam.com': 'rider@2026!',
-};
-
-async function login(page: Page, email: string, password = PASSWORDS[email] || 'Test@1234') {
-  await page.goto('/login');
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
-  await page.click('button[type="submit"]');
-  await page.waitForFunction(() => localStorage.getItem('access_token') !== null, { timeout: 15000 });
-  await page.waitForLoadState('networkidle');
-}
-
 test.describe('Phase 1.1: event-level notification preferences', () => {
   test('all role settings pages render their relevant events', async ({ browser }) => {
-    const cases = [
+    const cases: Array<{
+      role: QaRole;
+      route: string;
+      heading: RegExp;
+      event: string;
+      screenshot: string;
+    }> = [
       {
-        email: 'admin@aagam.com',
+        role: 'ADMIN',
         route: '/admin/notifications/settings',
         heading: /Operations notification preferences/i,
         event: 'New order placed',
         screenshot: '06-admin-settings.png',
       },
       {
-        email: 'customer@aagam.com',
+        role: 'CUSTOMER',
         route: '/shop/notifications/settings',
         heading: /Your notification preferences/i,
         event: 'Store accepted order',
         screenshot: '07-customer-settings.png',
       },
       {
-        email: 'store@aagam.com',
+        role: 'STORE_OWNER',
         route: '/store/notifications/settings',
         heading: /Store notification preferences/i,
         event: 'New order placed',
         screenshot: '08-store-settings.png',
       },
       {
-        email: 'rider@aagam.com',
+        role: 'RIDER',
         route: '/rider/notifications/settings',
         heading: /Rider notification preferences/i,
         event: 'Delivery offer',
@@ -59,7 +46,7 @@ test.describe('Phase 1.1: event-level notification preferences', () => {
     for (const item of cases) {
       const context = await browser.newContext();
       const page = await context.newPage();
-      await login(page, item.email);
+      await loginWithCookieSession(page, item.role);
       await page.goto(item.route);
       await page.waitForLoadState('networkidle');
 
@@ -77,7 +64,7 @@ test.describe('Phase 1.1: event-level notification preferences', () => {
   });
 
   test('customer can persist and restore the global push preference', async ({ page }) => {
-    await login(page, 'customer@aagam.com');
+    await loginWithCookieSession(page, 'CUSTOMER');
     await page.goto('/shop/notifications/settings');
     await page.waitForLoadState('networkidle');
 
@@ -95,7 +82,7 @@ test.describe('Phase 1.1: event-level notification preferences', () => {
   });
 
   test('rider settings remain usable at mobile width', async ({ page }) => {
-    await login(page, 'rider@aagam.com');
+    await loginWithCookieSession(page, 'RIDER');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/rider/notifications/settings');
     await page.waitForLoadState('networkidle');
