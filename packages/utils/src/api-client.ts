@@ -7,19 +7,12 @@ export const apiClient = axios.create({
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest', // Basic CSRF protection
+    'X-Requested-With': 'XMLHttpRequest',
   },
 });
 
-// Interceptor to add JWT token to requests
 apiClient.interceptors.request.use(async (config) => {
   config.withCredentials = true;
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-  }
   if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
     delete config.headers['Content-Type'];
     delete config.headers['content-type'];
@@ -34,5 +27,5 @@ apiClient.interceptors.response.use(
       console.warn('[apiClient] 401 Unauthorized received');
     }
     return Promise.reject(error);
-  }
+  },
 );
