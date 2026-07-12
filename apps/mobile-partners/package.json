@@ -11,7 +11,8 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
-    "test:phase2b": "jest --runInBand src/domain/riderWorkspace.spec.ts src/services/RiderTrackingManager.spec.ts"
+    "test:phase2b": "jest --runInBand src/domain/riderWorkspace.spec.ts src/services/RiderTrackingManager.spec.ts",
+    "test:phase3": "jest --runInBand src/domain/riderWorkspace.spec.ts src/domain/deliveryOperations.spec.ts src/services/RiderTrackingManager.spec.ts"
   },
   "dependencies": {
     "@aagam/mobile-shared": "*",
@@ -55,7 +56,6 @@
     "eslint": "^8.19.0",
     "jest": "^29.6.3",
     "prettier": "2.8.8",
-    "react-native-dotenv": "^3.4.11",
     "react-test-renderer": "19.0.0",
     "typescript": "^5.8.3"
   },
