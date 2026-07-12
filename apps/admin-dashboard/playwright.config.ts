@@ -55,6 +55,14 @@ export default defineConfig({
       },
       testMatch: /phase-1-notifications(?:-ui|-e2e|-worker|-settings)?\.spec\.ts/,
     },
+    {
+      name: 'phase-3-delivery-operations',
+      use: {
+        ...devices['Desktop Chrome'],
+        headless: false,
+      },
+      testMatch: /phase-3-delivery-operations-ui\.spec\.ts/,
+    },
   ],
   webServer: {
     command: 'npm run dev',
