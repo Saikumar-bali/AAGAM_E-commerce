@@ -20,7 +20,13 @@ export class AuthController {
 
   private setSessionCookie(response: Response, token: string) {
     const isProduction = process.env.NODE_ENV === 'production';
-    response.cookie('access_token', token, { httpOnly: true, secure: isProduction, sameSite: isProduction ? 'none' : 'lax', path: '/', maxAge: 7 * 24 * 60 * 60 * 1000 });
+    response.cookie('access_token', token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
   }
 
   @Post('signup')
@@ -29,12 +35,31 @@ export class AuthController {
     return this.authService.signUp(signupDto.email, signupDto.password, signupDto.name, signupDto.role);
   }
 
+  /**
+   * Browser login is cookie-only. The JWT is never returned to JavaScript,
+   * which preserves the protection of the HttpOnly session cookie.
+   */
   @Post('login')
   @Throttle({ short: { limit: AUTH_LIMIT, ttl: 60000 } })
   async signIn(@Body() loginDto: LoginDto, @Res({ passthrough: true }) response: Response) {
     const result = await this.authService.signIn(loginDto.email, loginDto.password);
     this.setSessionCookie(response, result.session.access_token);
-    return { message: 'Logged in successfully', user: result.user, access_token: result.session.access_token };
+    return { message: 'Logged in successfully', user: result.user };
+  }
+
+  /**
+   * Native applications cannot use a browser HttpOnly cookie jar reliably.
+   * They receive a bearer token and persist it in the platform Keychain.
+   */
+  @Post('mobile/login')
+  @Throttle({ short: { limit: AUTH_LIMIT, ttl: 60000 } })
+  async mobileSignIn(@Body() loginDto: LoginDto) {
+    const result = await this.authService.signIn(loginDto.email, loginDto.password);
+    return {
+      message: 'Logged in successfully',
+      user: result.user,
+      access_token: result.session.access_token,
+    };
   }
 
   @Post('google')
@@ -42,7 +67,18 @@ export class AuthController {
   async signInWithGoogle(@Body() body: GoogleLoginDto, @Res({ passthrough: true }) response: Response) {
     const result = await this.authService.signInWithGoogle(body.idToken);
     this.setSessionCookie(response, result.session.access_token);
-    return { message: 'Logged in successfully', user: result.user, access_token: result.session.access_token };
+    return { message: 'Logged in successfully', user: result.user };
+  }
+
+  @Post('mobile/google')
+  @Throttle({ short: { limit: 10, ttl: 60000 } })
+  async mobileSignInWithGoogle(@Body() body: GoogleLoginDto) {
+    const result = await this.authService.signInWithGoogle(body.idToken);
+    return {
+      message: 'Logged in successfully',
+      user: result.user,
+      access_token: result.session.access_token,
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -63,7 +99,11 @@ export class AuthController {
   @Throttle({ short: { limit: 10, ttl: 60000 } })
   async logout(@Res({ passthrough: true }) response: Response) {
     const isProduction = process.env.NODE_ENV === 'production';
-    response.clearCookie('access_token', { path: '/', secure: isProduction, sameSite: isProduction ? 'none' : 'lax' });
+    response.clearCookie('access_token', {
+      path: '/',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+    });
     return { message: 'Logged out successfully' };
   }
 

@@ -29,7 +29,7 @@ export class PaymentsController {
 
   @Get(':orderId')
   async getPayment(@Req() req: Request, @Param('orderId') orderId: string) {
-    return this.paymentsService.getPaymentByOrder(orderId);
+    const userId = (req as any).user?.id as string;
+    return this.paymentsService.getPaymentByOrder(orderId, userId);
   }
 }
-

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
-import { io } from 'socket.io-client';
+import { createRealtimeSocket } from '@/lib/realtimeSocket';
 import { playNotificationSound, requestNotificationPermission, sendBrowserNotification } from '@/utils/notifications';
 import { ShoppingCart, DollarSign, Clock, CheckCircle, XCircle, Truck, Package, Search, Eye, Calendar, User, Store, Bike, X, RefreshCw, ChevronDown } from 'lucide-react';
 
@@ -121,8 +121,11 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     requestNotificationPermission();
     fetchOrders();
-    const s = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
+    const s = createRealtimeSocket();
     s.on('connect', () => s.emit('joinAdminOrders'));
+    s.on('connect_error', (socketError) => {
+      console.error('Admin orders socket connection failed', socketError.message);
+    });
     s.on('orderPlaced', (payload: any) => {
       playNotificationSound(0.6);
       sendBrowserNotification(`New Order — ${payload.paymentMethod}`, {
