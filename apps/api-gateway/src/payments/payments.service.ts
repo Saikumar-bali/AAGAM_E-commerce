@@ -93,7 +93,16 @@ export class PaymentsService {
     return { success: true, status: PaymentStatus.FAILED };
   }
 
-  async getPaymentByOrder(orderId: string) {
+  async getPaymentByOrder(orderId: string, customerId?: string) {
+    if (customerId) {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { customerId: true },
+      });
+      if (!order) throw new NotFoundException('Order not found');
+      if (order.customerId !== customerId) throw new ForbiddenException('Not allowed');
+    }
+
     const payment = await prisma.payment.findUnique({
       where: { orderId },
       include: { refunds: true },

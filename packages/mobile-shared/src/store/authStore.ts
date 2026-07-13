@@ -46,8 +46,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email, password) => {
     try {
       set({ isLoading: true });
-      const response = await apiClient.post('/auth/login', { email, password });
+      const response = await apiClient.post('/auth/mobile/login', { email, password });
       const { user, access_token } = response.data;
+      if (!access_token) throw new Error('Mobile login did not return a bearer token');
       await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
@@ -58,8 +59,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   googleLogin: async (idToken) => {
     try {
       set({ isLoading: true });
-      const response = await apiClient.post('/auth/google', { idToken });
+      const response = await apiClient.post('/auth/mobile/google', { idToken });
       const { user, access_token } = response.data;
+      if (!access_token) throw new Error('Mobile Google login did not return a bearer token');
       await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
@@ -71,8 +73,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       set({ isLoading: true });
       await apiClient.post('/auth/signup', { name, email, password, role });
-      const response = await apiClient.post('/auth/login', { email, password });
+      const response = await apiClient.post('/auth/mobile/login', { email, password });
       const { user, access_token } = response.data;
+      if (!access_token) throw new Error('Mobile login did not return a bearer token');
       await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
