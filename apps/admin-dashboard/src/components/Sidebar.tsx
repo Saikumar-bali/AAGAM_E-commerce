@@ -22,6 +22,7 @@ import {
   Bell,
   Bike,
   ShieldAlert,
+  Megaphone,
 } from "lucide-react";
 
 import { apiClient } from "@aagam/utils";
@@ -121,6 +122,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
       },
       { name: "Stores", href: "/admin/stores", icon: Store },
       { name: "Products", href: "/admin/products", icon: Package },
+      { name: "Promotions", href: "/admin/promotions", icon: Megaphone },
       { name: "Riders", href: "/admin/riders", icon: Truck },
       { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
       { name: "Live Tracking", href: "/admin/live-tracking", icon: Radar },

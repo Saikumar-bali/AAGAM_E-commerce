@@ -67,6 +67,19 @@ export class UploadController {
     return this.uploadService.uploadImage(file.buffer, file.originalname);
   }
 
+  @Post("promotion-image")
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor("file", imageUploadOptions))
+  async uploadPromotionImage(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException("No file uploaded");
+    return this.uploadService.uploadImage(
+      file.buffer,
+      file.originalname,
+      "promotions"
+    );
+  }
+
   @Post("images")
   @Roles(Role.ADMIN, Role.STORE_OWNER)
   @HttpCode(HttpStatus.OK)

@@ -21,13 +21,16 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  riderProfile            RiderProfile?
-  orders                  Order[]
-  addresses               CustomerAddress[]
-  stores                  Store[]                  @relation("StoreOwner")
-  pushSubscriptions       PushSubscription[]
-  notificationRecipients  NotificationRecipient[]
-  notificationPreferences NotificationPreference[]
+  riderProfile              RiderProfile?
+  orders                    Order[]
+  addresses                 CustomerAddress[]
+  stores                    Store[]                  @relation("StoreOwner")
+  pushSubscriptions         PushSubscription[]
+  notificationRecipients    NotificationRecipient[]
+  notificationPreferences   NotificationPreference[]
+  promotionCampaignsCreated PromotionCampaign[]      @relation("PromotionCampaignCreatedBy")
+  couponsCreated            Coupon[]                 @relation("CouponCreatedBy")
+  couponRedemptions         CouponRedemption[]
 }
 
 enum Role {
@@ -53,12 +56,15 @@ model Store {
   inventory        Inventory[]
   orders           Order[]
   inventoryLedgers InventoryLedger[]
+  coupons          Coupon[]
 }
 
 model Category {
-  id       String    @id @default(cuid())
-  name     String    @unique
-  products Product[]
+  id                  String                      @id @default(cuid())
+  name                String                      @unique
+  products            Product[]
+  promotionCampaigns  PromotionCampaign[]
+  couponEligibilities CouponCategoryEligibility[]
 }
 
 model Product {
@@ -77,9 +83,11 @@ model Product {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  inventory        Inventory[]
-  orderItems       OrderItem[]
-  inventoryLedgers InventoryLedger[]
+  inventory           Inventory[]
+  orderItems          OrderItem[]
+  inventoryLedgers    InventoryLedger[]
+  promotionCampaigns  PromotionCampaign[]
+  couponEligibilities CouponProductEligibility[]
 }
 
 model Inventory {
@@ -144,6 +152,188 @@ model Order {
   codLedger          CodLedger?
   failureDecisions   DeliveryFailureDecision[]
   notifications      Notification[]
+  couponRedemption   CouponRedemption?
+}
+
+enum PromotionStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum PromotionPlacement {
+  HOME_HERO
+  HOME_TODAY_OFFERS
+  DEALS_PAGE
+}
+
+enum PromotionTargetType {
+  NONE
+  PRODUCT
+  CATEGORY
+  DEALS
+  INTERNAL_PATH
+}
+
+model PromotionCampaign {
+  id              String                         @id @default(cuid())
+  internalName    String
+  title           String
+  subtitle        String?
+  description     String?
+  badgeText       String?
+  imageUrl        String?
+  mobileImageUrl  String?
+  backgroundColor String                         @default("#0f172a")
+  textColor       String                         @default("#ffffff")
+  accentColor     String                         @default("#14b8a6")
+  ctaLabel        String                         @default("Shop now")
+  targetType      PromotionTargetType            @default(DEALS)
+  targetPath      String?
+  productId       String?
+  product         Product?                       @relation(fields: [productId], references: [id])
+  categoryId      String?
+  category        Category?                      @relation(fields: [categoryId], references: [id])
+  couponId        String?
+  coupon          Coupon?                        @relation(fields: [couponId], references: [id])
+  status          PromotionStatus                @default(DRAFT)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  priority        Int                            @default(0)
+  firstOrderOnly  Boolean                        @default(false)
+  createdByUserId String
+  createdBy       User                           @relation("PromotionCampaignCreatedBy", fields: [createdByUserId], references: [id])
+  publishedAt     DateTime?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  placements      PromotionPlacementAssignment[]
+
+  @@index([status, startsAt, endsAt])
+  @@index([priority])
+  @@index([productId])
+  @@index([categoryId])
+  @@index([couponId])
+}
+
+model PromotionPlacementAssignment {
+  id         String             @id @default(cuid())
+  campaignId String
+  campaign   PromotionCampaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  placement  PromotionPlacement
+  sortOrder  Int                @default(0)
+  createdAt  DateTime           @default(now())
+
+  @@unique([campaignId, placement])
+  @@index([placement, sortOrder])
+}
+
+enum CouponStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum CouponApplicationMode {
+  CODE
+  AUTO
+}
+
+enum CouponDiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_DELIVERY
+}
+
+enum CouponEligibilityScope {
+  ALL
+  PRODUCTS
+  CATEGORIES
+}
+
+enum CouponRedemptionStatus {
+  RESERVED
+  REDEEMED
+  RELEASED
+}
+
+model Coupon {
+  id                    String                      @id @default(cuid())
+  code                  String                      @unique
+  name                  String
+  description           String?
+  status                CouponStatus                @default(DRAFT)
+  applicationMode       CouponApplicationMode       @default(CODE)
+  discountType          CouponDiscountType
+  percentageBps         Int?
+  amountPaise           Int?
+  maxDiscountPaise      Int?
+  minimumSubtotalPaise  Int                         @default(0)
+  startsAt              DateTime?
+  endsAt                DateTime?
+  totalUsageLimit       Int?
+  perCustomerLimit      Int                         @default(1)
+  firstOrderOnly        Boolean                     @default(false)
+  eligibilityScope      CouponEligibilityScope      @default(ALL)
+  priority              Int                         @default(0)
+  storeId               String?
+  store                 Store?                      @relation(fields: [storeId], references: [id])
+  createdByUserId       String
+  createdBy             User                        @relation("CouponCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  campaigns             PromotionCampaign[]
+  productEligibilities  CouponProductEligibility[]
+  categoryEligibilities CouponCategoryEligibility[]
+  redemptions           CouponRedemption[]
+
+  @@index([status, startsAt, endsAt])
+  @@index([applicationMode, priority])
+  @@index([storeId])
+}
+
+model CouponProductEligibility {
+  couponId  String
+  coupon    Coupon  @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@id([couponId, productId])
+  @@index([productId])
+}
+
+model CouponCategoryEligibility {
+  couponId   String
+  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  @@id([couponId, categoryId])
+  @@index([categoryId])
+}
+
+model CouponRedemption {
+  id            String                 @id @default(cuid())
+  couponId      String
+  coupon        Coupon                 @relation(fields: [couponId], references: [id])
+  customerId    String
+  customer      User                   @relation(fields: [customerId], references: [id])
+  orderId       String                 @unique
+  order         Order                  @relation(fields: [orderId], references: [id])
+  status        CouponRedemptionStatus @default(RESERVED)
+  codeSnapshot  String
+  discountPaise Int
+  ruleSnapshot  Json
+  reservedAt    DateTime               @default(now())
+  redeemedAt    DateTime?
+  releasedAt    DateTime?
+  releaseReason String?
+
+  @@index([couponId, status])
+  @@index([customerId, couponId, status])
 }
 
 model OrderItem {

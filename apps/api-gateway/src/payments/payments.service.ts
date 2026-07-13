@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { PaymentMethod, PaymentStatus, RefundStatus, prisma } from '@aagam/database';
+import { CouponRedemptionStatus, PaymentMethod, PaymentStatus, RefundStatus, prisma } from '@aagam/database';
 
 @Injectable()
 export class PaymentsService {
@@ -47,6 +47,15 @@ export class PaymentsService {
           note: 'Online payment captured',
         },
       });
+      await tx.couponRedemption.updateMany({
+        where: { orderId, status: CouponRedemptionStatus.RESERVED },
+        data: {
+          status: CouponRedemptionStatus.REDEEMED,
+          redeemedAt: new Date(),
+          releasedAt: null,
+          releaseReason: null,
+        },
+      });
     });
 
     return { success: true, status: PaymentStatus.CAPTURED };
@@ -86,6 +95,14 @@ export class PaymentsService {
           actorUserId: userId,
           actorRole: 'CUSTOMER',
           note: reason || 'Payment failed',
+        },
+      });
+      await tx.couponRedemption.updateMany({
+        where: { orderId, status: CouponRedemptionStatus.RESERVED },
+        data: {
+          status: CouponRedemptionStatus.RELEASED,
+          releasedAt: new Date(),
+          releaseReason: reason || 'PAYMENT_FAILED',
         },
       });
     });
