@@ -65,6 +65,12 @@ const jobInclude = {
   },
   events: { orderBy: { createdAt: "asc" as const } },
   assignments: { orderBy: { createdAt: "desc" as const }, take: 10 },
+  pickupProof: true,
+  deliveryProof: true,
+  codLedger: {
+    include: { entries: { orderBy: { createdAt: "asc" as const } } },
+  },
+  failureDecisions: { orderBy: { createdAt: "desc" as const }, take: 10 },
 };
 
 @Injectable()
@@ -220,7 +226,10 @@ export class RiderPortalService {
     if (!job) return null;
     const operations = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT "id", "type"::text, "status"::text, "actorUserId", "actorRole"::text,
-             "details", "createdAt", "completedAt"
+             CASE WHEN "type" = 'OTP_ISSUED'::"DeliveryOperationType"
+               THEN "details" - 'nonce' - 'salt' - 'codeHash'
+               ELSE "details" END AS "details",
+             "createdAt"
       FROM "DeliveryOperation" WHERE "deliveryJobId" = ${job.id} ORDER BY "createdAt" ASC
     `);
     return { ...job, operations };
@@ -394,33 +403,42 @@ export class RiderPortalService {
 
   async cod(userId: string) {
     const rider = await this.rider(userId);
-    const rows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT op."id", op."deliveryJobId", op."orderId", op."type"::text, op."status"::text,
-             op."details", op."createdAt", op."completedAt"
-      FROM "DeliveryOperation" op INNER JOIN "DeliveryJob" job ON job."id" = op."deliveryJobId"
-      WHERE job."currentRiderId" = ${rider.id}
-        AND op."type" IN ('COD_COLLECTED'::"DeliveryOperationType", 'COD_SETTLED'::"DeliveryOperationType")
-        AND op."status" = 'COMPLETED'::"DeliveryOperationStatus" ORDER BY op."createdAt" DESC
-    `);
-    const collected = rows.filter((row) => row.type === "COD_COLLECTED");
-    const settlements = rows.filter((row) => row.type === "COD_SETTLED");
-    const settledJobIds = new Set(settlements.map((row) => row.deliveryJobId));
-    const collectedPaise = collected.reduce(
-      (sum, row) => sum + Number(row.details?.amountPaise || 0),
-      0
-    );
-    const settledPaise = settlements.reduce(
-      (sum, row) => sum + Number(row.details?.amountPaise || 0),
-      0
-    );
+    const ledgers = await prisma.codLedger.findMany({
+      where: { riderId: rider.id },
+      include: {
+        entries: { orderBy: { createdAt: "desc" } },
+        order: { select: { id: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 250,
+    });
     return {
-      cashHeldPaise: Math.max(0, collectedPaise - settledPaise),
-      collectedPaise,
-      settledPaise,
-      pendingHandovers: collected.filter(
-        (row) => !settledJobIds.has(row.deliveryJobId)
+      cashHeldPaise: ledgers.reduce(
+        (sum, row) => sum + row.riderHoldingBalancePaise,
+        0
       ),
-      audit: rows,
+      collectedPaise: ledgers.reduce(
+        (sum, row) => sum + row.collectedAmountPaise,
+        0
+      ),
+      depositedPaise: ledgers.reduce(
+        (sum, row) => sum + row.depositedAmountPaise,
+        0
+      ),
+      variancePaise: ledgers.reduce((sum, row) => sum + row.variancePaise, 0),
+      pendingHandovers: ledgers.filter(
+        (row) =>
+          row.riderHoldingBalancePaise > 0 || row.status === "VARIANCE_REVIEW"
+      ),
+      ledgers,
+      audit: ledgers.flatMap((row) =>
+        row.entries.map((entry) => ({
+          ...entry,
+          deliveryJobId: row.deliveryJobId,
+          orderId: row.orderId,
+          settlementStatus: row.status,
+        }))
+      ),
     };
   }
 
