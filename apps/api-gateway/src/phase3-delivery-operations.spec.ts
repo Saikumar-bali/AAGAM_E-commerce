@@ -625,7 +625,7 @@ describe("Phase 3 delivery exceptions, COD, returns, and OTP", () => {
         { amountPaise: 30000, settlementReference: "SET-002" },
         "settlement-second"
       )
-    ).rejects.toThrow("already settled");
+    ).rejects.toThrow("COD ledger is already finalized");
   });
 
   it("restricts the queue and creates custom outbox audit events", async () => {
