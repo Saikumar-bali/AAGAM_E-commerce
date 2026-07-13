@@ -77,6 +77,14 @@ export default defineConfig({
       },
       testMatch: /phase-5-delivery-proof-ui\.spec\.ts/,
     },
+    {
+      name: "phase-6b-promotions",
+      use: {
+        ...devices["Desktop Chrome"],
+        headless: false,
+      },
+      testMatch: /phase-6b-promotions-ui\.spec\.ts/,
+    },
   ],
   webServer: {
     command: "npm run dev",

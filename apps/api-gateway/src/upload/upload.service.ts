@@ -73,14 +73,15 @@ export class UploadService {
 
   async uploadImage(
     buffer: Buffer,
-    originalFilename: string
+    originalFilename: string,
+    folder: "products" | "promotions" = "products"
   ): Promise<{ publicUrl: string }> {
     if (!this.s3Client || !this.bucketName || !this.publicUrl) {
       throw new Error("Image upload storage is not configured");
     }
 
     const ext = originalFilename.split(".").pop() || "jpg";
-    const key = `products/${uuidv4()}.${ext}`;
+    const key = `${folder}/${uuidv4()}.${ext}`;
     const contentType = this.getContentType(ext);
 
     this.logger.log(`[R2 DEBUG] Starting upload:

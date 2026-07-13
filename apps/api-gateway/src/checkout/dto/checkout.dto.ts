@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsEnum, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsEnum, IsInt, IsOptional, IsString, Matches, Min, ValidateNested } from 'class-validator';
 import { PaymentMethod } from '@aagam/database';
 
 export class CheckoutItemDto {
@@ -21,6 +21,11 @@ export class CheckoutQuoteDto {
   @IsOptional()
   @IsString()
   addressId?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => String(value || '').trim().toUpperCase())
+  @Matches(/^[A-Z0-9_-]{3,32}$/)
+  couponCode?: string;
 }
 
 export class CheckoutPlaceOrderDto {
@@ -36,4 +41,9 @@ export class CheckoutPlaceOrderDto {
   @Transform(({ value }) => String(value || '').toUpperCase())
   @IsEnum(PaymentMethod)
   paymentMethod!: PaymentMethod;
+
+  @IsOptional()
+  @Transform(({ value }) => String(value || '').trim().toUpperCase())
+  @Matches(/^[A-Z0-9_-]{3,32}$/)
+  couponCode?: string;
 }
