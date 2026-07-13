@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import React from 'react';
-import DashboardLayout from '@/components/DashboardLayout';
-import NotificationPreferences from '@/components/notifications/NotificationPreferences';
+import React from "react";
+import DashboardLayout from "@/components/DashboardLayout";
+import NotificationPreferences from "@/components/notifications/NotificationPreferences";
 
 export default function RiderNotificationSettingsPage() {
   return (

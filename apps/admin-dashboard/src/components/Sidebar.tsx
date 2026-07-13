@@ -35,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   const pathname = usePathname();
   const router = useRouter();
   const [profile, setProfile] = React.useState<{ name: string; email: string; avatarUrl: string }>({ name: '', email: '', avatarUrl: '' });
+  const [riderUnread, setRiderUnread] = React.useState(0);
 
   React.useEffect(() => {
     if (typeof window === 'undefined' || role !== 'CUSTOMER') return;
@@ -43,6 +44,17 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
       email: localStorage.getItem('user_email') || '',
       avatarUrl: localStorage.getItem('user_avatar') || '',
     });
+  }, [role]);
+
+  React.useEffect(() => {
+    if (role !== 'RIDER') return;
+    let active = true;
+    const refresh = () => apiClient.get('/notifications/inbox?limit=1')
+      .then((response) => { if (active) setRiderUnread(Number(response.data?.unreadCount || 0)); })
+      .catch(() => undefined);
+    void refresh();
+    window.addEventListener('aagam:push-message', refresh);
+    return () => { active = false; window.removeEventListener('aagam:push-message', refresh); };
   }, [role]);
 
   const initials = (profile.name || profile.email || 'A')
@@ -89,10 +101,18 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
       { name: 'Live Tracking', href: '/admin/live-tracking', icon: Radar },
     ],
     RIDER: [
-      { name: 'Current Delivery', href: '/rider', icon: Truck },
+      { name: 'Home', href: '/rider', icon: LayoutDashboard },
+      { name: 'Job Offers', href: '/rider/offers', icon: Bike },
+      { name: 'Current Delivery', href: '/rider/delivery', icon: Truck },
+      { name: 'Pickup Tasks', href: '/rider/pickup', icon: Package },
       { name: 'Notifications', href: '/rider/notifications', icon: Bell },
       { name: 'History', href: '/rider/history', icon: ShoppingCart },
+      { name: 'Earnings', href: '/rider/earnings', icon: Tag },
+      { name: 'COD & Settlements', href: '/rider/cod', icon: ShieldAlert },
+      { name: 'Performance', href: '/rider/performance', icon: BarChart3 },
+      { name: 'Availability', href: '/rider/availability', icon: Radar },
       { name: 'Profile', href: '/rider/profile', icon: User },
+      { name: 'Support', href: '/rider/support', icon: Headphones },
     ],
     CUSTOMER: [
       { name: 'Shop', href: '/shop', icon: ShoppingCart },
@@ -146,6 +166,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
                 <Link key={item.name} href={item.href} className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all ${isActive ? 'bg-white text-slate-950 shadow-lg shadow-black/10' : 'text-slate-400 hover:bg-white/7 hover:text-white'}`}>
                   <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition ${isActive ? 'bg-teal-600 text-white' : 'bg-white/5 text-slate-400 group-hover:text-teal-300'}`}><Icon className="h-4 w-4" /></span>
                   {item.name}
+                  {role === 'RIDER' && item.href === '/rider/notifications' && riderUnread > 0 && <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-black text-white">{riderUnread > 99 ? '99+' : riderUnread}</span>}
                 </Link>
               );
             })}
@@ -164,9 +185,10 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
           const Icon = item.icon;
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
-            <Link key={item.name} href={item.href} className={`flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-bold transition ${isActive ? 'bg-white text-slate-950' : 'text-slate-500 active:bg-white/10'}`}>
+            <Link key={item.name} href={item.href} className={`relative flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-bold transition ${isActive ? 'bg-white text-slate-950' : 'text-slate-500 active:bg-white/10'}`}>
               <Icon className="h-4 w-4" />
               <span className="max-w-full truncate">{item.name}</span>
+              {role === 'RIDER' && item.href === '/rider/notifications' && riderUnread > 0 && <span className="absolute right-2 top-1 h-2 w-2 rounded-full bg-red-500" />}
             </Link>
           );
         })}
