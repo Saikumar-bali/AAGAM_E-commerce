@@ -36,8 +36,11 @@ export default function CurrentDeliveryPage() {
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [otp, setOtp] = useState(""),
-    [failure, setFailure] = useState("CUSTOMER_UNAVAILABLE"),
+    [failure, setFailure] = useState("CUSTOMER_UNREACHABLE"),
     [note, setNote] = useState(""),
+    [deliveryNote, setDeliveryNote] = useState(""),
+    [riderConfirmed, setRiderConfirmed] = useState(false),
+    [coordinates, setCoordinates] = useState<any>(null),
     [working, setWorking] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
@@ -109,6 +112,24 @@ export default function CurrentDeliveryPage() {
         : [],
     [job]
   );
+  const captureCoordinates = () => {
+    if (!navigator.geolocation) {
+      setError("Location is unavailable on this device.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCoordinates({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracyMetres: position.coords.accuracy,
+        });
+        setMessage("Delivery coordinates captured.");
+      },
+      () => setError("Location permission was not granted."),
+      { enableHighAccuracy: true, timeout: 10_000 }
+    );
+  };
   if (loading && !job)
     return (
       <DashboardLayout allowedRole="RIDER">
@@ -300,11 +321,17 @@ export default function CurrentDeliveryPage() {
                     </div>
                   )}
                   <button
-                    disabled={working || otp.length !== 6}
+                    disabled={working || otp.length !== 6 || !riderConfirmed}
                     onClick={() =>
                       operate(
                         `/orders/delivery-operations/jobs/${job.id}/complete`,
-                        { otpCode: otp, proofType: "CUSTOMER_OTP" },
+                        {
+                          otpCode: otp,
+                          proofType: "CUSTOMER_OTP_PIN",
+                          riderConfirmed: true,
+                          note: deliveryNote.trim() || undefined,
+                          ...(coordinates || {}),
+                        },
                         makeKey("complete", job.id)
                       )
                     }
@@ -313,6 +340,37 @@ export default function CurrentDeliveryPage() {
                     <CheckCircle2 className="mr-2 inline h-4 w-4" />
                     Complete verified delivery
                   </button>
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 lg:col-span-2">
+                    <label className="flex items-start gap-3 text-sm font-bold text-emerald-950">
+                      <input
+                        type="checkbox"
+                        checked={riderConfirmed}
+                        onChange={(event) =>
+                          setRiderConfirmed(event.target.checked)
+                        }
+                        className="mt-1 h-4 w-4"
+                      />
+                      I confirm that I physically handed this parcel to the
+                      customer who supplied the OTP/PIN.
+                    </label>
+                    <textarea
+                      value={deliveryNote}
+                      onChange={(event) => setDeliveryNote(event.target.value)}
+                      maxLength={500}
+                      placeholder="Optional factual delivery note"
+                      className="mt-3 min-h-20 w-full rounded-xl border bg-white p-3 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={captureCoordinates}
+                      className="mt-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-800"
+                    >
+                      <MapPin className="mr-2 inline h-4 w-4" />
+                      {coordinates
+                        ? "Coordinates captured"
+                        : "Capture optional coordinates"}
+                    </button>
+                  </div>
                 </div>
               )}
               {["OUT_FOR_DELIVERY", "RIDER_AT_CUSTOMER"].includes(
@@ -326,17 +384,22 @@ export default function CurrentDeliveryPage() {
                       onChange={(e) => setFailure(e.target.value)}
                       className="rounded-xl border px-3 py-2 text-sm"
                     >
-                      <option value="CUSTOMER_UNAVAILABLE">
-                        Customer unavailable
+                      <option value="CUSTOMER_UNREACHABLE">
+                        Customer unreachable
                       </option>
                       <option value="CUSTOMER_REFUSED">Customer refused</option>
                       <option value="ADDRESS_NOT_FOUND">
                         Address not found
                       </option>
+                      <option value="WRONG_ADDRESS">Wrong address</option>
+                      <option value="PAYMENT_NOT_AVAILABLE">
+                        Payment not available
+                      </option>
                       <option value="SAFETY_CONCERN">Safety concern</option>
                       <option value="VEHICLE_BREAKDOWN">
                         Vehicle breakdown
                       </option>
+                      <option value="PACKAGE_DAMAGED">Package damaged</option>
                       <option value="OTHER">Other</option>
                     </select>
                     <input
@@ -362,19 +425,36 @@ export default function CurrentDeliveryPage() {
                 </div>
               )}
               {job.status === "DELIVERY_FAILED" && (
-                <button
-                  disabled={working}
-                  onClick={() =>
-                    operate(
-                      `/orders/delivery-operations/jobs/${job.id}/return/start`,
-                      {},
-                      makeKey("return", job.id)
-                    )
-                  }
-                  className="mt-4 rounded-xl bg-red-700 px-4 py-3 text-sm font-black text-white"
-                >
-                  Start return to store
-                </button>
+                <div className="mt-4 rounded-xl border border-red-200 bg-white p-4">
+                  <p className="text-xs font-black uppercase text-red-500">
+                    System resolution
+                  </p>
+                  <p className="mt-1 font-black text-red-950">
+                    {String(
+                      job.failureDecisions?.[0]?.decidedAction ||
+                        "Pending decision"
+                    ).replace(/_/g, " ")}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {job.failureDecisions?.[0]?.rationale}
+                  </p>
+                  {job.failureDecisions?.[0]?.decidedAction ===
+                    "RETURN_TO_STORE" && (
+                    <button
+                      disabled={working}
+                      onClick={() =>
+                        operate(
+                          `/orders/delivery-operations/jobs/${job.id}/return/start`,
+                          {},
+                          makeKey("return", job.id)
+                        )
+                      }
+                      className="mt-3 rounded-xl bg-red-700 px-4 py-3 text-sm font-black text-white"
+                    >
+                      Start authorized return to store
+                    </button>
+                  )}
+                </div>
               )}
             </section>
             <section className="rounded-2xl border border-slate-200 bg-white p-5">

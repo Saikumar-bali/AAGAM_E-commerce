@@ -17,7 +17,11 @@ export default function PickupPage() {
     [qty, setQty] = useState<Record<string, number>>({}),
     [parcel, setParcel] = useState(""),
     [problem, setProblem] = useState("MISSING_ITEM"),
-    [note, setNote] = useState("");
+    [note, setNote] = useState(""),
+    [handoffMethod, setHandoffMethod] = useState("STORE_PICKUP_PIN"),
+    [handoffCode, setHandoffCode] = useState(""),
+    [parcelCount, setParcelCount] = useState(1),
+    [coordinates, setCoordinates] = useState<any>(null);
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -62,6 +66,35 @@ export default function PickupPage() {
       await load();
     } catch (e: any) {
       setError(e?.response?.data?.message || "Problem report failed.");
+    }
+  };
+  const captureCoordinates = () => {
+    if (!navigator.geolocation) return setError("Location is unavailable.");
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        setCoordinates({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracyMetres: position.coords.accuracy,
+        }),
+      () => setError("Location permission was not granted."),
+      { enableHighAccuracy: true, timeout: 10_000 }
+    );
+  };
+  const verifyHandoff = async () => {
+    try {
+      await apiClient.post(
+        `/orders/delivery-operations/jobs/${data.job.id}/pickup/verify`,
+        {
+          method: handoffMethod,
+          code: handoffCode.trim(),
+          parcelCount,
+          ...(coordinates || {}),
+        }
+      );
+      await load();
+    } catch (e: any) {
+      setError(e?.response?.data?.message || "Store handoff proof failed.");
     }
   };
   return (
@@ -186,6 +219,71 @@ export default function PickupPage() {
                 </p>
               )}
             </section>
+            {data.task.status === "VERIFIED" &&
+              data.job.status === "RIDER_AT_STORE" && (
+                <section className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5">
+                  <p className="font-black text-indigo-950">
+                    Professional store handoff proof
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-indigo-800">
+                    Ask the owning store for its current pickup PIN or scan the
+                    issued QR value. Store-confirmed handoff is completed by the
+                    store portal.
+                  </p>
+                  <div className="mt-4 grid gap-2 md:grid-cols-[220px_1fr_120px]">
+                    <select
+                      value={handoffMethod}
+                      onChange={(event) => setHandoffMethod(event.target.value)}
+                      className="rounded-xl border px-3 py-2.5"
+                    >
+                      <option value="STORE_PICKUP_PIN">Store pickup PIN</option>
+                      <option value="QR_CODE">QR code</option>
+                    </select>
+                    <input
+                      value={handoffCode}
+                      onChange={(event) => setHandoffCode(event.target.value)}
+                      placeholder="Enter PIN or scanned QR value"
+                      className="rounded-xl border px-3 py-2.5"
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={parcelCount}
+                      onChange={(event) =>
+                        setParcelCount(Number(event.target.value))
+                      }
+                      aria-label="Parcel count"
+                      className="rounded-xl border px-3 py-2.5"
+                    />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={captureCoordinates}
+                      className="rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-sm font-black text-indigo-800"
+                    >
+                      {coordinates
+                        ? "Coordinates captured"
+                        : "Capture optional coordinates"}
+                    </button>
+                    <button
+                      disabled={handoffCode.trim().length < 6}
+                      onClick={verifyHandoff}
+                      className="rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-black text-white disabled:opacity-40"
+                    >
+                      Verify store handoff
+                    </button>
+                  </div>
+                </section>
+              )}
+            {data.job.pickupProof && (
+              <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm font-bold text-emerald-900">
+                <CheckCircle2 className="mr-2 inline h-5 w-5" /> Pickup proof
+                recorded using{" "}
+                {data.job.pickupProof.verificationMethod.replace(/_/g, " ")} for{" "}
+                {data.job.pickupProof.parcelCount} parcel(s).
+              </section>
+            )}
           </>
         )}
       </div>

@@ -15,6 +15,7 @@
     "test:phase2b": "jest --runInBand phase2b-mobile-delivery.spec.ts phase0-delivery-domain.spec.ts phase1-notifications.spec.ts",
     "test:phase3": "jest --runInBand phase3-security-regressions.spec.ts phase3-delivery-operations.spec.ts phase3-delivery-gate-compat.spec.ts phase2b-mobile-delivery.spec.ts phase1-notifications.spec.ts",
     "test:phase4": "jest --runInBand phase4-rider-portal.spec.ts phase3-security-regressions.spec.ts phase3-delivery-gate-compat.spec.ts",
+    "test:phase5": "jest --runInBand phase5-delivery-proof-cod-failures.spec.ts phase4-rider-portal.spec.ts phase3-security-regressions.spec.ts phase3-delivery-gate-compat.spec.ts",
     "test:security": "jest --runInBand phase3-security-regressions.spec.ts",
     "test:phase6": "jest --runInBand phase6-catalog.spec.ts",
     "test:phase8": "jest --runInBand phase8",

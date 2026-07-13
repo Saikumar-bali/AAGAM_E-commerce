@@ -33,7 +33,7 @@ export default function CodPage() {
       <div className="space-y-5">
         <RiderPageHeader
           title="COD & Settlements"
-          subtitle="Cash currently held, collected and settled amounts, pending handovers, references, and immutable Phase 3 audit records."
+          subtitle="Independent COD ledger: expected and collected cash, Rider holding balance, deposits, settlement references, variance, and immutable entries. Rider earnings never enter this ledger."
           backHref="/rider"
           action={<RefreshButton onClick={load} loading={loading} />}
         />
@@ -42,7 +42,7 @@ export default function CodPage() {
           <PortalLoading />
         ) : (
           <>
-            <section className="grid gap-4 sm:grid-cols-3">
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <MetricCard
                 label="Cash currently held"
                 value={moneyPaise(data?.cashHeldPaise)}
@@ -54,9 +54,14 @@ export default function CodPage() {
                 tone="emerald"
               />
               <MetricCard
-                label="Settled"
-                value={moneyPaise(data?.settledPaise)}
+                label="Deposited"
+                value={moneyPaise(data?.depositedPaise)}
                 tone="indigo"
+              />
+              <MetricCard
+                label="Variance"
+                value={moneyPaise(data?.variancePaise)}
+                tone="red"
               />
             </section>
             {data?.pendingHandovers?.length ? (
@@ -70,12 +75,12 @@ export default function CodPage() {
                       Order #{row.orderId.slice(-8).toUpperCase()}
                     </p>
                     <p className="text-sm font-bold text-amber-800">
-                      {moneyPaise(row.details?.amountPaise)} · collected{" "}
-                      {new Date(row.createdAt).toLocaleString("en-IN")}
+                      Holding {moneyPaise(row.riderHoldingBalancePaise)} ·
+                      collected {moneyPaise(row.collectedAmountPaise)}
                     </p>
                     <p className="text-xs text-slate-500">
-                      Reference:{" "}
-                      {row.details?.collectionReference || "Not supplied"}
+                      Status: {row.status.replace(/_/g, " ")} · reference:{" "}
+                      {row.settlementReference || "Not supplied"}
                     </p>
                   </div>
                 ))}
@@ -97,7 +102,7 @@ export default function CodPage() {
                     <div>
                       <p className="font-black">
                         {row.type.replace(/_/g, " ")} ·{" "}
-                        {moneyPaise(row.details?.amountPaise)}
+                        {moneyPaise(row.amountPaise)}
                       </p>
                       <p className="text-xs text-slate-500">
                         Order #{row.orderId.slice(-8)} ·{" "}
@@ -105,9 +110,7 @@ export default function CodPage() {
                       </p>
                     </div>
                     <span className="text-xs font-black text-slate-600">
-                      {row.details?.settlementReference ||
-                        row.details?.collectionReference ||
-                        row.status}
+                      {row.reference || row.settlementStatus}
                     </span>
                   </div>
                 ))}
