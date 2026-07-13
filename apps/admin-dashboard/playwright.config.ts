@@ -63,6 +63,14 @@ export default defineConfig({
       },
       testMatch: /phase-3-delivery-operations-ui\.spec\.ts/,
     },
+    {
+      name: 'phase-4-rider-portal',
+      use: {
+        ...devices['Desktop Chrome'],
+        headless: false,
+      },
+      testMatch: /phase-4-rider-portal-ui\.spec\.ts/,
+    },
   ],
   webServer: {
     command: 'npm run dev',

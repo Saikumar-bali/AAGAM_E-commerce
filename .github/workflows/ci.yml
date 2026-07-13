@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["main", "phase-*"]
+    branches: ["main", "phase-*", "agent/**"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "phase-*"]
 
 # A branch can receive several review commits in quick succession. Only the
 # newest head is relevant; cancel older builds/APKs instead of serially spending
