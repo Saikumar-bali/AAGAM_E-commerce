@@ -57,13 +57,14 @@ export function MetricCard({
   label: string;
   value: React.ReactNode;
   hint?: string;
-  tone?: "slate" | "emerald" | "amber" | "indigo";
+  tone?: "slate" | "emerald" | "amber" | "indigo" | "red";
 }) {
   const colors = {
     slate: "text-slate-950",
     emerald: "text-emerald-700",
     amber: "text-amber-700",
     indigo: "text-indigo-700",
+    red: "text-red-700",
   };
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
