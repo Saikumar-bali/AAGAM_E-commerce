@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus, PaymentStatus, Role, prisma } from '@aagam/database';
+import { CouponRedemptionStatus, OrderStatus, PaymentStatus, Role, prisma } from '@aagam/database';
 import { calculateDistance } from '@aagam/utils';
 import { TrackingGateway } from '../tracking.gateway';
 import { RefundsService } from '../payments/refunds.service';
@@ -42,6 +42,22 @@ export class OrderService {
     private readonly trackingGateway: TrackingGateway,
     private readonly refundsService: RefundsService,
   ) {}
+
+  private releaseCouponRedemption(orderId: string, reason: string, tx: any) {
+    return tx.couponRedemption.updateMany({
+      where: {
+        orderId,
+        status: {
+          in: [CouponRedemptionStatus.RESERVED, CouponRedemptionStatus.REDEEMED],
+        },
+      },
+      data: {
+        status: CouponRedemptionStatus.RELEASED,
+        releasedAt: new Date(),
+        releaseReason: reason,
+      },
+    });
+  }
 
   private statusNote(nextStatus: OrderStatus, actorRole?: Role) {
     if (actorRole === Role.RIDER) {
@@ -516,6 +532,10 @@ export class OrderService {
         metadata: Object.keys(historyMetadata).length > 0 ? historyMetadata : undefined,
       }, tx);
 
+      if (nextStatus === OrderStatus.CANCELLED) {
+        await this.releaseCouponRedemption(id, 'ORDER_CANCELLED', tx);
+      }
+
       if (nextStatus === OrderStatus.DELIVERED) {
         const orderItems = await tx.orderItem.findMany({ where: { orderId: id } });
         for (const item of orderItems) {
@@ -849,6 +869,8 @@ export class OrderService {
         tx,
       );
 
+      await this.releaseCouponRedemption(order.id, 'CUSTOMER_CANCELLED', tx);
+
       return updated;
     });
   }
@@ -924,6 +946,8 @@ export class OrderService {
         note: reason || 'Force cancelled by admin',
         metadata: { forceCancel: true, reason: reason || null },
       }, tx);
+
+      await this.releaseCouponRedemption(orderId, reason || 'ADMIN_CANCELLED', tx);
 
       // Set rider back to online if assigned
       if (updated.riderId) {

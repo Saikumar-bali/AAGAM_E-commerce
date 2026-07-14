@@ -10,7 +10,7 @@ import BillDetailsCard from '@/components/customer/BillDetailsCard';
 import {
   ArrowLeft, CheckCircle2, Loader2, MapPin, Phone, ShoppingBag,
   MoreVertical, Edit2, Trash2, X, Home, Building, Navigation,
-  CreditCard, Banknote, ShieldCheck, Truck, Package,
+  CreditCard, Banknote, ShieldCheck, Truck, Package, BadgePercent,
 } from 'lucide-react';
 
 type Address = {
@@ -54,9 +54,17 @@ type QuoteResponse = {
     taxAmount: number;
     grandTotal: number;
   };
+  appliedCoupon?: {
+    id: string;
+    code: string;
+    name: string;
+    discountType: string;
+    applicationMode: string;
+    discountAmount: number;
+  } | null;
 };
 
-const ADDRESS_ICONS: Record<string, React.ElementType> = {
+const ADDRESS_ICONS: Record<string, any> = {
   home: Home,
   work: Building,
 };
@@ -100,6 +108,9 @@ export default function CheckoutPage() {
 
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCouponCode, setAppliedCouponCode] = useState('');
+  const [couponError, setCouponError] = useState('');
 
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('COD');
   const [placingOrder, setPlacingOrder] = useState(false);
@@ -108,6 +119,18 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
 
   const idemKeyRef = useRef<string | null>(null);
+
+useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("coupon");
+    const saved = sessionStorage.getItem("aagam_coupon_code");
+    const initial = String(fromUrl || saved || "")
+      .trim()
+      .toUpperCase();
+    if (initial) {
+      setCouponInput(initial);
+      setAppliedCouponCode(initial);
+    }
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -144,21 +167,57 @@ export default function CheckoutPage() {
       if (orderId) return;
       setLoadingQuote(true);
       setError(null);
+      if (appliedCouponCode) setCouponError("");
       try {
-        const res = await apiClient.post('/checkout/quote', {
+        const res = await apiClient.post("/checkout/quote", {
           items: itemsPayload,
           addressId: selectedAddressId,
+          couponCode: appliedCouponCode || undefined,
         });
         setQuote(res.data as QuoteResponse);
+        if (res.data?.appliedCoupon?.code) {
+          setCouponInput(res.data.appliedCoupon.code);
+          sessionStorage.setItem(
+            "aagam_coupon_code",
+            res.data.appliedCoupon.code
+          );
+        }
       } catch (e: any) {
-        setQuote(null);
-        setError(e?.response?.data?.message || e?.message || 'Failed to calculate invoice');
+        const message =
+          e?.response?.data?.message ||
+          e?.message ||
+          "Failed to calculate invoice";
+        if (appliedCouponCode) {
+          setCouponError(message);
+          setAppliedCouponCode("");
+          sessionStorage.removeItem("aagam_coupon_code");
+        } else {
+          setQuote(null);
+          setError(message);
+        }
       } finally {
         setLoadingQuote(false);
       }
     };
     run();
-  }, [itemsPayload, selectedAddressId, orderId]);
+  }, [itemsPayload, selectedAddressId, orderId, appliedCouponCode]);
+
+  const applyCoupon = () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{3,32}$/.test(code)) {
+      setCouponError("Enter a valid coupon code.");
+      return;
+    }
+    setCouponInput(code);
+    setAppliedCouponCode(code);
+  };
+
+  const removeCoupon = () => {
+    setCouponInput("");
+    setAppliedCouponCode("");
+    setCouponError("");
+    sessionStorage.removeItem("aagam_coupon_code");
+  };
 
   const useCurrentLocation = async () => {
     setError(null);
@@ -243,8 +302,9 @@ export default function CheckoutPage() {
     try {
       const idempotencyKey = idemKeyRef.current || (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()));
       idemKeyRef.current = idempotencyKey;
-      const res = await apiClient.post('/checkout/place-order', { items: itemsPayload, addressId: selectedAddressId, paymentMethod: paymentMethod === 'COD' ? 'COD' : 'ONLINE' }, { headers: { 'Idempotency-Key': idempotencyKey } });
+      const res = await apiClient.post('/checkout/place-order', { items: itemsPayload, addressId: selectedAddressId, paymentMethod: paymentMethod === 'COD' ? 'COD' : 'ONLINE', couponCode: appliedCouponCode || undefined }, { headers: { 'Idempotency-Key': idempotencyKey } });
       setOrderId(res.data?.id || res.data?.orderId || null);
+      sessionStorage.removeItem('aagam_coupon_code');
       clearCart();
     } catch (e: any) { setError(e?.response?.data?.message || 'Failed to place order.'); }
     setPlacingOrder(false);
@@ -455,6 +515,75 @@ export default function CheckoutPage() {
               distanceKm={quote?.distanceKm}
               loading={loadingQuote}
             />
+
+            <section
+              data-testid="checkout-coupon"
+              className="rounded-2xl border border-slate-100 bg-white p-5"
+            >
+              <div className="flex items-center gap-2">
+                <BadgePercent className="h-4 w-4 text-teal-700" />
+                <h3 className="text-sm font-black text-slate-950">Coupon</h3>
+                <button
+                  onClick={() => router.push("/shop/deals")}
+                  className="ml-auto text-xs font-black text-teal-700 hover:text-teal-900"
+                >
+                  Browse deals
+                </button>
+              </div>
+              {quote?.appliedCoupon ? (
+                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
+                        {quote.appliedCoupon.code} applied
+                      </p>
+                      <p className="mt-0.5 text-sm font-bold text-emerald-950">
+                        You save {formatINR(quote.appliedCoupon.discountAmount)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={removeCoupon}
+                      className="rounded-lg bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={couponInput}
+                    onChange={(event) =>
+                      setCouponInput(event.target.value.toUpperCase())
+                    }
+                    onKeyDown={(event) =>
+                      event.key === "Enter" && applyCoupon()
+                    }
+                    placeholder="Enter coupon code"
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2.5 font-mono text-sm font-bold uppercase text-slate-950 focus:border-teal-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={applyCoupon}
+                    disabled={loadingQuote}
+                    className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50"
+                  >
+                    Apply
+                  </button>
+                </div>
+              )}
+              {couponError && (
+                <p className="mt-2 text-xs font-bold text-red-600">
+                  {couponError}
+                </p>
+              )}
+              {!quote?.appliedCoupon && !couponError && (
+                <p className="mt-2 text-[11px] font-semibold text-slate-400">
+                  Automatic offers are evaluated by the server. Code offers are
+                  checked against cart, account, store, schedule, and usage
+                  limits.
+                </p>
+              )}
+            </section>
 
             <div className="rounded-2xl border border-slate-100 bg-white p-5">
               {orderId ? (
