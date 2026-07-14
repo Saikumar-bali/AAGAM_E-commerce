@@ -5,11 +5,11 @@ The Android workflow publishes two independent applications:
 - `aagam-customer-<run>-<sha>.apk` for customers
 - `aagam-partners-<run>-<sha>.apk` for riders and store partners
 
-Pushes to `main` create a stable GitHub release. Pushes to `agent/**` and
-`phase-*` create a prerelease for device testing. A manual run can build both
-apps or either app individually. Normal pushes inspect changed paths: a change
-inside one mobile app rebuilds only that APK, while shared mobile, type, or
-utility package changes rebuild both.
+Pushes to `main` create a stable GitHub release. Pull requests targeting `main`
+create a prerelease for device testing, without duplicating builds for every
+branch push. A manual run can build both apps or either app individually.
+Normal runs inspect changed paths: a change inside one mobile app rebuilds only
+that APK, while shared mobile, type, utility, or workflow changes rebuild both.
 
 The release build targets Android 12 through 15, ships ARMv7 and ARM64 native
 code, enables Hermes, resource shrinking, and R8 minification, and disables
