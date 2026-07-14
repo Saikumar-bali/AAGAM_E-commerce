@@ -17,8 +17,13 @@ react {
     autolinkLibrariesWithApp()
 }
 
-def enableProguardInReleaseBuilds = false
+def enableProguardInReleaseBuilds = true
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+def releaseStorePath = System.getenv("AAGAM_ANDROID_KEYSTORE_PATH")
+def releaseStorePassword = System.getenv("AAGAM_ANDROID_KEYSTORE_PASSWORD")
+def releaseKeyAlias = System.getenv("AAGAM_ANDROID_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("AAGAM_ANDROID_KEY_PASSWORD")
+def hasReleaseSigning = releaseStorePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -30,16 +35,34 @@ android {
         applicationId "com.aagampartners"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode (findProperty("VERSION_CODE") ?: "1").toInteger()
+        versionName (findProperty("VERSION_NAME") ?: "1.0").toString()
+    }
+
+    signingConfigs {
+        debug {}
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseStorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
         // Android Gradle Plugin creates/uses the standard debug keystore. Do not
         // point at an untracked app/debug.keystore file.
-        debug {}
+        debug {
+            signingConfig signingConfigs.debug
+            manifestPlaceholders = [usesCleartextTraffic: true]
+        }
         release {
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
+            shrinkResources enableProguardInReleaseBuilds
+            manifestPlaceholders = [usesCleartextTraffic: false]
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
