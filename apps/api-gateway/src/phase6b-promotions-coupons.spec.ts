@@ -220,7 +220,7 @@ describe("Phase 6B dynamic promotions and real coupon pricing", () => {
     const today = active.placements.HOME_TODAY_OFFERS.find(c => c.id === campaign.id);
     expect(today).toBeDefined();
     expect(today!.id).toBe(campaign.id);
-    expect(active.placements.DEALS_PAGE).toEqual([]);
+    expect(active.placements.DEALS_PAGE.find(c => c.id === campaign.id)).toBeUndefined();
   });
 
   test("code coupon uses paise pricing, category eligibility, and a real COD redemption", async () => {

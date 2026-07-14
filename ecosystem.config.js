@@ -13,10 +13,10 @@ module.exports = {
     {
       name: "api-gateway",
       cwd: "./apps/api-gateway",
-      script: "dist/main.js",
+      script: "dist/src/main.js",
       env: {
         NODE_ENV: "production",
-        PORT: 4000
+        PORT: 3005
       }
     },
     {

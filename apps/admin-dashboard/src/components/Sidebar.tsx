@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { resetSessionCache } from "./DashboardLayout";
 import {
   LayoutDashboard,
   Store,
@@ -77,6 +78,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     .toUpperCase();
 
   const handleLogout = async () => {
+    resetSessionCache();
+    localStorage.removeItem("user_role");
     try {
       const subscriptionId = localStorage.getItem("aagam_push_subscription_id");
       if (subscriptionId) {

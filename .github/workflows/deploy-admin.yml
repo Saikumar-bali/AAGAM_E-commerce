@@ -1,0 +1,55 @@
+name: Deploy Admin Dashboard to Cloudflare Pages
+
+on:
+  push:
+    branches: [main, "agent/phase-6-dynamic-promotions-coupons"]
+    paths:
+      - "apps/admin-dashboard/**"
+      - "packages/utils/**"
+      - "packages/types/**"
+      - "packages/ui/**"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared packages
+        run: |
+          npm run build --workspace @aagam/types
+          npm run build --workspace @aagam/utils
+          npm run build --workspace @aagam/ui
+
+      - name: Install Cloudflare adapter
+        working-directory: apps/admin-dashboard
+        run: npm install --save-dev @cloudflare/next-on-pages --legacy-peer-deps
+
+      - name: Build for Cloudflare Pages
+        working-directory: apps/admin-dashboard
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NODE_ENV: production
+        run: npx @cloudflare/next-on-pages
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy .vercel/output/static --project-name=aagam-admin
+          workingDirectory: apps/admin-dashboard

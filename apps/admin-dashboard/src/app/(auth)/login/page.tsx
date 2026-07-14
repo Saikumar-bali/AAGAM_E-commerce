@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { apiClient } from '@aagam/utils';
 import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import Script from 'next/script';
+import { resetSessionCache } from '@/components/DashboardLayout';
 
 const DEFAULT_GOOGLE_WEB_CLIENT_ID = '879444331583-a4r4m3j8547i5vrlf8aje0li4mvh0fdv.apps.googleusercontent.com';
 
@@ -46,6 +47,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    resetSessionCache();
     try {
       const response = await apiClient.post('/auth/login', { email, password });
       const { user } = response.data;
@@ -69,12 +71,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!googleClientId) return;
-    window.handleGoogleCredentialResponse = async (response: { credential?: string }) => {
-      if (!response?.credential) { setError('Google sign-in failed. Please try again.'); return; }
-      setError('');
-      setGoogleLoading(true);
-      try {
-        const result = await apiClient.post('/auth/google', { idToken: response.credential });
+      window.handleGoogleCredentialResponse = async (response: { credential?: string }) => {
+        if (!response?.credential) { setError('Google sign-in failed. Please try again.'); return; }
+        setError('');
+        setGoogleLoading(true);
+        resetSessionCache();
+        try {
+          const result = await apiClient.post('/auth/google', { idToken: response.credential });
         const { user } = result.data;
         persistUserContext(user);
         routeByRole(user.role);

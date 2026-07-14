@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
 import { getProductImage, calculateDistance } from '@aagam/utils';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -203,10 +203,17 @@ export class ProductService {
   async createCategory(name: string) {
     const cleanName = cleanCategoryName(name);
     if (cleanName.length < 2) throw new BadRequestException('Category name must be at least 2 characters.');
-    const category = await prisma.category.create({ data: { name: cleanName } });
-    await this.cacheManager.del('all_categories');
-    await this.clearProductCache();
-    return category;
+    try {
+      const category = await prisma.category.create({ data: { name: cleanName } });
+      await this.cacheManager.del('all_categories');
+      await this.clearProductCache();
+      return category;
+    } catch (error: any) {
+      if (error?.code === 'P2002' && error?.meta?.target?.includes('name')) {
+        throw new ConflictException(`Category '${cleanName}' already exists`);
+      }
+      throw error;
+    }
   }
 
   async updateCategory(id: string, name: string) {
