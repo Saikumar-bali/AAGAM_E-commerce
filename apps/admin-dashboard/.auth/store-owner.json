@@ -1,0 +1,41 @@
+{
+  "cookies": [
+    {
+      "name": "access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXI1d2xtazkwMDBqNHM1czVtajVzenlhIiwiZW1haWwiOiJzdG9yZS1vd25lci1xYUBhYWdhbS5jb20iLCJyb2xlIjoiU1RPUkVfT1dORVIiLCJpYXQiOjE3ODMxNDIwNzIsImV4cCI6MTc4Mzc0Njg3Mn0.YNj0OP09gPuihWDA6jm_pnTeThgBgKv2rtJQvuVkl0Q",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1783746872.010633,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:3001",
+      "localStorage": [
+        {
+          "name": "user_email",
+          "value": "store-owner-qa@aagam.com"
+        },
+        {
+          "name": "user_role",
+          "value": "STORE_OWNER"
+        },
+        {
+          "name": "access_token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXI1d2xtazkwMDBqNHM1czVtajVzenlhIiwiZW1haWwiOiJzdG9yZS1vd25lci1xYUBhYWdhbS5jb20iLCJyb2xlIjoiU1RPUkVfT1dORVIiLCJpYXQiOjE3ODMxNDIwNzIsImV4cCI6MTc4Mzc0Njg3Mn0.YNj0OP09gPuihWDA6jm_pnTeThgBgKv2rtJQvuVkl0Q"
+        },
+        {
+          "name": "user_avatar",
+          "value": ""
+        },
+        {
+          "name": "user_name",
+          "value": "QA Store Owner"
+        }
+      ]
+    }
+  ]
+}
