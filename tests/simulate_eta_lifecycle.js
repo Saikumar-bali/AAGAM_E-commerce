@@ -3,7 +3,7 @@
  * End-to-end ETA simulation check for tracking payload quality.
  *
  * Usage (PowerShell):
- * $env:API_URL="https://aagam-api-production.up.railway.app"
+ * $env:API_URL="https://aagam.accesscam.org/api"
  * $env:ORDER_ID="your-order-id"
  * $env:CUSTOMER_TOKEN="customer-jwt"
  * $env:RIDER_TOKEN="rider-jwt"
@@ -14,7 +14,7 @@
  * $env:STALE_WAIT_MS="370000"    # override stale wait
  */
 
-const API_URL = process.env.API_URL || "https://aagam-api-production.up.railway.app";
+const API_URL = process.env.API_URL || "https://aagam.accesscam.org/api";
 const ORDER_ID = process.env.ORDER_ID;
 const CUSTOMER_TOKEN = process.env.CUSTOMER_TOKEN;
 const RIDER_TOKEN = process.env.RIDER_TOKEN;
