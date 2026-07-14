@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import "dotenv/config";
 
 const AUTH_FILE = "./.auth/customer.json";
 

@@ -1,49 +1,19 @@
-import { NextResponse } from 'next/server';
-
-export const dynamic = 'force-dynamic';
-
-function completeConfig(config: Record<string, string>) {
-  return Boolean(
-    config.apiKey
-      && config.projectId
-      && config.messagingSenderId
-      && config.appId,
-  );
-}
-
-export async function GET(request: Request) {
-  const requestUrl = new URL(request.url);
-  const healthOnly = requestUrl.searchParams.get('health') === '1';
-  const queryConfig = {
-    apiKey: requestUrl.searchParams.get('apiKey') || '',
-    authDomain: requestUrl.searchParams.get('authDomain') || '',
-    projectId: requestUrl.searchParams.get('projectId') || '',
-    storageBucket: requestUrl.searchParams.get('storageBucket') || '',
-    messagingSenderId: requestUrl.searchParams.get('messagingSenderId') || '',
-    appId: requestUrl.searchParams.get('appId') || '',
-  };
-  const environmentConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.FIREBASE_WEB_API_KEY || '',
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_WEB_AUTH_DOMAIN || '',
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.FIREBASE_WEB_PROJECT_ID || '',
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_WEB_STORAGE_BUCKET || '',
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || process.env.FIREBASE_WEB_MESSAGING_SENDER_ID || '',
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || process.env.FIREBASE_WEB_APP_ID || '',
-  };
-  const config = healthOnly
-    ? { apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: '' }
-    : completeConfig(queryConfig)
-      ? queryConfig
-      : environmentConfig;
-
-  const script = `
 const AAGAM_SW_VERSION = 'phase-1.1-web-push-1';
-const firebaseConfig = ${JSON.stringify(config)};
+
+const urlParams = new URLSearchParams(self.location.search);
+const firebaseConfig = {
+  apiKey: urlParams.get('apiKey') || '',
+  authDomain: urlParams.get('authDomain') || '',
+  projectId: urlParams.get('projectId') || '',
+  storageBucket: urlParams.get('storageBucket') || '',
+  messagingSenderId: urlParams.get('messagingSenderId') || '',
+  appId: urlParams.get('appId') || '',
+};
 const firebaseConfigReady = Boolean(
   firebaseConfig.apiKey
     && firebaseConfig.projectId
     && firebaseConfig.messagingSenderId
-    && firebaseConfig.appId
+    && firebaseConfig.appId,
 );
 let aagamWorkerStatus = firebaseConfigReady ? 'INITIALIZING' : 'CONFIG_MISSING';
 let aagamWorkerError = null;
@@ -134,16 +104,5 @@ self.addEventListener('notificationclick', (event) => {
       }
     }
     if (self.clients.openWindow) await self.clients.openWindow(target);
-  })());
+  })();
 });
-`;
-
-  return new NextResponse(script, {
-    headers: {
-      'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'no-store, max-age=0',
-      'Service-Worker-Allowed': '/',
-      'X-Content-Type-Options': 'nosniff',
-    },
-  });
-}
