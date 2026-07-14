@@ -1,4 +1,5 @@
 export * from './api-client';
+export * from './customer-address';
 export * from './product-images';
 
 /**

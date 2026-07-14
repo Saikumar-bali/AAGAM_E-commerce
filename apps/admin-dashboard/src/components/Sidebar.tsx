@@ -52,13 +52,14 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   }, [role]);
 
   React.useEffect(() => {
-    if (role !== "RIDER") return;
+    if (role !== "RIDER" && role !== "CUSTOMER") return;
     let active = true;
     const refresh = () =>
       apiClient
         .get("/notifications/inbox?limit=1")
         .then((response) => {
-          if (active) setRiderUnread(Number(response.data?.unreadCount || 0));
+          if (active)
+            setRiderUnread(Number(response.data?.unreadCount || 0));
         })
         .catch(() => undefined);
     void refresh();
@@ -83,14 +84,14 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
         await apiClient
           .delete(
             `/notifications/push/subscriptions/${encodeURIComponent(
-              subscriptionId
-            )}`
+              subscriptionId,
+            )}`,
           )
           .catch((error) =>
             console.warn(
               "Push subscription cleanup failed during logout",
-              error
-            )
+              error,
+            ),
           );
       }
       await apiClient.post("/auth/logout");
@@ -162,6 +163,23 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   };
 
   const currentMenu = menuItems[role] || [];
+  const mobileMenu =
+    role === "CUSTOMER"
+      ? [
+          currentMenu.find((item) => item.href === "/shop"),
+          currentMenu.find((item) => item.href === "/shop/orders"),
+          currentMenu.find((item) => item.href === "/shop/notifications"),
+          currentMenu.find((item) => item.href === "/shop/deals"),
+          currentMenu.find((item) => item.href === "/shop/account"),
+        ].filter((item): item is NonNullable<typeof item> => Boolean(item))
+      : currentMenu.slice(0, 4);
+
+  const isItemActive = (href: string) => {
+    if (pathname === href) return true;
+    if (href === "/shop") return pathname.startsWith("/shop/products/");
+    if (["/admin", "/rider", "/store"].includes(href)) return false;
+    return pathname.startsWith(`${href}/`);
+  };
 
   return (
     <>
@@ -205,8 +223,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
           <div className="space-y-0.5">
             {currentMenu.map((item) => {
               const Icon = item.icon;
-              const isActive =
-                pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const isActive = isItemActive(item.href);
               return (
                 <Link
                   key={item.name}
@@ -227,8 +244,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
                     <Icon className="h-4 w-4" />
                   </span>
                   {item.name}
-                  {role === "RIDER" &&
-                    item.href === "/rider/notifications" &&
+                  {(item.href === "/rider/notifications" ||
+                    item.href === "/shop/notifications") &&
                     riderUnread > 0 && (
                       <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-black text-white">
                         {riderUnread > 99 ? "99+" : riderUnread}
@@ -252,11 +269,10 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
         </div>
       </aside>
 
-      <nav className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between rounded-2xl border border-white/60 bg-slate-950/95 p-1.5 text-white shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-2xl lg:hidden">
-        {currentMenu.slice(0, 4).map((item) => {
+      <nav className="fixed inset-x-2 bottom-2 z-50 flex items-center justify-between rounded-2xl border border-white/60 bg-slate-950/95 p-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] text-white shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-2xl lg:hidden">
+        {mobileMenu.map((item) => {
           const Icon = item.icon;
-          const isActive =
-            pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const isActive = isItemActive(item.href);
           return (
             <Link
               key={item.name}
@@ -269,21 +285,23 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
             >
               <Icon className="h-4 w-4" />
               <span className="max-w-full truncate">{item.name}</span>
-              {role === "RIDER" &&
-                item.href === "/rider/notifications" &&
+              {(item.href === "/rider/notifications" ||
+                item.href === "/shop/notifications") &&
                 riderUnread > 0 && (
                   <span className="absolute right-2 top-1 h-2 w-2 rounded-full bg-red-500" />
                 )}
             </Link>
           );
         })}
-        <button
-          onClick={handleLogout}
-          className="flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-bold text-slate-500 transition active:bg-red-500/15 active:text-red-400"
-        >
-          <LogOut className="h-4 w-4" />
-          <span className="max-w-full truncate">Sign out</span>
-        </button>
+        {role !== "CUSTOMER" && (
+          <button
+            onClick={handleLogout}
+            className="flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-bold text-slate-500 transition active:bg-red-500/15 active:text-red-400"
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="max-w-full truncate">Sign out</span>
+          </button>
+        )}
       </nav>
     </>
   );
