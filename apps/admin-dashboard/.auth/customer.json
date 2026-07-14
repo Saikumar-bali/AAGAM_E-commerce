@@ -1,0 +1,49 @@
+{
+  "cookies": [
+    {
+      "name": "access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXF2dzQ5aGIwMDAwYW55ODhsdXNxMXNlIiwiZW1haWwiOiJjdXN0b21lckBhYWdhbS5jb20iLCJyb2xlIjoiQ1VTVE9NRVIiLCJpYXQiOjE3ODMxMDg1NzUsImV4cCI6MTc4MzcxMzM3NX0.dXIbnHFBOdKau7aCmmGIXQ1f5rSKJLkyNtZWEvcmiZo",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1783713375.018319,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:3001",
+      "localStorage": [
+        {
+          "name": "user_email",
+          "value": "customer@aagam.com"
+        },
+        {
+          "name": "user_role",
+          "value": "CUSTOMER"
+        },
+        {
+          "name": "access_token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXF2dzQ5aGIwMDAwYW55ODhsdXNxMXNlIiwiZW1haWwiOiJjdXN0b21lckBhYWdhbS5jb20iLCJyb2xlIjoiQ1VTVE9NRVIiLCJpYXQiOjE3ODMxMDg1NzUsImV4cCI6MTc4MzcxMzM3NX0.dXIbnHFBOdKau7aCmmGIXQ1f5rSKJLkyNtZWEvcmiZo"
+        },
+        {
+          "name": "user_avatar",
+          "value": ""
+        },
+        {
+          "name": "user_name",
+          "value": "Test Customer"
+        },
+        {
+          "name": "aagam_cart",
+          "value": "[]"
+        },
+        {
+          "name": "aagam_wishlist",
+          "value": "[]"
+        }
+      ]
+    }
+  ]
+}
