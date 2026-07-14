@@ -5,9 +5,10 @@ export const REALTIME_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://local
 export function createRealtimeSocket(
   options: Partial<ManagerOptions & SocketOptions> = {},
 ): Socket {
+  const isRelativeUrl = REALTIME_API_URL.startsWith('/');
   return io(REALTIME_API_URL, {
     withCredentials: true,
-    transports: ['websocket', 'polling'],
+    transports: isRelativeUrl ? ['polling'] : ['websocket', 'polling'],
     ...options,
   });
 }
