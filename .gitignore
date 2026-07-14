@@ -8,6 +8,11 @@ dist/
 out/
 build/
 *.tsbuildinfo
+# Compiled TS in source dirs
+apps/api-gateway/src/**/*.js
+apps/api-gateway/src/**/*.map
+apps/api-gateway/src/**/*.d.ts
+apps/api-gateway/src/**/*.d.ts.map
 
 # Turbo
 .turbo/
@@ -28,6 +33,50 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 *.log
+
+# Auth tokens (Playwright storage state)
+.auth/
+
+# Temp/debug scripts (local dev only)
+*.cjs
+_check*.js
+_check*.ts
+_check.sql
+fix-*.js
+reset-pw.cjs
+brute-pw.cjs
+cleanup-*.js
+diag-*.js
+find-users.cjs
+get-tokens.cjs
+watch_logs.cjs
+verify-rejection.cjs
+remaining-scenarios.cjs
+run-scenarios*.cjs
+scenario-*.cjs
+check-*.cjs
+check-*.js
+seed-*.js
+test-delivery.js
+test-dispatch.js
+test-tracking.js
+test-api-scenarios.js
+set-codespaces-secrets.ps1
+scripts/zepto-scraper/
+.mimocode/
+tmp/
+
+# Environment append temp file
+.env.append
+
+# Test screenshots and results
+test_screenshots/
+test-results/
+
+# Android build artifacts
+**/android/.gradle/
+**/android/app/.cxx/
+**/android/app/debug.keystore
 
 # IDE files
 .vscode/
