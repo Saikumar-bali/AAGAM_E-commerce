@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 'use client';
 
 import CustomerDeliveryOtpCard from '@/components/customer/CustomerDeliveryOtpCard';
