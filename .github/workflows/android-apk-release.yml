@@ -71,7 +71,7 @@ jobs:
       - name: Configure mobile environment
         run: |
           cat > apps/mobile-app/.env <<EOF
-          API_URL=https://aagam-api-production.up.railway.app
+          API_URL=https://aagam.accesscam.org/api
           SUPABASE_URL=${SUPABASE_URL}
           SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
           EOF
@@ -117,5 +117,5 @@ jobs:
           gh release create "${{ steps.release_tag.outputs.tag }}" release/aagam-staging-release.apk \
             --repo "${{ github.repository }}" \
             --title "Aagam Mobile ${{ steps.release_tag.outputs.tag }}" \
-            --notes "Staging APK pointed at https://aagam-api-production.up.railway.app" \
+            --notes "Staging APK pointed at https://aagam.accesscam.org" \
             --latest
