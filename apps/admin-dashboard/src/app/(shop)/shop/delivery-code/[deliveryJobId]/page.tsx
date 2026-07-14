@@ -1,6 +1,6 @@
-export const runtime = 'edge';
-
 'use client';
+
+export const runtime = 'edge';
 
 import CustomerDeliveryOtpCard from '@/components/customer/CustomerDeliveryOtpCard';
 import DashboardLayout from '@/components/DashboardLayout';
