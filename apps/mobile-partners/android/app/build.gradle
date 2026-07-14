@@ -35,8 +35,8 @@ android {
         applicationId "com.aagampartners"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode (findProperty("VERSION_CODE") ?: "1").toInteger()
-        versionName (findProperty("VERSION_NAME") ?: "1.0").toString()
+        versionCode (project.findProperty("VERSION_CODE") ?: "1").toString().toInteger()
+        versionName (project.findProperty("VERSION_NAME") ?: "1.0").toString()
     }
 
     signingConfigs {
