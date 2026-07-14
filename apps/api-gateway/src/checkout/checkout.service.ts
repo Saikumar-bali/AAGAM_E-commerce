@@ -1,10 +1,11 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PaymentMethod, PaymentStatus, prisma } from '@aagam/database';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { CouponRedemptionStatus, PaymentMethod, PaymentStatus, Prisma, prisma } from '@aagam/database';
 import { calculateDistance } from '@aagam/utils';
 
 import { CheckoutPlaceOrderDto, CheckoutQuoteDto } from './dto/checkout.dto';
 import { TrackingGateway } from '../tracking.gateway';
 import { NotificationService } from '../notifications/notification.service';
+import { PromotionsService } from '../promotions/promotions.service';
 
 const haversineKm = calculateDistance;
 
@@ -36,7 +37,8 @@ function normalizeItems(items: Array<{ productId: string; quantity: number }>) {
 export class CheckoutService {
   constructor(
     private readonly trackingGateway: TrackingGateway,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    @Optional() private readonly promotionsService?: PromotionsService
   ) {}
 
   private nearestStore(lat: number, lng: number, stores: Array<{ id: string; name: string; latitude: number; longitude: number }>) {
@@ -50,6 +52,84 @@ export class CheckoutService {
       }
     }
     return { store: best, distanceKm: bestDistance };
+  }
+
+  private async announceOrderPlaced(input: {
+    created: any;
+    storeId: string;
+    user: { name: string | null; email: string };
+    address: {
+      latitude: number;
+      longitude: number;
+      line1: string;
+      city: string;
+    };
+    paymentMethod: PaymentMethod;
+  }) {
+    const { created, storeId, user, address, paymentMethod } = input;
+    try {
+      const payload = {
+        id: created.id,
+        shortId: created.id.substring(0, 8).toUpperCase(),
+        status: created.status,
+        totalAmount: created.totalAmount,
+        grandTotal: created.grandTotal,
+        itemCount: created.items?.length ?? 0,
+        paymentMethod,
+        priority: paymentMethod === PaymentMethod.COD ? "HIGH" : "NORMAL",
+        createdAt: created.createdAt,
+        store: { id: storeId, name: created.store?.name || null },
+        customer: { name: user.name, email: user.email },
+        delivery: {
+          latitude: address.latitude,
+          longitude: address.longitude,
+          address: address.line1,
+          city: address.city,
+        },
+      };
+      this.trackingGateway.server
+        ?.to("admin_orders")
+        .emit("orderPlaced", payload);
+      this.trackingGateway.server
+        ?.to("admin_monitor")
+        .emit("orderPlaced", payload);
+
+      const riders = await prisma.user.findMany({
+        where: { role: "RIDER", fcmToken: { not: null } },
+        select: { fcmToken: true },
+      });
+      console.log(
+        `[CheckoutService] Rider push fanout count=${riders.length} for order=${created.id}`
+      );
+      const pushResults = await Promise.allSettled(
+        riders
+          .filter((rider) => Boolean(rider.fcmToken))
+          .map((rider) =>
+            this.notificationService.sendNewOrderAlert(
+              rider.fcmToken as string,
+              {
+                orderId: created.id,
+                amount: created.grandTotal,
+                storeName: created.store?.name || "Store",
+              }
+            )
+          )
+      );
+      const sent = pushResults.filter(
+        (result) => result.status === "fulfilled"
+      ).length;
+      const failed = pushResults.filter(
+        (result) => result.status === "rejected"
+      ).length;
+      console.log(
+        `[CheckoutService] Rider push results sent=${sent} failed=${failed} order=${created.id}`
+      );
+    } catch (error) {
+      console.error(
+        "[CheckoutService] Failed to announce committed order:",
+        error
+      );
+    }
   }
 
   private async resolveStoreForLocation(lat: number, lng: number, requiredItems: CartItem[] = []) {
@@ -132,7 +212,7 @@ export class CheckoutService {
     const productIds = normalizedItems.map((i) => i.productId);
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, deletedAt: null, isActive: true },
-      select: { id: true, name: true, price: true, pricePaise: true, image: true },
+      select: { id: true, name: true, price: true, pricePaise: true, image: true, categoryId: true },
     });
     const byId = new Map(products.map((p) => [p.id, p]));
 
@@ -183,6 +263,7 @@ export class CheckoutService {
 
       return {
         productId: p.id,
+        categoryId: p.categoryId,
         name: p.name,
         image: p.image,
         quantity: i.quantity,
@@ -198,8 +279,22 @@ export class CheckoutService {
     const subtotal = items.reduce((sum, it) => sum + it.lineTotal, 0);
     const subtotalPaise = items.reduce((sum, it) => sum + it.lineTotalPaise, 0);
     const deliveryFeePaise = Math.round(deliveryFee * 100);
-    const grandTotalPaise = subtotalPaise + deliveryFeePaise;
-    const grandTotal = subtotal + deliveryFee;
+    const promotionPricing = storeId && this.promotionsService
+      ? await this.promotionsService.calculateDiscount({
+          userId,
+          couponCode: dto.couponCode,
+          storeId,
+          subtotalPaise,
+          deliveryFeePaise,
+          lines: items.map((item) => ({
+            productId: item.productId,
+            categoryId: item.categoryId,
+            lineTotalPaise: item.lineTotalPaise,
+          })),
+        })
+      : { coupon: null, discountPaise: 0, eligibleSubtotalPaise: 0, ruleSnapshot: null };
+    const grandTotalPaise = subtotalPaise + deliveryFeePaise - promotionPricing.discountPaise;
+    const grandTotal = grandTotalPaise / 100;
 
     return {
       currency: 'INR',
@@ -213,13 +308,20 @@ export class CheckoutService {
         subtotalPaise,
         deliveryFee,
         deliveryFeePaise,
-        discountAmount: 0,
-        discountPaise: 0,
+        discountAmount: promotionPricing.discountPaise / 100,
+        discountPaise: promotionPricing.discountPaise,
         taxAmount: 0,
         taxPaise: 0,
         grandTotal,
         grandTotalPaise,
       },
+      appliedCoupon: promotionPricing.coupon
+        ? {
+            ...promotionPricing.coupon,
+            discountPaise: promotionPricing.discountPaise,
+            discountAmount: promotionPricing.discountPaise / 100,
+          }
+        : null,
     };
   }
 
@@ -245,7 +347,11 @@ export class CheckoutService {
     }
 
     const normalizedItems = normalizeItems(dto.items);
-    const quote = await this.quote(userId, { items: normalizedItems, addressId: dto.addressId });
+    const quote = await this.quote(userId, {
+      items: normalizedItems,
+      addressId: dto.addressId,
+      couponCode: dto.couponCode,
+    });
     if (!quote.serviceable) {
       throw new BadRequestException('Address is not serviceable');
     }
@@ -300,9 +406,49 @@ export class CheckoutService {
       calculatedAt: new Date().toISOString(),
       etaMinutes: quote.etaMinutes,
       distanceKm: quote.distanceKm,
+      coupon: quote.appliedCoupon
+        ? {
+            ...quote.appliedCoupon,
+            ruleSnapshot: null,
+          }
+        : null,
     };
 
-    return prisma.$transaction(async (tx) => {
+    try {
+      const committedOrder = await prisma.$transaction(async (tx) => {
+      const transactionPromotionPricing = this.promotionsService
+        ? await this.promotionsService.calculateDiscount(
+            {
+              userId,
+              couponCode: dto.couponCode,
+              storeId,
+              subtotalPaise: quote.invoice.subtotalPaise,
+              deliveryFeePaise: quote.invoice.deliveryFeePaise,
+              lines: quote.invoice.items.map((item) => ({
+                productId: item.productId,
+                categoryId: item.categoryId,
+                lineTotalPaise: item.lineTotalPaise,
+              })),
+            },
+            tx,
+          )
+        : { coupon: null, discountPaise: 0, eligibleSubtotalPaise: 0, ruleSnapshot: null };
+      if (
+        transactionPromotionPricing.discountPaise !== quote.invoice.discountPaise ||
+        transactionPromotionPricing.coupon?.id !== quote.appliedCoupon?.id
+      ) {
+        throw new ConflictException('Offer availability changed. Refresh checkout and try again.');
+      }
+      const transactionPricingSnapshot = transactionPromotionPricing.coupon
+        ? {
+            ...pricingSnapshot,
+            coupon: {
+              ...quote.appliedCoupon,
+              ruleSnapshot: transactionPromotionPricing.ruleSnapshot,
+            },
+          }
+        : pricingSnapshot;
+
       for (const item of quote.invoice.items) {
         const existing = await tx.inventory.findUnique({
           where: { storeId_productId: { storeId, productId: item.productId } },
@@ -355,12 +501,12 @@ export class CheckoutService {
           currency: 'INR',
           subtotal: quote.invoice.subtotal,
           deliveryFee: quote.invoice.deliveryFee,
-          discountAmount: 0,
+          discountAmount: quote.invoice.discountAmount,
           taxAmount: 0,
           grandTotal: quote.invoice.grandTotal,
           subtotalPaise: quote.invoice.subtotalPaise,
           deliveryFeePaise: quote.invoice.deliveryFeePaise,
-          discountPaise: 0,
+          discountPaise: quote.invoice.discountPaise,
           taxPaise: 0,
           grandTotalPaise: quote.invoice.grandTotalPaise,
           deliveryLat: address.latitude,
@@ -398,7 +544,7 @@ export class CheckoutService {
             unitPricePaise: it.unitPricePaise,
             lineTotalPaise: it.lineTotalPaise,
           })),
-          pricingSnapshot,
+          pricingSnapshot: transactionPricingSnapshot,
           items: {
             create: quote.invoice.items.map((it) => ({
               productId: it.productId,
@@ -411,6 +557,26 @@ export class CheckoutService {
         },
         include: { items: true, store: { select: { name: true } } },
       });
+
+      if (transactionPromotionPricing.coupon) {
+        await tx.couponRedemption.create({
+          data: {
+            couponId: transactionPromotionPricing.coupon.id,
+            orderId: created.id,
+            customerId: userId,
+            codeSnapshot: transactionPromotionPricing.coupon.code,
+            status:
+              dto.paymentMethod === PaymentMethod.COD
+                ? CouponRedemptionStatus.REDEEMED
+                : CouponRedemptionStatus.RESERVED,
+            discountPaise: transactionPromotionPricing.discountPaise,
+            ruleSnapshot: transactionPromotionPricing.ruleSnapshot,
+            ...(dto.paymentMethod === PaymentMethod.COD
+              ? { redeemedAt: new Date() }
+              : {}),
+          },
+        });
+      }
 
       for (const item of quote.invoice.items) {
         await tx.inventoryLedger.updateMany({
@@ -447,59 +613,21 @@ export class CheckoutService {
         },
       });
 
-      try {
-        const payload = {
-          id: created.id,
-          shortId: created.id.substring(0, 8).toUpperCase(),
-          status: created.status,
-          totalAmount: created.totalAmount,
-          grandTotal: created.grandTotal,
-          itemCount: created.items?.length ?? 0,
-          paymentMethod: dto.paymentMethod,
-          priority: dto.paymentMethod === PaymentMethod.COD ? 'HIGH' : 'NORMAL',
-          createdAt: created.createdAt,
-          store: { id: storeId, name: created.store?.name || null },
-          customer: { name: user.name, email: user.email },
-          delivery: {
-            latitude: address.latitude,
-            longitude: address.longitude,
-            address: address.line1,
-            city: address.city,
-          },
-        };
-        this.trackingGateway.server?.to('admin_orders').emit('orderPlaced', payload);
-        this.trackingGateway.server?.to('admin_monitor').emit('orderPlaced', payload);
-
-        try {
-          const riders = await prisma.user.findMany({
-            where: { role: 'RIDER', fcmToken: { not: null } },
-            select: { fcmToken: true },
-          });
-          console.log(`[CheckoutService] Rider push fanout count=${riders.length} for order=${created.id}`);
-
-          const pushResults = await Promise.allSettled(
-            riders
-              .filter((rider) => !!rider.fcmToken)
-              .map((rider) =>
-                this.notificationService.sendNewOrderAlert(rider.fcmToken as string, {
-                  orderId: created.id,
-                  amount: created.grandTotal,
-                  storeName: created.store?.name || 'Store',
-                }),
-              ),
-          );
-
-          const sent = pushResults.filter((r) => r.status === 'fulfilled').length;
-          const failed = pushResults.filter((r) => r.status === 'rejected').length;
-          console.log(`[CheckoutService] Rider push results sent=${sent} failed=${failed} order=${created.id}`);
-        } catch (pushErr) {
-          console.error('[CheckoutService] Failed to send push notifications:', pushErr);
-        }
-      } catch (err) {
-        console.error('[CheckoutService] Failed to emit order events:', err);
-      }
-
       return created;
-    });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      await this.announceOrderPlaced({
+        created: committedOrder,
+        storeId,
+        user,
+        address,
+        paymentMethod: dto.paymentMethod,
+      });
+      return committedOrder;
+    } catch (error: any) {
+      if (error?.code === 'P2034' || error?.code === 'P2002') {
+        throw new ConflictException('Offer or inventory availability changed. Refresh checkout and try again.');
+      }
+      throw error;
+    }
   }
 }
