@@ -4,8 +4,18 @@ on:
   push:
     branches:
       - main
-      - "agent/**"
-      - "phase-*"
+    paths:
+      - "apps/mobile-customer/**"
+      - "apps/mobile-partners/**"
+      - "packages/mobile-shared/**"
+      - "packages/types/**"
+      - "packages/utils/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/android-apk-release.yml"
+  pull_request:
+    branches:
+      - main
     paths:
       - "apps/mobile-customer/**"
       - "apps/mobile-partners/**"
@@ -30,9 +40,12 @@ on:
 permissions:
   contents: write
 
+env:
+  RELEASE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
 concurrency:
-  group: android-release-${{ github.ref }}
-  cancel-in-progress: true
+  group: android-release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   changes:
@@ -45,14 +58,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
 
       - name: Detect affected apps
         id: apps
         shell: bash
         env:
           REQUESTED_APP: ${{ inputs.app }}
-          BEFORE_SHA: ${{ github.event.before }}
+          BEFORE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           set -euo pipefail
           customer=false
@@ -66,7 +80,7 @@ jobs:
             if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
               base="$(git rev-parse HEAD^)"
             fi
-            changed="$(git diff --name-only "$base" "$GITHUB_SHA")"
+            changed="$(git diff --name-only "$base" "$RELEASE_SHA")"
             echo "$changed"
 
             if grep -Eq '^(packages/(mobile-shared|types|utils)/|package(-lock)?\.json$|\.github/workflows/android-apk-release\.yml$)' <<<"$changed"; then
@@ -96,6 +110,8 @@ jobs:
       AAGAM_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
       - uses: actions/setup-node@v4
         with:
           node-version: "22.22.3"
@@ -143,7 +159,7 @@ jobs:
         run: |
           mkdir -p release
           cp apps/mobile-customer/android/app/build/outputs/apk/release/app-release.apk \
-            "release/aagam-customer-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}.apk"
+            "release/aagam-customer-${GITHUB_RUN_NUMBER}-${RELEASE_SHA::7}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -167,6 +183,8 @@ jobs:
       AAGAM_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
       - uses: actions/setup-node@v4
         with:
           node-version: "22.22.3"
@@ -214,7 +232,7 @@ jobs:
         run: |
           mkdir -p release
           cp apps/mobile-partners/android/app/build/outputs/apk/release/app-release.apk \
-            "release/aagam-partners-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}.apk"
+            "release/aagam-partners-${GITHUB_RUN_NUMBER}-${RELEASE_SHA::7}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -242,7 +260,7 @@ jobs:
           API_URL: ${{ vars.API_URL || 'https://aagam.accesscam.org/api' }}
         run: |
           set -euo pipefail
-          short_sha="${GITHUB_SHA::7}"
+          short_sha="${RELEASE_SHA::7}"
           if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
             tag="android-${GITHUB_RUN_NUMBER}-${short_sha}"
             title="AAGAM Android ${GITHUB_RUN_NUMBER}"
@@ -259,7 +277,7 @@ jobs:
           notes="$(printf '%s\n\nBackend: %s\nAndroid: 12–15\n\nBuilt APKs:\n%s\n\nOnly apps affected by this commit were rebuilt. Customer earnings and partner operations remain separate applications.' "$channel build from $short_sha." "$API_URL" "$apk_list")"
           gh release create "$tag" release/*.apk \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
+            --target "$RELEASE_SHA" \
             --title "$title" \
             --notes "$notes" \
             "$channel_flag"
