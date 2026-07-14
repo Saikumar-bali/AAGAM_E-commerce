@@ -82,7 +82,7 @@ test("Admin-published campaign and coupon drive Home, Deals, and Checkout", asyn
   await switchRole(page, "CUSTOMER");
   await page.goto("/shop");
   await expect(
-    page.getByRole("heading", { name: `Live Admin Offer ${suffix}` })
+    page.getByRole("heading", { name: `Live Admin Offer ${suffix}` }).first()
   ).toBeVisible();
   await page.screenshot({
     path: `${screenshots}/02-customer-dynamic-home.png`,

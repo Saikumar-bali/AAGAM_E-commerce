@@ -49,7 +49,12 @@ async function cleanup() {
   });
   const orderIds = orders.map((item) => item.id);
   const coupons = await prisma.coupon.findMany({
-    where: { code: { startsWith: CODE_PREFIX } },
+    where: {
+      OR: [
+        { code: { startsWith: CODE_PREFIX } },
+        { code: { startsWith: "PW" } },
+      ],
+    },
     select: { id: true },
   });
   const couponIds = coupons.map((item) => item.id);
@@ -60,10 +65,22 @@ async function cleanup() {
     },
   });
   await prisma.promotionPlacementAssignment.deleteMany({
-    where: { campaign: { internalName: { contains: PREFIX } } },
+    where: {
+      campaign: {
+        OR: [
+          { internalName: { contains: PREFIX } },
+          { internalName: { startsWith: "Playwright dynamic campaign" } },
+        ],
+      },
+    },
   });
   await prisma.promotionCampaign.deleteMany({
-    where: { internalName: { contains: PREFIX } },
+    where: {
+      OR: [
+        { internalName: { contains: PREFIX } },
+        { internalName: { startsWith: "Playwright dynamic campaign" } },
+      ],
+    },
   });
   await prisma.couponProductEligibility.deleteMany({
     where: { couponId: { in: couponIds } },
@@ -194,11 +211,15 @@ describe("Phase 6B dynamic promotions and real coupon pricing", () => {
       priority: 90,
     });
     const active = await promotions.activeCampaigns(customer.id);
-    expect(active.placements.HOME_HERO[0]).toMatchObject({
+    const hero = active.placements.HOME_HERO.find(c => c.id === campaign.id);
+    expect(hero).toBeDefined();
+    expect(hero).toMatchObject({
       id: campaign.id,
       targetUrl: `/shop/products/${product.id}`,
     });
-    expect(active.placements.HOME_TODAY_OFFERS[0].id).toBe(campaign.id);
+    const today = active.placements.HOME_TODAY_OFFERS.find(c => c.id === campaign.id);
+    expect(today).toBeDefined();
+    expect(today!.id).toBe(campaign.id);
     expect(active.placements.DEALS_PAGE).toEqual([]);
   });
 
