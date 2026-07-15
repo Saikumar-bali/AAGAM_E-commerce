@@ -178,6 +178,19 @@ describe('Phase 6 catalog, serviceability, substitutes', () => {
     expect(substitute.availability.inStock).toBe(true);
   });
 
+  test('product detail keeps stock unknown until an address or store is selected', async () => {
+    const product = await productService.findOne(substituteProduct.id, {
+      includeAvailability: true,
+    });
+
+    expect((product as any).availability).toMatchObject({
+      storeId: null,
+      availableQty: null,
+      inStock: null,
+      availabilityKnown: false,
+    });
+  });
+
   test('substitutes are same-category, active, not deleted, and in-stock only', async () => {
     const substitutes = await productService.getSubstitutes(baseProduct.id, { storeId: store.id });
     const ids = substitutes.map((p: any) => p.id);

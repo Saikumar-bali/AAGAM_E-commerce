@@ -77,6 +77,7 @@ export class AuthService {
       const ticket = await this.googleClient.verifyIdToken({ idToken, audience: audiences });
       payload = ticket.getPayload() || {};
     } catch (error) {
+      console.error('[GoogleAuth] verifyIdToken failed:', (error as any)?.message, 'audiences:', audiences);
       throw new UnauthorizedException('Invalid Google token');
     }
 

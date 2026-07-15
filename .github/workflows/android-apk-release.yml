@@ -1,121 +1,313 @@
-name: Android APK Release
+name: Android APK Releases
 
 on:
   push:
     branches:
       - main
-      - feature/hybrid-ecommerce-core
     paths:
-      - "apps/mobile-app/**"
+      - "apps/mobile-customer/**"
+      - "apps/mobile-partners/**"
+      - "packages/mobile-shared/**"
       - "packages/types/**"
       - "packages/utils/**"
-      - "packages/ui/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/android-apk-release.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/mobile-customer/**"
+      - "apps/mobile-partners/**"
+      - "packages/mobile-shared/**"
+      - "packages/types/**"
+      - "packages/utils/**"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/android-apk-release.yml"
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Release tag. Leave empty to auto-generate."
-        required: false
-        default: ""
+      app:
+        description: APKs to build
+        required: true
+        type: choice
+        default: both
+        options:
+          - both
+          - customer
+          - partners
 
 permissions:
   contents: write
 
-jobs:
-  build-apk:
-    runs-on: ubuntu-latest
-    env:
-      GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+env:
+  RELEASE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
+concurrency:
+  group: android-release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  changes:
+    name: Select changed apps
+    runs-on: ubuntu-latest
+    outputs:
+      customer: ${{ steps.apps.outputs.customer }}
+      partners: ${{ steps.apps.outputs.partners }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Detect affected apps
+        id: apps
+        shell: bash
+        env:
+          REQUESTED_APP: ${{ inputs.app }}
+          BEFORE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          customer=false
+          partners=false
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            [[ "$REQUESTED_APP" == "both" || "$REQUESTED_APP" == "customer" ]] && customer=true
+            [[ "$REQUESTED_APP" == "both" || "$REQUESTED_APP" == "partners" ]] && partners=true
+          else
+            base="$BEFORE_SHA"
+            if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
+              base="$(git rev-parse HEAD^)"
+            fi
+            changed="$(git diff --name-only "$base" "$RELEASE_SHA")"
+            echo "$changed"
+
+            if grep -Eq '^(packages/(mobile-shared|types|utils)/|package(-lock)?\.json$|\.github/workflows/android-apk-release\.yml$)' <<<"$changed"; then
+              customer=true
+              partners=true
+            fi
+            grep -Eq '^apps/mobile-customer/' <<<"$changed" && customer=true || true
+            grep -Eq '^apps/mobile-partners/' <<<"$changed" && partners=true || true
+          fi
+
+          echo "customer=$customer" >> "$GITHUB_OUTPUT"
+          echo "partners=$partners" >> "$GITHUB_OUTPUT"
+
+  customer:
+    name: Customer APK
+    needs: changes
+    if: needs.changes.outputs.customer == 'true'
+    runs-on: ubuntu-latest
+    env:
+      API_URL: ${{ vars.API_URL || 'https://aagam.accesscam.org/api' }}
+      GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+      GOOGLE_ANDROID_CLIENT_ID: ${{ secrets.GOOGLE_ANDROID_CLIENT_ID_CUSTOMER }}
+      GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON_CUSTOMER }}
+      KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      AAGAM_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      AAGAM_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      AAGAM_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+      - uses: actions/setup-node@v4
         with:
           node-version: "22.22.3"
           cache: npm
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
-
-      - name: Cache Android build outputs
-        uses: actions/cache@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            apps/mobile-app/android/.gradle
-            apps/mobile-app/android/app/build
-          key: android-gradle-${{ runner.os }}-${{ hashFiles('package-lock.json', 'apps/mobile-app/android/**/*.gradle', 'apps/mobile-app/android/gradle.properties', 'apps/mobile-app/android/gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: |
-            android-gradle-${{ runner.os }}-
+          gradle-version: "8.13"
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
-      - name: Install dependencies
+      - name: Install workspace dependencies
         run: npm ci
 
-      - name: Build shared mobile packages
+      - name: Build shared packages
         run: |
           npm run build --workspace @aagam/types
           npm run build --workspace @aagam/utils
 
-      - name: Configure mobile environment
-        run: |
-          cat > apps/mobile-app/.env <<EOF
-          API_URL=https://aagam.accesscam.org/api
-          SUPABASE_URL=${SUPABASE_URL}
-          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-          EOF
-
-      - name: Configure Firebase if provided
-        if: ${{ env.GOOGLE_SERVICES_JSON != '' }}
-        run: |
-          printf '%s' "$GOOGLE_SERVICES_JSON" > apps/mobile-app/android/app/google-services.json
-
-      - name: Build release APK
-        working-directory: apps/mobile-app/android
-        run: |
-          chmod +x ./gradlew
-          ./gradlew assembleRelease --stacktrace
-
-      - name: Rename APK
-        run: |
-          mkdir -p release
-          cp apps/mobile-app/android/app/build/outputs/apk/release/app-release.apk release/aagam-staging-release.apk
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: aagam-staging-release-apk
-          path: release/aagam-staging-release.apk
-
-      - name: Resolve release tag
-        id: release_tag
+      - name: Configure Customer app
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag }}" ]; then
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=mobile-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          printf 'API_URL=%s\nGOOGLE_WEB_CLIENT_ID=%s\nGOOGLE_ANDROID_CLIENT_ID=%s\n' \
+            "$API_URL" "$GOOGLE_WEB_CLIENT_ID" "$GOOGLE_ANDROID_CLIENT_ID" > apps/mobile-customer/.env
+          if [[ -n "$GOOGLE_SERVICES_JSON" ]]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > apps/mobile-customer/android/app/google-services.json
+          fi
+          if [[ -n "$KEYSTORE_BASE64" ]]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/aagam-release.keystore"
+            echo "AAGAM_ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/aagam-release.keystore" >> "$GITHUB_ENV"
           fi
 
-      - name: Publish GitHub release
+      - name: Install pinned debug keystore
+        if: env.KEYSTORE_BASE64 == ''
+        shell: bash
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          KS="$HOME/.android/debug.keystore"
+          mkdir -p "$HOME/.android"
+          if [[ -n "$DEBUG_KEYSTORE_BASE64" ]]; then
+            echo "$DEBUG_KEYSTORE_BASE64" | base64 --decode > "$KS"
+            echo "Installed pinned debug.keystore"
+          else
+            keytool -genkey -v -keystore "$KS" -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US" 2>/dev/null
+            echo "WARNING: Generated ephemeral debug.keystore — SHA-1 may not match Firebase"
+          fi
+          SHA1=$(keytool -list -v -keystore "$KS" -alias androiddebugkey -storepass android 2>/dev/null \
+            | grep -i 'SHA1:' | head -1 | awk '{print $2}')
+          echo "Using debug keystore SHA-1: $SHA1"
+
+          GS="apps/mobile-customer/android/app/google-services.json"
+          if [[ -f "$GS" ]]; then
+            SHA1_NODASH=$(echo "$SHA1" | tr -d ':')
+            sed -i "s/\"certificate_hash\": \"[^\"]*\"/\"certificate_hash\": \"$SHA1_NODASH\"/" "$GS"
+            echo "Updated google-services.json certificate_hash to $SHA1_NODASH"
+          fi
+
+      - name: Build optimized Customer APK
+        working-directory: apps/mobile-customer/android
+        run: >-
+          gradle assembleRelease --stacktrace
+          -PreactNativeArchitectures=armeabi-v7a,arm64-v8a
+          -PVERSION_CODE=${{ github.run_number }}
+          -PVERSION_NAME=1.${{ github.run_number }}.${{ github.run_attempt }}
+
+      - name: Name Customer APK
+        shell: bash
+        run: |
+          mkdir -p release
+          cp apps/mobile-customer/android/app/build/outputs/apk/release/app-release.apk \
+            "release/aagam-customer-${GITHUB_RUN_NUMBER}-${RELEASE_SHA::7}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aagam-customer-apk
+          path: release/aagam-customer-*.apk
+          if-no-files-found: error
+
+  partners:
+    name: Partners APK
+    needs: changes
+    if: needs.changes.outputs.partners == 'true'
+    runs-on: ubuntu-latest
+    env:
+      API_URL: ${{ vars.API_URL || 'https://aagam.accesscam.org/api' }}
+      GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+      GOOGLE_ANDROID_CLIENT_ID: ${{ secrets.GOOGLE_ANDROID_CLIENT_ID_PARTNERS }}
+      GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON_PARTNERS }}
+      KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      AAGAM_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      AAGAM_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      AAGAM_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.3"
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Build shared packages
+        run: |
+          npm run build --workspace @aagam/types
+          npm run build --workspace @aagam/utils
+
+      - name: Configure Partners app
+        shell: bash
+        run: |
+          printf 'API_URL=%s\nGOOGLE_WEB_CLIENT_ID=%s\nGOOGLE_ANDROID_CLIENT_ID=%s\n' \
+            "$API_URL" "$GOOGLE_WEB_CLIENT_ID" "$GOOGLE_ANDROID_CLIENT_ID" > apps/mobile-partners/.env
+          if [[ -n "$GOOGLE_SERVICES_JSON" ]]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > apps/mobile-partners/android/app/google-services.json
+          fi
+          if [[ -n "$KEYSTORE_BASE64" ]]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/aagam-release.keystore"
+            echo "AAGAM_ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/aagam-release.keystore" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build optimized Partners APK
+        working-directory: apps/mobile-partners/android
+        run: >-
+          gradle assembleRelease --stacktrace
+          -PreactNativeArchitectures=armeabi-v7a,arm64-v8a
+          -PVERSION_CODE=${{ github.run_number }}
+          -PVERSION_NAME=1.${{ github.run_number }}.${{ github.run_attempt }}
+
+      - name: Name Partners APK
+        shell: bash
+        run: |
+          mkdir -p release
+          cp apps/mobile-partners/android/app/build/outputs/apk/release/app-release.apk \
+            "release/aagam-partners-${GITHUB_RUN_NUMBER}-${RELEASE_SHA::7}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aagam-partners-apk
+          path: release/aagam-partners-*.apk
+          if-no-files-found: error
+
+  publish:
+    name: Publish APK release
+    needs: [changes, customer, partners]
+    if: always() && (needs.customer.result == 'success' || needs.partners.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APKs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: aagam-*-apk
+          path: release
+          merge-multiple: true
+
+      - name: Publish preview or stable release
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          API_URL: ${{ vars.API_URL || 'https://aagam.accesscam.org/api' }}
         run: |
-          gh release create "${{ steps.release_tag.outputs.tag }}" release/aagam-staging-release.apk \
-            --repo "${{ github.repository }}" \
-            --title "Aagam Mobile ${{ steps.release_tag.outputs.tag }}" \
-            --notes "Staging APK pointed at https://aagam.accesscam.org" \
-            --latest
+          set -euo pipefail
+          short_sha="${RELEASE_SHA::7}"
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            tag="android-${GITHUB_RUN_NUMBER}-${short_sha}"
+            title="AAGAM Android ${GITHUB_RUN_NUMBER}"
+            channel_flag="--latest"
+            channel="Stable"
+          else
+            tag="android-preview-${GITHUB_RUN_NUMBER}-${short_sha}"
+            title="AAGAM Android Preview ${GITHUB_RUN_NUMBER}"
+            channel_flag="--prerelease"
+            channel="Preview"
+          fi
+
+          apk_list="$(find release -maxdepth 1 -name '*.apk' -printf '%f\n' | sort | sed 's/^/- /')"
+          notes="$(printf '%s\n\nBackend: %s\nAndroid: 12–15\n\nBuilt APKs:\n%s\n\nOnly apps affected by this commit were rebuilt. Customer earnings and partner operations remain separate applications.' "$channel build from $short_sha." "$API_URL" "$apk_list")"
+          gh release create "$tag" release/*.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$RELEASE_SHA" \
+            --title "$title" \
+            --notes "$notes" \
+            "$channel_flag"
