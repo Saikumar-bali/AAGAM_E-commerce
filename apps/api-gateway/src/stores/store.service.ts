@@ -2,6 +2,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { prisma, Role } from '@aagam/database';
 import { Cache } from 'cache-manager';
+import * as bcrypt from 'bcrypt';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
 
@@ -49,7 +50,7 @@ export class StoreService {
 
   async findOne(id: string) {
     const store = await prisma.store.findUnique({
-      where: { id, deletedAt: null, isActive: true },
+      where: { id, deletedAt: null },
       include: {
         owner: { select: SAFE_STORE_OWNER_SELECT },
         inventory: { include: { product: true } },
@@ -59,17 +60,41 @@ export class StoreService {
     return store;
   }
 
+  async getStoreOrders(storeId: string, actor: { id: string; role: Role }) {
+    if (actor.role === Role.STORE_OWNER) {
+      const store = await prisma.store.findUnique({ where: { id: storeId } });
+      if (!store || store.ownerId !== actor.id) {
+        throw new ForbiddenException('You can only view orders for your own stores');
+      }
+    }
+    return prisma.order.findMany({
+      where: { storeId },
+      include: {
+        customer: { select: { id: true, name: true, email: true } },
+        items: { include: { product: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async create(data: CreateStoreDto) {
     const ownerEmail = data.ownerEmail.trim().toLowerCase();
     let owner = await prisma.user.findUnique({ where: { email: ownerEmail } });
 
     if (!owner) {
-      owner = await prisma.user.create({
-        data: {
-          email: ownerEmail,
-          name: ownerEmail.split('@')[0],
-          role: 'STORE_OWNER',
-        },
+      const userData: any = {
+        email: ownerEmail,
+        name: ownerEmail.split('@')[0],
+        role: 'STORE_OWNER',
+      };
+      if (data.password) {
+        userData.password = await bcrypt.hash(data.password, 10);
+      }
+      owner = await prisma.user.create({ data: userData });
+    } else if (data.password && owner.id) {
+      await prisma.user.update({
+        where: { id: owner.id },
+        data: { password: await bcrypt.hash(data.password, 10) },
       });
     }
 
