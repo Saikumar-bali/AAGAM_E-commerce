@@ -1,0 +1,36 @@
+name: Customer Mobile CM0
+
+on:
+  pull_request:
+    paths:
+      - 'apps/mobile-customer/**'
+      - 'packages/mobile-shared/**'
+      - '.github/workflows/customer-mobile-cm0.yml'
+  workflow_dispatch:
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build API packages
+        run: npm run build:api
+      - name: Typecheck shared mobile package
+        run: npx tsc --noEmit -p packages/mobile-shared/tsconfig.json
+      - name: Typecheck customer mobile app
+        run: npx tsc --noEmit -p apps/mobile-customer/tsconfig.json
+      - name: Android debug build
+        run: |
+          cd apps/mobile-customer/android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug
