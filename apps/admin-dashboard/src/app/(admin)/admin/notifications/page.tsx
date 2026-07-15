@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import DashboardLayout from '@/components/DashboardLayout';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import { apiClient } from '@aagam/utils';
-import { Loader2, Megaphone, Send, Settings2 } from 'lucide-react';
+import { Loader2, Megaphone, Send } from 'lucide-react';
 
 export default function AdminNotificationsPage() {
   const [title, setTitle] = useState('Service update');
@@ -86,14 +85,6 @@ export default function AdminNotificationsPage() {
           role="ADMIN"
           title="Operations Notifications"
           subtitle="Dispatch exceptions, customer support, order events, delivery failures, and broadcast delivery status."
-          rightSlot={(
-            <Link
-              href="/admin/notifications/settings"
-              className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/15"
-            >
-              <Settings2 className="h-4 w-4" /> Preferences
-            </Link>
-          )}
         />
       </main>
     </DashboardLayout>

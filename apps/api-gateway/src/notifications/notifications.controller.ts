@@ -28,41 +28,6 @@ import { NotificationWorkerService } from './notification-worker.service';
 import { OutboxService } from './outbox.service';
 import { PushSubscriptionService } from './push-subscription.service';
 
-export function getFirebaseWebPushConfig() {
-  const firebaseConfig = {
-    apiKey: process.env.FIREBASE_WEB_API_KEY || '',
-    authDomain: process.env.FIREBASE_WEB_AUTH_DOMAIN || '',
-    projectId: process.env.FIREBASE_WEB_PROJECT_ID || '',
-    storageBucket: process.env.FIREBASE_WEB_STORAGE_BUCKET || '',
-    messagingSenderId: process.env.FIREBASE_WEB_MESSAGING_SENDER_ID || '',
-    appId: process.env.FIREBASE_WEB_APP_ID || '',
-  };
-  const vapidKey = process.env.FIREBASE_WEB_VAPID_KEY || '';
-  const blank = (value: string) => value.trim().length === 0;
-  const enabled = [
-    firebaseConfig.apiKey,
-    firebaseConfig.projectId,
-    firebaseConfig.messagingSenderId,
-    firebaseConfig.appId,
-    vapidKey,
-  ].every((value) => !blank(value));
-
-  return {
-    enabled,
-    vapidKey: enabled ? vapidKey : null,
-    firebaseConfig: enabled ? firebaseConfig : null,
-    missing: enabled
-      ? []
-      : [
-          blank(firebaseConfig.apiKey) && 'FIREBASE_WEB_API_KEY',
-          blank(firebaseConfig.projectId) && 'FIREBASE_WEB_PROJECT_ID',
-          blank(firebaseConfig.messagingSenderId) && 'FIREBASE_WEB_MESSAGING_SENDER_ID',
-          blank(firebaseConfig.appId) && 'FIREBASE_WEB_APP_ID',
-          blank(vapidKey) && 'FIREBASE_WEB_VAPID_KEY',
-        ].filter(Boolean),
-  };
-}
-
 @Controller('notifications')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class NotificationsController {
@@ -124,7 +89,20 @@ export class NotificationsController {
   @Get('push/config')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
   pushConfig() {
-    return getFirebaseWebPushConfig();
+    return {
+      enabled: Boolean(process.env.FIREBASE_WEB_API_KEY && process.env.FIREBASE_WEB_VAPID_KEY),
+      vapidKey: process.env.FIREBASE_WEB_VAPID_KEY || null,
+      firebaseConfig: process.env.FIREBASE_WEB_API_KEY
+        ? {
+            apiKey: process.env.FIREBASE_WEB_API_KEY,
+            authDomain: process.env.FIREBASE_WEB_AUTH_DOMAIN,
+            projectId: process.env.FIREBASE_WEB_PROJECT_ID,
+            storageBucket: process.env.FIREBASE_WEB_STORAGE_BUCKET,
+            messagingSenderId: process.env.FIREBASE_WEB_MESSAGING_SENDER_ID,
+            appId: process.env.FIREBASE_WEB_APP_ID,
+          }
+        : null,
+    };
   }
 
   @Get('preferences')
