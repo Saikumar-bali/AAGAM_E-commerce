@@ -53,10 +53,11 @@ type StoreFormData = {
   latitude: number | null;
   longitude: number | null;
   ownerEmail: string;
+  password: string;
   isActive: boolean;
 };
 
-const emptyForm = (): StoreFormData => ({ name: '', address: '', latitude: null, longitude: null, ownerEmail: '', isActive: true });
+const emptyForm = (): StoreFormData => ({ name: '', address: '', latitude: null, longitude: null, ownerEmail: '', password: '', isActive: true });
 
 export default function AdminStoresPage() {
   const [stores, setStores] = useState<StoreRecord[]>([]);
@@ -158,6 +159,7 @@ export default function AdminStoresPage() {
         latitude: formData.latitude,
         longitude: formData.longitude,
         ownerEmail: formData.ownerEmail.trim(),
+        password: formData.password || undefined,
       });
       setShowModal(false);
       resetForm();
@@ -360,6 +362,7 @@ export default function AdminStoresPage() {
           onClose={() => setShowModal(false)}
           onSubmit={handleSubmit}
           showOwnerEmail={true}
+          showPassword={true}
         />
       )}
 
@@ -448,6 +451,7 @@ function StoreFormModal({
   onSubmit,
   showOwnerEmail,
   showActiveToggle = false,
+  showPassword = false,
 }: {
   title: string;
   formData: StoreFormData;
@@ -459,6 +463,7 @@ function StoreFormModal({
   onSubmit: (event: React.FormEvent) => void;
   showOwnerEmail: boolean;
   showActiveToggle?: boolean;
+  showPassword?: boolean;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -474,6 +479,7 @@ function StoreFormModal({
               <TextInput label="Store Name" required placeholder="Enter store name" value={formData.name} onChange={(value) => setFormData((prev) => ({ ...prev, name: value }))} />
               <TextInput label="Address" required placeholder="Enter full address" value={formData.address} onChange={(value) => setFormData((prev) => ({ ...prev, address: value }))} />
               {showOwnerEmail && <TextInput label="Owner Email" required type="email" placeholder="owner@email.com" value={formData.ownerEmail} onChange={(value) => setFormData((prev) => ({ ...prev, ownerEmail: value }))} />}
+              {showOwnerEmail && <TextInput label="Password" required type="password" placeholder="Min 6 characters" value={formData.password} onChange={(value) => setFormData((prev) => ({ ...prev, password: value }))} />}
               {showActiveToggle && (
                 <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
                   <input type="checkbox" className="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" checked={formData.isActive} onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))} />
