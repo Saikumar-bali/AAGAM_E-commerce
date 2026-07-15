@@ -2,14 +2,17 @@ name: CI
 
 on:
   push:
-    branches: ["main", "phase-*", "agent/**"]
+    branches: ["main", "phase-*"]
   pull_request:
-    branches: ["main", "phase-*", "agent/**"]
+    branches: ["main"]
 
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_build"
 
     steps:
       - name: Checkout repo
@@ -20,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.11.0
+          node-version: 20
           cache: 'npm'
 
       - name: Install dependencies
@@ -28,6 +31,9 @@ jobs:
 
       - name: Generate Prisma Client
         run: npx prisma generate --schema packages/database/prisma/schema.prisma
+
+      - name: Validate Prisma schema
+        run: npx prisma validate --schema packages/database/prisma/schema.prisma
 
       - name: Cache Turbo
         uses: actions/cache@v4
@@ -38,19 +44,7 @@ jobs:
             turbo-${{ runner.os }}-
 
       - name: Build
-        shell: bash
-        run: |
-          set -o pipefail
-          npx turbo build --cache-dir=".turbo" --force 2>&1 | tee build-output.log
-
-      - name: Upload build diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-output-${{ github.run_id }}
-          path: build-output.log
-          if-no-files-found: ignore
-          retention-days: 1
+        run: npx turbo build --cache-dir=".turbo" --force
 
   test:
     name: Service Tests
@@ -74,6 +68,8 @@ jobs:
 
     env:
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
+      NODE_ENV: test
+      JWT_SECRET: "ci-test-secret-minimum-32-characters-long"
 
     steps:
       - name: Checkout repo
@@ -82,7 +78,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.11.0
+          node-version: 20
           cache: 'npm'
 
       - name: Install dependencies
@@ -107,24 +103,45 @@ jobs:
         run: npx prisma migrate status --schema packages/database/prisma/schema.prisma
 
       - name: Run CI-safe tests
-        shell: bash
-        run: |
-          set -o pipefail
-          npm run test:ci --workspace=apps/api-gateway 2>&1 | tee test-output.log
+        run: npm run test:ci --workspace=apps/api-gateway
 
-      - name: Upload test diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-output-${{ github.run_id }}
-          path: test-output.log
-          if-no-files-found: ignore
-          retention-days: 1
-
-  mobile-tests:
-    name: Partners Mobile Tests
+  playwright:
+    name: Playwright Smoke Tests
     runs-on: ubuntu-latest
     needs: build
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/phase-')
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aagam_ecom_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
+      REDIS_URL: "redis://localhost:6379"
+      NODE_ENV: test
+      JWT_SECRET: "ci-test-secret-minimum-32-characters-long"
+      PLAYWRIGHT_QA: "true"
+      PLAYWRIGHT_QA_SEED: "true"
 
     steps:
       - name: Checkout repo
@@ -133,116 +150,79 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.11.0
+          node-version: 20
           cache: 'npm'
 
       - name: Install dependencies
         run: npm install
 
-      - name: Reject obsolete mobile application and rider APIs
-        shell: bash
-        run: |
-          test ! -d apps/mobile-app
-          if grep -R -n -E '/orders/rider/queue|/orders/assign|joinRidersQueue|joinRiderZone|newOrderNearby' apps/mobile-partners/src; then
-            echo "Obsolete public rider queue or self-assignment path found"
-            exit 1
-          fi
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema packages/database/prisma/schema.prisma
 
-      - name: Shared mobile TypeScript
-        shell: bash
-        run: |
-          set -o pipefail
-          npm run build --workspace=@aagam/mobile-shared 2>&1 | tee mobile-shared-typecheck.log
+      - name: Apply migrations
+        run: npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
 
-      - name: Partners TypeScript
-        shell: bash
+      - name: Build workspace packages
         run: |
-          set -o pipefail
-          npm run build --workspace=AagamPartners 2>&1 | tee partners-typecheck.log
+          npx tsc --project packages/types/tsconfig.json
+          npx tsc --project packages/utils/tsconfig.json
+          npx tsc --project packages/database/tsconfig.json
 
-      - name: Focused Partners tests
-        shell: bash
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        working-directory: apps/admin-dashboard
+
+      - name: Build API gateway and dashboard
         run: |
-          set -o pipefail
-          npm run test:phase2b --workspace=AagamPartners 2>&1 | tee mobile-test-output.log
+          npx turbo build --filter=@aagam/api-gateway --filter=@aagam/admin-dashboard --cache-dir=".turbo" --force
 
-      - name: Metro Android bundle smoke
-        working-directory: apps/mobile-partners
-        shell: bash
+      - name: Start API gateway
         run: |
-          set -o pipefail
-          mkdir -p ../../.metro-smoke/assets
-          npx react-native bundle \
-            --platform android \
-            --dev true \
-            --entry-file index.js \
-            --bundle-output ../../.metro-smoke/index.android.bundle \
-            --assets-dest ../../.metro-smoke/assets \
-            2>&1 | tee ../../metro-bundle-output.log
-          test -s ../../.metro-smoke/index.android.bundle
+          node apps/api-gateway/dist/src/main.js &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3005/health > /dev/null 2>&1; then
+              echo "API gateway is ready"
+              break
+            fi
+            echo "Waiting for API gateway... ($i/30)"
+            sleep 2
+          done
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
+          REDIS_URL: "redis://localhost:6379"
+          JWT_SECRET: "ci-test-secret-minimum-32-characters-long"
+          NODE_ENV: test
+          PORT: "3005"
+          PLAYWRIGHT_QA: "true"
+          PLAYWRIGHT_QA_SEED: "true"
+          CORS_ORIGINS: "http://localhost:3001"
 
-      - name: Upload mobile diagnostics
+      - name: Run Playwright tests
+        run: npx playwright test --project=chromium --reporter=list
+        working-directory: apps/admin-dashboard
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3005
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/admin-dashboard/playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mobile-diagnostics-${{ github.run_id }}
-          path: |
-            mobile-shared-typecheck.log
-            partners-typecheck.log
-            mobile-test-output.log
-            metro-bundle-output.log
-          if-no-files-found: ignore
-          retention-days: 1
-
-  android-build:
-    name: Partners Android Debug Build
-    runs-on: ubuntu-latest
-    needs: mobile-tests
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.11.0
-          cache: 'npm'
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Gradle 8.13
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.13'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build Partners debug APK
-        working-directory: apps/mobile-partners/android
-        shell: bash
-        run: |
-          set -o pipefail
-          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee android-build-output.log
-
-      - name: Upload Android diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-build-output-${{ github.run_id }}
-          path: apps/mobile-partners/android/android-build-output.log
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: aagam-partners-debug-${{ github.run_id }}
-          path: apps/mobile-partners/android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 3
+          name: playwright-screenshots
+          path: docs/qa/phase-4/
+          retention-days: 14

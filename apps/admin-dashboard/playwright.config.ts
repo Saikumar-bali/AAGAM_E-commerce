@@ -1,7 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const AUTH_FILE = './.auth/customer.json';
-
 export default defineConfig({
   testDir: './tests',
   timeout: 120000,
@@ -25,51 +23,8 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'setup',
-      testMatch: /phase-6-checkout-ux\.setup\.ts/,
-    },
-    {
       name: 'chromium',
-      use: {
-        ...devices['Desktop Chrome'],
-        headless: true,
-        storageState: AUTH_FILE,
-      },
-      dependencies: ['setup'],
-      testMatch: /phase-6-checkout-ux\.spec\.ts/,
-    },
-    {
-      name: 'phase-0-dispatch',
-      use: {
-        ...devices['Desktop Chrome'],
-        headless: true,
-      },
-      testMatch: /phase-0-dispatch-ui\.spec\.ts/,
-    },
-    {
-      name: 'phase-1-notifications',
-      use: {
-        ...devices['Desktop Chrome'],
-        headless: true,
-        permissions: [],
-      },
-      testMatch: /phase-1-notifications(?:-ui|-e2e|-worker|-settings)?\.spec\.ts/,
-    },
-    {
-      name: 'phase-3-delivery-operations',
-      use: {
-        ...devices['Desktop Chrome'],
-        headless: false,
-      },
-      testMatch: /phase-3-delivery-operations-ui\.spec\.ts/,
-    },
-    {
-      name: 'phase-4-rider-portal',
-      use: {
-        ...devices['Desktop Chrome'],
-        headless: false,
-      },
-      testMatch: /phase-4-rider-portal-ui\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], headless: !!process.env.CI },
     },
   ],
   webServer: {
