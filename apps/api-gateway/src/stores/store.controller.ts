@@ -17,10 +17,18 @@ export class StoreController {
   }
 
   @Get('my-stores')
+  @Get('mine')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.STORE_OWNER)
   async findMyStores(@Req() req: any) {
     return this.storeService.findByOwnerId(req.user.id);
+  }
+
+  @Get(':id/orders')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.STORE_OWNER, Role.ADMIN)
+  async getStoreOrders(@Param('id') id: string, @Req() req: any) {
+    return this.storeService.getStoreOrders(id, req.user);
   }
 
   @Get(':id')

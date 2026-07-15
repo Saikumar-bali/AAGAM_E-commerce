@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsEmail,
   IsNumber,
+  IsOptional,
   IsString,
   Max,
   MaxLength,
@@ -35,4 +36,10 @@ export class CreateStoreDto {
   @IsEmail()
   @MaxLength(254)
   ownerEmail: string = '';
+
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  @MaxLength(128)
+  password?: string;
 }
