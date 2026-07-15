@@ -1,0 +1,14 @@
+# AAGAM admin/customer dashboard deployment environment
+# Copy these keys into your frontend hosting provider secrets.
+# Do not commit real secrets.
+
+NODE_ENV=production
+PORT=3001
+
+# Required: public API URL reachable by browser clients.
+NEXT_PUBLIC_API_URL=https://api.example.com
+
+# Deployment notes
+# 1. NEXT_PUBLIC_API_URL must use the final API domain, not localhost.
+# 2. API CORS_ORIGINS must include this frontend domain.
+# 3. If using Cloudflare Tunnel for the frontend, set this value to the public API URL, not the tunnel-local URL.
