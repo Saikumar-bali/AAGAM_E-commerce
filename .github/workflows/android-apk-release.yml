@@ -146,71 +146,28 @@ jobs:
             echo "AAGAM_ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/aagam-release.keystore" >> "$GITHUB_ENV"
           fi
 
-      - name: Sync debug SHA-1 with Firebase
+      - name: Install pinned debug keystore
         if: env.KEYSTORE_BASE64 == ''
         shell: bash
         env:
-          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
           KS="$HOME/.android/debug.keystore"
           mkdir -p "$HOME/.android"
-          if [[ ! -f "$KS" ]]; then
+          if [[ -n "$DEBUG_KEYSTORE_BASE64" ]]; then
+            echo "$DEBUG_KEYSTORE_BASE64" | base64 --decode > "$KS"
+            echo "Installed pinned debug.keystore"
+          else
             keytool -genkey -v -keystore "$KS" -alias androiddebugkey \
               -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass android -keypass android \
               -dname "CN=Android Debug,O=Android,C=US" 2>/dev/null
-            echo "Generated debug.keystore"
+            echo "WARNING: Generated ephemeral debug.keystore — SHA-1 may not match Firebase"
           fi
-
           SHA1=$(keytool -list -v -keystore "$KS" -alias androiddebugkey -storepass android 2>/dev/null \
             | grep -i 'SHA1:' | head -1 | awk '{print $2}')
-          SHA256=$(keytool -list -v -keystore "$KS" -alias androiddebugkey -storepass android 2>/dev/null \
-            | grep -i 'SHA256:' | head -1 | awk '{print $2}')
-          echo "CI debug keystore SHA-1: $SHA1"
-          echo "CI debug keystore SHA-256: $SHA256"
-
-          GS="apps/mobile-customer/android/app/google-services.json"
-          if [[ -f "$GS" ]]; then
-            sed -i "s/\"certificate_hash\": \"[^\"]*\"/\"certificate_hash\": \"$SHA1\"/" "$GS"
-            echo "google-services.json SHA-1 updated"
-          fi
-
-          if [[ -z "$SA_JSON" ]]; then
-            echo "No service account — add SHA-1 manually in Firebase Console: $SHA1"
-            exit 0
-          fi
-
-          echo "$SA_JSON" > /tmp/sa.json
-          gcloud auth activate-service-account --key-file=/tmp/sa.json --quiet 2>/dev/null || true
-          TOKEN=$(gcloud auth print-access-token 2>/dev/null || true)
-          rm -f /tmp/sa.json
-
-          if [[ -z "$TOKEN" ]]; then
-            echo "Cannot get access token — add SHA-1 manually: $SHA1"
-            exit 0
-          fi
-
-          APP="projects/102394932542/androidApps/1:102394932542:android:2274f22f53370331b3106f"
-          for HASH in "$SHA1" "$SHA256"; do
-            [[ -z "$HASH" ]] && continue
-            if [[ "$HASH" == *":"* ]]; then continue; fi
-            RESP=$(curl -s -w '\n%{http_code}' \
-              -X POST "https://firebase.googleapis.com/v1beta1/${APP}/sha" \
-              -H "Authorization: Bearer $TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "{\"shaCertificate\":{\"certType\":\"SHA_1\",\"shaCertificate\":\"$HASH\"}}")
-            CODE=$(printf '%s' "$RESP" | tail -1)
-            echo "Firebase API ($HASH): HTTP $CODE"
-            if [[ "$CODE" == "409" ]]; then
-              echo "SHA already registered"
-            elif [[ "$CODE" == "200" ]]; then
-              echo "SHA registered successfully"
-            else
-              printf '%s\n' "$(printf '%s' "$RESP" | head -n-1)"
-              echo "Auto-register failed for $HASH"
-            fi
-          done
+          echo "Using debug keystore SHA-1: $SHA1"
 
       - name: Build optimized Customer APK
         working-directory: apps/mobile-customer/android
