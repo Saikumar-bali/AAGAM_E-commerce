@@ -38,7 +38,6 @@ type LegacyInboxItem = {
 };
 
 const LEGACY_READ_NOTE = 'Notification marked read.';
-const INTERNAL_HIDDEN_RECIPIENTS_KEY = 'inAppHiddenRecipientIds';
 
 @Injectable()
 export class NotificationService {
@@ -61,22 +60,12 @@ export class NotificationService {
 
   async listInbox(actor: Actor, limitInput?: string | number) {
     const limit = Math.min(100, Math.max(1, Number(limitInput || 50)));
-    const candidates = await prisma.notificationRecipient.findMany({
+    const recipients = await prisma.notificationRecipient.findMany({
       where: { userId: actor.id },
       include: { notification: true },
       orderBy: { createdAt: 'desc' },
-      take: Math.min(500, Math.max(limit, limit * 5)),
+      take: limit,
     });
-
-    const recipients = candidates
-      .filter((recipient) => {
-        const data = (recipient.notification.data || {}) as any;
-        const hiddenRecipientIds = Array.isArray(data[INTERNAL_HIDDEN_RECIPIENTS_KEY])
-          ? data[INTERNAL_HIDDEN_RECIPIENTS_KEY]
-          : [];
-        return !hiddenRecipientIds.includes(recipient.id);
-      })
-      .slice(0, limit);
 
     const dedicatedItems = recipients.map((recipient) => this.toDedicatedInboxItem(recipient));
     const migratedLegacyIds = new Set(
@@ -217,7 +206,6 @@ export class NotificationService {
             outboxEventId: outboxEvent.id,
           },
         });
-        const inAppHiddenRecipientIds: string[] = [];
 
         for (const routedRecipient of routed.recipients) {
           const preferences = await tx.notificationPreference.findMany({
@@ -228,13 +216,9 @@ export class NotificationService {
           });
           const specific = preferences.find((preference: any) => preference.eventType === outboxEvent.eventType);
           const fallback = preferences.find((preference: any) => preference.eventType === '*');
-          const effective = specific || fallback;
-          const pushEnabled = effective?.pushEnabled !== false;
-          const inAppEnabled = effective?.inAppEnabled !== false;
+          if ((specific || fallback)?.inAppEnabled === false) continue;
 
-          if (!pushEnabled && !inAppEnabled) continue;
-
-          const recipient = await tx.notificationRecipient.create({
+          await tx.notificationRecipient.create({
             data: {
               notificationId: notification.id,
               userId: routedRecipient.userId,
@@ -242,19 +226,12 @@ export class NotificationService {
               status: 'QUEUED',
             },
           });
-          if (!inAppEnabled) inAppHiddenRecipientIds.push(recipient.id);
         }
 
-        const routedData: any = routed.data && typeof routed.data === 'object' && !Array.isArray(routed.data)
-          ? routed.data
-          : {};
         await tx.notification.update({
           where: { id: notification.id },
           data: {
             deepLink: routed.recipients.length === 1 ? routed.recipients[0].deepLink : null,
-            data: inAppHiddenRecipientIds.length > 0
-              ? { ...routedData, [INTERNAL_HIDDEN_RECIPIENTS_KEY]: inAppHiddenRecipientIds }
-              : routedData,
           },
         });
 
@@ -319,7 +296,6 @@ export class NotificationService {
   private toDedicatedInboxItem(recipient: any): LegacyInboxItem {
     const notification = recipient.notification;
     const data = (notification.data || {}) as any;
-    const { [INTERNAL_HIDDEN_RECIPIENTS_KEY]: _internalHiddenRecipients, ...publicMetadata } = data;
     return {
       id: recipient.id,
       recipientId: recipient.id,
@@ -335,7 +311,7 @@ export class NotificationService {
       openedAt: recipient.openedAt,
       readAt: recipient.readAt,
       status: recipient.status,
-      metadata: publicMetadata,
+      metadata: data,
     };
   }
 

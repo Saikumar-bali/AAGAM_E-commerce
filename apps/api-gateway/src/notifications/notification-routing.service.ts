@@ -22,7 +22,7 @@ export class NotificationRoutingService {
   private deepLink(role: Role, orderId?: string | null) {
     if (role === Role.ADMIN) return orderId ? `/admin/orders/${orderId}` : '/admin/notifications';
     if (role === Role.STORE_OWNER) return '/store/orders';
-    if (role === Role.RIDER) return orderId ? `/rider/delivery?order=${encodeURIComponent(orderId)}` : '/rider/notifications';
+    if (role === Role.RIDER) return '/rider';
     return orderId ? `/shop/orders/${orderId}` : '/shop/notifications';
   }
 

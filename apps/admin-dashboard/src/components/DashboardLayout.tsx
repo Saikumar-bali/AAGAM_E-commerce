@@ -19,42 +19,17 @@ const notificationHrefByRole: Record<DashboardLayoutProps['allowedRole'], string
   RIDER: '/rider/notifications',
 };
 
-let sessionVerified = false;
-let sessionRole: string | null = null;
-
-export function resetSessionCache() {
-  sessionVerified = false;
-  sessionRole = null;
-}
-
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole }) => {
-  const cachedRole = typeof window !== 'undefined' ? localStorage.getItem('user_role') : null;
-  const initialMounted = sessionVerified ? sessionRole === allowedRole : !!cachedRole && cachedRole === allowedRole;
-  const [mounted, setMounted] = useState(initialMounted);
-  const [userRole, setUserRole] = useState<string | null>(sessionRole || cachedRole);
+  const [mounted, setMounted] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
-    if (sessionVerified && sessionRole === allowedRole) return;
-
-    if (!sessionVerified && cachedRole === allowedRole) {
-      sessionRole = cachedRole;
-      sessionVerified = true;
-      return;
-    }
-
     const verifySession = async () => {
       try {
         const response = await apiClient.get('/auth/me');
         const user = response.data;
-
-        sessionRole = user.role;
-        sessionVerified = true;
-        localStorage.setItem('user_role', user.role);
-        localStorage.setItem('user_name', user.name || '');
-        localStorage.setItem('user_email', user.email || '');
-        localStorage.setItem('user_avatar', user.avatarUrl || '');
 
         if (user.role !== allowedRole) {
           if (user.role === 'ADMIN') router.push('/admin');
@@ -65,6 +40,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
         }
 
         setUserRole(user.role);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user_name', user.name || '');
+          localStorage.setItem('user_email', user.email || '');
+          localStorage.setItem('user_avatar', user.avatarUrl || '');
+        }
         setMounted(true);
       } catch (error) {
         console.error('[DashboardLayout] Session verification failed:', error);

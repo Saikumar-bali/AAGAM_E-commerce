@@ -21,10 +21,13 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  riderProfile RiderProfile?
-  orders       Order[]
-  addresses    CustomerAddress[]
-  stores       Store[]       @relation("StoreOwner")
+  riderProfile           RiderProfile?
+  orders                 Order[]
+  addresses              CustomerAddress[]
+  stores                 Store[]                  @relation("StoreOwner")
+  pushSubscriptions      PushSubscription[]
+  notificationRecipients NotificationRecipient[]
+  notificationPreferences NotificationPreference[]
 }
 
 enum Role {
@@ -136,6 +139,7 @@ model Order {
   statusHistory      OrderStatusHistory[]
   riderLocationPings RiderLocationPing[]
   deliveryJob        DeliveryJob?
+  notifications      Notification[]
 }
 
 model OrderItem {
@@ -226,8 +230,9 @@ model DeliveryJob {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
-  assignments DispatchAssignment[]
-  events      DeliveryEvent[]
+  assignments  DispatchAssignment[]
+  events       DeliveryEvent[]
+  notifications Notification[]
 
   @@index([status, createdAt])
   @@index([currentRiderId, status])
@@ -421,4 +426,177 @@ model InventoryLedger {
   @@index([storeId, createdAt])
   @@index([productId, createdAt])
   @@index([orderId])
+}
+
+enum PushProvider {
+  FCM_WEB
+  FCM_MOBILE
+  WEB_PUSH
+}
+
+enum NotificationEventType {
+  ORDER_PLACED
+  STORE_ACCEPTED_ORDER
+  STORE_STARTED_PICKING
+  ORDER_PACKED
+  DISPATCH_JOB_CREATED
+  ASSIGNMENT_OFFERED
+  ASSIGNMENT_ACCEPTED
+  ASSIGNMENT_REJECTED
+  ASSIGNMENT_EXPIRED
+  RIDER_EN_ROUTE_TO_STORE
+  RIDER_AT_STORE
+  PICKUP_VERIFIED
+  OUT_FOR_DELIVERY
+  RIDER_AT_CUSTOMER
+  DELIVERY_COMPLETED
+  DELIVERY_FAILED
+  DELIVERY_CANCELLED
+  ADMIN_BROADCAST
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum NotificationRecipientStatus {
+  QUEUED
+  SENT
+  FAILED
+  OPENED
+  READ
+}
+
+enum NotificationAttemptStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model PushSubscription {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider      PushProvider @default(FCM_WEB)
+  token         String?      @unique
+  endpoint      String?
+  p256dh        String?
+  auth          String?
+  userAgent     String?
+  deviceName    String?
+  isActive      Boolean      @default(true)
+  lastSeenAt    DateTime     @default(now())
+  invalidatedAt DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  attempts NotificationDeliveryAttempt[]
+
+  @@index([userId, isActive])
+  @@index([provider, isActive])
+  @@unique([provider, endpoint])
+}
+
+model NotificationPreference {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType    String   @default("*")
+  pushEnabled  Boolean  @default(true)
+  inAppEnabled Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, eventType])
+}
+
+model OutboxEvent {
+  id             String                @id @default(cuid())
+  eventType      NotificationEventType
+  aggregateType  String
+  aggregateId    String
+  payload        Json
+  idempotencyKey String                @unique
+  status         OutboxStatus          @default(PENDING)
+  attempts       Int                   @default(0)
+  availableAt    DateTime              @default(now())
+  lockedAt       DateTime?
+  processedAt    DateTime?
+  lastError      String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  notification Notification? @relation("OutboxNotification")
+
+  @@index([status, availableAt])
+  @@index([aggregateType, aggregateId])
+}
+
+model Notification {
+  id            String                @id @default(cuid())
+  eventType     NotificationEventType
+  title         String
+  body          String
+  data          Json?
+  deepLink      String?
+  orderId       String?
+  order         Order?                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  deliveryJobId String?
+  deliveryJob   DeliveryJob?          @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  outboxEventId String?               @unique
+  outboxEvent   OutboxEvent?          @relation("OutboxNotification", fields: [outboxEventId], references: [id], onDelete: SetNull)
+  createdAt     DateTime              @default(now())
+
+  recipients NotificationRecipient[]
+
+  @@index([eventType, createdAt])
+  @@index([orderId, createdAt])
+  @@index([deliveryJobId, createdAt])
+}
+
+model NotificationRecipient {
+  id            String                      @id @default(cuid())
+  notificationId String
+  notification  Notification                @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status        NotificationRecipientStatus @default(QUEUED)
+  dedupeKey     String                      @unique
+  sentAt        DateTime?
+  openedAt      DateTime?
+  readAt        DateTime?
+  failedAt      DateTime?
+  failureReason String?
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
+
+  attempts NotificationDeliveryAttempt[]
+
+  @@unique([notificationId, userId])
+  @@index([userId, status, createdAt])
+}
+
+model NotificationDeliveryAttempt {
+  id             String                    @id @default(cuid())
+  recipientId    String
+  recipient      NotificationRecipient     @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  subscriptionId String?
+  subscription   PushSubscription?         @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  attemptNumber  Int                       @default(1)
+  status         NotificationAttemptStatus @default(PENDING)
+  provider       PushProvider
+  responseId     String?
+  errorCode      String?
+  errorMessage   String?
+  nextRetryAt    DateTime?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  @@index([recipientId, createdAt])
+  @@index([status, nextRetryAt])
+  @@unique([recipientId, subscriptionId, attemptNumber])
 }
