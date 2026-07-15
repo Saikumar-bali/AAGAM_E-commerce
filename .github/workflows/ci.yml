@@ -13,6 +13,13 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# A branch can receive several review commits in quick succession. Only the
+# newest head is relevant; cancel older builds/APKs instead of serially spending
+# runners on code that has already been superseded.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build
