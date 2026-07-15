@@ -19,11 +19,11 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   private setSessionCookie(response: Response, token: string) {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const secure = process.env.COOKIE_SECURE === 'true' || (process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false');
     response.cookie('access_token', token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
+      secure,
+      sameSite: secure ? 'none' : 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -98,11 +98,11 @@ export class AuthController {
   @Post('logout')
   @Throttle({ short: { limit: 10, ttl: 60000 } })
   async logout(@Res({ passthrough: true }) response: Response) {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const secure = process.env.COOKIE_SECURE === 'true' || (process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false');
     response.clearCookie('access_token', {
       path: '/',
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
+      secure,
+      sameSite: secure ? 'none' : 'lax',
     });
     return { message: 'Logged out successfully' };
   }

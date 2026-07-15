@@ -1,5 +1,6 @@
 'use client';
 
+export const runtime = 'edge';
 import CustomerDeliveryOtpCard from '@/components/customer/CustomerDeliveryOtpCard';
 import DashboardLayout from '@/components/DashboardLayout';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
