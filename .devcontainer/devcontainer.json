@@ -1,18 +1,44 @@
 {
   "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
-  "postCreateCommand": "bash .devcontainer/setup.sh",
-  "forwardPorts": [3001, 3005, 5432, 6379],
+  "postCreateCommand": "bash codespace-start.sh",
+  "forwardPorts": [3001, 4000, 5432, 6379],
   "portsAttributes": {
-    "3001": {
-      "visibility": "public"
-    },
-    "3005": {
-      "visibility": "public"
-    }
+    "3001": { "visibility": "public", "label": "Admin Dashboard" },
+    "4000": { "visibility": "public", "label": "API Gateway" }
   },
+  "remoteUser": "root",
   "containerEnv": {
     "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/aagam_ecom",
-    "NODE_ENV": "development"
+    "NODE_ENV": "development",
+    "JWT_SECRET": "${localEnv:JWT_SECRET}",
+    "CORS_ORIGINS": "${localEnv:CORS_ORIGINS}",
+    "GOOGLE_WEB_CLIENT_ID": "${localEnv:GOOGLE_WEB_CLIENT_ID}",
+    "GOOGLE_ANDROID_CLIENT_ID": "${localEnv:GOOGLE_ANDROID_CLIENT_ID}",
+    "FIREBASE_PROJECT_ID": "${localEnv:FIREBASE_PROJECT_ID}",
+    "FIREBASE_CLIENT_EMAIL": "${localEnv:FIREBASE_CLIENT_EMAIL}",
+    "FIREBASE_PRIVATE_KEY": "${localEnv:FIREBASE_PRIVATE_KEY}",
+    "FIREBASE_SERVICE_ACCOUNT_JSON": "${localEnv:FIREBASE_SERVICE_ACCOUNT_JSON}",
+    "R2_ENDPOINT": "${localEnv:R2_ENDPOINT}",
+    "R2_ACCESS_KEY_ID": "${localEnv:R2_ACCESS_KEY_ID}",
+    "R2_SECRET_ACCESS_KEY": "${localEnv:R2_SECRET_ACCESS_KEY}",
+    "R2_BUCKET_NAME": "${localEnv:R2_BUCKET_NAME}",
+    "R2_PUBLIC_URL": "${localEnv:R2_PUBLIC_URL}",
+    "SUPABASE_URL": "${localEnv:SUPABASE_URL}",
+    "SUPABASE_ANON_KEY": "${localEnv:SUPABASE_ANON_KEY}",
+    "UPLOAD_STORAGE_PROVIDER": "${localEnv:UPLOAD_STORAGE_PROVIDER}",
+    "UPLOAD_PRIVATE_BASE_URL": "${localEnv:UPLOAD_PRIVATE_BASE_URL}",
+    "PAYMENT_PROVIDER": "${localEnv:PAYMENT_PROVIDER}",
+    "PAYMENT_PROVIDER_KEY": "${localEnv:PAYMENT_PROVIDER_KEY}",
+    "WEB_PUBLIC_URL": "${localEnv:WEB_PUBLIC_URL}",
+    "API_PUBLIC_URL": "${localEnv:API_PUBLIC_URL}",
+    "ADMIN_EMAIL": "${localEnv:ADMIN_EMAIL}",
+    "ADMIN_PASSWORD": "${localEnv:ADMIN_PASSWORD}",
+    "CUSTOMER_EMAIL": "${localEnv:CUSTOMER_EMAIL}",
+    "CUSTOMER_PASSWORD": "${localEnv:CUSTOMER_PASSWORD}",
+    "RIDER_EMAIL": "${localEnv:RIDER_EMAIL}",
+    "RIDER_PASSWORD": "${localEnv:RIDER_PASSWORD}",
+    "STORE_EMAIL": "${localEnv:STORE_EMAIL}",
+    "STORE_PASSWORD": "${localEnv:STORE_PASSWORD}"
   },
-  "remoteUser": "root"
+  "postStartCommand": "service postgresql start 2>/dev/null; pg_isready -q || (service postgresql start); redis-cli ping 2>/dev/null || redis-server --daemonize yes; pm2 resurrect 2>/dev/null || true"
 }
