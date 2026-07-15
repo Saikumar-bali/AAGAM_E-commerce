@@ -21,12 +21,12 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  riderProfile           RiderProfile?
-  orders                 Order[]
-  addresses              CustomerAddress[]
-  stores                 Store[]                  @relation("StoreOwner")
-  pushSubscriptions      PushSubscription[]
-  notificationRecipients NotificationRecipient[]
+  riderProfile            RiderProfile?
+  orders                  Order[]
+  addresses               CustomerAddress[]
+  stores                  Store[]                  @relation("StoreOwner")
+  pushSubscriptions       PushSubscription[]
+  notificationRecipients  NotificationRecipient[]
   notificationPreferences NotificationPreference[]
 }
 
@@ -95,43 +95,43 @@ model Inventory {
 }
 
 model Order {
-  id                  String      @id @default(cuid())
-  customerId          String
-  customer            User        @relation(fields: [customerId], references: [id])
-  storeId             String
-  store               Store       @relation(fields: [storeId], references: [id])
-  status              OrderStatus @default(PENDING)
-  totalAmount         Float
-  currency            String      @default("INR")
-  subtotal            Float       @default(0)
-  deliveryFee         Float       @default(0)
-  discountAmount      Float       @default(0)
-  taxAmount           Float       @default(0)
-  grandTotal          Float       @default(0)
-  subtotalPaise       Int         @default(0)
-  deliveryFeePaise    Int         @default(0)
-  discountPaise       Int         @default(0)
-  taxPaise            Int         @default(0)
-  grandTotalPaise     Int         @default(0)
-  deliveryLat         Float?
-  deliveryLng         Float?
-  idempotencyKey      String?     @unique
-  customerSnapshot    Json?
-  addressSnapshot     Json?
-  itemsSnapshot       Json?
-  pricingSnapshot     Json?
-  riderId             String?
-  rider               RiderProfile? @relation(fields: [riderId], references: [id])
-  confirmedAt         DateTime?
-  pickingAt           DateTime?
-  packedAt            DateTime?
-  riderAssignedAt     DateTime?
-  outForDeliveryAt    DateTime?
-  deliveredAt         DateTime?
-  cancelledAt         DateTime?
-  paymentFailedAt     DateTime?
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
+  id               String        @id @default(cuid())
+  customerId       String
+  customer         User          @relation(fields: [customerId], references: [id])
+  storeId          String
+  store            Store         @relation(fields: [storeId], references: [id])
+  status           OrderStatus   @default(PENDING)
+  totalAmount      Float
+  currency         String        @default("INR")
+  subtotal         Float         @default(0)
+  deliveryFee      Float         @default(0)
+  discountAmount   Float         @default(0)
+  taxAmount        Float         @default(0)
+  grandTotal       Float         @default(0)
+  subtotalPaise    Int           @default(0)
+  deliveryFeePaise Int           @default(0)
+  discountPaise    Int           @default(0)
+  taxPaise         Int           @default(0)
+  grandTotalPaise  Int           @default(0)
+  deliveryLat      Float?
+  deliveryLng      Float?
+  idempotencyKey   String?       @unique
+  customerSnapshot Json?
+  addressSnapshot  Json?
+  itemsSnapshot    Json?
+  pricingSnapshot  Json?
+  riderId          String?
+  rider            RiderProfile? @relation(fields: [riderId], references: [id])
+  confirmedAt      DateTime?
+  pickingAt        DateTime?
+  packedAt         DateTime?
+  riderAssignedAt  DateTime?
+  outForDeliveryAt DateTime?
+  deliveredAt      DateTime?
+  cancelledAt      DateTime?
+  paymentFailedAt  DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   items              OrderItem[]
   payment            Payment?
@@ -139,6 +139,10 @@ model Order {
   statusHistory      OrderStatusHistory[]
   riderLocationPings RiderLocationPing[]
   deliveryJob        DeliveryJob?
+  pickupProof        PickupProof?
+  deliveryProof      DeliveryProof?
+  codLedger          CodLedger?
+  failureDecisions   DeliveryFailureDecision[]
   notifications      Notification[]
 }
 
@@ -155,17 +159,40 @@ model OrderItem {
 }
 
 model RiderProfile {
-  id                  String      @id @default(cuid())
-  userId              String      @unique
-  user                User        @relation(fields: [userId], references: [id])
-  status              RiderStatus @default(OFFLINE)
-  latitude            Float?
-  longitude           Float?
-  orders              Order[]
-  locationPings       RiderLocationPing[]
-  deliveryJobs        DeliveryJob[]        @relation("DeliveryJobCurrentRider")
-  dispatchAssignments DispatchAssignment[]
-  updatedAt           DateTime    @updatedAt
+  id                       String                      @id @default(cuid())
+  userId                   String                      @unique
+  user                     User                        @relation(fields: [userId], references: [id])
+  status                   RiderStatus                 @default(OFFLINE)
+  latitude                 Float?
+  longitude                Float?
+  orders                   Order[]
+  locationPings            RiderLocationPing[]
+  deliveryJobs             DeliveryJob[]               @relation("DeliveryJobCurrentRider")
+  dispatchAssignments      DispatchAssignment[]
+  vehicleType              String?
+  vehicleNumber            String?
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  bankAccountCiphertext    String?
+  bankIfscCiphertext       String?
+  bankAccountLast4         String?
+  bankStatus               RiderApprovalStatus         @default(PENDING)
+  approvalStatus           RiderApprovalStatus         @default(PENDING)
+  bankReviewedByUserId     String?
+  bankReviewedAt           DateTime?
+  approvalReviewedByUserId String?
+  approvalReviewedAt       DateTime?
+  availabilitySchedules    RiderAvailabilitySchedule[]
+  shifts                   RiderShift[]
+  breaks                   RiderBreak[]
+  documents                RiderDocument[]
+  earnings                 RiderEarning[]
+  pickupTasks              RiderPickupTask[]
+  pickupProofs             PickupProof[]
+  deliveryProofs           DeliveryProof[]
+  codLedgers               CodLedger[]
+  supportTickets           RiderSupportTicket[]
+  updatedAt                DateTime                    @updatedAt
 }
 
 enum OrderStatus {
@@ -230,12 +257,211 @@ model DeliveryJob {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
-  assignments  DispatchAssignment[]
-  events       DeliveryEvent[]
-  notifications Notification[]
+  assignments      DispatchAssignment[]
+  events           DeliveryEvent[]
+  pickupChallenges PickupChallenge[]
+  pickupProof      PickupProof?
+  deliveryProof    DeliveryProof?
+  codLedger        CodLedger?
+  failureDecisions DeliveryFailureDecision[]
+  notifications    Notification[]
 
   @@index([status, createdAt])
   @@index([currentRiderId, status])
+}
+
+enum PickupVerificationMethod {
+  STORE_PICKUP_PIN
+  QR_CODE
+  STORE_CONFIRMED_HANDOFF
+}
+
+enum PickupChallengeStatus {
+  PENDING
+  USED
+  EXPIRED
+  SUPERSEDED
+  FAILED
+}
+
+enum DeliveryVerificationMethod {
+  CUSTOMER_OTP_PIN
+}
+
+enum CodSettlementStatus {
+  AWAITING_COLLECTION
+  HELD_BY_RIDER
+  PARTIALLY_DEPOSITED
+  SETTLED
+  VARIANCE_REVIEW
+}
+
+enum CodLedgerEntryType {
+  EXPECTED
+  COLLECTED
+  DEPOSITED
+  VARIANCE_RECORDED
+}
+
+enum DeliveryFailureReasonCode {
+  CUSTOMER_UNREACHABLE
+  CUSTOMER_REFUSED
+  ADDRESS_NOT_FOUND
+  WRONG_ADDRESS
+  PAYMENT_NOT_AVAILABLE
+  VEHICLE_BREAKDOWN
+  PACKAGE_DAMAGED
+  SAFETY_CONCERN
+  OTHER
+}
+
+enum DeliveryResolutionAction {
+  RETRY_DELIVERY
+  REASSIGN_RIDER
+  RETURN_TO_STORE
+  CANCEL_AND_REFUND
+  ESCALATE_TO_ADMIN
+}
+
+enum DeliveryResolutionStatus {
+  DECIDED
+  IN_PROGRESS
+  COMPLETED
+  SUPERSEDED
+}
+
+model PickupChallenge {
+  id                  String                   @id @default(cuid())
+  deliveryJobId       String
+  deliveryJob         DeliveryJob              @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  method              PickupVerificationMethod
+  codeHash            String
+  salt                String
+  issuedByStoreUserId String
+  parcelCount         Int
+  status              PickupChallengeStatus    @default(PENDING)
+  attempts            Int                      @default(0)
+  expiresAt           DateTime
+  usedAt              DateTime?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@index([deliveryJobId, status, expiresAt])
+}
+
+model PickupProof {
+  id                 String                   @id @default(cuid())
+  deliveryJobId      String                   @unique
+  deliveryJob        DeliveryJob              @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  orderId            String                   @unique
+  order              Order                    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  riderId            String
+  rider              RiderProfile             @relation(fields: [riderId], references: [id], onDelete: Restrict)
+  storeUserId        String
+  verifiedAt         DateTime                 @default(now())
+  latitude           Float?
+  longitude          Float?
+  accuracyMetres     Float?
+  parcelCount        Int
+  verificationMethod PickupVerificationMethod
+  challengeId        String?                  @unique
+  createdAt          DateTime                 @default(now())
+
+  @@index([riderId, verifiedAt])
+  @@index([storeUserId, verifiedAt])
+}
+
+model DeliveryProof {
+  id                 String                     @id @default(cuid())
+  deliveryJobId      String                     @unique
+  deliveryJob        DeliveryJob                @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  orderId            String                     @unique
+  order              Order                      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  riderId            String
+  rider              RiderProfile               @relation(fields: [riderId], references: [id], onDelete: Restrict)
+  customerUserId     String
+  verificationMethod DeliveryVerificationMethod @default(CUSTOMER_OTP_PIN)
+  otpOperationId     String
+  riderConfirmedAt   DateTime
+  verifiedAt         DateTime                   @default(now())
+  note               String?
+  latitude           Float?
+  longitude          Float?
+  accuracyMetres     Float?
+  createdAt          DateTime                   @default(now())
+
+  @@index([riderId, verifiedAt])
+  @@index([customerUserId, verifiedAt])
+}
+
+model CodLedger {
+  id                       String              @id @default(cuid())
+  deliveryJobId            String              @unique
+  deliveryJob              DeliveryJob         @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  orderId                  String              @unique
+  order                    Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  riderId                  String?
+  rider                    RiderProfile?       @relation(fields: [riderId], references: [id], onDelete: Restrict)
+  currency                 String              @default("INR")
+  expectedAmountPaise      Int
+  collectedAmountPaise     Int                 @default(0)
+  collectionTimestamp      DateTime?
+  riderHoldingBalancePaise Int                 @default(0)
+  depositedAmountPaise     Int                 @default(0)
+  settlementReference      String?
+  variancePaise            Int                 @default(0)
+  varianceReason           String?
+  status                   CodSettlementStatus @default(AWAITING_COLLECTION)
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  entries                  CodLedgerEntry[]
+
+  @@index([riderId, status])
+  @@index([status, updatedAt])
+}
+
+model CodLedgerEntry {
+  id                  String             @id @default(cuid())
+  codLedgerId         String
+  codLedger           CodLedger          @relation(fields: [codLedgerId], references: [id], onDelete: Cascade)
+  type                CodLedgerEntryType
+  amountPaise         Int
+  holdingAfterPaise   Int
+  depositedAfterPaise Int
+  actorUserId         String
+  actorRole           Role
+  reference           String?
+  idempotencyKey      String             @unique
+  metadata            Json?
+  createdAt           DateTime           @default(now())
+
+  @@index([codLedgerId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model DeliveryFailureDecision {
+  id                 String                    @id @default(cuid())
+  deliveryJobId      String
+  deliveryJob        DeliveryJob               @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  orderId            String
+  order              Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  failureOperationId String                    @unique
+  reason             DeliveryFailureReasonCode
+  recommendedAction  DeliveryResolutionAction
+  decidedAction      DeliveryResolutionAction
+  status             DeliveryResolutionStatus  @default(DECIDED)
+  policyVersion      String
+  rationale          String
+  decidedBy          String                    @default("SYSTEM")
+  overriddenByUserId String?
+  overrideReason     String?
+  appliedByUserId    String?
+  appliedAt          DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  @@index([deliveryJobId, createdAt])
+  @@index([status, recommendedAction, createdAt])
 }
 
 model DispatchAssignment {
@@ -261,9 +487,9 @@ model DispatchAssignment {
 }
 
 model DeliveryEvent {
-  id            String            @id @default(cuid())
+  id            String              @id @default(cuid())
   deliveryJobId String
-  deliveryJob   DeliveryJob       @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  deliveryJob   DeliveryJob         @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
   assignmentId  String?
   assignment    DispatchAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
   eventType     DeliveryEventType
@@ -272,7 +498,7 @@ model DeliveryEvent {
   actorUserId   String?
   actorRole     Role?
   metadata      Json?
-  createdAt     DateTime          @default(now())
+  createdAt     DateTime            @default(now())
 
   @@index([deliveryJobId, createdAt])
   @@index([assignmentId, createdAt])
@@ -280,16 +506,16 @@ model DeliveryEvent {
 }
 
 model OrderStatusHistory {
-  id          String      @id @default(cuid())
+  id          String       @id @default(cuid())
   orderId     String
-  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   fromStatus  OrderStatus?
   toStatus    OrderStatus
   actorUserId String?
   actorRole   Role?
   note        String?
   metadata    Json?
-  createdAt   DateTime    @default(now())
+  createdAt   DateTime     @default(now())
 
   @@index([orderId, createdAt])
 }
@@ -313,26 +539,26 @@ model RiderLocationPing {
 }
 
 model CustomerAddress {
-  id                    String   @id @default(cuid())
-  userId                String
-  user                  User     @relation(fields: [userId], references: [id])
-  label                 String?
-  recipientName         String
-  phoneE164             String
-  alternatePhoneE164    String?
-  line1                 String
-  line2                 String?
-  landmark              String?
-  city                  String
-  state                 String
-  pincode               String
-  country               String   @default("IN")
-  latitude              Float
-  longitude             Float
-  instructions          String?
-  isDefault             Boolean  @default(false)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id])
+  label              String?
+  recipientName      String
+  phoneE164          String
+  alternatePhoneE164 String?
+  line1              String
+  line2              String?
+  landmark           String?
+  city               String
+  state              String
+  pincode            String
+  country            String   @default("IN")
+  latitude           Float
+  longitude          Float
+  instructions       String?
+  isDefault          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 enum PaymentMethod {
@@ -398,6 +624,190 @@ enum RiderStatus {
   ONLINE
   OFFLINE
   BUSY
+}
+
+enum RiderApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum RiderShiftStatus {
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum RiderBreakStatus {
+  ACTIVE
+  ENDED
+}
+
+enum RiderDocumentType {
+  DRIVING_LICENSE
+  IDENTITY
+  VEHICLE_REGISTRATION
+  VEHICLE_INSURANCE
+  OTHER
+}
+
+enum RiderEarningType {
+  BASE_DELIVERY_FEE
+  DISTANCE_INCENTIVE
+  BONUS
+  PENALTY
+}
+
+enum RiderEarningStatus {
+  PENDING
+  PAID
+}
+
+enum RiderPickupStatus {
+  PENDING
+  VERIFIED
+  PROBLEM_REPORTED
+}
+
+enum RiderSupportStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model RiderAvailabilitySchedule {
+  id             String       @id @default(cuid())
+  riderProfileId String
+  riderProfile   RiderProfile @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
+  dayOfWeek      Int
+  startMinute    Int
+  endMinute      Int
+  isAvailable    Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([riderProfileId, dayOfWeek, startMinute, endMinute])
+  @@index([riderProfileId, dayOfWeek])
+}
+
+model RiderShift {
+  id              String           @id @default(cuid())
+  riderProfileId  String
+  riderProfile    RiderProfile     @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
+  startsAt        DateTime
+  endsAt          DateTime
+  status          RiderShiftStatus @default(SCHEDULED)
+  actualStartedAt DateTime?
+  actualEndedAt   DateTime?
+  note            String?
+  createdByUserId String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([riderProfileId, startsAt])
+  @@index([status, startsAt])
+}
+
+model RiderBreak {
+  id             String           @id @default(cuid())
+  riderProfileId String
+  riderProfile   RiderProfile     @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
+  status         RiderBreakStatus @default(ACTIVE)
+  reason         String?
+  startedAt      DateTime         @default(now())
+  endedAt        DateTime?
+
+  @@index([riderProfileId, status, startedAt])
+}
+
+model RiderDocument {
+  id                  String              @id @default(cuid())
+  riderProfileId      String
+  riderProfile        RiderProfile        @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
+  type                RiderDocumentType
+  documentNumberLast4 String?
+  storageKey          String
+  expiresAt           DateTime?
+  status              RiderApprovalStatus @default(PENDING)
+  reviewNote          String?
+  reviewedByUserId    String?
+  reviewedAt          DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([riderProfileId, type, status])
+  @@index([expiresAt])
+}
+
+model RiderEarning {
+  id              String             @id @default(cuid())
+  riderProfileId  String
+  riderProfile    RiderProfile       @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
+  deliveryJobId   String?
+  type            RiderEarningType
+  amountPaise     Int
+  status          RiderEarningStatus @default(PENDING)
+  reference       String?
+  createdByUserId String?
+  paidByUserId    String?
+  earnedAt        DateTime           @default(now())
+  paidAt          DateTime?
+  createdAt       DateTime           @default(now())
+
+  @@unique([deliveryJobId, type, reference])
+  @@index([riderProfileId, earnedAt])
+  @@index([riderProfileId, status])
+}
+
+model RiderPickupTask {
+  id             String            @id @default(cuid())
+  riderProfileId String
+  riderProfile   RiderProfile      @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
+  deliveryJobId  String            @unique
+  status         RiderPickupStatus @default(PENDING)
+  parcelCode     String?
+  checklist      Json
+  problemType    String?
+  problemNote    String?
+  verifiedAt     DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([riderProfileId, status])
+}
+
+model RiderSupportTicket {
+  id             String                @id @default(cuid())
+  riderProfileId String
+  riderProfile   RiderProfile          @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
+  deliveryJobId  String?
+  category       String
+  subject        String
+  description    String
+  evidenceKeys   Json?
+  status         RiderSupportStatus    @default(OPEN)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  messages       RiderSupportMessage[]
+
+  @@index([riderProfileId, status, createdAt])
+  @@index([deliveryJobId])
+}
+
+model RiderSupportMessage {
+  id           String             @id @default(cuid())
+  ticketId     String
+  ticket       RiderSupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderUserId String
+  senderRole   Role
+  body         String
+  evidenceKeys Json?
+  createdAt    DateTime           @default(now())
+
+  @@index([ticketId, createdAt])
 }
 
 enum InventoryAdjustmentReason {
@@ -496,9 +906,9 @@ model PushSubscription {
 
   attempts NotificationDeliveryAttempt[]
 
+  @@unique([provider, endpoint])
   @@index([userId, isActive])
   @@index([provider, isActive])
-  @@unique([provider, endpoint])
 }
 
 model NotificationPreference {
@@ -559,20 +969,20 @@ model Notification {
 }
 
 model NotificationRecipient {
-  id            String                      @id @default(cuid())
+  id             String                      @id @default(cuid())
   notificationId String
-  notification  Notification                @relation(fields: [notificationId], references: [id], onDelete: Cascade)
-  userId        String
-  user          User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status        NotificationRecipientStatus @default(QUEUED)
-  dedupeKey     String                      @unique
-  sentAt        DateTime?
-  openedAt      DateTime?
-  readAt        DateTime?
-  failedAt      DateTime?
-  failureReason String?
-  createdAt     DateTime                    @default(now())
-  updatedAt     DateTime                    @updatedAt
+  notification   Notification                @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status         NotificationRecipientStatus @default(QUEUED)
+  dedupeKey      String                      @unique
+  sentAt         DateTime?
+  openedAt       DateTime?
+  readAt         DateTime?
+  failedAt       DateTime?
+  failureReason  String?
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
 
   attempts NotificationDeliveryAttempt[]
 
@@ -596,7 +1006,7 @@ model NotificationDeliveryAttempt {
   createdAt      DateTime                  @default(now())
   updatedAt      DateTime                  @updatedAt
 
+  @@unique([recipientId, subscriptionId, attemptNumber])
   @@index([recipientId, createdAt])
   @@index([status, nextRetryAt])
-  @@unique([recipientId, subscriptionId, attemptNumber])
 }
