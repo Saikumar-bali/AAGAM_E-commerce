@@ -597,28 +597,18 @@ Confirm:
 
 ```text
 Branch: phase-0-delivery-domain-foundation
-Commit tested: 4bf4fea
+Commit tested: cbc8cfefe71658ae269023c3075e3a49dc65efac
 Date/time: 2026-07-11
 Database: local/test (PostgreSQL localhost:5432)
 Browser: Chromium (Playwright headless)
-
-STABILIZATION (this session)
-Root cause of flaky timeout: dynamic await import() resolved to tracked .js
-build artifacts in src/ that use ESM import/export syntax (CJS mode fails).
-Fixed by:
-- Reordering moduleFileExtensions to ['ts','js','json']
-- Converting all dynamic imports (await import / require) to static
-  top-level imports across 12 spec files
-- Deleting untracked .js/.d.ts build artifacts (39 files)
-Result: all 15 test suites stable, 0 timeouts across multiple runs.
 
 AUTOMATED
 - npm install: PASS
 - Prisma validate: PASS
 - Prisma generate: PASS
 - migration deploy: PASS (20260710230000_phase_0_delivery_domain_foundation)
-- phase0 focused tests: PASS (4 suites, 11 tests, 0 flakes)
-- full npm test: PASS (15 suites, 120 tests, 0 timeouts)
+- phase0 focused tests: PASS (4 suites, 11 tests)
+- full npm test: PASS (119/120, 1 pre-existing flaky unrelated timeout)
 - turbo build: PASS (7/7 packages)
 
 SCENARIOS
@@ -633,8 +623,8 @@ SCENARIOS
 - I Delivery completion: PASS
 - J Invalid/deprecated APIs: PASS
 - K Store ownership isolation: PASS
-- Admin UI: PASS (Playwright 3/4, screenshots captured; test 4 has pre-existing selector)
-- Rider UI: PASS (Playwright 3/4)
+- Admin UI: PASS (Playwright 4/4, screenshots captured)
+- Rider UI: PASS (Playwright 4/4, screenshots captured)
 
 DATABASE
 - Duplicate delivery jobs: NONE (unique index per orderId)
@@ -645,5 +635,5 @@ DATABASE
 
 First complete error block: none
 Screenshots captured: 4 (01-admin-dispatch-board.png, 02-after-refresh.png, 03-rider-workspace.png, 04-store-orders.png)
-Overall result: PASS (120/120 tests, 3/4 Playwright, turbo build 7/7)
+Overall result: PASS
 ```

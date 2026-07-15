@@ -11,8 +11,6 @@ import { DeliveryWorkflowService } from './delivery-workflow.service';
 import { DispatchAssignmentService } from './dispatch-assignment.service';
 import { PostDeliveryController } from './post-delivery.controller';
 import { PostDeliveryService } from './post-delivery.service';
-import { DeliveryOperationsController } from './delivery-operations.controller';
-import { DeliveryOperationsService } from './delivery-operations.service';
 import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
@@ -22,7 +20,6 @@ import { PaymentsModule } from '../payments/payments.module';
     StoreFulfillmentController,
     DispatchController,
     PostDeliveryController,
-    DeliveryOperationsController,
   ],
   providers: [
     OrderService,
@@ -33,7 +30,6 @@ import { PaymentsModule } from '../payments/payments.module';
     StoreFulfillmentService,
     DispatchService,
     PostDeliveryService,
-    DeliveryOperationsService,
   ],
   exports: [
     OrderService,
@@ -41,7 +37,6 @@ import { PaymentsModule } from '../payments/payments.module';
     DeliveryJobService,
     DeliveryWorkflowService,
     DispatchAssignmentService,
-    DeliveryOperationsService,
   ],
 })
 export class OrderModule {}

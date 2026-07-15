@@ -241,8 +241,7 @@ describe('Phase 0 delivery domain and state-machine foundation', () => {
     });
     expect(picking.status).toBe(OrderStatus.PICKING);
 
-    const workspace = await api.dispatch.getRiderWorkspace(confirmed.riderUserA.id);
-    expect(workspace.pendingOffers).toEqual([]);
-    expect(workspace.activeJob).toBeNull();
+    const queue = await api.jobs.getLegacyRiderQueue(confirmed.riderUserA.id);
+    expect(queue).toEqual([]);
   });
 });

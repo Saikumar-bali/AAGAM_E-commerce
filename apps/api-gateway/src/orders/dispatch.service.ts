@@ -2,7 +2,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  Optional,
 } from '@nestjs/common';
 import { Role } from '@aagam/database';
 import {
@@ -10,7 +9,6 @@ import {
   DeliveryProofDto,
 } from '@aagam/types';
 import { DeliveryJobService } from './delivery-job.service';
-import { DeliveryOperationsService } from './delivery-operations.service';
 import { DispatchAssignmentService } from './dispatch-assignment.service';
 import { DeliveryWorkflowService } from './delivery-workflow.service';
 
@@ -22,7 +20,6 @@ export class DispatchService {
     private readonly jobs: DeliveryJobService,
     private readonly assignments: DispatchAssignmentService,
     private readonly workflow: DeliveryWorkflowService,
-    @Optional() private readonly operations?: DeliveryOperationsService,
   ) {}
 
   getBoard(actor: Actor) {
@@ -31,6 +28,10 @@ export class DispatchService {
 
   getRiderWorkspace(riderUserId: string) {
     return this.jobs.getRiderWorkspace(riderUserId);
+  }
+
+  getLegacyRiderQueue(riderUserId: string) {
+    return this.jobs.getLegacyRiderQueue(riderUserId);
   }
 
   offerAssignment(
@@ -98,28 +99,11 @@ export class DispatchService {
   ) {
     const assignment = await this.assignments.findCurrentForOrderAndRider(orderId, riderUserId);
     if (!assignment.deliveryJob) throw new NotFoundException('Delivery job not found');
-
-    if (this.operations) {
-      await this.operations.completeDelivery(
-        assignment.deliveryJob.id,
-        { id: riderUserId, role: Role.RIDER },
-        {
-          otpCode: proof.code,
-          proofType: proof.proofType,
-          note: proof.note,
-        },
-        `legacy-deliver:${assignment.deliveryJob.id}:${assignment.id}`,
-      );
-    } else {
-      // Used only by isolated legacy unit construction. Production Nest wiring
-      // always injects DeliveryOperationsService and enforces Phase 3 gates.
-      await this.workflow.legacyDeliver(
-        assignment.deliveryJob.id,
-        { id: riderUserId, role: Role.RIDER },
-        proof,
-      );
-    }
-
+    await this.workflow.legacyDeliver(
+      assignment.deliveryJob.id,
+      { id: riderUserId, role: Role.RIDER },
+      proof,
+    );
     const detailedJob = await this.jobs.getByOrderId(orderId);
     if (!detailedJob) throw new NotFoundException('Delivery job not found after completion');
     return { ...detailedJob.order, deliveryJob: detailedJob };

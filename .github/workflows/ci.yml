@@ -2,23 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["main", "phase-*", "agent/**"]
+    branches: ["main", "phase-*"]
   pull_request:
-    branches: ["main", "phase-*", "agent/**"]
-
-# A branch can receive several review commits in quick succession. Only the
-# newest head is relevant; cancel older builds/APKs instead of serially spending
-# runners on code that has already been superseded.
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
-# A branch can receive several review commits in quick succession. Only the
-# newest head is relevant; cancel older builds/APKs instead of serially spending
-# runners on code that has already been superseded.
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+    branches: ["main"]
 
 jobs:
   build:
@@ -34,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.11.0
+          node-version: 20
           cache: 'npm'
 
       - name: Install dependencies
@@ -61,7 +47,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-output-${{ github.run_id }}
+          name: phase-0-build-output-${{ github.run_id }}
           path: build-output.log
           if-no-files-found: ignore
           retention-days: 1
@@ -96,7 +82,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.11.0
+          node-version: 20
           cache: 'npm'
 
       - name: Install dependencies
@@ -130,133 +116,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-output-${{ github.run_id }}
+          name: phase-0-test-output-${{ github.run_id }}
           path: test-output.log
           if-no-files-found: ignore
           retention-days: 1
-
-  mobile-tests:
-    name: Partners Mobile Tests
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.11.0
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Reject obsolete mobile application and rider APIs
-        shell: bash
-        run: |
-          test ! -d apps/mobile-app
-          if grep -R -n -E '/orders/rider/queue|/orders/assign|joinRidersQueue|joinRiderZone|newOrderNearby' apps/mobile-partners/src; then
-            echo "Obsolete public rider queue or self-assignment path found"
-            exit 1
-          fi
-
-      - name: Shared mobile TypeScript
-        shell: bash
-        run: |
-          set -o pipefail
-          npm run build --workspace=@aagam/mobile-shared 2>&1 | tee mobile-shared-typecheck.log
-
-      - name: Partners TypeScript
-        shell: bash
-        run: |
-          set -o pipefail
-          npm run build --workspace=AagamPartners 2>&1 | tee partners-typecheck.log
-
-      - name: Focused Partners tests
-        shell: bash
-        run: |
-          set -o pipefail
-          npm run test:phase2b --workspace=AagamPartners 2>&1 | tee mobile-test-output.log
-
-      - name: Metro Android bundle smoke
-        working-directory: apps/mobile-partners
-        shell: bash
-        run: |
-          set -o pipefail
-          mkdir -p ../../.metro-smoke/assets
-          npx react-native bundle \
-            --platform android \
-            --dev true \
-            --entry-file index.js \
-            --bundle-output ../../.metro-smoke/index.android.bundle \
-            --assets-dest ../../.metro-smoke/assets \
-            2>&1 | tee ../../metro-bundle-output.log
-          test -s ../../.metro-smoke/index.android.bundle
-
-      - name: Upload mobile diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mobile-diagnostics-${{ github.run_id }}
-          path: |
-            mobile-shared-typecheck.log
-            partners-typecheck.log
-            mobile-test-output.log
-            metro-bundle-output.log
-          if-no-files-found: ignore
-          retention-days: 1
-
-  android-build:
-    name: Partners Android Debug Build
-    runs-on: ubuntu-latest
-    needs: mobile-tests
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.11.0
-          cache: 'npm'
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Gradle 8.13
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.13'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build Partners debug APK
-        working-directory: apps/mobile-partners/android
-        shell: bash
-        run: |
-          set -o pipefail
-          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee android-build-output.log
-
-      - name: Upload Android diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-build-output-${{ github.run_id }}
-          path: apps/mobile-partners/android/android-build-output.log
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: aagam-partners-debug-${{ github.run_id }}
-          path: apps/mobile-partners/android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 3
