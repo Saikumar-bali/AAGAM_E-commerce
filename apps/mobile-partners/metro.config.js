@@ -4,6 +4,7 @@ const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
 const defaultConfig = getDefaultConfig(__dirname);
 const monorepoRoot = path.resolve(__dirname, '../..');
 const rootModules = path.resolve(monorepoRoot, 'node_modules');
+const appModules = path.resolve(__dirname, 'node_modules');
 const sharedPackages = [
   path.resolve(monorepoRoot, 'packages/mobile-shared'),
   path.resolve(monorepoRoot, 'packages/types'),
@@ -18,17 +19,30 @@ const config = {
   watchFolders: [...sharedPackages, rootModules],
   resolver: {
     nodeModulesPaths: [
-      path.resolve(__dirname, 'node_modules'),
+      appModules,
       rootModules,
     ],
     extraNodeModules: {
-      react: path.resolve(rootModules, 'react'),
-      'react-dom': path.resolve(rootModules, 'react-dom'),
-      'react/jsx-runtime': path.resolve(rootModules, 'react/jsx-runtime'),
-      'react/jsx-dev-runtime': path.resolve(rootModules, 'react/jsx-dev-runtime'),
+      // Resolve react/react-dom to the app-local copy (React 19) instead of
+      // the root node_modules copy (React 18, hoisted by the admin dashboard).
+      // React Native 0.85 requires React 19 APIs — mixing versions causes
+      // "Cannot read property 'S' of undefined" crashes in release builds.
+      react: path.resolve(appModules, 'react'),
+      'react-dom': path.resolve(appModules, 'react-dom'),
+      'react/jsx-runtime': path.resolve(appModules, 'react/jsx-runtime'),
+      'react/jsx-dev-runtime': path.resolve(appModules, 'react/jsx-dev-runtime'),
       '@aagam/mobile-shared': sharedPackages[0],
       '@aagam/types': sharedPackages[1],
       '@aagam/utils': sharedPackages[2],
+    },
+    resolveRequest: (context, moduleName, platform) => {
+      if (moduleName === 'react' || moduleName.startsWith('react/')) {
+        return {
+          type: 'sourceFile',
+          filePath: require.resolve(moduleName, { paths: [__dirname] }),
+        };
+      }
+      return context.resolveRequest(context, moduleName, platform);
     },
     unstable_enablePackageExports: true,
   },
