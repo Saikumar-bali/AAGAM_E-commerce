@@ -7,7 +7,7 @@ import { apiClient } from '@aagam/utils';
 import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import Script from 'next/script';
 
-const DEFAULT_GOOGLE_WEB_CLIENT_ID = '879444331583-a4r4m3j8547i5vrlf8aje0li4mvh0fdv.apps.googleusercontent.com';
+const DEFAULT_GOOGLE_WEB_CLIENT_ID = '416380795567-5de3kea0pbb9ibke91rl5pre0sdu82vo.apps.googleusercontent.com';
 
 declare global {
   interface Window {

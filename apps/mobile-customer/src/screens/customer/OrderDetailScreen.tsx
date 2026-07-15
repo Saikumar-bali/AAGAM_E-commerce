@@ -24,7 +24,7 @@ export const OrderDetailScreen = () => {
   const [liveTracking, setLiveTracking] = useState<any | null>(null);
   const [socketConnected, setSocketConnected] = useState(false);
   const queryClient = useQueryClient();
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: trackingPayload, isLoading, error, refetch } = useQuery({
     queryKey: ['order-detail', orderId],
