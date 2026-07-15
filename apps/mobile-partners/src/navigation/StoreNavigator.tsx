@@ -1,9 +1,8 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StoreDashboard } from '../screens/store/StoreDashboard';
-import { StoreDeliveryOperationsScreen } from '../screens/store/StoreDeliveryOperationsScreen';
 import { StoreOrdersScreen } from '../screens/store/StoreOrdersScreen';
-import { ClipboardCheck, LayoutGrid, ShoppingBag, Settings } from 'lucide-react-native';
+import { LayoutGrid, ShoppingBag, Settings } from 'lucide-react-native';
 import { View, Text, StyleSheet } from 'react-native';
 
 const Tab = createBottomTabNavigator();
@@ -40,7 +39,7 @@ export const StoreNavigator = () => {
           shadowOpacity: 0.14,
           shadowRadius: 24,
         },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '900' },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '900' },
       }}
     >
       <Tab.Screen
@@ -52,11 +51,6 @@ export const StoreNavigator = () => {
         name="Orders"
         component={StoreOrdersScreen}
         options={{ tabBarIcon: ({ color, size }) => <ShoppingBag size={size} color={color} /> }}
-      />
-      <Tab.Screen
-        name="Operations"
-        component={StoreDeliveryOperationsScreen}
-        options={{ tabBarIcon: ({ color, size }) => <ClipboardCheck size={size} color={color} /> }}
       />
       <Tab.Screen
         name="Settings"

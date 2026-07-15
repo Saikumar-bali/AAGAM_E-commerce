@@ -55,8 +55,6 @@ export const riderService = {
     return response.data;
   },
 
-  // DELIVERED is retained only for older compiled callers. The current action
-  // policy never emits it; Phase 3 completion uses deliveryOperationsService.
   transitionJob: async (
     deliveryJobId: string,
     action: RiderJobAction,

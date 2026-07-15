@@ -45,13 +45,13 @@ describe('rider workspace domain', () => {
     expect(isOfferActionable(offer(active.expiresAt!, 'ACCEPTED'), now)).toBe(false);
   });
 
-  it('exposes only valid rider transitions and sends completion to Phase 3 operations', () => {
+  it('exposes only valid rider transitions', () => {
     expect(nextActionForStatus('RIDER_ASSIGNED')?.action).toBe('EN_ROUTE_TO_STORE');
     expect(nextActionForStatus('RIDER_EN_ROUTE_TO_STORE')?.action).toBe('ARRIVED_AT_STORE');
     expect(nextActionForStatus('RIDER_AT_STORE')).toBeNull();
     expect(nextActionForStatus('PICKUP_VERIFIED')?.action).toBe('OUT_FOR_DELIVERY');
     expect(nextActionForStatus('OUT_FOR_DELIVERY')?.action).toBe('ARRIVED_AT_CUSTOMER');
-    expect(nextActionForStatus('RIDER_AT_CUSTOMER')).toBeNull();
+    expect(nextActionForStatus('RIDER_AT_CUSTOMER')?.action).toBe('DELIVERED');
     expect(nextActionForStatus('DELIVERED')).toBeNull();
   });
 
