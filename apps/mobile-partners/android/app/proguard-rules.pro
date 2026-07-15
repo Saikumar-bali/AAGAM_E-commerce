@@ -48,6 +48,18 @@
 # Socket.IO
 -keep class io.socket.** { *; }
 
+# react-native-svg (CRITICAL - used by lucide-react-native)
+-keep class com.horcrux.svg.** { *; }
+
+# react-native-webview
+-keep class com.reactnativecommunity.webview.** { *; }
+
+# @react-native-async-storage
+-keep class com.reactnativecommunity.asyncstorage.** { *; }
+
+# @react-native-google-signin
+-keep class co.apptailor.googlesignin.** { *; }
+
 # Keep native module registrations
 -keep class * extends com.facebook.react.bridge.BaseJavaModule { *; }
 -keep class * implements com.facebook.react.bridge.NativeModule { *; }
