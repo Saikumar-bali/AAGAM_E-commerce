@@ -3,7 +3,6 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   Param,
   Patch,
   Post,
@@ -20,16 +19,12 @@ import {
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { DeliveryOperationsService } from './delivery-operations.service';
 import { DispatchService } from './dispatch.service';
 
 @Controller('orders/dispatch')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class DispatchController {
-  constructor(
-    private readonly dispatch: DispatchService,
-    private readonly operations: DeliveryOperationsService,
-  ) {}
+  constructor(private readonly dispatch: DispatchService) {}
 
   private parse<T>(schema: { safeParse(value: unknown): any }, value: unknown): T {
     const parsed = schema.safeParse(value);
@@ -126,18 +121,13 @@ export class DispatchController {
     @Param('deliveryJobId') id: string,
     @Body() body: unknown,
     @Req() req: any,
-    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    const proof = this.parse<any>(DeliveryProofSchema, body || {});
-    return this.operations.completeDelivery(
+    const proof = this.parse<Record<string, unknown>>(DeliveryProofSchema, body || {});
+    return this.dispatch.transitionJob(
       id,
+      DeliveryJobStatus.DELIVERED,
       req.user,
-      {
-        otpCode: proof.code,
-        proofType: proof.proofType,
-        note: proof.note,
-      },
-      idempotencyKey,
+      { deliveryProof: proof },
     );
   }
 

@@ -4,9 +4,6 @@ import { DeliveryJobService } from './orders/delivery-job.service';
 import { DeliveryWorkflowService } from './orders/delivery-workflow.service';
 import { DispatchAssignmentService } from './orders/dispatch-assignment.service';
 import { DispatchService } from './orders/dispatch.service';
-import { OrderService } from './orders/order.service';
-import { RefundsService } from './payments/refunds.service';
-import { TrackingService } from './tracking/tracking.service';
 
 const PREFIX = '_test_p9delivery_';
 
@@ -62,6 +59,9 @@ describe('Phase 9.2 delivery proof completion', () => {
   afterAll(async () => { await cleanup(); await prisma.$disconnect(); });
 
   it('rider completes delivery with proof and tracking rejects post-delivery pings', async () => {
+    const { OrderService } = await import('./orders/order.service');
+    const { RefundsService } = await import('./payments/refunds.service');
+    const { TrackingService } = await import('./tracking/tracking.service');
     const gateway = gatewayMock();
     const orderService = new OrderService(gateway, new RefundsService());
     const dispatch = dispatchFactory();
@@ -75,7 +75,7 @@ describe('Phase 9.2 delivery proof completion', () => {
     const ping = await tracking.ingestRiderLocation(data.riderUser.id, { orderId: data.order.id, latitude: 17.705, longitude: 83.305, accuracy: 8, speed: 6, heading: 90, source: 'MOBILE' });
     expect(ping.orderId).toBe(data.order.id);
 
-    const delivered = await dispatch.markDelivered(data.order.id, data.riderUser.id, { proofType: 'CUSTOMER_OTP_PIN', riderConfirmed: true, code: '1234', note: 'Handed to customer', latitude: 17.71, longitude: 83.31 });
+    const delivered = await dispatch.markDelivered(data.order.id, data.riderUser.id, { proofType: 'RIDER_CONFIRMATION', code: '1234', note: 'Handed to customer', latitude: 17.71, longitude: 83.31 });
     expect(delivered.status).toBe(OrderStatus.DELIVERED);
     expect(delivered.deliveredAt).not.toBeNull();
 
@@ -97,6 +97,6 @@ describe('Phase 9.2 delivery proof completion', () => {
 
     await dispatch.assignPackedOrder(data.order.id, data.riderUser.id, { id: data.admin.id, role: Role.ADMIN });
     await dispatch.acceptAssignment(data.order.id, data.riderUser.id);
-    await expect(dispatch.markDelivered(data.order.id, data.riderUser.id, { proofType: 'CUSTOMER_OTP_PIN', riderConfirmed: true, code: '1234' })).rejects.toThrow('Cannot transition delivery');
+    await expect(dispatch.markDelivered(data.order.id, data.riderUser.id, { code: '1234' })).rejects.toThrow('Cannot transition delivery');
   });
 });
