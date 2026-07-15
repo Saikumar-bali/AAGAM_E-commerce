@@ -6,7 +6,14 @@ import Link from 'next/link';
 import { apiClient } from '@aagam/utils';
 import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import Script from 'next/script';
-import { resetSessionCache } from '@/components/DashboardLayout';
+
+const resetSessionCache = () => {
+  localStorage.removeItem('user_role');
+  localStorage.removeItem('user_name');
+  localStorage.removeItem('user_email');
+  localStorage.removeItem('user_avatar');
+  localStorage.removeItem('access_token');
+};
 
 const DEFAULT_GOOGLE_WEB_CLIENT_ID = '416380795567-5de3kea0pbb9ibke91rl5pre0sdu82vo.apps.googleusercontent.com';
 
