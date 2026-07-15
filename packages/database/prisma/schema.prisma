@@ -28,6 +28,9 @@ model User {
   pushSubscriptions       PushSubscription[]
   notificationRecipients  NotificationRecipient[]
   notificationPreferences NotificationPreference[]
+  promotionCampaigns    PromotionCampaign[]
+  createdCoupons        Coupon[]
+  couponRedemptions     CouponRedemption[]
 }
 
 enum Role {
@@ -53,12 +56,15 @@ model Store {
   inventory        Inventory[]
   orders           Order[]
   inventoryLedgers InventoryLedger[]
+  coupons              Coupon[]
 }
 
 model Category {
   id       String    @id @default(cuid())
   name     String    @unique
   products Product[]
+  promotionCampaigns  PromotionCampaign[]
+  couponEligibilities CouponCategoryEligibility[]
 }
 
 model Product {
@@ -80,6 +86,8 @@ model Product {
   inventory        Inventory[]
   orderItems       OrderItem[]
   inventoryLedgers InventoryLedger[]
+  promotionCampaigns  PromotionCampaign[]
+  couponEligibilities CouponProductEligibility[]
 }
 
 model Inventory {
@@ -144,6 +152,7 @@ model Order {
   codLedger          CodLedger?
   failureDecisions   DeliveryFailureDecision[]
   notifications      Notification[]
+  couponRedemption   CouponRedemption?
 }
 
 model OrderItem {
@@ -1009,4 +1018,194 @@ model NotificationDeliveryAttempt {
   @@unique([recipientId, subscriptionId, attemptNumber])
   @@index([recipientId, createdAt])
   @@index([status, nextRetryAt])
+}
+
+// ── Phase 6: Promotions & Coupons ───────────────────────────────────────────
+
+model PromotionCampaign {
+  id               String                 @id @default(cuid())
+  internalName     String
+  title            String
+  subtitle         String?
+  description      String?
+  badgeText        String?
+  imageUrl         String?
+  mobileImageUrl   String?
+  backgroundColor  String                 @default("#0f172a")
+  textColor        String                 @default("#ffffff")
+  accentColor      String                 @default("#14b8a6")
+  ctaLabel         String                 @default("Shop now")
+  targetType       PromotionTargetType    @default(DEALS)
+  targetPath       String?
+  productId        String?
+  categoryId       String?
+  couponId         String?
+  status           PromotionStatus        @default(DRAFT)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  priority         Int                    @default(0)
+  firstOrderOnly   Boolean                @default(false)
+  createdByUserId  String
+  publishedAt      DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  product          Product?               @relation(fields: [productId], references: [id], onDelete: SetNull)
+  category         Category?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  coupon           Coupon?                @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  createdByUser    User                   @relation(fields: [createdByUserId], references: [id])
+  placements       PromotionPlacementAssignment[]
+
+  @@index([status, startsAt, endsAt])
+  @@index([priority])
+  @@index([productId])
+  @@index([categoryId])
+  @@index([couponId])
+}
+
+model PromotionPlacementAssignment {
+  id         String             @id @default(cuid())
+  campaignId String
+  placement  PromotionPlacement
+  sortOrder  Int                @default(0)
+  createdAt  DateTime           @default(now())
+
+  campaign   PromotionCampaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, placement])
+  @@index([placement, sortOrder])
+}
+
+model Coupon {
+  id                   String                  @id @default(cuid())
+  code                 String                  @unique
+  name                 String
+  description          String?
+  status               CouponStatus            @default(DRAFT)
+  applicationMode      CouponApplicationMode   @default(CODE)
+  discountType         CouponDiscountType
+  percentageBps        Int?
+  amountPaise          Int?
+  maxDiscountPaise     Int?
+  minimumSubtotalPaise Int                     @default(0)
+  startsAt             DateTime?
+  endsAt               DateTime?
+  totalUsageLimit      Int?
+  perCustomerLimit     Int                     @default(1)
+  firstOrderOnly       Boolean                 @default(false)
+  eligibilityScope     CouponEligibilityScope  @default(ALL)
+  priority             Int                     @default(0)
+  storeId              String?
+  createdByUserId      String
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  store                Store?                  @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  createdByUser        User                    @relation(fields: [createdByUserId], references: [id])
+  productEligibilities  CouponProductEligibility[]
+  categoryEligibilities CouponCategoryEligibility[]
+  redemptions          CouponRedemption[]
+  promotionCampaigns   PromotionCampaign[]
+
+  @@index([status, startsAt, endsAt])
+  @@index([applicationMode, priority])
+  @@index([storeId])
+}
+
+model CouponProductEligibility {
+  couponId  String
+  productId String
+
+  coupon    Coupon  @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@id([couponId, productId])
+  @@index([productId])
+}
+
+model CouponCategoryEligibility {
+  couponId   String
+  categoryId String
+
+  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  @@id([couponId, categoryId])
+  @@index([categoryId])
+}
+
+model CouponRedemption {
+  id            String                 @id @default(cuid())
+  couponId      String
+  customerId    String
+  orderId       String
+  status        CouponRedemptionStatus @default(RESERVED)
+  codeSnapshot  String
+  discountPaise Int
+  ruleSnapshot  Json
+  reservedAt    DateTime               @default(now())
+  redeemedAt    DateTime?
+  releasedAt    DateTime?
+  releaseReason String?
+
+  coupon        Coupon                 @relation(fields: [couponId], references: [id])
+  customer      User                   @relation(fields: [customerId], references: [id])
+  order         Order                  @relation(fields: [orderId], references: [id])
+
+  @@unique([orderId])
+  @@index([couponId, status])
+  @@index([customerId, couponId, status])
+}
+
+enum PromotionStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum PromotionPlacement {
+  HOME_HERO
+  HOME_TODAY_OFFERS
+  DEALS_PAGE
+}
+
+enum PromotionTargetType {
+  NONE
+  PRODUCT
+  CATEGORY
+  DEALS
+  INTERNAL_PATH
+}
+
+enum CouponStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum CouponApplicationMode {
+  CODE
+  AUTO
+}
+
+enum CouponDiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_DELIVERY
+}
+
+enum CouponEligibilityScope {
+  ALL
+  PRODUCTS
+  CATEGORIES
+}
+
+enum CouponRedemptionStatus {
+  RESERVED
+  REDEEMED
+  RELEASED
 }

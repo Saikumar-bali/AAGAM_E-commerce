@@ -9,6 +9,7 @@ import { DeliveryEventService } from './delivery-event.service';
 import { DeliveryJobService } from './delivery-job.service';
 import { DeliveryWorkflowService } from './delivery-workflow.service';
 import { DispatchAssignmentService } from './dispatch-assignment.service';
+import { DeliveryOperationsService } from './delivery-operations.service';
 import { PostDeliveryController } from './post-delivery.controller';
 import { PostDeliveryService } from './post-delivery.service';
 import { PaymentsModule } from '../payments/payments.module';
@@ -29,6 +30,7 @@ import { PaymentsModule } from '../payments/payments.module';
     DispatchAssignmentService,
     StoreFulfillmentService,
     DispatchService,
+    DeliveryOperationsService,
     PostDeliveryService,
   ],
   exports: [

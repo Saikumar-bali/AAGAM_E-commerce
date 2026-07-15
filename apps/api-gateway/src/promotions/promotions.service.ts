@@ -29,7 +29,7 @@ const couponInclude = {
   store: { select: { id: true, name: true } },
   productEligibilities: { select: { productId: true } },
   categoryEligibilities: { select: { categoryId: true } },
-  _count: { select: { redemptions: true, campaigns: true } },
+  _count: { select: { redemptions: true, promotionCampaigns: true } },
 } satisfies Prisma.CouponInclude;
 
 const campaignInclude = {
