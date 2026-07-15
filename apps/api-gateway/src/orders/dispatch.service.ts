@@ -30,10 +30,6 @@ export class DispatchService {
     return this.jobs.getRiderWorkspace(riderUserId);
   }
 
-  getLegacyRiderQueue(riderUserId: string) {
-    return this.jobs.getLegacyRiderQueue(riderUserId);
-  }
-
   offerAssignment(
     deliveryJobId: string,
     riderUserId: string,

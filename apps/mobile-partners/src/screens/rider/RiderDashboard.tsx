@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import messaging from '@react-native-firebase/messaging';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -52,6 +53,8 @@ import {
   setupBackgroundMessageHandler,
   startMobilePushLifecycle,
 } from '../../utils/notifications';
+
+setupBackgroundMessageHandler();
 
 const WORKSPACE_KEY = ['rider', 'delivery-workspace'] as const;
 
@@ -336,8 +339,6 @@ export const RiderDashboard = () => {
 
   useEffect(() => trackingManager.subscribe(setTrackingSnapshot), [trackingManager]);
 
-  useEffect(() => { setupBackgroundMessageHandler(); }, []);
-
   useEffect(() => {
     let unsubscribeTokenRefresh: (() => void) | undefined;
     let unsubscribeForeground: (() => void) | undefined;
@@ -353,14 +354,9 @@ export const RiderDashboard = () => {
       void queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
     };
     try {
-      // Lazy require keeps the app bootable when Firebase is not configured.
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const messagingModule = require('@react-native-firebase/messaging');
-      const messagingFactory = messagingModule.default || messagingModule;
-      const messagingInstance = messagingFactory();
-      unsubscribeForeground = messagingInstance.onMessage(async () => refreshWorkspace());
-      unsubscribeOpened = messagingInstance.onNotificationOpenedApp(() => refreshWorkspace());
-      messagingInstance.getInitialNotification().then((message: unknown) => {
+      unsubscribeForeground = messaging().onMessage(async () => refreshWorkspace());
+      unsubscribeOpened = messaging().onNotificationOpenedApp(() => refreshWorkspace());
+      messaging().getInitialNotification().then((message) => {
         if (message) refreshWorkspace();
       }).catch(() => undefined);
     } catch (_e) {

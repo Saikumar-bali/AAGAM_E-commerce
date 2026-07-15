@@ -1,10 +1,9 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { RiderDashboard } from '../screens/rider/RiderDashboard';
-import { RiderDeliveryOperationsScreen } from '../screens/rider/RiderDeliveryOperationsScreen';
 import { RiderHistoryScreen } from '../screens/rider/RiderHistoryScreen';
 import { RiderProfileScreen } from '../screens/rider/RiderProfileScreen';
-import { ClipboardCheck, History, LayoutGrid, User } from 'lucide-react-native';
+import { LayoutGrid, History, User } from 'lucide-react-native';
 
 const Tab = createBottomTabNavigator();
 
@@ -32,18 +31,13 @@ export const RiderNavigator = () => {
           shadowOpacity: 0.14,
           shadowRadius: 24,
         },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '900' },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '900' },
       }}
     >
       <Tab.Screen
         name="Dashboard"
         component={RiderDashboard}
         options={{ tabBarIcon: ({ color, size }) => <LayoutGrid size={size} color={color} /> }}
-      />
-      <Tab.Screen
-        name="Operations"
-        component={RiderDeliveryOperationsScreen}
-        options={{ tabBarIcon: ({ color, size }) => <ClipboardCheck size={size} color={color} /> }}
       />
       <Tab.Screen
         name="History"
