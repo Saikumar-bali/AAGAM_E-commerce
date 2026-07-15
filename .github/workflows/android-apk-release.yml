@@ -169,6 +169,13 @@ jobs:
             | grep -i 'SHA1:' | head -1 | awk '{print $2}')
           echo "Using debug keystore SHA-1: $SHA1"
 
+          GS="apps/mobile-customer/android/app/google-services.json"
+          if [[ -f "$GS" ]]; then
+            SHA1_NODASH=$(echo "$SHA1" | tr -d ':')
+            sed -i "s/\"certificate_hash\": \"[^\"]*\"/\"certificate_hash\": \"$SHA1_NODASH\"/" "$GS"
+            echo "Updated google-services.json certificate_hash to $SHA1_NODASH"
+          fi
+
       - name: Build optimized Customer APK
         working-directory: apps/mobile-customer/android
         run: >-
