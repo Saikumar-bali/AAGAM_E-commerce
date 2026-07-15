@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import "dotenv/config";
 
 const AUTH_FILE = "./.auth/customer.json";
 
@@ -84,14 +85,6 @@ export default defineConfig({
         headless: false,
       },
       testMatch: /phase-6b-promotions-ui\.spec\.ts/,
-    },
-    {
-      name: 'phase-3-delivery-operations',
-      use: {
-        ...devices['Desktop Chrome'],
-        headless: false,
-      },
-      testMatch: /phase-3-delivery-operations-ui\.spec\.ts/,
     },
   ],
   webServer: {

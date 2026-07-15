@@ -93,6 +93,12 @@ nul
 apps/api-gateway/uploads/
 backups/
 
+# Cloudflare Pages / @cloudflare/next-on-pages build output
+.vercel/
+.wrangler/
+pages-output/
+
 # Local docs and deployment notes (not for repo)
 docs/
 RAILWAY_DEPLOYMENT.md
+aagam_data/

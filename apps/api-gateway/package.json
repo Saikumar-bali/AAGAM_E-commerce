@@ -16,6 +16,7 @@
     "test:phase3": "jest --runInBand phase3-security-regressions.spec.ts phase3-delivery-operations.spec.ts phase3-delivery-gate-compat.spec.ts phase2b-mobile-delivery.spec.ts phase1-notifications.spec.ts",
     "test:security": "jest --runInBand phase3-security-regressions.spec.ts",
     "test:phase6": "jest --runInBand phase6-catalog.spec.ts",
+    "test:promotions": "jest --runInBand phase6b-promotions-coupons.spec.ts",
     "test:phase8": "jest --runInBand phase8",
     "test:phase9": "jest --runInBand phase9",
     "test:phase10": "jest --runInBand phase10",
