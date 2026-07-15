@@ -4,6 +4,19 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin-allow-popups',
+          },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     const API_BACKEND = process.env.API_BACKEND_URL || 'http://3.7.75.176:3005';
     return [
