@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcrypt');
 const dotenv = require('dotenv');
 const path = require('path');
 
@@ -54,10 +55,12 @@ async function main() {
   });
   console.log('  QA customer ready:', qaCustomer.id);
 
+  const qaStorePass = process.env.STORE_OWNER_QA_PASSWORD || 'store@2026!';
+  const qaStoreHashedPass = await bcrypt.hash(qaStorePass, 10);
   const qaStoreOwner = await prisma.user.upsert({
     where: { email: 'qa-rider-pick-store@aagam.com' },
-    update: { role: 'STORE_OWNER', name: 'QA Rider Pick Store Owner' },
-    create: { email: 'qa-rider-pick-store@aagam.com', role: 'STORE_OWNER', name: 'QA Rider Pick Store Owner' },
+    update: { role: 'STORE_OWNER', name: 'QA Rider Pick Store Owner', password: qaStoreHashedPass },
+    create: { email: 'qa-rider-pick-store@aagam.com', role: 'STORE_OWNER', name: 'QA Rider Pick Store Owner', password: qaStoreHashedPass },
   });
   console.log('  QA store owner ready:', qaStoreOwner.id);
 

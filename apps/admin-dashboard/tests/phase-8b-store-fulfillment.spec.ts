@@ -11,6 +11,8 @@ async function waitForStyles(page: Page) {
 
 const STORE_EMAIL = process.env.STORE_OWNER_QA_EMAIL || process.env.STORE_EMAIL || 'store@aagam.com';
 const STORE_PASS = process.env.STORE_OWNER_QA_PASSWORD || process.env.STORE_PASSWORD || 'store@2026!';
+const P8B_STORE_EMAIL = process.env.P8B_STORE_EMAIL || 'qa-rider-pick-store@aagam.com';
+const P8B_STORE_PASS = process.env.P8B_STORE_PASSWORD || 'store@2026!';
 
 async function loginAsStore(page: Page) {
   await page.goto('/login');
@@ -201,7 +203,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
 
   test('07 — Substitute replacement updates item and grand total', async ({ page }) => {
     const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
-      data: { email: STORE_EMAIL, password: STORE_PASS },
+      data: { email: P8B_STORE_EMAIL, password: P8B_STORE_PASS },
     });
     const { access_token } = await tokenResponse.json();
 
@@ -260,7 +262,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
 
   test('08 — Ready for Pickup succeeds after all issues resolved', async ({ page }) => {
     const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
-      data: { email: STORE_EMAIL, password: STORE_PASS },
+      data: { email: P8B_STORE_EMAIL, password: P8B_STORE_PASS },
     });
     const { access_token } = await tokenResponse.json();
 

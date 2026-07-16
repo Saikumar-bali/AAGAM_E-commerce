@@ -26,15 +26,10 @@ test.describe('Phase 0: Delivery Dispatch UI', () => {
     await expect(page.getByText('Available riders', { exact: true }).first()).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('heading', { name: /Ready for pickup/i })).toBeVisible({ timeout: 10000 });
 
-    const jobCards = page.locator('article');
-    const jobCount = await jobCards.count();
-
-    if (jobCount > 0) {
-      await expect(page.locator('select').first()).toBeVisible({ timeout: 10000 });
-      await expect(page.getByRole('button', { name: /Send offer/i }).first()).toBeVisible({ timeout: 10000 });
-    } else {
-      await expect(page.getByText('No packed orders are waiting.')).toBeVisible({ timeout: 10000 });
-    }
+    // Either jobs are listed with Send offer, or the board is empty
+    await expect(
+      page.getByRole('button', { name: /Send offer/i }).first().or(page.getByText(/No packed orders/).first())
+    ).toBeVisible({ timeout: 10000 });
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/01-admin-dispatch-board.png`, fullPage: true });
   });

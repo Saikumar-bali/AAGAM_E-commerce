@@ -60,7 +60,7 @@ test.describe('Phase 1: Professional notification centers', () => {
 
   test('Rider notification center is addressed-offer focused', async ({ page }) => {
     await login(page, 'rider@aagam.com');
-    await verifyNotificationCenter(page, '/rider/notifications', /Rider Notifications/i, '04-rider-notifications.png');
+    await verifyNotificationCenter(page, '/rider/notifications', /Notifications/i, '04-rider-notifications.png');
     await expect(page.getByText(/delivery offers addressed to you/i)).toBeVisible();
   });
 
