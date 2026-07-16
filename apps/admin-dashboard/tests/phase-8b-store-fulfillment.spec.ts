@@ -77,7 +77,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
   test('04 — Mark item unavailable via API and verify UI update', async ({ page }) => {
     // Use the API to mark an item unavailable, then verify UI shows it
     const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
-      data: { email: 'store-owner-qa@aagam.com', password: 'Store@123' },
+      data: { email: process.env.STORE_OWNER_QA_EMAIL, password: process.env.STORE_OWNER_QA_PASSWORD },
     });
     const { access_token } = await tokenResponse.json();
 
@@ -117,7 +117,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
 
   test('05 — Ready for Pickup blocked when unresolved item issues exist', async ({ page }) => {
     const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
-      data: { email: 'store-owner-qa@aagam.com', password: 'Store@123' },
+      data: { email: process.env.STORE_OWNER_QA_EMAIL, password: process.env.STORE_OWNER_QA_PASSWORD },
     });
     const { access_token } = await tokenResponse.json();
 
@@ -149,7 +149,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
 
   test('06 — Substitute listing returns available products', async ({ page }) => {
     const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
-      data: { email: 'store-owner-qa@aagam.com', password: 'Store@123' },
+      data: { email: process.env.STORE_OWNER_QA_EMAIL, password: process.env.STORE_OWNER_QA_PASSWORD },
     });
     const { access_token } = await tokenResponse.json();
 
@@ -185,7 +185,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
 
   test('07 — Substitute replacement updates item and grand total', async ({ page }) => {
     const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
-      data: { email: 'store-owner-qa@aagam.com', password: 'Store@123' },
+      data: { email: process.env.STORE_OWNER_QA_EMAIL, password: process.env.STORE_OWNER_QA_PASSWORD },
     });
     const { access_token } = await tokenResponse.json();
 
@@ -244,7 +244,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
 
   test('08 — Ready for Pickup succeeds after all issues resolved', async ({ page }) => {
     const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
-      data: { email: 'store-owner-qa@aagam.com', password: 'Store@123' },
+      data: { email: process.env.STORE_OWNER_QA_EMAIL, password: process.env.STORE_OWNER_QA_PASSWORD },
     });
     const { access_token } = await tokenResponse.json();
 

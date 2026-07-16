@@ -11,8 +11,8 @@ const { chromium } = require('@playwright/test');
   // Navigate to login and sign in
   await page.goto('/login');
   await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-  await page.fill('input[type="email"]', 'admin@aagam.com');
-  await page.fill('input[type="password"]', 'admin@2026!');
+  await page.fill('input[type="email"]', process.env.ADMIN_EMAIL);
+  await page.fill('input[type="password"]', process.env.ADMIN_PASSWORD);
   await page.click('button[type="submit"]');
   await page.waitForFunction(() => localStorage.getItem('access_token') !== null, { timeout: 15000 });
   console.log('Logged in');
@@ -26,7 +26,7 @@ const { chromium } = require('@playwright/test');
   const swResp = await page.request.get('/firebase-messaging-sw.js');
   const swText = await swResp.text();
   const usesLocal = swText.includes("/firebase/firebase-app-compat.js");
-  const configPopulated = swText.includes("AIzaSyAl1Pf38d75hTLnVRbzp2QRrwLpAdwcq0g");
+  const configPopulated = swText.includes(process.env.FIREBASE_WEB_API_KEY);
   console.log('SW uses local paths:', usesLocal);
   console.log('SW config populated:', configPopulated);
 

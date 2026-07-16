@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test';
 
 const LIVE_SITE = 'https://aagam-admin.pages.dev';
 
-const USERS = [
-  { email: 'admin@aagam.com', password: 'TestPass123!', role: 'ADMIN', expectedUrl: '/admin' },
-  { email: 'customer@aagam.com', password: 'TestPass123!', role: 'CUSTOMER', expectedUrl: '/shop' },
-  { email: 'rider1@aagam.com', password: 'TestPass123!', role: 'RIDER', expectedUrl: '/rider' },
-  { email: 'store@aagam.com', password: 'TestPass123!', role: 'STORE_OWNER', expectedUrl: '/store' },
+const USERS: { email: string; password: string; role: string; expectedUrl: string }[] = [
+  { email: process.env.LOGIN_TEST_ADMIN_EMAIL ?? '', password: process.env.LOGIN_TEST_ADMIN_PASSWORD ?? '', role: 'ADMIN', expectedUrl: '/admin' },
+  { email: process.env.LOGIN_TEST_CUSTOMER_EMAIL ?? '', password: process.env.LOGIN_TEST_CUSTOMER_PASSWORD ?? '', role: 'CUSTOMER', expectedUrl: '/shop' },
+  { email: process.env.LOGIN_TEST_RIDER_EMAIL ?? '', password: process.env.LOGIN_TEST_RIDER_PASSWORD ?? '', role: 'RIDER', expectedUrl: '/rider' },
+  { email: process.env.LOGIN_TEST_STORE_EMAIL ?? '', password: process.env.LOGIN_TEST_STORE_PASSWORD ?? '', role: 'STORE_OWNER', expectedUrl: '/store' },
 ];
 
 test.describe('Live Cloudflare Pages - Login & Role Switch', () => {
@@ -52,8 +52,8 @@ test.describe('Live Cloudflare Pages - Login & Role Switch', () => {
     // Login as admin
     await page.goto(`${LIVE_SITE}/login`);
     await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-    await page.fill('input[type="email"]', 'admin@aagam.com');
-    await page.fill('input[type="password"]', 'TestPass123!');
+    await page.fill('input[type="email"]', process.env.LOGIN_TEST_ADMIN_EMAIL ?? '');
+    await page.fill('input[type="password"]', process.env.LOGIN_TEST_ADMIN_PASSWORD ?? '');
     await page.click('button[type="submit"]');
     await page.waitForURL('**/admin**', { timeout: 20000 });
     console.log('Admin login OK - URL:', page.url());
@@ -65,8 +65,8 @@ test.describe('Live Cloudflare Pages - Login & Role Switch', () => {
     // Now navigate to login page to switch user
     await page.goto(`${LIVE_SITE}/login`);
     await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-    await page.fill('input[type="email"]', 'customer@aagam.com');
-    await page.fill('input[type="password"]', 'TestPass123!');
+    await page.fill('input[type="email"]', process.env.LOGIN_TEST_CUSTOMER_EMAIL ?? '');
+    await page.fill('input[type="password"]', process.env.LOGIN_TEST_CUSTOMER_PASSWORD ?? '');
     await page.click('button[type="submit"]');
     await page.waitForURL('**/shop**', { timeout: 20000 });
     console.log('Customer login OK - URL:', page.url());
