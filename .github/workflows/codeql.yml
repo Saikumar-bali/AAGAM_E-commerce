@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  security-events: write
+  contents: read
+
 jobs:
   analyze:
     name: Analyze JavaScript and actions
