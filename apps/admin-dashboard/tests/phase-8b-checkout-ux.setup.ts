@@ -7,7 +7,7 @@ setup('authenticate as store owner', async ({ page }) => {
   await page.goto('/login');
   await page.waitForSelector('input[type="email"]', { timeout: 15000 });
   await page.fill('input[type="email"]', 'store-owner-qa@aagam.com');
-  await page.fill('input[type="password"]', 'Store@123');
+  await page.fill('input[type="password"]', (process.env.SETUP_STORE_PASS ?? 'Store@123'));
   await page.click('button[type="submit"]');
   await page.waitForURL('**/store**', { timeout: 20000 });
   await page.waitForLoadState('networkidle');

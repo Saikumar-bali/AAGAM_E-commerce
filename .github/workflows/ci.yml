@@ -210,6 +210,36 @@ jobs:
         working-directory: apps/admin-dashboard
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3005
+          ADMIN_EMAIL: "admin@aagam.com"
+          ADMIN_PASSWORD: "admin@2026!"
+          QA_PASSWORD: "Test@1234"
+          SEED_ADMIN_EMAIL: "admin@aagam.com"
+          SEED_ADMIN_PASSWORD: "Admin@123"
+          STORE_OWNER_QA_EMAIL: "store-owner-qa@aagam.com"
+          STORE_OWNER_QA_PASSWORD: "Store@123"
+          P4_DEMO_PASS: "Demo@123"
+          P4_ADMIN_PASS: "Admin@123"
+          P5_DEMO_PASS: "Demo@123"
+          P5_ADMIN_PASS: "Admin@123"
+          P6_DEMO_PASS: "Demo@123"
+          DISPATCH_TEST_PASS: "Test@1234"
+          NOTIF_ADMIN_PASS: "admin@2026!"
+          NOTIF_CUSTOMER_PASS: "customer@2026!"
+          NOTIF_STORE_PASS: "store@2026!"
+          NOTIF_RIDER_PASS: "rider@2026!"
+          NOTIF_FALLBACK_PASS: "Test@1234"
+          LOGIN_TEST_ADMIN_EMAIL: "admin@aagam.com"
+          LOGIN_TEST_ADMIN_PASSWORD: "TestPass123!"
+          LOGIN_TEST_CUSTOMER_EMAIL: "customer@aagam.com"
+          LOGIN_TEST_CUSTOMER_PASSWORD: "TestPass123!"
+          LOGIN_TEST_RIDER_EMAIL: "rider1@aagam.com"
+          LOGIN_TEST_RIDER_PASSWORD: "TestPass123!"
+          LOGIN_TEST_STORE_EMAIL: "store@aagam.com"
+          LOGIN_TEST_STORE_PASSWORD: "TestPass123!"
+          SMOKE_TEST_EMAIL: "customer@aagam.com"
+          SMOKE_TEST_PASSWORD: "customer123"
+          SETUP_STORE_PASS: "Store@123"
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
 
       - name: Upload Playwright report
         if: failure()

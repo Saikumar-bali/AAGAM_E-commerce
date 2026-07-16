@@ -51,7 +51,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
   });
 
   test('02 — Customer shop / product listing', async ({ page }) => {
-    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'customer@aagam.com', (process.env.P4_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/shop');
     await page.goto('/shop');
     await page.waitForLoadState('networkidle');
@@ -61,7 +61,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
   });
 
   test('03 — Customer order tracking', async ({ page }) => {
-    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'customer@aagam.com', (process.env.P4_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/shop');
     await page.goto('/shop/orders');
     await page.waitForLoadState('networkidle');
@@ -71,14 +71,14 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
   });
 
   test('04 — Store owner login success', async ({ page }) => {
-    await loginViaForm(page, 'store@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'store@aagam.com', (process.env.P4_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/store');
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/04-store-owner-login-or-token-proof.png`, fullPage: true });
   });
 
   test('05 — Store owner orders page', async ({ page }) => {
-    await loginViaForm(page, 'store@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'store@aagam.com', (process.env.P4_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/store');
     await page.goto('/store/orders');
     await page.waitForLoadState('networkidle');
@@ -88,7 +88,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
   });
 
   test('06 — Store owner status actions (strict)', async ({ page }) => {
-    await loginViaForm(page, 'store@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'store@aagam.com', (process.env.P4_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/store');
     await page.goto('/store/orders');
     await page.waitForLoadState('networkidle');
@@ -128,7 +128,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
   });
 
   test('07 — Admin orders page (real data)', async ({ page }) => {
-    await loginViaForm(page, 'admin@aagam.com', 'Admin@123');
+    await loginViaForm(page, 'admin@aagam.com', (process.env.P4_ADMIN_PASS ?? 'Admin@123'));
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
     await page.waitForLoadState('networkidle');
@@ -146,7 +146,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
   });
 
   test('08 — Admin force cancel modal', async ({ page }) => {
-    await loginViaForm(page, 'admin@aagam.com', 'Admin@123');
+    await loginViaForm(page, 'admin@aagam.com', (process.env.P4_ADMIN_PASS ?? 'Admin@123'));
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
     await page.waitForLoadState('networkidle');
@@ -176,7 +176,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
   });
 
   test('09 — Admin reassign rider modal', async ({ page }) => {
-    await loginViaForm(page, 'admin@aagam.com', 'Admin@123');
+    await loginViaForm(page, 'admin@aagam.com', (process.env.P4_ADMIN_PASS ?? 'Admin@123'));
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
     await page.waitForLoadState('networkidle');
@@ -206,7 +206,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
   });
 
   test('10 — Rider dashboard (active delivery queue)', async ({ page }) => {
-    await loginViaForm(page, 'rider@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'rider@aagam.com', (process.env.P4_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/rider');
 
     const goOnlineBtn = page.locator('button:has-text("Go Online")').first();
@@ -222,7 +222,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
   });
 
   test('11 — Rider delivery state (strict — picks available order)', async ({ page }) => {
-    await loginViaForm(page, 'rider@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'rider@aagam.com', (process.env.P4_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/rider');
 
     // "Delivery Queue" heading MUST exist

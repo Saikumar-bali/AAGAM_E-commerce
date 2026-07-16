@@ -26,7 +26,7 @@ async function waitForStyles(page: Page) {
 test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quick-Commerce UX', () => {
 
   test('01 — Serviceable address shows catalog with availability', async ({ page }) => {
-    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/shop');
     await page.waitForTimeout(3000);
 
@@ -43,7 +43,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
   });
 
   test('02 — Non-serviceable address shows blocked state', async ({ page }) => {
-    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/shop');
     await page.waitForTimeout(3000);
 
@@ -55,7 +55,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
   });
 
   test('03 — Search results show matching products', async ({ page }) => {
-    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/shop');
     await page.waitForTimeout(2000);
 
@@ -70,7 +70,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
   });
 
   test('04 — Category filter shows filtered products', async ({ page }) => {
-    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/shop');
     await page.waitForTimeout(2000);
 
@@ -87,7 +87,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
   });
 
   test('05 — Cart with items shows subtotal and checkout', async ({ page }) => {
-    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/shop');
     await page.waitForTimeout(2000);
 
@@ -111,7 +111,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
   });
 
   test('06 — Out of stock product shows substitute suggestion', async ({ page }) => {
-    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/shop');
     await page.waitForTimeout(3000);
 
@@ -131,7 +131,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
   });
 
   test('07 — Checkout quote shows bill details and store info', async ({ page }) => {
-    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/shop');
     await page.waitForTimeout(2000);
 
@@ -158,7 +158,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
   });
 
   test('08 — Order created clears cart (seeded order verification)', async ({ page }) => {
-    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/shop');
     await page.waitForTimeout(2000);
 

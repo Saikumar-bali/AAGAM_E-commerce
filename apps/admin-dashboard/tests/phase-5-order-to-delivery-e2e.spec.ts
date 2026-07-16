@@ -26,7 +26,7 @@ async function waitForStyles(page: Page) {
 test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification over deterministic backend-seeded order)', () => {
 
   test('01 — Store owner: sees orders page with seeded orders', async ({ page }) => {
-    await loginViaForm(page, 'store@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'store@aagam.com', (process.env.P5_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/store');
     await page.goto('/store/orders');
     await page.waitForLoadState('networkidle');
@@ -40,7 +40,7 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
   });
 
   test('02 — Admin: order table with seeded orders', async ({ page }) => {
-    await loginViaForm(page, 'admin@aagam.com', 'Admin@123');
+    await loginViaForm(page, 'admin@aagam.com', (process.env.P5_ADMIN_PASS ?? 'Admin@123'));
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
     await page.waitForLoadState('networkidle');
@@ -56,7 +56,7 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
   });
 
   test('03 — Rider: dashboard with queue section', async ({ page }) => {
-    await loginViaForm(page, 'rider@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'rider@aagam.com', (process.env.P5_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/rider');
     await page.waitForTimeout(3000);
 
@@ -68,7 +68,7 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
   });
 
   test('04 — Customer: order list and detail accessible', async ({ page }) => {
-    await loginViaForm(page, 'customer@aagam.com', 'Demo@123');
+    await loginViaForm(page, 'customer@aagam.com', (process.env.P5_DEMO_PASS ?? 'Demo@123'));
     await waitForDashboard(page, '/shop');
     await page.goto('/shop/orders');
     await page.waitForLoadState('networkidle');
@@ -90,7 +90,7 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
   });
 
   test('05 — Admin: live tracking map with filters', async ({ page }) => {
-    await loginViaForm(page, 'admin@aagam.com', 'Admin@123');
+    await loginViaForm(page, 'admin@aagam.com', (process.env.P5_ADMIN_PASS ?? 'Admin@123'));
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/live-tracking');
     await page.waitForLoadState('networkidle');

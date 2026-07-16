@@ -3,16 +3,16 @@ import { expect, Page, test } from '@playwright/test';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
 
 const PASSWORDS: Record<string, string> = {
-  'admin@aagam.com': 'admin@2026!',
-  'customer@aagam.com': 'customer@2026!',
-  'store@aagam.com': 'store@2026!',
-  'store2@aagam.com': 'store@2026!',
-  'rider@aagam.com': 'rider@2026!',
-  'rider1@aagam.com': 'rider@2026!',
-  'rider2@aagam.com': 'rider@2026!',
+  'admin@aagam.com': (process.env.NOTIF_ADMIN_PASS ?? 'admin@2026!'),
+  'customer@aagam.com': (process.env.NOTIF_CUSTOMER_PASS ?? 'customer@2026!'),
+  'store@aagam.com': (process.env.NOTIF_STORE_PASS ?? 'store@2026!'),
+  'store2@aagam.com': (process.env.NOTIF_STORE_PASS ?? 'store@2026!'),
+  'rider@aagam.com': (process.env.NOTIF_RIDER_PASS ?? 'rider@2026!'),
+  'rider1@aagam.com': (process.env.NOTIF_RIDER_PASS ?? 'rider@2026!'),
+  'rider2@aagam.com': (process.env.NOTIF_RIDER_PASS ?? 'rider@2026!'),
 };
 
-async function login(page: Page, email: string, password = PASSWORDS[email] || 'Test@1234') {
+async function login(page: Page, email: string, password = PASSWORDS[email] || (process.env.NOTIF_FALLBACK_PASS ?? 'Test@1234')) {
   await page.goto('/login');
   await page.waitForSelector('input[type="email"]', { timeout: 15000 });
   await page.fill('input[type="email"]', email);
