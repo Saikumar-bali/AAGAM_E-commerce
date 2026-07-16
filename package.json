@@ -8,32 +8,24 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo dev --filter=!AagamCustomer --filter=!AagamPartners",
+    "dev": "turbo dev --filter=!AagamMobile --filter=!AagamCustomer --filter=!AagamPartners",
     "build": "npm run build:api",
     "build:all": "turbo build",
+    "start": "npm run railway:start:api",
     "build:api": "npm run build --workspace @aagam/types && npm run build --workspace @aagam/utils && npm run build --workspace @aagam/database && npm run build --workspace @aagam/api-gateway",
     "build:admin": "npm run build --workspace @aagam/types && npm run build --workspace @aagam/utils && npm run build --workspace @aagam/ui && npm run build --workspace @aagam/admin-dashboard",
-    "build:partners": "npm run build --workspace @aagam/mobile-shared && npm run build --workspace AagamPartners",
-    "start": "npm run railway:start:api",
     "start:api": "npm run start:prod --workspace @aagam/api-gateway",
     "start:admin": "npm run start:railway --workspace @aagam/admin-dashboard",
     "railway:start:api": "npm run check:env:prod && npm run db:migrate:prod && npm run start:api",
     "check:env:prod": "node scripts/validate-prod-env.js",
     "predeploy:audit": "node scripts/predeploy-readiness-audit.js",
     "predeploy:audit:live": "node scripts/predeploy-readiness-audit.js --live",
-    "deploy:prep": "node scripts/deployment-prep-check.js",
-    "deploy:prep:live": "node scripts/deployment-prep-check.js --live",
     "db:push:prod": "prisma db push --schema packages/database/prisma/schema.prisma",
     "db:migrate:prod": "prisma migrate deploy --schema packages/database/prisma/schema.prisma",
     "ci:api": "npx prisma validate --schema packages/database/prisma/schema.prisma && npm run test:ci --workspace=apps/api-gateway",
     "test": "npm run ci:api",
     "test:api": "npm run test --workspace=apps/api-gateway",
     "test:api-smoke": "npm run test:api-smoke --workspace=apps/api-gateway",
-    "test:phase0": "npm run test:phase0 --workspace=apps/api-gateway",
-    "test:phase1": "npm run test:phase1 --workspace=apps/api-gateway",
-    "test:phase2b": "npm run test:phase2b --workspace=apps/api-gateway && npm run test:phase2b --workspace=AagamPartners",
-    "test:phase4": "npm run test:phase4 --workspace=apps/api-gateway",
-    "test:phase5": "npm run test:phase5 --workspace=apps/api-gateway",
     "test:phase6": "npm run test:phase6 --workspace=apps/api-gateway",
     "test:phase8": "npm run test:phase8 --workspace=apps/api-gateway",
     "test:phase9": "npm run test:phase9 --workspace=apps/api-gateway",
@@ -48,15 +40,5 @@
   },
   "dependencies": {
     "playwright": "^1.61.1"
-  },
-  "overrides": {
-    "AagamPartners": {
-      "react": "19.2.3",
-      "react-dom": "19.2.3"
-    },
-    "@aagam/mobile-shared": {
-      "react": "19.2.3",
-      "react-dom": "19.2.3"
-    }
   }
 }

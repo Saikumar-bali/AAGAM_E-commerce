@@ -1,20 +1,7 @@
 import { OrderStatus, Role, prisma } from '@aagam/database';
-import { DeliveryEventService } from './orders/delivery-event.service';
-import { DeliveryJobService } from './orders/delivery-job.service';
-import { DeliveryWorkflowService } from './orders/delivery-workflow.service';
-import { DispatchAssignmentService } from './orders/dispatch-assignment.service';
-import { DispatchService } from './orders/dispatch.service';
 
 const PREFIX = '_test_p9dispatch_';
 const TEST_RIDER_PHONES = ['+919000009999', '+919222229999'];
-
-function serviceFactory() {
-  const events = new DeliveryEventService();
-  const jobs = new DeliveryJobService(events);
-  const workflow = new DeliveryWorkflowService(events);
-  const assignments = new DispatchAssignmentService(jobs, workflow, events);
-  return new DispatchService(jobs, assignments, workflow);
-}
 
 async function cleanup() {
   const users = await prisma.user.findMany({ where: { OR: [{ email: { contains: PREFIX } }, { phone: { in: TEST_RIDER_PHONES } }] }, select: { id: true } });
@@ -26,7 +13,6 @@ async function cleanup() {
   await prisma.riderLocationPing.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.orderStatusHistory.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.payment.deleteMany({ where: { orderId: { in: orderIds } } });
-  await prisma.inventoryLedger.deleteMany({ where: { OR: [{ orderId: { in: orderIds } }, { storeId: { in: storeIds } }] } });
   await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
   await prisma.inventory.deleteMany({ where: { storeId: { in: storeIds } } });
@@ -55,41 +41,47 @@ describe('Phase 9 rider dispatch operations', () => {
   beforeEach(async () => cleanup());
   afterAll(async () => { await cleanup(); await prisma.$disconnect(); });
 
-  it('admin offers packed order, rider accepts, and rider marks pickup', async () => {
-    const service = serviceFactory();
+  it('admin assigns packed order, rider accepts, and rider marks pickup', async () => {
+    const { DispatchService } = await import('./orders/dispatch.service');
+    const { OrderService } = await import('./orders/order.service');
+    const { RefundsService } = await import('./payments/refunds.service');
+    const gateway = { emitOrderStatusUpdated: jest.fn(), emitOrderTimelineUpdated: jest.fn(), emitRiderAssigned: jest.fn() } as any;
+    const orderService = new OrderService(gateway, new RefundsService());
+    const service = new DispatchService(orderService);
     const data = await seed();
 
     const boardBefore = await service.getBoard({ id: data.admin.id, role: Role.ADMIN });
     expect(boardBefore.waitingForRider.map((order: any) => order.id)).toContain(data.order.id);
     expect(boardBefore.riders.some((r: any) => r.userId === data.riderUser.id && r.available)).toBe(true);
 
-    const offer = await service.assignPackedOrder(data.order.id, data.riderUser.id, { id: data.admin.id, role: Role.ADMIN });
-    expect(offer.status).toBe('OFFERED');
-
-    const accepted = await service.acceptAssignment(data.order.id, data.riderUser.id);
-    expect(accepted.status).toBe(OrderStatus.RIDER_ASSIGNED);
-    expect(accepted.riderId).toBe(data.rider.id);
+    const assigned = await service.assignPackedOrder(data.order.id, data.riderUser.id, { id: data.admin.id, role: Role.ADMIN });
+    expect(assigned.status).toBe(OrderStatus.RIDER_ASSIGNED);
+    expect(assigned.riderId).toBe(data.rider.id);
 
     const riderAfterAssign = await prisma.riderProfile.findUnique({ where: { id: data.rider.id } });
     expect(riderAfterAssign?.status).toBe('BUSY');
+
+    const accepted = await service.acceptAssignment(data.order.id, data.riderUser.id);
+    expect(accepted.id).toBe(data.order.id);
 
     const picked = await service.markPickedUp(data.order.id, data.riderUser.id);
     expect(picked.status).toBe(OrderStatus.OUT_FOR_DELIVERY);
     expect(picked.outForDeliveryAt).not.toBeNull();
   });
 
-  it('rider can reject accepted assignment and order returns to ready for pickup', async () => {
-    const service = serviceFactory();
+  it('rider can reject assignment and order returns to ready for pickup', async () => {
+    const { DispatchService } = await import('./orders/dispatch.service');
+    const { OrderService } = await import('./orders/order.service');
+    const { RefundsService } = await import('./payments/refunds.service');
+    const gateway = { emitOrderStatusUpdated: jest.fn(), emitOrderTimelineUpdated: jest.fn(), emitRiderAssigned: jest.fn() } as any;
+    const orderService = new OrderService(gateway, new RefundsService());
+    const service = new DispatchService(orderService);
     const data = await seed();
 
     await service.assignPackedOrder(data.order.id, data.riderUser.id, { id: data.admin.id, role: Role.ADMIN });
-    await service.acceptAssignment(data.order.id, data.riderUser.id);
     const rejected = await service.rejectAssignment(data.order.id, data.riderUser.id, 'vehicle issue');
-    expect(rejected.status).toBe('REJECTED');
-
-    const order = await prisma.order.findUnique({ where: { id: data.order.id } });
-    expect(order?.status).toBe(OrderStatus.PACKED);
-    expect(order?.riderId).toBeNull();
+    expect(rejected.status).toBe(OrderStatus.PACKED);
+    expect(rejected.riderId).toBeNull();
 
     const riderAfterReject = await prisma.riderProfile.findUnique({ where: { id: data.rider.id } });
     expect(riderAfterReject?.status).toBe('ONLINE');

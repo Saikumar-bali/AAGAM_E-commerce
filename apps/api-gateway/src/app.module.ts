@@ -4,7 +4,6 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { ApiDocsController } from './api-docs.controller';
 import { AuthModule } from './auth/auth.module';
 import { ProductModule } from './products/product.module';
 import { StoreModule } from './stores/store.module';
@@ -20,7 +19,6 @@ import * as redisStore from 'cache-manager-redis-yet';
 import { NotificationsModule } from './notifications/notifications.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { AnalyticsModule } from './analytics/analytics.module';
-import { PromotionsModule } from './promotions/promotions.module';
 
 @Module({
   imports: [
@@ -53,9 +51,8 @@ import { PromotionsModule } from './promotions/promotions.module';
     NotificationsModule,
     TrackingModule,
     AnalyticsModule,
-    PromotionsModule,
   ],
-  controllers: [AppController, ApiDocsController],
+  controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}

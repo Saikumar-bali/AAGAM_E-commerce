@@ -1,7 +1,4 @@
 import { OrderStatus, Role, prisma } from '@aagam/database';
-import { OrderService } from './orders/order.service';
-import { StoreFulfillmentService } from './orders/store-fulfillment.service';
-import { RefundsService } from './payments/refunds.service';
 
 describe('Phase 8.2 store item issues', () => {
   const prefix = '_test_p8b_';
@@ -37,6 +34,9 @@ describe('Phase 8.2 store item issues', () => {
     ] });
     const order = await prisma.order.create({ data: { customerId: customer.id, storeId: store.id, status: OrderStatus.CONFIRMED, totalAmount: 10, subtotal: 10, grandTotal: 10, subtotalPaise: 1000, grandTotalPaise: 1000, items: { create: [{ productId: original.id, quantity: 1, price: 10, unitPricePaise: 1000, lineTotalPaise: 1000 }] } }, include: { items: true } });
     const itemId = order.items[0].id;
+    const { OrderService } = await import('./orders/order.service');
+    const { StoreFulfillmentService } = await import('./orders/store-fulfillment.service');
+    const { RefundsService } = await import('./payments/refunds.service');
     const gateway = { emitOrderStatusUpdated: jest.fn(), emitOrderTimelineUpdated: jest.fn(), emitRiderAssigned: jest.fn() } as any;
     const orderService = new OrderService(gateway, new RefundsService());
     const service = new StoreFulfillmentService(orderService);

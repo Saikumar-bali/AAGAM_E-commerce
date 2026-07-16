@@ -1,31 +1,11 @@
-import { Global, Module } from '@nestjs/common';
-import { NotificationDeliveryService } from './notification-delivery.service';
-import { NotificationRoutingService } from './notification-routing.service';
+import { Module, Global } from '@nestjs/common';
 import { NotificationService } from './notification.service';
-import { NotificationWorkerService } from './notification-worker.service';
 import { NotificationsController } from './notifications.controller';
-import { OutboxService } from './outbox.service';
-import { PushSubscriptionService } from './push-subscription.service';
-import { WebPushService } from './web-push.service';
 
 @Global()
 @Module({
   controllers: [NotificationsController],
-  providers: [
-    WebPushService,
-    PushSubscriptionService,
-    OutboxService,
-    NotificationRoutingService,
-    NotificationDeliveryService,
-    NotificationService,
-    NotificationWorkerService,
-  ],
-  exports: [
-    WebPushService,
-    PushSubscriptionService,
-    OutboxService,
-    NotificationService,
-    NotificationWorkerService,
-  ],
+  providers: [NotificationService],
+  exports: [NotificationService],
 })
 export class NotificationsModule {}

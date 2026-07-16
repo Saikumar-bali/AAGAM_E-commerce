@@ -1,382 +1,150 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-  Optional,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { OrderStatus, Role, prisma } from '@aagam/database';
-import {
-  AdminBroadcastDto,
-  NotificationEventTypeType,
-  UpdateNotificationPreferenceDto,
-} from '@aagam/types';
-import { randomUUID } from 'crypto';
-import { NotificationDeliveryService } from './notification-delivery.service';
-import { NotificationRoutingService } from './notification-routing.service';
-import { OutboxService } from './outbox.service';
-import { WebPushService } from './web-push.service';
+import * as admin from 'firebase-admin';
+import * as path from 'path';
+import * as fs from 'fs';
 
 type Actor = { id: string; role: Role };
 
-type LegacyInboxItem = {
+type InboxItem = {
   id: string;
   sourceHistoryId: string;
-  recipientId?: string;
   orderId: string;
-  deliveryJobId?: string | null;
   type: string;
   title: string;
   body: string;
-  deepLink?: string | null;
   createdAt: Date;
-  sentAt?: Date | null;
-  openedAt?: Date | null;
-  readAt: Date | string | null;
-  status?: string;
+  readAt: string | null;
   metadata: any;
 };
 
-const LEGACY_READ_NOTE = 'Notification marked read.';
+const READ_NOTE = 'Notification marked read.';
+const BROADCAST_NOTE = 'Admin broadcast placeholder created.';
 
 @Injectable()
-export class NotificationService {
-  private readonly routingService: NotificationRoutingService;
-  private readonly deliveryService: NotificationDeliveryService;
-  private readonly outboxService: OutboxService;
-  private readonly pushService: WebPushService;
-
-  constructor(
-    @Optional() routing?: NotificationRoutingService,
-    @Optional() delivery?: NotificationDeliveryService,
-    @Optional() outbox?: OutboxService,
-    @Optional() push?: WebPushService,
-  ) {
-    this.pushService = push || new WebPushService();
-    this.routingService = routing || new NotificationRoutingService();
-    this.deliveryService = delivery || new NotificationDeliveryService(this.pushService);
-    this.outboxService = outbox || new OutboxService();
-  }
-
-  async listInbox(actor: Actor, limitInput?: string | number) {
-    const limit = Math.min(100, Math.max(1, Number(limitInput || 50)));
-    const recipients = await prisma.notificationRecipient.findMany({
-      where: { userId: actor.id },
-      include: { notification: true },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
-
-    const dedicatedItems = recipients.map((recipient) => this.toDedicatedInboxItem(recipient));
-    const migratedLegacyIds = new Set(
-      recipients
-        .map((recipient) => (recipient.notification.data as any)?.legacySourceHistoryId)
-        .filter(Boolean),
-    );
-
-    const remaining = Math.max(0, limit - dedicatedItems.length);
-    const legacyRows = remaining > 0 ? await this.legacySourceRows(actor, Math.max(remaining * 2, 20)) : [];
-    const legacyItems = legacyRows
-      .filter((row) => !migratedLegacyIds.has(row.id))
-      .slice(0, remaining)
-      .map((row) => this.toLegacyInboxItem(row, actor));
-
-    const items = [...dedicatedItems, ...legacyItems]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, limit);
-
-    return {
-      items,
-      unreadCount: items.filter((item) => !item.readAt).length,
-      source: legacyItems.length > 0 ? 'DEDICATED_WITH_LEGACY_FALLBACK' : 'DEDICATED',
-    };
-  }
-
-  async markRead(actor: Actor, notificationOrSourceId: string) {
-    const recipient = await prisma.notificationRecipient.findFirst({
-      where: { id: notificationOrSourceId, userId: actor.id },
-    });
-    if (recipient) {
-      const readAt = recipient.readAt || new Date();
-      const updated = await prisma.notificationRecipient.update({
-        where: { id: recipient.id },
-        data: { status: 'READ', readAt, openedAt: recipient.openedAt || readAt },
-      });
-      return { ok: true, readAt: updated.readAt, recipientId: updated.id };
-    }
-
-    const inbox = await this.legacySourceRows(actor, 500);
-    const legacy = inbox.find((row) => row.id === notificationOrSourceId);
-    if (!legacy) throw new NotFoundException('Notification not found');
-
-    const migrated = await this.migrateLegacyRow(actor, legacy, true);
-    return { ok: true, readAt: migrated.readAt, recipientId: migrated.id };
-  }
-
-  async markOpened(actor: Actor, recipientId: string) {
-    const recipient = await prisma.notificationRecipient.findFirst({
-      where: { id: recipientId, userId: actor.id },
-    });
-    if (!recipient) throw new NotFoundException('Notification not found');
-    const openedAt = recipient.openedAt || new Date();
-    const updated = await prisma.notificationRecipient.update({
-      where: { id: recipient.id },
-      data: {
-        status: recipient.readAt ? 'READ' : 'OPENED',
-        openedAt,
-      },
-    });
-    return { ok: true, openedAt: updated.openedAt };
-  }
-
-  async createBroadcast(actor: Actor, input: AdminBroadcastDto, idempotencyKey?: string) {
-    if (actor.role !== Role.ADMIN) throw new ForbiddenException('Only admin can create broadcasts');
-    const key = idempotencyKey || `admin-broadcast:${actor.id}:${randomUUID()}`;
-    const event = await this.outboxService.enqueue({
-      eventType: 'ADMIN_BROADCAST',
-      aggregateType: 'SYSTEM',
-      aggregateId: actor.id,
-      idempotencyKey: key,
-      payload: {
-        actorUserId: actor.id,
-        actorRole: actor.role,
-        title: input.title,
-        body: input.body,
-        audience: input.audience,
-        deepLink: input.deepLink,
-      },
-    });
-    return { ok: true, status: 'QUEUED', outboxEventId: event?.id, idempotencyKey: key };
-  }
-
-  createBroadcastPlaceholder(actor: Actor, input: { title?: string; body?: string; audience?: string }) {
-    const title = input.title?.trim();
-    const body = input.body?.trim();
-    if (!title) throw new BadRequestException('title is required');
-    if (!body) throw new BadRequestException('body is required');
-    return this.createBroadcast(actor, {
-      title,
-      body,
-      audience: (input.audience as any) || 'ALL_USERS',
-    });
-  }
-
-  getPreferences(userId: string) {
-    return prisma.notificationPreference.findMany({
-      where: { userId },
-      orderBy: { eventType: 'asc' },
-    });
-  }
-
-  updatePreference(userId: string, input: UpdateNotificationPreferenceDto) {
-    return prisma.notificationPreference.upsert({
-      where: { userId_eventType: { userId, eventType: input.eventType } },
-      update: {
-        ...(typeof input.pushEnabled === 'boolean' ? { pushEnabled: input.pushEnabled } : {}),
-        ...(typeof input.inAppEnabled === 'boolean' ? { inAppEnabled: input.inAppEnabled } : {}),
-      },
-      create: {
-        userId,
-        eventType: input.eventType,
-        pushEnabled: input.pushEnabled ?? true,
-        inAppEnabled: input.inAppEnabled ?? true,
-      },
-    });
-  }
-
-  async materializeOutboxEvent(outboxEvent: any) {
-    const existing = await prisma.notification.findUnique({
-      where: { outboxEventId: outboxEvent.id },
-      include: { recipients: true },
-    });
-    if (existing) return existing;
-
-    const routed = await this.routingService.route(outboxEvent);
-
+export class NotificationService implements OnModuleInit {
+  onModuleInit() {
     try {
-      return await prisma.$transaction(async (tx) => {
-        const notification = await tx.notification.create({
-          data: {
-            eventType: outboxEvent.eventType,
-            title: routed.title,
-            body: routed.body,
-            data: routed.data,
-            orderId: routed.orderId,
-            deliveryJobId: routed.deliveryJobId,
-            outboxEventId: outboxEvent.id,
-          },
-        });
+      if (admin.apps.length > 0) return;
 
-        for (const routedRecipient of routed.recipients) {
-          const preferences = await tx.notificationPreference.findMany({
-            where: {
-              userId: routedRecipient.userId,
-              eventType: { in: ['*', outboxEvent.eventType] },
-            },
-          });
-          const specific = preferences.find((preference: any) => preference.eventType === outboxEvent.eventType);
-          const fallback = preferences.find((preference: any) => preference.eventType === '*');
-          if ((specific || fallback)?.inAppEnabled === false) continue;
-
-          await tx.notificationRecipient.create({
-            data: {
-              notificationId: notification.id,
-              userId: routedRecipient.userId,
-              dedupeKey: `${outboxEvent.id}:${routedRecipient.userId}`,
-              status: 'QUEUED',
-            },
-          });
-        }
-
-        await tx.notification.update({
-          where: { id: notification.id },
-          data: {
-            deepLink: routed.recipients.length === 1 ? routed.recipients[0].deepLink : null,
-          },
-        });
-
-        return tx.notification.findUnique({
-          where: { id: notification.id },
-          include: { recipients: true },
-        });
-      });
-    } catch (error: any) {
-      if (error?.code === 'P2002') {
-        return prisma.notification.findUnique({
-          where: { outboxEventId: outboxEvent.id },
-          include: { recipients: true },
-        });
+      const envServiceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      if (envServiceAccountRaw) {
+        const serviceAccount = JSON.parse(envServiceAccountRaw);
+        admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+        console.log('[NotificationService] Firebase Admin initialized from FIREBASE_SERVICE_ACCOUNT_JSON');
+        return;
       }
+
+      const serviceAccountPath = path.resolve(process.cwd(), 'firebase-adminsdk.json');
+      if (fs.existsSync(serviceAccountPath)) {
+        const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+        admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+        console.log('[NotificationService] Firebase Admin initialized from firebase-adminsdk.json');
+        return;
+      }
+
+      console.warn('[NotificationService] Firebase Admin not initialized (missing FIREBASE_SERVICE_ACCOUNT_JSON and firebase-adminsdk.json).');
+    } catch (error) {
+      console.error('[NotificationService] Failed to initialize Firebase Admin:', error);
+    }
+  }
+
+  async sendPushNotification(fcmToken: string, title: string, body: string, data?: any) {
+    if (!fcmToken) return;
+    if (admin.apps.length === 0) {
+      console.warn('[NotificationService] Firebase not initialized. Skipping push notification.');
+      return;
+    }
+    try {
+      const message = {
+        notification: { title, body },
+        data: data || {},
+        token: fcmToken,
+        android: { notification: { sound: 'default', priority: 'high' as const, channelId: 'high_priority_orders' } },
+        apns: { payload: { aps: { sound: 'default', contentAvailable: true } } },
+      };
+      const response = await admin.messaging().send(message);
+      console.log(`[NotificationService] Push notification sent successfully: ${response}`);
+      return response;
+    } catch (error) {
+      console.error(`[NotificationService] Error sending push notification:`, error);
       throw error;
     }
   }
 
-  async processOutboxEvent(outboxEvent: any) {
-    const notification = await this.materializeOutboxEvent(outboxEvent);
-    if (!notification) throw new Error('Notification could not be materialized');
-
-    const recipients = await prisma.notificationRecipient.findMany({
-      where: {
-        notificationId: notification.id,
-        status: { in: ['QUEUED', 'FAILED'] },
-      },
-    });
-
-    const failures: Error[] = [];
-    for (const recipient of recipients) {
-      try {
-        await this.deliveryService.deliverRecipient(recipient.id);
-      } catch (error: any) {
-        failures.push(error instanceof Error ? error : new Error(String(error)));
-      }
-    }
-    if (failures.length > 0) {
-      throw new Error(`${failures.length} notification recipient delivery attempt(s) failed: ${failures[0].message}`);
-    }
-    return notification;
-  }
-
-  async sendPushNotification(fcmToken: string, title: string, body: string, data?: any) {
-    if (!fcmToken) return undefined;
-    return this.pushService.send(
-      { token: fcmToken },
-      { title, body, deepLink: data?.deepLink || null, data: data || {} },
-    );
-  }
-
-  sendNewOrderAlert(fcmToken: string, orderData: { orderId: string; amount: number; storeName: string }) {
+  async sendNewOrderAlert(fcmToken: string, orderData: { orderId: string; amount: number; storeName: string }) {
     return this.sendPushNotification(
       fcmToken,
-      'New delivery request',
-      `Order #${orderData.orderId.slice(-8).toUpperCase()} is ready at ${orderData.storeName}.`,
+      'New Delivery Request! 🚀',
+      `A new order of ₹${orderData.amount} is ready for pickup at ${orderData.storeName}.`,
       { type: 'NEW_ORDER', orderId: orderData.orderId },
     );
   }
 
-  private toDedicatedInboxItem(recipient: any): LegacyInboxItem {
-    const notification = recipient.notification;
-    const data = (notification.data || {}) as any;
-    return {
-      id: recipient.id,
-      recipientId: recipient.id,
-      sourceHistoryId: data.legacySourceHistoryId || recipient.id,
-      orderId: notification.orderId || '',
-      deliveryJobId: notification.deliveryJobId || null,
-      type: data.legacyType || notification.eventType,
-      title: notification.title,
-      body: notification.body,
-      deepLink: data.recipientDeepLink || notification.deepLink || null,
-      createdAt: notification.createdAt,
-      sentAt: recipient.sentAt,
-      openedAt: recipient.openedAt,
-      readAt: recipient.readAt,
-      status: recipient.status,
-      metadata: data,
-    };
-  }
-
-  private async migrateLegacyRow(actor: Actor, row: any, markRead: boolean) {
-    const legacyType = (row.metadata as any)?.event || `ORDER_${row.toStatus}`;
-    const eventType = this.eventTypeForLegacy(row);
-    const item = this.toLegacyInboxItem(row, actor);
-    const dedupeKey = `legacy:${row.id}:${actor.id}`;
-
-    return prisma.$transaction(async (tx) => {
-      let notification = await tx.notification.findFirst({
-        where: { data: { path: ['legacySourceHistoryId'], equals: row.id } },
-      });
-      if (!notification) {
-        notification = await tx.notification.create({
-          data: {
-            eventType,
-            title: item.title,
-            body: item.body,
-            orderId: row.orderId,
-            deepLink: item.deepLink,
-            data: {
-              legacySourceHistoryId: row.id,
-              legacyType,
-              migratedFromOrderHistory: true,
-            },
-          },
-        });
-      }
-
-      return tx.notificationRecipient.upsert({
-        where: { dedupeKey },
-        update: markRead
-          ? { status: 'READ', readAt: new Date(), openedAt: new Date() }
-          : {},
-        create: {
-          notificationId: notification.id,
-          userId: actor.id,
-          dedupeKey,
-          status: markRead ? 'READ' : 'SENT',
-          sentAt: new Date(),
-          ...(markRead ? { readAt: new Date(), openedAt: new Date() } : {}),
-        },
-      });
+  async listInbox(actor: Actor, limitInput?: string | number) {
+    const limit = Math.min(100, Math.max(1, Number(limitInput || 50)));
+    const rows = await this.notificationSourceRows(actor, limit);
+    const sourceIds = new Set(rows.map((row) => row.id));
+    const reads = await prisma.orderStatusHistory.findMany({
+      where: { note: READ_NOTE, actorUserId: actor.id },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
     });
+    const readMap = new Map<string, any>();
+    for (const read of reads) {
+      const metadata = read.metadata as any;
+      if (metadata?.recipientUserId === actor.id && metadata?.sourceHistoryId && sourceIds.has(metadata.sourceHistoryId)) {
+        readMap.set(metadata.sourceHistoryId, metadata);
+      }
+    }
+
+    const items = rows.map((row) => this.toInboxItem(row, actor, readMap.get(row.id)?.readAt || null));
+    return { items, unreadCount: items.filter((item) => !item.readAt).length };
   }
 
-  private eventTypeForLegacy(row: any): NotificationEventTypeType {
-    const metadataEvent = (row.metadata as any)?.event;
-    if (metadataEvent === 'CUSTOMER_SUPPORT_TICKET_OPENED') return 'ADMIN_BROADCAST';
-    if (row.toStatus === OrderStatus.CONFIRMED) return 'STORE_ACCEPTED_ORDER';
-    if (row.toStatus === OrderStatus.PICKING) return 'STORE_STARTED_PICKING';
-    if (row.toStatus === OrderStatus.PACKED) return 'ORDER_PACKED';
-    if (row.toStatus === OrderStatus.RIDER_ASSIGNED) return 'ASSIGNMENT_ACCEPTED';
-    if (row.toStatus === OrderStatus.OUT_FOR_DELIVERY) return 'OUT_FOR_DELIVERY';
-    if (row.toStatus === OrderStatus.DELIVERED) return 'DELIVERY_COMPLETED';
-    if (row.toStatus === OrderStatus.CANCELLED) return 'DELIVERY_CANCELLED';
-    return 'ADMIN_BROADCAST';
+  async markRead(actor: Actor, sourceHistoryId: string) {
+    const inbox = await this.listInbox(actor, 100);
+    const item = inbox.items.find((row) => row.sourceHistoryId === sourceHistoryId || row.id === sourceHistoryId);
+    if (!item) throw new NotFoundException('Notification not found');
+    if (item.readAt) return { ok: true, readAt: item.readAt };
+
+    const order = await prisma.order.findUnique({ where: { id: item.orderId }, select: { status: true } });
+    if (!order) throw new NotFoundException('Order not found');
+    const readAt = new Date().toISOString();
+    await prisma.orderStatusHistory.create({
+      data: {
+        orderId: item.orderId,
+        fromStatus: order.status,
+        toStatus: order.status,
+        actorUserId: actor.id,
+        actorRole: actor.role,
+        note: READ_NOTE,
+        metadata: { event: 'NOTIFICATION_MARKED_READ', sourceHistoryId: item.sourceHistoryId, recipientUserId: actor.id, readAt },
+      },
+    });
+    return { ok: true, readAt };
   }
 
-  private async legacySourceRows(actor: Actor, limit: number) {
-    const baseWhere: any = {
-      note: { notIn: [LEGACY_READ_NOTE] },
-      createdAt: { lte: new Date() },
+  async createBroadcastPlaceholder(actor: Actor, input: { title?: string; body?: string; audience?: string }) {
+    if (actor.role !== Role.ADMIN) throw new ForbiddenException('Only admin can create broadcast placeholder');
+    const title = input.title?.trim();
+    const body = input.body?.trim();
+    if (!title) throw new BadRequestException('title is required');
+    if (!body) throw new BadRequestException('body is required');
+    return {
+      ok: true,
+      status: 'PLACEHOLDER_ONLY',
+      broadcast: {
+        title,
+        body,
+        audience: input.audience || 'ALL_USERS',
+        note: 'Broadcast storage will move to a dedicated Notification table in a future migration phase.',
+      },
     };
+  }
+
+  private async notificationSourceRows(actor: Actor, limit: number) {
+    const baseWhere: any = { note: { notIn: [READ_NOTE] }, createdAt: { lte: new Date() } };
 
     if (actor.role === Role.CUSTOMER) {
       return prisma.orderStatusHistory.findMany({
@@ -386,6 +154,7 @@ export class NotificationService {
         take: limit,
       });
     }
+
     if (actor.role === Role.STORE_OWNER) {
       return prisma.orderStatusHistory.findMany({
         where: { ...baseWhere, order: { is: { store: { is: { ownerId: actor.id } } } } },
@@ -394,6 +163,7 @@ export class NotificationService {
         take: limit,
       });
     }
+
     if (actor.role === Role.RIDER) {
       const rider = await prisma.riderProfile.findUnique({ where: { userId: actor.id }, select: { id: true } });
       if (!rider) return [];
@@ -404,44 +174,29 @@ export class NotificationService {
         take: limit,
       });
     }
+
     if (actor.role === Role.ADMIN) {
       return prisma.orderStatusHistory.findMany({
-        where: { note: 'Customer opened support ticket.' },
+        where: { note: { in: ['Customer opened support ticket.', BROADCAST_NOTE] } },
         include: { order: { include: { store: { select: { name: true } }, customer: { select: { name: true, email: true, phone: true } } } } },
         orderBy: { createdAt: 'desc' },
         take: limit,
       });
     }
+
     return [];
   }
 
-  private toLegacyInboxItem(row: any, actor: Actor): LegacyInboxItem {
+  private toInboxItem(row: any, actor: Actor, readAt: string | null): InboxItem {
     const metadata = row.metadata || {};
     const type = metadata.event || `ORDER_${row.toStatus}`;
     const statusLabel = String(row.toStatus || '').replace(/_/g, ' ');
-    return {
-      id: row.id,
-      sourceHistoryId: row.id,
-      orderId: row.orderId,
-      type,
-      title: this.legacyTitle(type, row.toStatus, actor.role),
-      body: this.legacyBody(type, row, statusLabel, actor.role),
-      deepLink: this.deepLink(actor.role, row.orderId),
-      createdAt: row.createdAt,
-      readAt: null,
-      status: 'SENT',
-      metadata,
-    };
+    const title = this.titleFor(type, row.toStatus, actor.role);
+    const body = this.bodyFor(type, row, statusLabel, actor.role);
+    return { id: row.id, sourceHistoryId: row.id, orderId: row.orderId, type, title, body, createdAt: row.createdAt, readAt, metadata };
   }
 
-  private deepLink(role: Role, orderId: string) {
-    if (role === Role.ADMIN) return `/admin/orders/${orderId}`;
-    if (role === Role.STORE_OWNER) return '/store/orders';
-    if (role === Role.RIDER) return '/rider';
-    return `/shop/orders/${orderId}`;
-  }
-
-  private legacyTitle(type: string, status: OrderStatus, role: Role) {
+  private titleFor(type: string, status: OrderStatus, role: Role) {
     if (type === 'CUSTOMER_SUPPORT_TICKET_OPENED') return 'New support ticket';
     if (type === 'CUSTOMER_RATING_SUBMITTED') return 'New customer rating';
     if (status === OrderStatus.CONFIRMED) return role === Role.STORE_OWNER ? 'Order accepted' : 'Order confirmed';
@@ -454,10 +209,8 @@ export class NotificationService {
     return 'Order update';
   }
 
-  private legacyBody(type: string, row: any, statusLabel: string, role: Role) {
-    if (type === 'CUSTOMER_SUPPORT_TICKET_OPENED') {
-      return `${row.order?.customer?.name || 'Customer'} opened a ${row.metadata?.category || 'support'} ticket.`;
-    }
+  private bodyFor(type: string, row: any, statusLabel: string, role: Role) {
+    if (type === 'CUSTOMER_SUPPORT_TICKET_OPENED') return `${row.order?.customer?.name || 'Customer'} opened a ${row.metadata?.category || 'support'} ticket.`;
     if (type === 'CUSTOMER_RATING_SUBMITTED') return 'A customer submitted a post-delivery rating.';
     const storeName = row.order?.store?.name || 'store';
     if (role === Role.CUSTOMER) return row.note || `Your order is now ${statusLabel}.`;

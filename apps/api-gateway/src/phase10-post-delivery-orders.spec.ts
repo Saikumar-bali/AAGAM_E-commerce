@@ -1,7 +1,4 @@
 import { OrderStatus, Role, prisma } from '@aagam/database';
-import { OrderService } from './orders/order.service';
-import { RefundsService } from './payments/refunds.service';
-import { PostDeliveryService } from './orders/post-delivery.service';
 
 const PREFIX = '_test_phase10_post_delivery_';
 
@@ -58,7 +55,10 @@ async function seed(status: OrderStatus = OrderStatus.DELIVERED) {
 }
 
 function service() {
-  const gateway = { emitOrderStatusUpdated: jest.fn(), emitOrderTimelineUpdated: jest.fn(), emitRiderAssigned: jest.fn() } as any;
+  const { OrderService } = require('./orders/order.service');
+  const { RefundsService } = require('./payments/refunds.service');
+  const { PostDeliveryService } = require('./orders/post-delivery.service');
+  const gateway = { emitOrderStatusUpdated: jest.fn(), emitOrderTimelineUpdated: jest.fn(), emitRiderAssigned: jest.fn() };
   return new PostDeliveryService(new OrderService(gateway, new RefundsService()));
 }
 
@@ -74,7 +74,7 @@ describe('Phase 10 post-delivery ratings and support', () => {
     expect(result.rating.orderRating).toBe(5);
 
     const payload = await post.listMyPostDelivery(data.order.id, data.customer.id);
-    expect((payload.rating?.metadata as any)?.event).toBe('CUSTOMER_RATING_SUBMITTED');
+    expect(payload.rating?.metadata?.event).toBe('CUSTOMER_RATING_SUBMITTED');
     await expect(post.submitRating(data.order.id, data.customer.id, { orderRating: 5 })).rejects.toThrow('Rating already submitted');
   });
 

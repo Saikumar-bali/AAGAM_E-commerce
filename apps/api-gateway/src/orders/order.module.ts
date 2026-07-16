@@ -5,11 +5,6 @@ import { StoreFulfillmentController } from './store-fulfillment.controller';
 import { StoreFulfillmentService } from './store-fulfillment.service';
 import { DispatchController } from './dispatch.controller';
 import { DispatchService } from './dispatch.service';
-import { DeliveryEventService } from './delivery-event.service';
-import { DeliveryJobService } from './delivery-job.service';
-import { DeliveryWorkflowService } from './delivery-workflow.service';
-import { DispatchAssignmentService } from './dispatch-assignment.service';
-import { DeliveryOperationsService } from './delivery-operations.service';
 import { PostDeliveryController } from './post-delivery.controller';
 import { PostDeliveryService } from './post-delivery.service';
 import { PaymentsModule } from '../payments/payments.module';
@@ -24,21 +19,10 @@ import { PaymentsModule } from '../payments/payments.module';
   ],
   providers: [
     OrderService,
-    DeliveryEventService,
-    DeliveryJobService,
-    DeliveryWorkflowService,
-    DispatchAssignmentService,
     StoreFulfillmentService,
     DispatchService,
-    DeliveryOperationsService,
     PostDeliveryService,
   ],
-  exports: [
-    OrderService,
-    DeliveryEventService,
-    DeliveryJobService,
-    DeliveryWorkflowService,
-    DispatchAssignmentService,
-  ],
+  exports: [OrderService],
 })
 export class OrderModule {}
