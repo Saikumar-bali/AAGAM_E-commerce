@@ -19,6 +19,13 @@ react {
 
 def enableProguardInReleaseBuilds = false
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+def releaseStorePath = System.getenv("AAGAM_ANDROID_KEYSTORE_PATH")
+def releaseStorePassword = System.getenv("AAGAM_ANDROID_KEYSTORE_PASSWORD")
+def releaseKeyAlias = System.getenv("AAGAM_ANDROID_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("AAGAM_ANDROID_KEY_PASSWORD")
+def hasReleaseSigning = releaseStorePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+def releaseVersionCode = (project.findProperty("VERSION_CODE") ?: "1").toString().toInteger()
+def releaseVersionName = (project.findProperty("VERSION_NAME") ?: "1.0").toString()
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -30,17 +37,32 @@ android {
         applicationId "com.aagampartners"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode releaseVersionCode
+        versionName releaseVersionName
+    }
+
+    signingConfigs {
+        debug {}
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseStorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
-        // Android Gradle Plugin creates/uses the standard debug keystore. Do not
-        // point at an untracked app/debug.keystore file.
-        debug {}
+        debug {
+            signingConfig signingConfigs.debug
+            manifestPlaceholders = [usesCleartextTraffic: true]
+        }
         release {
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            manifestPlaceholders = [usesCleartextTraffic: false]
         }
     }
 }
