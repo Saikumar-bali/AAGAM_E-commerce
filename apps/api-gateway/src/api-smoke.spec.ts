@@ -22,7 +22,7 @@ describe('Phase 1: RBAC API Smoke Tests (manual)', () => {
     const loginRes = await fetch(`${API}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'customer@aagam.com', password: 'customer123' }),
+      body: JSON.stringify({ email: process.env.SMOKE_TEST_EMAIL, password: process.env.SMOKE_TEST_PASSWORD }),
     });
     const { access_token } = (await loginRes.json()) as any;
 

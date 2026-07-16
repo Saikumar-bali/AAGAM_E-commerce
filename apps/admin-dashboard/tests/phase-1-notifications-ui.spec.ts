@@ -3,11 +3,11 @@ import path from 'path';
 
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-1-notifications');
 
-async function login(page: Page, email: string, password = 'Test@1234') {
+async function login(page: Page, email: string, password: string = process.env.QA_PASSWORD ?? '') {
   await page.goto('/login');
   await page.waitForSelector('input[type="email"]', { timeout: 15000 });
   await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
+    await page.fill('input[type="password"]', password ?? '');
   await page.click('button[type="submit"]');
   await page.waitForFunction(() => localStorage.getItem('access_token') !== null, { timeout: 15000 });
   await page.waitForLoadState('networkidle');

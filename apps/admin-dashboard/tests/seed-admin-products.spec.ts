@@ -2,8 +2,8 @@ import { test, expect, Page } from '@playwright/test';
 import path from 'path';
 
 const ZEPTO_DIR = path.resolve(__dirname, '../../../zepto_data');
-const ADMIN_EMAIL = 'admin@aagam.com';
-const ADMIN_PASSWORD = 'Admin@123';
+const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL;
+const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
 
 type ProductEntry = {
   dir: string;
