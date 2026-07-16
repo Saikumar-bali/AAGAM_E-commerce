@@ -69,9 +69,14 @@ tmp/
 # Environment append temp file
 .env.append
 
-# Test screenshots and results
+# Test screenshots, results, and Playwright reports
 test_screenshots/
 test-results/
+**/test-results/
+playwright-report/
+playwright-report-phase8b/
+**/playwright-report/
+**/playwright-report-phase8b/
 
 # Android build artifacts
 **/android/.gradle/
