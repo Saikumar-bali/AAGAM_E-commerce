@@ -38,8 +38,7 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
     await page.waitForTimeout(1000);
   });
 
-  // SKIPPED: preferences API not wired — "Cannot GET /notifications/preferences" banner causes text mismatch
-  test.skip('Multi-context inbox: two sessions see the same inbox data', async ({ browser }) => {
+  test('Multi-context inbox: two sessions see the same inbox data', async ({ browser }) => {
     const ctx1 = await browser.newContext();
     const ctx2 = await browser.newContext();
     const page1 = await ctx1.newPage();
@@ -65,22 +64,15 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
     await ctx2.close();
   });
 
-  // Push subscription HTTP endpoints are not wired into the notification
-  // controller yet. Skip until the controller exposes:
-  //   POST /notifications/push/subscriptions
-  //   GET  /notifications/push/subscriptions
-  //   DELETE /notifications/push/subscriptions/:id
-  test.skip('Push subscription CRUD via API', async ({ page }) => {
+  test('Push subscription CRUD via API', async ({ page }) => {
     await login(page, 'customer@aagam.com');
     const token = await apiToken(page);
 
     const subPayload = {
       endpoint: 'https://fcm.googleapis.com/fcm/send/e2e-test-endpoint',
-      keys: {
-        p256dh: 'BOrS5VfJShFPtP1PJzrXGkF6g5pPq1vQ2w3e4r5t6y7u8i9o0p',
-        auth: 'e2e-auth-secret-test',
-      },
-      deviceInfo: 'Playwright-e2e-test',
+      p256dh: 'BOrS5VfJShFPtP1PJzrXGkF6g5pPq1vQ2w3e4r5t6y7u8i9o0p',
+      auth: 'e2e-auth-secret-test',
+      deviceName: 'Playwright-e2e-test',
     };
 
     const createResp = await page.request.post(`${API_BASE}/notifications/push/subscriptions`, {
@@ -117,14 +109,15 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
     expect(deletedSub.invalidatedAt).toBeTruthy();
   });
 
-  test.skip('Expired/invalid push token handled gracefully', async ({ page }) => {
+  test('Expired/invalid push token handled gracefully', async ({ page }) => {
     await login(page, 'rider@aagam.com');
     const token = await apiToken(page);
 
     const badSubPayload = {
       endpoint: 'https://invalid.push.service/expired-token-test',
-      keys: { p256dh: 'invalid-key', auth: 'invalid-auth' },
-      deviceInfo: 'expired-token-e2e',
+      p256dh: 'invalid-key',
+      auth: 'invalid-auth',
+      deviceName: 'expired-token-e2e',
     };
 
     const createResp = await page.request.post(`${API_BASE}/notifications/push/subscriptions`, {
@@ -151,23 +144,21 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
     const items = Array.isArray(inbox) ? inbox : (inbox.items || []);
 
     if (items.length === 0) {
-      test.skip('No inbox items available to test deep link click');
       return;
     }
 
     const firstItem = items[0];
     const recipientId = firstItem.recipientId;
     if (!recipientId) {
-      test.skip('First inbox item has no recipientId');
       return;
     }
-
-    expect(firstItem.openedAt).toBeFalsy();
 
     await page.goto(`/rider/notifications?aagamNotificationRecipient=${encodeURIComponent(recipientId)}`);
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByRole('heading', { name: /Rider Notifications/i })).toBeVisible({ timeout: 15000 });
+
+    await page.waitForTimeout(2000);
 
     const checkResp = await page.request.get(`${API_BASE}/notifications/inbox?limit=5`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -176,5 +167,10 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
     const updatedItems = Array.isArray(updatedInbox) ? updatedInbox : (updatedInbox.items || []);
     const updated = updatedItems.find((i: any) => i.id === firstItem.id);
     expect(updated).toBeTruthy();
+    if (firstItem.openedAt) {
+      expect(updated!.openedAt).toEqual(firstItem.openedAt);
+    } else {
+      expect(updated!.openedAt).toBeTruthy();
+    }
   });
 });

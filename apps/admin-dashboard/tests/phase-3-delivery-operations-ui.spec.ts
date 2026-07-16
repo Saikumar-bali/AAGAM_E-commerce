@@ -18,7 +18,7 @@ test.describe('Phase 3: Delivery operations UI', () => {
     await page.screenshot({ path: `${SCREENSHOT_DIR}/01-admin-delivery-exceptions.png`, fullPage: true });
   });
 
-  test.skip('admin exception page has no mobile horizontal overflow', async ({ page }) => {
+  test('admin exception page has no mobile horizontal overflow', async ({ page }) => {
     await loginWithCookieSession(page, 'ADMIN');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/admin/delivery-exceptions');
@@ -28,8 +28,7 @@ test.describe('Phase 3: Delivery operations UI', () => {
     await page.screenshot({ path: `${SCREENSHOT_DIR}/02-admin-mobile.png`, fullPage: true });
   });
 
-  // SKIPPED: route crashes with ERR_ABORTED for non-existent delivery jobs
-  test.skip('customer delivery code route keeps the code customer-scoped', async ({ page }) => {
+  test('customer delivery code route keeps the code customer-scoped', async ({ page }) => {
     await loginWithCookieSession(page, 'CUSTOMER');
     await page.goto('/shop/delivery-code/non-existent-proof-job');
     await expect(page.getByRole('heading', { name: 'Delivery verification' })).toBeVisible();

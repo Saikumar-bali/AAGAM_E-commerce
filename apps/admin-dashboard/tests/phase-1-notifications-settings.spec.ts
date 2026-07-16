@@ -5,8 +5,7 @@ import { loginWithCookieSession } from './helpers/login';
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-1-notifications');
 
 test.describe('Phase 1.1: event-level notification preferences', () => {
-  // Preferences API (/notifications/preferences) not wired yet
-  test.skip('all role settings pages render their relevant events', async ({ browser }) => {
+  test('all role settings pages render their relevant events', async ({ browser }) => {
     const cases: Array<{
       role: any; route: string; heading: RegExp; event: string; screenshot: string;
     }> = [
@@ -36,8 +35,7 @@ test.describe('Phase 1.1: event-level notification preferences', () => {
     }
   });
 
-  // Preferences API not wired — persist/restore requires backend
-  test.skip('customer can persist and restore the global push preference', async ({ page }) => {
+  test('customer can persist and restore the global push preference', async ({ page }) => {
     await loginWithCookieSession(page, 'CUSTOMER');
     await page.goto('/shop/notifications/settings');
     await page.waitForLoadState('networkidle');
