@@ -9,9 +9,23 @@ async function waitForStyles(page: Page) {
   await page.waitForTimeout(1500);
 }
 
+const STORE_EMAIL = process.env.STORE_OWNER_QA_EMAIL || process.env.STORE_EMAIL || 'store@aagam.com';
+const STORE_PASS = process.env.STORE_OWNER_QA_PASSWORD || process.env.STORE_PASSWORD || 'store@2026!';
+
+async function loginAsStore(page: Page) {
+  await page.goto('/login');
+  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
+  await page.fill('input[type="email"]', STORE_EMAIL);
+  await page.fill('input[type="password"]', STORE_PASS);
+  await page.click('button[type="submit"]');
+  await page.waitForFunction(() => localStorage.getItem('access_token') !== null, { timeout: 15000 });
+  await page.waitForLoadState('networkidle');
+}
+
 test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () => {
 
   test('01 — Store orders page loads with lane counters', async ({ page }) => {
+    await loginAsStore(page);
     await page.goto('/store/orders');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
@@ -32,6 +46,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
   });
 
   test('02 — Order card shows picking list with product quantities', async ({ page }) => {
+    await loginAsStore(page);
     await page.goto('/store/orders');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
@@ -54,6 +69,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
   });
 
   test('03 — Unavail and Substitute buttons visible on editable orders', async ({ page }) => {
+    await loginAsStore(page);
     await page.goto('/store/orders');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
@@ -77,7 +93,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
   test('04 — Mark item unavailable via API and verify UI update', async ({ page }) => {
     // Use the API to mark an item unavailable, then verify UI shows it
     const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
-      data: { email: process.env.STORE_OWNER_QA_EMAIL, password: process.env.STORE_OWNER_QA_PASSWORD },
+      data: { email: STORE_EMAIL, password: STORE_PASS },
     });
     const { access_token } = await tokenResponse.json();
 
@@ -117,7 +133,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
 
   test('05 — Ready for Pickup blocked when unresolved item issues exist', async ({ page }) => {
     const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
-      data: { email: process.env.STORE_OWNER_QA_EMAIL, password: process.env.STORE_OWNER_QA_PASSWORD },
+      data: { email: STORE_EMAIL, password: STORE_PASS },
     });
     const { access_token } = await tokenResponse.json();
 
@@ -149,7 +165,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
 
   test('06 — Substitute listing returns available products', async ({ page }) => {
     const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
-      data: { email: process.env.STORE_OWNER_QA_EMAIL, password: process.env.STORE_OWNER_QA_PASSWORD },
+      data: { email: STORE_EMAIL, password: STORE_PASS },
     });
     const { access_token } = await tokenResponse.json();
 
@@ -185,7 +201,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
 
   test('07 — Substitute replacement updates item and grand total', async ({ page }) => {
     const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
-      data: { email: process.env.STORE_OWNER_QA_EMAIL, password: process.env.STORE_OWNER_QA_PASSWORD },
+      data: { email: STORE_EMAIL, password: STORE_PASS },
     });
     const { access_token } = await tokenResponse.json();
 
@@ -244,7 +260,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
 
   test('08 — Ready for Pickup succeeds after all issues resolved', async ({ page }) => {
     const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
-      data: { email: process.env.STORE_OWNER_QA_EMAIL, password: process.env.STORE_OWNER_QA_PASSWORD },
+      data: { email: STORE_EMAIL, password: STORE_PASS },
     });
     const { access_token } = await tokenResponse.json();
 

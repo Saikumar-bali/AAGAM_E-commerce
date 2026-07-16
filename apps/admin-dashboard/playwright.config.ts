@@ -26,7 +26,7 @@ export default defineConfig({
   projects: [
     {
       name: 'setup',
-      testMatch: /phase-6-checkout-ux\.setup\.ts/,
+      testMatch: /phase-[68].*\.setup\.ts/,
     },
     {
       name: 'chromium',
@@ -36,7 +36,7 @@ export default defineConfig({
         storageState: AUTH_FILE,
       },
       dependencies: ['setup'],
-      testMatch: /phase-6-checkout-ux\.spec\.ts/,
+      testMatch: /.*\.spec\.ts$/,
     },
   ],
   webServer: {

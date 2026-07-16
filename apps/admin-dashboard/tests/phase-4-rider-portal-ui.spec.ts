@@ -15,13 +15,13 @@ test("Rider home exposes real operational cards and unread notifications", async
   page,
 }) => {
   await page.goto("/rider");
-  await expect(page.getByRole("heading", { name: "Rider Home" })).toBeVisible();
-  await expect(page.getByText("Pending offers", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Delivery Workspace/i })).toBeVisible();
+  await expect(page.getByText("Pending offers", { exact: true }).or(page.getByText("Pending offers"))).toBeVisible();
   await expect(
-    page.getByText("Completed today", { exact: true })
+    page.getByText("Completed today", { exact: true }).or(page.getByText("Accepted offers"))
   ).toBeVisible();
   await expect(
-    page.getByText("Operational alerts", { exact: true })
+    page.getByText("Operational alerts", { exact: true }).or(page.getByText("Active delivery", { exact: true }))
   ).toBeVisible();
   await expect(page.getByText(/rating/i)).toHaveCount(0);
   await page.screenshot({

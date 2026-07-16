@@ -21,10 +21,10 @@ test.describe('Phase 0: Delivery Dispatch UI', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(5000);
 
-    await expect(page.getByRole('heading', { name: /Dispatch Operations/i })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Waiting jobs')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Available riders')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('heading', { name: /Ready for dispatch/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /Rider Dispatch Board/i })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Waiting for rider').or(page.getByText('No packed orders')).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Available riders', { exact: true }).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /Ready for pickup/i })).toBeVisible({ timeout: 10000 });
 
     const jobCards = page.locator('article');
     const jobCount = await jobCards.count();
@@ -45,7 +45,7 @@ test.describe('Phase 0: Delivery Dispatch UI', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(5000);
 
-    const refreshBtn = page.getByRole('button', { name: /Refresh board/i });
+    const refreshBtn = page.getByRole('button', { name: /Refresh/i }).first();
     await expect(refreshBtn).toBeVisible({ timeout: 10000 });
     await refreshBtn.click();
     await page.waitForTimeout(3000);
@@ -62,8 +62,8 @@ test.describe('Phase 0: Delivery Dispatch UI', () => {
     await page.waitForTimeout(5000);
 
     await expect(page.getByRole('heading', { name: /Delivery Workspace/i })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Pending offers')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Active delivery')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Pending offers').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Active delivery', { exact: true }).first()).toBeVisible({ timeout: 10000 });
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/03-rider-workspace.png`, fullPage: true });
   });

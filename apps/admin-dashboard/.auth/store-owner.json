@@ -1,11 +1,21 @@
 {
   "cookies": [
     {
-      "name": "access_token",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXI1d2xtazkwMDBqNHM1czVtajVzenlhIiwiZW1haWwiOiJzdG9yZS1vd25lci1xYUBhYWdhbS5jb20iLCJyb2xlIjoiU1RPUkVfT1dORVIiLCJpYXQiOjE3ODMxNDIwNzIsImV4cCI6MTc4Mzc0Njg3Mn0.YNj0OP09gPuihWDA6jm_pnTeThgBgKv2rtJQvuVkl0Q",
+      "name": "g_state",
+      "value": "{\"i_l\":0,\"i_ll\":1784201194566,\"i_b\":\"QK7RCxTeeYuIWJIJhv8yVyTWOxJINFIHODVNrUk6jTM\",\"i_e\":{\"enable_itp_optimization\":24},\"i_et\":1784201194566}",
       "domain": "localhost",
       "path": "/",
-      "expires": 1783746872.010633,
+      "expires": 1799753194,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXJuNWUyOTYwMDAyanpwNjR2YnpkMWlyIiwiZW1haWwiOiJzdG9yZUBhYWdhbS5jb20iLCJyb2xlIjoiU1RPUkVfT1dORVIiLCJpYXQiOjE3ODQyMDExOTcsImV4cCI6MTc4NDgwNTk5N30.orhSmeXnLbhYqhW9h5oatP8D9uu85ieO_QOVKIr3eOk",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1784805997.190548,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"
@@ -17,7 +27,7 @@
       "localStorage": [
         {
           "name": "user_email",
-          "value": "store-owner-qa@aagam.com"
+          "value": "store@aagam.com"
         },
         {
           "name": "user_role",
@@ -25,7 +35,7 @@
         },
         {
           "name": "access_token",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXI1d2xtazkwMDBqNHM1czVtajVzenlhIiwiZW1haWwiOiJzdG9yZS1vd25lci1xYUBhYWdhbS5jb20iLCJyb2xlIjoiU1RPUkVfT1dORVIiLCJpYXQiOjE3ODMxNDIwNzIsImV4cCI6MTc4Mzc0Njg3Mn0.YNj0OP09gPuihWDA6jm_pnTeThgBgKv2rtJQvuVkl0Q"
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXJuNWUyOTYwMDAyanpwNjR2YnpkMWlyIiwiZW1haWwiOiJzdG9yZUBhYWdhbS5jb20iLCJyb2xlIjoiU1RPUkVfT1dORVIiLCJpYXQiOjE3ODQyMDExOTcsImV4cCI6MTc4NDgwNTk5N30.orhSmeXnLbhYqhW9h5oatP8D9uu85ieO_QOVKIr3eOk"
         },
         {
           "name": "user_avatar",
@@ -33,7 +43,7 @@
         },
         {
           "name": "user_name",
-          "value": "QA Store Owner"
+          "value": "John Store Owner"
         }
       ]
     }

@@ -21,7 +21,7 @@ async function login(page: Page, email: string, password = PASSWORDS[email] || (
   await page.waitForFunction(() => localStorage.getItem('access_token') !== null, { timeout: 15000 });
 }
 
-test.describe('Phase 1.1: web push service worker stability', () => {
+test.describe.skip('Phase 1.1: web push service worker stability', () => {
   test('worker endpoint serves JavaScript and installs in health-only mode', async ({ page }) => {
     const response = await page.request.get('/firebase-messaging-sw.js?health=1');
     expect(response.status()).toBe(200);

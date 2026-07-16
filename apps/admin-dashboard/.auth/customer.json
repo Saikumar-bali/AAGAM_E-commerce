@@ -1,11 +1,21 @@
 {
   "cookies": [
     {
-      "name": "access_token",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXF2dzQ5aGIwMDAwYW55ODhsdXNxMXNlIiwiZW1haWwiOiJjdXN0b21lckBhYWdhbS5jb20iLCJyb2xlIjoiQ1VTVE9NRVIiLCJpYXQiOjE3ODMxMDg1NzUsImV4cCI6MTc4MzcxMzM3NX0.dXIbnHFBOdKau7aCmmGIXQ1f5rSKJLkyNtZWEvcmiZo",
+      "name": "g_state",
+      "value": "{\"i_l\":0,\"i_ll\":1784201194456,\"i_b\":\"WpOPCHmwWME3TQr4U84o3ZohMIZ9KYd6uitvk58qDDo\",\"i_e\":{\"enable_itp_optimization\":24},\"i_et\":1784201194456}",
       "domain": "localhost",
       "path": "/",
-      "expires": 1783713375.018319,
+      "expires": 1799753194,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXJuNWUyOTEwMDAxanpwNjVheWN0OGt5IiwiZW1haWwiOiJjdXN0b21lckBhYWdhbS5jb20iLCJyb2xlIjoiQ1VTVE9NRVIiLCJpYXQiOjE3ODQyMDExOTcsImV4cCI6MTc4NDgwNTk5N30.hwWLYmriUnnFT83BrX6A2YskKuZ-aLtjYVNKYOkXwvc",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1784805997.193364,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"
@@ -24,20 +34,24 @@
           "value": "CUSTOMER"
         },
         {
-          "name": "access_token",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXF2dzQ5aGIwMDAwYW55ODhsdXNxMXNlIiwiZW1haWwiOiJjdXN0b21lckBhYWdhbS5jb20iLCJyb2xlIjoiQ1VTVE9NRVIiLCJpYXQiOjE3ODMxMDg1NzUsImV4cCI6MTc4MzcxMzM3NX0.dXIbnHFBOdKau7aCmmGIXQ1f5rSKJLkyNtZWEvcmiZo"
-        },
-        {
           "name": "user_avatar",
           "value": ""
         },
         {
+          "name": "access_token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXJuNWUyOTEwMDAxanpwNjVheWN0OGt5IiwiZW1haWwiOiJjdXN0b21lckBhYWdhbS5jb20iLCJyb2xlIjoiQ1VTVE9NRVIiLCJpYXQiOjE3ODQyMDExOTcsImV4cCI6MTc4NDgwNTk5N30.hwWLYmriUnnFT83BrX6A2YskKuZ-aLtjYVNKYOkXwvc"
+        },
+        {
           "name": "user_name",
-          "value": "Test Customer"
+          "value": "Alice Customer"
         },
         {
           "name": "aagam_cart",
           "value": "[]"
+        },
+        {
+          "name": "ally-supports-cache",
+          "value": "{\"userAgent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36\",\"version\":\"1.4.1\",\"focusAreaImgTabindex\":false,\"focusAreaTabindex\":false,\"focusAreaWithoutHref\":false,\"focusAudioWithoutControls\":false,\"focusBrokenImageMap\":true,\"focusChildrenOfFocusableFlexbox\":false,\"focusFieldsetDisabled\":true,\"focusFieldset\":false,\"focusFlexboxContainer\":false,\"focusFormDisabled\":true,\"focusImgIsmap\":false,\"focusImgUsemapTabindex\":true,\"focusInHiddenIframe\":true,\"focusInvalidTabindex\":false,\"focusLabelTabindex\":true,\"focusObjectSvg\":true,\"focusObjectSvgHidden\":false,\"focusRedirectImgUsemap\":false,\"focusRedirectLegend\":\"\",\"focusScrollBody\":false,\"focusScrollContainerWithoutOverflow\":false,\"focusScrollContainer\":true,\"focusSummary\":true,\"focusSvgFocusableAttribute\":false,\"focusSvgTabindexAttribute\":true,\"focusSvgNegativeTabindexAttribute\":true,\"focusSvgUseTabindex\":true,\"focusSvgForeignobjectTabindex\":true,\"focusSvg\":false,\"focusTabindexTrailingCharacters\":true,\"focusTable\":false,\"focusVideoWithoutControls\":false,\"cssShadowPiercingDeepCombinator\":\"\",\"focusInZeroDimensionObject\":true,\"focusObjectSwf\":true,\"focusSvgInIframe\":false,\"tabsequenceAreaAtImgPosition\":false,\"time\":\"2026-07-16T11:26:40.340Z\"}"
         },
         {
           "name": "aagam_wishlist",

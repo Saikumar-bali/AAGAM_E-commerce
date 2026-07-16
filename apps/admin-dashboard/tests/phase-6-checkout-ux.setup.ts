@@ -3,15 +3,8 @@ import path from 'path';
 
 const AUTH_FILE = path.resolve(__dirname, '../.auth/customer.json');
 
-const EMAIL = process.env.QA_CUSTOMER_EMAIL;
-const PASSWORD = process.env.QA_CUSTOMER_PASSWORD;
-
-if (!EMAIL || !PASSWORD) {
-  throw new Error(
-    'Missing required environment variables: QA_CUSTOMER_EMAIL and QA_CUSTOMER_PASSWORD. ' +
-    'Set them before running Playwright setup.'
-  );
-}
+const EMAIL = process.env.QA_CUSTOMER_EMAIL || process.env.CUSTOMER_EMAIL || 'customer@aagam.com';
+const PASSWORD = process.env.QA_CUSTOMER_PASSWORD || process.env.CUSTOMER_PASSWORD || 'customer@2026!';
 
 setup('login as customer and save auth state', async ({ page }) => {
   await page.goto('/login');

@@ -143,6 +143,32 @@ export class NotificationService implements OnModuleInit {
     };
   }
 
+  async processOutboxEvent(event: any) {
+    const metadata = event.metadata || {};
+    const orderId = metadata.orderId;
+    if (!orderId) return;
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { store: { include: { owner: true } }, customer: true, rider: { include: { user: true } } },
+    });
+    if (!order) return;
+
+    const recipients = new Set<string>();
+    if (order.customerId) recipients.add(order.customerId);
+    if (order.store?.ownerId) recipients.add(order.store.ownerId);
+    if (order.rider?.userId) recipients.add(order.rider.userId);
+
+    for (const recipientId of recipients) {
+      const user = await prisma.user.findUnique({ where: { id: recipientId }, select: { fcmToken: true, role: true } });
+      if (user?.fcmToken) {
+        const title = event.title || metadata.event || 'Order Update';
+        const body = event.body || `Order #${orderId.slice(0, 8).toUpperCase()} has been updated.`;
+        await this.sendPushNotification(user.fcmToken, title, body, { orderId, event: metadata.event });
+      }
+    }
+  }
+
   private async notificationSourceRows(actor: Actor, limit: number) {
     const baseWhere: any = { note: { notIn: [READ_NOTE] }, createdAt: { lte: new Date() } };
 

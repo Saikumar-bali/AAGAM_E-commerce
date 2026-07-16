@@ -96,6 +96,88 @@ async function main() {
   });
   console.log('  QA inventory ready');
 
+  // Seed customer address for serviceability tests
+  const qaAddress = await prisma.customerAddress.upsert({
+    where: { id: 'qa-addr-ahmedabad' },
+    update: { userId: qaCustomer.id, line1: 'SG Highway', city: 'Ahmedabad', state: 'Gujarat', pincode: '380015', isDefault: true },
+    create: { id: 'qa-addr-ahmedabad', userId: qaCustomer.id, recipientName: 'QA Customer', phoneE164: '+919999999999', line1: 'SG Highway', city: 'Ahmedabad', state: 'Gujarat', pincode: '380015', country: 'IN', latitude: 23.0225, longitude: 72.5714, isDefault: true },
+  });
+  console.log('  QA customer address ready:', qaAddress.id);
+
+  // Also create an address for the main customer@aagam.com user for Phase 6 tests
+  const mainCustomer = await prisma.user.findUnique({ where: { email: 'customer@aagam.com' } });
+  if (mainCustomer) {
+    const existingAddr = await prisma.customerAddress.findFirst({ where: { userId: mainCustomer.id, city: 'Ahmedabad' } });
+    if (!existingAddr) {
+      await prisma.customerAddress.create({
+        data: { userId: mainCustomer.id, recipientName: 'Test Customer', phoneE164: '+919999999998', line1: 'SG Highway', city: 'Ahmedabad', state: 'Gujarat', pincode: '380015', country: 'IN', latitude: 23.0225, longitude: 72.5714, isDefault: true },
+      });
+      console.log('  Created Ahmedabad address for customer@aagam.com');
+    } else {
+      console.log('  customer@aagam.com already has Ahmedabad address');
+    }
+  }
+
+  // Phase 8b: seed qa-p8b products, categories, order
+  const p8bCategory = await prisma.category.upsert({
+    where: { id: 'qa-cat-p8b' },
+    update: { name: 'QA P8B Grocery' },
+    create: { id: 'qa-cat-p8b', name: 'QA P8B Grocery' },
+  });
+  console.log('  P8B category ready:', p8bCategory.id);
+
+  const p8bRice = await prisma.product.upsert({
+    where: { id: 'qa-p8b-rice' },
+    update: { name: 'P8B Basmati Rice (1kg)', price: 120, pricePaise: 12000, categoryId: p8bCategory.id },
+    create: { id: 'qa-p8b-rice', name: 'P8B Basmati Rice (1kg)', price: 120, pricePaise: 12000, categoryId: p8bCategory.id },
+  });
+  console.log('  P8B rice ready:', p8bRice.id);
+
+  const p8bAtta = await prisma.product.upsert({
+    where: { id: 'qa-p8b-atta' },
+    update: { name: 'P8B Whole Wheat Atta (1kg)', price: 90, pricePaise: 9000, categoryId: p8bCategory.id },
+    create: { id: 'qa-p8b-atta', name: 'P8B Whole Wheat Atta (1kg)', price: 90, pricePaise: 9000, categoryId: p8bCategory.id },
+  });
+  console.log('  P8B atta ready:', p8bAtta.id);
+
+  await prisma.inventory.upsert({
+    where: { storeId_productId: { storeId: qaStore.id, productId: p8bRice.id } },
+    update: { quantity: 30 },
+    create: { storeId: qaStore.id, productId: p8bRice.id, quantity: 30 },
+  });
+  await prisma.inventory.upsert({
+    where: { storeId_productId: { storeId: qaStore.id, productId: p8bAtta.id } },
+    update: { quantity: 30 },
+    create: { storeId: qaStore.id, productId: p8bAtta.id, quantity: 30 },
+  });
+  console.log('  P8B inventory ready');
+
+  // Create qa-p8b-order-picking as PICKING order with 2 items
+  await prisma.orderItem.deleteMany({ where: { orderId: 'qa-p8b-order-picking' } });
+  await prisma.order.deleteMany({ where: { id: 'qa-p8b-order-picking' } });
+  await prisma.order.create({
+    data: {
+      id: 'qa-p8b-order-picking',
+      customerId: qaCustomer.id,
+      storeId: qaStore.id,
+      status: 'PICKING',
+      totalAmount: 210,
+      grandTotal: 210,
+      grandTotalPaise: 21000,
+      deliveryLat: 23.0225,
+      deliveryLng: 72.5714,
+      pickingAt: new Date(),
+      confirmedAt: new Date(Date.now() - 3600000),
+      items: {
+        create: [
+          { id: 'qa-p8b-item-rice', productId: p8bRice.id, quantity: 1, price: 120 },
+          { id: 'qa-p8b-item-atta', productId: p8bAtta.id, quantity: 1, price: 90 },
+        ],
+      },
+    },
+  });
+  console.log('  qa-p8b-order-picking created as PICKING');
+
   const order1 = await prisma.order.findUnique({ where: { id: 'qa-order-1' } });
   if (order1 && order1.status !== 'PICKING') {
     await prisma.order.update({

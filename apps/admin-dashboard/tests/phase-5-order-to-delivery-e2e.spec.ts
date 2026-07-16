@@ -9,6 +9,7 @@ async function loginViaForm(page: Page, email: string, password: string) {
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
+  await page.waitForFunction(() => localStorage.getItem('access_token') !== null, { timeout: 15000 });
 }
 
 async function waitForDashboard(page: Page, urlFragment: string, timeout = 20000) {
@@ -32,7 +33,7 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
-    await expect(page.locator('h1, h2').filter({ hasText: /orders/i }).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h1, h2').filter({ hasText: /order/i }).first()).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('button', { name: /Refresh/i }).first()).toBeVisible({ timeout: 10000 });
 
     await waitForStyles(page);
@@ -60,8 +61,8 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
     await waitForDashboard(page, '/rider');
     await page.waitForTimeout(3000);
 
-    await expect(page.locator('text=ONLINE').or(page.locator('text=OFFLINE')).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('text=Available Orders').or(page.locator('text=Current Delivery')).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Pending offers').or(page.locator('text=Active delivery')).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Pending offers').or(page.locator('text=Current delivery')).first()).toBeVisible({ timeout: 10000 });
 
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/04-rider-out-for-delivery.png`, fullPage: true });
