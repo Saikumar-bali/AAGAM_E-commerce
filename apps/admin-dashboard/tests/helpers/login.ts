@@ -6,26 +6,21 @@ import { Page } from '@playwright/test';
 export type QaRole = 'ADMIN' | 'CUSTOMER' | 'STORE_OWNER' | 'RIDER';
 
 const EMAIL_ENV: Record<QaRole, string> = {
-  ADMIN: 'QA_ADMIN_EMAIL',
-  CUSTOMER: 'QA_CUSTOMER_EMAIL',
-  STORE_OWNER: 'QA_STORE_EMAIL',
-  RIDER: 'QA_RIDER_EMAIL',
+  ADMIN: process.env.QA_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@aagam.com',
+  CUSTOMER: process.env.QA_CUSTOMER_EMAIL || process.env.CUSTOMER_EMAIL || 'customer@aagam.com',
+  STORE_OWNER: process.env.QA_STORE_EMAIL || process.env.STORE_EMAIL || 'store@aagam.com',
+  RIDER: process.env.QA_RIDER_EMAIL || process.env.RIDER_EMAIL || 'rider@aagam.com',
 };
 
 const PASSWORD_ENV: Record<QaRole, string> = {
-  ADMIN: 'QA_ADMIN_PASSWORD',
-  CUSTOMER: 'QA_CUSTOMER_PASSWORD',
-  STORE_OWNER: 'QA_STORE_PASSWORD',
-  RIDER: 'QA_RIDER_PASSWORD',
+  ADMIN: process.env.QA_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'admin@2026!',
+  CUSTOMER: process.env.QA_CUSTOMER_PASSWORD || process.env.CUSTOMER_PASSWORD || 'customer@2026!',
+  STORE_OWNER: process.env.QA_STORE_PASSWORD || process.env.STORE_PASSWORD || 'store@2026!',
+  RIDER: process.env.QA_RIDER_PASSWORD || process.env.RIDER_PASSWORD || 'rider@2026!',
 };
 
 export function qaCredentials(role: QaRole) {
-  const email = process.env[EMAIL_ENV[role]];
-  const password = process.env[PASSWORD_ENV[role]];
-  if (!email || !password) {
-    throw new Error(`Missing ${EMAIL_ENV[role]} or ${PASSWORD_ENV[role]} for Playwright`);
-  }
-  return { email, password };
+  return { email: EMAIL_ENV[role], password: PASSWORD_ENV[role] };
 }
 
 export async function loginWithCookieSession(page: Page, role: QaRole) {

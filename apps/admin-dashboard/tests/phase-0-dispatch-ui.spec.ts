@@ -15,7 +15,7 @@ async function login(page: Page, email: string, password: string) {
 
 test.describe('Phase 0: Delivery Dispatch UI', () => {
   test('Admin: Dispatch board shows waiting jobs and Send offer button', async ({ page }) => {
-    await login(page, 'admin@aagam.com', (process.env.DISPATCH_TEST_PASS ?? 'Test@1234'));
+    await login(page, 'admin@aagam.com', (process.env.DISPATCH_TEST_PASS ?? 'admin@2026!'));
 
     await page.goto('/admin/dispatch');
     await page.waitForLoadState('networkidle');
@@ -40,7 +40,7 @@ test.describe('Phase 0: Delivery Dispatch UI', () => {
   });
 
   test('Admin: Can refresh dispatch board', async ({ page }) => {
-    await login(page, 'admin@aagam.com', (process.env.DISPATCH_TEST_PASS ?? 'Test@1234'));
+    await login(page, 'admin@aagam.com', (process.env.DISPATCH_TEST_PASS ?? 'admin@2026!'));
     await page.goto('/admin/dispatch');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(5000);
@@ -56,7 +56,7 @@ test.describe('Phase 0: Delivery Dispatch UI', () => {
   });
 
   test('Rider: Workspace shows ONLINE status', async ({ page }) => {
-    await login(page, 'rider@aagam.com', (process.env.DISPATCH_TEST_PASS ?? 'Test@1234'));
+    await login(page, 'rider@aagam.com', (process.env.DISPATCH_RIDER_PASS ?? 'rider@2026!'));
     await page.goto('/rider');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(5000);
@@ -69,7 +69,7 @@ test.describe('Phase 0: Delivery Dispatch UI', () => {
   });
 
   test('Cross-role navigation: Store sees orders page', async ({ page }) => {
-    await login(page, 'store@aagam.com', (process.env.DISPATCH_TEST_PASS ?? 'Test@1234'));
+    await login(page, 'store@aagam.com', (process.env.DISPATCH_STORE_PASS ?? 'store@2026!'));
     await page.goto('/store/orders');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(5000);

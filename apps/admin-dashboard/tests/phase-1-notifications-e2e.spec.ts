@@ -2,7 +2,7 @@ import { expect, Page, test } from '@playwright/test';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
 
-async function login(page: Page, email: string, password: string = process.env.QA_PASSWORD ?? '') {
+async function login(page: Page, email: string, password: string = process.env.QA_PASSWORD ?? 'admin@2026!') {
   await page.goto('/login');
   await page.waitForSelector('input[type="email"]', { timeout: 15000 });
   await page.fill('input[type="email"]', email);

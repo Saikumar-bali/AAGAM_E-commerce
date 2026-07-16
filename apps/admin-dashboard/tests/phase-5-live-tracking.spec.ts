@@ -26,7 +26,7 @@ async function waitForStyles(page: Page) {
 test.describe('Phase 5 — Live Tracking Screenshots', () => {
 
   test('01 — Customer order list page', async ({ page }) => {
-    await loginViaForm(page, 'customer@aagam.com', (process.env.P5_DEMO_PASS ?? 'Demo@123'));
+    await loginViaForm(page, 'customer@aagam.com', (process.env.P5_CUSTOMER_PASS ?? 'customer@2026!'));
     await waitForDashboard(page, '/shop');
     await page.goto('/shop/orders');
     await page.waitForLoadState('networkidle');
@@ -40,7 +40,7 @@ test.describe('Phase 5 — Live Tracking Screenshots', () => {
   });
 
   test('02 — Admin live tracking page with map', async ({ page }) => {
-    await loginViaForm(page, 'admin@aagam.com', (process.env.P5_ADMIN_PASS ?? 'Admin@123'));
+    await loginViaForm(page, 'admin@aagam.com', (process.env.P5_ADMIN_PASS ?? 'admin@2026!'));
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/live-tracking');
     await page.waitForLoadState('networkidle');
@@ -55,7 +55,7 @@ test.describe('Phase 5 — Live Tracking Screenshots', () => {
   });
 
   test('03 — Admin orders page with order table', async ({ page }) => {
-    await loginViaForm(page, 'admin@aagam.com', (process.env.P5_ADMIN_PASS ?? 'Admin@123'));
+    await loginViaForm(page, 'admin@aagam.com', (process.env.P5_ADMIN_PASS ?? 'admin@2026!'));
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
     await page.waitForLoadState('networkidle');
