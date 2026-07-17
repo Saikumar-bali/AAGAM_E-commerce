@@ -14,12 +14,12 @@ async function loginViaForm(page: Page, email: string, password: string) {
 
 async function waitForDashboard(page: Page, urlFragment: string, timeout = 20000) {
   await page.waitForURL(`**${urlFragment}**`, { timeout });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('load');
   await page.waitForTimeout(2000);
 }
 
 async function waitForStyles(page: Page) {
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('load');
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1500);
 }
@@ -131,7 +131,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
 
     // Navigate to checkout
     await page.goto('/shop/checkout');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
     await page.waitForTimeout(3000);
 
     // Check bill details card
@@ -151,7 +151,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
 
     // Navigate to orders to verify existing orders
     await page.goto('/shop/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
     await page.waitForTimeout(3000);
 
     await waitForStyles(page);

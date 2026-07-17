@@ -139,7 +139,11 @@ jobs:
           printf 'API_URL=%s\nGOOGLE_WEB_CLIENT_ID=%s\nGOOGLE_ANDROID_CLIENT_ID=%s\n' \
             "$API_URL" "$GOOGLE_WEB_CLIENT_ID" "$GOOGLE_ANDROID_CLIENT_ID" > apps/mobile-customer/.env
           if [[ -n "$GOOGLE_SERVICES_JSON" ]]; then
-            printf '%s' "$GOOGLE_SERVICES_JSON" > apps/mobile-customer/android/app/google-services.json
+            if printf '%s' "$GOOGLE_SERVICES_JSON" | base64 --decode > /dev/null 2>&1; then
+              printf '%s' "$GOOGLE_SERVICES_JSON" | base64 --decode > apps/mobile-customer/android/app/google-services.json
+            else
+              printf '%s' "$GOOGLE_SERVICES_JSON" > apps/mobile-customer/android/app/google-services.json
+            fi
           fi
           if [[ -n "$KEYSTORE_BASE64" ]]; then
             printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/aagam-release.keystore"
@@ -275,7 +279,11 @@ jobs:
           printf 'API_URL=%s\nGOOGLE_WEB_CLIENT_ID=%s\nGOOGLE_ANDROID_CLIENT_ID=%s\n' \
             "$API_URL" "$GOOGLE_WEB_CLIENT_ID" "$GOOGLE_ANDROID_CLIENT_ID" > apps/mobile-partners/.env
           if [[ -n "$GOOGLE_SERVICES_JSON" ]]; then
-            printf '%s' "$GOOGLE_SERVICES_JSON" > apps/mobile-partners/android/app/google-services.json
+            if printf '%s' "$GOOGLE_SERVICES_JSON" | base64 --decode > /dev/null 2>&1; then
+              printf '%s' "$GOOGLE_SERVICES_JSON" | base64 --decode > apps/mobile-partners/android/app/google-services.json
+            else
+              printf '%s' "$GOOGLE_SERVICES_JSON" > apps/mobile-partners/android/app/google-services.json
+            fi
           fi
           if [[ -n "$KEYSTORE_BASE64" ]]; then
             printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/aagam-release.keystore"
