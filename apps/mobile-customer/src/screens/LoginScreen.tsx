@@ -6,6 +6,21 @@ import { useNavigation } from '@react-navigation/native';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { GOOGLE_WEB_CLIENT_ID } from '@env';
 
+const googleClientConfigured =
+  typeof GOOGLE_WEB_CLIENT_ID === 'string' &&
+  GOOGLE_WEB_CLIENT_ID.endsWith('.apps.googleusercontent.com');
+
+const googleErrorMessage = (error: any) => {
+  const code = String(error?.code || '');
+  if (code === '10' || code.toUpperCase().includes('DEVELOPER_ERROR')) {
+    return 'This APK signing certificate is not registered for Google Sign-In. Install the latest verified Customer APK.';
+  }
+  if (code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+    return 'Google Play Services is unavailable or needs an update.';
+  }
+  return error?.message || 'Unable to sign in with Google';
+};
+
 export const LoginScreen = () => {
   const navigation = useNavigation<any>();
   const [email, setEmail] = useState('');
@@ -15,7 +30,11 @@ export const LoginScreen = () => {
   const login = useAuthStore((state) => state.login);
   const googleLogin = useAuthStore((state) => state.googleLogin);
 
-  React.useEffect(() => { GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID, offlineAccess: false }); }, []);
+  React.useEffect(() => {
+    if (googleClientConfigured) {
+      GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID, offlineAccess: false });
+    }
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) { Alert.alert('Missing details', 'Please enter email and password.'); return; }
@@ -24,16 +43,20 @@ export const LoginScreen = () => {
   };
 
   const handleGoogleLogin = async () => {
+    if (!googleClientConfigured) {
+      Alert.alert('Google Sign-In Unavailable', 'This Customer APK was built without a valid Google web client ID.');
+      return;
+    }
     try {
       setGoogleLoading(true);
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const response = await GoogleSignin.signIn();
-      const idToken = response.data?.idToken;
+      const idToken = response.data?.idToken || (response as any)?.idToken;
       if (!idToken) throw new Error('Google token missing');
       await googleLogin(idToken);
     } catch (error: any) {
       if (error?.code === statusCodes.SIGN_IN_CANCELLED) return;
-      Alert.alert('Google Sign-In Failed', error?.message || 'Unable to sign in with Google');
+      Alert.alert('Google Sign-In Failed', googleErrorMessage(error));
     } finally { setGoogleLoading(false); }
   };
 
@@ -49,7 +72,7 @@ export const LoginScreen = () => {
         </View>
         <View style={styles.glassCard}>
           <Text style={styles.cardTitle}>Customer Sign In</Text>
-          <TouchableOpacity style={styles.googleBtn} onPress={handleGoogleLogin} disabled={googleLoading}>{googleLoading ? <ActivityIndicator color="#1E293B" /> : <><Chrome size={22} color="#1E293B" /><Text style={styles.googleBtnText}>Continue with Google</Text></>}</TouchableOpacity>
+          <TouchableOpacity style={[styles.googleBtn, !googleClientConfigured && styles.googleBtnDisabled]} onPress={handleGoogleLogin} disabled={googleLoading || !googleClientConfigured}>{googleLoading ? <ActivityIndicator color="#1E293B" /> : <><Chrome size={22} color="#1E293B" /><Text style={styles.googleBtnText}>{googleClientConfigured ? 'Continue with Google' : 'Google Sign-In unavailable'}</Text></>}</TouchableOpacity>
           <View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>Or use email</Text><View style={styles.line} /></View>
           <View style={styles.inputGroup}>
             <View style={styles.inputWrapper}><Mail size={18} color="#94A3B8" /><TextInput style={styles.input} placeholder="Email" placeholderTextColor="#94A3B8" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" /></View>
@@ -80,6 +103,7 @@ const styles = StyleSheet.create({
   inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 15, paddingHorizontal: 15, height: 55, borderWidth: 1, borderColor: '#F1F5F9' },
   input: { flex: 1, marginLeft: 10, fontSize: 16, color: '#1E293B' },
   googleBtn: { height: 60, borderRadius: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' },
+  googleBtnDisabled: { opacity: 0.55 },
   googleBtnText: { color: '#1E293B', fontSize: 16, fontWeight: '900' },
   loginBtn: { marginTop: 24, backgroundColor: '#1E293B', height: 60, borderRadius: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
   loginBtnDisabled: { opacity: 0.7 },
