@@ -36,6 +36,7 @@ export class AppController {
     return {
       status: 'ok',
       service: 'aagam-api-gateway',
+      revision: process.env.DEPLOY_SHA || 'development',
       timestamp: new Date().toISOString(),
       uptimeSeconds: Math.round(process.uptime()),
     };

@@ -104,9 +104,13 @@ pm2 jlist | node -e '
 
 healthy=false
 for attempt in $(seq 1 30); do
-  if curl --fail --silent --show-error --max-time 10 "$HEALTHCHECK_URL" >/dev/null; then
+  health_response="$(curl --fail --silent --show-error --max-time 10 "$HEALTHCHECK_URL" || true)"
+  if HEALTH_RESPONSE="$health_response" node -e '
+    const response = JSON.parse(process.env.HEALTH_RESPONSE || "{}");
+    if (response.status !== "ok" || response.revision !== process.env.DEPLOY_SHA) process.exit(1);
+  '; then
     healthy=true
-    echo "Health check passed: $HEALTHCHECK_URL"
+    echo "Health check passed for exact revision $DEPLOY_SHA: $HEALTHCHECK_URL"
     break
   fi
   echo "Waiting for API health check ($attempt/30)..."
@@ -117,6 +121,17 @@ if [[ "$healthy" != true ]]; then
   echo "Health check failed after 30 attempts: $HEALTHCHECK_URL"
   exit 1
 fi
+
+health_base="${HEALTHCHECK_URL%/health}"
+for readiness_path in ready ready/realtime; do
+  readiness_url="$health_base/$readiness_path"
+  readiness_response="$(curl --fail --silent --show-error --max-time 10 "$readiness_url")"
+  READINESS_RESPONSE="$readiness_response" node -e '
+    const response = JSON.parse(process.env.READINESS_RESPONSE || "{}");
+    if (response.status !== "ready") process.exit(1);
+  '
+  echo "Readiness check passed: $readiness_url"
+done
 
 pm2 status
 echo "Deployment completed successfully for commit $DEPLOY_SHA"

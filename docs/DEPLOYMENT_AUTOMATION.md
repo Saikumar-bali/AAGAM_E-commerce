@@ -31,7 +31,8 @@ Store the following values in the `production` environment rather than in the ge
 | `DEPLOY_PORT` | `22` | SSH port; optional, defaults to `22` |
 | `DEPLOY_PATH` | `/opt/aagam` | Absolute application directory |
 | `HEALTHCHECK_URL` | `http://127.0.0.1:3005/health` | API health endpoint reachable from the VPS |
-| `PRODUCTION_URL` | `https://aagam.example.com` | Optional URL shown in GitHub deployment history |
+| `PRODUCTION_URL` | `https://aagam.example.com` | Required public HTTPS frontend URL; verified after deployment |
+| `PUBLIC_HEALTHCHECK_URL` | `https://aagam.example.com/api/health` | Optional public API health override; defaults to `PRODUCTION_URL/api/health` |
 
 ### Secrets
 
@@ -151,4 +152,6 @@ After `deploy.yml` is present on `main`, open **Actions â†’ Deploy production â†
 - Failure before Prisma migration leaves PM2 running the previous process version.
 - Failure during migration stops the deployment and does not restart PM2.
 - Failure after PM2 reload prints PM2 status and recent API logs, then marks the workflow failed.
+- Local health must report the exact deployed commit, and database plus Redis readiness must pass.
+- The public frontend and public API health endpoint must serve the exact deployed commit before the workflow succeeds.
 - Database migrations are not automatically rolled back. Production migrations must remain backward-compatible, and destructive changes should be split across releases.

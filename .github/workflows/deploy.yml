@@ -41,6 +41,8 @@ jobs:
       DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
       DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
       HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL || 'http://127.0.0.1:3005/health' }}
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+      PUBLIC_HEALTHCHECK_URL: ${{ vars.PUBLIC_HEALTHCHECK_URL }}
       REPOSITORY: ${{ github.repository }}
 
     steps:
@@ -67,6 +69,7 @@ jobs:
           [[ -n "$DEPLOY_HOST" ]] || missing+=("variable DEPLOY_HOST")
           [[ -n "$DEPLOY_USER" ]] || missing+=("variable DEPLOY_USER")
           [[ -n "$DEPLOY_PATH" ]] || missing+=("variable DEPLOY_PATH")
+          [[ -n "$PRODUCTION_URL" ]] || missing+=("variable PRODUCTION_URL")
           [[ -n "$SSH_PRIVATE_KEY" ]] || missing+=("secret DEPLOY_SSH_PRIVATE_KEY")
           [[ -n "$SSH_KNOWN_HOSTS" ]] || missing+=("secret DEPLOY_KNOWN_HOSTS")
           [[ -n "$PRODUCTION_ENV_FILE_B64" ]] || missing+=("secret PRODUCTION_ENV_FILE_B64")
@@ -88,6 +91,11 @@ jobs:
               exit 1
               ;;
           esac
+
+          [[ "$PRODUCTION_URL" =~ ^https://[^[:space:]]+$ ]] || {
+            echo "PRODUCTION_URL must be an absolute HTTPS URL."
+            exit 1
+          }
 
       - name: Configure SSH
         shell: bash
@@ -229,6 +237,36 @@ jobs:
           ssh "${ssh_options[@]}" "$target" \
             "cd $remote_path && DEPLOY_SHA=$remote_sha HEALTHCHECK_URL=$remote_health ./deploy.sh"
 
+      - name: Verify public frontend and exact API revision
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          public_health="${PUBLIC_HEALTHCHECK_URL:-${PRODUCTION_URL%/}/api/health}"
+
+          public_ready=false
+          for attempt in $(seq 1 30); do
+            frontend_status="$(curl --location --silent --output /dev/null --write-out '%{http_code}' --max-time 15 "$PRODUCTION_URL" || true)"
+            health_response="$(curl --location --fail --silent --show-error --max-time 15 "$public_health" || true)"
+            if [[ "$frontend_status" =~ ^2[0-9][0-9]$ ]] && \
+              HEALTH_RESPONSE="$health_response" node -e '
+                const response = JSON.parse(process.env.HEALTH_RESPONSE || "{}");
+                if (response.status !== "ok" || response.revision !== process.env.DEPLOY_SHA) process.exit(1);
+              '; then
+              public_ready=true
+              break
+            fi
+            echo "Waiting for public deployment ($attempt/30): frontend=$frontend_status"
+            sleep 5
+          done
+
+          if [[ "$public_ready" != true ]]; then
+            echo "Public verification failed for $PRODUCTION_URL and $public_health"
+            exit 1
+          fi
+
+          echo "Public deployment serves exact revision $DEPLOY_SHA"
+          echo "PUBLIC_HEALTHCHECK_URL=$public_health" >> "$GITHUB_ENV"
+
       - name: Publish deployment summary
         if: always()
         shell: bash
@@ -238,6 +276,8 @@ jobs:
             echo
             echo "- Commit: \`$DEPLOY_SHA\`"
             echo "- Target: \`$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH\`"
+            echo "- Public URL: \`$PRODUCTION_URL\`"
+            echo "- Public API health: \`${PUBLIC_HEALTHCHECK_URL:-not reached}\`"
             echo "- Trigger: \`${{ github.event_name }}\`"
             echo "- Result: \`${{ job.status }}\`"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -54,6 +54,18 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate --schema packages/database/prisma/schema.prisma
 
+      - name: Validate production deployment assets
+        env:
+          NODE_ENV: production
+          DATABASE_URL: postgresql://aagam:ci-only@db.example.com:5432/aagam
+          REDIS_URL: rediss://redis.example.com:6380
+          JWT_SECRET: aagam-ci-only-production-validator-secret
+          CORS_ORIGINS: https://aagam.example.com
+          NEXT_PUBLIC_API_URL: https://aagam.example.com/api
+        run: |
+          bash -n deploy.sh
+          npm run check:env:prod
+
       - name: Cache Turbo
         uses: actions/cache@v4
         with:
