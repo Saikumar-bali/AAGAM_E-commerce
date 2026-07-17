@@ -101,10 +101,84 @@ if (( ${#missing[@]} > 0 )); then
   fail "Missing required GitHub configuration for $app_slug: ${missing[*]}"
 fi
 
-if ! printf '%s' "$GOOGLE_SERVICES_JSON" > "$google_services_path"; then
-  fail "Could not write $google_services_path"
+set +e
+normalization_output="$(GOOGLE_SERVICES_JSON="$GOOGLE_SERVICES_JSON" node - "$google_services_path" <<'NODE' 2>&1
+const fs = require('node:fs');
+const path = require('node:path');
+
+const outputPath = process.argv[2];
+const raw = process.env.GOOGLE_SERVICES_JSON || '';
+const candidates = [];
+const seen = new Set();
+
+function addCandidate(label, value) {
+  if (typeof value !== 'string') return;
+  const normalized = value.trim();
+  if (!normalized || seen.has(normalized)) return;
+  seen.add(normalized);
+  candidates.push({ label, value: normalized });
+}
+
+addCandidate('raw', raw);
+const trimmed = raw.trim();
+
+if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+  addCandidate('single-quoted', trimmed.slice(1, -1));
+}
+
+try {
+  const decoded = JSON.parse(trimmed);
+  if (typeof decoded === 'string') addCandidate('json-string', decoded);
+} catch {
+  // The secret may be escaped JSON rather than a JSON string.
+}
+
+addCandidate(
+  'escaped-json',
+  trimmed
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+);
+
+if (/^[A-Za-z0-9+/=\r\n]+$/.test(trimmed)) {
+  addCandidate('base64', Buffer.from(trimmed.replace(/\s+/g, ''), 'base64').toString('utf8'));
+}
+
+const failures = [];
+for (const candidate of candidates) {
+  try {
+    const parsed = JSON.parse(candidate.value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('top-level value must be a JSON object');
+    }
+    if (!parsed.project_info || !Array.isArray(parsed.client)) {
+      throw new Error('missing Firebase project_info or client array');
+    }
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, `${JSON.stringify(parsed, null, 2)}\n`, { mode: 0o600 });
+    console.log(`Normalized google-services.json from ${candidate.label} secret format.`);
+    process.exit(0);
+  } catch (error) {
+    failures.push(`${candidate.label}: ${error.message}`);
+  }
+}
+
+console.error('GOOGLE_SERVICES_JSON could not be normalized as Firebase JSON.');
+for (const failure of failures) console.error(`- ${failure}`);
+process.exit(1);
+NODE
+)"
+normalization_status=$?
+set -e
+
+if (( normalization_status != 0 )); then
+  fail "$normalization_output"
 fi
 
+echo "$normalization_output"
 {
   echo
   echo "## Validation"
