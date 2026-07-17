@@ -57,8 +57,8 @@ jobs:
       - name: Validate production deployment assets
         env:
           NODE_ENV: production
-          DATABASE_URL: postgresql://aagam:ci-only@db.example.com:5432/aagam
-          REDIS_URL: rediss://redis.example.com:6380
+          DATABASE_URL: postgresql://aagam:ci-only@127.0.0.1:5432/aagam
+          REDIS_URL: redis://127.0.0.1:6379
           JWT_SECRET: aagam-ci-only-production-validator-secret
           CORS_ORIGINS: https://aagam.example.com
           NEXT_PUBLIC_API_URL: https://aagam.example.com/api

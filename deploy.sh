@@ -5,6 +5,7 @@ IFS=$'\n\t'
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_SHA="${DEPLOY_SHA:-}"
+DEPLOY_PUBLIC_API_URL="${DEPLOY_PUBLIC_API_URL:-}"
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:3005/health}"
 DEPLOY_LOCK_FILE="${DEPLOY_LOCK_FILE:-/tmp/aagam-production-deploy.lock}"
 
@@ -62,6 +63,9 @@ set -a
 source <(sed 's/\r$//' .env)
 set +a
 export NODE_ENV=production
+if [[ -n "$DEPLOY_PUBLIC_API_URL" ]]; then
+  export NEXT_PUBLIC_API_URL="$DEPLOY_PUBLIC_API_URL"
+fi
 
 echo "Deploying AAGAM commit $DEPLOY_SHA"
 node --version

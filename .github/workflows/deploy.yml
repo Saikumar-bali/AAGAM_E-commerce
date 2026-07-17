@@ -42,6 +42,7 @@ jobs:
       DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
       HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL || 'http://127.0.0.1:3005/health' }}
       PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+      PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
       PUBLIC_HEALTHCHECK_URL: ${{ vars.PUBLIC_HEALTHCHECK_URL }}
       REPOSITORY: ${{ github.repository }}
 
@@ -233,9 +234,11 @@ jobs:
           printf -v remote_path '%q' "$DEPLOY_PATH"
           printf -v remote_sha '%q' "$DEPLOY_SHA"
           printf -v remote_health '%q' "$HEALTHCHECK_URL"
+          public_api="${PUBLIC_API_URL:-${PRODUCTION_URL%/}/api}"
+          printf -v remote_public_api '%q' "$public_api"
 
           ssh "${ssh_options[@]}" "$target" \
-            "cd $remote_path && DEPLOY_SHA=$remote_sha HEALTHCHECK_URL=$remote_health ./deploy.sh"
+            "cd $remote_path && DEPLOY_SHA=$remote_sha DEPLOY_PUBLIC_API_URL=$remote_public_api HEALTHCHECK_URL=$remote_health ./deploy.sh"
 
       - name: Verify public frontend and exact API revision
         shell: bash

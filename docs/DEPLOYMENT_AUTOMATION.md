@@ -32,6 +32,7 @@ Store the following values in the `production` environment rather than in the ge
 | `DEPLOY_PATH` | `/opt/aagam` | Absolute application directory |
 | `HEALTHCHECK_URL` | `http://127.0.0.1:3005/health` | API health endpoint reachable from the VPS |
 | `PRODUCTION_URL` | `https://aagam.example.com` | Required public HTTPS frontend URL; verified after deployment |
+| `PUBLIC_API_URL` | `https://aagam.example.com/api` | Optional browser API URL override; defaults to `PRODUCTION_URL/api` |
 | `PUBLIC_HEALTHCHECK_URL` | `https://aagam.example.com/api/health` | Optional public API health override; defaults to `PRODUCTION_URL/api/health` |
 
 ### Secrets
@@ -115,6 +116,8 @@ CORS_ORIGINS="https://your-admin-domain.example"
 NEXT_PUBLIC_API_URL="https://your-api-domain.example"
 ```
 
+The workflow overrides `NEXT_PUBLIC_API_URL` at build time with `PUBLIC_API_URL`, or with `PRODUCTION_URL/api` when that variable is not set. This prevents an old or local browser URL in the server `.env` from being compiled into the dashboard.
+
 Add the remaining Firebase, Supabase, storage, mail, payment, and application-specific values required by the production service.
 
 ## One-time VPS prerequisites
@@ -139,7 +142,7 @@ pm2 startup
 pm2 save
 ```
 
-The VPS also needs network access to the production PostgreSQL and Redis services. Migrations run through `DATABASE_URL`; the API and worker use `REDIS_URL`.
+The VPS also needs network access to the production PostgreSQL and Redis services. They may run on the same VPS (`127.0.0.1`) or on managed hosts. Migrations run through `DATABASE_URL`; the API and worker use `REDIS_URL`.
 
 For the first deployment the workflow clones this public repository automatically when the directory at `DEPLOY_PATH` does not exist or is empty. If the directory already contains a checkout, tracked local changes are discarded during deployment; keep server-only configuration in `.env` or outside the repository.
 

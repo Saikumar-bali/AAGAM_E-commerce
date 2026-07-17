@@ -20,12 +20,26 @@ if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
   weak.push('JWT_SECRET must be at least 32 characters');
 }
 
-if (process.env.DATABASE_URL && /localhost|127\.0\.0\.1/i.test(process.env.DATABASE_URL)) {
-  weak.push('DATABASE_URL points to localhost; do not use local DB for production');
+if (process.env.DATABASE_URL) {
+  try {
+    const parsed = new URL(process.env.DATABASE_URL);
+    if (!['postgres:', 'postgresql:'].includes(parsed.protocol)) {
+      weak.push('DATABASE_URL must use the postgres or postgresql protocol');
+    }
+  } catch {
+    weak.push('DATABASE_URL must be a valid PostgreSQL connection URL');
+  }
 }
 
-if (process.env.REDIS_URL && /localhost|127\.0\.0\.1/i.test(process.env.REDIS_URL)) {
-  weak.push('REDIS_URL points to localhost; do not use local Redis for production');
+if (process.env.REDIS_URL) {
+  try {
+    const parsed = new URL(process.env.REDIS_URL);
+    if (!['redis:', 'rediss:'].includes(parsed.protocol)) {
+      weak.push('REDIS_URL must use the redis or rediss protocol');
+    }
+  } catch {
+    weak.push('REDIS_URL must be a valid Redis connection URL');
+  }
 }
 
 if (process.env.CORS_ORIGINS) {
