@@ -41,10 +41,12 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    // CI already creates a production build. Serving that immutable build keeps
+    // four concurrent workers away from Next.js Fast Refresh/compiler races.
+    command: process.env.CI ? 'npm run start' : 'npm run dev',
     port: 3001,
     timeout: 120000,
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     env: {
       NEXT_PUBLIC_API_URL: 'http://localhost:3005',
     },

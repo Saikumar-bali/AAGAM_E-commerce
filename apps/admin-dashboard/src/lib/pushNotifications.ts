@@ -8,6 +8,15 @@ declare global {
   }
 }
 
+type FirebaseWebConfig = {
+  apiKey: string;
+  authDomain?: string;
+  projectId: string;
+  storageBucket?: string;
+  messagingSenderId: string;
+  appId: string;
+};
+
 type PushSetupResult = {
   enabled: boolean;
   permission: NotificationPermission;
@@ -59,6 +68,14 @@ function notificationTarget(deepLink?: string, recipientId?: string) {
   return target.href;
 }
 
+function workerScriptUrl(firebaseConfig: FirebaseWebConfig) {
+  const url = new URL('/firebase-messaging-sw.js', window.location.origin);
+  Object.entries(firebaseConfig).forEach(([key, value]) => {
+    if (value) url.searchParams.set(key, value);
+  });
+  return `${url.pathname}${url.search}`;
+}
+
 export function pushNotificationsSupported() {
   return typeof window !== 'undefined'
     && 'Notification' in window
@@ -88,7 +105,10 @@ export async function enablePushNotifications(): Promise<PushSetupResult> {
     return { enabled: false, permission, reason: 'Notification permission was not granted.' };
   }
 
-  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+  const registration = await navigator.serviceWorker.register(
+    workerScriptUrl(config.firebaseConfig as FirebaseWebConfig),
+    { scope: '/', updateViaCache: 'none' },
+  );
   await navigator.serviceWorker.ready;
 
   const firebase = await loadFirebaseCompat();
