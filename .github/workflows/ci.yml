@@ -16,7 +16,6 @@ concurrency:
 env:
   NODE_VERSION: "22.22.3"
   PLAYWRIGHT_WORKERS: "4"
-  CI_JWT_SECRET: "aagam-ci-only-jwt-secret-change-me-in-production"
   CI_ADMIN_EMAIL: "admin@aagam.com"
   CI_ADMIN_PASSWORD: "admin@2026!"
   CI_CUSTOMER_EMAIL: "customer@aagam.com"
@@ -89,7 +88,7 @@ jobs:
     env:
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
       NODE_ENV: test
-      JWT_SECRET: ${{ env.CI_JWT_SECRET }}
+      JWT_SECRET: "aagam-ci-only-jwt-secret-change-me-in-production"
 
     steps:
       - name: Checkout repo
@@ -160,7 +159,7 @@ jobs:
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
       REDIS_URL: "redis://localhost:6379"
       NODE_ENV: test
-      JWT_SECRET: ${{ env.CI_JWT_SECRET }}
+      JWT_SECRET: "aagam-ci-only-jwt-secret-change-me-in-production"
       PLAYWRIGHT_QA: "true"
       PLAYWRIGHT_QA_SEED: "true"
 
@@ -232,7 +231,7 @@ jobs:
         env:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
           REDIS_URL: "redis://localhost:6379"
-          JWT_SECRET: ${{ env.CI_JWT_SECRET }}
+          JWT_SECRET: "aagam-ci-only-jwt-secret-change-me-in-production"
           NODE_ENV: test
           PORT: "3005"
           PLAYWRIGHT_QA: "true"
