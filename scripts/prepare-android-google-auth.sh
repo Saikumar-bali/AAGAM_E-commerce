@@ -32,20 +32,6 @@ fail() {
   exit 1
 }
 
-missing=()
-for name in GOOGLE_WEB_CLIENT_ID GOOGLE_ANDROID_CLIENT_ID GOOGLE_SERVICES_JSON; do
-  if [[ -z "${!name:-}" ]]; then
-    missing+=("$name")
-  fi
-done
-if (( ${#missing[@]} > 0 )); then
-  fail "Missing required GitHub configuration for $app_slug: ${missing[*]}"
-fi
-
-if ! printf '%s' "$GOOGLE_SERVICES_JSON" > "$google_services_path"; then
-  fail "Could not write $google_services_path"
-fi
-
 release_values=(
   "${KEYSTORE_BASE64:-}"
   "${AAGAM_ANDROID_KEYSTORE_PASSWORD:-}"
@@ -89,13 +75,37 @@ if [[ -z "$signing_sha1" || -z "$signing_sha256" ]]; then
   fail "Could not read SHA fingerprints from the configured Android keystore. Verify the keystore, alias, and passwords."
 fi
 
+web_configured=no
+android_configured=no
+firebase_configured=no
+[[ -n "${GOOGLE_WEB_CLIENT_ID:-}" ]] && web_configured=yes
+[[ -n "${GOOGLE_ANDROID_CLIENT_ID:-}" ]] && android_configured=yes
+[[ -n "${GOOGLE_SERVICES_JSON:-}" ]] && firebase_configured=yes
+
 {
   echo "- Signing channel: \`$signing_channel\`"
   echo "- APK signing SHA-1: \`$signing_sha1\`"
   echo "- APK signing SHA-256: \`$signing_sha256\`"
-  echo "- Web OAuth client configured: yes"
-  echo "- Android OAuth client configured: yes"
-  echo "- google-services.json supplied: yes"
+  echo "- Web OAuth client configured: $web_configured"
+  echo "- Android OAuth client configured: $android_configured"
+  echo "- google-services.json supplied: $firebase_configured"
+} >> "$proof_file"
+
+missing=()
+for name in GOOGLE_WEB_CLIENT_ID GOOGLE_ANDROID_CLIENT_ID GOOGLE_SERVICES_JSON; do
+  if [[ -z "${!name:-}" ]]; then
+    missing+=("$name")
+  fi
+done
+if (( ${#missing[@]} > 0 )); then
+  fail "Missing required GitHub configuration for $app_slug: ${missing[*]}"
+fi
+
+if ! printf '%s' "$GOOGLE_SERVICES_JSON" > "$google_services_path"; then
+  fail "Could not write $google_services_path"
+fi
+
+{
   echo
   echo "## Validation"
   echo '```text'

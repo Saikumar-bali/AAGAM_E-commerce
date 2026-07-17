@@ -46,7 +46,8 @@ describe("Mobile commerce hardening contracts", () => {
     expect(layout).toContain("let cachedSession");
     expect(layout).toContain("let sessionRequest");
     expect(layout).toContain("<PushNotificationManager />");
-    expect(worker).toContain("firebase.messaging");
+    expect(worker).toContain("firebase-messaging-compat.js");
+    expect(worker).toContain("firebaseNamespace.messaging");
     expect(worker).toContain("onBackgroundMessage");
   });
 
