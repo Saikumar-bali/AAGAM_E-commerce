@@ -204,6 +204,10 @@ jobs:
             exit 1
           fi
 
+          # A previous deployment or manual server action may have changed the
+          # mode/content of tracked files. Discard tracked checkout drift before
+          # switching branches; server-only configuration remains in ignored .env.
+          git reset --hard HEAD
           git checkout -B main origin/main
           git reset --hard "$deploy_sha"
 
@@ -213,7 +217,6 @@ jobs:
             exit 1
           }
 
-          chmod +x deploy.sh
           REMOTE
 
       - name: Build, migrate, restart, and verify
@@ -238,7 +241,7 @@ jobs:
           printf -v remote_public_api '%q' "$public_api"
 
           ssh "${ssh_options[@]}" "$target" \
-            "cd $remote_path && DEPLOY_SHA=$remote_sha DEPLOY_PUBLIC_API_URL=$remote_public_api HEALTHCHECK_URL=$remote_health ./deploy.sh"
+            "cd $remote_path && DEPLOY_SHA=$remote_sha DEPLOY_PUBLIC_API_URL=$remote_public_api HEALTHCHECK_URL=$remote_health bash deploy.sh"
 
       - name: Verify public frontend and exact API revision
         shell: bash
