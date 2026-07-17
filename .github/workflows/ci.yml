@@ -65,6 +65,14 @@ jobs:
         run: |
           bash -n deploy.sh
           npm run check:env:prod
+          if env -u CORS_ORIGINS npm run check:env:prod >/dev/null 2>&1; then
+            echo "Production validation unexpectedly accepted missing CORS_ORIGINS."
+            exit 1
+          fi
+          if env -u NEXT_PUBLIC_API_URL npm run check:env:prod >/dev/null 2>&1; then
+            echo "Production validation unexpectedly accepted missing NEXT_PUBLIC_API_URL."
+            exit 1
+          fi
 
       - name: Cache Turbo
         uses: actions/cache@v4

@@ -106,7 +106,9 @@ healthy=false
 for attempt in $(seq 1 30); do
   health_response="$(curl --fail --silent --show-error --max-time 10 "$HEALTHCHECK_URL" || true)"
   if HEALTH_RESPONSE="$health_response" node -e '
-    const response = JSON.parse(process.env.HEALTH_RESPONSE || "{}");
+    let response;
+    try { response = JSON.parse(process.env.HEALTH_RESPONSE || "{}"); }
+    catch { process.exit(1); }
     if (response.status !== "ok" || response.revision !== process.env.DEPLOY_SHA) process.exit(1);
   '; then
     healthy=true
