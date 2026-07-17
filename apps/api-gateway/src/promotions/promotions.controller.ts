@@ -10,7 +10,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import { Role } from "@aagam/database";
+import { CouponStatus, Role } from "@aagam/database";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -74,7 +74,22 @@ export class AdminPromotionsController {
 
   @Post("coupons")
   createCoupon(@Req() req: any, @Body() dto: UpsertCouponDto) {
-    return this.promotionsService.createCoupon(req.user.id, dto);
+    // The admin UI's primary action means “place this coupon”. Historically it
+    // sent the form default DRAFT, which made a successful save invisible to
+    // every customer client. Publish immediately unless the configured start
+    // time is in the future, in which case preserve the schedule explicitly.
+    const requestedStart = dto.startsAt ? new Date(dto.startsAt) : null;
+    const status =
+      dto.status === undefined || dto.status === CouponStatus.DRAFT
+        ? requestedStart && requestedStart.getTime() > Date.now()
+          ? CouponStatus.SCHEDULED
+          : CouponStatus.ACTIVE
+        : dto.status;
+
+    return this.promotionsService.createCoupon(req.user.id, {
+      ...dto,
+      status,
+    });
   }
 
   @Patch("coupons/:id")
