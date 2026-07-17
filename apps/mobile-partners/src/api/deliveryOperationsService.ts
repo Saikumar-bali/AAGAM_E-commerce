@@ -1,11 +1,14 @@
 import { apiClient } from './client';
 
 export type DeliveryFailureReason =
-  | 'CUSTOMER_UNAVAILABLE'
-  | 'INVALID_ADDRESS'
+  | 'CUSTOMER_UNREACHABLE'
   | 'CUSTOMER_REFUSED'
-  | 'PAYMENT_ISSUE'
-  | 'UNSAFE_LOCATION'
+  | 'ADDRESS_NOT_FOUND'
+  | 'WRONG_ADDRESS'
+  | 'PAYMENT_NOT_AVAILABLE'
+  | 'VEHICLE_BREAKDOWN'
+  | 'PACKAGE_DAMAGED'
+  | 'SAFETY_CONCERN'
   | 'OTHER';
 
 export type ReturnDisposition = 'SELLABLE' | 'DAMAGED' | 'MISSING';
@@ -89,7 +92,15 @@ export const deliveryOperationsService = {
 
   completeDelivery: async (
     deliveryJobId: string,
-    input: { otpCode?: string; proofType?: string; note?: string },
+    input: {
+      otpCode: string;
+      proofType: 'CUSTOMER_OTP_PIN';
+      riderConfirmed: true;
+      note?: string;
+      latitude?: number;
+      longitude?: number;
+      accuracyMetres?: number;
+    },
     idempotencyKey = operationKey('mobile-complete', deliveryJobId),
   ) => {
     const response = await apiClient.post(

@@ -1,43 +1,51 @@
 import React, { useEffect } from 'react';
-import { StatusBar, LogBox } from 'react-native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { startMobilePushLifecycle, useAuthStore } from '@aagam/mobile-shared';
 import RootNavigator from './src/navigation/RootNavigator';
 
-LogBox.ignoreLogs([
-  'Non-serializable values were found in the navigation state',
-]);
+const queryClient = new QueryClient();
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 2,
-      staleTime: 30000,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+function PushLifecycle() {
+  const user = useAuthStore((state) => state.user);
 
-const App = () => {
   useEffect(() => {
-    StatusBar.setBarStyle('dark-content');
-    StatusBar.setBackgroundColor('#F8FAFC');
-  }, []);
+    if (!user) return;
+    let disposed = false;
+    let unsubscribe = () => undefined;
+    const deviceName = user.role === 'RIDER' ? 'AAGAM Rider' : 'AAGAM Store Partner';
+    void startMobilePushLifecycle(deviceName, (message) => {
+      Toast.show({
+        type: 'info',
+        text1: message.notification?.title || message.data?.title || 'AAGAM operations update',
+        text2: message.notification?.body || message.data?.body || 'Open the app for the latest assignment.',
+      });
+    }).then((cleanup) => {
+      if (disposed) cleanup();
+      else unsubscribe = cleanup;
+    });
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [user?.id, user?.role]);
 
+  return null;
+}
+
+function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor="#F8FAFC"
-          translucent={false}
-        />
+        <StatusBar barStyle="dark-content" />
+        <PushLifecycle />
         <RootNavigator />
         <Toast />
       </SafeAreaProvider>
     </QueryClientProvider>
   );
-};
+}
 
 export default App;
