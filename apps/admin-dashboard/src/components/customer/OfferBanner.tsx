@@ -8,10 +8,11 @@ import type { PromotionCampaign } from "./promotion-types";
 export default function OfferBanner({
   campaigns,
 }: {
-  campaigns: PromotionCampaign[];
+  campaigns?: PromotionCampaign[];
 }) {
   const router = useRouter();
-  if (!campaigns.length) {
+  const visibleCampaigns = Array.isArray(campaigns) ? campaigns : [];
+  if (!visibleCampaigns.length) {
     return (
       <div
         data-testid="today-offers-empty"
@@ -24,7 +25,7 @@ export default function OfferBanner({
   }
   return (
     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-      {campaigns.map((offer) => (
+      {visibleCampaigns.map((offer) => (
         <button
           type="button"
           key={offer.id}

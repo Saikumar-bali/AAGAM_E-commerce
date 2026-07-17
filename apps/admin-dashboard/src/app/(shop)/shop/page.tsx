@@ -9,10 +9,31 @@ import DashboardLayout from '@/components/DashboardLayout';
 import CustomerShell from '@/components/customer/CustomerShell';
 import CategoryRail from '@/components/customer/CategoryRail';
 import OfferBanner from '@/components/customer/OfferBanner';
+import PromotionHeroCarousel from '@/components/customer/PromotionHeroCarousel';
+import type { PromotionPlacements } from '@/components/customer/promotion-types';
 import ProductCard from '@/components/customer/ProductCard';
 import CartSheet from '@/components/customer/CartSheet';
 import EmptyState from '@/components/customer/EmptyState';
-import { Sparkles, Package, SlidersHorizontal, Zap, Star, PackageCheck, ArrowRight } from 'lucide-react';
+import { Package, SlidersHorizontal, ArrowRight } from 'lucide-react';
+
+const emptyPlacements = (): PromotionPlacements => ({
+  HOME_HERO: [],
+  HOME_TODAY_OFFERS: [],
+  DEALS_PAGE: [],
+});
+
+const normalizePlacements = (payload: unknown): PromotionPlacements => {
+  const placements = payload && typeof payload === 'object'
+    ? payload as Partial<PromotionPlacements>
+    : {};
+  return {
+    HOME_HERO: Array.isArray(placements.HOME_HERO) ? placements.HOME_HERO : [],
+    HOME_TODAY_OFFERS: Array.isArray(placements.HOME_TODAY_OFFERS)
+      ? placements.HOME_TODAY_OFFERS
+      : [],
+    DEALS_PAGE: Array.isArray(placements.DEALS_PAGE) ? placements.DEALS_PAGE : [],
+  };
+};
 
 function isUnavailable(product: any) {
   return Boolean(product.availability) && product.availability?.inStock === false;
@@ -35,9 +56,22 @@ export default function ShopPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [sort, setSort] = useState('newest');
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [promotions, setPromotions] = useState<PromotionPlacements>(emptyPlacements);
   const { cart, addToCart, updateQuantity, removeFromCart, totalPrice, totalItems } = useCart();
   const wishlist = useWishlist();
   const router = useRouter();
+
+  useEffect(() => {
+    const category = new URLSearchParams(window.location.search).get('category') || '';
+    setSelectedCategoryId(category);
+    apiClient
+      .get('/promotions/active')
+      .then((response) => setPromotions(normalizePlacements(response.data?.placements)))
+      .catch((error) => {
+        setPromotions(emptyPlacements());
+        console.error('Failed to load active promotions', error);
+      });
+  }, []);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -141,40 +175,7 @@ export default function ShopPage() {
         onCartOpen={() => setIsCartOpen(true)}
       >
         <div className="space-y-6 pb-24 md:pb-8">
-          <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-teal-950 p-6 text-white md:p-8">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(45,212,191,0.15),transparent_40%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(245,158,11,0.1),transparent_40%)]" />
-            <div className="relative">
-              <p className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/30 bg-teal-500/10 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-teal-300">
-                <Sparkles className="h-3 w-3" /> Quick Commerce
-              </p>
-              <h1 className="mt-4 text-3xl font-black leading-[1.1] tracking-tight md:text-5xl">
-                Fresh groceries,<br />
-                <span className="bg-gradient-to-r from-teal-300 to-amber-300 bg-clip-text text-transparent">delivered in 10 min.</span>
-              </h1>
-              <p className="mt-3 max-w-lg text-sm font-semibold leading-6 text-slate-400">
-                Daily essentials from nearby stores with live availability and fast checkout.
-              </p>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                {[
-                  { icon: Zap, label: '10 min delivery', sub: 'Lightning fast' },
-                  { icon: Star, label: 'Best prices', sub: 'Guaranteed' },
-                  { icon: PackageCheck, label: 'Fresh items', sub: 'Quality assured' },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 backdrop-blur-sm">
-                    <div className="grid h-8 w-8 place-items-center rounded-lg bg-teal-500/20 text-teal-300">
-                      <item.icon className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-black text-white">{item.label}</div>
-                      <div className="text-[10px] font-bold text-slate-500">{item.sub}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
+          <PromotionHeroCarousel campaigns={promotions.HOME_HERO} />
 
           <section>
             <div className="mb-3 flex items-center gap-2">
@@ -205,7 +206,7 @@ export default function ShopPage() {
               <span className="text-lg">🎉</span>
               <h2 className="text-sm font-black uppercase tracking-wider text-slate-950">Today&apos;s Offers</h2>
             </div>
-            <OfferBanner />
+            <OfferBanner campaigns={promotions.HOME_TODAY_OFFERS} />
           </section>
 
           <section>

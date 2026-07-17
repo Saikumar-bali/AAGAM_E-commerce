@@ -13,24 +13,25 @@ import type { PromotionCampaign } from "./promotion-types";
 export default function PromotionHeroCarousel({
   campaigns,
 }: {
-  campaigns: PromotionCampaign[];
+  campaigns?: PromotionCampaign[];
 }) {
   const [active, setActive] = useState(0);
   const router = useRouter();
+  const visibleCampaigns = Array.isArray(campaigns) ? campaigns : [];
 
   useEffect(() => {
     setActive((current) =>
-      Math.min(current, Math.max(campaigns.length - 1, 0))
+      Math.min(current, Math.max(visibleCampaigns.length - 1, 0))
     );
-    if (campaigns.length < 2) return;
+    if (visibleCampaigns.length < 2) return;
     const timer = window.setInterval(
-      () => setActive((current) => (current + 1) % campaigns.length),
+      () => setActive((current) => (current + 1) % visibleCampaigns.length),
       6000
     );
     return () => window.clearInterval(timer);
-  }, [campaigns.length]);
+  }, [visibleCampaigns.length]);
 
-  if (!campaigns.length) {
+  if (!visibleCampaigns.length) {
     return (
       <section
         data-testid="promotion-hero-empty"
@@ -48,7 +49,8 @@ export default function PromotionHeroCarousel({
     );
   }
 
-  const campaign = campaigns[active];
+  const safeActive = Math.min(active, visibleCampaigns.length - 1);
+  const campaign = visibleCampaigns[safeActive];
   const go = () => campaign.targetUrl && router.push(campaign.targetUrl);
   return (
     <section
@@ -105,12 +107,12 @@ export default function PromotionHeroCarousel({
           </button>
         )}
       </div>
-      {campaigns.length > 1 && (
+      {visibleCampaigns.length > 1 && (
         <>
           <button
             aria-label="Previous campaign"
             onClick={() =>
-              setActive((active - 1 + campaigns.length) % campaigns.length)
+              setActive((active - 1 + visibleCampaigns.length) % visibleCampaigns.length)
             }
             className="absolute left-3 top-1/2 z-20 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/25 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100"
           >
@@ -118,19 +120,19 @@ export default function PromotionHeroCarousel({
           </button>
           <button
             aria-label="Next campaign"
-            onClick={() => setActive((active + 1) % campaigns.length)}
+            onClick={() => setActive((active + 1) % visibleCampaigns.length)}
             className="absolute right-3 top-1/2 z-20 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/25 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
           <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 gap-1.5">
-            {campaigns.map((item, index) => (
+            {visibleCampaigns.map((item, index) => (
               <button
                 key={item.id}
                 aria-label={`Show campaign ${index + 1}`}
                 onClick={() => setActive(index)}
                 className={`h-2 rounded-full transition-all ${
-                  index === active ? "w-7 bg-white" : "w-2 bg-white/45"
+                  index === safeActive ? "w-7 bg-white" : "w-2 bg-white/45"
                 }`}
               />
             ))}
