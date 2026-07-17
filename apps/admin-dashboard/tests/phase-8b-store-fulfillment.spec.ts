@@ -27,21 +27,22 @@ async function loginAsStore(page: Page, email = STORE_EMAIL, password = STORE_PA
 
 async function createP8bStoreApi(): Promise<APIRequestContext> {
   // Do not use page.request here: the project's customer storage state would
-  // attach a customer cookie, which intentionally takes precedence in auth.
-  const loginApi = await playwrightRequest.newContext({ baseURL: API_BASE });
-  const tokenResponse = await loginApi.post('/auth/mobile/login', {
+  // attach a customer cookie. Keep a dedicated store cookie jar instead.
+  const api = await playwrightRequest.newContext({ baseURL: API_BASE });
+  const loginResponse = await api.post('/auth/login', {
     data: { email: P8B_STORE_EMAIL, password: P8B_STORE_PASS },
   });
-  const responseText = await tokenResponse.text();
-  expect(tokenResponse.ok(), `Store mobile login failed: ${responseText}`).toBeTruthy();
+  const responseText = await loginResponse.text();
+  expect(loginResponse.ok(), `Store browser login failed: ${responseText}`).toBeTruthy();
   const login = JSON.parse(responseText);
-  expect(login.access_token, 'Store mobile login did not return an access token').toBeTruthy();
-  await loginApi.dispose();
+  expect(login.user?.email).toBe(P8B_STORE_EMAIL);
+  expect(login.user?.role).toBe('STORE_OWNER');
 
-  return playwrightRequest.newContext({
-    baseURL: API_BASE,
-    extraHTTPHeaders: { Authorization: `Bearer ${login.access_token}` },
-  });
+  const profileResponse = await api.get('/auth/me');
+  const profileText = await profileResponse.text();
+  expect(profileResponse.ok(), `Store session verification failed: ${profileText}`).toBeTruthy();
+  expect(JSON.parse(profileText).role).toBe('STORE_OWNER');
+  return api;
 }
 
 async function getStoreOrders(api: APIRequestContext) {
