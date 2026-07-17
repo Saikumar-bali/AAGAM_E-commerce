@@ -11,6 +11,7 @@ import { OrderDetailScreen } from '../screens/customer/OrderDetailScreen';
 import { ReviewScreen } from '../screens/customer/ReviewScreen';
 import { NotificationsScreen } from '../screens/customer/NotificationsScreen';
 import { CustomerProfileScreen } from '../screens/customer/CustomerProfileScreen';
+import { DealsScreen } from '../screens/customer/DealsScreen';
 import { useCartStore } from '../store/cartStore';
 
 const Tab = createBottomTabNavigator();
@@ -59,6 +60,7 @@ export const CustomerNavigator = () => {
     <Stack.Navigator>
       <Stack.Screen name="MainTabs" component={CustomerTabs} options={{ headerShown: false }} />
       <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'Checkout', headerShadowVisible: false }} />
+      <Stack.Screen name="Deals" component={DealsScreen} options={{ title: 'Deals & Offers', headerShadowVisible: false }} />
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: 'Product Details', headerShadowVisible: false }} />
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Order Details', headerShadowVisible: false }} />
       <Stack.Screen name="Review" component={ReviewScreen} options={{ title: 'Review Order', headerShadowVisible: false }} />
