@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Geolocation from '@react-native-community/geolocation';
+import Geolocation from 'react-native-geolocation-service';
 import {
   AlertTriangle,
   Banknote,
@@ -38,36 +38,37 @@ import { normalizeRiderWorkspace } from '../../domain/riderWorkspace';
 const WORKSPACE_KEY = ['rider', 'delivery-workspace'] as const;
 const SUMMARY_KEY = ['rider', 'delivery-operations'] as const;
 
-function errorMessage(error: any) {
-  const message = error?.response?.data?.message;
-  if (Array.isArray(message)) return message.join(', ');
-  return message || error?.message || 'The operation could not be completed.';
-}
-
-function shortId(value?: string | null) {
-  return value ? value.slice(-8).toUpperCase() : 'UNKNOWN';
-}
-
-function label(value?: string | null) {
-  return String(value || 'UNKNOWN').replaceAll('_', ' ');
-}
-
 type PodLocation = {
   latitude: number;
   longitude: number;
   accuracyMetres?: number;
 };
 
-function getCurrentPodLocation() {
+function errorMessage(error: any) {
+  const message = error?.response?.data?.message;
+  if (Array.isArray(message)) return message.join(', ');
+  return message || error?.message || 'The operation could not be completed.';
+}
+
+function readable(value?: string | null) {
+  return String(value || 'UNKNOWN').replaceAll('_', ' ');
+}
+
+function shortId(value?: string | null) {
+  return value ? value.slice(-8).toUpperCase() : 'UNKNOWN';
+}
+
+function capturePodLocation() {
   return new Promise<PodLocation>((resolve, reject) => {
     Geolocation.getCurrentPosition(
-      (position) => resolve({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracyMetres: position.coords.accuracy,
-      }),
+      (position) =>
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracyMetres: position.coords.accuracy,
+        }),
       reject,
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 5_000 },
     );
   });
 }
@@ -79,7 +80,8 @@ export const RiderDeliveryOperationsScreen = () => {
   const [podNote, setPodNote] = useState('');
   const [riderConfirmed, setRiderConfirmed] = useState(false);
   const [lastPodLocation, setLastPodLocation] = useState<PodLocation | null>(null);
-  const [failureReason, setFailureReason] = useState<DeliveryFailureReason>('CUSTOMER_UNREACHABLE');
+  const [failureReason, setFailureReason] =
+    useState<DeliveryFailureReason>('CUSTOMER_UNREACHABLE');
   const [failureNote, setFailureNote] = useState('');
 
   const workspaceQuery = useQuery({
@@ -88,7 +90,6 @@ export const RiderDeliveryOperationsScreen = () => {
     refetchInterval: 12_000,
   });
   const activeJob = workspaceQuery.data?.activeJob || null;
-
   const summaryQuery = useQuery({
     queryKey: [...SUMMARY_KEY, activeJob?.id],
     queryFn: () => deliveryOperationsService.getSummary(activeJob!.id),
@@ -98,7 +99,9 @@ export const RiderDeliveryOperationsScreen = () => {
   const summary = summaryQuery.data || null;
   const policy = useMemo(() => riderOperationPolicy(summary), [summary]);
   const order = summary?.job?.order || activeJob?.order;
-  const recordedProof = summary?.operations?.find((operation) => operation.type === 'DELIVERY_PROOF_RECORDED');
+  const recordedProof = summary?.operations?.find(
+    (operation) => operation.type === 'DELIVERY_PROOF_RECORDED',
+  );
 
   const refresh = async () => {
     await workspaceQuery.refetch();
@@ -107,7 +110,7 @@ export const RiderDeliveryOperationsScreen = () => {
 
   const perform = async (
     key: string,
-    task: () => Promise<any>,
+    task: () => Promise<unknown>,
     successTitle: string,
     successMessage: string,
   ) => {
@@ -118,77 +121,82 @@ export const RiderDeliveryOperationsScreen = () => {
       await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
       await queryClient.invalidateQueries({ queryKey: SUMMARY_KEY });
       Alert.alert(successTitle, successMessage);
-    } catch (error: any) {
+    } catch (error) {
       Alert.alert('Operation failed', errorMessage(error));
     } finally {
       setBusy(null);
     }
   };
 
-  const completeDelivery = () => {
+  const recordPod = () => {
     if (!activeJob || !summary) return;
     if (otpCode.trim().length !== 6) {
-      Alert.alert('Enter the customer code', 'A valid 6-digit delivery OTP/PIN is required.');
+      Alert.alert('Enter the customer code', 'A valid 6-digit OTP/PIN is required.');
       return;
     }
     if (!riderConfirmed) {
-      Alert.alert('Confirm the handoff', 'Confirm that the parcel was physically handed to the customer.');
+      Alert.alert('Confirm the handoff', 'Confirm that the parcel was handed to the customer.');
       return;
     }
 
     Alert.alert(
       'Record proof of delivery?',
-      'AAGAM will verify the OTP and record rider confirmation, GPS coordinates, accuracy, time, and note.',
+      'OTP, rider confirmation, live GPS, accuracy, time, and note will be stored.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Record POD',
-          onPress: () => void perform(
-            'complete',
-            async () => {
-              const location = await getCurrentPodLocation();
-              setLastPodLocation(location);
-              await deliveryOperationsService.completeDelivery(activeJob.id, {
-                otpCode: otpCode.trim(),
-                proofType: 'CUSTOMER_OTP_PIN',
-                riderConfirmed: true,
-                note: podNote.trim() || undefined,
-                latitude: location.latitude,
-                longitude: location.longitude,
-                accuracyMetres: location.accuracyMetres,
-              });
-              setOtpCode('');
-              setPodNote('');
-              setRiderConfirmed(false);
-            },
-            'Proof of delivery recorded',
-            'OTP, GPS, rider confirmation, and delivery timestamp are now stored against the order.',
-          ),
+          onPress: () =>
+            void perform(
+              'complete',
+              async () => {
+                const location = await capturePodLocation();
+                setLastPodLocation(location);
+                await deliveryOperationsService.completeDelivery(activeJob.id, {
+                  otpCode: otpCode.trim(),
+                  proofType: 'CUSTOMER_OTP_PIN',
+                  riderConfirmed: true,
+                  note: podNote.trim() || undefined,
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                  accuracyMetres: location.accuracyMetres,
+                });
+                setOtpCode('');
+                setPodNote('');
+                setRiderConfirmed(false);
+              },
+              'Proof of delivery recorded',
+              'The verified handoff evidence is stored against this order.',
+            ),
         },
       ],
     );
   };
 
-  const confirmFailure = () => {
+  const recordFailure = () => {
     if (!activeJob) return;
-    const selected = DELIVERY_FAILURE_OPTIONS.find((option) => option.value === failureReason);
+    const option = DELIVERY_FAILURE_OPTIONS.find(
+      (item) => item.value === failureReason,
+    );
     Alert.alert(
-      'Record delivery failure?',
-      `${selected?.label || 'Delivery failure'} will move this job to the exception workflow.`,
+      'Record failed delivery?',
+      `${option?.label || 'Failure'} will start the exception workflow.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Record failure',
           style: 'destructive',
-          onPress: () => void perform(
-            'failure',
-            () => deliveryOperationsService.recordFailure(activeJob.id, {
-              reason: failureReason,
-              note: failureNote.trim() || undefined,
-            }),
-            'Failure recorded',
-            'The failure reason is stored and the return workflow is now available.',
-          ),
+          onPress: () =>
+            void perform(
+              'failure',
+              () =>
+                deliveryOperationsService.recordFailure(activeJob.id, {
+                  reason: failureReason,
+                  note: failureNote.trim() || undefined,
+                }),
+              'Failure recorded',
+              'The exact reason is stored and return handling is now available.',
+            ),
         },
       ],
     );
@@ -206,73 +214,107 @@ export const RiderDeliveryOperationsScreen = () => {
       }
     >
       <View style={styles.hero}>
-        <View style={styles.heroCopy}>
+        <View style={styles.flex}>
           <Text style={styles.eyebrow}>RIDER OPERATIONS</Text>
           <Text style={styles.title}>Delivery proof & exceptions</Text>
-          <Text style={styles.subtitle}>OTP, COD, GPS proof, failure reasons, and return workflow</Text>
+          <Text style={styles.subtitle}>
+            OTP, COD, GPS evidence, failure reasons, and returns
+          </Text>
         </View>
         <TouchableOpacity style={styles.refreshButton} onPress={() => void refresh()}>
           <RefreshCw size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.stickyInfo}>
+      <View style={styles.infoCard}>
         <MapPin size={18} color="#0F766E" />
-        <Text style={styles.stickyText}>
-          During an active trip, Android keeps the ongoing “AAGAM delivery tracking active” notification visible and location updates continue through the foreground service.
+        <Text style={styles.infoText}>
+          During an active trip, Android keeps the ongoing “AAGAM delivery tracking active” notification visible through the foreground service.
         </Text>
       </View>
 
       {workspaceQuery.isLoading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.muted}>Loading active delivery…</Text></View>
+        <Loading text="Loading active delivery…" />
       ) : !activeJob ? (
-        <View style={styles.emptyCard}><ShieldCheck size={48} color="#94A3B8" /><Text style={styles.emptyTitle}>No active delivery</Text><Text style={styles.emptyText}>Accept an addressed offer from the Dashboard before using delivery operations.</Text></View>
+        <EmptyState />
       ) : summaryQuery.isLoading ? (
-        <View style={styles.center}><ActivityIndicator color="#0F766E" /><Text style={styles.muted}>Loading operation state…</Text></View>
+        <Loading text="Loading delivery operations…" />
       ) : summaryQuery.error || !summary ? (
-        <View style={styles.errorCard}><AlertTriangle size={34} color="#B91C1C" /><Text style={styles.errorTitle}>Operations unavailable</Text><Text style={styles.errorText}>{errorMessage(summaryQuery.error)}</Text></View>
+        <View style={styles.errorCard}>
+          <AlertTriangle size={32} color="#B91C1C" />
+          <Text style={styles.errorTitle}>Operations unavailable</Text>
+          <Text style={styles.errorText}>{errorMessage(summaryQuery.error)}</Text>
+        </View>
       ) : (
         <>
           <View style={styles.statusCard}>
-            <View style={styles.heroCopy}>
+            <View style={styles.flex}>
               <Text style={styles.cardEyebrow}>ORDER #{shortId(order?.id)}</Text>
-              <Text style={styles.cardTitle}>{label(summary.job.status)}</Text>
-              <Text style={styles.cardSub}>{order?.store?.name || 'AAGAM Store'} · {order?.customer?.name || 'Customer'}</Text>
+              <Text style={styles.cardTitle}>{readable(summary.job.status)}</Text>
+              <Text style={styles.cardText}>
+                {order?.store?.name || 'AAGAM Store'} · {order?.customer?.name || 'Customer'}
+              </Text>
             </View>
-            <View style={styles.amountBox}><Text style={styles.amountLabel}>{summary.cod.applicable ? 'COD' : 'PREPAID'}</Text><Text style={styles.amount}>₹{(Number(summary.cod.expectedAmountPaise || 0) / 100).toFixed(2)}</Text></View>
+            <View style={styles.amountBox}>
+              <Text style={styles.amountLabel}>{summary.cod.applicable ? 'COD' : 'PREPAID'}</Text>
+              <Text style={styles.amount}>
+                ₹{(Number(summary.cod.expectedAmountPaise || 0) / 100).toFixed(2)}
+              </Text>
+            </View>
           </View>
 
           {summary.cod.applicable ? (
-            <View style={styles.sectionCard}>
-              <SectionHeader icon={Banknote} title="Cash on delivery" text={summary.cod.collected ? 'Exact payment recorded' : 'Collect the exact order amount'} done={summary.cod.collected} />
+            <Section
+              icon={Banknote}
+              title="Cash on delivery"
+              text={summary.cod.collected ? 'Exact payment recorded' : 'Collect the exact order amount'}
+              done={summary.cod.collected}
+            >
               {policy.collectCod ? (
                 <ActionButton
                   label="Record exact COD collection"
                   busy={busy === 'cod'}
                   disabled={Boolean(busy)}
-                  onPress={() => void perform(
-                    'cod',
-                    () => deliveryOperationsService.collectCod(activeJob.id, {
-                      amountPaise: summary.cod.expectedAmountPaise,
-                      collectionReference: 'CASH_RECEIVED_BY_RIDER',
-                    }),
-                    'COD collected',
-                    'The exact cash amount is recorded in the COD ledger.',
-                  )}
+                  onPress={() =>
+                    void perform(
+                      'cod',
+                      () =>
+                        deliveryOperationsService.collectCod(activeJob.id, {
+                          amountPaise: summary.cod.expectedAmountPaise,
+                          collectionReference: 'CASH_RECEIVED_BY_RIDER',
+                        }),
+                      'COD collected',
+                      'The exact cash amount is recorded in the COD ledger.',
+                    )
+                  }
                 />
               ) : null}
-            </View>
+            </Section>
           ) : null}
 
-          <View style={styles.sectionCard}>
-            <SectionHeader icon={KeyRound} title="Proof of delivery" text="Customer OTP + rider confirmation + live GPS" done={Boolean(recordedProof)} />
+          <Section
+            icon={KeyRound}
+            title="Proof of delivery"
+            text="Customer OTP + rider confirmation + live GPS"
+            done={Boolean(recordedProof)}
+          >
             {recordedProof ? (
               <View style={styles.proofCard}>
                 <Text style={styles.proofTitle}>Auditable POD stored</Text>
-                <Text style={styles.proofText}>Method: {String(recordedProof.details?.verificationMethod || 'CUSTOMER_OTP_PIN').replaceAll('_', ' ')}</Text>
-                <Text style={styles.proofText}>Verified: {new Date(recordedProof.details?.verifiedAt || recordedProof.createdAt).toLocaleString()}</Text>
-                {recordedProof.details?.latitude != null ? <Text style={styles.proofText}>GPS: {Number(recordedProof.details.latitude).toFixed(5)}, {Number(recordedProof.details.longitude).toFixed(5)} · ±{Math.round(Number(recordedProof.details.accuracyMetres || 0))}m</Text> : null}
-                {recordedProof.details?.note ? <Text style={styles.proofText}>Note: {recordedProof.details.note}</Text> : null}
+                <Text style={styles.proofText}>
+                  Method: {readable(recordedProof.details?.verificationMethod || 'CUSTOMER_OTP_PIN')}
+                </Text>
+                <Text style={styles.proofText}>
+                  Verified: {new Date(recordedProof.details?.verifiedAt || recordedProof.createdAt).toLocaleString()}
+                </Text>
+                {recordedProof.details?.latitude != null ? (
+                  <Text style={styles.proofText}>
+                    GPS: {Number(recordedProof.details.latitude).toFixed(5)}, {Number(recordedProof.details.longitude).toFixed(5)} · ±{Math.round(Number(recordedProof.details.accuracyMetres || 0))}m
+                  </Text>
+                ) : null}
+                {recordedProof.details?.note ? (
+                  <Text style={styles.proofText}>Note: {recordedProof.details.note}</Text>
+                ) : null}
               </View>
             ) : (
               <>
@@ -282,43 +324,144 @@ export const RiderDeliveryOperationsScreen = () => {
                     busy={busy === 'otp'}
                     disabled={Boolean(busy)}
                     secondary
-                    onPress={() => void perform('otp', () => deliveryOperationsService.issueOtp(activeJob.id), 'OTP issued', 'Ask the customer for the current 6-digit code shown in their app.')}
+                    onPress={() =>
+                      void perform(
+                        'otp',
+                        () => deliveryOperationsService.issueOtp(activeJob.id),
+                        'OTP issued',
+                        'Ask the customer for the current 6-digit code.',
+                      )
+                    }
                   />
                 ) : null}
-                <TextInput style={styles.input} value={otpCode} onChangeText={(value) => setOtpCode(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" placeholder="6-digit customer OTP" placeholderTextColor="#94A3B8" maxLength={6} />
-                <TextInput style={[styles.input, styles.multiline]} value={podNote} onChangeText={setPodNote} placeholder="Optional handoff note (recipient name, parcel condition…)" placeholderTextColor="#94A3B8" multiline maxLength={500} />
-                <TouchableOpacity style={[styles.confirmRow, riderConfirmed && styles.confirmRowActive]} onPress={() => setRiderConfirmed((value) => !value)}>
-                  <View style={[styles.checkbox, riderConfirmed && styles.checkboxActive]}>{riderConfirmed ? <CheckCircle2 size={18} color="#FFFFFF" /> : null}</View>
-                  <Text style={styles.confirmText}>I confirm the parcel was physically handed to the customer.</Text>
+                <TextInput
+                  style={styles.input}
+                  value={otpCode}
+                  onChangeText={(value) => setOtpCode(value.replace(/\D/g, '').slice(0, 6))}
+                  keyboardType="number-pad"
+                  placeholder="6-digit customer OTP"
+                  placeholderTextColor="#94A3B8"
+                  maxLength={6}
+                />
+                <TextInput
+                  style={[styles.input, styles.multiline]}
+                  value={podNote}
+                  onChangeText={setPodNote}
+                  placeholder="Optional handoff note"
+                  placeholderTextColor="#94A3B8"
+                  multiline
+                  maxLength={500}
+                />
+                <TouchableOpacity
+                  style={[styles.confirmRow, riderConfirmed && styles.confirmRowActive]}
+                  onPress={() => setRiderConfirmed((value) => !value)}
+                >
+                  <View style={[styles.checkbox, riderConfirmed && styles.checkboxActive]}>
+                    {riderConfirmed ? <CheckCircle2 size={18} color="#FFFFFF" /> : null}
+                  </View>
+                  <Text style={styles.confirmText}>
+                    I confirm the parcel was physically handed to the customer.
+                  </Text>
                 </TouchableOpacity>
-                {lastPodLocation ? <Text style={styles.locationText}>Last captured GPS: {lastPodLocation.latitude.toFixed(5)}, {lastPodLocation.longitude.toFixed(5)}</Text> : null}
-                {policy.completeDelivery ? <ActionButton label="Verify OTP and record POD" busy={busy === 'complete'} disabled={Boolean(busy)} onPress={completeDelivery} /> : <Text style={styles.helper}>Arrive at the customer and collect required COD before recording POD.</Text>}
+                {lastPodLocation ? (
+                  <Text style={styles.locationText}>
+                    Last GPS: {lastPodLocation.latitude.toFixed(5)}, {lastPodLocation.longitude.toFixed(5)}
+                  </Text>
+                ) : null}
+                {policy.completeDelivery ? (
+                  <ActionButton
+                    label="Verify OTP and record POD"
+                    busy={busy === 'complete'}
+                    disabled={Boolean(busy)}
+                    onPress={recordPod}
+                  />
+                ) : (
+                  <Text style={styles.helper}>
+                    Arrive at the customer and collect required COD before recording POD.
+                  </Text>
+                )}
               </>
             )}
-          </View>
+          </Section>
 
           {policy.recordFailure ? (
-            <View style={styles.sectionCard}>
-              <SectionHeader icon={PackageX} title="Delivery exception" text="Use the exact operational reason" />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.reasonRow}>
+            <Section
+              icon={PackageX}
+              title="Delivery exception"
+              text="Use the exact operational reason"
+            >
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.reasonRow}
+              >
                 {DELIVERY_FAILURE_OPTIONS.map((option) => (
-                  <TouchableOpacity key={option.value} onPress={() => setFailureReason(option.value)} style={[styles.reasonChip, failureReason === option.value && styles.reasonChipActive]}><Text style={[styles.reasonText, failureReason === option.value && styles.reasonTextActive]}>{option.label}</Text></TouchableOpacity>
+                  <TouchableOpacity
+                    key={option.value}
+                    onPress={() => setFailureReason(option.value)}
+                    style={[
+                      styles.reasonChip,
+                      failureReason === option.value && styles.reasonChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.reasonText,
+                        failureReason === option.value && styles.reasonTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
                 ))}
               </ScrollView>
-              <TextInput style={[styles.input, styles.multiline]} value={failureNote} onChangeText={setFailureNote} placeholder="What happened?" placeholderTextColor="#94A3B8" multiline maxLength={500} />
-              <ActionButton label="Record failed delivery" busy={busy === 'failure'} disabled={Boolean(busy)} danger onPress={confirmFailure} />
-            </View>
+              <TextInput
+                style={[styles.input, styles.multiline]}
+                value={failureNote}
+                onChangeText={setFailureNote}
+                placeholder="What happened?"
+                placeholderTextColor="#94A3B8"
+                multiline
+                maxLength={500}
+              />
+              <ActionButton
+                label="Record failed delivery"
+                busy={busy === 'failure'}
+                disabled={Boolean(busy)}
+                danger
+                onPress={recordFailure}
+              />
+            </Section>
           ) : null}
 
           {policy.startReturn ? (
-            <View style={styles.sectionCard}>
-              <SectionHeader icon={RotateCcw} title="Return to store" text="Start tracked reverse logistics" />
-              <ActionButton label="Start return to store" busy={busy === 'return'} disabled={Boolean(busy)} onPress={() => void perform('return', () => deliveryOperationsService.startReturn(activeJob.id), 'Return started', 'Take the parcel back to the assigned store for inspection.')} />
-            </View>
+            <Section icon={RotateCcw} title="Return to store" text="Start tracked reverse logistics">
+              <ActionButton
+                label="Start return to store"
+                busy={busy === 'return'}
+                disabled={Boolean(busy)}
+                onPress={() =>
+                  void perform(
+                    'return',
+                    () => deliveryOperationsService.startReturn(activeJob.id),
+                    'Return started',
+                    'Take the parcel to the assigned store for inspection.',
+                  )
+                }
+              />
+            </Section>
           ) : null}
 
           {policy.waitingForStoreReturn ? (
-            <View style={styles.waitingCard}><Clock3 size={22} color="#B45309" /><View><Text style={styles.waitingTitle}>Store confirmation pending</Text><Text style={styles.waitingText}>Hand the parcel to the store. Store staff must confirm and inspect it.</Text></View></View>
+            <View style={styles.waitingCard}>
+              <Clock3 size={22} color="#B45309" />
+              <View style={styles.flex}>
+                <Text style={styles.waitingTitle}>Store confirmation pending</Text>
+                <Text style={styles.waitingText}>
+                  Store staff must confirm and inspect the returned parcel.
+                </Text>
+              </View>
+            </View>
           ) : null}
         </>
       )}
@@ -326,31 +469,146 @@ export const RiderDeliveryOperationsScreen = () => {
   );
 };
 
-function SectionHeader({ icon: Icon, title, text, done = false }: { icon: any; title: string; text: string; done?: boolean }) {
-  return <View style={styles.sectionHeader}><Icon size={22} color="#0F766E" /><View style={styles.sectionCopy}><Text style={styles.sectionTitle}>{title}</Text><Text style={styles.sectionText}>{text}</Text></View>{done ? <CheckCircle2 size={22} color="#15803D" /> : null}</View>;
+function Loading({ text }: { text: string }) {
+  return (
+    <View style={styles.center}>
+      <ActivityIndicator size="large" color="#0F766E" />
+      <Text style={styles.muted}>{text}</Text>
+    </View>
+  );
 }
 
-function ActionButton({ label, onPress, busy, disabled, secondary, danger }: { label: string; onPress: () => void; busy?: boolean; disabled?: boolean; secondary?: boolean; danger?: boolean }) {
-  return <TouchableOpacity onPress={onPress} disabled={disabled} style={[styles.button, secondary && styles.secondaryButton, danger && styles.dangerButton, disabled && styles.disabled]}>{busy ? <ActivityIndicator color={secondary ? '#0F766E' : '#FFFFFF'} /> : <Text style={[styles.buttonText, secondary && styles.secondaryButtonText]}>{label}</Text>}</TouchableOpacity>;
+function EmptyState() {
+  return (
+    <View style={styles.emptyCard}>
+      <ShieldCheck size={48} color="#94A3B8" />
+      <Text style={styles.emptyTitle}>No active delivery</Text>
+      <Text style={styles.emptyText}>
+        Accept an addressed offer from the Dashboard before using delivery operations.
+      </Text>
+    </View>
+  );
+}
+
+function Section({
+  icon: Icon,
+  title,
+  text,
+  done = false,
+  children,
+}: {
+  icon: any;
+  title: string;
+  text: string;
+  done?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.sectionCard}>
+      <View style={styles.sectionHeader}>
+        <Icon size={22} color="#0F766E" />
+        <View style={styles.flex}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          <Text style={styles.sectionText}>{text}</Text>
+        </View>
+        {done ? <CheckCircle2 size={22} color="#15803D" /> : null}
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function ActionButton({
+  label,
+  onPress,
+  busy,
+  disabled,
+  secondary,
+  danger,
+}: {
+  label: string;
+  onPress: () => void;
+  busy?: boolean;
+  disabled?: boolean;
+  secondary?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        styles.button,
+        secondary && styles.secondaryButton,
+        danger && styles.dangerButton,
+        disabled && styles.disabled,
+      ]}
+    >
+      {busy ? (
+        <ActivityIndicator color={secondary ? '#0F766E' : '#FFFFFF'} />
+      ) : (
+        <Text style={[styles.buttonText, secondary && styles.secondaryButtonText]}>
+          {label}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F8FAFC' },
   content: { padding: 18, paddingBottom: 44 },
-  hero: { borderRadius: 24, backgroundColor: '#0F172A', padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  heroCopy: { flex: 1 }, eyebrow: { color: '#5EEAD4', fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
-  title: { marginTop: 6, color: '#FFFFFF', fontSize: 24, fontWeight: '900' }, subtitle: { marginTop: 6, color: '#CBD5E1', fontSize: 13, lineHeight: 19 },
+  flex: { flex: 1 },
+  hero: { borderRadius: 24, backgroundColor: '#0F172A', padding: 20, flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  eyebrow: { color: '#5EEAD4', fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
+  title: { marginTop: 6, color: '#FFFFFF', fontSize: 24, fontWeight: '900' },
+  subtitle: { marginTop: 6, color: '#CBD5E1', fontSize: 13, lineHeight: 19 },
   refreshButton: { width: 44, height: 44, borderRadius: 16, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', marginLeft: 12 },
-  stickyInfo: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderRadius: 18, borderWidth: 1, borderColor: '#99F6E4', backgroundColor: '#F0FDFA', padding: 14, marginBottom: 14 }, stickyText: { flex: 1, color: '#115E59', fontSize: 12, fontWeight: '700', lineHeight: 18 },
-  center: { padding: 44, alignItems: 'center', gap: 12 }, muted: { color: '#64748B', fontWeight: '700' },
-  emptyCard: { alignItems: 'center', borderRadius: 24, backgroundColor: '#FFFFFF', padding: 36, borderWidth: 1, borderColor: '#E2E8F0' }, emptyTitle: { marginTop: 14, fontSize: 20, fontWeight: '900', color: '#0F172A' }, emptyText: { marginTop: 8, color: '#64748B', textAlign: 'center', lineHeight: 20 },
-  errorCard: { borderRadius: 22, backgroundColor: '#FEF2F2', padding: 20, borderWidth: 1, borderColor: '#FECACA' }, errorTitle: { marginTop: 10, color: '#991B1B', fontWeight: '900', fontSize: 18 }, errorText: { marginTop: 6, color: '#B91C1C', lineHeight: 20 },
-  statusCard: { borderRadius: 22, backgroundColor: '#FFFFFF', padding: 18, borderWidth: 1, borderColor: '#E2E8F0', flexDirection: 'row', gap: 12, marginBottom: 14 }, cardEyebrow: { color: '#0F766E', fontSize: 11, fontWeight: '900' }, cardTitle: { marginTop: 4, color: '#0F172A', fontSize: 20, fontWeight: '900' }, cardSub: { marginTop: 4, color: '#64748B', fontSize: 12 }, amountBox: { borderRadius: 16, backgroundColor: '#F0FDFA', padding: 12, alignItems: 'flex-end' }, amountLabel: { color: '#0F766E', fontSize: 10, fontWeight: '900' }, amount: { marginTop: 4, color: '#134E4A', fontSize: 18, fontWeight: '900' },
-  sectionCard: { borderRadius: 22, backgroundColor: '#FFFFFF', padding: 18, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 14 }, sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }, sectionCopy: { flex: 1 }, sectionTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900' }, sectionText: { marginTop: 3, color: '#64748B', fontSize: 12, lineHeight: 17 },
-  input: { borderRadius: 14, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingVertical: 12, color: '#0F172A', fontWeight: '700', marginBottom: 10 }, multiline: { minHeight: 80, textAlignVertical: 'top' },
-  button: { minHeight: 48, borderRadius: 14, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, marginTop: 4 }, buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 14 }, secondaryButton: { backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#5EEAD4' }, secondaryButtonText: { color: '#0F766E' }, dangerButton: { backgroundColor: '#B91C1C' }, disabled: { opacity: 0.5 },
-  confirmRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, borderColor: '#CBD5E1', padding: 12, marginBottom: 10 }, confirmRowActive: { borderColor: '#14B8A6', backgroundColor: '#F0FDFA' }, checkbox: { width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: '#94A3B8', alignItems: 'center', justifyContent: 'center' }, checkboxActive: { borderColor: '#0F766E', backgroundColor: '#0F766E' }, confirmText: { flex: 1, color: '#334155', fontSize: 12, fontWeight: '800', lineHeight: 18 }, locationText: { color: '#0F766E', fontSize: 11, fontWeight: '800', marginBottom: 10 }, helper: { color: '#92400E', backgroundColor: '#FFFBEB', padding: 12, borderRadius: 12, fontSize: 12, fontWeight: '700' },
-  proofCard: { borderRadius: 16, backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0', padding: 14 }, proofTitle: { color: '#166534', fontSize: 15, fontWeight: '900' }, proofText: { marginTop: 5, color: '#15803D', fontSize: 12, lineHeight: 17 },
-  reasonRow: { gap: 8, paddingBottom: 10 }, reasonChip: { borderRadius: 999, borderWidth: 1, borderColor: '#CBD5E1', paddingHorizontal: 12, paddingVertical: 9 }, reasonChipActive: { borderColor: '#B91C1C', backgroundColor: '#FEF2F2' }, reasonText: { color: '#475569', fontSize: 12, fontWeight: '800' }, reasonTextActive: { color: '#991B1B' },
-  waitingCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderRadius: 20, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', padding: 16 }, waitingTitle: { color: '#92400E', fontSize: 15, fontWeight: '900' }, waitingText: { marginTop: 4, color: '#B45309', fontSize: 12, lineHeight: 18 },
+  infoCard: { flexDirection: 'row', alignItems: 'flex-start', borderRadius: 18, borderWidth: 1, borderColor: '#99F6E4', backgroundColor: '#F0FDFA', padding: 14, marginBottom: 14 },
+  infoText: { flex: 1, marginLeft: 10, color: '#115E59', fontSize: 12, fontWeight: '700', lineHeight: 18 },
+  center: { padding: 44, alignItems: 'center' },
+  muted: { marginTop: 12, color: '#64748B', fontWeight: '700' },
+  emptyCard: { alignItems: 'center', borderRadius: 24, backgroundColor: '#FFFFFF', padding: 36, borderWidth: 1, borderColor: '#E2E8F0' },
+  emptyTitle: { marginTop: 14, fontSize: 20, fontWeight: '900', color: '#0F172A' },
+  emptyText: { marginTop: 8, color: '#64748B', textAlign: 'center', lineHeight: 20 },
+  errorCard: { borderRadius: 22, backgroundColor: '#FEF2F2', padding: 20, borderWidth: 1, borderColor: '#FECACA' },
+  errorTitle: { marginTop: 10, color: '#991B1B', fontWeight: '900', fontSize: 18 },
+  errorText: { marginTop: 6, color: '#B91C1C', lineHeight: 20 },
+  statusCard: { borderRadius: 22, backgroundColor: '#FFFFFF', padding: 18, borderWidth: 1, borderColor: '#E2E8F0', flexDirection: 'row', marginBottom: 14 },
+  cardEyebrow: { color: '#0F766E', fontSize: 11, fontWeight: '900' },
+  cardTitle: { marginTop: 4, color: '#0F172A', fontSize: 20, fontWeight: '900' },
+  cardText: { marginTop: 4, color: '#64748B', fontSize: 12 },
+  amountBox: { borderRadius: 16, backgroundColor: '#F0FDFA', padding: 12, alignItems: 'flex-end', marginLeft: 12 },
+  amountLabel: { color: '#0F766E', fontSize: 10, fontWeight: '900' },
+  amount: { marginTop: 4, color: '#134E4A', fontSize: 18, fontWeight: '900' },
+  sectionCard: { borderRadius: 22, backgroundColor: '#FFFFFF', padding: 18, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 14 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  sectionTitle: { marginLeft: 12, color: '#0F172A', fontSize: 17, fontWeight: '900' },
+  sectionText: { marginTop: 3, marginLeft: 12, color: '#64748B', fontSize: 12, lineHeight: 17 },
+  input: { borderRadius: 14, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingVertical: 12, color: '#0F172A', fontWeight: '700', marginBottom: 10 },
+  multiline: { minHeight: 80, textAlignVertical: 'top' },
+  button: { minHeight: 48, borderRadius: 14, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, marginTop: 4 },
+  buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 14 },
+  secondaryButton: { backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#5EEAD4' },
+  secondaryButtonText: { color: '#0F766E' },
+  dangerButton: { backgroundColor: '#B91C1C' },
+  disabled: { opacity: 0.5 },
+  confirmRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, borderColor: '#CBD5E1', padding: 12, marginBottom: 10 },
+  confirmRowActive: { borderColor: '#14B8A6', backgroundColor: '#F0FDFA' },
+  checkbox: { width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: '#94A3B8', alignItems: 'center', justifyContent: 'center' },
+  checkboxActive: { borderColor: '#0F766E', backgroundColor: '#0F766E' },
+  confirmText: { flex: 1, marginLeft: 10, color: '#334155', fontSize: 12, fontWeight: '800', lineHeight: 18 },
+  locationText: { color: '#0F766E', fontSize: 11, fontWeight: '800', marginBottom: 10 },
+  helper: { color: '#92400E', backgroundColor: '#FFFBEB', padding: 12, borderRadius: 12, fontSize: 12, fontWeight: '700' },
+  proofCard: { borderRadius: 16, backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0', padding: 14 },
+  proofTitle: { color: '#166534', fontSize: 15, fontWeight: '900' },
+  proofText: { marginTop: 5, color: '#15803D', fontSize: 12, lineHeight: 17 },
+  reasonRow: { paddingBottom: 10 },
+  reasonChip: { borderRadius: 999, borderWidth: 1, borderColor: '#CBD5E1', paddingHorizontal: 12, paddingVertical: 9, marginRight: 8 },
+  reasonChipActive: { borderColor: '#B91C1C', backgroundColor: '#FEF2F2' },
+  reasonText: { color: '#475569', fontSize: 12, fontWeight: '800' },
+  reasonTextActive: { color: '#991B1B' },
+  waitingCard: { flexDirection: 'row', alignItems: 'flex-start', borderRadius: 20, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', padding: 16 },
+  waitingTitle: { marginLeft: 12, color: '#92400E', fontSize: 15, fontWeight: '900' },
+  waitingText: { marginTop: 4, marginLeft: 12, color: '#B45309', fontSize: 12, lineHeight: 18 },
 });

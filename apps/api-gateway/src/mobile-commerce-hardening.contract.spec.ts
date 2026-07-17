@@ -79,7 +79,7 @@ describe("Mobile commerce hardening contracts", () => {
     expect(foregroundService).toContain("startForeground");
     expect(foregroundService).toContain("START_STICKY");
     expect(foregroundService).toContain("setOngoing(true)");
-    expect(podScreen).toContain("getCurrentPodLocation");
+    expect(podScreen).toContain("capturePodLocation");
     expect(podScreen).toContain("riderConfirmed: true");
     expect(podScreen).toContain("accuracyMetres");
     expect(podApi).toContain("proofType: 'CUSTOMER_OTP_PIN'");
