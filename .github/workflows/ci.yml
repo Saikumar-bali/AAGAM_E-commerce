@@ -148,7 +148,22 @@ jobs:
         run: npx prisma migrate status --schema packages/database/prisma/schema.prisma
 
       - name: Run CI-safe tests
-        run: npm run test:ci --workspace=apps/api-gateway
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:ci --workspace=apps/api-gateway -- --json --outputFile="$GITHUB_WORKSPACE/service-test-results.json" 2>&1 \
+            | tee "$GITHUB_WORKSPACE/service-test-output.log"
+
+      - name: Upload service test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-test-diagnostics
+          path: |
+            service-test-results.json
+            service-test-output.log
+          if-no-files-found: warn
+          retention-days: 14
 
   playwright:
     name: Playwright Smoke Tests
