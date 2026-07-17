@@ -349,7 +349,7 @@ export default function AdminPromotionsPage() {
     try {
       const body = new FormData();
       body.append("file", file);
-      const response = await apiClient.post("/upload/promotion-image", body);
+      const response = await apiClient.post("/upload/image", body);
       setCampaignForm((current) => ({
         ...current,
         [mobile ? "mobileImageUrl" : "imageUrl"]: response.data.publicUrl,
