@@ -315,13 +315,20 @@ jobs:
           path: release
           merge-multiple: true
 
-      - name: Publish preview or stable release
+      - name: Publish trusted preview or stable release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           API_URL: ${{ vars.API_URL || 'https://aagam.accesscam.org/api' }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            echo "Pull-request APKs are available as workflow artifacts."
+            echo "Use workflow_dispatch on this branch to publish a GitHub prerelease."
+            exit 0
+          fi
+
           short_sha="${RELEASE_SHA::7}"
           if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
             tag="android-${GITHUB_RUN_NUMBER}-${short_sha}"

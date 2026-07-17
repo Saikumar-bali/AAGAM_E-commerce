@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
 import { getProductImage, calculateDistance } from '@aagam/utils';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -96,13 +96,17 @@ export class ProductService {
     if (!products.length || !shouldAttach) return products;
     const context = await this.resolveAvailabilityContext(query, userId);
     if (!context?.storeId) {
-      return products.map((product) => ({ ...product, availability: { storeId: null, storeName: null, availableQty: null, inStock: false, serviceable: context?.serviceable ?? null, distanceKm: context?.distanceKm ?? null } }));
+      // Availability cannot be decided until a delivery address or store is
+      // known. Treating an unknown store as zero stock disabled Add to Cart on
+      // every product detail page. Checkout still performs the authoritative
+      // inventory check for the selected address.
+      return products.map((product) => ({ ...product, availability: { storeId: null, storeName: null, availableQty: null, inStock: null, availabilityKnown: false, serviceable: context?.serviceable ?? null, distanceKm: context?.distanceKm ?? null } }));
     }
     const inventory = await prisma.inventory.findMany({ where: { storeId: context.storeId, productId: { in: products.map((product) => product.id) } }, select: { productId: true, quantity: true } });
     const inventoryMap = new Map(inventory.map((item) => [item.productId, item.quantity]));
     return products.map((product) => {
       const availableQty = inventoryMap.get(product.id) ?? 0;
-      return { ...product, availability: { storeId: context.storeId, storeName: context.storeName, availableQty, inStock: availableQty > 0, serviceable: context.serviceable, distanceKm: context.distanceKm } };
+      return { ...product, availability: { storeId: context.storeId, storeName: context.storeName, availableQty, inStock: availableQty > 0, availabilityKnown: true, serviceable: context.serviceable, distanceKm: context.distanceKm } };
     });
   }
 
@@ -203,10 +207,17 @@ export class ProductService {
   async createCategory(name: string) {
     const cleanName = cleanCategoryName(name);
     if (cleanName.length < 2) throw new BadRequestException('Category name must be at least 2 characters.');
-    const category = await prisma.category.create({ data: { name: cleanName } });
-    await this.cacheManager.del('all_categories');
-    await this.clearProductCache();
-    return category;
+    try {
+      const category = await prisma.category.create({ data: { name: cleanName } });
+      await this.cacheManager.del('all_categories');
+      await this.clearProductCache();
+      return category;
+    } catch (error: any) {
+      if (error?.code === 'P2002' && error?.meta?.target?.includes('name')) {
+        throw new ConflictException(`Category '${cleanName}' already exists`);
+      }
+      throw error;
+    }
   }
 
   async updateCategory(id: string, name: string) {

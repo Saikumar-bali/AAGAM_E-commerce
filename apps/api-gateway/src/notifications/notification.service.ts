@@ -150,11 +150,16 @@ export class NotificationService {
   }
 
   createBroadcastPlaceholder(actor: Actor, input: { title?: string; body?: string; audience?: string }) {
+    if (actor.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only admin can create broadcast placeholder');
+    }
     const title = input.title?.trim();
     const body = input.body?.trim();
     if (!title) throw new BadRequestException('title is required');
     if (!body) throw new BadRequestException('body is required');
-    return this.createBroadcast(actor, {
+    return Promise.resolve({
+      ok: true,
+      status: 'PLACEHOLDER_ONLY',
       title,
       body,
       audience: (input.audience as any) || 'ALL_USERS',
