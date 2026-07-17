@@ -5,10 +5,8 @@ const required = [
   'DATABASE_URL',
   'REDIS_URL',
   'JWT_SECRET',
-];
-
-const recommended = [
   'CORS_ORIGINS',
+  'NEXT_PUBLIC_API_URL',
 ];
 
 const missing = required.filter((key) => !process.env[key] || process.env[key]?.trim() === '');
@@ -30,17 +28,42 @@ if (process.env.REDIS_URL && /localhost|127\.0\.0\.1/i.test(process.env.REDIS_UR
   weak.push('REDIS_URL points to localhost; do not use local Redis for production');
 }
 
-const warnings = recommended.filter((key) => !process.env[key] || process.env[key]?.trim() === '');
+if (process.env.CORS_ORIGINS) {
+  const origins = process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean);
+  if (origins.length === 0 || origins.includes('*')) {
+    weak.push('CORS_ORIGINS must contain explicit allowed origins; wildcard is not allowed');
+  }
+  for (const origin of origins) {
+    try {
+      const parsed = new URL(origin);
+      if (!['http:', 'https:'].includes(parsed.protocol) || parsed.origin !== origin.replace(/\/$/, '')) {
+        weak.push(`CORS_ORIGINS contains an invalid origin: ${origin}`);
+      }
+    } catch {
+      weak.push(`CORS_ORIGINS contains an invalid origin: ${origin}`);
+    }
+  }
+}
+
+if (process.env.NEXT_PUBLIC_API_URL) {
+  try {
+    const parsed = new URL(process.env.NEXT_PUBLIC_API_URL);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      weak.push('NEXT_PUBLIC_API_URL must use http or https');
+    }
+    if (/localhost|127\.0\.0\.1/i.test(parsed.hostname)) {
+      weak.push('NEXT_PUBLIC_API_URL points to localhost; browser clients cannot use it in production');
+    }
+  } catch {
+    weak.push('NEXT_PUBLIC_API_URL must be a valid absolute URL');
+  }
+}
 
 if (missing.length || weak.length) {
   console.error('Production environment validation failed.');
   for (const key of missing) console.error(`Missing required env: ${key}`);
   for (const item of weak) console.error(`Invalid env: ${item}`);
   process.exit(1);
-}
-
-if (warnings.length) {
-  for (const key of warnings) console.warn(`Recommended env not set: ${key}`);
 }
 
 console.log('Production environment validation passed.');

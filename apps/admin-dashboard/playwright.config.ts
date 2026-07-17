@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const AUTH_FILE = './.auth/customer.json';
+const workers = Number.parseInt(process.env.PLAYWRIGHT_WORKERS || '4', 10);
 
 export default defineConfig({
   testDir: './tests',
@@ -8,7 +9,7 @@ export default defineConfig({
   expect: { timeout: 15000 },
   fullyParallel: false,
   retries: 0,
-  workers: 1,
+  workers,
   globalSetup: './tests/global-setup.ts',
   reporter: [
     ['list'],
@@ -40,10 +41,12 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    // CI already creates a production build. Serving that immutable build keeps
+    // four concurrent workers away from Next.js Fast Refresh/compiler races.
+    command: process.env.CI ? 'npm run start' : 'npm run dev',
     port: 3001,
     timeout: 120000,
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     env: {
       NEXT_PUBLIC_API_URL: 'http://localhost:3005',
     },

@@ -30,11 +30,9 @@ export async function loginWithCookieSession(page: Page, role: QaRole) {
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
-  await page.waitForFunction(() => localStorage.getItem('user_role') !== null || localStorage.getItem('access_token') !== null, { timeout: 15000 });
+  await page.waitForFunction(() => localStorage.getItem('user_role') !== null, { timeout: 15000 });
   await page.waitForLoadState('networkidle');
 
-  const tokenInStorage = await page.evaluate(() => localStorage.getItem('access_token'));
-  if (tokenInStorage === null) {
-    throw new Error('Login did not persist access_token in localStorage');
-  }
+  const sessionCookie = (await page.context().cookies()).find((cookie) => cookie.name === 'access_token');
+  if (!sessionCookie?.httpOnly) throw new Error('Login did not create an HttpOnly session cookie');
 }

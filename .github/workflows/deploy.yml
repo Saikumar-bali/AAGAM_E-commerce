@@ -1,0 +1,285 @@
+name: Deploy production
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Main branch commit, tag, or ref to deploy
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy successful main build
+    if: >-
+      ${{
+        (github.event_name == 'workflow_run' &&
+         github.event.workflow_run.conclusion == 'success' &&
+         github.event.workflow_run.head_branch == 'main') ||
+        github.event_name == 'workflow_dispatch'
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL || 'http://127.0.0.1:3005/health' }}
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+      PUBLIC_HEALTHCHECK_URL: ${{ vars.PUBLIC_HEALTHCHECK_URL }}
+      REPOSITORY: ${{ github.repository }}
+
+    steps:
+      - name: Checkout deployment target
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.ref }}
+          fetch-depth: 1
+
+      - name: Resolve exact deployment commit
+        shell: bash
+        run: echo "DEPLOY_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          PRODUCTION_ENV_FILE_B64: ${{ secrets.PRODUCTION_ENV_FILE_B64 }}
+        run: |
+          set -Eeuo pipefail
+
+          missing=()
+          [[ -n "$DEPLOY_HOST" ]] || missing+=("variable DEPLOY_HOST")
+          [[ -n "$DEPLOY_USER" ]] || missing+=("variable DEPLOY_USER")
+          [[ -n "$DEPLOY_PATH" ]] || missing+=("variable DEPLOY_PATH")
+          [[ -n "$PRODUCTION_URL" ]] || missing+=("variable PRODUCTION_URL")
+          [[ -n "$SSH_PRIVATE_KEY" ]] || missing+=("secret DEPLOY_SSH_PRIVATE_KEY")
+          [[ -n "$SSH_KNOWN_HOSTS" ]] || missing+=("secret DEPLOY_KNOWN_HOSTS")
+          [[ -n "$PRODUCTION_ENV_FILE_B64" ]] || missing+=("secret PRODUCTION_ENV_FILE_B64")
+
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing GitHub production configuration:\n'
+            printf ' - %s\n' "${missing[@]}"
+            exit 1
+          fi
+
+          if ! [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]] || (( DEPLOY_PORT < 1 || DEPLOY_PORT > 65535 )); then
+            echo "DEPLOY_PORT must be a valid TCP port."
+            exit 1
+          fi
+
+          case "$DEPLOY_PATH" in
+            /|/home|/root|/opt|/var|/usr)
+              echo "DEPLOY_PATH must point to the application directory, not a system root directory."
+              exit 1
+              ;;
+          esac
+
+          [[ "$PRODUCTION_URL" =~ ^https://[^[:space:]]+$ ]] || {
+            echo "PRODUCTION_URL must be an absolute HTTPS URL."
+            exit 1
+          }
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/deploy_key" > /dev/null
+
+      - name: Prepare application directory
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ssh_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -p "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=15
+            -o ServerAliveInterval=15
+            -o ServerAliveCountMax=3
+          )
+          target="${DEPLOY_USER}@${DEPLOY_HOST}"
+          printf -v remote_path '%q' "$DEPLOY_PATH"
+          printf -v remote_repo '%q' "$REPOSITORY"
+
+          ssh "${ssh_options[@]}" "$target" "bash -s -- $remote_path $remote_repo" <<'REMOTE'
+          set -Eeuo pipefail
+          app_dir="$1"
+          repository="$2"
+
+          command -v git >/dev/null || { echo "git is not installed on the server"; exit 1; }
+          mkdir -p "$(dirname "$app_dir")"
+
+          if [[ ! -d "$app_dir/.git" ]]; then
+            if [[ -e "$app_dir" ]] && [[ -n "$(find "$app_dir" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
+              echo "$app_dir exists and is not an empty Git repository."
+              exit 1
+            fi
+            git clone --branch main --single-branch "https://github.com/${repository}.git" "$app_dir"
+          fi
+
+          cd "$app_dir"
+          git remote set-url origin "https://github.com/${repository}.git"
+          REMOTE
+
+      - name: Install production environment file
+        shell: bash
+        env:
+          PRODUCTION_ENV_FILE_B64: ${{ secrets.PRODUCTION_ENV_FILE_B64 }}
+        run: |
+          set -Eeuo pipefail
+          ssh_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -p "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=15
+          )
+          target="${DEPLOY_USER}@${DEPLOY_HOST}"
+          printf -v remote_path '%q' "$DEPLOY_PATH"
+
+          printf '%s' "$PRODUCTION_ENV_FILE_B64" \
+            | base64 --decode \
+            | ssh "${ssh_options[@]}" "$target" \
+                "umask 077; cat > $remote_path/.env.next && mv $remote_path/.env.next $remote_path/.env"
+
+      - name: Synchronize exact successful commit
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ssh_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -p "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=15
+            -o ServerAliveInterval=15
+            -o ServerAliveCountMax=3
+          )
+          target="${DEPLOY_USER}@${DEPLOY_HOST}"
+          printf -v remote_path '%q' "$DEPLOY_PATH"
+          printf -v remote_sha '%q' "$DEPLOY_SHA"
+
+          ssh "${ssh_options[@]}" "$target" "bash -s -- $remote_path $remote_sha" <<'REMOTE'
+          set -Eeuo pipefail
+          app_dir="$1"
+          deploy_sha="$2"
+
+          cd "$app_dir"
+          git fetch --prune origin main
+          git cat-file -e "${deploy_sha}^{commit}"
+
+          if ! git merge-base --is-ancestor "$deploy_sha" origin/main; then
+            echo "Refusing to deploy $deploy_sha because it is not contained in origin/main."
+            exit 1
+          fi
+
+          git checkout -B main origin/main
+          git reset --hard "$deploy_sha"
+
+          actual_sha="$(git rev-parse HEAD)"
+          [[ "$actual_sha" == "$deploy_sha" ]] || {
+            echo "Server checkout mismatch: expected $deploy_sha, got $actual_sha"
+            exit 1
+          }
+
+          chmod +x deploy.sh
+          REMOTE
+
+      - name: Build, migrate, restart, and verify
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ssh_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -p "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=15
+            -o ServerAliveInterval=15
+            -o ServerAliveCountMax=3
+          )
+          target="${DEPLOY_USER}@${DEPLOY_HOST}"
+          printf -v remote_path '%q' "$DEPLOY_PATH"
+          printf -v remote_sha '%q' "$DEPLOY_SHA"
+          printf -v remote_health '%q' "$HEALTHCHECK_URL"
+
+          ssh "${ssh_options[@]}" "$target" \
+            "cd $remote_path && DEPLOY_SHA=$remote_sha HEALTHCHECK_URL=$remote_health ./deploy.sh"
+
+      - name: Verify public frontend and exact API revision
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          public_health="${PUBLIC_HEALTHCHECK_URL:-${PRODUCTION_URL%/}/api/health}"
+
+          public_ready=false
+          for attempt in $(seq 1 30); do
+            frontend_status="$(curl --location --silent --output /dev/null --write-out '%{http_code}' --max-time 15 "$PRODUCTION_URL" || true)"
+            health_response="$(curl --location --fail --silent --show-error --max-time 15 "$public_health" || true)"
+            if [[ "$frontend_status" =~ ^2[0-9][0-9]$ ]] && \
+              HEALTH_RESPONSE="$health_response" node -e '
+                let response;
+                try { response = JSON.parse(process.env.HEALTH_RESPONSE || "{}"); }
+                catch { process.exit(1); }
+                if (response.status !== "ok" || response.revision !== process.env.DEPLOY_SHA) process.exit(1);
+              '; then
+              public_ready=true
+              break
+            fi
+            echo "Waiting for public deployment ($attempt/30): frontend=$frontend_status"
+            sleep 5
+          done
+
+          if [[ "$public_ready" != true ]]; then
+            echo "Public verification failed for $PRODUCTION_URL and $public_health"
+            exit 1
+          fi
+
+          echo "Public deployment serves exact revision $DEPLOY_SHA"
+          echo "PUBLIC_HEALTHCHECK_URL=$public_health" >> "$GITHUB_ENV"
+
+      - name: Publish deployment summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Production deployment"
+            echo
+            echo "- Commit: \`$DEPLOY_SHA\`"
+            echo "- Target: \`$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH\`"
+            echo "- Public URL: \`$PRODUCTION_URL\`"
+            echo "- Public API health: \`${PUBLIC_HEALTHCHECK_URL:-not reached}\`"
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- Result: \`${{ job.status }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -16,7 +16,8 @@ module.exports = {
       script: "dist/src/main.js",
       env: {
         NODE_ENV: "production",
-        PORT: 3005
+        PORT: 3005,
+        DEPLOY_SHA: process.env.DEPLOY_SHA || "unknown"
       }
     },
     {

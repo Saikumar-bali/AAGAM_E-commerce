@@ -15,12 +15,8 @@ async function login(page: Page, email: string, password?: string) {
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password ?? getPasswordForEmail(email));
   await page.click('button[type="submit"]');
-  await page.waitForFunction(() => localStorage.getItem('access_token') !== null, { timeout: 15000 });
+  await page.waitForFunction(() => localStorage.getItem('user_role') !== null, { timeout: 15000 });
   await page.waitForLoadState('networkidle');
-}
-
-function apiToken(page: Page) {
-  return page.evaluate(() => localStorage.getItem('access_token'));
 }
 
 test.describe('Phase 1: Notification e2e scenarios', () => {
@@ -66,7 +62,6 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
 
   test('Push subscription CRUD via API', async ({ page }) => {
     await login(page, 'customer@aagam.com');
-    const token = await apiToken(page);
 
     const subPayload = {
       endpoint: 'https://fcm.googleapis.com/fcm/send/e2e-test-endpoint',
@@ -76,7 +71,6 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
     };
 
     const createResp = await page.request.post(`${API_BASE}/notifications/push/subscriptions`, {
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       data: subPayload,
     });
     expect(createResp.ok()).toBeTruthy();
@@ -84,9 +78,7 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
     const subId = created.id || created.subscriptionId;
     expect(subId).toBeTruthy();
 
-    const listResp = await page.request.get(`${API_BASE}/notifications/push/subscriptions`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const listResp = await page.request.get(`${API_BASE}/notifications/push/subscriptions`);
     expect(listResp.ok()).toBeTruthy();
     const subs = await listResp.json();
     const items = Array.isArray(subs) ? subs : (subs.items || []);
@@ -94,13 +86,10 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
 
     const deleteResp = await page.request.delete(
       `${API_BASE}/notifications/push/subscriptions/${encodeURIComponent(subId)}`,
-      { headers: { Authorization: `Bearer ${token}` } },
     );
     expect(deleteResp.ok()).toBeTruthy();
 
-    const listAfter = await page.request.get(`${API_BASE}/notifications/push/subscriptions`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const listAfter = await page.request.get(`${API_BASE}/notifications/push/subscriptions`);
     const subsAfter = await listAfter.json();
     const itemsAfter = Array.isArray(subsAfter) ? subsAfter : (subsAfter.items || []);
     const deletedSub = itemsAfter.find((s: any) => s.id === subId);
@@ -111,7 +100,6 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
 
   test('Expired/invalid push token handled gracefully', async ({ page }) => {
     await login(page, 'rider@aagam.com');
-    const token = await apiToken(page);
 
     const badSubPayload = {
       endpoint: 'https://invalid.push.service/expired-token-test',
@@ -121,24 +109,18 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
     };
 
     const createResp = await page.request.post(`${API_BASE}/notifications/push/subscriptions`, {
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       data: badSubPayload,
     });
     expect(createResp.ok()).toBeTruthy();
 
-    const listResp = await page.request.get(`${API_BASE}/notifications/push/subscriptions`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const listResp = await page.request.get(`${API_BASE}/notifications/push/subscriptions`);
     expect(listResp.ok()).toBeTruthy();
   });
 
   test('Notification deep link click records openedAt', async ({ page }) => {
     await login(page, 'rider@aagam.com');
-    const token = await apiToken(page);
 
-    const inboxResp = await page.request.get(`${API_BASE}/notifications/inbox?limit=5`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const inboxResp = await page.request.get(`${API_BASE}/notifications/inbox?limit=5`);
     expect(inboxResp.ok()).toBeTruthy();
     const inbox = await inboxResp.json();
     const items = Array.isArray(inbox) ? inbox : (inbox.items || []);
@@ -160,9 +142,7 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
 
     await page.waitForTimeout(2000);
 
-    const checkResp = await page.request.get(`${API_BASE}/notifications/inbox?limit=5`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const checkResp = await page.request.get(`${API_BASE}/notifications/inbox?limit=5`);
     const updatedInbox = await checkResp.json();
     const updatedItems = Array.isArray(updatedInbox) ? updatedInbox : (updatedInbox.items || []);
     const updated = updatedItems.find((i: any) => i.id === firstItem.id);

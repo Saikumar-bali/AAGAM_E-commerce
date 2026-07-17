@@ -15,10 +15,14 @@ setup('login as customer and save auth state', async ({ page }) => {
   await page.waitForURL('**/shop**', { timeout: 20000 });
   await page.waitForLoadState('networkidle');
 
-  // Wait for localStorage to be set
+  // The browser session is carried only by the HttpOnly cookie. The role is
+  // non-sensitive UI state and confirms that the login flow completed.
   await page.waitForFunction(() => {
-    return localStorage.getItem('access_token') !== null;
+    return localStorage.getItem('user_role') !== null;
   }, { timeout: 5000 });
+
+  const sessionCookie = (await page.context().cookies()).find((cookie) => cookie.name === 'access_token');
+  if (!sessionCookie?.httpOnly) throw new Error('HttpOnly session cookie was not created');
 
   await page.context().storageState({ path: AUTH_FILE });
 });

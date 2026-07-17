@@ -18,7 +18,7 @@ async function login(page: Page, email: string, password = PASSWORDS[email] || (
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
-  await page.waitForFunction(() => localStorage.getItem('access_token') !== null, { timeout: 15000 });
+  await page.waitForFunction(() => localStorage.getItem('user_role') !== null, { timeout: 15000 });
 }
 
 test.describe('Phase 1.1: web push service worker stability', () => {
@@ -74,10 +74,7 @@ test.describe('Phase 1.1: web push service worker stability', () => {
 
   test('push config endpoint never reports enabled with missing required fields', async ({ page }) => {
     await login(page, 'admin@aagam.com');
-    const token = await page.evaluate(() => localStorage.getItem('access_token'));
-    const response = await page.request.get(`${API_BASE}/notifications/push/config`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await page.request.get(`${API_BASE}/notifications/push/config`);
 
     expect(response.ok()).toBeTruthy();
     const config = await response.json();

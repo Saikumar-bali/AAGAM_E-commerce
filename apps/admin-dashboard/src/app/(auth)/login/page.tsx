@@ -7,7 +7,15 @@ import { apiClient } from '@aagam/utils';
 import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import Script from 'next/script';
 
-const DEFAULT_GOOGLE_WEB_CLIENT_ID = '879444331583-a4r4m3j8547i5vrlf8aje0li4mvh0fdv.apps.googleusercontent.com';
+const resetSessionCache = () => {
+  localStorage.removeItem('user_role');
+  localStorage.removeItem('user_name');
+  localStorage.removeItem('user_email');
+  localStorage.removeItem('user_avatar');
+  localStorage.removeItem('access_token');
+};
+
+const DEFAULT_GOOGLE_WEB_CLIENT_ID = '416380795567-5de3kea0pbb9ibke91rl5pre0sdu82vo.apps.googleusercontent.com';
 
 declare global {
   interface Window {
@@ -32,22 +40,25 @@ export default function LoginPage() {
     else router.push('/shop');
   };
 
-  const persistUserContext = (user: any, token?: string) => {
+  const persistUserContext = (user: any) => {
     localStorage.setItem('user_role', user.role);
     localStorage.setItem('user_name', user.name || '');
     localStorage.setItem('user_email', user.email || '');
     localStorage.setItem('user_avatar', user.avatarUrl || '');
-    if (token) localStorage.setItem('access_token', token);
+    // Remove any bearer token left by an older web build. Browser sessions are
+    // authenticated exclusively by the HttpOnly cookie set by the API.
+    localStorage.removeItem('access_token');
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    resetSessionCache();
     try {
       const response = await apiClient.post('/auth/login', { email, password });
-      const { user, access_token } = response.data;
-      persistUserContext(user, access_token);
+      const { user } = response.data;
+      persistUserContext(user);
       routeByRole(user.role);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid credentials');
@@ -67,14 +78,15 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!googleClientId) return;
-    window.handleGoogleCredentialResponse = async (response: { credential?: string }) => {
-      if (!response?.credential) { setError('Google sign-in failed. Please try again.'); return; }
-      setError('');
-      setGoogleLoading(true);
-      try {
-        const result = await apiClient.post('/auth/google', { idToken: response.credential });
-        const { user, access_token } = result.data;
-        persistUserContext(user, access_token);
+      window.handleGoogleCredentialResponse = async (response: { credential?: string }) => {
+        if (!response?.credential) { setError('Google sign-in failed. Please try again.'); return; }
+        setError('');
+        setGoogleLoading(true);
+        resetSessionCache();
+        try {
+          const result = await apiClient.post('/auth/google', { idToken: response.credential });
+        const { user } = result.data;
+        persistUserContext(user);
         routeByRole(user.role);
       } catch (err: any) {
         setError(err.response?.data?.message || 'Google sign-in failed');
@@ -98,7 +110,7 @@ export default function LoginPage() {
             <p className="enterprise-kicker mt-12"><Sparkles className="mr-2 h-3.5 w-3.5" /> Secure commerce access</p>
             <h1 className="mt-5 max-w-xl text-5xl font-black tracking-[-0.07em]">One login for shop, rider, and operations.</h1>
             <p className="mt-5 max-w-lg text-lg font-semibold leading-8 text-slate-600">Enter the workspace and continue from catalogue browsing to checkout, delivery tracking, or admin control.</p>
-            <div className="mt-8 grid max-w-lg gap-3">{['Role-aware routing', 'Production API cookies', 'Realtime order workspace'].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/80 bg-white/70 p-4 font-bold text-slate-700 shadow-xl shadow-slate-900/5 backdrop-blur-xl"><CheckCircle2 className="h-5 w-5 text-teal-700" />{item}</div>)}</div>
+            <div className="mt-8 grid max-w-lg gap-3">{['Role-aware routing', 'HttpOnly web sessions', 'Realtime order workspace'].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/80 bg-white/70 p-4 font-bold text-slate-700 shadow-xl shadow-slate-900/5 backdrop-blur-xl"><CheckCircle2 className="h-5 w-5 text-teal-700" />{item}</div>)}</div>
           </section>
           <section className="enterprise-panel mx-auto w-full max-w-md p-6 sm:p-8">
             <div className="mb-8 text-center lg:hidden"><Link href="/" className="text-3xl font-black tracking-[-0.06em]">Aagam</Link></div>
