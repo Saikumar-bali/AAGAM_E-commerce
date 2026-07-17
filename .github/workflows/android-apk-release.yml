@@ -171,11 +171,12 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Customer Google proof
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: aagam-customer-google-signin-proof
           path: release-proof/customer-google-signin-proof.md
-          if-no-files-found: error
+          if-no-files-found: warn
 
   partners:
     name: Partners APK
@@ -252,11 +253,12 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Partners Google proof
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: aagam-partners-google-signin-proof
           path: release-proof/partners-google-signin-proof.md
-          if-no-files-found: error
+          if-no-files-found: warn
 
   publish:
     name: Publish APK release
