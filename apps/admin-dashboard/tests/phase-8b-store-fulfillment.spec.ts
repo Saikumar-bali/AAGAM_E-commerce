@@ -20,7 +20,7 @@ async function loginAsStore(page: Page) {
   await page.fill('input[type="email"]', STORE_EMAIL);
   await page.fill('input[type="password"]', STORE_PASS);
   await page.click('button[type="submit"]');
-  await page.waitForFunction(() => localStorage.getItem('access_token') !== null, { timeout: 15000 });
+  await page.waitForFunction(() => localStorage.getItem('user_role') !== null, { timeout: 15000 });
   await page.waitForLoadState('networkidle');
 }
 
@@ -94,7 +94,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
 
   test('04 — Mark item unavailable via API and verify UI update', async ({ page }) => {
     // Use the API to mark an item unavailable, then verify UI shows it
-    const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
+    const tokenResponse = await page.request.post('http://localhost:3005/auth/mobile/login', {
       data: { email: STORE_EMAIL, password: STORE_PASS },
     });
     const { access_token } = await tokenResponse.json();
@@ -134,7 +134,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
   });
 
   test('05 — Ready for Pickup blocked when unresolved item issues exist', async ({ page }) => {
-    const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
+    const tokenResponse = await page.request.post('http://localhost:3005/auth/mobile/login', {
       data: { email: STORE_EMAIL, password: STORE_PASS },
     });
     const { access_token } = await tokenResponse.json();
@@ -166,7 +166,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
   });
 
   test('06 — Substitute listing returns available products', async ({ page }) => {
-    const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
+    const tokenResponse = await page.request.post('http://localhost:3005/auth/mobile/login', {
       data: { email: STORE_EMAIL, password: STORE_PASS },
     });
     const { access_token } = await tokenResponse.json();
@@ -202,7 +202,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
   });
 
   test('07 — Substitute replacement updates item and grand total', async ({ page }) => {
-    const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
+    const tokenResponse = await page.request.post('http://localhost:3005/auth/mobile/login', {
       data: { email: P8B_STORE_EMAIL, password: P8B_STORE_PASS },
     });
     const { access_token } = await tokenResponse.json();
@@ -261,7 +261,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
   });
 
   test('08 — Ready for Pickup succeeds after all issues resolved', async ({ page }) => {
-    const tokenResponse = await page.request.post('http://localhost:3005/auth/login', {
+    const tokenResponse = await page.request.post('http://localhost:3005/auth/mobile/login', {
       data: { email: P8B_STORE_EMAIL, password: P8B_STORE_PASS },
     });
     const { access_token } = await tokenResponse.json();
