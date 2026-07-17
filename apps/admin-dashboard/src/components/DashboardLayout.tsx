@@ -2,14 +2,47 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Sidebar from './Sidebar';
-import { Bell, CheckCircle2, Command, Loader2, Search } from 'lucide-react';
-
 import { apiClient } from '@aagam/utils';
+import { Bell, CheckCircle2, Command, Loader2, Search } from 'lucide-react';
+import Sidebar from './Sidebar';
+import PushNotificationManager from './PushNotificationManager';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
   allowedRole: 'ADMIN' | 'RIDER' | 'CUSTOMER' | 'STORE_OWNER';
+}
+
+type SessionUser = {
+  id?: string;
+  role: DashboardLayoutProps['allowedRole'];
+  name?: string | null;
+  email?: string | null;
+  avatarUrl?: string | null;
+};
+
+let cachedSession: SessionUser | null = null;
+let sessionRequest: Promise<SessionUser> | null = null;
+
+function loadSession() {
+  if (!sessionRequest) {
+    sessionRequest = apiClient
+      .get('/auth/me')
+      .then((response) => {
+        cachedSession = response.data as SessionUser;
+        return cachedSession;
+      })
+      .finally(() => {
+        sessionRequest = null;
+      });
+  }
+  return sessionRequest;
+}
+
+function homeForRole(role: string) {
+  if (role === 'ADMIN') return '/admin';
+  if (role === 'RIDER') return '/rider';
+  if (role === 'STORE_OWNER') return '/store';
+  return '/shop';
 }
 
 const notificationHrefByRole: Record<DashboardLayoutProps['allowedRole'], string> = {
@@ -20,57 +53,56 @@ const notificationHrefByRole: Record<DashboardLayoutProps['allowedRole'], string
 };
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole }) => {
-  const [mounted, setMounted] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const initialSession = cachedSession;
+  const [ready, setReady] = useState(initialSession?.role === allowedRole);
+  const [userRole, setUserRole] = useState<string | null>(initialSession?.role || null);
   const router = useRouter();
 
   useEffect(() => {
-    const verifySession = async () => {
-      console.log(`[DashboardLayout] Verifying session for role: ${allowedRole}`);
-      try {
-        const response = await apiClient.get('/auth/me');
-        const user = response.data;
-        console.log('[DashboardLayout] Session verified. User:', user);
-        
-        if (user.role !== allowedRole) {
-          console.warn(`[DashboardLayout] Role mismatch. Expected ${allowedRole}, got ${user.role}. Redirecting...`);
-          if (user.role === 'ADMIN') router.push('/admin');
-          else if (user.role === 'RIDER') router.push('/rider');
-          else if (user.role === 'STORE_OWNER') router.push('/store');
-          else router.push('/shop');
-          return;
-        }
+    let active = true;
 
-        setUserRole(user.role);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('user_name', user.name || '');
-          localStorage.setItem('user_email', user.email || '');
-          localStorage.setItem('user_avatar', user.avatarUrl || '');
-        }
-        setMounted(true);
-      } catch (error: any) {
-        console.error('[DashboardLayout] Session verification failed:', error.response?.data || error.message);
-        router.push('/login');
+    const acceptSession = (user: SessionUser) => {
+      if (!active) return;
+      if (user.role !== allowedRole) {
+        setReady(false);
+        router.replace(homeForRole(user.role));
+        return;
       }
+      setUserRole(user.role);
+      setReady(true);
+      localStorage.setItem('user_name', user.name || '');
+      localStorage.setItem('user_email', user.email || '');
+      localStorage.setItem('user_avatar', user.avatarUrl || '');
     };
 
-    verifySession();
+    if (cachedSession) acceptSession(cachedSession);
+
+    loadSession()
+      .then(acceptSession)
+      .catch(() => {
+        if (!active) return;
+        cachedSession = null;
+        setReady(false);
+        router.replace('/login');
+      });
+
+    return () => {
+      active = false;
+    };
   }, [allowedRole, router]);
 
-  if (!mounted) {
+  if (!ready) {
     return (
       <div className="min-h-screen overflow-hidden bg-slate-950 text-white">
         <div className="absolute inset-0 enterprise-subtle-grid opacity-20" />
-        <div className="absolute -left-32 top-10 h-96 w-96 rounded-full bg-teal-500/20 blur-3xl" />
-        <div className="absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-amber-500/20 blur-3xl" />
         <div className="relative flex min-h-screen items-center justify-center px-6">
           <div className="enterprise-card max-w-md p-8 text-center text-slate-950">
             <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-2xl shadow-slate-950/25">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
             <p className="enterprise-kicker mx-auto w-fit">Secure session</p>
-            <h1 className="mt-4 text-2xl font-black tracking-tight">Preparing your command center</h1>
-            <p className="mt-2 text-sm font-semibold text-slate-500">Checking role access, live data, and workspace permissions.</p>
+            <h1 className="mt-4 text-2xl font-black tracking-tight">Opening your workspace</h1>
+            <p className="mt-2 text-sm font-semibold text-slate-500">Verifying account access once for this session.</p>
           </div>
         </div>
       </div>
@@ -89,7 +121,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
             <div>
               <p className="enterprise-kicker">Aagam Commerce OS</p>
               <h2 className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950">
-                {allowedRole === 'ADMIN' ? 'Operations control tower' : allowedRole === 'RIDER' ? 'Rider live workspace' : allowedRole === 'STORE_OWNER' ? 'Store management workspace' : 'Premium shopping workspace'}
+                {allowedRole === 'ADMIN'
+                  ? 'Operations control tower'
+                  : allowedRole === 'RIDER'
+                    ? 'Rider live workspace'
+                    : allowedRole === 'STORE_OWNER'
+                      ? 'Store management workspace'
+                      : 'Premium shopping workspace'}
               </h2>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -108,6 +146,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
                   Live systems
                 </div>
               ) : null}
+              <PushNotificationManager />
               <button
                 onClick={() => router.push(notificationHrefByRole[allowedRole])}
                 aria-label="Open notifications"
@@ -117,9 +156,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
               </button>
             </div>
           </div>
-          <div className="relative">
-          {children}
-          </div>
+          <div className="relative">{children}</div>
         </div>
       </main>
     </div>

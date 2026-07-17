@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export interface CartItem {
   id: string;
@@ -10,83 +10,110 @@ export interface CartItem {
   image?: string;
 }
 
+const STORAGE_KEY = 'aagam_cart';
+const CART_EVENT = 'aagam:cart-changed';
+
 function normalizeCartItem(raw: any): CartItem {
   return {
     id: String(raw?.id ?? ''),
     name: String(raw?.name ?? ''),
     price: Number(raw?.price ?? 0) || 0,
-    quantity: Number(raw?.quantity ?? 0) || 0,
+    quantity: Math.max(0, Number(raw?.quantity ?? 0) || 0),
     image: raw?.image ? String(raw.image) : undefined,
   };
 }
 
+function readCart(): CartItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]');
+    return Array.isArray(parsed)
+      ? parsed.map(normalizeCartItem).filter((item) => item.id && item.quantity > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistCart(cart: CartItem[]) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+  window.dispatchEvent(new CustomEvent<CartItem[]>(CART_EVENT, { detail: cart }));
+}
+
 export const useCart = () => {
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [cart, setCart] = useState<CartItem[]>(() => readCart());
+  const [isLoaded, setIsLoaded] = useState(typeof window !== 'undefined');
 
   useEffect(() => {
-    const savedCart = localStorage.getItem('aagam_cart');
-    if (savedCart) {
-      try {
-        const parsed = JSON.parse(savedCart);
-        const next = Array.isArray(parsed) ? parsed.map(normalizeCartItem).filter((i) => i.id && i.quantity > 0) : [];
-        setCart(next);
-      } catch {
-        setCart([]);
-      }
-    }
+    const syncFromStorage = () => setCart(readCart());
+    const syncFromApp = (event: Event) => {
+      const detail = (event as CustomEvent<CartItem[]>).detail;
+      setCart(Array.isArray(detail) ? detail : readCart());
+    };
+
+    setCart(readCart());
     setIsLoaded(true);
+    window.addEventListener('storage', syncFromStorage);
+    window.addEventListener(CART_EVENT, syncFromApp);
+    return () => {
+      window.removeEventListener('storage', syncFromStorage);
+      window.removeEventListener(CART_EVENT, syncFromApp);
+    };
   }, []);
 
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem('aagam_cart', JSON.stringify(cart));
-    }
-  }, [cart, isLoaded]);
+  const commit = (updater: (current: CartItem[]) => CartItem[]) => {
+    setCart((current) => {
+      const next = updater(current)
+        .map(normalizeCartItem)
+        .filter((item) => item.id && item.quantity > 0);
+      persistCart(next);
+      return next;
+    });
+  };
 
   const addToCart = (product: any) => {
-    setCart((prev) => {
+    commit((current) => {
       const id = String(product?.id ?? '');
-      if (!id) return prev;
-
-      const candidate: Omit<CartItem, 'quantity'> = {
-        id,
-        name: String(product?.name ?? ''),
-        price: Number(product?.price ?? 0) || 0,
-        image: product?.image ? String(product.image) : undefined,
-      };
-
-      const existing = prev.find((item) => item.id === id);
+      if (!id) return current;
+      const existing = current.find((item) => item.id === id);
       if (existing) {
-        return prev.map((item) =>
-          item.id === id ? { ...item, quantity: item.quantity + 1 } : item
+        return current.map((item) =>
+          item.id === id ? { ...item, quantity: item.quantity + 1 } : item,
         );
       }
-      return [...prev, { ...candidate, quantity: 1 }];
+      return [
+        ...current,
+        {
+          id,
+          name: String(product?.name ?? ''),
+          price: Number(product?.price ?? 0) || 0,
+          quantity: 1,
+          image: product?.image ? String(product.image) : undefined,
+        },
+      ];
     });
   };
 
   const removeFromCart = (id: string) => {
-    setCart((prev) => prev.filter((item) => item.id !== id));
+    commit((current) => current.filter((item) => item.id !== id));
   };
 
   const updateQuantity = (id: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(id);
-      return;
-    }
-    setCart((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
+    commit((current) =>
+      quantity <= 0
+        ? current.filter((item) => item.id !== id)
+        : current.map((item) => (item.id === id ? { ...item, quantity } : item)),
     );
   };
 
-  const clearCart = () => setCart([]);
-
+  const clearCart = () => commit(() => []);
   const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return {
     cart,
+    isLoaded,
     addToCart,
     removeFromCart,
     updateQuantity,
