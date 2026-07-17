@@ -4,7 +4,7 @@ import path from 'path';
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-8b');
 
 async function waitForStyles(page: Page) {
-  await page.waitForLoadState('load');
+  await page.waitForLoadState('networkidle');
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1500);
 }
@@ -60,7 +60,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
   test('01 — Store orders page loads with lane counters', async ({ page }) => {
     await loginAsStore(page);
     await page.goto('/store/orders');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
     // Page title
@@ -81,7 +81,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
   test('02 — Order card shows picking list with product quantities', async ({ page }) => {
     await loginAsStore(page);
     await page.goto('/store/orders');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
     // At least one order card should exist
@@ -104,7 +104,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
   test('03 — Unavail and Substitute buttons visible on editable orders', async ({ page }) => {
     await loginAsStore(page);
     await page.goto('/store/orders');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
     // Find an order card with items (PENDING or PICKING status has edit buttons)
@@ -147,7 +147,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
     // Reload page and verify the unavailable badge appears
     await loginAsStore(page, P8B_STORE_EMAIL, P8B_STORE_PASS);
     await page.goto('/store/orders');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
     const unavailableBadge = page.locator('text=Unavailable').first();
@@ -271,7 +271,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
     // Verify on UI
     await loginAsStore(page, P8B_STORE_EMAIL, P8B_STORE_PASS);
     await page.goto('/store/orders');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
     // The order should now appear in "Ready" lane

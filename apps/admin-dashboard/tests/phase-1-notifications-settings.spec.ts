@@ -20,7 +20,7 @@ test.describe('Phase 1.1: event-level notification preferences', () => {
       const page = await context.newPage();
       await loginWithCookieSession(page, item.role as any);
       await page.goto(item.route);
-      await page.waitForLoadState('load');
+      await page.waitForLoadState('networkidle');
 
       await expect(page.getByRole('heading', { name: item.heading })).toBeVisible({ timeout: 15000 });
       await expect(page.getByRole('heading', { name: 'Global defaults' })).toBeVisible();
@@ -38,7 +38,7 @@ test.describe('Phase 1.1: event-level notification preferences', () => {
   test('customer can persist and restore the global push preference', async ({ page }) => {
     await loginWithCookieSession(page, 'CUSTOMER');
     await page.goto('/shop/notifications/settings');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
 
     const toggle = page.getByRole('switch', { name: 'Global device push' });
     await expect(toggle).toBeVisible({ timeout: 15000 });
@@ -57,7 +57,7 @@ test.describe('Phase 1.1: event-level notification preferences', () => {
     await loginWithCookieSession(page, 'RIDER');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/rider/notifications/settings');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
 
     await expect(page.getByRole('heading', { name: /Rider notification preferences/i })).toBeVisible({ timeout: 15000 });
     const overflow = await page.evaluate(

@@ -2,7 +2,6 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 const dotenv = require('dotenv');
 const path = require('path');
-const bcrypt = require('bcrypt');
 
 dotenv.config({ path: path.join(__dirname, '../../../.env') });
 
@@ -48,21 +47,6 @@ function assertSafeQaSeedTarget() {
 async function main() {
   assertSafeQaSeedTarget();
   console.log('QA Seed: Ensuring test orders are in correct state...');
-
-  const qaPassword = bcrypt.hashSync(process.env.DISPATCH_TEST_PASS || 'Test@1234', 10);
-  const testUsers = [
-    { email: 'admin@aagam.com', role: 'ADMIN', name: 'Admin' },
-    { email: 'store@aagam.com', role: 'STORE_OWNER', name: 'Store Owner' },
-    { email: 'rider@aagam.com', role: 'RIDER', name: 'QA Rider' },
-  ];
-  for (const u of testUsers) {
-    const user = await prisma.user.upsert({
-      where: { email: u.email },
-      update: { role: u.role, name: u.name, password: qaPassword },
-      create: { email: u.email, role: u.role, name: u.name, password: qaPassword },
-    });
-    console.log(`  ${u.email} (${user.id}) password set`);
-  }
 
   const qaCustomer = await prisma.user.upsert({
     where: { email: 'qa-rider-pick-customer@aagam.com' },

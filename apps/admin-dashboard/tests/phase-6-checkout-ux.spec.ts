@@ -4,7 +4,7 @@ import path from 'path';
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-6');
 
 async function waitForReady(page: Page) {
-  await page.waitForLoadState('load');
+  await page.waitForLoadState('networkidle');
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1500);
 }
@@ -28,7 +28,7 @@ test.describe('Phase 6 Checkout UX', () => {
 
   test('01-serviceability: address selector shows serviceable banner', async ({ page }) => {
     await page.goto('/shop/phase6');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
     await selectAhmedabadAddress(page);
@@ -45,7 +45,7 @@ test.describe('Phase 6 Checkout UX', () => {
 
   test('02-search-results: search filters products', async ({ page }) => {
     await page.goto('/shop/phase6');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
     const searchInput = page.locator('input[placeholder*="Search"]').first();
@@ -70,7 +70,7 @@ test.describe('Phase 6 Checkout UX', () => {
 
   test('03-category-filter: category dropdown filters products', async ({ page }) => {
     await page.goto('/shop/phase6');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
     const categorySelect = page.locator('select').nth(1);
@@ -98,7 +98,7 @@ test.describe('Phase 6 Checkout UX', () => {
 
   test('04-cart-quote: add item to cart shows quote with bill details', async ({ page }) => {
     await page.goto('/shop/phase6');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
     await selectAhmedabadAddress(page);
@@ -127,7 +127,7 @@ test.describe('Phase 6 Checkout UX', () => {
 
   test('05-order-created: place COD order clears cart and shows success', async ({ page }) => {
     await page.goto('/shop/phase6');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
     await selectAhmedabadAddress(page);
@@ -156,7 +156,7 @@ test.describe('Phase 6 Checkout UX', () => {
 
   test('06-substitutes: out-of-stock product shows substitute options', async ({ page }) => {
     await page.goto('/shop/phase6');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
     await selectAhmedabadAddress(page);

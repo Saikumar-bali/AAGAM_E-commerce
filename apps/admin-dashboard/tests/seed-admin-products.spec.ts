@@ -77,7 +77,7 @@ async function login(page: Page) {
   await page.fill('input[type="password"]', ADMIN_PASSWORD);
   await page.click('button[type="submit"]');
   await page.waitForURL('**/admin**', { timeout: 20000 });
-  await page.waitForLoadState('load');
+  await page.waitForLoadState('networkidle');
 }
 
 
@@ -91,7 +91,7 @@ async function createProduct(page: Page, entry: ProductEntry) {
   console.log(`Creating: ${data.name}`);
 
   await page.goto('/admin/products');
-  await page.waitForLoadState('load');
+  await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1000);
 
   // Click Add Product
@@ -168,7 +168,7 @@ async function createProduct(page: Page, entry: ProductEntry) {
 
   // Set inventory
   await page.goto('/admin/products');
-  await page.waitForLoadState('load');
+  await page.waitForLoadState('networkidle');
   await page.waitForTimeout(2000);
 
   // Find the product row and set stock
