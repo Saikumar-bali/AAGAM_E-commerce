@@ -51,6 +51,47 @@ describe("Phase 3 delivery completion compatibility gates", () => {
     );
   });
 
+  it("preserves rider confirmation, GPS and accuracy as auditable POD evidence", async () => {
+    const dispatch = {} as any;
+    const operations = {
+      completeDelivery: jest.fn(async () => ({
+        id: "job-pod-1",
+        status: "DELIVERED",
+      })),
+    };
+    const controller = new DispatchController(dispatch, operations as any);
+
+    await controller.delivered(
+      "job-pod-1",
+      {
+        proofType: "CUSTOMER_OTP_PIN",
+        code: "246810",
+        riderConfirmed: true,
+        note: "Parcel handed to customer at entrance",
+        latitude: 17.74123,
+        longitude: 83.31234,
+        accuracyMetres: 6.5,
+      },
+      { user: { id: "rider-user-2", role: Role.RIDER } },
+      "pod-evidence-key-1"
+    );
+
+    expect(operations.completeDelivery).toHaveBeenCalledWith(
+      "job-pod-1",
+      { id: "rider-user-2", role: Role.RIDER },
+      {
+        otpCode: "246810",
+        proofType: "CUSTOMER_OTP_PIN",
+        note: "Parcel handed to customer at entrance",
+        riderConfirmed: true,
+        latitude: 17.74123,
+        longitude: 83.31234,
+        accuracyMetres: 6.5,
+      },
+      "pod-evidence-key-1"
+    );
+  });
+
   it("routes the order-based legacy adapter through DeliveryOperationsService", async () => {
     const jobs = {
       getByOrderId: jest.fn(async () => ({
