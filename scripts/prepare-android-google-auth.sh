@@ -119,28 +119,38 @@ function addCandidate(label, value) {
   candidates.push({ label, value: normalized });
 }
 
-addCandidate('raw', raw);
-const trimmed = raw.trim();
+const trimmed = raw.trim().replace(/^\uFEFF/, '');
+addCandidate('raw', trimmed);
 
 if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
-  addCandidate('single-quoted', trimmed.slice(1, -1));
+  addCandidate('single-quoted-wrapper', trimmed.slice(1, -1));
 }
 
 try {
   const decoded = JSON.parse(trimmed);
   if (typeof decoded === 'string') addCandidate('json-string', decoded);
 } catch {
-  // The secret may be escaped JSON rather than a JSON string.
+  // The secret may be shell-escaped or PowerShell-formatted rather than a JSON string.
 }
 
+const escapedJson = trimmed
+  .replace(/\\r\\n/g, '\n')
+  .replace(/\\n/g, '\n')
+  .replace(/\\r/g, '\r')
+  .replace(/\\t/g, '\t')
+  .replace(/\\u0022/gi, '"')
+  .replace(/`"/g, '"')
+  .replace(/\\"/g, '"');
+addCandidate('escaped-json', escapedJson);
+
+const singleQuotedJson = escapedJson.replace(/'/g, '"');
+addCandidate('single-quoted-json', singleQuotedJson);
 addCandidate(
-  'escaped-json',
-  trimmed
-    .replace(/\\r\\n/g, '\n')
-    .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '\r')
-    .replace(/\\t/g, '\t')
-    .replace(/\\"/g, '"')
+  'powershell-object-json',
+  singleQuotedJson.replace(
+    /([{,]\s*)([A-Za-z_$][A-Za-z0-9_$-]*)(\s*:)/g,
+    '$1"$2"$3'
+  )
 );
 
 if (/^[A-Za-z0-9+/=\r\n]+$/.test(trimmed)) {
