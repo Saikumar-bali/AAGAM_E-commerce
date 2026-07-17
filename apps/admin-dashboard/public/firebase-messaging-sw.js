@@ -104,5 +104,5 @@ self.addEventListener('notificationclick', (event) => {
       }
     }
     if (self.clients.openWindow) await self.clients.openWindow(target);
-  })();
+  })());
 });

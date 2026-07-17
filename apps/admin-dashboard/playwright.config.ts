@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const AUTH_FILE = './.auth/customer.json';
+const workers = Number.parseInt(process.env.PLAYWRIGHT_WORKERS || '4', 10);
 
 export default defineConfig({
   testDir: './tests',
@@ -8,7 +9,7 @@ export default defineConfig({
   expect: { timeout: 15000 },
   fullyParallel: false,
   retries: 0,
-  workers: 1,
+  workers,
   globalSetup: './tests/global-setup.ts',
   reporter: [
     ['list'],

@@ -1,6 +1,7 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { OrderStatus, Role, prisma } from '@aagam/database';
 import { OrderService } from './order.service';
+import { DeliveryJobService } from './delivery-job.service';
 
 type FulfillmentIssue = {
   itemId: string;
@@ -16,7 +17,10 @@ type FulfillmentIssue = {
 
 @Injectable()
 export class StoreFulfillmentService {
-  constructor(private readonly orderService: OrderService) {}
+  constructor(
+    private readonly orderService: OrderService,
+    @Optional() private readonly deliveryJobs?: DeliveryJobService,
+  ) {}
 
   private editableStatuses = [OrderStatus.PENDING, OrderStatus.PAYMENT_PENDING, OrderStatus.CONFIRMED, OrderStatus.PICKING];
 
@@ -182,6 +186,19 @@ export class StoreFulfillmentService {
     if (unresolved.length > 0) {
       throw new BadRequestException('Resolve unavailable items before marking ready for pickup');
     }
-    return this.orderService.updateStatus(orderId, OrderStatus.PACKED, { id: ownerId, role: Role.STORE_OWNER });
+
+    const packedOrder = await this.orderService.updateStatus(
+      orderId,
+      OrderStatus.PACKED,
+      { id: ownerId, role: Role.STORE_OWNER },
+    );
+
+    // Nest injects DeliveryJobService in the running API. It is optional so the
+    // existing isolated store tests can still construct this service directly.
+    if (this.deliveryJobs) {
+      await this.deliveryJobs.createForPackedOrder(orderId, { id: ownerId, role: Role.STORE_OWNER });
+    }
+
+    return packedOrder;
   }
 }

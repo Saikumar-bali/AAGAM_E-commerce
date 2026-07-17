@@ -6,6 +6,26 @@ on:
   pull_request:
     branches: ["main"]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22.22.3"
+  PLAYWRIGHT_WORKERS: "4"
+  CI_JWT_SECRET: "aagam-ci-only-jwt-secret-change-me-in-production"
+  CI_ADMIN_EMAIL: "admin@aagam.com"
+  CI_ADMIN_PASSWORD: "admin@2026!"
+  CI_CUSTOMER_EMAIL: "customer@aagam.com"
+  CI_CUSTOMER_PASSWORD: "customer@2026!"
+  CI_STORE_EMAIL: "store@aagam.com"
+  CI_STORE_PASSWORD: "store@2026!"
+  CI_RIDER_EMAIL: "rider@aagam.com"
+  CI_RIDER_PASSWORD: "rider@2026!"
+
 jobs:
   build:
     name: Build
@@ -23,11 +43,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --no-audit --no-fund
 
       - name: Generate Prisma Client
         run: npx prisma generate --schema packages/database/prisma/schema.prisma
@@ -69,7 +89,7 @@ jobs:
     env:
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
       NODE_ENV: test
-      JWT_SECRET: ${{ secrets.TEST_JWT_SECRET }}
+      JWT_SECRET: ${{ env.CI_JWT_SECRET }}
 
     steps:
       - name: Checkout repo
@@ -78,11 +98,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --no-audit --no-fund
 
       - name: Generate Prisma Client
         run: npx prisma generate --schema packages/database/prisma/schema.prisma
@@ -109,7 +129,7 @@ jobs:
     name: Playwright Smoke Tests
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/phase-')
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/phase-')
     timeout-minutes: 30
 
     services:
@@ -140,7 +160,7 @@ jobs:
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
       REDIS_URL: "redis://localhost:6379"
       NODE_ENV: test
-      JWT_SECRET: ${{ secrets.TEST_JWT_SECRET }}
+      JWT_SECRET: ${{ env.CI_JWT_SECRET }}
       PLAYWRIGHT_QA: "true"
       PLAYWRIGHT_QA_SEED: "true"
 
@@ -151,11 +171,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --no-audit --no-fund
 
       - name: Generate Prisma Client
         run: npx prisma generate --schema packages/database/prisma/schema.prisma
@@ -167,14 +187,14 @@ jobs:
         run: node packages/database/seed.js
         env:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
-          ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-          ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          CUSTOMER_EMAIL: ${{ secrets.TEST_CUSTOMER_EMAIL }}
-          CUSTOMER_PASSWORD: ${{ secrets.TEST_CUSTOMER_PASSWORD }}
-          STORE_EMAIL: ${{ secrets.TEST_STORE_EMAIL }}
-          STORE_PASSWORD: ${{ secrets.TEST_STORE_PASSWORD }}
-          RIDER_EMAIL: ${{ secrets.TEST_RIDER_EMAIL }}
-          RIDER_PASSWORD: ${{ secrets.TEST_RIDER_PASSWORD }}
+          ADMIN_EMAIL: ${{ env.CI_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          CUSTOMER_EMAIL: ${{ env.CI_CUSTOMER_EMAIL }}
+          CUSTOMER_PASSWORD: ${{ env.CI_CUSTOMER_PASSWORD }}
+          STORE_EMAIL: ${{ env.CI_STORE_EMAIL }}
+          STORE_PASSWORD: ${{ env.CI_STORE_PASSWORD }}
+          RIDER_EMAIL: ${{ env.CI_RIDER_EMAIL }}
+          RIDER_PASSWORD: ${{ env.CI_RIDER_PASSWORD }}
 
       - name: Build workspace packages
         run: |
@@ -212,7 +232,7 @@ jobs:
         env:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
           REDIS_URL: "redis://localhost:6379"
-          JWT_SECRET: ${{ secrets.TEST_JWT_SECRET }}
+          JWT_SECRET: ${{ env.CI_JWT_SECRET }}
           NODE_ENV: test
           PORT: "3005"
           PLAYWRIGHT_QA: "true"
@@ -220,43 +240,51 @@ jobs:
           CORS_ORIGINS: "http://localhost:3001"
 
       - name: Run Playwright tests
-        run: npx playwright test --project=chromium --reporter=list
+        run: npx playwright test --project=chromium --reporter=list --workers="$PLAYWRIGHT_WORKERS"
         working-directory: apps/admin-dashboard
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3005
-          ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-          ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          QA_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          SEED_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-          SEED_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          STORE_OWNER_QA_EMAIL: ${{ secrets.TEST_STORE_OWNER_QA_EMAIL }}
-          STORE_OWNER_QA_PASSWORD: ${{ secrets.TEST_STORE_OWNER_QA_PASSWORD }}
-          P4_DEMO_PASS: ${{ secrets.TEST_CUSTOMER_PASSWORD }}
-          P4_ADMIN_PASS: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          P5_CUSTOMER_PASS: ${{ secrets.TEST_CUSTOMER_PASSWORD }}
-          P5_ADMIN_PASS: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          P5_STORE_PASS: ${{ secrets.TEST_STORE_PASSWORD }}
-          P5_RIDER_PASS: ${{ secrets.TEST_RIDER_PASSWORD }}
-          P6_DEMO_PASS: ${{ secrets.TEST_CUSTOMER_PASSWORD }}
-          DISPATCH_TEST_PASS: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          DISPATCH_STORE_PASS: ${{ secrets.TEST_STORE_PASSWORD }}
-          DISPATCH_RIDER_PASS: ${{ secrets.TEST_RIDER_PASSWORD }}
-          NOTIF_ADMIN_PASS: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          NOTIF_CUSTOMER_PASS: ${{ secrets.TEST_CUSTOMER_PASSWORD }}
-          NOTIF_STORE_PASS: ${{ secrets.TEST_STORE_PASSWORD }}
-          NOTIF_RIDER_PASS: ${{ secrets.TEST_RIDER_PASSWORD }}
-          NOTIF_FALLBACK_PASS: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          LOGIN_TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-          LOGIN_TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          LOGIN_TEST_CUSTOMER_EMAIL: ${{ secrets.TEST_CUSTOMER_EMAIL }}
-          LOGIN_TEST_CUSTOMER_PASSWORD: ${{ secrets.TEST_CUSTOMER_PASSWORD }}
-          LOGIN_TEST_RIDER_EMAIL: ${{ secrets.TEST_RIDER_EMAIL }}
-          LOGIN_TEST_RIDER_PASSWORD: ${{ secrets.TEST_RIDER_PASSWORD }}
-          LOGIN_TEST_STORE_EMAIL: ${{ secrets.TEST_STORE_EMAIL }}
-          LOGIN_TEST_STORE_PASSWORD: ${{ secrets.TEST_STORE_PASSWORD }}
-          SMOKE_TEST_EMAIL: ${{ secrets.TEST_CUSTOMER_EMAIL }}
-          SMOKE_TEST_PASSWORD: ${{ secrets.TEST_CUSTOMER_PASSWORD }}
-          SETUP_STORE_PASS: ${{ secrets.TEST_STORE_PASSWORD }}
+          ADMIN_EMAIL: ${{ env.CI_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          CUSTOMER_EMAIL: ${{ env.CI_CUSTOMER_EMAIL }}
+          CUSTOMER_PASSWORD: ${{ env.CI_CUSTOMER_PASSWORD }}
+          STORE_EMAIL: ${{ env.CI_STORE_EMAIL }}
+          STORE_PASSWORD: ${{ env.CI_STORE_PASSWORD }}
+          RIDER_EMAIL: ${{ env.CI_RIDER_EMAIL }}
+          RIDER_PASSWORD: ${{ env.CI_RIDER_PASSWORD }}
+          QA_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          SEED_ADMIN_EMAIL: ${{ env.CI_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          STORE_OWNER_QA_EMAIL: ${{ env.CI_STORE_EMAIL }}
+          STORE_OWNER_QA_PASSWORD: ${{ env.CI_STORE_PASSWORD }}
+          P4_DEMO_PASS: ${{ env.CI_CUSTOMER_PASSWORD }}
+          P4_ADMIN_PASS: ${{ env.CI_ADMIN_PASSWORD }}
+          P4_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
+          P4_RIDER_PASS: ${{ env.CI_RIDER_PASSWORD }}
+          P5_CUSTOMER_PASS: ${{ env.CI_CUSTOMER_PASSWORD }}
+          P5_ADMIN_PASS: ${{ env.CI_ADMIN_PASSWORD }}
+          P5_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
+          P5_RIDER_PASS: ${{ env.CI_RIDER_PASSWORD }}
+          P6_DEMO_PASS: ${{ env.CI_CUSTOMER_PASSWORD }}
+          DISPATCH_TEST_PASS: ${{ env.CI_ADMIN_PASSWORD }}
+          DISPATCH_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
+          DISPATCH_RIDER_PASS: ${{ env.CI_RIDER_PASSWORD }}
+          NOTIF_ADMIN_PASS: ${{ env.CI_ADMIN_PASSWORD }}
+          NOTIF_CUSTOMER_PASS: ${{ env.CI_CUSTOMER_PASSWORD }}
+          NOTIF_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
+          NOTIF_RIDER_PASS: ${{ env.CI_RIDER_PASSWORD }}
+          NOTIF_FALLBACK_PASS: ${{ env.CI_ADMIN_PASSWORD }}
+          LOGIN_TEST_ADMIN_EMAIL: ${{ env.CI_ADMIN_EMAIL }}
+          LOGIN_TEST_ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          LOGIN_TEST_CUSTOMER_EMAIL: ${{ env.CI_CUSTOMER_EMAIL }}
+          LOGIN_TEST_CUSTOMER_PASSWORD: ${{ env.CI_CUSTOMER_PASSWORD }}
+          LOGIN_TEST_RIDER_EMAIL: ${{ env.CI_RIDER_EMAIL }}
+          LOGIN_TEST_RIDER_PASSWORD: ${{ env.CI_RIDER_PASSWORD }}
+          LOGIN_TEST_STORE_EMAIL: ${{ env.CI_STORE_EMAIL }}
+          LOGIN_TEST_STORE_PASSWORD: ${{ env.CI_STORE_PASSWORD }}
+          SMOKE_TEST_EMAIL: ${{ env.CI_CUSTOMER_EMAIL }}
+          SMOKE_TEST_PASSWORD: ${{ env.CI_CUSTOMER_PASSWORD }}
+          SETUP_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
           FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
 
       - name: Upload Playwright report
