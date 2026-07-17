@@ -21,6 +21,9 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
       - name: Install dependencies
         run: npm ci
       - name: Build API packages
@@ -30,7 +33,5 @@ jobs:
       - name: Typecheck customer mobile app
         run: npx tsc --noEmit -p apps/mobile-customer/tsconfig.json
       - name: Android debug build
-        run: |
-          cd apps/mobile-customer/android
-          chmod +x ./gradlew
-          ./gradlew assembleDebug
+        working-directory: apps/mobile-customer/android
+        run: gradle assembleDebug
