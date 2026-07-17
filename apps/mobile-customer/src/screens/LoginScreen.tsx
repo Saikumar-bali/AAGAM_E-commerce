@@ -18,7 +18,14 @@ const googleErrorMessage = (error: any) => {
   if (code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
     return 'Google Play Services is unavailable or needs an update.';
   }
-  return error?.message || 'Unable to sign in with Google';
+  if (error?.status === 401 || error?.stage === 'backend-api') {
+    return `The server rejected the Google token. Verify that the production API accepts the same Google web client ID used by this APK. (stage: backend-api, status: ${error?.status || 'unknown'})`;
+  }
+  if (error?.stage === 'secure-storage') {
+    return 'Google verified the account, but Android could not save the session securely. Unlock the device and retry. (stage: secure-storage)';
+  }
+  const detail = [error?.stage, code && `code ${code}`].filter(Boolean).join(', ');
+  return `${error?.message || 'Unable to sign in with Google'}${detail ? ` (${detail})` : ''}`;
 };
 
 export const LoginScreen = () => {
@@ -47,16 +54,26 @@ export const LoginScreen = () => {
       Alert.alert('Google Sign-In Unavailable', 'This Customer APK was built without a valid Google web client ID.');
       return;
     }
+    let stage = 'play-services';
     try {
       setGoogleLoading(true);
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      stage = 'native-sign-in';
       const response = await GoogleSignin.signIn();
       const idToken = response.data?.idToken || (response as any)?.idToken;
       if (!idToken) throw new Error('Google token missing');
+      stage = 'backend-session';
       await googleLogin(idToken);
     } catch (error: any) {
       if (error?.code === statusCodes.SIGN_IN_CANCELLED) return;
-      Alert.alert('Google Sign-In Failed', googleErrorMessage(error));
+      const diagnosticError = { ...error, message: error?.message, stage: error?.stage || stage };
+      console.warn('[GoogleSignIn]', {
+        stage: diagnosticError.stage,
+        code: diagnosticError.code || null,
+        status: diagnosticError.status || null,
+        message: diagnosticError.message || null,
+      });
+      Alert.alert('Google Sign-In Failed', googleErrorMessage(diagnosticError));
     } finally { setGoogleLoading(false); }
   };
 

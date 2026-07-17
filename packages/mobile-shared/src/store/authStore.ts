@@ -35,6 +35,20 @@ async function clearLocalAuth() {
   setAuthToken(null);
 }
 
+function mobileAuthError(error: any, fallback: string, stage: string) {
+  const rawMessage = error?.response?.data?.message || error?.message;
+  const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage || fallback;
+  const wrapped = new Error(message) as Error & {
+    code?: string | number;
+    status?: number;
+    stage?: string;
+  };
+  wrapped.code = error?.code;
+  wrapped.status = error?.response?.status;
+  wrapped.stage = stage;
+  return wrapped;
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
@@ -57,16 +71,23 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
   googleLogin: async (idToken) => {
+    let response: any;
     try {
       set({ isLoading: true });
-      const response = await apiClient.post('/auth/mobile/google', { idToken });
+      response = await apiClient.post('/auth/mobile/google', { idToken });
+    } catch (error: any) {
+      set({ isLoading: false });
+      throw mobileAuthError(error, 'Google login failed', 'backend-api');
+    }
+
+    try {
       const { user, access_token } = response.data;
       if (!access_token) throw new Error('Mobile Google login did not return a bearer token');
       await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
       set({ isLoading: false });
-      throw new Error(error.response?.data?.message || error.message || 'Google login failed');
+      throw mobileAuthError(error, 'Could not save the mobile session', 'secure-storage');
     }
   },
   signUp: async (name, email, password, role) => {

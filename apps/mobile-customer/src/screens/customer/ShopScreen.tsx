@@ -1,11 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { getProductImage } from '@aagam/utils';
 import { apiClient } from '@aagam/mobile-shared';
 import { useCartStore } from '../../store/cartStore';
-import { SlidersHorizontal } from 'lucide-react-native';
+import { ArrowRight, Gift, SlidersHorizontal } from 'lucide-react-native';
+import { PromotionCarousel } from '../../components/promotions/PromotionCarousel';
+import { normalizePromotionPlacements, type PromotionCampaign } from '../../promotions/types';
 
 const SORT_OPTIONS = [
   { label: 'Newest', value: 'newest' },
@@ -17,33 +19,44 @@ const isUnavailable = (product: any) => Boolean(product.availability) && product
 
 export const ShopScreen = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const addItem = useCartStore((state) => state.addItem);
   const [query, setQuery] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [sort, setSort] = useState('newest');
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
 
+  useEffect(() => {
+    const categoryId = route.params?.categoryId;
+    if (typeof categoryId === 'string') setSelectedCategoryId(categoryId);
+  }, [route.params?.categoryId]);
+
   const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: async () => { const response = await apiClient.get('/products/categories'); return Array.isArray(response.data) ? response.data : []; } });
   const { data: products, isLoading, error, refetch, isRefetching } = useQuery({ queryKey: ['products', query, selectedCategoryId, sort], queryFn: async () => { const response = await apiClient.get('/products', { params: { search: query || undefined, categoryId: selectedCategoryId || undefined, sort } }); const rows = Array.isArray(response.data) ? response.data : response.data?.items || []; return [...rows].sort((a, b) => { const aUnavailable = isUnavailable(a); const bUnavailable = isUnavailable(b); if (aUnavailable !== bUnavailable) return aUnavailable ? 1 : -1; return 0; }); } });
+  const { data: promotionPlacements, refetch: refetchPromotions } = useQuery({
+    queryKey: ['promotions', 'active'],
+    queryFn: async () => {
+      const response = await apiClient.get('/promotions/active');
+      return normalizePromotionPlacements(response.data);
+    },
+  });
   const categoryPills = useMemo(() => [{ id: '', name: 'All' }, ...categories], [categories]);
+
+  const openCampaign = (campaign: PromotionCampaign) => {
+    const target = campaign.targetUrl || '';
+    const product = target.match(/^\/shop\/products\/([^/?#]+)/);
+    if (product) return navigation.navigate('ProductDetail', { productId: product[1] });
+    if (target.startsWith('/shop/deals')) return navigation.navigate('Deals');
+    if (target.startsWith('/shop/checkout')) return navigation.navigate('Checkout');
+    const category = target.match(/[?&]category=([^&#]+)/);
+    if (category) setSelectedCategoryId(decodeURIComponent(category[1]));
+  };
 
   if (isLoading) return <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View>;
   if (error) return <View style={styles.centered}><Text style={styles.errorText}>Failed to load products. Make sure the API is running.</Text><TouchableOpacity style={styles.retryButton} onPress={() => refetch()}><Text style={styles.retryButtonText}>Try Again</Text></TouchableOpacity></View>;
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.brandRow}>
-          <View style={styles.logoMark}><Text style={styles.logoMarkText}>A</Text></View>
-          <View><Text style={styles.logoText}>aagam</Text><Text style={styles.subtitle}>Quick commerce, delivered fast.</Text></View>
-        </View>
-        <TextInput value={query} onChangeText={setQuery} placeholder="Search products" placeholderTextColor="#94A3B8" style={styles.searchInput} />
-        <View style={styles.filterRow}>
-          <FlatList data={categoryPills} horizontal keyExtractor={(item) => item.id || 'all'} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList} renderItem={({ item }) => { const active = selectedCategoryId === item.id; return <TouchableOpacity style={[styles.categoryPill, active && styles.categoryPillActive]} onPress={() => setSelectedCategoryId(item.id)}><Text style={[styles.categoryPillText, active && styles.categoryPillTextActive]}>{item.name}</Text></TouchableOpacity>; }} />
-          <TouchableOpacity style={styles.sortIcon} onPress={() => setSortMenuVisible(true)}><SlidersHorizontal size={18} color="#0F766E" /></TouchableOpacity>
-        </View>
-        <Modal visible={sortMenuVisible} transparent animationType="fade" onRequestClose={() => setSortMenuVisible(false)}><Pressable style={styles.modalOverlay} onPress={() => setSortMenuVisible(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Sort by</Text>{SORT_OPTIONS.map((option) => { const active = option.value === sort; return <TouchableOpacity key={option.value} style={[styles.modalOption, active && styles.modalOptionActive]} onPress={() => { setSort(option.value); setSortMenuVisible(false); }}><Text style={[styles.modalOptionText, active && styles.modalOptionTextActive]}>{option.label}</Text>{active && <Text style={styles.checkmark}>✓</Text>}</TouchableOpacity>; })}</View></Pressable></Modal>
-      </View>
       <FlatList
         data={products}
         numColumns={2}
@@ -78,7 +91,39 @@ export const ShopScreen = () => {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
         refreshing={isRefetching}
-        onRefresh={refetch}
+        onRefresh={() => { void refetch(); void refetchPromotions(); }}
+        ListHeaderComponent={(
+          <View style={styles.header}>
+            <View style={styles.brandRow}>
+              <View style={styles.logoMark}><Text style={styles.logoMarkText}>A</Text></View>
+              <View><Text style={styles.logoText}>aagam</Text><Text style={styles.subtitle}>Quick commerce, delivered fast.</Text></View>
+            </View>
+            <View style={styles.heroSection}>
+              <PromotionCarousel campaigns={promotionPlacements?.HOME_HERO} onPress={openCampaign} />
+            </View>
+            {promotionPlacements?.HOME_TODAY_OFFERS?.length ? (
+              <View style={styles.offersSection}>
+                <View style={styles.sectionHeadingRow}>
+                  <View style={styles.sectionHeadingCopy}><Gift size={17} color="#0F766E" /><Text style={styles.sectionHeading}>Today's offers</Text></View>
+                  <TouchableOpacity style={styles.dealsLink} onPress={() => navigation.navigate('Deals')}><Text style={styles.dealsLinkText}>All deals</Text><ArrowRight size={14} color="#0F766E" /></TouchableOpacity>
+                </View>
+                <PromotionCarousel campaigns={promotionPlacements.HOME_TODAY_OFFERS} onPress={openCampaign} compact />
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.dealsFallback} onPress={() => navigation.navigate('Deals')}>
+                <View><Text style={styles.dealsFallbackTitle}>Deals & coupons</Text><Text style={styles.dealsFallbackText}>See offers published by Aagam.</Text></View>
+                <ArrowRight size={18} color="#0F766E" />
+              </TouchableOpacity>
+            )}
+            <TextInput value={query} onChangeText={setQuery} placeholder="Search products" placeholderTextColor="#94A3B8" style={styles.searchInput} />
+            <View style={styles.filterRow}>
+              <FlatList data={categoryPills} horizontal keyExtractor={(item) => item.id || 'all'} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList} renderItem={({ item }) => { const active = selectedCategoryId === item.id; return <TouchableOpacity style={[styles.categoryPill, active && styles.categoryPillActive]} onPress={() => setSelectedCategoryId(item.id)}><Text style={[styles.categoryPillText, active && styles.categoryPillTextActive]}>{item.name}</Text></TouchableOpacity>; }} />
+              <TouchableOpacity style={styles.sortIcon} onPress={() => setSortMenuVisible(true)}><SlidersHorizontal size={18} color="#0F766E" /></TouchableOpacity>
+            </View>
+            <Text style={styles.productsHeading}>Shop products</Text>
+            <Modal visible={sortMenuVisible} transparent animationType="fade" onRequestClose={() => setSortMenuVisible(false)}><Pressable style={styles.modalOverlay} onPress={() => setSortMenuVisible(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Sort by</Text>{SORT_OPTIONS.map((option) => { const active = option.value === sort; return <TouchableOpacity key={option.value} style={[styles.modalOption, active && styles.modalOptionActive]} onPress={() => { setSort(option.value); setSortMenuVisible(false); }}><Text style={[styles.modalOptionText, active && styles.modalOptionTextActive]}>{option.label}</Text>{active && <Text style={styles.checkmark}>✓</Text>}</TouchableOpacity>; })}</View></Pressable></Modal>
+          </View>
+        )}
         ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyTitle}>No products found</Text><Text style={styles.emptyText}>Try a different search or category.</Text></View>}
       />
     </View>
@@ -88,12 +133,22 @@ export const ShopScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  header: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8 },
+  header: { paddingTop: 18, paddingBottom: 8 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   logoMark: { width: 44, height: 44, borderRadius: 16, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' },
   logoMarkText: { color: '#FFFFFF', fontSize: 22, fontWeight: '900' },
   logoText: { fontSize: 30, fontWeight: '900', color: '#0F172A', letterSpacing: -1 },
   subtitle: { marginTop: 2, fontSize: 13, color: '#64748B', fontWeight: '700' },
+  heroSection: { marginTop: 18 },
+  offersSection: { marginTop: 24 },
+  sectionHeadingRow: { marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionHeadingCopy: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  sectionHeading: { color: '#0F172A', fontSize: 14, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
+  dealsLink: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6 },
+  dealsLinkText: { color: '#0F766E', fontSize: 12, fontWeight: '900' },
+  dealsFallback: { marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 18, borderWidth: 1, borderColor: '#99F6E4', backgroundColor: '#F0FDFA', padding: 16 },
+  dealsFallbackTitle: { color: '#115E59', fontSize: 15, fontWeight: '900' },
+  dealsFallbackText: { marginTop: 3, color: '#0F766E', fontSize: 12, fontWeight: '600' },
   searchInput: { marginTop: 16, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 14, paddingVertical: 12, color: '#0F172A' },
   categoryList: { paddingTop: 0, paddingBottom: 0 },
   filterRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 14, paddingBottom: 6 },
@@ -110,6 +165,7 @@ const styles = StyleSheet.create({
   modalOptionText: { fontSize: 15, fontWeight: '600', color: '#334155' },
   modalOptionTextActive: { color: '#115E59', fontWeight: '800' },
   checkmark: { color: '#0F766E', fontSize: 18, fontWeight: '800' },
+  productsHeading: { marginTop: 10, marginBottom: 12, color: '#0F172A', fontSize: 18, fontWeight: '900' },
   listContainer: { paddingHorizontal: 16, paddingBottom: 170 },
   productRow: { gap: 12 },
   productCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, marginHorizontal: 0, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0' },
