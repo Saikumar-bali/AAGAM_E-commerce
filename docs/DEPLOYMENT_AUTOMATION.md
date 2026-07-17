@@ -6,7 +6,7 @@ Production deployments are handled by `.github/workflows/deploy.yml`.
 
 - A deployment starts only after the `CI` workflow finishes successfully for `main`.
 - `workflow_dispatch` is available for a manual redeploy or rollback to a commit that is already contained in `main`.
-- The server is synchronized to the exact successful commit SHA. The workflow uses `git fetch` plus `git reset --hard` instead of a normal `git pull`, so local tracked changes cannot create an untested mixed deployment.
+- The server is synchronized to the exact successful commit SHA. The workflow uses `git fetch` plus `git reset --hard` instead of a normal `git pull`, so local tracked changes (including file-mode drift) cannot create an untested mixed deployment.
 - The deployment installs locked dependencies with `npm ci`, validates and generates Prisma, builds the API, admin dashboard, worker, applies checked-in Prisma migrations, reloads PM2, and checks the API health endpoint.
 - `prisma db push` is intentionally not used in production.
 - Concurrent production deployments are blocked both by GitHub Actions concurrency and a server-side `flock` lock.
@@ -145,6 +145,8 @@ pm2 save
 The VPS also needs network access to the production PostgreSQL and Redis services. They may run on the same VPS (`127.0.0.1`) or on managed hosts. Migrations run through `DATABASE_URL`; the API and worker use `REDIS_URL`.
 
 For the first deployment the workflow clones this public repository automatically when the directory at `DEPLOY_PATH` does not exist or is empty. If the directory already contains a checkout, tracked local changes are discarded during deployment; keep server-only configuration in `.env` or outside the repository.
+
+The workflow invokes the tracked deployment script with `bash deploy.sh`. It does not change the script's executable bit on the server, because doing so would leave a tracked file-mode change that can block the next exact-commit checkout.
 
 ## Manual deployment
 

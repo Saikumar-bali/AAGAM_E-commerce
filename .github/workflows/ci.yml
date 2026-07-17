@@ -64,6 +64,12 @@ jobs:
           NEXT_PUBLIC_API_URL: https://aagam.example.com/api
         run: |
           bash -n deploy.sh
+          grep -Fq 'git reset --hard HEAD' .github/workflows/deploy.yml
+          grep -Fq 'bash deploy.sh' .github/workflows/deploy.yml
+          if grep -Fq 'chmod +x deploy.sh' .github/workflows/deploy.yml; then
+            echo 'deploy.yml must not mutate the tracked deploy.sh file mode.'
+            exit 1
+          fi
           npm run check:env:prod
           if env -u CORS_ORIGINS npm run check:env:prod >/dev/null 2>&1; then
             echo "Production validation unexpectedly accepted missing CORS_ORIGINS."
