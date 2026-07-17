@@ -1,12 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { apiClient } from '../api/client';
+
+type RemoteMessage = {
+  notification?: { title?: string; body?: string };
+  data?: Record<string, string>;
+};
 
 type FirebaseMessaging = {
   requestPermission: () => Promise<number>;
+  registerDeviceForRemoteMessages?: () => Promise<void>;
   getToken: () => Promise<string>;
   onTokenRefresh: (handler: (token: string) => void | Promise<void>) => () => void;
-  setBackgroundMessageHandler: (handler: (remoteMessage: unknown) => Promise<void>) => void;
+  onMessage?: (handler: (remoteMessage: RemoteMessage) => void | Promise<void>) => () => void;
+  setBackgroundMessageHandler: (handler: (remoteMessage: RemoteMessage) => Promise<void>) => void;
 };
 
 const SUBSCRIPTION_ID_KEY = 'aagam:push:subscription-id';
@@ -14,15 +21,13 @@ const PUSH_TOKEN_KEY = 'aagam:push:token';
 
 function getMessaging(): FirebaseMessaging | null {
   try {
-    // Lazy require keeps apps bootable when Firebase is not configured locally.
+    // Lazy loading keeps local builds usable when google-services.json is not installed.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const messagingModule = require('@react-native-firebase/messaging');
     const messagingFactory = messagingModule.default || messagingModule;
     return messagingFactory();
   } catch {
-    if (__DEV__) {
-      console.warn('[FCM] Messaging unavailable or Firebase not initialized.');
-    }
+    if (__DEV__) console.warn('[FCM] Messaging unavailable or Firebase not initialized.');
     return null;
   }
 }
@@ -38,17 +43,38 @@ function getAuthorizationStatus() {
   }
 }
 
+async function requestAndroidNotificationPermission() {
+  if (Platform.OS !== 'android' || Number(Platform.Version) < 33) return true;
+  const result = await PermissionsAndroid.request(
+    PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+    {
+      title: 'AAGAM notifications',
+      message: 'Allow order, delivery, store, and rider alerts on this device.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Not now',
+    },
+  );
+  return result === PermissionsAndroid.RESULTS.GRANTED;
+}
+
 export async function requestUserPermission() {
   const messaging = getMessaging();
   if (!messaging) return false;
 
   try {
+    const androidAllowed = await requestAndroidNotificationPermission();
+    if (!androidAllowed) return false;
+    await messaging.registerDeviceForRemoteMessages?.();
     const authStatus = await messaging.requestPermission();
     const status = getAuthorizationStatus();
-    if (!status) return Boolean(authStatus);
-    return authStatus === status.AUTHORIZED || authStatus === status.PROVISIONAL;
-  } catch {
-    if (__DEV__) console.warn('[FCM] Permission request failed.');
+    if (!status) return Platform.OS === 'android' || Boolean(authStatus);
+    return (
+      Platform.OS === 'android' ||
+      authStatus === status.AUTHORIZED ||
+      authStatus === status.PROVISIONAL
+    );
+  } catch (error) {
+    if (__DEV__) console.warn('[FCM] Permission request failed.', error);
     return false;
   }
 }
@@ -56,11 +82,11 @@ export async function requestUserPermission() {
 export async function getFCMToken() {
   const messaging = getMessaging();
   if (!messaging) return null;
-
   try {
+    await messaging.registerDeviceForRemoteMessages?.();
     return await messaging.getToken();
-  } catch {
-    if (__DEV__) console.warn('[FCM] Token fetch failed.');
+  } catch (error) {
+    if (__DEV__) console.warn('[FCM] Token fetch failed.', error);
     return null;
   }
 }
@@ -69,7 +95,7 @@ async function persistSubscription(token: string, deviceName?: string) {
   const response = await apiClient.post('/notifications/push/subscriptions', {
     provider: 'FCM_MOBILE',
     token,
-    userAgent: `ReactNative/${Platform.OS}`,
+    userAgent: `ReactNative/${Platform.OS}/${String(Platform.Version)}`,
     deviceName: deviceName || `AAGAM ${Platform.OS}`,
   });
 
@@ -82,10 +108,8 @@ async function persistSubscription(token: string, deviceName?: string) {
 export async function registerDeviceToken(deviceName?: string) {
   const hasPermission = await requestUserPermission();
   if (!hasPermission) return { enabled: false, reason: 'PERMISSION_NOT_GRANTED' };
-
   const token = await getFCMToken();
   if (!token) return { enabled: false, reason: 'TOKEN_UNAVAILABLE' };
-
   const subscription = await persistSubscription(token, deviceName);
   return { enabled: true, token, subscription };
 }
@@ -97,7 +121,10 @@ export async function registerRefreshedToken(token: string, deviceName?: string)
   await persistSubscription(token, deviceName);
 }
 
-export async function startMobilePushLifecycle(deviceName?: string) {
+export async function startMobilePushLifecycle(
+  deviceName?: string,
+  onForegroundMessage?: (remoteMessage: RemoteMessage) => void | Promise<void>,
+) {
   const messaging = getMessaging();
   if (!messaging) return () => undefined;
 
@@ -105,11 +132,19 @@ export async function startMobilePushLifecycle(deviceName?: string) {
     if (__DEV__) console.warn('[FCM] Device registration failed.', error?.message || error);
   });
 
-  return messaging.onTokenRefresh((token) =>
+  const unsubscribeRefresh = messaging.onTokenRefresh((token) =>
     registerRefreshedToken(token, deviceName).catch((error) => {
       if (__DEV__) console.warn('[FCM] Token refresh registration failed.', error?.message || error);
     }),
   );
+  const unsubscribeForeground = onForegroundMessage && messaging.onMessage
+    ? messaging.onMessage(onForegroundMessage)
+    : () => undefined;
+
+  return () => {
+    unsubscribeRefresh?.();
+    unsubscribeForeground?.();
+  };
 }
 
 export async function disableCurrentMobilePushSubscription() {
@@ -126,11 +161,10 @@ export async function disableCurrentMobilePushSubscription() {
 export function setupBackgroundMessageHandler() {
   const messaging = getMessaging();
   if (!messaging) return;
-
   try {
     messaging.setBackgroundMessageHandler(async () => {
-      // Firebase displays addressed notification payloads. Application state is
-      // refreshed after the user opens the notification.
+      // FCM displays notification payloads while the app is backgrounded.
+      // Data is refreshed by screens when the user opens the notification.
     });
   } catch {
     if (__DEV__) console.warn('[FCM] Background handler setup skipped.');

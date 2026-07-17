@@ -8,11 +8,14 @@ export const DELIVERY_FAILURE_OPTIONS: Array<{
   value: DeliveryFailureReason;
   label: string;
 }> = [
-  { value: 'CUSTOMER_UNAVAILABLE', label: 'Customer unavailable' },
-  { value: 'INVALID_ADDRESS', label: 'Invalid address' },
+  { value: 'CUSTOMER_UNREACHABLE', label: 'Customer unreachable' },
   { value: 'CUSTOMER_REFUSED', label: 'Customer refused' },
-  { value: 'PAYMENT_ISSUE', label: 'Payment issue' },
-  { value: 'UNSAFE_LOCATION', label: 'Unsafe location' },
+  { value: 'ADDRESS_NOT_FOUND', label: 'Address not found' },
+  { value: 'WRONG_ADDRESS', label: 'Wrong address' },
+  { value: 'PAYMENT_NOT_AVAILABLE', label: 'Payment not available' },
+  { value: 'VEHICLE_BREAKDOWN', label: 'Vehicle breakdown' },
+  { value: 'PACKAGE_DAMAGED', label: 'Package damaged' },
+  { value: 'SAFETY_CONCERN', label: 'Safety concern' },
   { value: 'OTHER', label: 'Other' },
 ];
 
@@ -31,22 +34,32 @@ export function riderOperationPolicy(summary?: DeliveryOperationsSummary | null)
 
   return {
     issueOtp: atCustomer,
-    collectCod: codApplicable
-      && !codCollected
-      && (status === 'OUT_FOR_DELIVERY' || atCustomer),
-    completeDelivery: atCustomer
-      && (!summary?.requirements?.codCollectionRequired || !codApplicable || codCollected),
+    collectCod:
+      codApplicable &&
+      !codCollected &&
+      (status === 'OUT_FOR_DELIVERY' || atCustomer),
+    completeDelivery:
+      atCustomer &&
+      (!summary?.requirements?.codCollectionRequired || !codApplicable || codCollected),
     recordFailure: Boolean(status && FAILURE_ALLOWED.has(status)),
     startReturn: status === 'DELIVERY_FAILED',
     waitingForStoreReturn: status === 'RETURNING_TO_STORE',
-    terminal: status === 'DELIVERED' || status === 'RETURNED_TO_STORE' || status === 'CANCELLED',
+    terminal:
+      status === 'DELIVERED' ||
+      status === 'RETURNED_TO_STORE' ||
+      status === 'CANCELLED',
   };
 }
 
-export function operationCompleted(summary: DeliveryOperationsSummary | null | undefined, type: string) {
-  return Boolean(summary?.operations?.some((operation) => (
-    operation.type === type && operation.status === 'COMPLETED'
-  )));
+export function operationCompleted(
+  summary: DeliveryOperationsSummary | null | undefined,
+  type: string,
+) {
+  return Boolean(
+    summary?.operations?.some(
+      (operation) => operation.type === type && operation.status === 'COMPLETED',
+    ),
+  );
 }
 
 export function buildInspectionLines(
