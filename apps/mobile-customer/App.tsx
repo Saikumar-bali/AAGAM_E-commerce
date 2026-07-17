@@ -14,7 +14,7 @@ function PushLifecycle() {
   useEffect(() => {
     if (!user) return;
     let disposed = false;
-    let unsubscribe = () => undefined;
+    let unsubscribe: () => void = () => undefined;
     void startMobilePushLifecycle('AAGAM Customer', (message) => {
       Toast.show({
         type: 'info',

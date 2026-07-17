@@ -14,7 +14,7 @@ function PushLifecycle() {
   useEffect(() => {
     if (!user) return;
     let disposed = false;
-    let unsubscribe = () => undefined;
+    let unsubscribe: () => void = () => undefined;
     const deviceName = user.role === 'RIDER' ? 'AAGAM Rider' : 'AAGAM Store Partner';
     void startMobilePushLifecycle(deviceName, (message) => {
       Toast.show({
