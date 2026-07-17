@@ -67,6 +67,12 @@ if [[ -n "$DEPLOY_PUBLIC_API_URL" ]]; then
   export NEXT_PUBLIC_API_URL="$DEPLOY_PUBLIC_API_URL"
 fi
 
+# Remove stale .env.local files that shadow deploy-time env vars.
+# Next.js .env.local overrides process env vars at build time, which means
+# a leftover .env.local with an incorrect API URL will silently break the
+# build even when NEXT_PUBLIC_API_URL is correctly exported here.
+find apps -maxdepth 2 -name '.env.local' -delete 2>/dev/null || true
+
 echo "Deploying AAGAM commit $DEPLOY_SHA"
 node --version
 npm --version
