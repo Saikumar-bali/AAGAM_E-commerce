@@ -13,18 +13,32 @@ const verificationRequired =
   process.env.NODE_ENV === 'production' &&
   (process.env.CI !== 'true' || process.env.FORCE_VERIFICATION_ENV_VALIDATION === 'true');
 
+const emailProvider = (process.env.PARTNER_EMAIL_PROVIDER || '').trim().toUpperCase();
+const phoneMode = (process.env.PARTNER_PHONE_VERIFICATION_MODE || '').trim().toUpperCase();
+
 if (verificationRequired) {
   required.push(
-    'RESEND_API_KEY',
+    'PARTNER_EMAIL_PROVIDER',
     'PARTNER_VERIFICATION_FROM_EMAIL',
-    'TWILIO_ACCOUNT_SID',
-    'TWILIO_AUTH_TOKEN',
-    'TWILIO_FROM_PHONE',
-    'FIREBASE_PROJECT_ID',
-    'FIREBASE_PROJECT_NUMBER',
     'PARTNER_PHONE_VERIFICATION_MODE',
-    'PARTNER_SMS_PROVIDER',
   );
+
+  if (emailProvider === 'MAILJET') {
+    required.push('MAILJET_API_KEY', 'MAILJET_SECRET_KEY');
+  } else if (emailProvider === 'RESEND') {
+    required.push('RESEND_API_KEY');
+  }
+
+  if (phoneMode !== 'EMAIL_ONLY') {
+    required.push(
+      'TWILIO_ACCOUNT_SID',
+      'TWILIO_AUTH_TOKEN',
+      'TWILIO_FROM_PHONE',
+      'FIREBASE_PROJECT_ID',
+      'FIREBASE_PROJECT_NUMBER',
+      'PARTNER_SMS_PROVIDER',
+    );
+  }
 }
 
 const missing = required.filter(
@@ -45,12 +59,19 @@ if (
   weak.push('PARTNER_QA_VERIFICATION_CODE must not be set when NODE_ENV=production');
 }
 if (
-  process.env.PARTNER_PHONE_VERIFICATION_MODE &&
-  process.env.PARTNER_PHONE_VERIFICATION_MODE !== 'PNV_FIRST'
+  process.env.PARTNER_EMAIL_PROVIDER &&
+  !['MAILJET', 'RESEND'].includes(emailProvider)
 ) {
-  weak.push('PARTNER_PHONE_VERIFICATION_MODE must be PNV_FIRST');
+  weak.push('PARTNER_EMAIL_PROVIDER must be MAILJET or RESEND');
 }
 if (
+  process.env.PARTNER_PHONE_VERIFICATION_MODE &&
+  !['EMAIL_ONLY', 'PNV_FIRST'].includes(phoneMode)
+) {
+  weak.push('PARTNER_PHONE_VERIFICATION_MODE must be EMAIL_ONLY or PNV_FIRST');
+}
+if (
+  phoneMode !== 'EMAIL_ONLY' &&
   process.env.PARTNER_SMS_PROVIDER &&
   process.env.PARTNER_SMS_PROVIDER !== 'TWILIO'
 ) {
@@ -64,6 +85,15 @@ if (
   !/^\d+$/.test(process.env.FIREBASE_PROJECT_NUMBER)
 ) {
   weak.push('FIREBASE_PROJECT_NUMBER must contain digits only');
+}
+
+if (process.env.PARTNER_VERIFICATION_FROM_EMAIL) {
+  const raw = process.env.PARTNER_VERIFICATION_FROM_EMAIL.trim();
+  const bracketed = raw.match(/^\s*(.*?)\s*<\s*([^<>\s]+@[^<>\s]+)\s*>\s*$/);
+  const email = (bracketed?.[2] || raw).trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    weak.push('PARTNER_VERIFICATION_FROM_EMAIL must contain a valid email address');
+  }
 }
 
 for (const [key, protocols] of [
