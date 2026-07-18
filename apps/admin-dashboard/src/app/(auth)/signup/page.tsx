@@ -23,14 +23,13 @@ export default function SignupPage() {
     setLoading(true);
     setError('');
     try {
-      await apiClient.post('/auth/signup', { name, email, password, role: 'CUSTOMER' });
+      await apiClient.post('/auth/signup', { name, email, password });
       const result = await apiClient.post('/auth/login', { email, password });
-      const { user, access_token } = result.data;
+      const { user } = result.data;
       localStorage.setItem('user_role', user.role);
       localStorage.setItem('user_name', user.name || '');
       localStorage.setItem('user_email', user.email || '');
       localStorage.setItem('user_avatar', user.avatarUrl || '');
-      localStorage.setItem('access_token', access_token);
       router.push('/shop');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Signup failed');

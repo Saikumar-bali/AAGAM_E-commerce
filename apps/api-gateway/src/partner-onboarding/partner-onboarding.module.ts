@@ -6,6 +6,8 @@ import { PartnerOnboardingController } from './partner-onboarding.controller';
 import { PartnerOnboardingRepository } from './partner-onboarding.repository';
 import { PartnerOnboardingSecurity } from './partner-onboarding.security';
 import { PartnerOnboardingService } from './partner-onboarding.service';
+import { DeliveringPartnerOnboardingService } from './delivering-partner-onboarding.service';
+import { PartnerVerificationDeliveryService } from './partner-verification-delivery.service';
 
 @Module({
   imports: [UploadModule],
@@ -13,7 +15,11 @@ import { PartnerOnboardingService } from './partner-onboarding.service';
   providers: [
     PartnerOnboardingSecurity,
     PartnerOnboardingRepository,
-    PartnerOnboardingService,
+    PartnerVerificationDeliveryService,
+    {
+      provide: PartnerOnboardingService,
+      useClass: DeliveringPartnerOnboardingService,
+    },
     PartnerOnboardingAdminService,
   ],
   exports: [PartnerOnboardingService, PartnerOnboardingAdminService],
