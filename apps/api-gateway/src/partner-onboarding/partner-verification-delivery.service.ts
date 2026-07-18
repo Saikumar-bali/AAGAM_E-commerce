@@ -1,7 +1,12 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PartnerContactChannel } from './partner-onboarding.types';
-import { isVerificationQaMode, VerificationProvider } from './verification.types';
+import {
+  EmailVerificationProvider,
+  isVerificationQaMode,
+  selectedEmailVerificationProvider,
+  VerificationProvider,
+} from './verification.types';
 
 export type PartnerVerificationDeliveryInput = {
   applicationId: string;
@@ -15,7 +20,10 @@ export type PartnerVerificationDeliveryInput = {
 };
 
 export type PartnerVerificationDeliveryResult = {
-  provider: VerificationProvider.QA | VerificationProvider.RESEND | VerificationProvider.TWILIO;
+  provider:
+    | VerificationProvider.QA
+    | EmailVerificationProvider
+    | VerificationProvider.TWILIO;
   deliveryId: string;
   correlationId: string;
   httpStatus: number;
@@ -56,6 +64,94 @@ export class PartnerVerificationDeliveryService {
     input: PartnerVerificationDeliveryInput,
     correlationId: string,
   ): Promise<PartnerVerificationDeliveryResult> {
+    const provider = selectedEmailVerificationProvider();
+    return provider === VerificationProvider.MAILJET
+      ? this.sendMailjetEmail(input, correlationId)
+      : this.sendResendEmail(input, correlationId);
+  }
+
+  private async sendMailjetEmail(
+    input: PartnerVerificationDeliveryInput,
+    correlationId: string,
+  ): Promise<PartnerVerificationDeliveryResult> {
+    const apiKey = process.env.MAILJET_API_KEY?.trim();
+    const secretKey = process.env.MAILJET_SECRET_KEY?.trim();
+    const sender = this.mailjetSender();
+    const to = input.email?.trim();
+    if (!apiKey || !secretKey || !sender || !to) {
+      throw this.failure(
+        input,
+        VerificationProvider.MAILJET,
+        !sender && process.env.PARTNER_VERIFICATION_FROM_EMAIL?.trim()
+          ? 'MAILJET_INVALID_FROM'
+          : 'MAILJET_UNCONFIGURED',
+        correlationId,
+        undefined,
+        'Partner email verification delivery is not configured',
+      );
+    }
+
+    let response: Response;
+    try {
+      response = await fetch('https://api.mailjet.com/v3.1/send', {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${apiKey}:${secretKey}`).toString('base64')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          Messages: [
+            {
+              From: { Email: sender.email, Name: sender.name },
+              To: [{ Email: to }],
+              Subject: this.subject(input),
+              TextPart: this.message(input),
+              HTMLPart: this.htmlMessage(input),
+              CustomID: correlationId,
+            },
+          ],
+        }),
+      });
+    } catch {
+      throw this.failure(
+        input,
+        VerificationProvider.MAILJET,
+        'MAILJET_NETWORK_ERROR',
+        correlationId,
+        undefined,
+        'Partner email verification could not be delivered',
+      );
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as Record<string, any>;
+    const message = Array.isArray(payload.Messages) ? payload.Messages[0] : undefined;
+    const accepted = response.ok && String(message?.Status || '').toLowerCase() === 'success';
+    if (!accepted) {
+      throw this.failure(
+        input,
+        VerificationProvider.MAILJET,
+        this.mailjetFailureCode(payload),
+        correlationId,
+        response.status,
+        'Partner email verification could not be delivered',
+      );
+    }
+
+    const recipient = Array.isArray(message?.To) ? message.To[0] : undefined;
+    return {
+      provider: VerificationProvider.MAILJET,
+      deliveryId: String(
+        recipient?.MessageUUID || recipient?.MessageID || `mailjet-${correlationId}`,
+      ),
+      correlationId,
+      httpStatus: response.status,
+    };
+  }
+
+  private async sendResendEmail(
+    input: PartnerVerificationDeliveryInput,
+    correlationId: string,
+  ): Promise<PartnerVerificationDeliveryResult> {
     const apiKey = process.env.RESEND_API_KEY?.trim();
     const from = process.env.PARTNER_VERIFICATION_FROM_EMAIL?.trim();
     const to = input.email?.trim();
@@ -70,7 +166,7 @@ export class PartnerVerificationDeliveryService {
       );
     }
 
-    let response: Response | null = null;
+    let response: Response;
     try {
       response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -82,8 +178,9 @@ export class PartnerVerificationDeliveryService {
         body: JSON.stringify({
           from,
           to: [to],
-          subject: `AAGAM verification code for ${input.applicationNumber}`,
+          subject: this.subject(input),
           text: this.message(input),
+          html: this.htmlMessage(input),
         }),
       });
     } catch {
@@ -137,7 +234,7 @@ export class PartnerVerificationDeliveryService {
     }
 
     const form = new URLSearchParams({ To: to, From: from, Body: this.message(input) });
-    let response: Response | null = null;
+    let response: Response;
     try {
       response = await fetch(
         `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json`,
@@ -182,6 +279,37 @@ export class PartnerVerificationDeliveryService {
     };
   }
 
+  private mailjetSender(): { email: string; name: string } | null {
+    const raw = process.env.PARTNER_VERIFICATION_FROM_EMAIL?.trim();
+    if (!raw) return null;
+
+    const bracketed = raw.match(/^\s*(.*?)\s*<\s*([^<>\s]+@[^<>\s]+)\s*>\s*$/);
+    const email = (bracketed?.[2] || raw).trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+
+    const rawName = bracketed?.[1]?.replace(/^['"]|['"]$/g, '').trim();
+    return {
+      email,
+      name:
+        process.env.PARTNER_VERIFICATION_FROM_NAME?.trim() ||
+        rawName ||
+        'AAGAM Verification',
+    };
+  }
+
+  private mailjetFailureCode(payload: Record<string, any>): string {
+    const message = Array.isArray(payload.Messages) ? payload.Messages[0] : undefined;
+    const error = Array.isArray(message?.Errors) ? message.Errors[0] : undefined;
+    return this.safeProviderCode(
+      error?.ErrorIdentifier ||
+        error?.ErrorCode ||
+        payload.ErrorIdentifier ||
+        payload.ErrorCode ||
+        payload.StatusCode,
+      'MAILJET_REJECTED',
+    );
+  }
+
   private failure(
     input: PartnerVerificationDeliveryInput,
     provider: VerificationProvider,
@@ -211,12 +339,35 @@ export class PartnerVerificationDeliveryService {
   }
 
   private safeProviderCode(value: unknown, fallback: string): string {
-    const normalized = String(value || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
+    const normalized = String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_-]/g, '_');
     return normalized ? normalized.slice(0, 80) : fallback;
+  }
+
+  private subject(input: PartnerVerificationDeliveryInput): string {
+    return `AAGAM verification code for ${input.applicationNumber}`;
   }
 
   private message(input: PartnerVerificationDeliveryInput): string {
     const minutes = Math.max(1, Math.ceil((input.expiresAt.getTime() - Date.now()) / 60_000));
     return `Your AAGAM partner verification code is ${input.code}. It expires in ${minutes} minutes. Application: ${input.applicationNumber}. Do not share this code.`;
+  }
+
+  private htmlMessage(input: PartnerVerificationDeliveryInput): string {
+    const minutes = Math.max(1, Math.ceil((input.expiresAt.getTime() - Date.now()) / 60_000));
+    const applicationNumber = this.escapeHtml(input.applicationNumber);
+    const code = this.escapeHtml(input.code);
+    return `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a"><div style="max-width:560px;margin:32px auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:32px"><div style="font-size:22px;font-weight:800">AAGAM verification</div><p style="color:#475569;line-height:1.6">Enter this code to verify your partner application.</p><div style="font-size:34px;font-weight:900;letter-spacing:8px;text-align:center;padding:20px;background:#f0fdfa;border-radius:12px;color:#0f766e">${code}</div><p style="color:#475569;line-height:1.6">This code expires in ${minutes} minutes.</p><p style="font-size:13px;color:#64748b">Application: ${applicationNumber}</p><p style="font-size:12px;color:#94a3b8">Do not share this code. AAGAM support will never ask for it.</p></div></body></html>`;
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 }
