@@ -9,6 +9,10 @@ import {
   PrimaryButton,
   Section,
 } from '../components/PartnerOnboardingUI';
+import {
+  PartnerApplicationStartInput,
+  startProtectedApplicationAndContinue,
+} from '../onboarding/partnerApplicationStartFlow';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 import { PartnerApplicationType } from '../onboarding/types';
 
@@ -42,13 +46,6 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
     };
   }, []);
 
-  const continueToVerification = () => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'VerifyApplication' }],
-    });
-  };
-
   const submit = async () => {
     if (!name.trim()) {
       Alert.alert('Full name required', 'Enter the legal name that matches your documents.');
@@ -66,24 +63,28 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
       return;
     }
 
+    const application: PartnerApplicationStartInput = {
+      type,
+      applicantName: name.trim(),
+      email: email.trim() || undefined,
+      phoneE164: phone.trim() || undefined,
+      verificationChannel: channel,
+    };
+
     try {
-      await start({
-        type,
-        applicantName: name.trim(),
-        email: email.trim() || undefined,
-        phoneE164: phone.trim() || undefined,
-        verificationChannel: channel,
+      await startProtectedApplicationAndContinue({
+        start,
+        application,
+        navigation,
+        getSession: () => {
+          const state = usePartnerOnboardingStore.getState();
+          return {
+            applicationId: state.applicationId,
+            accessToken: state.accessToken,
+          };
+        },
       });
-      continueToVerification();
     } catch (error: any) {
-      const session = usePartnerOnboardingStore.getState();
-      if (session.applicationId && session.accessToken) {
-        // Creation and OTP delivery may already have succeeded even when the immediate
-        // application refresh failed. Preserve the protected session and let the applicant
-        // enter the delivered code instead of leaving them on the creation form.
-        continueToVerification();
-        return;
-      }
       Alert.alert('Application could not be started', error.message);
     }
   };
