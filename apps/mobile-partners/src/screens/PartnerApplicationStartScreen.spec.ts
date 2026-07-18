@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { Alert } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 
 const mockApiGet = jest.fn();
@@ -25,18 +25,28 @@ jest.mock('../onboarding/usePartnerOnboardingStore', () => {
   return { usePartnerOnboardingStore: hook };
 });
 
-jest.mock('../components/PartnerOnboardingUI', () => ({
-  palette: { teal: '#0F766E', muted: '#64748B' },
-  OnboardingShell: ({ children }: any) => React.createElement(View, null, children),
-  Section: ({ children }: any) => React.createElement(View, null, children),
-  FormField: (props: any) => React.createElement(TextInput, props),
-  PrimaryButton: ({ label, onPress }: any) =>
-    React.createElement(
-      Pressable,
-      { testID: `button-${label}`, onPress },
-      React.createElement(Text, null, label),
-    ),
-}));
+jest.mock('../components/PartnerOnboardingUI', () => {
+  const ReactLocal = require('react');
+  const {
+    Pressable: PressableLocal,
+    Text: TextLocal,
+    TextInput: TextInputLocal,
+    View: ViewLocal,
+  } = require('react-native');
+  return {
+    palette: { teal: '#0F766E', muted: '#64748B' },
+    OnboardingShell: ({ children }: any) =>
+      ReactLocal.createElement(ViewLocal, null, children),
+    Section: ({ children }: any) => ReactLocal.createElement(ViewLocal, null, children),
+    FormField: (props: any) => ReactLocal.createElement(TextInputLocal, props),
+    PrimaryButton: ({ label, onPress }: any) =>
+      ReactLocal.createElement(
+        PressableLocal,
+        { testID: `button-${label}`, onPress },
+        ReactLocal.createElement(TextLocal, null, label),
+      ),
+  };
+});
 
 import { PartnerApplicationStartScreen } from './PartnerApplicationStartScreen';
 
