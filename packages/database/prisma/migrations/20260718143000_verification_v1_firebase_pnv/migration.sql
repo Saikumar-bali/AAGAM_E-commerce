@@ -8,6 +8,7 @@ CREATE TYPE "VerificationMethod" AS ENUM (
 CREATE TYPE "VerificationProvider" AS ENUM (
   'QA',
   'RESEND',
+  'MAILJET',
   'TWILIO',
   'FIREBASE_PNV'
 );
