@@ -31,10 +31,32 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
       .toUpperCase()}`;
   }
 
+  private emailOnlyMode(): boolean {
+    return (
+      (process.env.PARTNER_PHONE_VERIFICATION_MODE || 'PNV_FIRST')
+        .trim()
+        .toUpperCase() === 'EMAIL_ONLY'
+    );
+  }
+
   override async createApplication(dto: CreatePartnerApplicationDto): Promise<any> {
     const email = dto.email?.trim().toLowerCase() || null;
     const phone = dto.phoneE164?.trim() || null;
     if (!email && !phone) throw new BadRequestException('Email or phone number is required');
+
+    if (this.emailOnlyMode()) {
+      if (!email) {
+        throw new BadRequestException(
+          'Email is required while phone verification is temporarily unavailable',
+        );
+      }
+      if (dto.verificationChannel === PartnerContactChannel.PHONE) {
+        throw new BadRequestException(
+          'Phone verification is temporarily unavailable. Use email verification.',
+        );
+      }
+    }
+
     if (email) {
       const duplicate = await prisma.$queryRawUnsafe(
         `SELECT "id" FROM "PartnerApplication"
@@ -56,9 +78,10 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
 
     const id = randomUUID();
     const accessToken = this.deliverySecurity.issueAccessToken();
-    const channel =
-      dto.verificationChannel ||
-      (email ? PartnerContactChannel.EMAIL : PartnerContactChannel.PHONE);
+    const channel = this.emailOnlyMode()
+      ? PartnerContactChannel.EMAIL
+      : dto.verificationChannel ||
+        (email ? PartnerContactChannel.EMAIL : PartnerContactChannel.PHONE);
     if (channel === PartnerContactChannel.EMAIL && !email) {
       throw new BadRequestException('Email is required for email verification');
     }
