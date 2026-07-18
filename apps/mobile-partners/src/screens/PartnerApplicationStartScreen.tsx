@@ -9,6 +9,10 @@ import {
   PrimaryButton,
   Section,
 } from '../components/PartnerOnboardingUI';
+import {
+  PartnerApplicationStartInput,
+  startProtectedApplicationAndContinue,
+} from '../onboarding/partnerApplicationStartFlow';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 import { PartnerApplicationType } from '../onboarding/types';
 
@@ -34,7 +38,6 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
       })
       .catch(() => {
         if (!active) return;
-        // Fail closed: do not offer a verification method whose availability is unknown.
         setPhoneAvailable(false);
         setChannel('EMAIL');
       });
@@ -59,15 +62,28 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
       );
       return;
     }
+
+    const application: PartnerApplicationStartInput = {
+      type,
+      applicantName: name.trim(),
+      email: email.trim() || undefined,
+      phoneE164: phone.trim() || undefined,
+      verificationChannel: channel,
+    };
+
     try {
-      await start({
-        type,
-        applicantName: name.trim(),
-        email: email.trim() || undefined,
-        phoneE164: phone.trim() || undefined,
-        verificationChannel: channel,
+      await startProtectedApplicationAndContinue({
+        start,
+        application,
+        navigation,
+        getSession: () => {
+          const state = usePartnerOnboardingStore.getState();
+          return {
+            applicationId: state.applicationId,
+            accessToken: state.accessToken,
+          };
+        },
       });
-      navigation.replace('VerifyApplication');
     } catch (error: any) {
       Alert.alert('Application could not be started', error.message);
     }
