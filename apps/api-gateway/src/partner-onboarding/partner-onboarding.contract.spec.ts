@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '@aagam/database';
 import { ROLES_KEY } from '../auth/decorators/roles.decorator';
@@ -20,8 +20,9 @@ describe('Professional partner onboarding contracts', () => {
       transform: true,
     });
 
-    await expect(
-      pipe.transform(
+    let rejection: unknown;
+    try {
+      await pipe.transform(
         {
           email: 'applicant@example.com',
           password: 'StrongPass123!',
@@ -29,9 +30,25 @@ describe('Professional partner onboarding contracts', () => {
           role: 'RIDER',
         },
         { type: 'body', metatype: SignupDto },
-      ),
-    ).rejects.toThrow(/property role should not exist/i);
+      );
+    } catch (error) {
+      rejection = error;
+    }
 
+    expect(rejection).toBeInstanceOf(BadRequestException);
+    const response = (rejection as BadRequestException).getResponse();
+    const messages =
+      typeof response === 'string'
+        ? [response]
+        : Array.isArray((response as { message?: unknown }).message)
+          ? ((response as { message: string[] }).message)
+          : [String((response as { message?: unknown }).message || '')];
+
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/property role should not exist/i),
+      ]),
+    );
     expect('role' in new SignupDto()).toBe(false);
   });
 
