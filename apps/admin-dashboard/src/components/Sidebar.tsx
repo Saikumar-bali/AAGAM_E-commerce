@@ -23,6 +23,7 @@ import {
   Bike,
   ShieldAlert,
   Megaphone,
+  ClipboardCheck,
 } from "lucide-react";
 
 import { apiClient } from "@aagam/utils";
@@ -111,6 +112,11 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   const menuItems = {
     ADMIN: [
       { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+      {
+        name: "Partner Applications",
+        href: "/admin/partner-applications",
+        icon: ClipboardCheck,
+      },
       { name: "Analytics", href: "/admin/analytics", icon: BarChart3 },
       { name: "Notifications", href: "/admin/notifications", icon: Bell },
       { name: "Support", href: "/admin/support", icon: Headphones },
