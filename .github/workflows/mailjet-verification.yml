@@ -1,0 +1,180 @@
+name: Mailjet Partner Email Verification
+
+on:
+  push:
+    branches: [phase-verification-v1-mailjet-email]
+  pull_request:
+    branches: [phase-verification-v1-firebase-pnv, main]
+    paths:
+      - "apps/api-gateway/src/partner-onboarding/**"
+      - "apps/mobile-partners/src/onboarding/**"
+      - "apps/mobile-partners/src/screens/PartnerApplicationStartScreen.tsx"
+      - "packages/database/prisma/migrations/20260718143000_verification_v1_firebase_pnv/**"
+      - "scripts/test-mailjet-verification.js"
+      - "scripts/validate-prod-env.js"
+      - ".env.production.example"
+      - ".github/workflows/mailjet-verification.yml"
+      - "docs/MAILJET_EMAIL_VERIFICATION.md"
+      - "docs/VERIFICATION_V1_TESTING.md"
+  workflow_dispatch:
+    inputs:
+      mailjet_mode:
+        description: "Provider proof mode. Sandbox validates credentials/payload; live sends one non-OTP test email."
+        required: true
+        default: skip
+        type: choice
+        options:
+          - skip
+          - sandbox
+          - live
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22.22.3"
+  HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  mailjet-proof:
+    name: Mailjet email-only build and regression proof
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aagam_mailjet_verification
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_mailjet_verification
+      NODE_ENV: test
+      JWT_SECRET: aagam-mailjet-verification-ci-secret-long-enough
+      PLAYWRIGHT_QA: "true"
+      PARTNER_QA_VERIFICATION_CODE: "424242"
+      PARTNER_EMAIL_PROVIDER: MAILJET
+      MAILJET_API_KEY: ci-mailjet-public-placeholder
+      MAILJET_SECRET_KEY: ci-mailjet-private-placeholder
+      PARTNER_VERIFICATION_FROM_EMAIL: verified-sender@example.com
+      PARTNER_VERIFICATION_FROM_NAME: AAGAM Verification
+      PARTNER_PHONE_VERIFICATION_MODE: EMAIL_ONLY
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund 2>&1 | tee mailjet-npm-ci.log
+
+      - name: Generate, validate, and migrate a fresh database
+        run: |
+          set -o pipefail
+          npx prisma generate --schema packages/database/prisma/schema.prisma 2>&1 | tee mailjet-prisma.log
+          npx prisma validate --schema packages/database/prisma/schema.prisma 2>&1 | tee -a mailjet-prisma.log
+          npx prisma migrate deploy --schema packages/database/prisma/schema.prisma 2>&1 | tee mailjet-migration.log
+          npx prisma migrate status --schema packages/database/prisma/schema.prisma 2>&1 | tee -a mailjet-migration.log
+          psql "$DATABASE_URL" -Atc "SELECT enumlabel FROM pg_enum JOIN pg_type ON pg_enum.enumtypid=pg_type.oid WHERE typname='VerificationProvider' ORDER BY enumsortorder" | tee mailjet-provider-enum.log
+          grep -Fx MAILJET mailjet-provider-enum.log
+
+      - name: Build backend and type-check partner mobile app
+        run: |
+          set -o pipefail
+          npm run build --workspace @aagam/types 2>&1 | tee mailjet-build.log
+          npm run build --workspace @aagam/utils 2>&1 | tee -a mailjet-build.log
+          npm run build --workspace @aagam/database 2>&1 | tee -a mailjet-build.log
+          npm run build --workspace @aagam/api-gateway 2>&1 | tee -a mailjet-build.log
+          npx tsc --project apps/mobile-partners/tsconfig.json --noEmit 2>&1 | tee mailjet-mobile-ts.log
+
+      - name: Run backend and mobile verification regressions
+        run: |
+          set -o pipefail
+          npm run test:ci --workspace @aagam/api-gateway -- --json --outputFile="$GITHUB_WORKSPACE/mailjet-api-tests.json" 2>&1 | tee mailjet-api-tests.log
+          npm test --workspace AagamPartners -- --json --outputFile="$GITHUB_WORKSPACE/mailjet-mobile-tests.json" 2>&1 | tee mailjet-mobile-tests.log
+
+      - name: Prove Mailjet email-only production configuration
+        env:
+          NODE_ENV: production
+          FORCE_VERIFICATION_ENV_VALIDATION: "true"
+          DATABASE_URL: postgresql://aagam:ci@localhost:5432/aagam
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: aagam-mailjet-prod-validator-secret-long-enough
+          CORS_ORIGINS: https://aagam.example.com
+          NEXT_PUBLIC_API_URL: https://aagam.example.com/api
+          PARTNER_EMAIL_PROVIDER: MAILJET
+          MAILJET_API_KEY: ci-mailjet-public-placeholder
+          MAILJET_SECRET_KEY: ci-mailjet-private-placeholder
+          PARTNER_VERIFICATION_FROM_EMAIL: verified-sender@example.com
+          PARTNER_VERIFICATION_FROM_NAME: AAGAM Verification
+          PARTNER_PHONE_VERIFICATION_MODE: EMAIL_ONLY
+          PLAYWRIGHT_QA: ""
+          PARTNER_QA_VERIFICATION_CODE: ""
+        run: |
+          set -o pipefail
+          unset PLAYWRIGHT_QA PARTNER_QA_VERIFICATION_CODE
+          node scripts/validate-prod-env.js 2>&1 | tee mailjet-prod-env-pass.log
+          export PLAYWRIGHT_QA=true
+          if node scripts/validate-prod-env.js > mailjet-prod-env-reject.log 2>&1; then
+            echo "Production validation incorrectly accepted PLAYWRIGHT_QA" | tee -a mailjet-prod-env-reject.log
+            exit 1
+          fi
+          grep -F "PLAYWRIGHT_QA must not be set" mailjet-prod-env-reject.log
+
+      - name: Record skipped provider proof
+        if: github.event_name != 'workflow_dispatch' || inputs.mailjet_mode == 'skip'
+        run: |
+          printf '%s\n' \
+            'NOT RUN: real Mailjet provider credentials were not requested for this workflow run.' \
+            'Mocked provider contracts, production configuration, build, migration, and regression tests were executed.' \
+            'No claim of real Mailjet API acceptance or inbox delivery is made by this artifact.' \
+            | tee mailjet-provider-proof.log
+
+      - name: Run protected Mailjet provider proof
+        if: github.event_name == 'workflow_dispatch' && inputs.mailjet_mode != 'skip'
+        env:
+          REAL_MAILJET_API_KEY: ${{ secrets.MAILJET_API_KEY }}
+          REAL_MAILJET_SECRET_KEY: ${{ secrets.MAILJET_SECRET_KEY }}
+          REAL_MAILJET_TEST_TO_EMAIL: ${{ secrets.MAILJET_TEST_TO_EMAIL }}
+          REAL_MAILJET_FROM_EMAIL: ${{ vars.PARTNER_VERIFICATION_FROM_EMAIL }}
+          REAL_MAILJET_FROM_NAME: ${{ vars.PARTNER_VERIFICATION_FROM_NAME }}
+          REQUESTED_MAILJET_MODE: ${{ inputs.mailjet_mode }}
+        run: |
+          set -euo pipefail
+          for key in REAL_MAILJET_API_KEY REAL_MAILJET_SECRET_KEY REAL_MAILJET_TEST_TO_EMAIL REAL_MAILJET_FROM_EMAIL; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "Provider proof requested but required protected setting is missing: $key" | tee mailjet-provider-proof.log
+              exit 1
+            fi
+          done
+          export MAILJET_API_KEY="$REAL_MAILJET_API_KEY"
+          export MAILJET_SECRET_KEY="$REAL_MAILJET_SECRET_KEY"
+          export MAILJET_TEST_TO_EMAIL="$REAL_MAILJET_TEST_TO_EMAIL"
+          export PARTNER_VERIFICATION_FROM_EMAIL="$REAL_MAILJET_FROM_EMAIL"
+          export PARTNER_VERIFICATION_FROM_NAME="${REAL_MAILJET_FROM_NAME:-AAGAM Verification}"
+          export MAILJET_TEST_MODE="$REQUESTED_MAILJET_MODE"
+          if [[ "$REQUESTED_MAILJET_MODE" == "live" ]]; then
+            export MAILJET_ALLOW_LIVE_SEND=true
+          fi
+          node scripts/test-mailjet-verification.js 2>&1 | tee mailjet-provider-proof.log
+
+      - name: Upload Mailjet verification proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mailjet-verification-proof-${{ env.HEAD_SHA }}
+          path: |
+            mailjet-*.log
+            mailjet-*.json
+          if-no-files-found: error
+          retention-days: 30
