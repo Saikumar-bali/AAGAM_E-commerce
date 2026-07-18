@@ -1,22 +1,90 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
-import { FormField, OnboardingShell, palette, PrimaryButton, Section } from '../components/PartnerOnboardingUI';
+import { apiClient } from '@aagam/mobile-shared';
+import {
+  FormField,
+  OnboardingShell,
+  palette,
+  PrimaryButton,
+  Section,
+} from '../components/PartnerOnboardingUI';
+import { FirebasePnv } from '../native/FirebasePnv';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 
-export function PartnerVerificationScreen({ navigation }: any) {
-  const { response, type, verify, requestVerification, isLoading, testVerificationCode } = usePartnerOnboardingStore();
-  const [code, setCode] = useState('');
-  const application = response?.application;
-  const preferredChannel = application?.email ? 'EMAIL' : 'PHONE';
+function applicationHeaders(token: string) {
+  return { Authorization: `Application ${token}` };
+}
 
-  const proceed = async () => {
+function errorCode(error: any): string {
+  return String(error?.code || error?.response?.data?.code || 'PNV_FAILED');
+}
+
+function errorMessage(error: any): string {
+  const raw = error?.response?.data?.message || error?.message || 'Verification failed';
+  return Array.isArray(raw) ? raw.join(', ') : String(raw);
+}
+
+export function PartnerVerificationScreen({ navigation }: any) {
+  const {
+    applicationId,
+    accessToken,
+    response,
+    type,
+    verify,
+    requestVerification,
+    refresh,
+    isLoading,
+    testVerificationCode,
+  } = usePartnerOnboardingStore();
+  const [code, setCode] = useState('');
+  const [pnvSupported, setPnvSupported] = useState<boolean | null>(null);
+  const [pnvBusy, setPnvBusy] = useState(false);
+  const [showSmsFallback, setShowSmsFallback] = useState(false);
+  const [fallbackQaCode, setFallbackQaCode] = useState<string | null>(null);
+  const application = response?.application;
+  const phoneFlow = application?.verificationChannel === 'PHONE' && Boolean(application?.phoneE164);
+
+  const destination = useMemo(
+    () => application?.phoneE164 || application?.email || 'Verified contact',
+    [application?.email, application?.phoneE164],
+  );
+
+  useEffect(() => {
+    let active = true;
+    if (!phoneFlow) return () => undefined;
+    Promise.all([
+      apiClient.get('/partner-onboarding/verification-capabilities'),
+      FirebasePnv.isPnvSupported(),
+    ])
+      .then(([capabilities, nativeSupport]) => {
+        if (!active) return;
+        const configured = Boolean(capabilities.data?.phone?.pnvConfigured);
+        const supported = configured && nativeSupport.supported;
+        setPnvSupported(supported);
+        setShowSmsFallback(!supported);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPnvSupported(false);
+        setShowSmsFallback(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [phoneFlow]);
+
+  const proceedAfterVerification = () => {
+    navigation.replace(type === 'RIDER' ? 'RiderApplication' : 'StoreApplication');
+  };
+
+  const verifyCode = async () => {
     if (!/^\d{6}$/.test(code)) {
       Alert.alert('Enter the six-digit code', 'Use the latest verification code sent to your contact.');
       return;
     }
     try {
       await verify(code);
-      navigation.replace(type === 'RIDER' ? 'RiderApplication' : 'StoreApplication');
+      proceedAfterVerification();
     } catch (error: any) {
       Alert.alert('Verification failed', error.message);
     }
@@ -24,45 +92,136 @@ export function PartnerVerificationScreen({ navigation }: any) {
 
   const resend = async () => {
     try {
-      await requestVerification(preferredChannel);
+      await requestVerification(phoneFlow ? 'PHONE' : 'EMAIL');
       Alert.alert('Code sent', 'A fresh verification code has been issued.');
     } catch (error: any) {
       Alert.alert('Could not resend', error.message);
     }
   };
 
+  const startPnv = async () => {
+    if (!applicationId || !accessToken) {
+      Alert.alert('Application session missing', 'Resume the application and try again.');
+      return;
+    }
+    setPnvBusy(true);
+    try {
+      const challenge = await apiClient.post(
+        `/partner-onboarding/applications/${applicationId}/phone-pnv/challenge`,
+        {},
+        { headers: applicationHeaders(accessToken) },
+      );
+      const nativeResult = await FirebasePnv.startPnvVerification(challenge.data.nonce);
+      await apiClient.post(
+        `/partner-onboarding/applications/${applicationId}/phone-pnv/verify`,
+        { token: nativeResult.token },
+        { headers: applicationHeaders(accessToken) },
+      );
+      await refresh();
+      proceedAfterVerification();
+    } catch (error: any) {
+      const code = errorCode(error);
+      const recoverable = [
+        'PNV_UNSUPPORTED',
+        'PNV_DECLINED',
+        'PNV_CREDENTIAL_FAILED',
+        'PNV_PAYLOAD_FAILED',
+        'PNV_EXCHANGE_FAILED',
+        'PNV_FAILED',
+      ].includes(code);
+      if (recoverable) setShowSmsFallback(true);
+      Alert.alert(
+        code === 'PNV_DECLINED' ? 'Phone sharing declined' : 'Phone verification failed',
+        recoverable
+          ? `${errorMessage(error)} You can verify by SMS instead.`
+          : errorMessage(error),
+      );
+    } finally {
+      setPnvBusy(false);
+    }
+  };
+
+  const selectSmsFallback = async () => {
+    if (!applicationId || !accessToken) return;
+    setPnvBusy(true);
+    try {
+      const { data } = await apiClient.post(
+        `/partner-onboarding/applications/${applicationId}/contact-code`,
+        { channel: 'PHONE', fallbackFrom: 'FIREBASE_PNV' },
+        { headers: applicationHeaders(accessToken) },
+      );
+      setFallbackQaCode(data.code || null);
+      setShowSmsFallback(true);
+      Alert.alert('SMS code sent', 'Enter the six-digit code after it arrives.');
+    } catch (error: any) {
+      Alert.alert('Could not send SMS', errorMessage(error));
+    } finally {
+      setPnvBusy(false);
+    }
+  };
+
+  const qaCode = fallbackQaCode || testVerificationCode;
+
   return (
     <OnboardingShell
       title="Verify your contact"
-      subtitle="This protects the application draft and confirms where review updates should be sent."
+      subtitle="We verify this number so AAGAM can protect your partner application and send operational updates."
       onBack={() => navigation.goBack()}
     >
-      <Section title="Verification code" subtitle={application?.email || application?.phoneE164 || 'Verified contact'}>
-        <FormField
-          label="Six-digit code"
-          value={code}
-          onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
-          keyboardType="number-pad"
-          maxLength={6}
-          placeholder="000000"
-          style={styles.code}
-        />
-        {testVerificationCode ? (
-          <View style={styles.qaCode}>
-            <Text style={styles.qaLabel}>QA verification code</Text>
-            <Text style={styles.qaValue}>{testVerificationCode}</Text>
-          </View>
-        ) : null}
-      </Section>
-      <PrimaryButton label="Verify and continue" onPress={proceed} loading={isLoading} />
-      <PrimaryButton label="Send a new code" onPress={resend} secondary disabled={isLoading} />
-      <Text style={styles.note}>For security, older codes stop working after a new code is requested.</Text>
+      {phoneFlow ? (
+        <Section title="Phone number verification" subtitle={destination}>
+          <Text style={styles.explainer}>
+            Android may ask permission to share the verified number from your SIM. AAGAM sends only the signed Firebase proof to the server and confirms it there.
+          </Text>
+          {pnvSupported === null ? <Text style={styles.note}>Checking device support…</Text> : null}
+          {pnvSupported ? (
+            <PrimaryButton label="Verify phone securely" onPress={startPnv} loading={pnvBusy} />
+          ) : null}
+          {showSmsFallback ? (
+            <PrimaryButton
+              label="Use SMS verification instead"
+              onPress={selectSmsFallback}
+              secondary
+              disabled={pnvBusy}
+            />
+          ) : null}
+        </Section>
+      ) : null}
+
+      {!phoneFlow || showSmsFallback ? (
+        <Section title="Verification code" subtitle={destination}>
+          <FormField
+            label="Six-digit code"
+            value={code}
+            onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+            keyboardType="number-pad"
+            maxLength={6}
+            placeholder="000000"
+            style={styles.code}
+          />
+          {qaCode ? (
+            <View style={styles.qaCode}>
+              <Text style={styles.qaLabel}>QA verification code</Text>
+              <Text style={styles.qaValue}>{qaCode}</Text>
+            </View>
+          ) : null}
+        </Section>
+      ) : null}
+
+      {!phoneFlow || showSmsFallback ? (
+        <>
+          <PrimaryButton label="Verify and continue" onPress={verifyCode} loading={isLoading} />
+          <PrimaryButton label="Send a new code" onPress={resend} secondary disabled={isLoading} />
+        </>
+      ) : null}
+      <Text style={styles.note}>Verification is complete only after the AAGAM server confirms the proof.</Text>
     </OnboardingShell>
   );
 }
 
 const styles = StyleSheet.create({
   code: { textAlign: 'center', fontSize: 24, fontWeight: '900', letterSpacing: 8, color: palette.ink },
+  explainer: { color: palette.muted, fontSize: 13, lineHeight: 20 },
   qaCode: { borderRadius: 16, backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA', padding: 14, alignItems: 'center' },
   qaLabel: { color: '#9A3412', fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8 },
   qaValue: { color: '#7C2D12', fontSize: 22, fontWeight: '900', letterSpacing: 5, marginTop: 5 },
