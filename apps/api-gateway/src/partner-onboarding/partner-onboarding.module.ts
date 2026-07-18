@@ -8,20 +8,35 @@ import { PartnerOnboardingSecurity } from './partner-onboarding.security';
 import { PartnerOnboardingService } from './partner-onboarding.service';
 import { DeliveringPartnerOnboardingService } from './delivering-partner-onboarding.service';
 import { PartnerVerificationDeliveryService } from './partner-verification-delivery.service';
+import { PartnerVerificationService } from './partner-verification.service';
+import { VerificationChallengeRepository } from './verification-challenge.repository';
+import { FirebasePnvVerificationService } from './firebase-pnv-verification.service';
+import { VerificationReadinessController } from './verification-readiness.controller';
 
 @Module({
   imports: [UploadModule],
-  controllers: [PartnerOnboardingController, PartnerOnboardingAdminController],
+  controllers: [
+    PartnerOnboardingController,
+    PartnerOnboardingAdminController,
+    VerificationReadinessController,
+  ],
   providers: [
     PartnerOnboardingSecurity,
     PartnerOnboardingRepository,
+    VerificationChallengeRepository,
     PartnerVerificationDeliveryService,
+    FirebasePnvVerificationService,
+    PartnerVerificationService,
     {
       provide: PartnerOnboardingService,
       useClass: DeliveringPartnerOnboardingService,
     },
     PartnerOnboardingAdminService,
   ],
-  exports: [PartnerOnboardingService, PartnerOnboardingAdminService],
+  exports: [
+    PartnerOnboardingService,
+    PartnerOnboardingAdminService,
+    PartnerVerificationService,
+  ],
 })
 export class PartnerOnboardingModule {}

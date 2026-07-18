@@ -19,173 +19,108 @@ import { PartnerApplicationType, PartnerContactChannel } from '../partner-onboar
 export class CreatePartnerApplicationDto {
   @IsEnum(PartnerApplicationType)
   type!: PartnerApplicationType;
-
-  @IsString()
-  @MinLength(2)
-  @MaxLength(120)
+  @IsString() @MinLength(2) @MaxLength(120)
   applicantName!: string;
-
-  @IsOptional()
-  @IsEmail()
-  @MaxLength(254)
+  @IsOptional() @IsEmail() @MaxLength(254)
   email?: string;
-
-  @IsOptional()
-  @Matches(/^\+[1-9]\d{7,14}$/)
+  @IsOptional() @Matches(/^\+[1-9]\d{7,14}$/)
   phoneE164?: string;
-
-  @IsOptional()
-  @IsEnum(PartnerContactChannel)
+  @IsOptional() @IsEnum(PartnerContactChannel)
   verificationChannel?: PartnerContactChannel;
 }
 
 export class RequestPartnerVerificationDto {
   @IsEnum(PartnerContactChannel)
   channel!: PartnerContactChannel;
+  @IsOptional() @Matches(/^FIREBASE_PNV$/)
+  fallbackFrom?: 'FIREBASE_PNV';
 }
 
 export class VerifyPartnerContactDto {
-  @IsString()
-  @Length(6, 6)
+  @IsString() @Length(6, 6)
   code!: string;
 }
 
+export class VerifyPartnerPnvDto {
+  @IsString() @MinLength(40) @MaxLength(8192)
+  token!: string;
+}
+
 export class UpdatePartnerApplicationDto {
-  @IsOptional()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(120)
+  @IsOptional() @IsString() @MinLength(2) @MaxLength(120)
   applicantName?: string;
-
-  @IsOptional()
-  @IsEmail()
-  @MaxLength(254)
+  @IsOptional() @IsEmail() @MaxLength(254)
   email?: string;
-
-  @IsOptional()
-  @Matches(/^\+[1-9]\d{7,14}$/)
+  @IsOptional() @Matches(/^\+[1-9]\d{7,14}$/)
   phoneE164?: string;
-
-  @IsOptional()
-  @IsObject()
+  @IsOptional() @IsObject()
   payload?: Record<string, any>;
 }
 
 export class UploadPartnerDocumentDto {
-  @IsString()
-  @MinLength(2)
-  @MaxLength(80)
+  @IsString() @MinLength(2) @MaxLength(80)
   type!: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(32)
+  @IsOptional() @IsString() @MaxLength(32)
   documentNumber?: string;
-
-  @IsOptional()
-  @IsString()
+  @IsOptional() @IsString()
   expiresAt?: string;
 }
 
 export class ActivatePartnerAccountDto {
-  @IsString()
-  @MinLength(32)
+  @IsString() @MinLength(32)
   token!: string;
-
-  @IsString()
-  @MinLength(10)
-  @MaxLength(72)
+  @IsString() @MinLength(10) @MaxLength(72)
   password!: string;
 }
 
 export class AdminPartnerListQueryDto {
-  @IsOptional()
-  @IsEnum(PartnerApplicationType)
+  @IsOptional() @IsEnum(PartnerApplicationType)
   type?: PartnerApplicationType;
-
-  @IsOptional()
-  @IsString()
+  @IsOptional() @IsString()
   status?: string;
-
-  @IsOptional()
-  @IsString()
+  @IsOptional() @IsString()
   search?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   page: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100)
   limit: number = 25;
 }
 
 export class ReviewPartnerApplicationDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
+  @IsOptional() @IsString() @MaxLength(500)
   note?: string;
 }
 
 export class ReviewPartnerDocumentDto {
-  @IsString()
-  @Matches(/^(VERIFIED|REJECTED|REPLACEMENT_REQUIRED)$/)
+  @IsString() @Matches(/^(VERIFIED|REJECTED|REPLACEMENT_REQUIRED)$/)
   decision!: 'VERIFIED' | 'REJECTED' | 'REPLACEMENT_REQUIRED';
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
+  @IsOptional() @IsString() @MaxLength(500)
   note?: string;
 }
 
 export class RequestPartnerChangesDto {
   @IsObject()
   requests!: Record<string, any>;
-
-  @IsString()
-  @MinLength(5)
-  @MaxLength(1000)
+  @IsString() @MinLength(5) @MaxLength(1000)
   message!: string;
 }
 
 export class RejectPartnerApplicationDto {
-  @IsString()
-  @MinLength(3)
-  @MaxLength(80)
+  @IsString() @MinLength(3) @MaxLength(80)
   reasonCode!: string;
-
-  @IsString()
-  @MinLength(5)
-  @MaxLength(1000)
+  @IsString() @MinLength(5) @MaxLength(1000)
   message!: string;
 }
 
 export class ApprovePartnerApplicationDto {
-  @IsOptional()
-  @IsEmail()
+  @IsOptional() @IsEmail()
   ownerEmail?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
+  @IsOptional() @IsString() @MaxLength(120)
   operationalName?: string;
-
-  @IsOptional()
-  @IsNumber()
+  @IsOptional() @IsNumber()
   latitude?: number;
-
-  @IsOptional()
-  @IsNumber()
+  @IsOptional() @IsNumber()
   longitude?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(100)
+  @IsOptional() @IsInt() @Min(1) @Max(100)
   initialServiceRadiusKm?: number;
 }

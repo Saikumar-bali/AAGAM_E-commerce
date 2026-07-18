@@ -24,32 +24,28 @@ import {
   UpdatePartnerApplicationDto,
   UploadPartnerDocumentDto,
   VerifyPartnerContactDto,
+  VerifyPartnerPnvDto,
 } from './dto/partner-onboarding.dto';
 import { PartnerOnboardingService } from './partner-onboarding.service';
+import { PartnerVerificationService } from './partner-verification.service';
 
 const applicationDocumentUpload = {
   storage: memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req: any, file: Express.Multer.File, cb: any) => {
-    const allowed = [
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'application/pdf',
-    ];
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
     if (allowed.includes(file.mimetype)) cb(null, true);
-    else
-      cb(
-        new BadRequestException('Document must be JPEG, PNG, WebP, or PDF'),
-        false,
-      );
+    else cb(new BadRequestException('Document must be JPEG, PNG, WebP, or PDF'), false);
   },
 };
 
 @Controller('partner-onboarding')
 @UseGuards(ThrottlerGuard)
 export class PartnerOnboardingController {
-  constructor(private readonly onboarding: PartnerOnboardingService) {}
+  constructor(
+    private readonly onboarding: PartnerOnboardingService,
+    private readonly verification: PartnerVerificationService,
+  ) {}
 
   private applicationToken(req: any): string {
     const header = String(req.headers?.authorization || '');
@@ -57,6 +53,11 @@ export class PartnerOnboardingController {
       throw new UnauthorizedException('Application access could not be verified');
     }
     return header.slice('Application '.length).trim();
+  }
+
+  @Get('verification-capabilities')
+  capabilities() {
+    return this.verification.capabilities();
   }
 
   @Post('applications')
@@ -72,10 +73,11 @@ export class PartnerOnboardingController {
     @Req() req: any,
     @Body() dto: RequestPartnerVerificationDto,
   ) {
-    return this.onboarding.requestVerification(
+    return this.verification.requestContactCode(
       id,
       this.applicationToken(req),
       dto.channel,
+      dto.fallbackFrom === 'FIREBASE_PNV',
     );
   }
 
@@ -86,11 +88,23 @@ export class PartnerOnboardingController {
     @Req() req: any,
     @Body() dto: VerifyPartnerContactDto,
   ) {
-    return this.onboarding.verifyContact(
-      id,
-      this.applicationToken(req),
-      dto.code,
-    );
+    return this.verification.verifyContact(id, this.applicationToken(req), dto.code);
+  }
+
+  @Post('applications/:id/phone-pnv/challenge')
+  @Throttle({ short: { limit: 5, ttl: 60000 } })
+  phonePnvChallenge(@Param('id') id: string, @Req() req: any) {
+    return this.verification.createPnvChallenge(id, this.applicationToken(req));
+  }
+
+  @Post('applications/:id/phone-pnv/verify')
+  @Throttle({ short: { limit: 8, ttl: 60000 } })
+  phonePnvVerify(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Body() dto: VerifyPartnerPnvDto,
+  ) {
+    return this.verification.verifyPnv(id, this.applicationToken(req), dto.token);
   }
 
   @Get('applications/:id')
@@ -104,11 +118,7 @@ export class PartnerOnboardingController {
     @Req() req: any,
     @Body() dto: UpdatePartnerApplicationDto,
   ) {
-    return this.onboarding.updateApplication(
-      id,
-      this.applicationToken(req),
-      dto,
-    );
+    return this.onboarding.updateApplication(id, this.applicationToken(req), dto);
   }
 
   @Post('applications/:id/documents')
@@ -119,12 +129,7 @@ export class PartnerOnboardingController {
     @Body() dto: UploadPartnerDocumentDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.onboarding.uploadDocument(
-      id,
-      this.applicationToken(req),
-      dto,
-      file,
-    );
+    return this.onboarding.uploadDocument(id, this.applicationToken(req), dto, file);
   }
 
   @Delete('applications/:id/documents/:documentId')
@@ -133,11 +138,7 @@ export class PartnerOnboardingController {
     @Param('documentId') documentId: string,
     @Req() req: any,
   ) {
-    return this.onboarding.removeDocument(
-      id,
-      documentId,
-      this.applicationToken(req),
-    );
+    return this.onboarding.removeDocument(id, documentId, this.applicationToken(req));
   }
 
   @Get('applications/:id/documents/:documentId/url')
@@ -146,11 +147,7 @@ export class PartnerOnboardingController {
     @Param('documentId') documentId: string,
     @Req() req: any,
   ) {
-    return this.onboarding.documentUrl(
-      id,
-      documentId,
-      this.applicationToken(req),
-    );
+    return this.onboarding.documentUrl(id, documentId, this.applicationToken(req));
   }
 
   @Post('applications/:id/submit')
