@@ -39,7 +39,7 @@ Application endpoints require `Authorization: Application <access-token>`. Acces
 ## Firebase PNV sequence
 
 1. AAGAM creates a short-lived single-use nonce, stores only its SHA-256 hash and returns the raw nonce to the authorized application session.
-2. The Kotlin React Native bridge calls Firebase PNV `getDigitalCredentialPayload(nonce, privacyPolicyUrl)`.
+2. The Kotlin React Native bridge calls Firebase PNV `getDigitalCredentialPayload(nonce)`.
 3. Android Credential Manager obtains user consent using a Digital Credential request containing the same nonce.
 4. The bridge extracts the Firebase credential response and calls `exchangeCredentialResponseForPhoneNumber()`.
 5. The app sends only the signed Firebase PNV token to AAGAM.

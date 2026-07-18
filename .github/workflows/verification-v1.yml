@@ -127,6 +127,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PNV_TEST_NUMBER_ID: ${{ secrets.FIREBASE_PNV_TEST_NUMBER_ID }}
+      DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -147,12 +148,27 @@ jobs:
       - run: |
           npm run build --workspace @aagam/types
           npm run build --workspace @aagam/utils
-      - name: Generate signing SHA proof
-        working-directory: apps/mobile-partners/android
+      - name: Provision pinned debug signing and generate SHA proof
+        shell: bash
         run: |
-          set -o pipefail
-          gradle signingReport 2>&1 | tee "$GITHUB_WORKSPACE/verification-signing-report.log"
-          grep -E 'SHA1:|SHA-256:|SHA256:' "$GITHUB_WORKSPACE/verification-signing-report.log" > "$GITHUB_WORKSPACE/verification-sha-fingerprints.txt" || true
+          set -euo pipefail
+          if [[ -z "$DEBUG_KEYSTORE_BASE64" ]]; then
+            echo "DEBUG_KEYSTORE_BASE64 is required so the APK and Firebase SHA proof use a stable certificate." >&2
+            exit 1
+          fi
+          mkdir -p "$HOME/.android"
+          printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 --decode > "$HOME/.android/debug.keystore"
+          chmod 600 "$HOME/.android/debug.keystore"
+          keytool -list -v \
+            -keystore "$HOME/.android/debug.keystore" \
+            -alias androiddebugkey \
+            -storepass android \
+            2>&1 | tee "$GITHUB_WORKSPACE/verification-signing-report.log"
+          awk '/SHA1:|SHA256:/{print}' "$GITHUB_WORKSPACE/verification-signing-report.log" \
+            > "$GITHUB_WORKSPACE/verification-sha-fingerprints.txt"
+          grep -q 'SHA1:' "$GITHUB_WORKSPACE/verification-sha-fingerprints.txt"
+          grep -q 'SHA256:' "$GITHUB_WORKSPACE/verification-sha-fingerprints.txt"
+          cat "$GITHUB_WORKSPACE/verification-sha-fingerprints.txt"
       - name: Android debug build and unit contracts
         working-directory: apps/mobile-partners/android
         run: |
