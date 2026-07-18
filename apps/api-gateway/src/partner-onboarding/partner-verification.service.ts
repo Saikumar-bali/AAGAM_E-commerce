@@ -34,8 +34,12 @@ export class PartnerVerificationService {
     private readonly firebasePnv: FirebasePnvVerificationService,
   ) {}
 
-  private hash(value: string): string {
+  private hashDestination(value: string): string {
     return createHash('sha256').update(value.trim().toLowerCase()).digest('hex');
+  }
+
+  private hashExact(value: string): string {
+    return createHash('sha256').update(value).digest('hex');
   }
 
   private code(): string {
@@ -159,7 +163,7 @@ export class PartnerVerificationService {
       applicationId: id,
       method,
       provider,
-      destinationHash: this.hash(destination),
+      destinationHash: this.hashDestination(destination),
       expiresAt,
     });
 
@@ -240,7 +244,7 @@ export class PartnerVerificationService {
         method,
         provider: result.provider,
         expiresAt,
-        code: isVerificationQaMode() ? code : undefined,
+        ...(isVerificationQaMode() ? { code } : {}),
       };
     } catch (error: any) {
       const failureCode =
@@ -342,8 +346,8 @@ export class PartnerVerificationService {
       applicationId: id,
       method: VerificationMethod.FIREBASE_PNV,
       provider: VerificationProvider.FIREBASE_PNV,
-      destinationHash: this.hash(application.phoneE164),
-      nonceHash: this.hash(nonce),
+      destinationHash: this.hashDestination(application.phoneE164),
+      nonceHash: this.hashExact(nonce),
       expiresAt,
       status: VerificationChallengeStatus.SENT,
     });
@@ -369,16 +373,25 @@ export class PartnerVerificationService {
     let claims: Awaited<ReturnType<FirebasePnvVerificationService['verifySignedToken']>>;
     try {
       claims = await this.firebasePnv.verifySignedToken(token);
-      const challenge = await this.challenges.activePnvByNonce(id, this.hash(claims.nonce));
+      const challenge = await this.challenges.activePnvByNonce(
+        id,
+        this.hashExact(claims.nonce),
+      );
       if (!challenge) {
         throw new FirebasePnvTokenException('PNV_NONCE_MISMATCH', 'Firebase PNV nonce is invalid');
       }
       if (new Date(challenge.expiresAt).getTime() < Date.now()) {
         await this.challenges.setStatus(challenge.id, VerificationChallengeStatus.EXPIRED);
-        throw new FirebasePnvTokenException('PNV_NONCE_EXPIRED', 'Firebase PNV challenge has expired');
+        throw new FirebasePnvTokenException(
+          'PNV_NONCE_EXPIRED',
+          'Firebase PNV challenge has expired',
+        );
       }
       if (await this.challenges.hasTokenJti(claims.jti)) {
-        throw new FirebasePnvTokenException('PNV_TOKEN_REPLAYED', 'Firebase PNV token was already used');
+        throw new FirebasePnvTokenException(
+          'PNV_TOKEN_REPLAYED',
+          'Firebase PNV token was already used',
+        );
       }
       if (!application.phoneE164 || claims.phoneNumber !== application.phoneE164) {
         throw new FirebasePnvTokenException(
