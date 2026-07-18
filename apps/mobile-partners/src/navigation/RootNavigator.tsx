@@ -17,6 +17,7 @@ import { PartnerApplicationStatusScreen } from '../screens/PartnerApplicationSta
 import { PartnerActivationScreen } from '../screens/PartnerActivationScreen';
 import { PartnerResumeScreen } from '../screens/PartnerResumeScreen';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
+import { resolveApplicantInitialRoute } from './applicantRoute';
 
 const Stack = createNativeStackNavigator();
 const BLOCKED_ROLES = ['CUSTOMER'];
@@ -30,7 +31,8 @@ const BlockedScreen = () => (
       </View>
       <Text style={styles.blockedTitle}>Partners only</Text>
       <Text style={styles.blockedMessage}>
-        This app is for approved Rider and Store operations. Customer accounts must use the AAGAM customer app.
+        This app is for approved Rider and Store operations. Customer accounts must use the AAGAM
+        customer app.
       </Text>
     </View>
   </View>
@@ -50,6 +52,8 @@ const RootNavigator = () => {
   const { user, isLoading, initialize } = useAuthStore();
   const {
     applicationId,
+    type: applicationType,
+    response: applicationResponse,
     isHydrated: onboardingHydrated,
     restore: restoreOnboarding,
   } = usePartnerOnboardingStore();
@@ -60,11 +64,17 @@ const RootNavigator = () => {
 
   if (isLoading || !onboardingHydrated) return <LoadingScreen />;
 
+  const applicantInitialRoute = resolveApplicantInitialRoute(
+    applicationId,
+    applicationResponse,
+    applicationType,
+  );
+
   return (
     <NavigationContainer>
       <Stack.Navigator
-        key={user ? `user-${user.id}` : `applicant-${applicationId || 'new'}`}
-        initialRouteName={user ? undefined : applicationId ? 'ApplicationStatus' : 'PartnerWelcome'}
+        key={user ? `user-${user.id}` : 'applicant'}
+        initialRouteName={user ? undefined : applicantInitialRoute}
         screenOptions={{ headerShown: false }}
       >
         {user ? (
@@ -105,16 +115,57 @@ const RootNavigator = () => {
 };
 
 const styles = StyleSheet.create({
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#101827', paddingHorizontal: 28 },
-  loadingMark: { width: 82, height: 82, borderRadius: 28, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', marginBottom: 22 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#101827',
+    paddingHorizontal: 28,
+  },
+  loadingMark: {
+    width: 82,
+    height: 82,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 22,
+  },
   loadingLogo: { color: '#101827', fontSize: 38, fontWeight: '900' },
   loadingTitle: { color: '#FFFFFF', fontSize: 21, fontWeight: '900', marginTop: 18 },
-  blockedContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC', padding: 24 },
-  blockedCard: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 40, alignItems: 'center', elevation: 5, maxWidth: 340, width: '100%' },
-  logoMark: { width: 72, height: 72, borderRadius: 20, backgroundColor: '#0F766E', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  blockedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    padding: 24,
+  },
+  blockedCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    padding: 40,
+    alignItems: 'center',
+    elevation: 5,
+    maxWidth: 340,
+    width: '100%',
+  },
+  logoMark: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: '#0F766E',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   logoText: { color: '#FFFFFF', fontSize: 32, fontWeight: '800' },
   blockedTitle: { fontSize: 22, fontWeight: '700', color: '#0F172A', marginBottom: 8 },
-  blockedMessage: { fontSize: 15, color: '#64748B', textAlign: 'center', lineHeight: 22 },
+  blockedMessage: {
+    fontSize: 15,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
 });
 
 export default RootNavigator;
