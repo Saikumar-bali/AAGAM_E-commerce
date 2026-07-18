@@ -1,0 +1,195 @@
+name: Verification V1 Firebase PNV
+
+on:
+  push:
+    branches: [phase-verification-v1-firebase-pnv]
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/api-gateway/src/partner-onboarding/**"
+      - "apps/mobile-partners/**"
+      - "packages/database/prisma/migrations/20260718143000_verification_v1_firebase_pnv/**"
+      - "scripts/validate-prod-env.js"
+      - ".env.production.example"
+      - ".github/workflows/verification-v1.yml"
+      - "docs/VERIFICATION_V1_*.md"
+      - "docs/ai-runs/2026-07-18_verification-v1-firebase-pnv.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  NODE_VERSION: "22.22.3"
+  HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  backend-proof:
+    name: Backend, migration, and service proof
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aagam_verification_v1
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_verification_v1
+      NODE_ENV: test
+      JWT_SECRET: aagam-verification-v1-ci-secret-long-enough
+      PLAYWRIGHT_QA: "true"
+      PARTNER_QA_VERIFICATION_CODE: "424242"
+      FIREBASE_PROJECT_ID: aagam-verification-ci
+      FIREBASE_PROJECT_NUMBER: "123456789"
+      PARTNER_PHONE_VERIFICATION_MODE: PNV_FIRST
+      PARTNER_SMS_PROVIDER: TWILIO
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: npm ci
+        run: npm ci --no-audit --no-fund | tee verification-npm-ci.log
+      - name: Prisma generate and validate
+        run: |
+          set -o pipefail
+          npx prisma generate --schema packages/database/prisma/schema.prisma 2>&1 | tee verification-prisma-generate.log
+          npx prisma validate --schema packages/database/prisma/schema.prisma 2>&1 | tee verification-prisma-validate.log
+      - name: Fresh PostgreSQL migration
+        run: |
+          set -o pipefail
+          npx prisma migrate deploy --schema packages/database/prisma/schema.prisma 2>&1 | tee verification-migration.log
+          npx prisma migrate status --schema packages/database/prisma/schema.prisma 2>&1 | tee -a verification-migration.log
+          psql "$DATABASE_URL" -c '\d+ "VerificationChallenge"' | tee verification-challenge-schema.log
+      - name: CodeQL-compatible TypeScript build
+        run: |
+          set -o pipefail
+          npm run build --workspace @aagam/types 2>&1 | tee verification-build.log
+          npm run build --workspace @aagam/utils 2>&1 | tee -a verification-build.log
+          npm run build --workspace @aagam/database 2>&1 | tee -a verification-build.log
+          npm run build --workspace @aagam/api-gateway 2>&1 | tee -a verification-build.log
+          npx tsc --project apps/mobile-partners/tsconfig.json --noEmit 2>&1 | tee verification-mobile-ts.log
+      - name: Verification regression tests
+        run: |
+          set -o pipefail
+          npm run test:ci --workspace @aagam/api-gateway -- --json --outputFile="$GITHUB_WORKSPACE/verification-api-tests.json" 2>&1 | tee verification-api-tests.log
+          npm test --workspace AagamPartners -- --json --outputFile="$GITHUB_WORKSPACE/verification-mobile-tests.json" 2>&1 | tee verification-mobile-tests.log
+      - name: Production QA rejection proof
+        env:
+          NODE_ENV: production
+          FORCE_VERIFICATION_ENV_VALIDATION: "true"
+          DATABASE_URL: postgresql://aagam:ci@localhost:5432/aagam
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: aagam-verification-prod-validator-secret
+          CORS_ORIGINS: https://aagam.example.com
+          NEXT_PUBLIC_API_URL: https://aagam.example.com/api
+          RESEND_API_KEY: re_ci_placeholder
+          PARTNER_VERIFICATION_FROM_EMAIL: verify@aagam.example.com
+          TWILIO_ACCOUNT_SID: AC00000000000000000000000000000000
+          TWILIO_AUTH_TOKEN: ci-placeholder
+          TWILIO_FROM_PHONE: "+15550000000"
+          FIREBASE_PROJECT_ID: aagam-verification-ci
+          FIREBASE_PROJECT_NUMBER: "123456789"
+          PARTNER_PHONE_VERIFICATION_MODE: PNV_FIRST
+          PARTNER_SMS_PROVIDER: TWILIO
+          PLAYWRIGHT_QA: "true"
+        run: |
+          if node scripts/validate-prod-env.js > verification-prod-env.log 2>&1; then
+            echo "Production validation incorrectly accepted PLAYWRIGHT_QA" | tee -a verification-prod-env.log
+            exit 1
+          fi
+          grep -F "PLAYWRIGHT_QA must not be set" verification-prod-env.log
+      - name: Upload backend proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-v1-backend-proof-${{ env.HEAD_SHA }}
+          path: |
+            verification-*.log
+            verification-*.json
+          if-no-files-found: error
+          retention-days: 30
+
+  android-proof:
+    name: Android debug and native proof
+    runs-on: ubuntu-latest
+    env:
+      PNV_TEST_NUMBER_ID: ${{ secrets.FIREBASE_PNV_TEST_NUMBER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+      - run: npm ci --no-audit --no-fund
+      - run: |
+          npm run build --workspace @aagam/types
+          npm run build --workspace @aagam/utils
+      - name: Generate signing SHA proof
+        working-directory: apps/mobile-partners/android
+        run: |
+          set -o pipefail
+          gradle signingReport 2>&1 | tee "$GITHUB_WORKSPACE/verification-signing-report.log"
+          grep -E 'SHA1:|SHA-256:|SHA256:' "$GITHUB_WORKSPACE/verification-signing-report.log" > "$GITHUB_WORKSPACE/verification-sha-fingerprints.txt" || true
+      - name: Android debug build and unit contracts
+        working-directory: apps/mobile-partners/android
+        run: |
+          set -o pipefail
+          gradle assembleDebug testDebugUnitTest --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/verification-android-build.log"
+      - name: Record native PNV test-session evidence status
+        run: |
+          mkdir -p verification-device-proof
+          if [[ -n "$PNV_TEST_NUMBER_ID" ]]; then
+            printf '%s\n' \
+              'Firebase PNV runtime test token was supplied to the workflow.' \
+              'The token is never written to source, resources, BuildConfig, logs, or artifacts.' \
+              'Physical-device/public-beta execution must be run by the protected device runner.' \
+              > verification-device-proof/PNV_TEST_SESSION_READY.txt
+          else
+            printf '%s\n' \
+              'NOT RUN: FIREBASE_PNV_TEST_NUMBER_ID secret is not configured.' \
+              'No claim of signed-token device E2E success is made by this artifact.' \
+              > verification-device-proof/PNV_DEVICE_E2E_NOT_RUN.txt
+          fi
+          cp apps/mobile-partners/src/native/FirebasePnv.contract.spec.ts verification-device-proof/
+      - name: Collect APK and reports
+        if: always()
+        run: |
+          mkdir -p verification-android-artifacts
+          cp apps/mobile-partners/android/app/build/outputs/apk/debug/app-debug.apk verification-android-artifacts/aagam-partners-verification-v1-debug.apk 2>/dev/null || true
+          cp -R apps/mobile-partners/android/app/build/reports/tests verification-android-artifacts/ 2>/dev/null || true
+      - name: Upload Android proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-v1-android-proof-${{ env.HEAD_SHA }}
+          path: |
+            verification-android-artifacts/**
+            verification-device-proof/**
+            verification-android-build.log
+            verification-signing-report.log
+            verification-sha-fingerprints.txt
+          if-no-files-found: error
+          retention-days: 30
