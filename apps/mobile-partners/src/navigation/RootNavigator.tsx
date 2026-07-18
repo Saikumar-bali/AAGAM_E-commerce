@@ -1,16 +1,24 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { LoginScreen } from '../screens/LoginScreen';
-import { SignUpScreen } from '../screens/SignUpScreen';
 import { RiderNavigator } from './RiderNavigator';
 import { StoreNavigator } from './StoreNavigator';
 import { HomeScreen } from '../screens/HomeScreen';
+import { PartnerWelcomeScreen } from '../screens/PartnerWelcomeScreen';
+import { PartnerApplicationStartScreen } from '../screens/PartnerApplicationStartScreen';
+import { PartnerVerificationScreen } from '../screens/PartnerVerificationScreen';
+import { RiderApplicationScreen } from '../screens/RiderApplicationScreen';
+import { StoreApplicationScreen } from '../screens/StoreApplicationScreen';
+import { PartnerDocumentsScreen } from '../screens/PartnerDocumentsScreen';
+import { PartnerApplicationStatusScreen } from '../screens/PartnerApplicationStatusScreen';
+import { PartnerActivationScreen } from '../screens/PartnerActivationScreen';
+import { PartnerResumeScreen } from '../screens/PartnerResumeScreen';
+import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 
 const Stack = createNativeStackNavigator();
-
 const BLOCKED_ROLES = ['CUSTOMER'];
 const ALLOWED_PARTNER_ROLES = ['RIDER', 'STORE_OWNER', 'ADMIN'];
 
@@ -20,9 +28,9 @@ const BlockedScreen = () => (
       <View style={styles.logoMark}>
         <Text style={styles.logoText}>A</Text>
       </View>
-      <Text style={styles.blockedTitle}>Partners Only</Text>
+      <Text style={styles.blockedTitle}>Partners only</Text>
       <Text style={styles.blockedMessage}>
-        This app is for partners only. Use AAGAM for customer access.
+        This app is for approved Rider and Store operations. Customer accounts must use the AAGAM customer app.
       </Text>
     </View>
   </View>
@@ -40,38 +48,55 @@ const LoadingScreen = () => (
 
 const RootNavigator = () => {
   const { user, isLoading, initialize } = useAuthStore();
+  const {
+    applicationId,
+    isHydrated: onboardingHydrated,
+    restore: restoreOnboarding,
+  } = usePartnerOnboardingStore();
 
   useEffect(() => {
-    void initialize();
-  }, [initialize]);
+    void Promise.all([initialize(), restoreOnboarding()]);
+  }, [initialize, restoreOnboarding]);
 
-  if (isLoading) return <LoadingScreen />;
+  if (isLoading || !onboardingHydrated) return <LoadingScreen />;
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        key={user ? `user-${user.id}` : `applicant-${applicationId || 'new'}`}
+        initialRouteName={user ? undefined : applicationId ? 'ApplicationStatus' : 'PartnerWelcome'}
+        screenOptions={{ headerShown: false }}
+      >
         {user ? (
           BLOCKED_ROLES.includes(user.role) || !ALLOWED_PARTNER_ROLES.includes(user.role) ? (
             <Stack.Screen name="Blocked" component={BlockedScreen} />
           ) : (
             <>
-              {user.role === 'RIDER' && (
+              {user.role === 'RIDER' ? (
                 <Stack.Screen name="RiderTabs" component={RiderNavigator} />
-              )}
-              {user.role === 'STORE_OWNER' && (
+              ) : null}
+              {user.role === 'STORE_OWNER' ? (
                 <Stack.Screen name="StoreTabs" component={StoreNavigator} />
-              )}
-              {user.role === 'ADMIN' && (
+              ) : null}
+              {user.role === 'ADMIN' ? (
                 <Stack.Screen name="AdminHome" options={{ headerShown: false }}>
                   {(props: any) => <HomeScreen {...props} role="Admin Panel" />}
                 </Stack.Screen>
-              )}
+              ) : null}
             </>
           )
         ) : (
           <>
+            <Stack.Screen name="PartnerWelcome" component={PartnerWelcomeScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="SignUp" component={SignUpScreen} />
+            <Stack.Screen name="ApplicationStart" component={PartnerApplicationStartScreen} />
+            <Stack.Screen name="VerifyApplication" component={PartnerVerificationScreen} />
+            <Stack.Screen name="RiderApplication" component={RiderApplicationScreen} />
+            <Stack.Screen name="StoreApplication" component={StoreApplicationScreen} />
+            <Stack.Screen name="ApplicationDocuments" component={PartnerDocumentsScreen} />
+            <Stack.Screen name="ApplicationStatus" component={PartnerApplicationStatusScreen} />
+            <Stack.Screen name="ActivatePartner" component={PartnerActivationScreen} />
+            <Stack.Screen name="ResumeApplication" component={PartnerResumeScreen} />
           </>
         )}
       </Stack.Navigator>
