@@ -67,6 +67,10 @@ else
   signing_alias="androiddebugkey"
   signing_store_password="android"
   signing_channel="pinned-debug"
+  echo "AAGAM_ANDROID_KEYSTORE_PATH=$signing_store" >> "$GITHUB_ENV"
+  echo "AAGAM_ANDROID_KEYSTORE_PASSWORD=$signing_store_password" >> "$GITHUB_ENV"
+  echo "AAGAM_ANDROID_KEY_ALIAS=$signing_alias" >> "$GITHUB_ENV"
+  echo "AAGAM_ANDROID_KEY_PASSWORD=$signing_store_password" >> "$GITHUB_ENV"
 fi
 
 signing_sha1="$(keytool -list -v -keystore "$signing_store" -alias "$signing_alias" -storepass "$signing_store_password" 2>/dev/null | awk '/SHA1:/{print $2; exit}' || true)"
