@@ -1,10 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const root = path.resolve(__dirname, '../..');
-const screen = fs.readFileSync(path.join(root, 'screens/PartnerVerificationScreen.tsx'), 'utf8');
+const sourceRoot = path.resolve(__dirname, '..');
+const appRoot = path.resolve(sourceRoot, '..');
+const screen = fs.readFileSync(
+  path.join(sourceRoot, 'screens/PartnerVerificationScreen.tsx'),
+  'utf8',
+);
 const nativeModule = fs.readFileSync(
-  path.join(root, '../android/app/src/main/java/com/aagampartners/FirebasePnvModule.kt'),
+  path.join(appRoot, 'android/app/src/main/java/com/aagampartners/FirebasePnvModule.kt'),
   'utf8',
 );
 
