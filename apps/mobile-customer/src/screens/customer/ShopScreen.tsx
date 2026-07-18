@@ -1,196 +1,138 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
+import { ArrowRight, Gift, ShoppingCart } from 'lucide-react-native';
 import { getProductImage } from '@aagam/utils';
 import { apiClient } from '@aagam/mobile-shared';
 import { useCartStore } from '../../store/cartStore';
-import { ArrowRight, Gift, SlidersHorizontal } from 'lucide-react-native';
 import { PromotionCarousel } from '../../components/promotions/PromotionCarousel';
 import { normalizePromotionPlacements, type PromotionCampaign } from '../../promotions/types';
+import { getCartItemCount, getProductCartQuantity, groupProductsByCategory } from '../../utils/customerCommerce';
 
-const SORT_OPTIONS = [
-  { label: 'Newest', value: 'newest' },
-  { label: 'Low-High', value: 'price_asc' },
-  { label: 'High-Low', value: 'price_desc' },
-];
+const unavailable = (product: any) => product.availability?.inStock === false;
 
-const isUnavailable = (product: any) => Boolean(product.availability) && product.availability?.inStock === false;
+function ProductCard({ product, compact, quantity, onOpen, onAdd }: any) {
+  const inStock = !unavailable(product);
+  return (
+    <TouchableOpacity style={[styles.card, compact && styles.cardCompact, !inStock && styles.disabled]} disabled={!inStock} onPress={onOpen} activeOpacity={0.92}>
+      <View>
+        <Image source={{ uri: getProductImage(product) }} style={styles.productImage} />
+        {quantity > 0 ? <View style={styles.inCart}><Text style={styles.inCartText}>{quantity} in cart</Text></View> : null}
+      </View>
+      <View style={styles.cardBody}>
+        <Text style={styles.categoryLabel}>{product.category?.name || 'General'}</Text>
+        <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
+        <View style={styles.cardFooter}>
+          <View><Text style={styles.price}>₹{product.price}</Text><Text style={inStock ? styles.stock : styles.out}>{inStock ? 'In stock' : 'Unavailable'}</Text></View>
+          <TouchableOpacity style={[styles.add, !inStock && styles.addDisabled]} disabled={!inStock} onPress={(event) => { event.stopPropagation(); onAdd(); }}>
+            <Text style={styles.addText}>{quantity > 0 ? `+ (${quantity})` : 'Add'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 export const ShopScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const items = useCartStore((state) => state.items);
   const addItem = useCartStore((state) => state.addItem);
   const [query, setQuery] = useState('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState('');
-  const [sort, setSort] = useState('newest');
-  const [sortMenuVisible, setSortMenuVisible] = useState(false);
+  const [categoryId, setCategoryId] = useState('');
 
   useEffect(() => {
-    const categoryId = route.params?.categoryId;
-    if (typeof categoryId === 'string') setSelectedCategoryId(categoryId);
+    if (typeof route.params?.categoryId === 'string') setCategoryId(route.params.categoryId);
   }, [route.params?.categoryId]);
 
-  const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: async () => { const response = await apiClient.get('/products/categories'); return Array.isArray(response.data) ? response.data : []; } });
-  const { data: products, isLoading, error, refetch, isRefetching } = useQuery({ queryKey: ['products', query, selectedCategoryId, sort], queryFn: async () => { const response = await apiClient.get('/products', { params: { search: query || undefined, categoryId: selectedCategoryId || undefined, sort } }); const rows = Array.isArray(response.data) ? response.data : response.data?.items || []; return [...rows].sort((a, b) => { const aUnavailable = isUnavailable(a); const bUnavailable = isUnavailable(b); if (aUnavailable !== bUnavailable) return aUnavailable ? 1 : -1; return 0; }); } });
-  const { data: promotionPlacements, refetch: refetchPromotions } = useQuery({
-    queryKey: ['promotions', 'active'],
+  const categoriesQuery = useQuery({
+    queryKey: ['categories'],
     queryFn: async () => {
-      const response = await apiClient.get('/promotions/active');
-      return normalizePromotionPlacements(response.data);
+      const response = await apiClient.get('/products/categories');
+      return Array.isArray(response.data) ? response.data : [];
     },
   });
-  const categoryPills = useMemo(() => [{ id: '', name: 'All' }, ...categories], [categories]);
+  const productsQuery = useQuery({
+    queryKey: ['products', query, categoryId],
+    queryFn: async () => {
+      const response = await apiClient.get('/products', { params: { search: query || undefined, categoryId: categoryId || undefined } });
+      const rows = Array.isArray(response.data) ? response.data : response.data?.items || [];
+      return [...rows].sort((a, b) => Number(unavailable(a)) - Number(unavailable(b)));
+    },
+  });
+  const promotionsQuery = useQuery({
+    queryKey: ['promotions', 'active'],
+    queryFn: async () => normalizePromotionPlacements((await apiClient.get('/promotions/active')).data),
+  });
 
-  const openCampaign = (campaign: PromotionCampaign) => {
+  const categories = categoriesQuery.data || [];
+  const products = productsQuery.data || [];
+  const sections = useMemo(() => groupProductsByCategory(categories, products), [categories, products]);
+  const categoryPills = useMemo(() => [{ id: '', name: 'All' }, ...categories], [categories]);
+  const homeMode = !query.trim() && !categoryId;
+  const cartCount = getCartItemCount(items);
+
+  const openPromotion = (campaign: PromotionCampaign) => {
     const target = campaign.targetUrl || '';
     const product = target.match(/^\/shop\/products\/([^/?#]+)/);
-    if (product) return navigation.navigate('ProductDetail', { productId: product[1] });
-    if (target.startsWith('/shop/deals')) return navigation.navigate('Deals');
-    if (target.startsWith('/shop/checkout')) return navigation.navigate('Checkout');
     const category = target.match(/[?&]category=([^&#]+)/);
-    if (category) setSelectedCategoryId(decodeURIComponent(category[1]));
+    if (product) navigation.navigate('ProductDetail', { productId: product[1] });
+    else if (target.startsWith('/shop/deals')) navigation.navigate('Deals');
+    else if (target.startsWith('/shop/checkout')) navigation.navigate('Checkout');
+    else if (category) setCategoryId(decodeURIComponent(category[1]));
   };
 
-  if (isLoading) return <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View>;
-  if (error) return <View style={styles.centered}><Text style={styles.errorText}>Failed to load products. Make sure the API is running.</Text><TouchableOpacity style={styles.retryButton} onPress={() => refetch()}><Text style={styles.retryButtonText}>Try Again</Text></TouchableOpacity></View>;
+  const refresh = () => { void categoriesQuery.refetch(); void productsQuery.refetch(); void promotionsQuery.refetch(); };
+  const header = (
+    <View style={styles.header}>
+      <View style={styles.brandRow}>
+        <View><Text style={styles.brand}>aagam</Text><Text style={styles.subtitle}>Quick commerce, delivered fast.</Text></View>
+        <TouchableOpacity style={styles.cartButton} onPress={() => navigation.navigate('Cart')} accessibilityLabel={`Open cart with ${cartCount} items`}>
+          <ShoppingCart size={22} color="#115E59" />
+          {cartCount > 0 ? <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cartCount}</Text></View> : null}
+        </TouchableOpacity>
+      </View>
+      <PromotionCarousel campaigns={promotionsQuery.data?.HOME_HERO} onPress={openPromotion} />
+      {promotionsQuery.data?.HOME_TODAY_OFFERS?.length ? (
+        <View style={styles.offerBlock}>
+          <View style={styles.headingRow}><View style={styles.headingCopy}><Gift size={17} color="#0F766E" /><Text style={styles.smallHeading}>Today's offers</Text></View><TouchableOpacity onPress={() => navigation.navigate('Deals')}><Text style={styles.link}>View deals</Text></TouchableOpacity></View>
+          <PromotionCarousel campaigns={promotionsQuery.data.HOME_TODAY_OFFERS} onPress={openPromotion} compact />
+        </View>
+      ) : null}
+      <TextInput value={query} onChangeText={setQuery} placeholder="Search products" placeholderTextColor="#94A3B8" style={styles.search} />
+      <FlatList horizontal data={categoryPills} keyExtractor={(item) => item.id || 'all'} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pills} renderItem={({ item }) => (
+        <TouchableOpacity style={[styles.pill, categoryId === item.id && styles.pillActive]} onPress={() => setCategoryId(item.id)}><Text style={[styles.pillText, categoryId === item.id && styles.pillTextActive]}>{item.name}</Text></TouchableOpacity>
+      )} />
+      <Text style={styles.title}>{homeMode ? 'Shop by category' : 'Shop products'}</Text>
+    </View>
+  );
+
+  if (productsQuery.isLoading) return <View style={styles.center}><ActivityIndicator size="large" color="#0F766E" /></View>;
+  if (productsQuery.error) return <View style={styles.center}><Text style={styles.error}>Failed to load products.</Text><TouchableOpacity style={styles.retry} onPress={() => productsQuery.refetch()}><Text style={styles.addText}>Try again</Text></TouchableOpacity></View>;
+
+  if (homeMode) return (
+    <FlatList style={styles.screen} data={sections} keyExtractor={(section) => section.category.id} ListHeaderComponent={header} contentContainerStyle={styles.content} refreshing={productsQuery.isRefetching || promotionsQuery.isRefetching} onRefresh={refresh} renderItem={({ item: section }) => (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>{section.category.name}</Text><Text style={styles.sectionSubtitle}>Popular picks in {section.category.name}</Text></View><TouchableOpacity style={styles.viewAll} onPress={() => setCategoryId(section.category.id)}><Text style={styles.link}>View all</Text><ArrowRight size={14} color="#0F766E" /></TouchableOpacity></View>
+        <FlatList horizontal data={section.products.slice(0, 8)} keyExtractor={(product) => product.id} showsHorizontalScrollIndicator={false} renderItem={({ item }) => <ProductCard product={item} compact quantity={getProductCartQuantity(items, item.id)} onOpen={() => navigation.navigate('ProductDetail', { productId: item.id })} onAdd={() => addItem(item)} />} />
+      </View>
+    )} ListEmptyComponent={<View style={styles.empty}><Text style={styles.sectionTitle}>No category products yet</Text></View>} />
+  );
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={products}
-        numColumns={2}
-        columnWrapperStyle={styles.productRow}
-        renderItem={({ item }) => {
-          const unavailable = isUnavailable(item);
-          const inStock = item.availability?.inStock ?? true;
-          const productImage = getProductImage(item);
-          return (
-            <TouchableOpacity
-              style={[styles.productCard, unavailable && styles.productCardDisabled]}
-              disabled={unavailable}
-              onPress={() => navigation.navigate('ProductDetail', { productId: item.id })}
-              activeOpacity={0.92}
-            >
-              <View style={styles.imageWrap}>
-                <Image source={{ uri: productImage }} style={[styles.productImage, unavailable && styles.productImageDisabled]} />
-                {unavailable && <View style={styles.unavailableOverlay}><Text style={styles.unavailableBadge}>Unavailable</Text></View>}
-              </View>
-              <View style={styles.productInfo}>
-                <Text style={styles.productCategory}>{item.category?.name || 'General'}</Text>
-                <Text style={[styles.productName, unavailable && styles.productNameDisabled]}>{item.name}</Text>
-                <Text numberOfLines={2} style={styles.productDescription}>{item.description || 'Fast local delivery available.'}</Text>
-                <View style={styles.cardFooter}>
-                  <View><Text style={[styles.productPrice, unavailable && styles.productNameDisabled]}>₹{item.price}</Text><Text style={[styles.stockText, !inStock && styles.stockTextOut]}>{inStock ? 'In stock' : 'Currently unavailable'}</Text></View>
-                  <TouchableOpacity style={[styles.addButton, !inStock && styles.addButtonDisabled]} disabled={!inStock} onPress={(event) => { event.stopPropagation(); addItem(item); }}><Text style={styles.addButtonText}>{inStock ? 'Add' : 'N/A'}</Text></TouchableOpacity>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
-        refreshing={isRefetching}
-        onRefresh={() => { void refetch(); void refetchPromotions(); }}
-        ListHeaderComponent={(
-          <View style={styles.header}>
-            <View style={styles.brandRow}>
-              <View style={styles.logoMark}><Text style={styles.logoMarkText}>A</Text></View>
-              <View><Text style={styles.logoText}>aagam</Text><Text style={styles.subtitle}>Quick commerce, delivered fast.</Text></View>
-            </View>
-            <View style={styles.heroSection}>
-              <PromotionCarousel campaigns={promotionPlacements?.HOME_HERO} onPress={openCampaign} />
-            </View>
-            {promotionPlacements?.HOME_TODAY_OFFERS?.length ? (
-              <View style={styles.offersSection}>
-                <View style={styles.sectionHeadingRow}>
-                  <View style={styles.sectionHeadingCopy}><Gift size={17} color="#0F766E" /><Text style={styles.sectionHeading}>Today's offers</Text></View>
-                  <TouchableOpacity style={styles.dealsLink} onPress={() => navigation.navigate('Deals')}><Text style={styles.dealsLinkText}>All deals</Text><ArrowRight size={14} color="#0F766E" /></TouchableOpacity>
-                </View>
-                <PromotionCarousel campaigns={promotionPlacements.HOME_TODAY_OFFERS} onPress={openCampaign} compact />
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.dealsFallback} onPress={() => navigation.navigate('Deals')}>
-                <View><Text style={styles.dealsFallbackTitle}>Deals & coupons</Text><Text style={styles.dealsFallbackText}>See offers published by Aagam.</Text></View>
-                <ArrowRight size={18} color="#0F766E" />
-              </TouchableOpacity>
-            )}
-            <TextInput value={query} onChangeText={setQuery} placeholder="Search products" placeholderTextColor="#94A3B8" style={styles.searchInput} />
-            <View style={styles.filterRow}>
-              <FlatList data={categoryPills} horizontal keyExtractor={(item) => item.id || 'all'} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList} renderItem={({ item }) => { const active = selectedCategoryId === item.id; return <TouchableOpacity style={[styles.categoryPill, active && styles.categoryPillActive]} onPress={() => setSelectedCategoryId(item.id)}><Text style={[styles.categoryPillText, active && styles.categoryPillTextActive]}>{item.name}</Text></TouchableOpacity>; }} />
-              <TouchableOpacity style={styles.sortIcon} onPress={() => setSortMenuVisible(true)}><SlidersHorizontal size={18} color="#0F766E" /></TouchableOpacity>
-            </View>
-            <Text style={styles.productsHeading}>Shop products</Text>
-            <Modal visible={sortMenuVisible} transparent animationType="fade" onRequestClose={() => setSortMenuVisible(false)}><Pressable style={styles.modalOverlay} onPress={() => setSortMenuVisible(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Sort by</Text>{SORT_OPTIONS.map((option) => { const active = option.value === sort; return <TouchableOpacity key={option.value} style={[styles.modalOption, active && styles.modalOptionActive]} onPress={() => { setSort(option.value); setSortMenuVisible(false); }}><Text style={[styles.modalOptionText, active && styles.modalOptionTextActive]}>{option.label}</Text>{active && <Text style={styles.checkmark}>✓</Text>}</TouchableOpacity>; })}</View></Pressable></Modal>
-          </View>
-        )}
-        ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyTitle}>No products found</Text><Text style={styles.emptyText}>Try a different search or category.</Text></View>}
-      />
-    </View>
+    <FlatList style={styles.screen} data={products} numColumns={2} columnWrapperStyle={styles.columns} keyExtractor={(item) => item.id} ListHeaderComponent={header} contentContainerStyle={styles.content} refreshing={productsQuery.isRefetching || promotionsQuery.isRefetching} onRefresh={refresh} renderItem={({ item }) => <ProductCard product={item} quantity={getProductCartQuantity(items, item.id)} onOpen={() => navigation.navigate('ProductDetail', { productId: item.id })} onAdd={() => addItem(item)} />} ListEmptyComponent={<View style={styles.empty}><Text style={styles.sectionTitle}>No products found</Text></View>} />
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  header: { paddingTop: 18, paddingBottom: 8 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  logoMark: { width: 44, height: 44, borderRadius: 16, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' },
-  logoMarkText: { color: '#FFFFFF', fontSize: 22, fontWeight: '900' },
-  logoText: { fontSize: 30, fontWeight: '900', color: '#0F172A', letterSpacing: -1 },
-  subtitle: { marginTop: 2, fontSize: 13, color: '#64748B', fontWeight: '700' },
-  heroSection: { marginTop: 18 },
-  offersSection: { marginTop: 24 },
-  sectionHeadingRow: { marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionHeadingCopy: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  sectionHeading: { color: '#0F172A', fontSize: 14, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
-  dealsLink: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6 },
-  dealsLinkText: { color: '#0F766E', fontSize: 12, fontWeight: '900' },
-  dealsFallback: { marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 18, borderWidth: 1, borderColor: '#99F6E4', backgroundColor: '#F0FDFA', padding: 16 },
-  dealsFallbackTitle: { color: '#115E59', fontSize: 15, fontWeight: '900' },
-  dealsFallbackText: { marginTop: 3, color: '#0F766E', fontSize: 12, fontWeight: '600' },
-  searchInput: { marginTop: 16, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 14, paddingVertical: 12, color: '#0F172A' },
-  categoryList: { paddingTop: 0, paddingBottom: 0 },
-  filterRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 14, paddingBottom: 6 },
-  categoryPill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: '#E2E8F0', marginRight: 8 },
-  categoryPillActive: { backgroundColor: '#0F766E' },
-  categoryPillText: { color: '#0F172A', fontWeight: '700' },
-  categoryPillTextActive: { color: '#FFFFFF' },
-  sortIcon: { alignItems: 'center', justifyContent: 'center', width: 42, height: 42, borderRadius: 999, borderWidth: 1, borderColor: '#0F766E', backgroundColor: '#CCFBF1', marginLeft: 8 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end', padding: 16 },
-  modalSheet: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, marginBottom: 90 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A', marginBottom: 16 },
-  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, marginBottom: 6 },
-  modalOptionActive: { backgroundColor: '#CCFBF1' },
-  modalOptionText: { fontSize: 15, fontWeight: '600', color: '#334155' },
-  modalOptionTextActive: { color: '#115E59', fontWeight: '800' },
-  checkmark: { color: '#0F766E', fontSize: 18, fontWeight: '800' },
-  productsHeading: { marginTop: 10, marginBottom: 12, color: '#0F172A', fontSize: 18, fontWeight: '900' },
-  listContainer: { paddingHorizontal: 16, paddingBottom: 170 },
-  productRow: { gap: 12 },
-  productCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, marginHorizontal: 0, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0' },
-  productCardDisabled: { opacity: 0.72 },
-  imageWrap: { position: 'relative' },
-  productImage: { width: '100%', height: 112, resizeMode: 'cover' },
-  productImageDisabled: { opacity: 0.5 },
-  unavailableOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.72)' },
-  unavailableBadge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#FEE2E2', color: '#B91C1C', fontSize: 11, fontWeight: '900', paddingHorizontal: 10, paddingVertical: 5 },
-  productInfo: { padding: 12 },
-  productCategory: { fontSize: 11, fontWeight: '800', color: '#0F766E', textTransform: 'uppercase' },
-  productName: { marginTop: 4, fontSize: 15, fontWeight: '800', color: '#0F172A' },
-  productNameDisabled: { color: '#94A3B8' },
-  productDescription: { marginTop: 6, fontSize: 12, lineHeight: 16, color: '#64748B' },
-  cardFooter: { marginTop: 12, gap: 8 },
-  productPrice: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
-  stockText: { marginTop: 3, fontSize: 12, color: '#0F766E', fontWeight: '700' },
-  stockTextOut: { color: '#DC2626' },
-  addButton: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999 },
-  addButtonDisabled: { backgroundColor: '#94A3B8' },
-  addButtonText: { color: '#FFFFFF', fontWeight: '800' },
-  errorText: { color: '#B91C1C', textAlign: 'center', marginBottom: 12 },
-  retryButton: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999 },
-  retryButtonText: { color: '#FFFFFF', fontWeight: '700' },
-  emptyContainer: { paddingTop: 50, alignItems: 'center' },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
-  emptyText: { marginTop: 8, color: '#64748B' },
+  screen: { flex: 1, backgroundColor: '#F8FAFC' }, content: { paddingHorizontal: 16, paddingBottom: 170 }, header: { paddingTop: 18, paddingBottom: 8 }, center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }, brand: { fontSize: 30, fontWeight: '900', color: '#0F172A' }, subtitle: { marginTop: 2, color: '#64748B', fontWeight: '700' },
+  cartButton: { position: 'relative', width: 48, height: 48, borderRadius: 17, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, cartBadge: { position: 'absolute', right: -4, top: -4, minWidth: 21, height: 21, borderRadius: 11, backgroundColor: '#F97316', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }, cartBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
+  offerBlock: { marginTop: 22 }, headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }, headingCopy: { flexDirection: 'row', alignItems: 'center', gap: 7 }, smallHeading: { color: '#0F172A', fontWeight: '900', textTransform: 'uppercase' }, link: { color: '#0F766E', fontWeight: '900', fontSize: 12 },
+  search: { marginTop: 16, borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFF', color: '#0F172A', paddingHorizontal: 14, paddingVertical: 12 }, pills: { paddingVertical: 14 }, pill: { marginRight: 8, borderRadius: 999, backgroundColor: '#E2E8F0', paddingHorizontal: 14, paddingVertical: 8 }, pillActive: { backgroundColor: '#0F766E' }, pillText: { color: '#0F172A', fontWeight: '700' }, pillTextActive: { color: '#FFF' }, title: { marginBottom: 12, fontSize: 20, color: '#0F172A', fontWeight: '900' },
+  section: { marginBottom: 26 }, sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }, sectionTitle: { color: '#0F172A', fontSize: 19, fontWeight: '900' }, sectionSubtitle: { marginTop: 3, color: '#64748B', fontSize: 12 }, viewAll: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: '#CCFBF1', paddingHorizontal: 12, paddingVertical: 8 },
+  columns: { gap: 12 }, card: { flex: 1, marginBottom: 14, borderRadius: 20, overflow: 'hidden', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0' }, cardCompact: { flex: 0, width: 168, marginRight: 12 }, disabled: { opacity: 0.62 }, productImage: { width: '100%', height: 116 }, inCart: { position: 'absolute', left: 8, top: 8, borderRadius: 999, backgroundColor: '#CCFBF1', paddingHorizontal: 8, paddingVertical: 5 }, inCartText: { color: '#115E59', fontSize: 10, fontWeight: '900' },
+  cardBody: { padding: 12 }, categoryLabel: { color: '#0F766E', fontSize: 10, fontWeight: '900', textTransform: 'uppercase' }, productName: { marginTop: 4, minHeight: 38, color: '#0F172A', fontWeight: '800' }, cardFooter: { marginTop: 10, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }, price: { color: '#0F172A', fontSize: 16, fontWeight: '900' }, stock: { marginTop: 3, color: '#0F766E', fontSize: 10, fontWeight: '700' }, out: { marginTop: 3, color: '#DC2626', fontSize: 10, fontWeight: '700' }, add: { borderRadius: 999, backgroundColor: '#0F766E', paddingHorizontal: 13, paddingVertical: 9 }, addDisabled: { backgroundColor: '#94A3B8' }, addText: { color: '#FFF', fontWeight: '900' },
+  retry: { marginTop: 12, borderRadius: 999, backgroundColor: '#0F766E', paddingHorizontal: 16, paddingVertical: 10 }, error: { color: '#B91C1C', fontWeight: '800' }, empty: { alignItems: 'center', paddingVertical: 50 },
 });

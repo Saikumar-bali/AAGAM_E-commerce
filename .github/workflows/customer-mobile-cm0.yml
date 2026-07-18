@@ -28,6 +28,8 @@ jobs:
         run: npm ci
       - name: Build API packages
         run: npm run build:api
+      - name: Run customer commerce contracts
+        run: npm test --workspace=apps/mobile-customer -- --runInBand
       - name: Typecheck shared mobile package
         run: npx tsc --noEmit -p packages/mobile-shared/tsconfig.json
       - name: Typecheck customer mobile app
