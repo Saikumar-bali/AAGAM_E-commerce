@@ -15,6 +15,7 @@ import {
 import { VerificationChallengeRepository } from './verification-challenge.repository';
 import {
   isVerificationQaMode,
+  selectedEmailVerificationProvider,
   VerificationChallengeStatus,
   VerificationMethod,
   VerificationProvider,
@@ -51,24 +52,22 @@ export class PartnerVerificationService {
   private providerFor(channel: PartnerContactChannel): VerificationProvider {
     if (isVerificationQaMode()) return VerificationProvider.QA;
     return channel === PartnerContactChannel.EMAIL
-      ? VerificationProvider.RESEND
+      ? selectedEmailVerificationProvider()
       : VerificationProvider.TWILIO;
   }
 
   async capabilities() {
     const qaMode = isVerificationQaMode();
+    const emailProvider = qaMode
+      ? VerificationProvider.QA
+      : selectedEmailVerificationProvider();
     return {
       mode: process.env.PARTNER_PHONE_VERIFICATION_MODE || 'PNV_FIRST',
       qaMode,
       email: {
         method: 'EMAIL_CODE',
-        provider: qaMode ? 'QA' : 'RESEND',
-        configured:
-          qaMode ||
-          Boolean(
-            process.env.RESEND_API_KEY?.trim() &&
-              process.env.PARTNER_VERIFICATION_FROM_EMAIL?.trim(),
-          ),
+        provider: emailProvider,
+        configured: qaMode || this.isConfigured(emailProvider),
       },
       phone: {
         preferredMethod: 'FIREBASE_PNV',
@@ -94,20 +93,28 @@ export class PartnerVerificationService {
 
   async readiness() {
     const qaMode = isVerificationQaMode();
+    const activeEmailProvider = qaMode
+      ? VerificationProvider.QA
+      : selectedEmailVerificationProvider();
     const providers = await Promise.all(
       [
         VerificationProvider.RESEND,
+        VerificationProvider.MAILJET,
         VerificationProvider.TWILIO,
         VerificationProvider.FIREBASE_PNV,
       ].map(async (provider) => ({
         provider,
         configured: this.isConfigured(provider),
+        active:
+          provider === activeEmailProvider ||
+          provider === VerificationProvider.TWILIO ||
+          provider === VerificationProvider.FIREBASE_PNV,
         qaMode,
         lastSuccessfulProviderCheckTimestamp:
           (await this.challenges.lastSuccessfulProviderCheck(provider))?.toISOString() || null,
       })),
     );
-    return { providers };
+    return { activeEmailProvider, providers };
   }
 
   private isConfigured(provider: VerificationProvider): boolean {
@@ -116,6 +123,12 @@ export class PartnerVerificationService {
       case VerificationProvider.RESEND:
         return Boolean(
           process.env.RESEND_API_KEY?.trim() &&
+            process.env.PARTNER_VERIFICATION_FROM_EMAIL?.trim(),
+        );
+      case VerificationProvider.MAILJET:
+        return Boolean(
+          process.env.MAILJET_API_KEY?.trim() &&
+            process.env.MAILJET_SECRET_KEY?.trim() &&
             process.env.PARTNER_VERIFICATION_FROM_EMAIL?.trim(),
         );
       case VerificationProvider.TWILIO:
