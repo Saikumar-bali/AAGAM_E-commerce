@@ -31,7 +31,7 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
       .toUpperCase()}`;
   }
 
-  override async createApplication(dto: CreatePartnerApplicationDto) {
+  override async createApplication(dto: CreatePartnerApplicationDto): Promise<any> {
     const email = dto.email?.trim().toLowerCase() || null;
     const phone = dto.phoneE164?.trim() || null;
     if (!email && !phone) throw new BadRequestException('Email or phone number is required');
