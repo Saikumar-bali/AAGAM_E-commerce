@@ -8,8 +8,26 @@ export enum VerificationMethod {
 export enum VerificationProvider {
   QA = 'QA',
   RESEND = 'RESEND',
+  MAILJET = 'MAILJET',
   TWILIO = 'TWILIO',
   FIREBASE_PNV = 'FIREBASE_PNV',
+}
+
+export type EmailVerificationProvider =
+  | VerificationProvider.RESEND
+  | VerificationProvider.MAILJET;
+
+export function selectedEmailVerificationProvider(): EmailVerificationProvider {
+  const configured = process.env.PARTNER_EMAIL_PROVIDER?.trim().toUpperCase();
+  if (configured === VerificationProvider.MAILJET) return VerificationProvider.MAILJET;
+  if (configured === VerificationProvider.RESEND) return VerificationProvider.RESEND;
+
+  // Preserve existing deployments while allowing a Mailjet-only environment to self-select
+  // outside production validation (for example, local development).
+  if (process.env.MAILJET_API_KEY?.trim() && process.env.MAILJET_SECRET_KEY?.trim()) {
+    return VerificationProvider.MAILJET;
+  }
+  return VerificationProvider.RESEND;
 }
 
 export enum VerificationChallengeStatus {
