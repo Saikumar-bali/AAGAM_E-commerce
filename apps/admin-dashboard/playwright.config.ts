@@ -8,6 +8,7 @@ export default defineConfig({
   // scenarios stored under e2e/. Explicit project patterns prevent unrelated
   // source files from being collected when the common root is used.
   testDir: '.',
+  outputDir: '../../docs/qa/phase-4/playwright-test-results',
   timeout: 120000,
   expect: { timeout: 15000 },
   fullyParallel: false,
@@ -17,6 +18,7 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['html', { outputFolder: 'playwright-report' }],
+    ['json', { outputFile: '../../docs/qa/phase-4/playwright-results.json' }],
   ],
   use: {
     baseURL: 'http://localhost:3001',
