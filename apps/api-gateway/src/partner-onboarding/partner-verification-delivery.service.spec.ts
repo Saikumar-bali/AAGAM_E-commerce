@@ -1,16 +1,32 @@
-import { ServiceUnavailableException } from '@nestjs/common';
 import { PartnerContactChannel } from './partner-onboarding.types';
-import { PartnerVerificationDeliveryService } from './partner-verification-delivery.service';
+import {
+  PartnerVerificationDeliveryException,
+  PartnerVerificationDeliveryService,
+} from './partner-verification-delivery.service';
+
+const input = {
+  applicationId: 'app-1',
+  channel: PartnerContactChannel.EMAIL,
+  email: 'partner@example.com',
+  phoneE164: '+919999999999',
+  code: '123456',
+  expiresAt: new Date(Date.now() + 600_000),
+  applicationNumber: 'AAG-RID-2026-ABC123',
+};
 
 describe('PartnerVerificationDeliveryService', () => {
   const originalEnv = process.env;
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    process.env = { ...originalEnv };
+    process.env = { ...originalEnv, NODE_ENV: 'production' };
     delete process.env.PLAYWRIGHT_QA;
+    delete process.env.PARTNER_EMAIL_PROVIDER;
+    delete process.env.MAILJET_API_KEY;
+    delete process.env.MAILJET_SECRET_KEY;
     delete process.env.RESEND_API_KEY;
     delete process.env.PARTNER_VERIFICATION_FROM_EMAIL;
+    delete process.env.PARTNER_VERIFICATION_FROM_NAME;
     delete process.env.TWILIO_ACCOUNT_SID;
     delete process.env.TWILIO_AUTH_TOKEN;
     delete process.env.TWILIO_FROM_PHONE;
@@ -22,85 +38,191 @@ describe('PartnerVerificationDeliveryService', () => {
     jest.restoreAllMocks();
   });
 
-  const input = {
-    channel: PartnerContactChannel.EMAIL,
-    email: 'partner@example.com',
-    phoneE164: '+919999999999',
-    code: '123456',
-    expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-    applicationNumber: 'AAG-RID-2026-ABC123',
-  };
-
-  it('keeps automated tests network-free while preserving the delivery contract', async () => {
-    process.env.NODE_ENV = 'test';
-    const fetchSpy = jest.fn();
-    global.fetch = fetchSpy as any;
-
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).resolves.toEqual({
-      provider: 'QA',
-      deliveryId: 'qa-delivery-suppressed',
-    });
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it('delivers email codes through Resend in production', async () => {
-    process.env.NODE_ENV = 'production';
-    process.env.RESEND_API_KEY = 're_test_key';
-    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'AAGAM <verify@example.com>';
-    const fetchSpy = jest.fn().mockResolvedValue({
+  it('Mailjet accepted with a validated sender and persists its message UUID', async () => {
+    process.env.PARTNER_EMAIL_PROVIDER = 'MAILJET';
+    process.env.MAILJET_API_KEY = 'mailjet-public';
+    process.env.MAILJET_SECRET_KEY = 'mailjet-secret';
+    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'AAGAM Team <verified@example.com>';
+    process.env.PARTNER_VERIFICATION_FROM_NAME = 'AAGAM Verification';
+    global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ id: 'email_123' }),
-    });
-    global.fetch = fetchSpy as any;
+      status: 200,
+      json: async () => ({
+        Messages: [
+          {
+            Status: 'success',
+            To: [{ MessageID: 123, MessageUUID: 'mailjet-message-uuid' }],
+          },
+        ],
+      }),
+    }) as any;
 
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).resolves.toEqual({
-      provider: 'RESEND',
-      deliveryId: 'email_123',
-    });
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'https://api.resend.com/emails',
-      expect.objectContaining({ method: 'POST' }),
+    await expect(new PartnerVerificationDeliveryService().deliver(input)).resolves.toEqual(
+      expect.objectContaining({
+        provider: 'MAILJET',
+        deliveryId: 'mailjet-message-uuid',
+        httpStatus: 200,
+      }),
     );
-    const request = fetchSpy.mock.calls[0][1];
-    expect(request.body).toContain('123456');
-    expect(request.body).toContain('partner@example.com');
+
+    const [url, options] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toBe('https://api.mailjet.com/v3.1/send');
+    expect(options.headers.Authorization).toBe(
+      `Basic ${Buffer.from('mailjet-public:mailjet-secret').toString('base64')}`,
+    );
+    const body = JSON.parse(options.body);
+    expect(body.Messages[0]).toMatchObject({
+      From: { Email: 'verified@example.com', Name: 'AAGAM Verification' },
+      To: [{ Email: 'partner@example.com' }],
+      Subject: 'AAGAM verification code for AAG-RID-2026-ABC123',
+    });
+    expect(body.Messages[0].TextPart).toContain('123456');
+    expect(body.Messages[0].HTMLPart).toContain('123456');
+    expect(options.body).not.toContain('mailjet-secret');
   });
 
-  it('delivers phone codes through Twilio in production', async () => {
-    process.env.NODE_ENV = 'production';
+  it('Mailjet treats an HTTP 200 message-level error as rejected', async () => {
+    process.env.PARTNER_EMAIL_PROVIDER = 'MAILJET';
+    process.env.MAILJET_API_KEY = 'mailjet-public';
+    process.env.MAILJET_SECRET_KEY = 'mailjet-secret';
+    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verified@example.com';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        Messages: [
+          {
+            Status: 'error',
+            Errors: [{ ErrorIdentifier: 'mj-001 bad sender!' }],
+          },
+        ],
+      }),
+    }) as any;
+
+    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toMatchObject({
+      provider: 'MAILJET',
+      safeCode: 'MJ-001_BAD_SENDER_',
+      httpStatus: 200,
+    });
+  });
+
+  it('Mailjet maps an HTTP rejection to a safe provider code', async () => {
+    process.env.PARTNER_EMAIL_PROVIDER = 'MAILJET';
+    process.env.MAILJET_API_KEY = 'mailjet-public';
+    process.env.MAILJET_SECRET_KEY = 'mailjet-secret';
+    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verified@example.com';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ ErrorIdentifier: 'unauthorized credentials' }),
+    }) as any;
+
+    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toMatchObject({
+      safeCode: 'UNAUTHORIZED_CREDENTIALS',
+      httpStatus: 401,
+    });
+  });
+
+  it('Mailjet rejects missing credentials or an invalid sender without making a request', async () => {
+    process.env.PARTNER_EMAIL_PROVIDER = 'MAILJET';
+    process.env.MAILJET_API_KEY = 'mailjet-public';
+    process.env.MAILJET_SECRET_KEY = 'mailjet-secret';
+    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'not-an-email';
+    global.fetch = jest.fn() as any;
+
+    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toMatchObject({
+      safeCode: 'MAILJET_INVALID_FROM',
+    });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('Resend remains selectable for a future owned domain', async () => {
+    process.env.PARTNER_EMAIL_PROVIDER = 'RESEND';
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verify@example.com';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 202,
+      json: async () => ({ id: 'email-1' }),
+    }) as any;
+
+    await expect(new PartnerVerificationDeliveryService().deliver(input)).resolves.toEqual(
+      expect.objectContaining({ provider: 'RESEND', deliveryId: 'email-1', httpStatus: 202 }),
+    );
+  });
+
+  it('Resend rejected with a sanitized code', async () => {
+    process.env.PARTNER_EMAIL_PROVIDER = 'RESEND';
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verify@example.com';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({ name: 'invalid from address!' }),
+    }) as any;
+    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toMatchObject({
+      safeCode: 'INVALID_FROM_ADDRESS_',
+      httpStatus: 422,
+    });
+  });
+
+  it('Resend unconfigured', async () => {
+    process.env.PARTNER_EMAIL_PROVIDER = 'RESEND';
+    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toMatchObject({
+      safeCode: 'RESEND_UNCONFIGURED',
+    });
+  });
+
+  it('Twilio accepted', async () => {
     process.env.TWILIO_ACCOUNT_SID = 'AC123';
     process.env.TWILIO_AUTH_TOKEN = 'secret';
     process.env.TWILIO_FROM_PHONE = '+15551234567';
-    const fetchSpy = jest.fn().mockResolvedValue({
+    global.fetch = jest.fn().mockResolvedValue({
       ok: true,
+      status: 201,
       json: async () => ({ sid: 'SM123' }),
-    });
-    global.fetch = fetchSpy as any;
-
+    }) as any;
     await expect(
       new PartnerVerificationDeliveryService().deliver({
         ...input,
         channel: PartnerContactChannel.PHONE,
       }),
-    ).resolves.toEqual({ provider: 'TWILIO', deliveryId: 'SM123' });
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'https://api.twilio.com/2010-04-01/Accounts/AC123/Messages.json',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          Authorization: `Basic ${Buffer.from('AC123:secret').toString('base64')}`,
-        }),
-      }),
-    );
-    const request = fetchSpy.mock.calls[0][1];
-    expect(request.body).toContain('To=%2B919999999999');
-    expect(request.body).toContain('123456');
+    ).resolves.toEqual(expect.objectContaining({ provider: 'TWILIO', deliveryId: 'SM123' }));
   });
 
-  it('fails closed instead of claiming an unconfigured delivery succeeded', async () => {
-    process.env.NODE_ENV = 'production';
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
+  it('Twilio rejected', async () => {
+    process.env.TWILIO_ACCOUNT_SID = 'AC123';
+    process.env.TWILIO_AUTH_TOKEN = 'secret';
+    process.env.TWILIO_FROM_PHONE = '+15551234567';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ code: 21608 }),
+    }) as any;
+    await expect(
+      new PartnerVerificationDeliveryService().deliver({
+        ...input,
+        channel: PartnerContactChannel.PHONE,
+      }),
+    ).rejects.toMatchObject({ safeCode: '21608', httpStatus: 400 });
+  });
+
+  it('Twilio unconfigured', async () => {
+    await expect(
+      new PartnerVerificationDeliveryService().deliver({
+        ...input,
+        channel: PartnerContactChannel.PHONE,
+      }),
+    ).rejects.toBeInstanceOf(PartnerVerificationDeliveryException);
+  });
+
+  it('QA mode never calls Mailjet, Resend or Twilio', async () => {
+    process.env.NODE_ENV = 'test';
+    global.fetch = jest.fn() as any;
+    await expect(new PartnerVerificationDeliveryService().deliver(input)).resolves.toMatchObject({
+      provider: 'QA',
+      httpStatus: 202,
+    });
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

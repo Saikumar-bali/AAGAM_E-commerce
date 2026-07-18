@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { prisma } from '@aagam/database';
-import { randomBytes, randomInt, randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { UploadService } from '../upload/upload.service';
 import { CreatePartnerApplicationDto } from './dto/partner-onboarding.dto';
 import { PartnerOnboardingRepository } from './partner-onboarding.repository';
@@ -11,7 +11,7 @@ import {
   PartnerApplicationType,
   PartnerContactChannel,
 } from './partner-onboarding.types';
-import { PartnerVerificationDeliveryService } from './partner-verification-delivery.service';
+import { PartnerVerificationService } from './partner-verification.service';
 
 @Injectable()
 export class DeliveringPartnerOnboardingService extends PartnerOnboardingService {
@@ -19,7 +19,7 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
     private readonly deliveryRepository: PartnerOnboardingRepository,
     private readonly deliverySecurity: PartnerOnboardingSecurity,
     uploads: UploadService,
-    private readonly verificationDelivery: PartnerVerificationDeliveryService,
+    private readonly verification: PartnerVerificationService,
   ) {
     super(deliveryRepository, deliverySecurity, uploads);
   }
@@ -31,22 +31,32 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
       .toUpperCase()}`;
   }
 
-  private makeVerificationCode(): string {
-    return String(randomInt(100000, 1000000));
+  private emailOnlyMode(): boolean {
+    return (
+      (process.env.PARTNER_PHONE_VERIFICATION_MODE || 'PNV_FIRST')
+        .trim()
+        .toUpperCase() === 'EMAIL_ONLY'
+    );
   }
 
-  private exposeQaCode(code: string): string | undefined {
-    return process.env.NODE_ENV === 'test' || process.env.PLAYWRIGHT_QA === 'true'
-      ? code
-      : undefined;
-  }
-
-  override async createApplication(dto: CreatePartnerApplicationDto) {
+  override async createApplication(dto: CreatePartnerApplicationDto): Promise<any> {
     const email = dto.email?.trim().toLowerCase() || null;
     const phone = dto.phoneE164?.trim() || null;
-    if (!email && !phone) {
-      throw new BadRequestException('Email or phone number is required');
+    if (!email && !phone) throw new BadRequestException('Email or phone number is required');
+
+    if (this.emailOnlyMode()) {
+      if (!email) {
+        throw new BadRequestException(
+          'Email is required while phone verification is temporarily unavailable',
+        );
+      }
+      if (dto.verificationChannel === PartnerContactChannel.PHONE) {
+        throw new BadRequestException(
+          'Phone verification is temporarily unavailable. Use email verification.',
+        );
+      }
     }
+
     if (email) {
       const duplicate = await prisma.$queryRawUnsafe(
         `SELECT "id" FROM "PartnerApplication"
@@ -54,9 +64,7 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
            AND "status" NOT IN ('REJECTED', 'WITHDRAWN', 'EXPIRED') LIMIT 1`,
         email,
       );
-      if (duplicate[0]) {
-        throw new ConflictException('An active application already uses this email');
-      }
+      if (duplicate[0]) throw new ConflictException('An active application already uses this email');
     }
     if (phone) {
       const duplicate = await prisma.$queryRawUnsafe(
@@ -65,42 +73,29 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
            AND "status" NOT IN ('REJECTED', 'WITHDRAWN', 'EXPIRED') LIMIT 1`,
         phone,
       );
-      if (duplicate[0]) {
-        throw new ConflictException('An active application already uses this phone');
-      }
+      if (duplicate[0]) throw new ConflictException('An active application already uses this phone');
     }
 
     const id = randomUUID();
     const accessToken = this.deliverySecurity.issueAccessToken();
-    const code = this.makeVerificationCode();
-    const channel =
-      dto.verificationChannel ||
-      (email ? PartnerContactChannel.EMAIL : PartnerContactChannel.PHONE);
+    const channel = this.emailOnlyMode()
+      ? PartnerContactChannel.EMAIL
+      : dto.verificationChannel ||
+        (email ? PartnerContactChannel.EMAIL : PartnerContactChannel.PHONE);
     if (channel === PartnerContactChannel.EMAIL && !email) {
       throw new BadRequestException('Email is required for email verification');
     }
     if (channel === PartnerContactChannel.PHONE && !phone) {
       throw new BadRequestException('Phone is required for phone verification');
     }
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     const applicationNumber = this.makeApplicationNumber(dto.type);
-
-    const delivery = await this.verificationDelivery.deliver({
-      channel,
-      email,
-      phoneE164: phone,
-      code,
-      expiresAt,
-      applicationNumber,
-    });
 
     await prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
         `INSERT INTO "PartnerApplication" (
           "id", "applicationNumber", "type", "applicantName", "email",
-          "phoneE164", "accessSecretHash", "verificationChannel",
-          "verificationCodeHash", "verificationExpiresAt"
-        ) VALUES ($1, $2, $3::"PartnerApplicationType", $4, $5, $6, $7, $8, $9, $10)`,
+          "phoneE164", "accessSecretHash", "verificationChannel"
+        ) VALUES ($1, $2, $3::"PartnerApplicationType", $4, $5, $6, $7, $8)`,
         id,
         applicationNumber,
         dto.type,
@@ -109,8 +104,6 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
         phone,
         this.deliverySecurity.hash(accessToken),
         channel,
-        this.deliverySecurity.verificationHash(id, code),
-        expiresAt,
       );
       await this.deliveryRepository.writeEvent(
         tx,
@@ -122,90 +115,40 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
           message: 'Partner application started.',
         },
       );
-      await this.deliveryRepository.writeEvent(
-        tx,
-        id,
-        'CONTACT_CODE_SENT',
-        'SYSTEM',
-        {
-          message: `Verification code sent to ${channel.toLowerCase()}.`,
-          metadata: {
-            channel,
-            provider: delivery.provider,
-            deliveryId: delivery.deliveryId,
-            expiresAt: expiresAt.toISOString(),
-          },
-        },
-      );
     });
 
-    return {
-      applicationId: id,
-      applicationNumber,
-      accessToken,
-      verification: {
+    try {
+      const verification = await this.verification.requestContactCode(
+        id,
+        accessToken,
         channel,
-        expiresAt,
-        code: this.exposeQaCode(code),
-      },
-    };
+      );
+      return { applicationId: id, applicationNumber, accessToken, verification };
+    } catch (error: any) {
+      return {
+        applicationId: id,
+        applicationNumber,
+        accessToken,
+        verification: {
+          channel,
+          status: 'FAILED',
+          code: error?.response?.code || error?.safeCode || 'DELIVERY_FAILED',
+          correlationId: error?.correlationId || null,
+        },
+      };
+    }
   }
 
-  override async requestVerification(
+  override requestVerification(
     id: string,
     accessToken: string,
     channel: PartnerContactChannel,
-  ) {
-    const application = await this.deliveryRepository.requireApplication(
-      id,
-      accessToken,
-    );
-    this.deliveryRepository.assertEditable(application);
-    if (channel === PartnerContactChannel.EMAIL && !application.email) {
-      throw new BadRequestException('Application does not have an email address');
-    }
-    if (channel === PartnerContactChannel.PHONE && !application.phoneE164) {
-      throw new BadRequestException('Application does not have a phone number');
-    }
+    fallbackFromPnv = false,
+  ): Promise<any> {
+    return this.verification.requestContactCode(id, accessToken, channel, fallbackFromPnv);
+  }
 
-    const code = this.makeVerificationCode();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    const delivery = await this.verificationDelivery.deliver({
-      channel,
-      email: application.email,
-      phoneE164: application.phoneE164,
-      code,
-      expiresAt,
-      applicationNumber: application.applicationNumber,
-    });
-
-    await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(
-        `UPDATE "PartnerApplication"
-         SET "verificationChannel" = $2, "verificationCodeHash" = $3,
-             "verificationExpiresAt" = $4, "verificationAttempts" = 0,
-             "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = $1`,
-        id,
-        channel,
-        this.deliverySecurity.verificationHash(id, code),
-        expiresAt,
-      );
-      await this.deliveryRepository.writeEvent(
-        tx,
-        id,
-        'CONTACT_CODE_SENT',
-        'SYSTEM',
-        {
-          message: `Verification code sent to ${channel.toLowerCase()}.`,
-          metadata: {
-            channel,
-            provider: delivery.provider,
-            deliveryId: delivery.deliveryId,
-            expiresAt: expiresAt.toISOString(),
-          },
-        },
-      );
-    });
-    return { channel, expiresAt, code: this.exposeQaCode(code) };
+  override verifyContact(id: string, accessToken: string, code: string) {
+    return this.verification.verifyContact(id, accessToken, code);
   }
 }

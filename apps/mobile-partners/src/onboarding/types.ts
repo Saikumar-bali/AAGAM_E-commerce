@@ -33,6 +33,7 @@ export type PartnerApplication = {
   phoneE164?: string | null;
   emailVerifiedAt?: string | null;
   phoneVerifiedAt?: string | null;
+  verificationChannel?: 'EMAIL' | 'PHONE' | null;
   applicantPayload: Record<string, any>;
   actionRequests?: Record<string, any> | null;
   provisionedUserId?: string | null;
