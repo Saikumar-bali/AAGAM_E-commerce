@@ -1,0 +1,59 @@
+name: Partner Onboarding Diagnostics
+
+on:
+  push:
+    branches:
+      - phase-partner-onboarding-e2e
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/api-gateway/src/partner-onboarding/**"
+      - "apps/mobile-partners/**"
+      - "apps/admin-dashboard/**"
+      - "packages/database/prisma/migrations/20260718*/**"
+      - ".github/workflows/partner-onboarding-diagnostics.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: partner-onboarding-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    name: Compile onboarding workspaces
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_onboarding_build
+      JWT_SECRET: aagam-onboarding-ci-secret-long-enough-for-validation
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.3"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma generate --schema packages/database/prisma/schema.prisma
+      - run: npx prisma validate --schema packages/database/prisma/schema.prisma
+      - name: Compile API and mobile partner workspaces
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            npm run build --workspace @aagam/types
+            npm run build --workspace @aagam/utils
+            npm run build --workspace @aagam/database
+            npm run build --workspace @aagam/api-gateway
+            npx tsc --project apps/mobile-partners/tsconfig.json --noEmit
+          } 2>&1 | tee onboarding-build-output.log
+      - name: Upload onboarding compile diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: partner-onboarding-compile-diagnostics
+          path: onboarding-build-output.log
+          if-no-files-found: warn
+          retention-days: 14

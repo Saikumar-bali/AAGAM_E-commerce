@@ -6,9 +6,9 @@ import {
   IsNumber,
   IsObject,
   IsOptional,
-  IsPhoneNumber,
   IsString,
   Length,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -31,7 +31,7 @@ export class CreatePartnerApplicationDto {
   email?: string;
 
   @IsOptional()
-  @IsPhoneNumber(null)
+  @Matches(/^\+[1-9]\d{7,14}$/)
   phoneE164?: string;
 
   @IsOptional()
@@ -63,7 +63,7 @@ export class UpdatePartnerApplicationDto {
   email?: string;
 
   @IsOptional()
-  @IsPhoneNumber(null)
+  @Matches(/^\+[1-9]\d{7,14}$/)
   phoneE164?: string;
 
   @IsOptional()
@@ -134,8 +134,7 @@ export class ReviewPartnerApplicationDto {
 
 export class ReviewPartnerDocumentDto {
   @IsString()
-  @MinLength(2)
-  @MaxLength(80)
+  @Matches(/^(VERIFIED|REJECTED|REPLACEMENT_REQUIRED)$/)
   decision!: 'VERIFIED' | 'REJECTED' | 'REPLACEMENT_REQUIRED';
 
   @IsOptional()
