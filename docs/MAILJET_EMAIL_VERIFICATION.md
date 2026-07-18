@@ -89,7 +89,7 @@ QA variables must never be present in production.
 
 ## Automated proof
 
-The `Mailjet Partner Email Verification` workflow runs automatically on the feature branch and stacked pull request. Automatic runs:
+The `Mailjet Partner Email Verification` workflow runs automatically on the feature branch and pull request. Automatic runs:
 
 - install dependencies;
 - generate and validate Prisma;
@@ -111,6 +111,22 @@ Open **Actions → Mailjet Partner Email Verification → Run workflow** and cho
 - `skip`: does not contact Mailjet.
 
 The script prints only provider, mode, HTTP status, Mailjet message status, message ID, correlation ID and timestamp. It does not print credentials, authorization headers or OTPs.
+
+## Recorded live provider proof
+
+A repository-owner local live proof was accepted by Mailjet on 2026-07-18:
+
+```text
+provider=MAILJET
+mode=live
+httpStatus=200
+messageStatus=success
+messageId=c3b5eabf-1771-43c8-a815-c719ce4bc40c
+correlationId=aagam-mailjet-proof-1784396205325
+timestamp=2026-07-18T17:36:47.322Z
+```
+
+This proves that Mailjet accepted the authenticated request for the configured sender. Recipient inbox arrival must still be confirmed separately before production merge.
 
 ## Application behavior
 
