@@ -13,6 +13,12 @@ interface AuthState {
   googleLogin: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
+  signUp: (
+    name: string,
+    email: string,
+    pass: string,
+    role?: 'CUSTOMER',
+  ) => Promise<void>;
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -107,6 +113,34 @@ export const useAuthStore = create<AuthState>((set) => ({
         'Could not save the mobile session',
         'secure-storage',
       );
+    }
+  },
+  signUp: async (name, email, password, role = 'CUSTOMER') => {
+    if (role !== 'CUSTOMER') {
+      throw new Error(
+        'Public mobile signup is customer-only. Use Partner Applications for Rider or Store access.',
+      );
+    }
+    try {
+      set({ isLoading: true });
+      await apiClient.post('/auth/signup', {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      const response = await apiClient.post('/auth/mobile/login', {
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      const { user, access_token } = response.data;
+      if (!access_token) {
+        throw new Error('Mobile login did not return a bearer token');
+      }
+      await persistAuth(user, access_token);
+      set({ user, token: access_token, isLoading: false });
+    } catch (error: any) {
+      set({ isLoading: false });
+      throw mobileAuthError(error, 'Customer registration failed', 'backend-api');
     }
   },
   logout: async () => {
