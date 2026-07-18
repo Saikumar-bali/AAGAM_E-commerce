@@ -34,7 +34,6 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
       })
       .catch(() => {
         if (!active) return;
-        // Fail closed: do not offer a verification method whose availability is unknown.
         setPhoneAvailable(false);
         setChannel('EMAIL');
       });
@@ -42,6 +41,13 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
       active = false;
     };
   }, []);
+
+  const continueToVerification = () => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'VerifyApplication' }],
+    });
+  };
 
   const submit = async () => {
     if (!name.trim()) {
@@ -59,6 +65,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
       );
       return;
     }
+
     try {
       await start({
         type,
@@ -67,8 +74,16 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
         phoneE164: phone.trim() || undefined,
         verificationChannel: channel,
       });
-      navigation.replace('VerifyApplication');
+      continueToVerification();
     } catch (error: any) {
+      const session = usePartnerOnboardingStore.getState();
+      if (session.applicationId && session.accessToken) {
+        // Creation and OTP delivery may already have succeeded even when the immediate
+        // application refresh failed. Preserve the protected session and let the applicant
+        // enter the delivered code instead of leaving them on the creation form.
+        continueToVerification();
+        return;
+      }
       Alert.alert('Application could not be started', error.message);
     }
   };
