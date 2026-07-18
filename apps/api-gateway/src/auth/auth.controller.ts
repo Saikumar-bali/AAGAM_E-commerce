@@ -32,13 +32,9 @@ export class AuthController {
   @Post('signup')
   @Throttle({ short: { limit: AUTH_LIMIT, ttl: 60000 } })
   async signUp(@Body() signupDto: SignupDto) {
-    return this.authService.signUp(signupDto.email, signupDto.password, signupDto.name, signupDto.role);
+    return this.authService.signUp(signupDto.email, signupDto.password, signupDto.name);
   }
 
-  /**
-   * Browser login is cookie-only. The JWT is never returned to JavaScript,
-   * which preserves the protection of the HttpOnly session cookie.
-   */
   @Post('login')
   @Throttle({ short: { limit: AUTH_LIMIT, ttl: 60000 } })
   async signIn(@Body() loginDto: LoginDto, @Res({ passthrough: true }) response: Response) {
@@ -47,10 +43,6 @@ export class AuthController {
     return { message: 'Logged in successfully', user: result.user };
   }
 
-  /**
-   * Native applications cannot use a browser HttpOnly cookie jar reliably.
-   * They receive a bearer token and persist it in the platform Keychain.
-   */
   @Post('mobile/login')
   @Throttle({ short: { limit: AUTH_LIMIT, ttl: 60000 } })
   async mobileSignIn(@Body() loginDto: LoginDto) {
