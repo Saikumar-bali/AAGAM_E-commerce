@@ -4,7 +4,11 @@ const AUTH_FILE = './.auth/customer.json';
 const workers = Number.parseInt(process.env.PLAYWRIGHT_WORKERS || '4', 10);
 
 export default defineConfig({
-  testDir: './tests',
+  // Keep setup fixtures under tests/ while also executing product lifecycle
+  // scenarios stored under e2e/. Explicit project patterns prevent unrelated
+  // source files from being collected when the common root is used.
+  testDir: '.',
+  outputDir: '../../docs/qa/phase-4/playwright-test-results',
   timeout: 120000,
   expect: { timeout: 15000 },
   fullyParallel: false,
@@ -14,6 +18,7 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['html', { outputFolder: 'playwright-report' }],
+    ['json', { outputFile: '../../docs/qa/phase-4/playwright-results.json' }],
   ],
   use: {
     baseURL: 'http://localhost:3001',
@@ -27,7 +32,7 @@ export default defineConfig({
   projects: [
     {
       name: 'setup',
-      testMatch: /phase-[68].*\.setup\.ts/,
+      testMatch: /[\\/]tests[\\/]phase-[68].*\.setup\.ts$/,
     },
     {
       name: 'chromium',
@@ -37,7 +42,7 @@ export default defineConfig({
         storageState: AUTH_FILE,
       },
       dependencies: ['setup'],
-      testMatch: /.*\.spec\.ts$/,
+      testMatch: /[\\/](tests|e2e)[\\/].*\.spec\.ts$/,
     },
   ],
   webServer: {

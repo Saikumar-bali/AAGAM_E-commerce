@@ -28,6 +28,20 @@ export class AuthService {
     return [...new Set(audiences)];
   }
 
+  private async assertAccountActive(userId: string) {
+    const rows = await prisma.$queryRawUnsafe(
+      'SELECT "accountStatus" FROM "User" WHERE "id" = $1 LIMIT 1',
+      userId,
+    );
+    const status = rows[0]?.accountStatus || 'ACTIVE';
+    if (status === 'PENDING_ACTIVATION') {
+      throw new UnauthorizedException('Account activation is required');
+    }
+    if (status !== 'ACTIVE') {
+      throw new UnauthorizedException('Account is not active');
+    }
+  }
+
   private buildAuthResponse(user: { id: string; email: string; role: Role; name: string | null; avatarUrl?: string | null }) {
     const token = jwt.sign(
       { sub: user.id, email: user.email, role: user.role },
@@ -47,13 +61,9 @@ export class AuthService {
     };
   }
 
-  async signUp(email: string, pass: string, name: string, role: string = 'CUSTOMER') {
-    const requestedRole = (role || 'CUSTOMER').toUpperCase();
-    if (requestedRole !== Role.CUSTOMER) {
-      throw new BadRequestException('Public signup is customer-only. Riders and store partners must apply through the partner onboarding flow.');
-    }
-
-    const existing = await prisma.user.findUnique({ where: { email } });
+  async signUp(email: string, pass: string, name: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) throw new ConflictException('User already exists');
 
     const hashedPassword = await bcrypt.hash(pass, 10);
@@ -61,8 +71,8 @@ export class AuthService {
     try {
       const user = await prisma.user.create({
         data: {
-          email,
-          name,
+          email: normalizedEmail,
+          name: name.trim(),
           password: hashedPassword,
           role: Role.CUSTOMER,
         },
@@ -82,27 +92,18 @@ export class AuthService {
     if (process.env.NODE_ENV === 'development') {
       console.log('SignIn Attempt: Authentication request received');
     }
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      console.log('SignIn Error: Invalid credentials');
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    if (!user.password) {
-      console.log('SignIn Error: Invalid credentials (no password)');
+    const user = await prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+    });
+    if (!user || !user.password) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const isMatch = await bcrypt.compare(pass, user.password);
     if (!isMatch) {
-      console.log('SignIn Error: Password verification failed');
       throw new UnauthorizedException('Invalid credentials');
     }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('SignIn Success: User authenticated successfully');
-    }
-
+    await this.assertAccountActive(user.id);
     return this.buildAuthResponse(user);
   }
 
@@ -129,7 +130,7 @@ export class AuthService {
         audience: audiences,
       });
       payload = ticket.getPayload() || {};
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('Invalid Google token');
     }
 
@@ -150,6 +151,7 @@ export class AuthService {
     const existingByGoogleSub = await prisma.user.findFirst({ where: { googleSub: payload.sub } });
 
     if (existingByGoogleSub) {
+      await this.assertAccountActive(existingByGoogleSub.id);
       const updated = await prisma.user.update({
         where: { id: existingByGoogleSub.id },
         data: { name, avatarUrl, emailVerified },
@@ -159,6 +161,7 @@ export class AuthService {
 
     const existingByEmail = await prisma.user.findUnique({ where: { email } });
     if (existingByEmail) {
+      await this.assertAccountActive(existingByEmail.id);
       const linkedUser = await prisma.user.update({
         where: { id: existingByEmail.id },
         data: {
@@ -193,9 +196,6 @@ export class AuthService {
   }
 
   async updateFcmToken(userId: string, token: string) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[AuthService] Updating FCM token for user ${userId}`);
-    }
     await prisma.user.update({ where: { id: userId }, data: { fcmToken: token } });
     return { message: 'FCM token updated' };
   }

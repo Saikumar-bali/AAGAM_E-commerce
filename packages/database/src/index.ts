@@ -1,13 +1,34 @@
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 import * as dotenv from 'dotenv'
 import * as path from 'path'
 
-// Load environment variables from the root .env file
 dotenv.config({ path: path.join(__dirname, '../../../.env') })
 
-export const prisma = new PrismaClient()
+type RawQuery = <T = any>(query: string, ...values: any[]) => Prisma.PrismaPromise<T>
+type AagamTransactionClient = Omit<Prisma.TransactionClient, '$queryRawUnsafe'> & {
+  $queryRawUnsafe: RawQuery
+}
+type UnwrapPrismaTuple<T extends readonly unknown[]> = {
+  [K in keyof T]: T[K] extends Prisma.PrismaPromise<infer U> ? U : never
+}
+type AagamPrismaClient = Omit<PrismaClient, '$queryRawUnsafe' | '$transaction'> & {
+  $queryRawUnsafe: RawQuery
+  $transaction<R>(
+    fn: (client: AagamTransactionClient) => Promise<R>,
+    options?: {
+      maxWait?: number
+      timeout?: number
+      isolationLevel?: Prisma.TransactionIsolationLevel
+    },
+  ): Promise<R>
+  $transaction<P extends readonly Prisma.PrismaPromise<any>[]>(
+    operations: [...P],
+    options?: { isolationLevel?: Prisma.TransactionIsolationLevel },
+  ): Promise<UnwrapPrismaTuple<P>>
+}
 
-// Stable enum-style exports used across services.
+export const prisma = new PrismaClient() as AagamPrismaClient
+
 export const Role = {
   CUSTOMER: 'CUSTOMER',
   RIDER: 'RIDER',

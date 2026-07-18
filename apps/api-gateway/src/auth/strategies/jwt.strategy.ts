@@ -9,19 +9,22 @@ import { prisma } from '@aagam/database';
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private configService: ConfigService) {
     super({
+      // An explicit Authorization header represents the caller's chosen API or
+      // mobile credential and must win over any ambient browser cookie. This
+      // prevents a stale web session from shadowing a valid Rider/Store token.
       jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
         (request: Request) => {
           const token = request?.cookies?.access_token;
           if (process.env.NODE_ENV === 'development') {
             if (token) {
               console.log('[JwtStrategy] Token found in cookie');
             } else {
-              console.log('[JwtStrategy] No token in cookie, checking auth header');
+              console.log('[JwtStrategy] No token in cookie or auth header');
             }
           }
           return token;
         },
-        ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('JWT_SECRET') || (() => { throw new Error('JWT_SECRET missing'); })(),

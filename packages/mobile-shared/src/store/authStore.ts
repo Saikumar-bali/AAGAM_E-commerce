@@ -13,31 +13,45 @@ interface AuthState {
   googleLogin: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
-  signUp: (name: string, email: string, pass: string, role: string) => Promise<void>;
+  signUp: (
+    name: string,
+    email: string,
+    pass: string,
+    role?: 'CUSTOMER',
+  ) => Promise<void>;
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
     promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)),
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms),
+    ),
   ]);
 }
 
 const KEYCHAIN_TIMEOUT = 5000;
 
 async function persistAuth(user: UserType, token: string) {
-  await withTimeout(Keychain.setGenericPassword('auth', JSON.stringify({ user, token })), KEYCHAIN_TIMEOUT);
+  await withTimeout(
+    Keychain.setGenericPassword('auth', JSON.stringify({ user, token })),
+    KEYCHAIN_TIMEOUT,
+  );
   setAuthToken(token);
 }
 
 async function clearLocalAuth() {
-  await withTimeout(Keychain.resetGenericPassword(), KEYCHAIN_TIMEOUT).catch(() => undefined);
+  await withTimeout(Keychain.resetGenericPassword(), KEYCHAIN_TIMEOUT).catch(
+    () => undefined,
+  );
   setAuthToken(null);
 }
 
 function mobileAuthError(error: any, fallback: string, stage: string) {
   const rawMessage = error?.response?.data?.message || error?.message;
-  const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage || fallback;
+  const message = Array.isArray(rawMessage)
+    ? rawMessage.join(', ')
+    : rawMessage || fallback;
   const wrapped = new Error(message) as Error & {
     code?: string | number;
     status?: number;
@@ -60,14 +74,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email, password) => {
     try {
       set({ isLoading: true });
-      const response = await apiClient.post('/auth/mobile/login', { email, password });
+      const response = await apiClient.post('/auth/mobile/login', {
+        email,
+        password,
+      });
       const { user, access_token } = response.data;
-      if (!access_token) throw new Error('Mobile login did not return a bearer token');
+      if (!access_token) {
+        throw new Error('Mobile login did not return a bearer token');
+      }
       await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
       set({ isLoading: false });
-      throw new Error(error.response?.data?.message || error.message || 'Login failed');
+      throw mobileAuthError(error, 'Login failed', 'backend-api');
     }
   },
   googleLogin: async (idToken) => {
@@ -82,32 +101,50 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     try {
       const { user, access_token } = response.data;
-      if (!access_token) throw new Error('Mobile Google login did not return a bearer token');
+      if (!access_token) {
+        throw new Error('Mobile Google login did not return a bearer token');
+      }
       await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
       set({ isLoading: false });
-      throw mobileAuthError(error, 'Could not save the mobile session', 'secure-storage');
+      throw mobileAuthError(
+        error,
+        'Could not save the mobile session',
+        'secure-storage',
+      );
     }
   },
-  signUp: async (name, email, password, role) => {
+  signUp: async (name, email, password, role = 'CUSTOMER') => {
+    if (role !== 'CUSTOMER') {
+      throw new Error(
+        'Public mobile signup is customer-only. Use Partner Applications for Rider or Store access.',
+      );
+    }
     try {
       set({ isLoading: true });
-      await apiClient.post('/auth/signup', { name, email, password, role });
-      const response = await apiClient.post('/auth/mobile/login', { email, password });
+      await apiClient.post('/auth/signup', {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      const response = await apiClient.post('/auth/mobile/login', {
+        email: email.trim().toLowerCase(),
+        password,
+      });
       const { user, access_token } = response.data;
-      if (!access_token) throw new Error('Mobile login did not return a bearer token');
+      if (!access_token) {
+        throw new Error('Mobile login did not return a bearer token');
+      }
       await persistAuth(user, access_token);
       set({ user, token: access_token, isLoading: false });
     } catch (error: any) {
       set({ isLoading: false });
-      throw new Error(error.response?.data?.message || error.message || 'Registration failed');
+      throw mobileAuthError(error, 'Customer registration failed', 'backend-api');
     }
   },
   logout: async () => {
     try {
-      // Keep authentication active until the current device subscription has
-      // been deactivated. Other devices for the user are left untouched.
       await disableCurrentMobilePushSubscription().catch(() => undefined);
       await apiClient.post('/auth/logout').catch(() => undefined);
     } finally {
@@ -117,7 +154,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   initialize: async () => {
     try {
-      const credentials = await withTimeout(Keychain.getGenericPassword(), KEYCHAIN_TIMEOUT);
+      const credentials = await withTimeout(
+        Keychain.getGenericPassword(),
+        KEYCHAIN_TIMEOUT,
+      );
       if (credentials) {
         const { token } = JSON.parse(credentials.password);
         setAuthToken(token);
