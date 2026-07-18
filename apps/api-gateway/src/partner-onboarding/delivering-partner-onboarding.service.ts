@@ -121,7 +121,7 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
     accessToken: string,
     channel: PartnerContactChannel,
     fallbackFromPnv = false,
-  ) {
+  ): Promise<any> {
     return this.verification.requestContactCode(id, accessToken, channel, fallbackFromPnv);
   }
 
