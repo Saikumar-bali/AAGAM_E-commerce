@@ -179,14 +179,12 @@ export function StatusPill({ status }: { status: string }) {
         : '#0369A1';
   return (
     <View style={[styles.pill, { backgroundColor: background }]}>
-      <Text style={[styles.pillText, { color }]}>
+      <Text style={[styles.pillText, { color }]}> 
         {normalized.replaceAll('_', ' ')}
       </Text>
     </View>
   );
 }
-
-export const uiStyles = styles;
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.canvas },
