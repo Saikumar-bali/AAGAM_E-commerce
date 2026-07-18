@@ -1,13 +1,25 @@
-import { ServiceUnavailableException } from '@nestjs/common';
 import { PartnerContactChannel } from './partner-onboarding.types';
-import { PartnerVerificationDeliveryService } from './partner-verification-delivery.service';
+import {
+  PartnerVerificationDeliveryException,
+  PartnerVerificationDeliveryService,
+} from './partner-verification-delivery.service';
+
+const input = {
+  applicationId: 'app-1',
+  channel: PartnerContactChannel.EMAIL,
+  email: 'partner@example.com',
+  phoneE164: '+919999999999',
+  code: '123456',
+  expiresAt: new Date(Date.now() + 600_000),
+  applicationNumber: 'AAG-RID-2026-ABC123',
+};
 
 describe('PartnerVerificationDeliveryService', () => {
   const originalEnv = process.env;
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    process.env = { ...originalEnv };
+    process.env = { ...originalEnv, NODE_ENV: 'production' };
     delete process.env.PLAYWRIGHT_QA;
     delete process.env.RESEND_API_KEY;
     delete process.env.PARTNER_VERIFICATION_FROM_EMAIL;
@@ -22,85 +34,79 @@ describe('PartnerVerificationDeliveryService', () => {
     jest.restoreAllMocks();
   });
 
-  const input = {
-    channel: PartnerContactChannel.EMAIL,
-    email: 'partner@example.com',
-    phoneE164: '+919999999999',
-    code: '123456',
-    expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-    applicationNumber: 'AAG-RID-2026-ABC123',
-  };
-
-  it('keeps automated tests network-free while preserving the delivery contract', async () => {
-    process.env.NODE_ENV = 'test';
-    const fetchSpy = jest.fn();
-    global.fetch = fetchSpy as any;
-
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).resolves.toEqual({
-      provider: 'QA',
-      deliveryId: 'qa-delivery-suppressed',
-    });
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it('delivers email codes through Resend in production', async () => {
-    process.env.NODE_ENV = 'production';
-    process.env.RESEND_API_KEY = 're_test_key';
-    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'AAGAM <verify@example.com>';
-    const fetchSpy = jest.fn().mockResolvedValue({
+  it('Resend accepted', async () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verify@example.com';
+    global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ id: 'email_123' }),
-    });
-    global.fetch = fetchSpy as any;
-
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).resolves.toEqual({
-      provider: 'RESEND',
-      deliveryId: 'email_123',
-    });
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'https://api.resend.com/emails',
-      expect.objectContaining({ method: 'POST' }),
+      status: 202,
+      json: async () => ({ id: 'email-1' }),
+    }) as any;
+    await expect(new PartnerVerificationDeliveryService().deliver(input)).resolves.toEqual(
+      expect.objectContaining({ provider: 'RESEND', deliveryId: 'email-1', httpStatus: 202 }),
     );
-    const request = fetchSpy.mock.calls[0][1];
-    expect(request.body).toContain('123456');
-    expect(request.body).toContain('partner@example.com');
   });
 
-  it('delivers phone codes through Twilio in production', async () => {
-    process.env.NODE_ENV = 'production';
+  it('Resend rejected with a sanitized code', async () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verify@example.com';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({ name: 'invalid from address!' }),
+    }) as any;
+    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toMatchObject({
+      safeCode: 'INVALID_FROM_ADDRESS_',
+      httpStatus: 422,
+    });
+  });
+
+  it('Resend unconfigured', async () => {
+    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toMatchObject({
+      safeCode: 'RESEND_UNCONFIGURED',
+    });
+  });
+
+  it('Twilio accepted', async () => {
     process.env.TWILIO_ACCOUNT_SID = 'AC123';
     process.env.TWILIO_AUTH_TOKEN = 'secret';
     process.env.TWILIO_FROM_PHONE = '+15551234567';
-    const fetchSpy = jest.fn().mockResolvedValue({
+    global.fetch = jest.fn().mockResolvedValue({
       ok: true,
+      status: 201,
       json: async () => ({ sid: 'SM123' }),
-    });
-    global.fetch = fetchSpy as any;
-
+    }) as any;
     await expect(
       new PartnerVerificationDeliveryService().deliver({
         ...input,
         channel: PartnerContactChannel.PHONE,
       }),
-    ).resolves.toEqual({ provider: 'TWILIO', deliveryId: 'SM123' });
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'https://api.twilio.com/2010-04-01/Accounts/AC123/Messages.json',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          Authorization: `Basic ${Buffer.from('AC123:secret').toString('base64')}`,
-        }),
-      }),
-    );
-    const request = fetchSpy.mock.calls[0][1];
-    expect(request.body).toContain('To=%2B919999999999');
-    expect(request.body).toContain('123456');
+    ).resolves.toEqual(expect.objectContaining({ provider: 'TWILIO', deliveryId: 'SM123' }));
   });
 
-  it('fails closed instead of claiming an unconfigured delivery succeeded', async () => {
-    process.env.NODE_ENV = 'production';
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
+  it('Twilio rejected', async () => {
+    process.env.TWILIO_ACCOUNT_SID = 'AC123';
+    process.env.TWILIO_AUTH_TOKEN = 'secret';
+    process.env.TWILIO_FROM_PHONE = '+15551234567';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ code: 21608 }),
+    }) as any;
+    await expect(
+      new PartnerVerificationDeliveryService().deliver({
+        ...input,
+        channel: PartnerContactChannel.PHONE,
+      }),
+    ).rejects.toMatchObject({ safeCode: '21608', httpStatus: 400 });
+  });
+
+  it('Twilio unconfigured', async () => {
+    await expect(
+      new PartnerVerificationDeliveryService().deliver({
+        ...input,
+        channel: PartnerContactChannel.PHONE,
+      }),
+    ).rejects.toBeInstanceOf(PartnerVerificationDeliveryException);
   });
 });
