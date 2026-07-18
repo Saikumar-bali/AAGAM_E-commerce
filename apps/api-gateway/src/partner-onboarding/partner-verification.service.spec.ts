@@ -107,6 +107,12 @@ describe('PartnerVerificationService regression contracts', () => {
       FIREBASE_PROJECT_NUMBER: '123',
     };
     delete process.env.PLAYWRIGHT_QA;
+    delete process.env.PARTNER_EMAIL_PROVIDER;
+    delete process.env.MAILJET_API_KEY;
+    delete process.env.MAILJET_SECRET_KEY;
+    delete process.env.RESEND_API_KEY;
+    delete process.env.PARTNER_VERIFICATION_FROM_EMAIL;
+    delete process.env.PARTNER_VERIFICATION_FROM_NAME;
     (prisma.$queryRawUnsafe as jest.Mock).mockReset();
     (prisma.$executeRawUnsafe as jest.Mock).mockReset();
   });
@@ -123,17 +129,47 @@ describe('PartnerVerificationService regression contracts', () => {
     ).resolves.toMatchObject({ code: '424242', provider: VerificationProvider.QA });
   });
 
+  it('creates a Mailjet challenge when Mailjet is the selected production email provider', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.PARTNER_EMAIL_PROVIDER = 'MAILJET';
+    process.env.MAILJET_API_KEY = 'mailjet-public';
+    process.env.MAILJET_SECRET_KEY = 'mailjet-secret';
+    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verified@example.com';
+    const { service, challenges } = build({
+      delivery: {
+        deliver: jest.fn().mockResolvedValue({
+          provider: VerificationProvider.MAILJET,
+          deliveryId: 'mailjet-message-1',
+          correlationId: 'corr-mailjet',
+          httpStatus: 200,
+        }),
+      },
+    });
+
+    await expect(
+      service.requestContactCode('app-1', 'a'.repeat(40), PartnerContactChannel.EMAIL),
+    ).resolves.toMatchObject({ provider: VerificationProvider.MAILJET });
+    expect(challenges.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: VerificationMethod.EMAIL_CODE,
+        provider: VerificationProvider.MAILJET,
+      }),
+    );
+  });
+
   it('does not expose a verification code in production', async () => {
     process.env.NODE_ENV = 'production';
-    process.env.RESEND_API_KEY = 're_test';
-    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verify@example.com';
+    process.env.PARTNER_EMAIL_PROVIDER = 'MAILJET';
+    process.env.MAILJET_API_KEY = 'mailjet-public';
+    process.env.MAILJET_SECRET_KEY = 'mailjet-secret';
+    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verified@example.com';
     const { service } = build({
       delivery: {
         deliver: jest.fn().mockResolvedValue({
-          provider: VerificationProvider.RESEND,
-          deliveryId: 'email-1',
+          provider: VerificationProvider.MAILJET,
+          deliveryId: 'mailjet-message-1',
           correlationId: 'corr-1',
-          httpStatus: 202,
+          httpStatus: 200,
         }),
       },
     });
@@ -145,14 +181,16 @@ describe('PartnerVerificationService regression contracts', () => {
     expect(result).not.toHaveProperty('code');
   });
 
-  it('failed resend keeps the previous valid challenge active', async () => {
+  it('failed Mailjet delivery keeps the previous valid challenge active', async () => {
     process.env.NODE_ENV = 'production';
-    process.env.RESEND_API_KEY = 're_test';
-    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verify@example.com';
+    process.env.PARTNER_EMAIL_PROVIDER = 'MAILJET';
+    process.env.MAILJET_API_KEY = 'mailjet-public';
+    process.env.MAILJET_SECRET_KEY = 'mailjet-secret';
+    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verified@example.com';
     const failure = new PartnerVerificationDeliveryException(
       'Provider rejected',
-      VerificationProvider.RESEND,
-      'RESEND_REJECTED',
+      VerificationProvider.MAILJET,
+      'MAILJET_REJECTED',
       'corr-1',
       422,
     );
@@ -246,15 +284,28 @@ describe('PartnerVerificationService regression contracts', () => {
     );
   });
 
-  it('readiness output contains no secrets or applicant contacts', async () => {
+  it('readiness reports the active provider without exposing credentials or contacts', async () => {
     process.env.NODE_ENV = 'production';
+    process.env.PARTNER_EMAIL_PROVIDER = 'MAILJET';
+    process.env.MAILJET_API_KEY = 'mailjet-public-secret-like';
+    process.env.MAILJET_SECRET_KEY = 'mailjet-private-super-secret';
+    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verified@example.com';
     process.env.RESEND_API_KEY = 'resend-super-secret';
-    process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'verify@example.com';
     process.env.TWILIO_ACCOUNT_SID = 'ACsecret';
     process.env.TWILIO_AUTH_TOKEN = 'twilio-super-secret';
     process.env.TWILIO_FROM_PHONE = '+15551234567';
     const { service } = build();
-    const output = JSON.stringify(await service.readiness());
+    const readiness = await service.readiness();
+    expect(readiness.activeEmailProvider).toBe(VerificationProvider.MAILJET);
+    expect(readiness.providers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ provider: VerificationProvider.MAILJET, configured: true }),
+        expect.objectContaining({ provider: VerificationProvider.RESEND, configured: true }),
+      ]),
+    );
+    const output = JSON.stringify(readiness);
+    expect(output).not.toContain('mailjet-public-secret-like');
+    expect(output).not.toContain('mailjet-private-super-secret');
     expect(output).not.toContain('resend-super-secret');
     expect(output).not.toContain('twilio-super-secret');
     expect(output).not.toContain('partner@example.com');
