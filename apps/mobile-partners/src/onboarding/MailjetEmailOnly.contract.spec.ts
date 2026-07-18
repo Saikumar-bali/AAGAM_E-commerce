@@ -8,7 +8,9 @@ const screen = fs.readFileSync(
 
 describe('Mailjet email-only onboarding contracts', () => {
   it('loads backend verification capabilities before offering phone verification', () => {
-    expect(screen).toContain("apiClient.get('/partner-onboarding/verification-capabilities')");
+    expect(screen).toMatch(
+      /apiClient\s*\.get\('\/partner-onboarding\/verification-capabilities'\)/,
+    );
     expect(screen).toContain("data?.mode !== 'EMAIL_ONLY'");
     expect(screen).toContain('setPhoneAvailable(enabled)');
   });
@@ -26,6 +28,6 @@ describe('Mailjet email-only onboarding contracts', () => {
 
   it('refuses a stale phone selection before creating the application', () => {
     expect(screen).toContain("channel === 'PHONE' && (!phoneAvailable || !phone.trim())");
-    expect(screen).toContain("verificationChannel: channel");
+    expect(screen).toContain('verificationChannel: channel');
   });
 });
