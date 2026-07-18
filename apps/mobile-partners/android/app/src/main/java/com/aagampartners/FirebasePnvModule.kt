@@ -48,8 +48,8 @@ class FirebasePnvModule(
 
   @OptIn(ExperimentalDigitalCredentialApi::class)
   @ReactMethod
-  fun startPnvVerification(nonce: String, privacyPolicyUrl: String, promise: Promise) {
-    val activity = currentActivity
+  fun startPnvVerification(nonce: String, promise: Promise) {
+    val activity = reactContext.currentActivity
     if (activity == null) {
       promise.reject("PNV_ACTIVITY_MISSING", "Phone verification requires an active screen")
       return
@@ -59,7 +59,7 @@ class FirebasePnvModule(
       return
     }
 
-    pnv.getDigitalCredentialPayload(nonce, privacyPolicyUrl)
+    pnv.getDigitalCredentialPayload(nonce)
       .addOnSuccessListener { payload ->
         CoroutineScope(Dispatchers.Main).launch {
           try {
@@ -70,7 +70,10 @@ class FirebasePnvModule(
             val response = CredentialManager.create(activity).getCredential(activity, request)
             val credential = response.credential
             if (credential !is DigitalCredential) {
-              promise.reject("PNV_UNEXPECTED_CREDENTIAL", "Phone verification returned an unsupported credential")
+              promise.reject(
+                "PNV_UNEXPECTED_CREDENTIAL",
+                "Phone verification returned an unsupported credential",
+              )
               return@launch
             }
             val dcApiResponse = JSONObject(credential.credentialJson)
@@ -106,7 +109,10 @@ class FirebasePnvModule(
   @ReactMethod
   fun enablePnvTestSession(testNumberId: String, promise: Promise) {
     if (!BuildConfig.DEBUG) {
-      promise.reject("PNV_TEST_SESSION_FORBIDDEN", "PNV test sessions are disabled in release builds")
+      promise.reject(
+        "PNV_TEST_SESSION_FORBIDDEN",
+        "PNV test sessions are disabled in release builds",
+      )
       return
     }
     if (testNumberId.isBlank()) {

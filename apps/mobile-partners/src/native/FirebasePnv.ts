@@ -6,7 +6,7 @@ type Verification = { token: string };
 const native = NativeModules.AagamFirebasePnv as
   | {
       isPnvSupported(): Promise<Support>;
-      startPnvVerification(nonce: string, privacyPolicyUrl: string): Promise<Verification>;
+      startPnvVerification(nonce: string): Promise<Verification>;
       enablePnvTestSession(testNumberId: string): Promise<boolean>;
     }
   | undefined;
@@ -19,16 +19,13 @@ export const FirebasePnv = {
     return native.isPnvSupported();
   },
 
-  async startPnvVerification(
-    nonce: string,
-    privacyPolicyUrl = 'https://aagam.accesscam.org/privacy',
-  ): Promise<Verification> {
+  async startPnvVerification(nonce: string): Promise<Verification> {
     if (Platform.OS !== 'android' || !native) {
       throw Object.assign(new Error('Firebase PNV is available only on supported Android devices'), {
         code: 'PNV_UNSUPPORTED',
       });
     }
-    return native.startPnvVerification(nonce, privacyPolicyUrl);
+    return native.startPnvVerification(nonce);
   },
 
   async enablePnvTestSession(testNumberId: string): Promise<boolean> {
