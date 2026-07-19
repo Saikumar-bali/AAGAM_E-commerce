@@ -16,6 +16,39 @@ export class StoreController {
     return this.storeService.findAll();
   }
 
+  @Get('delivery-zones')
+  async getDeliveryZones() {
+    return this.storeService.getDeliveryZones(false);
+  }
+
+  @Get('delivery-zones/admin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async getAdminDeliveryZones() {
+    return this.storeService.getDeliveryZones(true);
+  }
+
+  @Post('delivery-zones')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async createDeliveryZone(@Body('name') name: string) {
+    return this.storeService.createDeliveryZone(name);
+  }
+
+  @Patch('delivery-zones/reorder')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async reorderDeliveryZones(@Body('ids') ids: string[]) {
+    return this.storeService.reorderDeliveryZones(Array.isArray(ids) ? ids : []);
+  }
+
+  @Patch('delivery-zones/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async updateDeliveryZone(@Param('id') id: string, @Body() body: { name?: string; isActive?: boolean }) {
+    return this.storeService.updateDeliveryZone(id, body);
+  }
+
   @Get('my-stores')
   @Get('mine')
   @UseGuards(JwtAuthGuard, RolesGuard)

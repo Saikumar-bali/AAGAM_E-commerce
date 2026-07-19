@@ -45,7 +45,7 @@ const LoginScreen = ({ navigation }: any) => {
   const requestCode = async () => {
     const normalized = phoneForApi(phone);
     if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
-      Alert.alert('Valid mobile required', 'Enter your approved mobile number.');
+      Toast.show({ type: 'error', text1: 'Valid mobile required', text2: 'Enter your approved mobile number.' });
       return;
     }
     setLoading(true);
@@ -78,7 +78,7 @@ const LoginScreen = ({ navigation }: any) => {
       Toast.show({ type: 'success', text1: 'Partner workspace ready', text2: 'Signed in securely.' });
     } catch (error: any) {
       setCode('');
-      Alert.alert('Code not verified', error.message);
+      Toast.show({ type: 'error', text1: 'Code not verified', text2: error.message });
     } finally {
       setLoading(false);
     }

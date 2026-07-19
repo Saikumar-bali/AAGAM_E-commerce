@@ -16,6 +16,11 @@ export class AdminProductController {
     return this.productService.findAdminAll();
   }
 
+  @Patch('reorder')
+  async reorder(@Body('ids') ids: string[]) {
+    return this.productService.reorderProducts(Array.isArray(ids) ? ids : []);
+  }
+
   @Patch(':id/active')
   async setActive(@Param('id') id: string, @Body('isActive') isActive: boolean) {
     return this.productService.setActive(id, Boolean(isActive));

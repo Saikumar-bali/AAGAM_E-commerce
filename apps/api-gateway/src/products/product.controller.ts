@@ -29,6 +29,13 @@ export class ProductController {
     return this.productService.createCategory(name);
   }
 
+  @Patch('categories/reorder')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async reorderCategories(@Body('ids') ids: string[]) {
+    return this.productService.reorderCategories(Array.isArray(ids) ? ids : []);
+  }
+
   @Patch('categories/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)

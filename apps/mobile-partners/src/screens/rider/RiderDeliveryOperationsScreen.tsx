@@ -13,6 +13,7 @@ import {
   ShieldCheck,
 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
+import Toast from 'react-native-toast-message';
 import {
   ActivityIndicator,
   Alert,
@@ -120,9 +121,9 @@ export const RiderDeliveryOperationsScreen = () => {
       await task();
       await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
       await queryClient.invalidateQueries({ queryKey: SUMMARY_KEY });
-      Alert.alert(successTitle, successMessage);
+      Toast.show({ type: 'success', text1: successTitle, text2: successMessage });
     } catch (error) {
-      Alert.alert('Operation failed', errorMessage(error));
+      Toast.show({ type: 'error', text1: 'Operation failed', text2: errorMessage(error) });
     } finally {
       setBusy(null);
     }
@@ -131,11 +132,11 @@ export const RiderDeliveryOperationsScreen = () => {
   const recordPod = () => {
     if (!activeJob || !summary) return;
     if (otpCode.trim().length !== 6) {
-      Alert.alert('Enter the customer code', 'A valid 6-digit OTP/PIN is required.');
+      Toast.show({ type: 'error', text1: 'Enter the customer code', text2: 'A valid 6-digit OTP/PIN is required.' });
       return;
     }
     if (!riderConfirmed) {
-      Alert.alert('Confirm the handoff', 'Confirm that the parcel was handed to the customer.');
+      Toast.show({ type: 'error', text1: 'Confirm the handoff', text2: 'Confirm that the parcel was handed to the customer.' });
       return;
     }
 

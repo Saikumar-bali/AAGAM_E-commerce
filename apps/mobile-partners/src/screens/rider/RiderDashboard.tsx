@@ -21,6 +21,7 @@ import {
   XCircle,
 } from 'lucide-react-native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Toast from 'react-native-toast-message';
 import {
   ActivityIndicator,
   Alert,
@@ -198,13 +199,13 @@ function CurrentDelivery({
 
   const openPoint = (latitude?: number | null, longitude?: number | null, label = 'Location') => {
     if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-      Alert.alert('Location unavailable', `${label} coordinates are not available.`);
+      Toast.show({ type: 'error', text1: 'Location unavailable', text2: `${label} coordinates are not available.` });
       return;
     }
     const destination = `${latitude},${longitude}`;
     Linking.openURL(
       `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`,
-    ).catch(() => Alert.alert('Navigation unavailable', 'Could not open the maps application.'));
+    ).catch(() => Toast.show({ type: 'error', text1: 'Navigation unavailable', text2: 'Could not open the maps application.' }));
   };
 
   return (
@@ -378,7 +379,7 @@ export const RiderDashboard = () => {
         deliveryJobId: activeJob.id,
         status: activeJob.status,
       }).catch((error) => {
-        Alert.alert('Tracking unavailable', error?.response?.data?.message || error?.message || 'Could not start rider tracking.');
+        Toast.show({ type: 'error', text1: 'Tracking unavailable', text2: error?.response?.data?.message || error?.message || 'Could not start rider tracking.' });
       });
       return;
     }
@@ -392,16 +393,16 @@ export const RiderDashboard = () => {
     mutationFn: riderService.acceptOffer,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
-      Alert.alert('Offer accepted', 'This delivery is now assigned to you.');
+      Toast.show({ type: 'success', text1: 'Offer accepted', text2: 'This delivery is now assigned to you.' });
     },
-    onError: (error: any) => Alert.alert('Could not accept offer', error?.response?.data?.message || error?.message || 'The offer may have expired.'),
+    onError: (error: any) => Toast.show({ type: 'error', text1: 'Could not accept offer', text2: error?.response?.data?.message || error?.message || 'The offer may have expired.' }),
   });
 
   const rejectMutation = useMutation({
     mutationFn: ({ assignmentId, reason }: { assignmentId: string; reason?: string }) =>
       riderService.rejectOffer(assignmentId, reason),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY }),
-    onError: (error: any) => Alert.alert('Could not reject offer', error?.response?.data?.message || error?.message || 'Please refresh and try again.'),
+    onError: (error: any) => Toast.show({ type: 'error', text1: 'Could not reject offer', text2: error?.response?.data?.message || error?.message || 'Please refresh and try again.' }),
   });
 
   const transitionMutation = useMutation({
@@ -410,7 +411,7 @@ export const RiderDashboard = () => {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
     },
-    onError: (error: any) => Alert.alert('Delivery update failed', error?.response?.data?.message || error?.message || 'The delivery state changed. Refresh and try again.'),
+    onError: (error: any) => Toast.show({ type: 'error', text1: 'Delivery update failed', text2: error?.response?.data?.message || error?.message || 'The delivery state changed. Refresh and try again.' }),
   });
 
   const requestLocationPermission = async () => {
@@ -432,7 +433,7 @@ export const RiderDashboard = () => {
     try {
       const permitted = await requestLocationPermission();
       if (!permitted) {
-        Alert.alert('Location permission required', 'Allow precise location before going online.');
+        Toast.show({ type: 'error', text1: 'Location permission required', text2: 'Allow precise location before going online.' });
         return;
       }
       Geolocation.getCurrentPosition(
@@ -445,19 +446,19 @@ export const RiderDashboard = () => {
         },
         (error) => {
           setLocating(false);
-          Alert.alert('GPS unavailable', error.message || 'Enable location services and try again.');
+          Toast.show({ type: 'error', text1: 'GPS unavailable', text2: error.message || 'Enable location services and try again.' });
         },
         { enableHighAccuracy: true, timeout: 15_000, maximumAge: 5_000 },
       );
     } catch (error: any) {
       setLocating(false);
-      Alert.alert('Could not go online', error?.response?.data?.message || error?.message || 'Please try again.');
+      Toast.show({ type: 'error', text1: 'Could not go online', text2: error?.response?.data?.message || error?.message || 'Please try again.' });
     }
   };
 
   const goOffline = async () => {
     if (activeJob) {
-      Alert.alert('Active delivery', 'Complete or return the current delivery before going offline.');
+      Toast.show({ type: 'error', text1: 'Active delivery', text2: 'Complete or return the current delivery before going offline.' });
       return;
     }
     try {
@@ -466,7 +467,7 @@ export const RiderDashboard = () => {
       await trackingManager.stop('RIDER_OFFLINE');
       await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
     } catch (error: any) {
-      Alert.alert('Could not go offline', error?.response?.data?.message || error?.message || 'Please try again.');
+      Toast.show({ type: 'error', text1: 'Could not go offline', text2: error?.response?.data?.message || error?.message || 'Please try again.' });
     }
   };
 

@@ -16,6 +16,7 @@ type ProductWriteData = {
   images?: unknown;
   details?: ProductDetails | null;
   isActive?: boolean;
+  sortOrder?: number;
 };
 
 function computeServiceable(distanceKm: number | null): boolean | null {
@@ -123,7 +124,7 @@ export class ProductService {
     const where: any = { deletedAt: null, isActive: true };
     if (query.categoryId) where.categoryId = query.categoryId;
     if (query.search) where.OR = [{ name: { contains: query.search, mode: 'insensitive' } }, { description: { contains: query.search, mode: 'insensitive' } }];
-    const orderBy: any = query.sort === 'price_asc' ? { price: 'asc' } : query.sort === 'price_desc' ? { price: 'desc' } : query.sort === 'name_asc' ? { name: 'asc' } : query.sort === 'name_desc' ? { name: 'desc' } : { createdAt: 'desc' };
+    const orderBy: any = query.sort === 'price_asc' ? { price: 'asc' } : query.sort === 'price_desc' ? { price: 'desc' } : query.sort === 'name_asc' ? { name: 'asc' } : query.sort === 'name_desc' ? { name: 'desc' } : [{ category: { sortOrder: 'asc' } }, { sortOrder: 'asc' }, { createdAt: 'desc' }];
     const [products, total] = await Promise.all([
       prisma.product.findMany({ where, include: { category: true }, orderBy, ...(paginate ? { skip: (page - 1) * pageSize, take: pageSize } : {}) }),
       paginate ? prisma.product.count({ where }) : Promise.resolve(0),
@@ -139,7 +140,7 @@ export class ProductService {
     return prisma.product.findMany({
       where: { deletedAt: null },
       include: { category: true },
-      orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ isActive: 'desc' }, { category: { sortOrder: 'asc' } }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
   }
 
@@ -179,6 +180,7 @@ export class ProductService {
 
   async create(data: Required<Pick<ProductWriteData, 'name' | 'price' | 'categoryId'>> & ProductWriteData) {
     const images = cleanProductImages(data.images, data.image ?? null);
+    const lastProduct = await prisma.product.aggregate({ where: { categoryId: data.categoryId, deletedAt: null }, _max: { sortOrder: true } });
     const product = await prisma.product.create({
       data: {
         name: data.name,
@@ -189,6 +191,7 @@ export class ProductService {
         images: images.length ? images as any : undefined,
         details: cleanProductDetails(data.details) as any,
         isActive: data.isActive ?? true,
+        sortOrder: (lastProduct._max.sortOrder || 0) + 1,
       },
     });
     await this.clearProductCache();
@@ -199,7 +202,7 @@ export class ProductService {
     const cacheKey = 'all_categories';
     const cachedCategories = await this.cacheManager.get(cacheKey);
     if (cachedCategories) return cachedCategories;
-    const categories = await prisma.category.findMany({ orderBy: { name: 'asc' } });
+    const categories = await prisma.category.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
     await this.cacheManager.set(cacheKey, categories, 3600000);
     return categories;
   }
@@ -208,7 +211,8 @@ export class ProductService {
     const cleanName = cleanCategoryName(name);
     if (cleanName.length < 2) throw new BadRequestException('Category name must be at least 2 characters.');
     try {
-      const category = await prisma.category.create({ data: { name: cleanName } });
+      const lastCategory = await prisma.category.aggregate({ _max: { sortOrder: true } });
+      const category = await prisma.category.create({ data: { name: cleanName, sortOrder: (lastCategory._max.sortOrder || 0) + 1 } });
       await this.cacheManager.del('all_categories');
       await this.clearProductCache();
       return category;
@@ -239,6 +243,27 @@ export class ProductService {
     await this.cacheManager.del('all_categories');
     await this.clearProductCache();
     return deleted;
+  }
+
+  async reorderCategories(ids: string[]) {
+    const uniqueIds = Array.from(new Set(ids));
+    if (!uniqueIds.length || uniqueIds.length !== ids.length) throw new BadRequestException('Provide a unique ordered category id list.');
+    const count = await prisma.category.count({ where: { id: { in: uniqueIds } } });
+    if (count !== uniqueIds.length) throw new BadRequestException('One or more categories do not exist.');
+    await prisma.$transaction(uniqueIds.map((id, index) => prisma.category.update({ where: { id }, data: { sortOrder: index + 1 } })) as any);
+    await this.cacheManager.del('all_categories');
+    await this.clearProductCache();
+    return this.getCategories();
+  }
+
+  async reorderProducts(ids: string[]) {
+    const uniqueIds = Array.from(new Set(ids));
+    if (!uniqueIds.length || uniqueIds.length !== ids.length) throw new BadRequestException('Provide a unique ordered product id list.');
+    const count = await prisma.product.count({ where: { id: { in: uniqueIds }, deletedAt: null } });
+    if (count !== uniqueIds.length) throw new BadRequestException('One or more products do not exist.');
+    await prisma.$transaction(uniqueIds.map((id, index) => prisma.product.update({ where: { id }, data: { sortOrder: index + 1 } })) as any);
+    await this.clearProductCache();
+    return this.findAdminAll();
   }
 
   async update(id: string, data: ProductWriteData) {
