@@ -71,7 +71,7 @@ export default function InventoryPage() {
 
   const saveInventory = async (item: InventoryItem) => {
     const quantity = drafts[item.id];
-    if (quantity === undefined || quantity === item.quantity) return;
+    if (quantity === undefined) return;
     setSavingId(item.id);
     setError(null);
     setSuccess(null);
