@@ -118,11 +118,14 @@ export const PushProvider = enumObject(PUSH_PROVIDER_VALUES);
 
 export const UserSchema = z.object({
   id: z.string().cuid(),
-  email: z.string().email(),
-  name: z.string().optional(),
+  email: z.string().email().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  phoneVerifiedAt: z.union([z.string(), z.date()]).nullable().optional(),
+  name: z.string().nullable().optional(),
   avatarUrl: z.string().url().nullable().optional(),
   emailVerified: z.boolean().optional(),
   role: z.enum(ROLE_VALUES),
+  roles: z.array(z.enum(ROLE_VALUES)).optional(),
 });
 
 export const OrderSchema = z.object({
