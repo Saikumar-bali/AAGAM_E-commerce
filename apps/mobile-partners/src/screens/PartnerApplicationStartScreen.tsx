@@ -19,6 +19,7 @@ import { PartnerApplicationType } from '../onboarding/types';
 export function PartnerApplicationStartScreen({ navigation, route }: any) {
   const type = route.params?.type as PartnerApplicationType;
   const start = usePartnerOnboardingStore((state) => state.start);
+  const requestVerification = usePartnerOnboardingStore((state) => state.requestVerification);
   const loading = usePartnerOnboardingStore((state) => state.isLoading);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -74,6 +75,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
     try {
       await startProtectedApplicationAndContinue({
         start,
+        requestVerification,
         application,
         navigation,
         getSession: () => {
@@ -92,7 +94,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
   return (
     <OnboardingShell
       title={type === 'RIDER' ? 'Start Rider application' : 'Start Store application'}
-      subtitle="We use a verified contact to protect your draft and send review updates. Your contact is not an operational login until approval."
+      subtitle="We use a verified contact to protect your draft and send review updates. Your contact becomes an operational login only after approval."
       onBack={() => navigation.goBack()}
     >
       <Section title="Applicant identity" subtitle="Use details that match the submitted documents.">
@@ -158,8 +160,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
 
       <PrimaryButton label="Create protected application" onPress={submit} loading={loading} />
       <Text style={styles.consent}>
-        Continuing records the onboarding consent version, application events, and document review
-        history. It does not guarantee approval.
+        Continuing records onboarding consent, application events and document review history. It does not guarantee approval.
       </Text>
     </OnboardingShell>
   );
