@@ -1,8 +1,9 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Injectable,
   ServiceUnavailableException,
-  TooManyRequestsException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { prisma } from '@aagam/database';
@@ -91,7 +92,10 @@ export class ContactOtpService {
       destinationHash,
     );
     if (Number(recent[0]?.count || 0) >= 5) {
-      throw new TooManyRequestsException('Too many verification requests. Try again later.');
+      throw new HttpException(
+        'Too many verification requests. Try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     await prisma.$transaction(async (tx) => {
