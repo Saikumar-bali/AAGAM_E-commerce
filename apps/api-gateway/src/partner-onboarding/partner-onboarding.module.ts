@@ -3,6 +3,7 @@ import { UploadModule } from '../upload/upload.module';
 import { ContactVerificationModule } from '../contact-verification/contact-verification.module';
 import { PartnerOnboardingAdminController } from './partner-onboarding-admin.controller';
 import { PartnerOnboardingAdminService } from './partner-onboarding-admin.service';
+import { PhonePrimaryPartnerOnboardingAdminService } from './phone-primary-partner-onboarding-admin.service';
 import { PartnerOnboardingController } from './partner-onboarding.controller';
 import { PartnerOnboardingRepository } from './partner-onboarding.repository';
 import { PartnerOnboardingSecurity } from './partner-onboarding.security';
@@ -36,7 +37,10 @@ import { PartnerApplicationRecoveryService } from './partner-application-recover
       provide: PartnerOnboardingService,
       useClass: DeliveringPartnerOnboardingService,
     },
-    PartnerOnboardingAdminService,
+    {
+      provide: PartnerOnboardingAdminService,
+      useClass: PhonePrimaryPartnerOnboardingAdminService,
+    },
   ],
   exports: [
     PartnerOnboardingService,
