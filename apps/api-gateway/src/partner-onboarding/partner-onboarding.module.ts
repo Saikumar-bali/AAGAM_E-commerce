@@ -11,6 +11,7 @@ import { PartnerOnboardingService } from './partner-onboarding.service';
 import { EditableDeliveringPartnerOnboardingService } from './editable-delivering-partner-onboarding.service';
 import { PartnerVerificationDeliveryService } from './partner-verification-delivery.service';
 import { PartnerVerificationService } from './partner-verification.service';
+import { PhonePrimaryPartnerVerificationService } from './phone-primary-partner-verification.service';
 import { VerificationChallengeRepository } from './verification-challenge.repository';
 import { FirebasePnvVerificationService } from './firebase-pnv-verification.service';
 import { VerificationReadinessController } from './verification-readiness.controller';
@@ -32,7 +33,10 @@ import { PartnerApplicationRecoveryService } from './partner-application-recover
     VerificationChallengeRepository,
     PartnerVerificationDeliveryService,
     FirebasePnvVerificationService,
-    PartnerVerificationService,
+    {
+      provide: PartnerVerificationService,
+      useClass: PhonePrimaryPartnerVerificationService,
+    },
     {
       provide: PartnerOnboardingService,
       useClass: EditableDeliveringPartnerOnboardingService,
