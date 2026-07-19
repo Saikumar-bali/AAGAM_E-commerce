@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -15,11 +16,14 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import {
   AdminPartnerListQueryDto,
+  AdminVerifyPartnerContactDto,
   ApprovePartnerApplicationDto,
+  DeletePartnerDraftDto,
   RejectPartnerApplicationDto,
   RequestPartnerChangesDto,
   ReviewPartnerApplicationDto,
   ReviewPartnerDocumentDto,
+  VerifyAllPartnerDocumentsDto,
 } from './dto/partner-onboarding.dto';
 import { PartnerOnboardingAdminService } from './partner-onboarding-admin.service';
 
@@ -40,11 +44,7 @@ export class PartnerOnboardingAdminController {
   }
 
   @Post('applications/:id/review')
-  startReview(
-    @Param('id') id: string,
-    @Req() req: any,
-    @Body() dto: ReviewPartnerApplicationDto,
-  ) {
+  startReview(@Param('id') id: string, @Req() req: any, @Body() dto: ReviewPartnerApplicationDto) {
     return this.onboarding.startReview(id, req.user.id, dto.note);
   }
 
@@ -55,20 +55,49 @@ export class PartnerOnboardingAdminController {
     @Req() req: any,
     @Body() dto: ReviewPartnerDocumentDto,
   ) {
-    return this.onboarding.reviewDocument(
-      id,
-      documentId,
-      req.user.id,
-      dto,
-    );
+    return this.onboarding.reviewDocument(id, documentId, req.user.id, dto);
+  }
+
+  @Post('applications/:id/documents/verify-all')
+  verifyAllDocuments(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Body() dto: VerifyAllPartnerDocumentsDto,
+  ) {
+    return this.onboarding.verifyAllDocuments(id, req.user.id, dto.note);
   }
 
   @Get('applications/:id/documents/:documentId/url')
-  documentUrl(
+  documentUrl(@Param('id') id: string, @Param('documentId') documentId: string) {
+    return this.onboarding.documentUrl(id, documentId, 'inline');
+  }
+
+  @Get('applications/:id/documents/:documentId/download-url')
+  documentDownloadUrl(@Param('id') id: string, @Param('documentId') documentId: string) {
+    return this.onboarding.documentUrl(id, documentId, 'attachment');
+  }
+
+  @Post('applications/:id/contact-verification')
+  verifyContact(
     @Param('id') id: string,
-    @Param('documentId') documentId: string,
+    @Req() req: any,
+    @Body() dto: AdminVerifyPartnerContactDto,
   ) {
-    return this.onboarding.documentUrl(id, documentId);
+    return this.onboarding.adminVerifyContact(id, req.user.id, dto);
+  }
+
+  @Delete('applications/:id')
+  deleteDraft(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Body() dto: DeletePartnerDraftDto,
+  ) {
+    return this.onboarding.deleteDraft(id, req.user.id, dto);
+  }
+
+  @Post('applications/:id/restore')
+  restoreDraft(@Param('id') id: string, @Req() req: any) {
+    return this.onboarding.restoreDraft(id, req.user.id);
   }
 
   @Post('applications/:id/request-changes')
