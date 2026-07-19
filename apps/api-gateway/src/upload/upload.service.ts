@@ -92,11 +92,11 @@ export class UploadService {
     const extension = this.evidenceExtension(file.mimetype);
     const storageKey =
       typeof owner === 'string'
-        ? `evidence/${this.segment(owner)}/${uuidv4()}.${extension}`
+        ? this.legacyEvidenceKey(owner, extension)
         : `${owner.scope}/${this.segment(owner.ownerId)}/${this.segment(owner.documentType)}/${uuidv4()}.${extension}`;
     const metadata =
       typeof owner === 'string'
-        ? { ownerUserId: owner }
+        ? { ownerReference: owner.slice(0, 120) }
         : {
             ownerId: owner.ownerId,
             ownerScope: owner.scope,
@@ -145,7 +145,7 @@ export class UploadService {
     await this.evidenceClient!.send(
       new CopyObjectCommand({
         Bucket: this.evidenceBucketName!,
-        CopySource: `${this.evidenceBucketName!}/${encodeURIComponent(storageKey)}`,
+        CopySource: this.copySource(storageKey),
         Key: targetKey,
         MetadataDirective: 'REPLACE',
         Metadata: {
@@ -176,6 +176,22 @@ export class UploadService {
     }
   }
 
+  private legacyEvidenceKey(owner: string, extension: string) {
+    const partnerApplication = /^partner-(.+)$/i.exec(owner.trim());
+    if (partnerApplication) {
+      return `partner-applications/${this.segment(partnerApplication[1])}/documents/${uuidv4()}.${extension}`;
+    }
+    return `evidence/${this.segment(owner)}/${uuidv4()}.${extension}`;
+  }
+
+  private copySource(storageKey: string) {
+    const encodedKey = storageKey
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+    return `${this.evidenceBucketName!}/${encodedKey}`;
+  }
+
   private requireEvidenceStorage() {
     if (!this.evidenceClient || !this.evidenceBucketName) {
       throw new Error('Private evidence storage is not configured');
@@ -195,7 +211,12 @@ export class UploadService {
   }
 
   private segment(value: string) {
-    return value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 120) || 'unknown';
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 120) || 'unknown';
   }
 
   private safeFilename(value: string) {
