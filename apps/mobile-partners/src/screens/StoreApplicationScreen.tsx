@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { PermissionsAndroid, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
+import Toast from 'react-native-toast-message';
 import { Check, MapPin, Store, WalletCards } from 'lucide-react-native';
 import {
   FormField,
@@ -55,11 +56,46 @@ export function StoreApplicationScreen({ navigation }: any) {
 
   const set = (key: string, value: any) => setForm((current) => ({ ...current, [key]: value }));
   const hasStoredBank = Boolean(saved.bankAccountLast4 && saved.bankIfscLast4);
-  const useLocation = () => Geolocation.getCurrentPosition(
-    (position) => { set('latitude', String(position.coords.latitude)); set('longitude', String(position.coords.longitude)); Alert.alert('Pickup location added', 'Admin can verify this pin during review.'); },
-    () => Alert.alert('Location unavailable', 'Enable location permission and try again.'),
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
-  );
+  const useLocation = async () => {
+    if (Platform.OS === 'android') {
+      const permission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        {
+          title: 'Allow Store pickup location',
+          message: 'AAGAM uses this one-time location to pin the exact Rider pickup entrance and autofill the Store address.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Not now',
+        },
+      );
+      if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
+        Toast.show({ type: 'error', text1: 'Location permission needed', text2: 'Allow precise location in Android settings and try again.' });
+        return;
+      }
+    }
+    Geolocation.getCurrentPosition(async (position) => {
+      const { latitude, longitude } = position.coords;
+      set('latitude', String(latitude));
+      set('longitude', String(longitude));
+      try {
+        const result = await apiClient.get('/geo/reverse', { params: { lat: latitude, lng: longitude } });
+        const address = result.data?.address;
+        if (address) {
+          setForm((current) => ({
+            ...current,
+            storeAddress: address.line1 || current.storeAddress,
+            city: address.city || current.city,
+            state: address.state || current.state,
+            pincode: address.pincode || current.pincode,
+            latitude: String(latitude),
+            longitude: String(longitude),
+          }));
+        }
+      } catch {}
+      Toast.show({ type: 'success', text1: 'Pickup pin added', text2: 'Store address fields were filled where available.' });
+    }, () => {
+      Toast.show({ type: 'error', text1: 'Location unavailable', text2: 'Turn on precise location and try again.' });
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
+  };
 
   const validate = () => {
     if (step === 0 && (!form.legalName.trim() || !form.displayName.trim() || !form.categories.length)) throw new Error('Enter the business names and choose at least one category.');
