@@ -60,7 +60,7 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
     if (email) {
       const duplicate = await prisma.$queryRawUnsafe(
         `SELECT "id" FROM "PartnerApplication"
-         WHERE LOWER("email") = $1
+         WHERE LOWER("email") = $1 AND "deletedAt" IS NULL
            AND "status" NOT IN ('REJECTED', 'WITHDRAWN', 'EXPIRED') LIMIT 1`,
         email,
       );
@@ -69,7 +69,7 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
     if (phone) {
       const duplicate = await prisma.$queryRawUnsafe(
         `SELECT "id" FROM "PartnerApplication"
-         WHERE "phoneE164" = $1
+         WHERE "phoneE164" = $1 AND "deletedAt" IS NULL
            AND "status" NOT IN ('REJECTED', 'WITHDRAWN', 'EXPIRED') LIMIT 1`,
         phone,
       );
