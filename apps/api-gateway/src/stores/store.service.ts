@@ -10,8 +10,6 @@ import { grantUserRole } from '../auth/user-roles';
 const SAFE_STORE_OWNER_SELECT = {
   id: true,
   name: true,
-  email: true,
-  phone: true,
 } as const;
 
 @Injectable()
