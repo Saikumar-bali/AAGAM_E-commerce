@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Heart, Plus, Minus, Clock, Ban } from 'lucide-react';
+import { Heart, Plus, Minus, Ban } from 'lucide-react';
 import { formatINR } from '@/lib/currency';
 import { getProductImage } from '@aagam/utils';
 
@@ -22,7 +22,8 @@ export default function ProductCard({ product, qty, onAdd, onIncrement, onDecrem
   const hasAvailability = Boolean(product.availability);
   const inStock = product.availability?.inStock ?? true;
   const disabled = hasAvailability && !inStock;
-  const categoryName = product.category?.name || 'General';
+  const mrp = Math.max(Number(product.mrpPaise || 0) / 100, price);
+  const discount = Math.max(0, mrp - price);
 
   const media = (
     <div className="relative aspect-[4/3] bg-gradient-to-br from-teal-50 to-amber-50 overflow-hidden">
@@ -38,13 +39,6 @@ export default function ProductCard({ product, qty, onAdd, onIncrement, onDecrem
           </span>
         </div>
       )}
-      <div className="absolute top-2 left-2 rounded-lg bg-white/90 backdrop-blur-sm border border-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-teal-800">
-        {categoryName}
-      </div>
-      <div className="absolute top-2 right-2 flex items-center gap-1 rounded-lg bg-white/90 backdrop-blur-sm border border-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
-        <Clock className="h-2.5 w-2.5" />
-        10 min
-      </div>
     </div>
   );
 
@@ -69,7 +63,7 @@ export default function ProductCard({ product, qty, onAdd, onIncrement, onDecrem
 
         <div className="mt-auto pt-3 flex items-end justify-between gap-2">
           <div>
-            <div className={`text-base font-black ${disabled ? 'text-slate-400' : 'text-slate-950'}`}>{formatINR(price)}</div>
+            <div className={`inline-flex rounded-xl px-2.5 py-1 text-base font-black ${disabled ? 'bg-slate-100 text-slate-400' : 'bg-emerald-700 text-white'}`}>{formatINR(price)}</div>{discount > 0 ? <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] font-bold"><span className="text-slate-500">MRP</span><span className="text-slate-500 line-through">{formatINR(mrp)}</span><span className="text-emerald-700">{formatINR(discount)} OFF</span></div> : null}
           </div>
 
           <div className="flex items-center gap-1.5">

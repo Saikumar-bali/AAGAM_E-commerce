@@ -53,18 +53,20 @@ const DeliveryIcon = L.divIcon({
 
 interface MapUpdaterProps {
   center: [number, number];
-  bounds?: [[number, number], [number, number]];
+  points: [number, number][];
 }
 
-function MapUpdater({ center, bounds }: MapUpdaterProps) {
+function MapUpdater({ center, points }: MapUpdaterProps) {
   const map = useMap();
   useEffect(() => {
-    if (bounds) {
-      map.fitBounds(bounds, { padding: [50, 50] });
+    if (points.length === 1) {
+      map.setView(points[0], 16, { animate: true });
+    } else if (points.length > 1) {
+      map.fitBounds(L.latLngBounds(points), { padding: [64, 64], maxZoom: 16, animate: true });
     } else {
-      map.setView(center);
+      map.setView(center, 13);
     }
-  }, [center, bounds, map]);
+  }, [center, points, map]);
   return null;
 }
 
@@ -109,12 +111,6 @@ export default function LiveTrackingMap({ riders = [], orders = [], selectedOrde
     if (o.latestLocation) allPoints.push([o.latestLocation.latitude, o.latestLocation.longitude]);
   });
 
-  const bounds: [[number, number], [number, number]] | undefined = allPoints.length > 1
-    ? [
-        [Math.min(...allPoints.map(p => p[0])), Math.min(...allPoints.map(p => p[1]))],
-        [Math.max(...allPoints.map(p => p[0])), Math.max(...allPoints.map(p => p[1]))],
-      ]
-    : undefined;
 
   useEffect(() => {
     if (selectedOrderId) {
@@ -144,7 +140,7 @@ export default function LiveTrackingMap({ riders = [], orders = [], selectedOrde
             url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
           } as any)}
         />
-        <MapUpdater center={mapCenter} bounds={bounds} />
+        <MapUpdater center={mapCenter} points={allPoints} />
 
         {routePathCoords.length > 1 && (
           <Polyline positions={routePathCoords} color="#3B82F6" weight={3} opacity={0.7} />

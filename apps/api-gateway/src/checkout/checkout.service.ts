@@ -243,22 +243,24 @@ export class CheckoutService {
       }
     }
 
-    const inventoryByProduct = new Map<string, number>();
+    const inventoryByProduct = new Map<string, { quantity: number; sellingPricePaise: number | null; isListed: boolean }>();
     if (storeId) {
       const inventory = await prisma.inventory.findMany({
         where: { storeId, productId: { in: productIds } },
-        select: { productId: true, quantity: true },
+        select: { productId: true, quantity: true, sellingPricePaise: true, isListed: true },
       });
-      for (const inv of inventory) inventoryByProduct.set(inv.productId, inv.quantity);
+      for (const inv of inventory) inventoryByProduct.set(inv.productId, { quantity: inv.quantity, sellingPricePaise: inv.sellingPricePaise, isListed: inv.isListed });
     }
 
     const items = normalizedItems.map((i) => {
       const p = byId.get(i.productId)!;
-      const availableQty = inventoryByProduct.has(i.productId) ? inventoryByProduct.get(i.productId)! : null;
-      const inStock = availableQty === null ? true : availableQty >= i.quantity;
-      const unitPrice = Number(p.price) || 0;
+      const inventoryRow = inventoryByProduct.get(i.productId);
+      const availableQty = inventoryRow?.quantity ?? null;
+      const inStock = availableQty === null ? true : Boolean(inventoryRow?.isListed && availableQty >= i.quantity);
+      const basePricePaise = p.pricePaise || Math.round((Number(p.price) || 0) * 100);
+      const unitPricePaise = inventoryRow?.sellingPricePaise ?? basePricePaise;
+      const unitPrice = unitPricePaise / 100;
       const lineTotal = unitPrice * i.quantity;
-      const unitPricePaise = p.pricePaise || Math.round(unitPrice * 100);
       const lineTotalPaise = unitPricePaise * i.quantity;
 
       return {

@@ -11,6 +11,7 @@ type ProductWriteData = {
   name?: string;
   description?: string | null;
   price?: number;
+  mrp?: number;
   categoryId?: string;
   image?: string | null;
   images?: unknown;
@@ -103,11 +104,19 @@ export class ProductService {
       // inventory check for the selected address.
       return products.map((product) => ({ ...product, availability: { storeId: null, storeName: null, availableQty: null, inStock: null, availabilityKnown: false, serviceable: context?.serviceable ?? null, distanceKm: context?.distanceKm ?? null } }));
     }
-    const inventory = await prisma.inventory.findMany({ where: { storeId: context.storeId, productId: { in: products.map((product) => product.id) } }, select: { productId: true, quantity: true } });
-    const inventoryMap = new Map(inventory.map((item) => [item.productId, item.quantity]));
+    const inventory = await prisma.inventory.findMany({ where: { storeId: context.storeId, productId: { in: products.map((product) => product.id) } }, select: { productId: true, quantity: true, isListed: true, autoHideWhenOutOfStock: true, sellingPricePaise: true } });
+    const inventoryMap = new Map(inventory.map((item) => [item.productId, item]));
     return products.map((product) => {
-      const availableQty = inventoryMap.get(product.id) ?? 0;
-      return { ...product, availability: { storeId: context.storeId, storeName: context.storeName, availableQty, inStock: availableQty > 0, availabilityKnown: true, serviceable: context.serviceable, distanceKm: context.distanceKm } };
+      const inventoryRow = inventoryMap.get(product.id);
+      const availableQty = inventoryRow?.quantity ?? 0;
+      const isVisible = Boolean(
+        inventoryRow?.isListed &&
+        !(inventoryRow.autoHideWhenOutOfStock && availableQty === 0)
+      );
+      const basePaise = Number((product as any).pricePaise) || Math.round(Number((product as any).price || 0) * 100);
+      const effectivePricePaise = inventoryRow?.sellingPricePaise ?? basePaise;
+      const mrpPaise = Math.max(Number((product as any).mrpPaise) || basePaise, effectivePricePaise);
+      return { ...product, price: effectivePricePaise / 100, pricePaise: effectivePricePaise, mrpPaise, discountPaise: Math.max(0, mrpPaise - effectivePricePaise), discountPercent: mrpPaise > 0 ? Math.round(((mrpPaise - effectivePricePaise) * 100) / mrpPaise) : 0, availability: { storeId: context.storeId, storeName: context.storeName, availableQty, inStock: availableQty > 0, isVisible, autoHideWhenOutOfStock: inventoryRow?.autoHideWhenOutOfStock ?? true, availabilityKnown: true, serviceable: context.serviceable, distanceKm: context.distanceKm } };
     });
   }
 
@@ -179,6 +188,9 @@ export class ProductService {
   }
 
   async create(data: Required<Pick<ProductWriteData, 'name' | 'price' | 'categoryId'>> & ProductWriteData) {
+    const sellingPaise = Math.round(Number(data.price) * 100);
+    const mrpPaise = Math.round(Number(data.mrp ?? data.price) * 100);
+    if (!Number.isFinite(sellingPaise) || sellingPaise < 0 || !Number.isFinite(mrpPaise) || mrpPaise < sellingPaise) throw new BadRequestException('MRP must be greater than or equal to the selling price.');
     const images = cleanProductImages(data.images, data.image ?? null);
     const lastProduct = await prisma.product.aggregate({ where: { categoryId: data.categoryId, deletedAt: null }, _max: { sortOrder: true } });
     const product = await prisma.product.create({
@@ -186,6 +198,8 @@ export class ProductService {
         name: data.name,
         description: data.description ?? null,
         price: data.price,
+        pricePaise: sellingPaise,
+        mrpPaise,
         categoryId: data.categoryId,
         image: data.image || images[0] || null,
         images: images.length ? images as any : undefined,
@@ -277,13 +291,19 @@ export class ProductService {
   async update(id: string, data: ProductWriteData) {
     const existing = await prisma.product.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Product not found');
+    if (data.price !== undefined || data.mrp !== undefined) {
+      const selling = data.price ?? existing.price;
+      const mrp = data.mrp ?? ((existing as any).mrpPaise || Math.round(existing.price * 100)) / 100;
+      if (selling < 0 || mrp < selling) throw new BadRequestException('MRP must be greater than or equal to the selling price.');
+    }
     const images = data.images !== undefined ? cleanProductImages(data.images, data.image ?? existing.image) : undefined;
     const product = await prisma.product.update({
       where: { id },
       data: {
         ...(data.name !== undefined ? { name: data.name } : {}),
         ...(data.description !== undefined ? { description: data.description } : {}),
-        ...(data.price !== undefined ? { price: data.price } : {}),
+        ...(data.price !== undefined ? { price: data.price, pricePaise: Math.round(data.price * 100) } : {}),
+        ...(data.mrp !== undefined ? { mrpPaise: Math.round(data.mrp * 100) } : {}),
         ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
         ...(data.image !== undefined ? { image: data.image || images?.[0] || null } : {}),
         ...(images !== undefined ? { images: images.length ? images as any : [] } : {}),

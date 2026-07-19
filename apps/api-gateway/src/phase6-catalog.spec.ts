@@ -175,7 +175,24 @@ describe('Phase 6 catalog, serviceability, substitutes', () => {
     const substitute = products.find((p: any) => p.id === substituteProduct.id);
     expect(base.availability.inStock).toBe(false);
     expect(base.availability.availableQty).toBe(0);
+    expect(base.availability.isVisible).toBe(false);
     expect(substitute.availability.inStock).toBe(true);
+    expect(substitute.availability.isVisible).toBe(true);
+  });
+
+  test('store can keep a zero-stock item visible when automatic hiding is disabled', async () => {
+    await prisma.inventory.update({
+      where: { storeId_productId: { storeId: store.id, productId: baseProduct.id } },
+      data: { autoHideWhenOutOfStock: false, isListed: true },
+    });
+    const result = await productService.findAll({ search: baseProduct.name, storeId: store.id, includeAvailability: true });
+    const products = Array.isArray(result) ? result : (result as any).items;
+    expect(products[0].availability).toMatchObject({
+      availableQty: 0,
+      inStock: false,
+      isVisible: true,
+      autoHideWhenOutOfStock: false,
+    });
   });
 
   test('product detail keeps stock unknown until an address or store is selected', async () => {

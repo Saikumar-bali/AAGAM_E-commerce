@@ -56,7 +56,7 @@ export class UpsertPromotionCampaignDto {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
-  @ArrayMaxSize(3)
+  @ArrayMaxSize(6)
   @IsEnum(PromotionPlacement, { each: true })
   placements?: PromotionPlacement[];
 }

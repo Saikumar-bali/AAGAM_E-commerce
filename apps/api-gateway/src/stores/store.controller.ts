@@ -97,8 +97,17 @@ export class StoreController {
     @Param('id') storeId: string,
     @Body('productId') productId: string,
     @Body('quantity') quantity: number,
+    @Body('isListed') isListed: boolean | undefined,
+    @Body('autoHideWhenOutOfStock') autoHideWhenOutOfStock: boolean | undefined,
+    @Body('sellingPrice') sellingPrice: number | null | undefined,
     @Req() req: any,
   ) {
-    return this.storeService.updateInventory(storeId, productId, quantity, req.user);
+    return this.storeService.updateInventory(
+      storeId,
+      productId,
+      quantity,
+      req.user,
+      { isListed, autoHideWhenOutOfStock, sellingPrice },
+    );
   }
 }
