@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Script from 'next/script';
 import { apiClient } from '@aagam/utils';
 import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles } from 'lucide-react';
+import AagamLogo from '@/components/AagamLogo';
 
 const DEFAULT_GOOGLE_WEB_CLIENT_ID = '416380795567-5de3kea0pbb9ibke91rl5pre0sdu82vo.apps.googleusercontent.com';
 
@@ -43,6 +44,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [loginCampaign, setLoginCampaign] = useState<any>(null);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID;
 
   const routeUser = (user: any) => {
@@ -57,6 +59,15 @@ export default function LoginPage() {
     else if (roles.includes('STORE_OWNER')) router.push('/store');
     else router.push('/shop');
   };
+
+  useEffect(() => {
+    apiClient.get('/public/promotions/active', { params: { placement: 'LOGIN_SIDEBAR' } })
+      .then((response) => {
+        const campaigns = response.data?.LOGIN_SIDEBAR || response.data?.loginSidebar || [];
+        setLoginCampaign(Array.isArray(campaigns) ? campaigns[0] || null : null);
+      })
+      .catch(() => setLoginCampaign(null));
+  }, []);
 
   useEffect(() => {
     // Keep phone OTP as the production default. Automated browser suites retain
@@ -148,7 +159,19 @@ export default function LoginPage() {
     <div className="pointer-events-none absolute inset-0 enterprise-subtle-grid opacity-60" />
     <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center">
       <div className="grid w-full gap-8 lg:grid-cols-[.95fr_1.05fr] lg:items-center">
-        <section className="hidden lg:block"><Link href="/" className="inline-flex items-center gap-3"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-lg font-black text-white">A</span><span className="text-2xl font-black">Aagam</span></Link><p className="enterprise-kicker mt-12"><Sparkles className="mr-2 h-3.5 w-3.5" /> Secure phone-first access</p><h1 className="mt-5 max-w-xl text-5xl font-black tracking-[-.06em]">One verified mobile number for shopping and Partner operations.</h1><div className="mt-8 grid max-w-lg gap-3">{['Single-use OTP codes', 'HttpOnly browser sessions', 'Role-aware routing'].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl border bg-white/80 p-4 font-bold"><CheckCircle2 className="h-5 w-5 text-teal-700" />{item}</div>)}</div></section>
+        <section className="relative hidden min-h-[680px] overflow-hidden rounded-[2.5rem] border border-white/70 bg-slate-950 shadow-2xl lg:block">
+          <img src={loginCampaign?.imageUrl || '/brand/aagam-login-network.png'} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
+          <div className="relative flex h-full min-h-[680px] flex-col justify-between p-10 text-white">
+            <AagamLogo inverse label="Commerce Network" />
+            <div>
+              <p className="enterprise-kicker border-white/20 bg-white/10 text-teal-100"><Sparkles className="mr-2 h-3.5 w-3.5" /> {loginCampaign?.badgeText || 'Verified commerce access'}</p>
+              <h1 className="mt-5 max-w-xl text-5xl font-black tracking-[-.06em]">{loginCampaign?.title || 'One verified identity. Every local-commerce operation.'}</h1>
+              <p className="mt-4 max-w-lg text-base font-semibold leading-7 text-slate-200">{loginCampaign?.subtitle || loginCampaign?.description || 'Shop, fulfil, and deliver through one accountable platform built for customers, stores, and riders.'}</p>
+              <div className="mt-8 grid max-w-lg gap-3">{['Single-use OTP codes', 'HttpOnly browser sessions', 'Role-aware routing'].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-4 font-bold backdrop-blur"><CheckCircle2 className="h-5 w-5 text-teal-300" />{item}</div>)}</div>
+            </div>
+          </div>
+        </section>
         <section className="enterprise-panel mx-auto w-full max-w-md p-6 sm:p-8">
           <div className="mb-7"><div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-white"><ShieldCheck className="h-7 w-7" /></div><p className="enterprise-kicker">Welcome back</p><h2 className="mt-3 text-3xl font-black">Sign in to AAGAM</h2><p className="mt-1 text-sm font-bold text-slate-500">Sign in to your workspace</p><p className="mt-2 text-sm font-semibold text-slate-500">New customer? <Link href="/signup" className="text-teal-700">Create account</Link></p></div>
           {error ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{String(error)}</div> : null}
