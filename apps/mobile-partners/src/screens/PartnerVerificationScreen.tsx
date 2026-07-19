@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, BackHandler, StyleSheet, Text, View } from 'react-native';
 import { apiClient } from '@aagam/mobile-shared';
 import {
   FormField,
@@ -9,6 +9,12 @@ import {
   Section,
 } from '../components/PartnerOnboardingUI';
 import { FirebasePnv } from '../native/FirebasePnv';
+import {
+  createVerificationHardwareBackHandler,
+  resetVerificationToPartnerHome,
+  resolveVerificationDelivery,
+  verificationRequestErrorMessage,
+} from '../onboarding/partnerVerificationPresentation';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 
 function applicationHeaders(token: string) {
@@ -30,9 +36,11 @@ export function PartnerVerificationScreen({ navigation }: any) {
     accessToken,
     response,
     type,
+    events,
     verify,
     requestVerification,
     refresh,
+    loadEvents,
     isLoading,
     testVerificationCode,
   } = usePartnerOnboardingStore();
@@ -41,13 +49,42 @@ export function PartnerVerificationScreen({ navigation }: any) {
   const [pnvBusy, setPnvBusy] = useState(false);
   const [showSmsFallback, setShowSmsFallback] = useState(false);
   const [fallbackQaCode, setFallbackQaCode] = useState<string | null>(null);
+  const [deliveryChecked, setDeliveryChecked] = useState(false);
   const application = response?.application;
   const phoneFlow = application?.verificationChannel === 'PHONE' && Boolean(application?.phoneE164);
+  const deliveryChannel: 'EMAIL' | 'PHONE' = phoneFlow ? 'PHONE' : 'EMAIL';
 
   const destination = useMemo(
-    () => application?.phoneE164 || application?.email || 'Verified contact',
+    () => application?.phoneE164 || application?.email || 'your verified contact',
     [application?.email, application?.phoneE164],
   );
+
+  const delivery = useMemo(
+    () => resolveVerificationDelivery(events, deliveryChannel, deliveryChecked),
+    [deliveryChannel, deliveryChecked, events],
+  );
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      createVerificationHardwareBackHandler(navigation),
+    );
+    return () => subscription.remove();
+  }, [navigation]);
+
+  useEffect(() => {
+    let active = true;
+    if (!applicationId || !accessToken) {
+      setDeliveryChecked(true);
+      return () => undefined;
+    }
+    Promise.allSettled([refresh(), loadEvents()]).finally(() => {
+      if (active) setDeliveryChecked(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [accessToken, applicationId, loadEvents, refresh]);
 
   useEffect(() => {
     let active = true;
@@ -73,8 +110,13 @@ export function PartnerVerificationScreen({ navigation }: any) {
     };
   }, [phoneFlow]);
 
+  const leaveVerification = () => {
+    resetVerificationToPartnerHome(navigation);
+  };
+
   const proceedAfterVerification = () => {
-    navigation.replace(type === 'RIDER' ? 'RiderApplication' : 'StoreApplication');
+    const applicationType = type || application?.type;
+    navigation.replace(applicationType === 'RIDER' ? 'RiderApplication' : 'StoreApplication');
   };
 
   const verifyCode = async () => {
@@ -91,11 +133,19 @@ export function PartnerVerificationScreen({ navigation }: any) {
   };
 
   const resend = async () => {
+    setDeliveryChecked(false);
     try {
-      await requestVerification(phoneFlow ? 'PHONE' : 'EMAIL');
-      Alert.alert('Code sent', 'A fresh verification code has been issued.');
+      await requestVerification(deliveryChannel);
+      await loadEvents();
+      setDeliveryChecked(true);
+      Alert.alert(
+        'Code request accepted',
+        'The provider accepted a fresh verification code request. Check Inbox and Spam, then use the latest code only.',
+      );
     } catch (error: any) {
-      Alert.alert('Could not resend', error.message);
+      await loadEvents().catch(() => undefined);
+      setDeliveryChecked(true);
+      Alert.alert('Could not send a new code', verificationRequestErrorMessage(error));
     }
   };
 
@@ -152,22 +202,67 @@ export function PartnerVerificationScreen({ navigation }: any) {
       );
       setFallbackQaCode(data.code || null);
       setShowSmsFallback(true);
-      Alert.alert('SMS code sent', 'Enter the six-digit code after it arrives.');
+      await loadEvents().catch(() => undefined);
+      Alert.alert('SMS code requested', 'Enter the six-digit code after it arrives.');
     } catch (error: any) {
-      Alert.alert('Could not send SMS', errorMessage(error));
+      await loadEvents().catch(() => undefined);
+      Alert.alert('Could not send SMS', verificationRequestErrorMessage(error));
     } finally {
       setPnvBusy(false);
     }
   };
 
   const qaCode = fallbackQaCode || testVerificationCode;
+  const deliveryReference = [
+    delivery.provider ? `Provider: ${delivery.provider}` : '',
+    delivery.failureCode ? `Code: ${delivery.failureCode}` : '',
+    delivery.correlationId ? `Reference: ${delivery.correlationId}` : '',
+  ].filter(Boolean);
+
+  if (!applicationId || !accessToken) {
+    return (
+      <OnboardingShell
+        title="Application session unavailable"
+        subtitle="Return to the partner home and resume the application with its access details."
+      >
+        <PrimaryButton label="Back to partner home" onPress={leaveVerification} />
+      </OnboardingShell>
+    );
+  }
 
   return (
     <OnboardingShell
       title="Verify your contact"
-      subtitle="We verify this number so AAGAM can protect your partner application and send operational updates."
-      onBack={() => navigation.goBack()}
+      subtitle={
+        phoneFlow
+          ? 'Verify the phone number protecting this application.'
+          : 'Enter the latest email code accepted by the verification provider.'
+      }
+      onBack={leaveVerification}
     >
+      <Section title={delivery.title} subtitle={destination}>
+        <View
+          style={[
+            styles.deliveryCard,
+            delivery.state === 'SENT' && styles.deliverySent,
+            delivery.state === 'FAILED' && styles.deliveryFailed,
+            delivery.state === 'UNKNOWN' && styles.deliveryUnknown,
+          ]}
+        >
+          <Text style={styles.deliveryMessage}>{delivery.message}</Text>
+          {delivery.expiresAt ? (
+            <Text style={styles.deliveryMeta}>
+              Expires {new Date(delivery.expiresAt).toLocaleString()}
+            </Text>
+          ) : null}
+          {deliveryReference.map((item) => (
+            <Text key={item} style={styles.deliveryMeta} selectable>
+              {item}
+            </Text>
+          ))}
+        </View>
+      </Section>
+
       {phoneFlow ? (
         <Section title="Phone number verification" subtitle={destination}>
           <Text style={styles.explainer}>
@@ -214,6 +309,7 @@ export function PartnerVerificationScreen({ navigation }: any) {
           <PrimaryButton label="Send a new code" onPress={resend} secondary disabled={isLoading} />
         </>
       ) : null}
+      <PrimaryButton label="Back to partner home" onPress={leaveVerification} secondary />
       <Text style={styles.note}>Verification is complete only after the AAGAM server confirms the proof.</Text>
     </OnboardingShell>
   );
@@ -222,6 +318,12 @@ export function PartnerVerificationScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   code: { textAlign: 'center', fontSize: 24, fontWeight: '900', letterSpacing: 8, color: palette.ink },
   explainer: { color: palette.muted, fontSize: 13, lineHeight: 20 },
+  deliveryCard: { borderRadius: 16, borderWidth: 1, padding: 14, backgroundColor: '#F8FAFC', borderColor: '#CBD5E1', gap: 6 },
+  deliverySent: { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' },
+  deliveryFailed: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+  deliveryUnknown: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
+  deliveryMessage: { color: palette.ink, fontSize: 12, lineHeight: 18, fontWeight: '700' },
+  deliveryMeta: { color: '#64748B', fontSize: 10, lineHeight: 15, fontWeight: '700' },
   qaCode: { borderRadius: 16, backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA', padding: 14, alignItems: 'center' },
   qaLabel: { color: '#9A3412', fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8 },
   qaValue: { color: '#7C2D12', fontSize: 22, fontWeight: '900', letterSpacing: 5, marginTop: 5 },

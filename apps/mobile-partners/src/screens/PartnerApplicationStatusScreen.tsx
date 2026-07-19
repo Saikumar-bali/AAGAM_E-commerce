@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Alert, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CheckCircle2, Clock3, FileText, RotateCcw, ShieldAlert } from 'lucide-react-native';
 import {
@@ -9,6 +9,10 @@ import {
   Section,
   StatusPill,
 } from '../components/PartnerOnboardingUI';
+import {
+  ApplicationProgressStep,
+  buildApplicationProgress,
+} from '../onboarding/applicationReviewProgress';
 import { editableApplication, statusLabel } from '../onboarding/types';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 
@@ -28,8 +32,55 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
   const requirements = response?.requirements;
 
   useEffect(() => {
-    void loadEvents();
-  }, [application?.id, application?.status, application?.updatedAt]);
+    let active = true;
+    const sync = async () => {
+      try {
+        await Promise.all([refresh(), loadEvents()]);
+      } catch {
+        // Keep the last known applicant-safe snapshot visible during a transient refresh failure.
+      }
+    };
+    void sync();
+    const interval = setInterval(() => {
+      if (active) void sync();
+    }, 20_000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [application?.id, loadEvents, refresh]);
+
+  const contactVerified = Boolean(application?.emailVerifiedAt || application?.phoneVerifiedAt);
+  const progressSteps = useMemo(
+    () =>
+      application && requirements
+        ? buildApplicationProgress(
+            application.status,
+            contactVerified,
+            requirements.completionPercent,
+          )
+        : [],
+    [application, contactVerified, requirements],
+  );
+
+  const latestChangeRequest = useMemo(
+    () =>
+      [...events]
+        .filter((event) => event.eventType === 'CHANGES_REQUESTED')
+        .sort(
+          (left, right) =>
+            new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+        )[0],
+    [events],
+  );
+
+  const requestedFields = Array.isArray(application?.actionRequests?.fields)
+    ? application!.actionRequests!.fields.map(String)
+    : [];
+
+  const returnHome = () => {
+    navigation.reset({ index: 0, routes: [{ name: 'PartnerWelcome' }] });
+  };
 
   const edit = () => {
     navigation.navigate(
@@ -72,26 +123,31 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
     ]);
   };
 
+  const refreshAll = () => Promise.all([refresh(), loadEvents()]).catch(() => undefined);
+
   if (!application || !requirements) {
     return (
       <OnboardingShell title="Application unavailable" subtitle="Restore an application session to continue.">
-        <PrimaryButton label="Return to partner welcome" onPress={() => navigation.navigate('PartnerWelcome')} />
+        <PrimaryButton label="Return to partner welcome" onPress={returnHome} />
       </OnboardingShell>
     );
   }
 
-  const editable = editableApplication(application.status);
+  const editable = editableApplication(application.status) && contactVerified;
   const canWithdraw = !['APPROVED', 'REJECTED', 'WITHDRAWN', 'EXPIRED'].includes(application.status);
 
   return (
     <OnboardingShell
       title={statusLabel(application.status)}
       subtitle={`Application ${application.applicationNumber}`}
-      onBack={() => navigation.navigate('PartnerWelcome')}
+      onBack={returnHome}
       right={
-        <TouchableOpacity onPress={() => Promise.all([refresh(), loadEvents()])} style={styles.refresh}>
+        <TouchableOpacity onPress={() => void refreshAll()} style={styles.refresh}>
           <RotateCcw size={18} color={palette.ink} />
         </TouchableOpacity>
+      }
+      refreshControl={
+        <RefreshControl refreshing={isLoading} onRefresh={() => void refreshAll()} />
       }
     >
       <View style={styles.hero}>
@@ -104,21 +160,55 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
         </Text>
         <Text style={styles.heroText}>{application.applicantName}</Text>
         <ProgressBar value={requirements.completionPercent} />
+        <Text style={styles.liveNote}>Status refreshes automatically while this screen is open.</Text>
       </View>
 
+      <Section title="Application progress" subtitle="Admin decisions and correction requests appear here and in the timeline.">
+        <View style={styles.progressList}>
+          {progressSteps.map((step, index) => (
+            <ProgressStep
+              key={step.key}
+              step={step}
+              last={index === progressSteps.length - 1}
+            />
+          ))}
+        </View>
+      </Section>
+
+      {!contactVerified ? (
+        <Section
+          title="Contact verification required"
+          subtitle="Verify the protected email before editing or submitting the application."
+        >
+          <PrimaryButton
+            label="Return to verification"
+            onPress={() => navigation.navigate('VerifyApplication')}
+          />
+        </Section>
+      ) : null}
+
       {application.status === 'ACTION_REQUIRED' ? (
-        <Section title="Admin requested corrections" subtitle="Update only the requested details or documents, then resubmit.">
+        <Section title="Admin requested corrections" subtitle="Complete the requested changes, then resubmit for review.">
           <View style={styles.warningRow}>
             <ShieldAlert size={22} color={palette.amber} />
-            <Text style={styles.warningText}>
-              {JSON.stringify(application.actionRequests || {}, null, 2)}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.warningText}>
+                {latestChangeRequest?.message || 'Admin requested updates to this application.'}
+              </Text>
+              {requestedFields.length ? (
+                <View style={styles.fieldList}>
+                  {requestedFields.map((field) => (
+                    <Text key={field} style={styles.fieldChip}>{field}</Text>
+                  ))}
+                </View>
+              ) : null}
+            </View>
           </View>
         </Section>
       ) : null}
 
       {application.status === 'APPROVED' ? (
-        <Section title="Approved — activate your account" subtitle="Admin has provisioned the operational account. You must create your own permanent password before signing in.">
+        <Section title="Approved — activate your account" subtitle="Admin has provisioned the operational account. Create your permanent password before signing in.">
           <View style={styles.successRow}>
             <CheckCircle2 size={25} color={palette.green} />
             <Text style={styles.successText}>Document review and partner approval are complete.</Text>
@@ -128,7 +218,7 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
       ) : null}
 
       {application.status === 'REJECTED' ? (
-        <Section title="Application not approved" subtitle="The review timeline below contains the applicant-facing reason.">
+        <Section title="Application not approved" subtitle="The applicant-facing reason is shown in the timeline below.">
           <Text style={styles.rejected}>Contact Partner Support before starting another application with the same verified identity.</Text>
         </Section>
       ) : null}
@@ -155,8 +245,8 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
             <Clock3 size={22} color="#0369A1" />
             <Text style={styles.waitingText}>
               {application.status === 'SUBMITTED'
-                ? 'Application received and waiting for a reviewer.'
-                : 'A reviewer is checking profile details and individual documents.'}
+                ? 'Application received and waiting for an Admin reviewer.'
+                : 'Admin is checking profile details and individual documents.'}
             </Text>
           </View>
         </Section>
@@ -164,7 +254,7 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
 
       <Section title="Application timeline">
         {events.length === 0 ? (
-          <Text style={styles.empty}>No visible events yet.</Text>
+          <Text style={styles.empty}>No visible events yet. Pull down or tap refresh to check again.</Text>
         ) : (
           events.map((event, index) => (
             <View key={event.id} style={styles.eventRow}>
@@ -187,10 +277,41 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
           <FileText size={19} color={palette.teal} />
           <Text style={styles.reference}>{application.applicationNumber}</Text>
         </View>
-        <PrimaryButton label="Forget this application on device" onPress={async () => { await clear(); navigation.replace('PartnerWelcome'); }} secondary />
+        <PrimaryButton
+          label="Forget this application on device"
+          onPress={async () => {
+            await clear();
+            returnHome();
+          }}
+          secondary
+        />
         {canWithdraw ? <PrimaryButton label="Withdraw application" onPress={confirmWithdraw} danger /> : null}
       </Section>
     </OnboardingShell>
+  );
+}
+
+function ProgressStep({ step, last }: { step: ApplicationProgressStep; last: boolean }) {
+  const dotStyle =
+    step.state === 'COMPLETE'
+      ? styles.progressComplete
+      : step.state === 'ATTENTION'
+        ? styles.progressAttention
+        : step.state === 'REJECTED'
+          ? styles.progressRejected
+          : step.state === 'CURRENT'
+            ? styles.progressCurrent
+            : styles.progressUpcoming;
+  return (
+    <View style={styles.progressRow}>
+      <View style={styles.progressRail}>
+        <View style={[styles.progressDot, dotStyle]} />
+        {!last ? <View style={styles.progressLine} /> : null}
+      </View>
+      <Text style={[styles.progressLabel, step.state === 'UPCOMING' && styles.progressLabelMuted]}>
+        {step.label}
+      </Text>
+    </View>
   );
 }
 
@@ -201,8 +322,23 @@ const styles = StyleSheet.create({
   version: { color: '#94A3B8', fontSize: 10, fontWeight: '800' },
   heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '900' },
   heroText: { color: '#CBD5E1', fontSize: 13, fontWeight: '600' },
+  liveNote: { color: '#94A3B8', fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  progressList: { gap: 0 },
+  progressRow: { minHeight: 48, flexDirection: 'row', gap: 12 },
+  progressRail: { width: 18, alignItems: 'center' },
+  progressDot: { width: 13, height: 13, borderRadius: 7, borderWidth: 2, marginTop: 2 },
+  progressLine: { width: 2, flex: 1, minHeight: 28, backgroundColor: '#E2E8F0', marginVertical: 3 },
+  progressComplete: { borderColor: '#059669', backgroundColor: '#10B981' },
+  progressCurrent: { borderColor: '#0F766E', backgroundColor: '#CCFBF1' },
+  progressAttention: { borderColor: '#D97706', backgroundColor: '#FDE68A' },
+  progressRejected: { borderColor: '#DC2626', backgroundColor: '#FECACA' },
+  progressUpcoming: { borderColor: '#CBD5E1', backgroundColor: '#FFFFFF' },
+  progressLabel: { flex: 1, color: palette.ink, fontSize: 12, lineHeight: 18, fontWeight: '800' },
+  progressLabelMuted: { color: '#94A3B8' },
   warningRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: '#FFFBEB', borderRadius: 16, padding: 14 },
-  warningText: { flex: 1, color: '#92400E', fontSize: 12, lineHeight: 18, fontWeight: '700' },
+  warningText: { color: '#92400E', fontSize: 12, lineHeight: 18, fontWeight: '700' },
+  fieldList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  fieldChip: { color: '#92400E', backgroundColor: '#FEF3C7', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5, fontSize: 10, fontWeight: '900' },
   successRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#ECFDF5', borderRadius: 16, padding: 14 },
   successText: { flex: 1, color: '#065F46', fontSize: 13, lineHeight: 19, fontWeight: '800' },
   rejected: { color: palette.red, fontSize: 12, lineHeight: 19, fontWeight: '700' },
