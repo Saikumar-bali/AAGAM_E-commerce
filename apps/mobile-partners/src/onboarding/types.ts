@@ -80,4 +80,4 @@ export const statusLabel = (status?: PartnerApplicationStatus) =>
     .join(' ');
 
 export const editableApplication = (status?: PartnerApplicationStatus) =>
-  status === 'DRAFT' || status === 'ACTION_REQUIRED';
+  ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'ACTION_REQUIRED'].includes(status || '');
