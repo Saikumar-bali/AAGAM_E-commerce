@@ -37,8 +37,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       },
     });
     if (!user) throw new UnauthorizedException('User account no longer exists');
+    const identity = await prisma.$queryRawUnsafe(
+      'SELECT "phoneVerifiedAt" FROM "User" WHERE "id" = $1 LIMIT 1',
+      user.id,
+    );
     return {
       ...user,
+      email: user.email.endsWith('@phone.aagam.local') ? null : user.email,
+      phoneVerifiedAt: identity[0]?.phoneVerifiedAt || null,
       roles: await activeUserRoles(user.id, user.role),
     };
   }
