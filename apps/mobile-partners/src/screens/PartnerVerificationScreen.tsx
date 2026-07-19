@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, BackHandler, StyleSheet, Text, View } from 'react-native';
 import { apiClient } from '@aagam/mobile-shared';
 import {
   FormField,
@@ -10,6 +10,8 @@ import {
 } from '../components/PartnerOnboardingUI';
 import { FirebasePnv } from '../native/FirebasePnv';
 import {
+  createVerificationHardwareBackHandler,
+  resetVerificationToPartnerHome,
   resolveVerificationDelivery,
   verificationRequestErrorMessage,
 } from '../onboarding/partnerVerificationPresentation';
@@ -63,6 +65,14 @@ export function PartnerVerificationScreen({ navigation }: any) {
   );
 
   useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      createVerificationHardwareBackHandler(navigation),
+    );
+    return () => subscription.remove();
+  }, [navigation]);
+
+  useEffect(() => {
     let active = true;
     if (!applicationId || !accessToken) {
       setDeliveryChecked(true);
@@ -101,10 +111,7 @@ export function PartnerVerificationScreen({ navigation }: any) {
   }, [phoneFlow]);
 
   const leaveVerification = () => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'PartnerWelcome' }],
-    });
+    resetVerificationToPartnerHome(navigation);
   };
 
   const proceedAfterVerification = () => {
