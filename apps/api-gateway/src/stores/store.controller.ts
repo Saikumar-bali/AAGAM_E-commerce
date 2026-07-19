@@ -99,6 +99,7 @@ export class StoreController {
     @Body('quantity') quantity: number,
     @Body('isListed') isListed: boolean | undefined,
     @Body('autoHideWhenOutOfStock') autoHideWhenOutOfStock: boolean | undefined,
+    @Body('sellingPrice') sellingPrice: number | null | undefined,
     @Req() req: any,
   ) {
     return this.storeService.updateInventory(
@@ -106,7 +107,7 @@ export class StoreController {
       productId,
       quantity,
       req.user,
-      { isListed, autoHideWhenOutOfStock },
+      { isListed, autoHideWhenOutOfStock, sellingPrice },
     );
   }
 }
