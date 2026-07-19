@@ -27,9 +27,10 @@ type UpdateInput = {
 
 type UploadInput = {
   type: string;
+  uri: string;
   filename: string;
   mimeType: string;
-  dataUrl: string;
+  fileSize?: number;
   documentNumber?: string;
   expiresAt?: string;
 };
@@ -42,6 +43,7 @@ type State = {
   events: PartnerApplicationEvent[];
   testVerificationCode: string | null;
   activationToken: string | null;
+  uploadProgress: number | null;
   isLoading: boolean;
   isHydrated: boolean;
   error: string | null;
@@ -96,6 +98,7 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
   events: [],
   testVerificationCode: null,
   activationToken: null,
+  uploadProgress: null,
   isLoading: false,
   isHydrated: false,
   error: null,
@@ -235,14 +238,20 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
   uploadDocument: async (input) => {
     const { applicationId, accessToken } = get();
     if (!applicationId || !accessToken) throw new Error('Application session missing');
-    set({ isLoading: true, error: null });
+    if (input.fileSize && input.fileSize > 10 * 1024 * 1024) {
+      throw new Error('Document exceeds the 10 MB limit');
+    }
+    set({ isLoading: true, error: null, uploadProgress: 0 });
     try {
-      const blob = await (await fetch(input.dataUrl)).blob();
       const form = new FormData();
       form.append('type', input.type);
       if (input.documentNumber) form.append('documentNumber', input.documentNumber);
       if (input.expiresAt) form.append('expiresAt', input.expiresAt);
-      form.append('file', blob as any, input.filename);
+      form.append('file', {
+        uri: input.uri,
+        name: input.filename,
+        type: input.mimeType,
+      } as any);
       const { data } = await apiClient.post(
         `/partner-onboarding/applications/${applicationId}/documents`,
         form,
@@ -251,16 +260,22 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
             ...applicationHeaders(accessToken),
             'Content-Type': 'multipart/form-data',
           },
-          timeout: 45000,
+          timeout: 90000,
+          onUploadProgress: (event) => {
+            const total = event.total || input.fileSize || 0;
+            if (total > 0) {
+              set({ uploadProgress: Math.min(100, Math.round((event.loaded / total) * 100)) });
+            }
+          },
         },
       );
-      set({ response: data });
+      set({ response: data, uploadProgress: 100 });
     } catch (error) {
       const text = message(error, 'Document upload failed');
       set({ error: text });
       throw new Error(text);
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, uploadProgress: null });
     }
   },
 
@@ -350,6 +365,7 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
       events: [],
       testVerificationCode: null,
       activationToken: null,
+      uploadProgress: null,
       error: null,
     });
   },
