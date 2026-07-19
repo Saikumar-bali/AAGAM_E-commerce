@@ -82,6 +82,8 @@ export interface PartnerDocumentRow {
 
 const EDITABLE = [
   PartnerApplicationStatus.DRAFT,
+  PartnerApplicationStatus.SUBMITTED,
+  PartnerApplicationStatus.UNDER_REVIEW,
   PartnerApplicationStatus.ACTION_REQUIRED,
 ];
 
@@ -122,6 +124,39 @@ export class PartnerOnboardingRepository {
         `Application cannot be edited while status is ${application.status}`,
       );
     }
+  }
+
+  async reopenForApplicantEdit(application: PartnerApplicationRow, db: any = prisma) {
+    if (
+      ![
+        PartnerApplicationStatus.SUBMITTED,
+        PartnerApplicationStatus.UNDER_REVIEW,
+      ].includes(application.status)
+    ) {
+      return false;
+    }
+    const fromStatus = application.status;
+    await db.$executeRawUnsafe(
+      `UPDATE "PartnerApplication" SET "status" = 'DRAFT',
+        "assignedReviewerUserId" = NULL, "reviewStartedAt" = NULL,
+        "submittedSnapshot" = NULL, "submissionIdempotencyKey" = NULL,
+        "submittedAt" = NULL, "updatedAt" = CURRENT_TIMESTAMP
+       WHERE "id" = $1`,
+      application.id,
+    );
+    await db.$executeRawUnsafe(
+      `UPDATE "PartnerApplicationDocument" SET "status" = 'PENDING',
+        "reviewNote" = NULL, "reviewedByUserId" = NULL, "reviewedAt" = NULL,
+        "updatedAt" = CURRENT_TIMESTAMP WHERE "applicationId" = $1`,
+      application.id,
+    );
+    await this.writeEvent(db, application.id, 'APPLICATION_REOPENED_FOR_EDIT', 'APPLICANT', {
+      fromStatus,
+      toStatus: PartnerApplicationStatus.DRAFT,
+      message: 'Application reopened for editing. Submit it again when the updates are complete.',
+    });
+    application.status = PartnerApplicationStatus.DRAFT;
+    return true;
   }
 
   async documents(

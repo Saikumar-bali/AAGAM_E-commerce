@@ -7,6 +7,7 @@ import {
 import { prisma } from '@aagam/database';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import { UploadService } from '../upload/upload.service';
+import { normalizePhoneE164 } from '../contact-verification/contact-otp.service';
 import {
   CreatePartnerApplicationDto,
   UploadPartnerDocumentDto,
@@ -42,7 +43,7 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
 
   private emailOnlyMode(): boolean {
     return (
-      (process.env.PARTNER_PHONE_VERIFICATION_MODE || 'PNV_FIRST')
+      (process.env.PARTNER_PHONE_VERIFICATION_MODE || 'SMS_ONLY')
         .trim()
         .toUpperCase() === 'EMAIL_ONLY'
     );
@@ -50,20 +51,21 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
 
   override async createApplication(dto: CreatePartnerApplicationDto): Promise<any> {
     const email = dto.email?.trim().toLowerCase() || null;
-    const phone = dto.phoneE164?.trim() || null;
-    if (!email && !phone) throw new BadRequestException('Email or phone number is required');
+    const phone = dto.phoneE164?.trim() ? normalizePhoneE164(dto.phoneE164) : null;
+    const emailOnly = this.emailOnlyMode();
 
-    if (this.emailOnlyMode()) {
-      if (!email) {
-        throw new BadRequestException(
-          'Email is required while phone verification is temporarily unavailable',
-        );
-      }
-      if (dto.verificationChannel === PartnerContactChannel.PHONE) {
-        throw new BadRequestException(
-          'Phone verification is temporarily unavailable. Use email verification.',
-        );
-      }
+    if (emailOnly && !email) {
+      throw new BadRequestException(
+        'Email is required while phone verification is temporarily unavailable',
+      );
+    }
+    if (!emailOnly && !phone) {
+      throw new BadRequestException('Mobile number is required for Partner onboarding');
+    }
+    if (emailOnly && dto.verificationChannel === PartnerContactChannel.PHONE) {
+      throw new BadRequestException(
+        'Phone verification is temporarily unavailable. Use email verification.',
+      );
     }
 
     if (email) {
@@ -87,10 +89,9 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
 
     const id = randomUUID();
     const accessToken = this.deliverySecurity.issueAccessToken();
-    const channel = this.emailOnlyMode()
+    const channel = emailOnly
       ? PartnerContactChannel.EMAIL
-      : dto.verificationChannel ||
-        (email ? PartnerContactChannel.EMAIL : PartnerContactChannel.PHONE);
+      : dto.verificationChannel || PartnerContactChannel.PHONE;
     if (channel === PartnerContactChannel.EMAIL && !email) {
       throw new BadRequestException('Email is required for email verification');
     }
@@ -122,6 +123,7 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
         {
           toStatus: PartnerApplicationStatus.DRAFT,
           message: 'Partner application started.',
+          metadata: { primaryContact: phone ? 'PHONE' : 'EMAIL' },
         },
       );
     });
@@ -212,6 +214,7 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
 
     try {
       await prisma.$transaction(async (tx) => {
+        await this.deliveryRepository.reopenForApplicantEdit(application, tx);
         await tx.$executeRawUnsafe(
           `INSERT INTO "PartnerApplicationDocument" (
             "id", "applicationId", "type", "storageKey", "originalFilename",
@@ -265,18 +268,23 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
   override async removeDocument(id: string, documentId: string, accessToken: string) {
     const application = await this.deliveryRepository.requireApplication(id, accessToken);
     this.deliveryRepository.assertEditable(application);
-    const rows = await prisma.$queryRawUnsafe(
-      `DELETE FROM "PartnerApplicationDocument"
-       WHERE "id" = $1 AND "applicationId" = $2 RETURNING "type", "storageKey"`,
-      documentId,
-      id,
-    );
-    if (!rows[0]) throw new NotFoundException('Document not found');
-    await this.deliveryRepository.writeEvent(prisma, id, 'DOCUMENT_REMOVED', 'APPLICANT', {
-      message: `${rows[0].type.replaceAll('_', ' ').toLowerCase()} removed.`,
-      metadata: { type: rows[0].type },
+    let removed: any;
+    await prisma.$transaction(async (tx) => {
+      await this.deliveryRepository.reopenForApplicantEdit(application, tx);
+      const rows = await tx.$queryRawUnsafe(
+        `DELETE FROM "PartnerApplicationDocument"
+         WHERE "id" = $1 AND "applicationId" = $2 RETURNING "type", "storageKey"`,
+        documentId,
+        id,
+      );
+      if (!rows[0]) throw new NotFoundException('Document not found');
+      removed = rows[0];
+      await this.deliveryRepository.writeEvent(tx, id, 'DOCUMENT_REMOVED', 'APPLICANT', {
+        message: `${removed.type.replaceAll('_', ' ').toLowerCase()} removed.`,
+        metadata: { type: removed.type },
+      });
     });
-    await this.deliveryUploads.deleteEvidence(rows[0].storageKey);
+    await this.deliveryUploads.deleteEvidence(removed.storageKey);
     return this.getApplication(id, accessToken);
   }
 
@@ -302,7 +310,7 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
     const application = await this.deliveryRepository.requireApplication(id, accessToken);
     if (application.linkedExistingUser) {
       throw new ConflictException(
-        'Partner access was added to your existing AAGAM account. Sign in with your current password or Google account.',
+        'Partner access was added to your existing AAGAM account. Sign in with phone, password, or Google.',
       );
     }
     return super.claimActivation(id, accessToken);

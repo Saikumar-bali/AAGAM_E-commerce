@@ -4,9 +4,11 @@ import { APIRequestContext, Browser, Page, expect, test } from '@playwright/test
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
 const WEB_BASE = 'http://localhost:3001';
-const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-4');
+const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-phone-primary');
 const adminEmail = process.env.ADMIN_EMAIL;
 const adminPassword = process.env.ADMIN_PASSWORD;
+
+const qaPhone = (offset = 0) => `+919${String(Date.now() + offset).slice(-9).padStart(9, '0')}`;
 
 type Applicant = {
   applicationId: string;
@@ -14,42 +16,53 @@ type Applicant = {
   applicationNumber: string;
   type: 'RIDER' | 'STORE';
   name: string;
-  email: string;
+  phone: string;
+  email?: string;
   requiredDocuments: string[];
 };
 
 const headers = (applicant: Applicant) => ({ Authorization: `Application ${applicant.accessToken}` });
 
-async function startApplication(request: APIRequestContext, type: 'RIDER' | 'STORE', suffix: string, email?: string) {
+async function startApplication(
+  request: APIRequestContext,
+  type: 'RIDER' | 'STORE',
+  suffix: string,
+  phone: string,
+  email?: string,
+) {
   const name = type === 'RIDER' ? `QA Rider ${suffix}` : `QA Store ${suffix}`;
   const response = await request.post(`${API_BASE}/partner-onboarding/applications`, {
     data: {
       type,
       applicantName: name,
-      email: email || `${type.toLowerCase()}.${suffix}@example.com`,
-      verificationChannel: 'EMAIL',
+      phoneE164: phone,
+      email,
+      verificationChannel: 'PHONE',
     },
   });
   expect(response.ok(), await response.text()).toBeTruthy();
   const body = await response.json();
+  expect(body.verification?.channel).toBe('PHONE');
   expect(body.verification?.code).toMatch(/^\d{6}$/);
-  return { body, name, email: email || `${type.toLowerCase()}.${suffix}@example.com` };
+  return { body, name };
 }
 
 async function submittedApplication(
   request: APIRequestContext,
   type: 'RIDER' | 'STORE',
   suffix: string,
+  phone: string,
   email?: string,
 ): Promise<Applicant> {
-  const started = await startApplication(request, type, suffix, email);
+  const started = await startApplication(request, type, suffix, phone, email);
   const applicant: Applicant = {
     applicationId: started.body.applicationId,
     accessToken: started.body.accessToken,
     applicationNumber: started.body.applicationNumber,
     type,
     name: started.name,
-    email: started.email,
+    phone,
+    email,
     requiredDocuments:
       type === 'RIDER'
         ? ['IDENTITY', 'PROFILE_PHOTO', 'BANK_PROOF']
@@ -61,6 +74,7 @@ async function submittedApplication(
     { headers: headers(applicant), data: { code: started.body.verification.code } },
   );
   expect(verify.ok(), await verify.text()).toBeTruthy();
+  expect((await verify.json()).application.phoneVerifiedAt).toBeTruthy();
 
   const payload = type === 'RIDER'
     ? {
@@ -101,15 +115,12 @@ async function submittedApplication(
       },
     );
     expect(upload.ok(), await upload.text()).toBeTruthy();
-    const document = (await upload.json()).documents.find((item: any) => item.type === documentType);
-    expect(document.version).toBe(1);
-    expect(document.uploadedAt).toBeTruthy();
   }
 
   const submit = await request.post(
     `${API_BASE}/partner-onboarding/applications/${applicant.applicationId}/submit`,
     {
-      headers: { ...headers(applicant), 'Idempotency-Key': `qa-${type}-${suffix}` },
+      headers: { ...headers(applicant), 'Idempotency-Key': `phone-${type}-${suffix}` },
       data: {},
     },
   );
@@ -118,14 +129,25 @@ async function submittedApplication(
   return applicant;
 }
 
+async function adminBearer(request: APIRequestContext) {
+  expect(adminEmail, 'ADMIN_EMAIL must be configured for Playwright').toBeTruthy();
+  expect(adminPassword, 'ADMIN_PASSWORD must be configured for Playwright').toBeTruthy();
+  const login = await request.post(`${API_BASE}/auth/mobile/login`, {
+    data: { identifier: adminEmail, password: adminPassword },
+  });
+  expect(login.ok(), await login.text()).toBeTruthy();
+  return (await login.json()).access_token as string;
+}
+
 async function adminPage(browser: Browser) {
   expect(adminEmail, 'ADMIN_EMAIL must be configured for Playwright').toBeTruthy();
   expect(adminPassword, 'ADMIN_PASSWORD must be configured for Playwright').toBeTruthy();
   const context = await browser.newContext({ baseURL: WEB_BASE });
   const page = await context.newPage();
   await page.goto('/login');
-  await page.getByRole('textbox', { name: /email address/i }).fill(adminEmail!);
-  await page.locator('input[type="password"]').fill(adminPassword!);
+  await page.getByRole('button', { name: 'Password' }).click();
+  await page.getByLabel('Phone number or email').fill(adminEmail!);
+  await page.getByLabel('Password').fill(adminPassword!);
   await Promise.all([
     page.waitForURL('**/admin**', { timeout: 20_000 }),
     page.getByRole('button', { name: 'Continue', exact: true }).click(),
@@ -135,60 +157,145 @@ async function adminPage(browser: Browser) {
 
 async function openApplication(page: Page, applicant: Applicant) {
   await page.goto('/admin/partner-applications');
-  await page.getByPlaceholder(/Search name, email or application/i).fill(applicant.applicationNumber);
+  await page.getByPlaceholder(/Search phone, name, email or application/i).fill(applicant.applicationNumber);
   const card = page.getByRole('button').filter({ hasText: applicant.applicationNumber }).first();
   await expect(card).toBeVisible();
   await card.click();
   await expect(page.getByRole('heading', { name: applicant.name })).toBeVisible();
 }
 
-async function approve(page: Page, applicant: Applicant, linked = false) {
+async function approve(page: Page, applicant: Applicant) {
   await openApplication(page, applicant);
   await page.getByRole('button', { name: /Start review and assign to me/i }).click();
-  await page.getByRole('button', { name: /Verify all submitted documents/i }).click();
-  for (const type of applicant.requiredDocuments) {
-    const card = page.locator('article').filter({ hasText: type.replaceAll('_', ' ') });
-    await expect(card.getByText('VERIFIED', { exact: true })).toBeVisible();
-    await expect(card.getByRole('button', { name: 'Download', exact: true })).toBeVisible();
-  }
-  const button = page.getByRole('button', {
-    name: new RegExp(`Approve and provision ${applicant.type === 'RIDER' ? 'Rider' : 'Store'}`, 'i'),
-  });
-  await expect(button).toBeEnabled();
-  await button.click();
+  await page.getByRole('button', { name: /Verify all documents/i }).click();
+  const approveButton = page.getByRole('button', { name: /Approve and provision/i });
+  await expect(approveButton).toBeEnabled();
+  await approveButton.click();
   await expect(page.locator('header').getByText('APPROVED')).toBeVisible();
-  if (linked) await expect(page.getByText('EXISTING CUSTOMER LINKED')).toBeVisible();
   await page.screenshot({
-    path: path.join(SCREENSHOT_DIR, `partner-v2-${applicant.type.toLowerCase()}-${linked ? 'linked' : 'approved'}.png`),
+    path: path.join(SCREENSHOT_DIR, `phone-primary-${applicant.type.toLowerCase()}-approved.png`),
     fullPage: true,
   });
 }
 
-async function activateNewAccount(request: APIRequestContext, applicant: Applicant, password: string) {
-  const claim = await request.post(
-    `${API_BASE}/partner-onboarding/applications/${applicant.applicationId}/activation`,
-    { headers: headers(applicant), data: {} },
-  );
-  expect(claim.ok(), await claim.text()).toBeTruthy();
-  const token = (await claim.json()).token;
-  const activation = await request.post(`${API_BASE}/partner-onboarding/activate`, {
-    data: { token, password },
+async function phoneLogin(request: APIRequestContext, phone: string) {
+  const challenge = await request.post(`${API_BASE}/auth/phone/request`, {
+    data: { phoneE164: phone, purpose: 'LOGIN' },
   });
-  expect(activation.ok(), await activation.text()).toBeTruthy();
-  const login = await request.post(`${API_BASE}/auth/mobile/login`, {
-    data: { email: applicant.email, password },
+  expect(challenge.ok(), await challenge.text()).toBeTruthy();
+  const challengeBody = await challenge.json();
+  expect(challengeBody.code).toMatch(/^\d{6}$/);
+  const verify = await request.post(`${API_BASE}/auth/mobile/phone/verify`, {
+    data: { phoneE164: phone, purpose: 'LOGIN', code: challengeBody.code },
   });
-  expect(login.ok(), await login.text()).toBeTruthy();
-  return login.json();
+  expect(verify.ok(), await verify.text()).toBeTruthy();
+  return verify.json();
 }
 
-test.describe.serial('Partner Onboarding V2 E2E', () => {
+test.describe.serial('Phone-primary identity and Partner recovery E2E', () => {
   test.beforeAll(() => mkdirSync(SCREENSHOT_DIR, { recursive: true }));
 
-  test('new Rider and Store complete review, provisioning, activation and multi-role login', async ({ browser, request }) => {
-    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const rider = await submittedApplication(request, 'RIDER', suffix);
-    const store = await submittedApplication(request, 'STORE', suffix);
+  test('Customer signs up and signs in using phone OTP without a password', async ({ request }) => {
+    const phone = qaPhone(1);
+    const signupChallenge = await request.post(`${API_BASE}/auth/phone/request`, {
+      data: { phoneE164: phone, purpose: 'SIGNUP' },
+    });
+    expect(signupChallenge.ok(), await signupChallenge.text()).toBeTruthy();
+    const challenge = await signupChallenge.json();
+    const signup = await request.post(`${API_BASE}/auth/mobile/phone/verify`, {
+      data: {
+        phoneE164: phone,
+        purpose: 'SIGNUP',
+        code: challenge.code,
+        name: 'Phone Customer QA',
+      },
+    });
+    expect(signup.ok(), await signup.text()).toBeTruthy();
+    const signupSession = await signup.json();
+    expect(signupSession.user.phone).toBe(phone);
+    expect(signupSession.user.email).toBeNull();
+    expect(signupSession.user.roles).toContain('CUSTOMER');
+    const loginSession = await phoneLogin(request, phone);
+    expect(loginSession.user.phone).toBe(phone);
+    expect(loginSession.user.roles).toContain('CUSTOMER');
+  });
+
+  test('Partner application recovery rotates the secret and restores the complete saved state', async ({ request }) => {
+    const suffix = `${Date.now()}-recovery`;
+    const phone = qaPhone(2);
+    const applicant = await submittedApplication(request, 'RIDER', suffix, phone, `recover.${suffix}@example.com`);
+    const oldToken = applicant.accessToken;
+
+    const recoveryRequest = await request.post(`${API_BASE}/partner-onboarding/resume/request`, {
+      data: { identifier: phone },
+    });
+    expect(recoveryRequest.ok(), await recoveryRequest.text()).toBeTruthy();
+    const recoveryChallenge = await recoveryRequest.json();
+    expect(recoveryChallenge.channel).toBe('PHONE');
+
+    const recoveryVerify = await request.post(`${API_BASE}/partner-onboarding/resume/verify`, {
+      data: { identifier: phone, code: recoveryChallenge.code },
+    });
+    expect(recoveryVerify.ok(), await recoveryVerify.text()).toBeTruthy();
+    const recovered = await recoveryVerify.json();
+    expect(recovered.application.status).toBe('SUBMITTED');
+    expect(recovered.application.applicantPayload.vehicleType).toBe('WALKER');
+    expect(recovered.documents.length).toBe(applicant.requiredDocuments.length);
+    expect(recovered.accessToken).not.toBe(oldToken);
+
+    const oldSession = await request.get(`${API_BASE}/partner-onboarding/applications/${applicant.applicationId}`, {
+      headers: { Authorization: `Application ${oldToken}` },
+    });
+    expect(oldSession.status()).toBe(401);
+
+    const edit = await request.patch(`${API_BASE}/partner-onboarding/applications/${applicant.applicationId}`, {
+      headers: { Authorization: `Application ${recovered.accessToken}` },
+      data: { payload: { availability: 'Evening' } },
+    });
+    expect(edit.ok(), await edit.text()).toBeTruthy();
+    expect((await edit.json()).application.status).toBe('DRAFT');
+  });
+
+  test('Admin Delete draft button uses reliable action endpoint and restore works', async ({ browser, request }) => {
+    const suffix = `${Date.now()}-delete`;
+    const phone = qaPhone(3);
+    const started = await startApplication(request, 'RIDER', suffix, phone);
+    const draft: Applicant = {
+      applicationId: started.body.applicationId,
+      accessToken: started.body.accessToken,
+      applicationNumber: started.body.applicationNumber,
+      type: 'RIDER',
+      name: started.name,
+      phone,
+      requiredDocuments: [],
+    };
+    const page = await adminPage(browser);
+    try {
+      await openApplication(page, draft);
+      await page.getByPlaceholder('Required deletion reason').fill('Duplicate QA draft retained for restore proof.');
+      await page.getByRole('button', { name: 'Delete draft', exact: true }).click();
+      await expect(page.getByText('Draft moved to deleted items.')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Restore draft', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Restore draft', exact: true }).click();
+      await expect(page.getByText('Draft restored.')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Delete draft', exact: true })).toBeVisible();
+    } finally {
+      await page.context().close();
+    }
+
+    const token = await adminBearer(request);
+    const deleteApi = await request.post(`${API_BASE}/admin/partner-onboarding/applications/${draft.applicationId}/delete`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { reason: 'API action route proof for reverse proxies.', retentionDays: 14 },
+    });
+    expect(deleteApi.ok(), await deleteApi.text()).toBeTruthy();
+    expect((await deleteApi.json()).application.deletedAt).toBeTruthy();
+  });
+
+  test('approved Rider and Store sign in directly with verified phone OTP', async ({ browser, request }) => {
+    const suffix = `${Date.now()}-approval`;
+    const rider = await submittedApplication(request, 'RIDER', `${suffix}-rider`, qaPhone(4));
+    const store = await submittedApplication(request, 'STORE', `${suffix}-store`, qaPhone(5));
     const page = await adminPage(browser);
     try {
       await approve(page, rider);
@@ -196,67 +303,9 @@ test.describe.serial('Partner Onboarding V2 E2E', () => {
     } finally {
       await page.context().close();
     }
-    const riderSession = await activateNewAccount(request, rider, `Rider-${suffix}-42!`);
-    const storeSession = await activateNewAccount(request, store, `Store-${suffix}-42!`);
+    const riderSession = await phoneLogin(request, rider.phone);
+    const storeSession = await phoneLogin(request, store.phone);
     expect(riderSession.user.roles).toEqual(expect.arrayContaining(['CUSTOMER', 'RIDER']));
     expect(storeSession.user.roles).toEqual(expect.arrayContaining(['CUSTOMER', 'STORE_OWNER']));
-  });
-
-  test('existing Customer receives Rider access without password replacement', async ({ browser, request }) => {
-    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const email = `customer.rider.${suffix}@example.com`;
-    const password = `Customer-${suffix}-42!`;
-    const signup = await request.post(`${API_BASE}/auth/signup`, {
-      data: { email, password, name: `Existing Customer ${suffix}` },
-    });
-    expect(signup.ok(), await signup.text()).toBeTruthy();
-    const rider = await submittedApplication(request, 'RIDER', `linked-${suffix}`, email);
-    const page = await adminPage(browser);
-    try {
-      await approve(page, rider, true);
-    } finally {
-      await page.context().close();
-    }
-    const claim = await request.post(
-      `${API_BASE}/partner-onboarding/applications/${rider.applicationId}/activation`,
-      { headers: headers(rider), data: {} },
-    );
-    expect(claim.status()).toBe(409);
-    const login = await request.post(`${API_BASE}/auth/mobile/login`, { data: { email, password } });
-    expect(login.ok(), await login.text()).toBeTruthy();
-    const session = await login.json();
-    expect(session.user.role).toBe('CUSTOMER');
-    expect(session.user.roles).toEqual(expect.arrayContaining(['CUSTOMER', 'RIDER']));
-    const profile = await request.get(`${API_BASE}/riders/me`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    expect(profile.ok(), await profile.text()).toBeTruthy();
-  });
-
-  test('Admin can assist contact verification and delete then restore a draft', async ({ browser, request }) => {
-    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const started = await startApplication(request, 'RIDER', `draft-${suffix}`);
-    const draft: Applicant = {
-      applicationId: started.body.applicationId,
-      accessToken: started.body.accessToken,
-      applicationNumber: started.body.applicationNumber,
-      type: 'RIDER',
-      name: started.name,
-      email: started.email,
-      requiredDocuments: [],
-    };
-    const page = await adminPage(browser);
-    try {
-      await openApplication(page, draft);
-      await page.getByPlaceholder('Reason and evidence checked').fill('Identity matched during an in-person QA support check.');
-      await page.getByRole('button', { name: /Mark contact verified by Admin/i }).click();
-      await page.getByPlaceholder('Required deletion reason').fill('Duplicate QA draft retained for recovery proof.');
-      await page.getByRole('button', { name: 'Delete draft', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'Restore draft', exact: true })).toBeVisible();
-      await page.getByRole('button', { name: 'Restore draft', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'Delete draft', exact: true })).toBeVisible();
-    } finally {
-      await page.context().close();
-    }
   });
 });

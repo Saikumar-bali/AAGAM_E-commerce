@@ -1,4 +1,4 @@
-import { test as setup } from '@playwright/test';
+import { test as setup, expect } from '@playwright/test';
 import path from 'path';
 
 const AUTH_FILE = path.resolve(__dirname, '../.auth/customer.json');
@@ -8,18 +8,16 @@ const PASSWORD = process.env.QA_CUSTOMER_PASSWORD || process.env.CUSTOMER_PASSWO
 
 setup('login as customer and save auth state', async ({ page }) => {
   await page.goto('/login');
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-  await page.fill('input[type="email"]', EMAIL);
-  await page.fill('input[type="password"]', PASSWORD);
-  await page.click('button[type="submit"]');
+  await page.getByRole('button', { name: 'Password', exact: true }).click();
+  await page.getByRole('textbox', { name: /email address/i }).fill(EMAIL);
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.waitForURL('**/shop**', { timeout: 20000 });
   await page.waitForLoadState('networkidle');
 
   // The browser session is carried only by the HttpOnly cookie. The role is
   // non-sensitive UI state and confirms that the login flow completed.
-  await page.waitForFunction(() => {
-    return localStorage.getItem('user_role') !== null;
-  }, { timeout: 5000 });
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('user_role'))).not.toBeNull();
 
   const sessionCookie = (await page.context().cookies()).find((cookie) => cookie.name === 'access_token');
   if (!sessionCookie?.httpOnly) throw new Error('HttpOnly session cookie was not created');

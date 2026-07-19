@@ -6,8 +6,8 @@ import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingSto
 import { OnboardingShell, palette, StatusPill } from '../components/PartnerOnboardingUI';
 
 export function PartnerWelcomeScreen({ navigation }: any) {
-  const { applicationId, response, type } = usePartnerOnboardingStore();
-  const continueRoute = resolveApplicantInitialRoute(applicationId, response, type);
+  const { applicationId, response } = usePartnerOnboardingStore();
+  const continueRoute = resolveApplicantInitialRoute(response);
 
   const continueExisting = () => {
     navigation.navigate(continueRoute);
@@ -31,10 +31,12 @@ export function PartnerWelcomeScreen({ navigation }: any) {
 
   const continueTitle =
     continueRoute === 'VerifyApplication'
-      ? 'Verify your email to continue'
+      ? 'Verify your contact to continue'
       : continueRoute === 'RiderApplication' || continueRoute === 'StoreApplication'
         ? 'Continue your application'
-        : 'View application status';
+        : continueRoute === 'ApplicationDocuments'
+          ? 'Continue your document checklist'
+          : 'View application status';
 
   return (
     <OnboardingShell
@@ -51,11 +53,14 @@ export function PartnerWelcomeScreen({ navigation }: any) {
           <ChevronRight size={22} color={palette.ink} />
         </TouchableOpacity>
       ) : applicationId ? (
-        <TouchableOpacity style={styles.continueCard} onPress={continueExisting}>
+        <TouchableOpacity
+          style={styles.continueCard}
+          onPress={() => navigation.navigate('ResumeApplication')}
+        >
           <View style={{ flex: 1 }}>
             <Text style={styles.continueTitle}>Recover your protected application</Text>
             <Text style={styles.reference}>
-              The saved session will retry loading its latest status.
+              Verify the saved phone number or email to restore its latest status.
             </Text>
           </View>
           <ChevronRight size={22} color={palette.ink} />
@@ -104,7 +109,7 @@ export function PartnerWelcomeScreen({ navigation }: any) {
         onPress={() => navigation.navigate('ResumeApplication')}
       >
         <Search size={19} color={palette.ink} />
-        <Text style={styles.actionText}>Resume with application access</Text>
+        <Text style={styles.actionText}>Resume with phone or email</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.action}
@@ -115,7 +120,7 @@ export function PartnerWelcomeScreen({ navigation }: any) {
       </TouchableOpacity>
 
       <Text style={styles.securityNote}>
-        Selecting an application never grants Rider or Store access. Admin approval and one-time account activation are mandatory.
+        Selecting an application never grants Rider or Store access. Admin approval is mandatory. Phone-verified approved accounts can sign in directly with OTP.
       </Text>
     </OnboardingShell>
   );

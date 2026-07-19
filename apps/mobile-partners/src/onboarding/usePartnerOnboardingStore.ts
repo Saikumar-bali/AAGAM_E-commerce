@@ -35,6 +35,14 @@ type UploadInput = {
   expiresAt?: string;
 };
 
+type ResumeRequestResult = {
+  channel: 'PHONE' | 'EMAIL';
+  maskedDestination: string;
+  expiresAt: string;
+  correlationId?: string;
+  code?: string;
+};
+
 type State = {
   applicationId: string | null;
   accessToken: string | null;
@@ -50,6 +58,8 @@ type State = {
   restore: () => Promise<void>;
   start: (input: StartInput) => Promise<void>;
   resume: (applicationId: string, accessToken: string) => Promise<void>;
+  requestResume: (identifier: string) => Promise<ResumeRequestResult>;
+  verifyResume: (identifier: string, code: string) => Promise<void>;
   refresh: () => Promise<void>;
   requestVerification: (channel: 'EMAIL' | 'PHONE') => Promise<void>;
   verify: (code: string) => Promise<void>;
@@ -111,11 +121,7 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
         return;
       }
       const parsed = JSON.parse(stored);
-      set({
-        applicationId: parsed.applicationId,
-        accessToken: parsed.accessToken,
-        type: parsed.type || null,
-      });
+      set({ applicationId: parsed.applicationId, accessToken: parsed.accessToken, type: parsed.type || null });
       await get().refresh();
     } catch {
       await AsyncStorage.removeItem(STORAGE_KEY);
@@ -141,11 +147,10 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
       const text = message(error, 'Could not start partner application');
       set({ error: text });
       throw new Error(text);
-    } finally {
-      set({ isLoading: false });
-    }
+    } finally { set({ isLoading: false }); }
   },
 
+  // Compatibility for locally saved sessions and older internal tests.
   resume: async (applicationId, accessToken) => {
     set({ applicationId, accessToken, isLoading: true, error: null });
     try {
@@ -157,9 +162,51 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
       const text = message(error, 'Application could not be restored');
       set({ error: text });
       throw new Error(text);
-    } finally {
-      set({ isLoading: false });
-    }
+    } finally { set({ isLoading: false }); }
+  },
+
+  requestResume: async (identifier) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { data } = await apiClient.post('/partner-onboarding/resume/request', {
+        identifier: identifier.trim(),
+      });
+      set({ testVerificationCode: data.code || null });
+      return data as ResumeRequestResult;
+    } catch (error) {
+      const text = message(error, 'Application recovery code could not be sent');
+      set({ error: text });
+      throw new Error(text);
+    } finally { set({ isLoading: false }); }
+  },
+
+  verifyResume: async (identifier, code) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { data } = await apiClient.post('/partner-onboarding/resume/verify', {
+        identifier: identifier.trim(),
+        code,
+      });
+      const response: PartnerApplicationResponse = {
+        application: data.application,
+        documents: Array.isArray(data.documents) ? data.documents : [],
+        requirements: data.requirements,
+      };
+      await saveSession(data.applicationId, data.accessToken, data.application?.type || null);
+      set({
+        applicationId: data.applicationId,
+        accessToken: data.accessToken,
+        type: data.application?.type || null,
+        response,
+        testVerificationCode: null,
+        events: [],
+      });
+      await get().loadEvents();
+    } catch (error) {
+      const text = message(error, 'Application could not be restored');
+      set({ error: text });
+      throw new Error(text);
+    } finally { set({ isLoading: false }); }
   },
 
   refresh: async () => {
@@ -184,15 +231,10 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
       );
       set({ testVerificationCode: data.code || null });
     } catch (error) {
-      const normalized = toPartnerOnboardingError(
-        error,
-        'Could not send verification code',
-      );
+      const normalized = toPartnerOnboardingError(error, 'Could not send verification code');
       set({ error: normalized.message });
       throw normalized;
-    } finally {
-      set({ isLoading: false });
-    }
+    } finally { set({ isLoading: false }); }
   },
 
   verify: async (code) => {
@@ -210,9 +252,7 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
       const text = message(error, 'Verification failed');
       set({ error: text });
       throw new Error(text);
-    } finally {
-      set({ isLoading: false });
-    }
+    } finally { set({ isLoading: false }); }
   },
 
   update: async (input) => {
@@ -230,42 +270,29 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
       const text = message(error, 'Application could not be saved');
       set({ error: text });
       throw new Error(text);
-    } finally {
-      set({ isLoading: false });
-    }
+    } finally { set({ isLoading: false }); }
   },
 
   uploadDocument: async (input) => {
     const { applicationId, accessToken } = get();
     if (!applicationId || !accessToken) throw new Error('Application session missing');
-    if (input.fileSize && input.fileSize > 10 * 1024 * 1024) {
-      throw new Error('Document exceeds the 10 MB limit');
-    }
+    if (input.fileSize && input.fileSize > 10 * 1024 * 1024) throw new Error('Document exceeds the 10 MB limit');
     set({ isLoading: true, error: null, uploadProgress: 0 });
     try {
       const form = new FormData();
       form.append('type', input.type);
       if (input.documentNumber) form.append('documentNumber', input.documentNumber);
       if (input.expiresAt) form.append('expiresAt', input.expiresAt);
-      form.append('file', {
-        uri: input.uri,
-        name: input.filename,
-        type: input.mimeType,
-      } as any);
+      form.append('file', { uri: input.uri, name: input.filename, type: input.mimeType } as any);
       const { data } = await apiClient.post(
         `/partner-onboarding/applications/${applicationId}/documents`,
         form,
         {
-          headers: {
-            ...applicationHeaders(accessToken),
-            'Content-Type': 'multipart/form-data',
-          },
+          headers: { ...applicationHeaders(accessToken), 'Content-Type': 'multipart/form-data' },
           timeout: 90000,
           onUploadProgress: (event) => {
             const total = event.total || input.fileSize || 0;
-            if (total > 0) {
-              set({ uploadProgress: Math.min(100, Math.round((event.loaded / total) * 100)) });
-            }
+            if (total > 0) set({ uploadProgress: Math.min(100, Math.round((event.loaded / total) * 100)) });
           },
         },
       );
@@ -274,9 +301,7 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
       const text = message(error, 'Document upload failed');
       set({ error: text });
       throw new Error(text);
-    } finally {
-      set({ isLoading: false, uploadProgress: null });
-    }
+    } finally { set({ isLoading: false, uploadProgress: null }); }
   },
 
   removeDocument: async (documentId) => {
@@ -297,12 +322,7 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
       const { data } = await apiClient.post(
         `/partner-onboarding/applications/${applicationId}/submit`,
         {},
-        {
-          headers: {
-            ...applicationHeaders(accessToken),
-            'Idempotency-Key': idempotencyKey(),
-          },
-        },
+        { headers: { ...applicationHeaders(accessToken), 'Idempotency-Key': idempotencyKey() } },
       );
       set({ response: data });
       await get().loadEvents();
@@ -310,17 +330,14 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
       const text = message(error, 'Application could not be submitted');
       set({ error: text });
       throw new Error(text);
-    } finally {
-      set({ isLoading: false });
-    }
+    } finally { set({ isLoading: false }); }
   },
 
   withdraw: async () => {
     const { applicationId, accessToken } = get();
     if (!applicationId || !accessToken) throw new Error('Application session missing');
     const { data } = await apiClient.post(
-      `/partner-onboarding/applications/${applicationId}/withdraw`,
-      {},
+      `/partner-onboarding/applications/${applicationId}/withdraw`, {},
       { headers: applicationHeaders(accessToken) },
     );
     set({ response: data });
@@ -340,8 +357,7 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
     const { applicationId, accessToken } = get();
     if (!applicationId || !accessToken) throw new Error('Application session missing');
     const { data } = await apiClient.post(
-      `/partner-onboarding/applications/${applicationId}/activation`,
-      {},
+      `/partner-onboarding/applications/${applicationId}/activation`, {},
       { headers: applicationHeaders(accessToken) },
     );
     set({ activationToken: data.token });
@@ -358,15 +374,8 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
   clear: async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
     set({
-      applicationId: null,
-      accessToken: null,
-      type: null,
-      response: null,
-      events: [],
-      testVerificationCode: null,
-      activationToken: null,
-      uploadProgress: null,
-      error: null,
+      applicationId: null, accessToken: null, type: null, response: null, events: [],
+      testVerificationCode: null, activationToken: null, uploadProgress: null, error: null,
     });
   },
 }));
