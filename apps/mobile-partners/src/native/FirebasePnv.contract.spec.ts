@@ -18,15 +18,18 @@ describe('Firebase PNV Android verification contracts', () => {
     expect(screen).toContain('FirebasePnv.startPnvVerification(challenge.data.nonce)');
   });
 
-  it('PNV unsupported offers SMS fallback', () => {
+  it('PNV unsupported offers a provider-neutral SMS fallback', () => {
     expect(screen).toContain('setShowSmsFallback(!supported)');
-    expect(screen).toContain('Use SMS verification instead');
+    expect(screen).toContain('Use SMS code');
+    expect(screen).not.toContain('Use SMS verification instead');
   });
 
-  it('user declines consent and gets a recoverable fallback', () => {
+  it('native consent cancellation is recoverable without exposing internal codes in production UI', () => {
     expect(nativeModule).toContain('GetCredentialCancellationException');
     expect(nativeModule).toContain('PNV_DECLINED');
-    expect(screen).toContain("'PNV_DECLINED'");
+    expect(screen).toContain("setShowSmsFallback(true)");
+    expect(screen).toContain("Alert.alert('Phone verification unavailable'");
+    expect(screen).not.toContain("'PNV_DECLINED'");
   });
 
   it('backend rejection never marks the client verified', () => {
