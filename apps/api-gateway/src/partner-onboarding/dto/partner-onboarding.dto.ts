@@ -16,6 +16,8 @@ import {
 } from 'class-validator';
 import { PartnerApplicationType, PartnerContactChannel } from '../partner-onboarding.types';
 
+const PHONE_INPUT = /^(?:\+[1-9]\d{7,14}|\d{10}|91\d{10})$/;
+
 export class CreatePartnerApplicationDto {
   @IsEnum(PartnerApplicationType)
   type!: PartnerApplicationType;
@@ -23,7 +25,7 @@ export class CreatePartnerApplicationDto {
   applicantName!: string;
   @IsOptional() @IsEmail() @MaxLength(254)
   email?: string;
-  @IsOptional() @Matches(/^\+[1-9]\d{7,14}$/)
+  @IsOptional() @Matches(PHONE_INPUT)
   phoneE164?: string;
   @IsOptional() @IsEnum(PartnerContactChannel)
   verificationChannel?: PartnerContactChannel;
@@ -37,7 +39,17 @@ export class RequestPartnerVerificationDto {
 }
 
 export class VerifyPartnerContactDto {
-  @IsString() @Length(6, 6)
+  @IsString() @Matches(/^\d{6}$/)
+  code!: string;
+}
+
+export class ResumePartnerApplicationRequestDto {
+  @IsString() @MinLength(5) @MaxLength(254)
+  identifier!: string;
+}
+
+export class ResumePartnerApplicationVerifyDto extends ResumePartnerApplicationRequestDto {
+  @IsString() @Matches(/^\d{6}$/)
   code!: string;
 }
 
@@ -51,7 +63,7 @@ export class UpdatePartnerApplicationDto {
   applicantName?: string;
   @IsOptional() @IsEmail() @MaxLength(254)
   email?: string;
-  @IsOptional() @Matches(/^\+[1-9]\d{7,14}$/)
+  @IsOptional() @Matches(PHONE_INPUT)
   phoneE164?: string;
   @IsOptional() @IsObject()
   payload?: Record<string, any>;
