@@ -9,6 +9,10 @@ import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
+import {
+  RequestCustomerPhoneOtpDto,
+  VerifyCustomerPhoneOtpDto,
+} from './dto/phone-auth.dto';
 
 const AUTH_LIMIT = process.env.PLAYWRIGHT_QA === 'true' ? 500 : 3;
 const PROFILE_LIMIT = process.env.PLAYWRIGHT_QA === 'true' ? 2000 : 180;
@@ -29,16 +33,48 @@ export class AuthController {
     });
   }
 
+  private loginIdentifier(dto: LoginDto) {
+    return dto.identifier || dto.phoneE164 || dto.email || '';
+  }
+
   @Post('signup')
   @Throttle({ short: { limit: AUTH_LIMIT, ttl: 60000 } })
   async signUp(@Body() signupDto: SignupDto) {
     return this.authService.signUp(signupDto.email, signupDto.password, signupDto.name);
   }
 
+  @Post('phone/request')
+  @Throttle({ short: { limit: 5, ttl: 60000 } })
+  requestPhoneOtp(@Body() dto: RequestCustomerPhoneOtpDto) {
+    return this.authService.requestPhoneOtp(dto.phoneE164, dto.purpose);
+  }
+
+  @Post('phone/verify')
+  @Throttle({ short: { limit: 8, ttl: 60000 } })
+  async verifyPhoneOtp(
+    @Body() dto: VerifyCustomerPhoneOtpDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.verifyPhoneOtp(dto);
+    this.setSessionCookie(response, result.session.access_token);
+    return { message: 'Phone verified successfully', user: result.user };
+  }
+
+  @Post('mobile/phone/verify')
+  @Throttle({ short: { limit: 8, ttl: 60000 } })
+  async mobileVerifyPhoneOtp(@Body() dto: VerifyCustomerPhoneOtpDto) {
+    const result = await this.authService.verifyPhoneOtp(dto);
+    return {
+      message: 'Phone verified successfully',
+      user: result.user,
+      access_token: result.session.access_token,
+    };
+  }
+
   @Post('login')
   @Throttle({ short: { limit: AUTH_LIMIT, ttl: 60000 } })
   async signIn(@Body() loginDto: LoginDto, @Res({ passthrough: true }) response: Response) {
-    const result = await this.authService.signIn(loginDto.email, loginDto.password);
+    const result = await this.authService.signIn(this.loginIdentifier(loginDto), loginDto.password);
     this.setSessionCookie(response, result.session.access_token);
     return { message: 'Logged in successfully', user: result.user };
   }
@@ -46,7 +82,7 @@ export class AuthController {
   @Post('mobile/login')
   @Throttle({ short: { limit: AUTH_LIMIT, ttl: 60000 } })
   async mobileSignIn(@Body() loginDto: LoginDto) {
-    const result = await this.authService.signIn(loginDto.email, loginDto.password);
+    const result = await this.authService.signIn(this.loginIdentifier(loginDto), loginDto.password);
     return {
       message: 'Logged in successfully',
       user: result.user,
