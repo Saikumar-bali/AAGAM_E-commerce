@@ -163,6 +163,30 @@ export class AuthService {
     });
   }
 
+  async requestPartnerPhoneOtp(phoneInput: string) {
+    const phone = normalizePhoneE164(phoneInput);
+    const user = await prisma.user.findUnique({ where: { phone } });
+    if (!user) throw new NotFoundException('This phone number is not registered as an approved Partner');
+    const roles = await activeUserRoles(user.id, user.role);
+    if (!roles.some((role) => role === Role.RIDER || role === Role.STORE_OWNER)) {
+      throw new NotFoundException('This phone number is not registered as an approved Partner');
+    }
+    await this.assertAccountActive(user.id);
+    return this.requestPhoneOtp(phone, CustomerPhoneOtpPurpose.LOGIN);
+  }
+
+  async verifyPartnerPhoneOtp(dto: VerifyCustomerPhoneOtpDto) {
+    const result = await this.verifyPhoneOtp({
+      ...dto,
+      purpose: CustomerPhoneOtpPurpose.LOGIN,
+    });
+    const roles = result.user.roles || [];
+    if (!roles.some((role) => role === Role.RIDER || role === Role.STORE_OWNER)) {
+      throw new UnauthorizedException('Approved Rider or Store access is required');
+    }
+    return result;
+  }
+
   async verifyPhoneOtp(dto: VerifyCustomerPhoneOtpDto) {
     const phone = normalizePhoneE164(dto.phoneE164);
     const challenge = await this.contactOtp.verify({

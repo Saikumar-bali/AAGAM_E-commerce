@@ -35,6 +35,7 @@ export const CheckoutScreen = () => {
   const [couponInput, setCouponInput] = useState(couponCode || '');
   const [appliedCouponCode, setAppliedCouponCode] = useState(couponCode || '');
   const [couponError, setCouponError] = useState('');
+  const [couponApplying, setCouponApplying] = useState(false);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [addressDraft, setAddressDraft] = useState({ label: 'Home', recipientName: user?.name || '', phoneE164: user?.phone || '', line1: '', city: '', state: '', pincode: '', latitude: '', longitude: '', country: 'IN', isDefault: true });
   const idempotencyKey = useRef(`mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -119,16 +120,39 @@ export const CheckoutScreen = () => {
     }
   }, [appliedCouponCode, quoteError, setCouponCode]);
 
-  const applyCoupon = () => {
+  const applyCoupon = async () => {
     const next = couponInput.trim().toUpperCase();
     if (!/^[A-Z0-9_-]{3,32}$/.test(next)) {
       setCouponError('Enter a valid coupon code.');
       return;
     }
+    if (!selectedAddressId) {
+      setCouponError('Select or add a delivery address before applying a coupon.');
+      return;
+    }
+    setCouponApplying(true);
     setCouponError('');
-    setCouponInput(next);
-    setAppliedCouponCode(next);
-    setCouponCode(next);
+    try {
+      const response = await apiClient.post('/checkout/quote', {
+        items: itemsPayload,
+        addressId: selectedAddressId,
+        couponCode: next,
+      });
+      if (!response.data?.appliedCoupon || Number(response.data?.invoice?.discountPaise || 0) <= 0) {
+        throw new Error('This coupon does not reduce the current order total.');
+      }
+      setCouponInput(next);
+      setAppliedCouponCode(next);
+      setCouponCode(next);
+      await queryClient.invalidateQueries({ queryKey: ['quote'] });
+      Toast.show({ type: 'success', text1: 'Coupon applied', text2: `You save ₹${response.data.invoice.discountAmount}` });
+    } catch (error: any) {
+      setAppliedCouponCode('');
+      setCouponCode(null);
+      setCouponError(errorMessage(error, 'This coupon could not be applied.'));
+    } finally {
+      setCouponApplying(false);
+    }
   };
 
   const removeCoupon = () => {
@@ -249,7 +273,7 @@ export const CheckoutScreen = () => {
             autoCapitalize="characters"
             style={styles.couponInput}
           />
-          <TouchableOpacity style={styles.applyButton} onPress={applyCoupon}><Text style={styles.applyButtonText}>Apply</Text></TouchableOpacity>
+          <TouchableOpacity disabled={couponApplying} style={[styles.applyButton, couponApplying && styles.placeOrderButtonDisabled]} onPress={() => void applyCoupon()}>{couponApplying ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.applyButtonText}>Apply</Text>}</TouchableOpacity>
         </View>
       )}
       {couponError ? <Text style={styles.couponError}>{couponError}</Text> : null}

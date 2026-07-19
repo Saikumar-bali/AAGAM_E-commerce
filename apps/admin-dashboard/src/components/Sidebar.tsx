@@ -170,6 +170,10 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   };
 
   const currentMenu = menuItems[role] || [];
+  const rootRoutes = new Set(["/admin", "/rider", "/shop", "/store"]);
+  const routeIsActive = (href: string) =>
+    pathname === href ||
+    (!rootRoutes.has(href) && pathname.startsWith(`${href}/`));
 
   return (
     <>
@@ -213,8 +217,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
           <div className="space-y-0.5">
             {currentMenu.map((item) => {
               const Icon = item.icon;
-              const isActive =
-                pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const isActive = routeIsActive(item.href);
               return (
                 <Link
                   key={item.name}

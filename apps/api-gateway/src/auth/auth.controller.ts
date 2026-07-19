@@ -71,6 +71,23 @@ export class AuthController {
     };
   }
 
+  @Post('partner/phone/request')
+  @Throttle({ short: { limit: 5, ttl: 60000 } })
+  requestPartnerPhoneOtp(@Body() dto: RequestCustomerPhoneOtpDto) {
+    return this.authService.requestPartnerPhoneOtp(dto.phoneE164);
+  }
+
+  @Post('mobile/partner/phone/verify')
+  @Throttle({ short: { limit: 8, ttl: 60000 } })
+  async mobileVerifyPartnerPhoneOtp(@Body() dto: VerifyCustomerPhoneOtpDto) {
+    const result = await this.authService.verifyPartnerPhoneOtp(dto);
+    return {
+      message: 'Partner phone verified successfully',
+      user: result.user,
+      access_token: result.session.access_token,
+    };
+  }
+
   @Post('login')
   @Throttle({ short: { limit: AUTH_LIMIT, ttl: 60000 } })
   async signIn(@Body() loginDto: LoginDto, @Res({ passthrough: true }) response: Response) {

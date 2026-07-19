@@ -139,8 +139,8 @@ jobs:
       - name: Configure and validate Customer Google Sign-In
         shell: bash
         run: |
-          printf 'API_URL=%s\nGOOGLE_WEB_CLIENT_ID=%s\nGOOGLE_ANDROID_CLIENT_ID=%s\n' \
-            "$API_URL" "$GOOGLE_WEB_CLIENT_ID" "$GOOGLE_ANDROID_CLIENT_ID" > apps/mobile-customer/.env
+          printf 'API_URL=%s\nGOOGLE_WEB_CLIENT_ID=%s\nGOOGLE_ANDROID_CLIENT_ID=%s\nAPP_VARIANT=CUSTOMER\nAPP_VERSION_CODE=%s\n' \
+            "$API_URL" "$GOOGLE_WEB_CLIENT_ID" "$GOOGLE_ANDROID_CLIENT_ID" "$GITHUB_RUN_NUMBER" > apps/mobile-customer/.env
           bash scripts/prepare-android-google-auth.sh \
             customer \
             com.aagamcustomer \
@@ -221,8 +221,8 @@ jobs:
       - name: Configure and validate Partners Google Sign-In
         shell: bash
         run: |
-          printf 'API_URL=%s\nGOOGLE_WEB_CLIENT_ID=%s\nGOOGLE_ANDROID_CLIENT_ID=%s\n' \
-            "$API_URL" "$GOOGLE_WEB_CLIENT_ID" "$GOOGLE_ANDROID_CLIENT_ID" > apps/mobile-partners/.env
+          printf 'API_URL=%s\nGOOGLE_WEB_CLIENT_ID=%s\nGOOGLE_ANDROID_CLIENT_ID=%s\nAPP_VARIANT=PARTNERS\nAPP_VERSION_CODE=%s\n' \
+            "$API_URL" "$GOOGLE_WEB_CLIENT_ID" "$GOOGLE_ANDROID_CLIENT_ID" "$GITHUB_RUN_NUMBER" > apps/mobile-partners/.env
           bash scripts/prepare-android-google-auth.sh \
             partners \
             com.aagampartners \

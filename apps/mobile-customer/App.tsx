@@ -3,7 +3,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { startMobilePushLifecycle, useAuthStore } from '@aagam/mobile-shared';
+import { checkForAppUpdate, startMobilePushLifecycle, useAuthStore } from '@aagam/mobile-shared';
 import { RootNavigator } from './src/navigation/RootNavigator';
 
 const queryClient = new QueryClient();
@@ -35,6 +35,7 @@ function PushLifecycle() {
 }
 
 function App() {
+  useEffect(() => { void checkForAppUpdate(); }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>

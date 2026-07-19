@@ -344,7 +344,9 @@ export default function AdminProductsPage() {
     catch (err: any) { setCategories(previous); setError(err?.response?.data?.message || 'Failed to reorder categories.'); }
   };
 
-  const orderingMode = !searchTerm.trim() && categoryFilter === 'All' && statusFilter === 'all';
+  // Reordering remains available for a filtered/search result. The API applies
+  // the visible subset without requiring the operator to clear useful filters.
+  const orderingMode = true;
 
   const stats = [
     { label: 'Products', value: products.length, icon: Package, color: 'bg-blue-500' },
