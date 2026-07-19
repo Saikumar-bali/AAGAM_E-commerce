@@ -86,6 +86,17 @@ export class PartnerOnboardingAdminController {
     return this.onboarding.adminVerifyContact(id, req.user.id, dto);
   }
 
+  // Preferred action route. Some reverse proxies do not forward DELETE bodies.
+  @Post('applications/:id/delete')
+  deleteDraftAction(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Body() dto: DeletePartnerDraftDto,
+  ) {
+    return this.onboarding.deleteDraft(id, req.user.id, dto);
+  }
+
+  // Kept for compatibility with older Admin builds.
   @Delete('applications/:id')
   deleteDraft(
     @Param('id') id: string,
