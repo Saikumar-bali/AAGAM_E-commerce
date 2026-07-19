@@ -12,6 +12,10 @@ export class CreateProductDto {
   @IsNumber()
   price: number = 0;
 
+  @IsNumber()
+  @IsOptional()
+  mrp?: number;
+
   @IsString()
   @IsNotEmpty()
   categoryId: string = '';
