@@ -1,10 +1,15 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
-import { prisma } from '@aagam/database';
-import { Role } from '@aagam/database';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { prisma, Role } from '@aagam/database';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
+import { activeUserRoles, grantUserRole } from './user-roles';
 
 @Injectable()
 export class AuthService {
@@ -13,9 +18,7 @@ export class AuthService {
 
   constructor(private configService: ConfigService) {
     const secret = this.configService.get<string>('JWT_SECRET');
-    if (!secret) {
-      throw new Error('JWT_SECRET must be defined in environment variables');
-    }
+    if (!secret) throw new Error('JWT_SECRET must be defined in environment variables');
     this.jwtSecret = secret;
     this.googleClient = new OAuth2Client();
   }
@@ -37,24 +40,29 @@ export class AuthService {
     if (status === 'PENDING_ACTIVATION') {
       throw new UnauthorizedException('Account activation is required');
     }
-    if (status !== 'ACTIVE') {
-      throw new UnauthorizedException('Account is not active');
-    }
+    if (status !== 'ACTIVE') throw new UnauthorizedException('Account is not active');
   }
 
-  private buildAuthResponse(user: { id: string; email: string; role: Role; name: string | null; avatarUrl?: string | null }) {
+  private async buildAuthResponse(user: {
+    id: string;
+    email: string;
+    role: Role;
+    name: string | null;
+    avatarUrl?: string | null;
+  }) {
+    const roles = await activeUserRoles(user.id, user.role);
     const token = jwt.sign(
-      { sub: user.id, email: user.email, role: user.role },
+      { sub: user.id, email: user.email, role: user.role, roles },
       this.jwtSecret,
-      { expiresIn: '7d' }
+      { expiresIn: '7d' },
     );
-
     return {
       session: { access_token: token },
       user: {
         id: user.id,
         email: user.email,
         role: user.role,
+        roles,
         name: user.name,
         avatarUrl: user.avatarUrl || null,
       },
@@ -65,22 +73,24 @@ export class AuthService {
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) throw new ConflictException('User already exists');
-
     const hashedPassword = await bcrypt.hash(pass, 10);
 
     try {
-      const user = await prisma.user.create({
-        data: {
-          email: normalizedEmail,
-          name: name.trim(),
-          password: hashedPassword,
-          role: Role.CUSTOMER,
-        },
+      const user = await prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            email: normalizedEmail,
+            name: name.trim(),
+            password: hashedPassword,
+            role: Role.CUSTOMER,
+          },
+        });
+        await grantUserRole(tx as any, created.id, Role.CUSTOMER, 'CUSTOMER_SIGNUP');
+        return created;
       });
-
       return {
         message: 'Customer account created successfully',
-        user: { id: user.id, email: user.email, role: user.role },
+        user: { id: user.id, email: user.email, role: user.role, roles: [Role.CUSTOMER] },
       };
     } catch (error) {
       console.error('DB Signup Error:', error);
@@ -89,18 +99,11 @@ export class AuthService {
   }
 
   async signIn(email: string, pass: string) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('SignIn Attempt: Authentication request received');
-    }
     const user = await prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
     });
-    if (!user || !user.password) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    const isMatch = await bcrypt.compare(pass, user.password);
-    if (!isMatch) {
+    if (!user?.password) throw new UnauthorizedException('Invalid credentials');
+    if (!(await bcrypt.compare(pass, user.password))) {
       throw new UnauthorizedException('Invalid credentials');
     }
     await this.assertAccountActive(user.id);
@@ -123,12 +126,8 @@ export class AuthService {
       aud?: string;
       exp?: number;
     };
-
     try {
-      const ticket = await this.googleClient.verifyIdToken({
-        idToken,
-        audience: audiences,
-      });
+      const ticket = await this.googleClient.verifyIdToken({ idToken, audience: audiences });
       payload = ticket.getPayload() || {};
     } catch {
       throw new UnauthorizedException('Invalid Google token');
@@ -137,9 +136,7 @@ export class AuthService {
     if (!payload.email || !payload.sub) {
       throw new UnauthorizedException('Google account email is required');
     }
-
-    const isValidIssuer = payload.iss === 'accounts.google.com' || payload.iss === 'https://accounts.google.com';
-    if (!isValidIssuer) {
+    if (!['accounts.google.com', 'https://accounts.google.com'].includes(String(payload.iss))) {
       throw new UnauthorizedException('Invalid Google token issuer');
     }
 
@@ -147,7 +144,6 @@ export class AuthService {
     const name = payload.name?.trim() || email.split('@')[0];
     const avatarUrl = payload.picture || null;
     const emailVerified = Boolean(payload.email_verified);
-
     const existingByGoogleSub = await prisma.user.findFirst({ where: { googleSub: payload.sub } });
 
     if (existingByGoogleSub) {
@@ -156,6 +152,7 @@ export class AuthService {
         where: { id: existingByGoogleSub.id },
         data: { name, avatarUrl, emailVerified },
       });
+      await grantUserRole(prisma as any, updated.id, updated.role, 'AUTH_RECONCILIATION');
       return this.buildAuthResponse(updated);
     }
 
@@ -171,28 +168,54 @@ export class AuthService {
           emailVerified: emailVerified || existingByEmail.emailVerified,
         },
       });
+      await grantUserRole(prisma as any, linkedUser.id, linkedUser.role, 'AUTH_RECONCILIATION');
       return this.buildAuthResponse(linkedUser);
     }
 
-    const createdUser = await prisma.user.create({
-      data: { email, name, role: Role.CUSTOMER, googleSub: payload.sub, avatarUrl, emailVerified },
+    const createdUser = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email,
+          name,
+          role: Role.CUSTOMER,
+          googleSub: payload.sub,
+          avatarUrl,
+          emailVerified,
+        },
+      });
+      await grantUserRole(tx as any, created.id, Role.CUSTOMER, 'GOOGLE_CUSTOMER_SIGNUP');
+      return created;
     });
     return this.buildAuthResponse(createdUser);
   }
 
   async findAll() {
-    return prisma.user.findMany({
+    const users = await prisma.user.findMany({
       select: { id: true, email: true, name: true, role: true, createdAt: true },
     });
+    return Promise.all(
+      users.map(async (user) => ({
+        ...user,
+        roles: await activeUserRoles(user.id, user.role),
+      })),
+    );
   }
 
   async updateProfile(userId: string, data: { name?: string }) {
     const updated = await prisma.user.update({
       where: { id: userId },
       data: { ...(data.name !== undefined && { name: data.name }) },
-      select: { id: true, email: true, role: true, name: true, avatarUrl: true, emailVerified: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        name: true,
+        avatarUrl: true,
+        emailVerified: true,
+        createdAt: true,
+      },
     });
-    return updated;
+    return { ...updated, roles: await activeUserRoles(updated.id, updated.role) };
   }
 
   async updateFcmToken(userId: string, token: string) {
