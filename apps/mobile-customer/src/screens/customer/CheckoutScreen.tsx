@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  PermissionsAndroid,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,10 +11,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Geolocation from 'react-native-geolocation-service';
+import Toast from 'react-native-toast-message';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { BadgePercent, Tag, X } from 'lucide-react-native';
-import { apiClient } from '@aagam/mobile-shared';
+import { LeafletMap, apiClient, useAuthStore } from '@aagam/mobile-shared';
 import { useCartStore } from '../../store/cartStore';
 
 const errorMessage = (error: any, fallback: string) => {
@@ -21,6 +25,8 @@ const errorMessage = (error: any, fallback: string) => {
 };
 
 export const CheckoutScreen = () => {
+  const queryClient = useQueryClient();
+  const user = useAuthStore((state) => state.user);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { items, total, clearCart, couponCode, setCouponCode } = useCartStore();
@@ -29,6 +35,8 @@ export const CheckoutScreen = () => {
   const [couponInput, setCouponInput] = useState(couponCode || '');
   const [appliedCouponCode, setAppliedCouponCode] = useState(couponCode || '');
   const [couponError, setCouponError] = useState('');
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [addressDraft, setAddressDraft] = useState({ label: 'Home', recipientName: user?.name || '', phoneE164: user?.phone || '', line1: '', city: '', state: '', pincode: '', latitude: '', longitude: '', country: 'IN', isDefault: true });
   const idempotencyKey = useRef(`mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const lastRequestedCoupon = useRef('');
   const itemsPayload = useMemo(
@@ -72,6 +80,34 @@ export const CheckoutScreen = () => {
     })).data,
     enabled: itemsPayload.length > 0 && Boolean(selectedAddressId),
     retry: false,
+  });
+
+  const setPinnedLocation = async (latitude: number, longitude: number) => {
+    setAddressDraft((current) => ({ ...current, latitude: String(latitude), longitude: String(longitude) }));
+    try {
+      const response = await apiClient.get('/geo/reverse', { params: { lat: latitude, lng: longitude } });
+      const address = response.data?.address;
+      if (address) setAddressDraft((current) => ({ ...current, line1: address.line1 || current.line1, city: address.city || current.city, state: address.state || current.state, pincode: address.pincode || current.pincode }));
+    } catch {}
+  };
+
+  const useCurrentLocation = async () => {
+    if (Platform.OS === 'android') {
+      const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, { title: 'Allow delivery location', message: 'AAGAM uses precise location to place your delivery pin.', buttonPositive: 'Allow', buttonNegative: 'Not now' });
+      if (result !== PermissionsAndroid.RESULTS.GRANTED) return Toast.show({ type: 'error', text1: 'Location permission needed' });
+    }
+    Geolocation.getCurrentPosition((position) => void setPinnedLocation(position.coords.latitude, position.coords.longitude), () => Toast.show({ type: 'error', text1: 'Location unavailable', text2: 'Turn on precise location and try again.' }), { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
+  };
+
+  const saveAddress = useMutation({
+    mutationFn: async () => (await apiClient.post('/customer/addresses', { ...addressDraft, latitude: Number(addressDraft.latitude), longitude: Number(addressDraft.longitude) })).data,
+    onSuccess: async (saved) => {
+      await queryClient.invalidateQueries({ queryKey: ['addresses'] });
+      setSelectedAddressId(saved.id);
+      setShowAddressForm(false);
+      Toast.show({ type: 'success', text1: 'Delivery address selected' });
+    },
+    onError: (error: any) => Toast.show({ type: 'error', text1: 'Could not save address', text2: errorMessage(error, 'Check the required fields.') }),
   });
 
   useEffect(() => {
@@ -163,9 +199,12 @@ export const CheckoutScreen = () => {
       {addresses.length === 0 ? (
         <View style={styles.noticeCard}>
           <Text style={styles.noticeTitle}>No saved address yet</Text>
-          <Text style={styles.noticeText}>Open the Profile tab to add your delivery address first.</Text>
+          <Text style={styles.noticeText}>Add and pin a delivery address without leaving checkout.</Text>
+          <TouchableOpacity style={styles.inlineAddressButton} onPress={() => setShowAddressForm(true)}><Text style={styles.inlineAddressButtonText}>Add delivery address</Text></TouchableOpacity>
         </View>
       ) : null}
+      {addresses.length > 0 ? <TouchableOpacity style={styles.addAnotherButton} onPress={() => setShowAddressForm((value) => !value)}><Text style={styles.addAnotherText}>{showAddressForm ? 'Close address form' : '+ Add another address'}</Text></TouchableOpacity> : null}
+      {showAddressForm ? <View style={styles.addressForm}><Text style={styles.addressFormTitle}>Pin delivery location</Text><TouchableOpacity style={styles.locationButton} onPress={useCurrentLocation}><Text style={styles.locationButtonText}>Use live location</Text></TouchableOpacity><LeafletMap latitude={Number(addressDraft.latitude) || 17.385} longitude={Number(addressDraft.longitude) || 78.4867} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude)} />{[['recipientName', 'Recipient name'], ['phoneE164', 'Phone number'], ['line1', 'House, street and area'], ['city', 'City'], ['state', 'State'], ['pincode', 'Pincode']].map(([key, placeholder]) => <TextInput key={key} value={(addressDraft as any)[key]} onChangeText={(value) => setAddressDraft((current) => ({ ...current, [key]: value }))} placeholder={placeholder} placeholderTextColor="#94A3B8" style={styles.addressInput} />)}<TouchableOpacity disabled={saveAddress.isPending || !addressDraft.latitude || !addressDraft.longitude} style={[styles.saveAddressButton, (!addressDraft.latitude || !addressDraft.longitude) && styles.placeOrderButtonDisabled]} onPress={() => saveAddress.mutate()}><Text style={styles.saveAddressText}>{saveAddress.isPending ? 'Saving…' : 'Save and use this address'}</Text></TouchableOpacity></View> : null}
 
       <Text style={styles.sectionTitle}>Payment Method</Text>
       <View style={styles.paymentRow}>
@@ -255,6 +294,7 @@ const styles = StyleSheet.create({
   noticeCard: { borderRadius: 18, backgroundColor: '#FFF7ED', padding: 16, borderWidth: 1, borderColor: '#FED7AA' },
   noticeTitle: { fontSize: 16, fontWeight: '800', color: '#9A3412' },
   noticeText: { marginTop: 6, color: '#9A3412' },
+  inlineAddressButton: { marginTop: 12, alignItems: 'center', borderRadius: 14, backgroundColor: '#9A3412', paddingVertical: 12 }, inlineAddressButtonText: { color: '#FFFFFF', fontWeight: '900' }, addAnotherButton: { alignSelf: 'flex-start', paddingVertical: 8 }, addAnotherText: { color: '#0F766E', fontWeight: '900' }, addressForm: { marginBottom: 16, borderRadius: 20, borderWidth: 1, borderColor: '#99F6E4', backgroundColor: '#F0FDFA', padding: 12, gap: 10 }, addressFormTitle: { fontSize: 17, fontWeight: '900', color: '#134E4A' }, locationButton: { alignItems: 'center', borderRadius: 14, backgroundColor: '#0F766E', paddingVertical: 12 }, locationButtonText: { color: '#FFFFFF', fontWeight: '900' }, addressInput: { borderRadius: 13, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', paddingHorizontal: 13, paddingVertical: 11, color: '#0F172A' }, saveAddressButton: { alignItems: 'center', borderRadius: 14, backgroundColor: '#0F766E', paddingVertical: 14 }, saveAddressText: { color: '#FFFFFF', fontWeight: '900' },
   paymentRow: { gap: 10 },
   paymentButton: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16 },
   paymentButtonActive: { borderColor: '#0F766E', backgroundColor: '#F0FDFA' },

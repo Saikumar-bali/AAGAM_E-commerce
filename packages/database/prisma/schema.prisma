@@ -62,6 +62,7 @@ model Store {
 model Category {
   id       String    @id @default(cuid())
   name     String    @unique
+  sortOrder Int      @default(0)
   products Product[]
   promotionCampaigns  PromotionCampaign[]
   couponEligibilities CouponCategoryEligibility[]
@@ -77,6 +78,7 @@ model Product {
   images      Json?
   details     Json?
   isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
   deletedAt   DateTime?
   categoryId  String
   category    Category  @relation(fields: [categoryId], references: [id])
@@ -88,6 +90,17 @@ model Product {
   inventoryLedgers InventoryLedger[]
   promotionCampaigns  PromotionCampaign[]
   couponEligibilities CouponProductEligibility[]
+}
+
+model DeliveryZone {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
 }
 
 model Inventory {

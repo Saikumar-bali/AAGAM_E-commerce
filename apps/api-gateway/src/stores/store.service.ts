@@ -1,5 +1,5 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { prisma, Role } from '@aagam/database';
 import { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
@@ -30,6 +30,42 @@ export class StoreService {
         inventory: true,
       },
     });
+  }
+
+  async getDeliveryZones(includeInactive = false) {
+    return prisma.deliveryZone.findMany({
+      where: includeInactive ? {} : { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  async createDeliveryZone(nameInput: string) {
+    const name = String(nameInput || '').trim().replace(/\s+/g, ' ');
+    if (name.length < 2) throw new BadRequestException('Delivery zone name must be at least 2 characters.');
+    const last = await prisma.deliveryZone.aggregate({ _max: { sortOrder: true } });
+    try {
+      return await prisma.deliveryZone.create({ data: { name, sortOrder: (last._max.sortOrder || 0) + 1 } });
+    } catch (error: any) {
+      if (error?.code === 'P2002') throw new ConflictException('A delivery zone with this name already exists.');
+      throw error;
+    }
+  }
+
+  async updateDeliveryZone(id: string, data: { name?: string; isActive?: boolean }) {
+    const existing = await prisma.deliveryZone.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Delivery zone not found');
+    const name = data.name === undefined ? undefined : String(data.name).trim().replace(/\s+/g, ' ');
+    if (name !== undefined && name.length < 2) throw new BadRequestException('Delivery zone name must be at least 2 characters.');
+    return prisma.deliveryZone.update({ where: { id }, data: { ...(name !== undefined ? { name } : {}), ...(data.isActive !== undefined ? { isActive: data.isActive } : {}) } });
+  }
+
+  async reorderDeliveryZones(ids: string[]) {
+    const uniqueIds = Array.from(new Set(ids));
+    if (!uniqueIds.length || uniqueIds.length !== ids.length) throw new BadRequestException('Provide a unique ordered delivery zone id list.');
+    const count = await prisma.deliveryZone.count({ where: { id: { in: uniqueIds } } });
+    if (count !== uniqueIds.length) throw new BadRequestException('One or more delivery zones do not exist.');
+    await prisma.$transaction(uniqueIds.map((id, index) => prisma.deliveryZone.update({ where: { id }, data: { sortOrder: index + 1 } })) as any);
+    return this.getDeliveryZones(true);
   }
 
   async findByOwnerId(ownerId: string) {

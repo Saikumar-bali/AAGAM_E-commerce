@@ -24,6 +24,7 @@ import {
   ShieldAlert,
   Megaphone,
   ClipboardCheck,
+  MapPinned,
 } from "lucide-react";
 
 import { apiClient } from "@aagam/utils";
@@ -128,6 +129,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
       },
       { name: "Stores", href: "/admin/stores", icon: Store },
       { name: "Products", href: "/admin/products", icon: Package },
+      { name: "Delivery Zones", href: "/admin/delivery-zones", icon: MapPinned },
       { name: "Promotions", href: "/admin/promotions", icon: Megaphone },
       { name: "Riders", href: "/admin/riders", icon: Truck },
       { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
