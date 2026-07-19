@@ -115,6 +115,7 @@ model Inventory {
   updatedAt DateTime @updatedAt
 
   @@unique([storeId, productId])
+  @@index([storeId, isListed, quantity])
 }
 
 model Order {
