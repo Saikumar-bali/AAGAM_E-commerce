@@ -1,6 +1,7 @@
 import React, { ReactElement, ReactNode } from 'react';
 import {
   ActivityIndicator,
+  RefreshControlProps,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -38,7 +39,7 @@ export function OnboardingShell({
   children: ReactNode;
   onBack?: () => void;
   right?: ReactNode;
-  refreshControl?: ReactElement;
+  refreshControl?: ReactElement<RefreshControlProps>;
 }) {
   return (
     <SafeAreaView style={styles.safe}>
@@ -181,7 +182,7 @@ export function StatusPill({ status }: { status: string }) {
         ? palette.amber
         : '#0369A1';
   return (
-    <View style={[styles.pill, { backgroundColor: background }]}>
+    <View style={[styles.pill, { backgroundColor: background }]}> 
       <Text style={[styles.pillText, { color }]}> 
         {normalized.replaceAll('_', ' ')}
       </Text>
