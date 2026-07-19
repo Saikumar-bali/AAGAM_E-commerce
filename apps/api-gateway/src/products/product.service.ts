@@ -103,11 +103,16 @@ export class ProductService {
       // inventory check for the selected address.
       return products.map((product) => ({ ...product, availability: { storeId: null, storeName: null, availableQty: null, inStock: null, availabilityKnown: false, serviceable: context?.serviceable ?? null, distanceKm: context?.distanceKm ?? null } }));
     }
-    const inventory = await prisma.inventory.findMany({ where: { storeId: context.storeId, productId: { in: products.map((product) => product.id) } }, select: { productId: true, quantity: true } });
-    const inventoryMap = new Map(inventory.map((item) => [item.productId, item.quantity]));
+    const inventory = await prisma.inventory.findMany({ where: { storeId: context.storeId, productId: { in: products.map((product) => product.id) } }, select: { productId: true, quantity: true, isListed: true, autoHideWhenOutOfStock: true } });
+    const inventoryMap = new Map(inventory.map((item) => [item.productId, item]));
     return products.map((product) => {
-      const availableQty = inventoryMap.get(product.id) ?? 0;
-      return { ...product, availability: { storeId: context.storeId, storeName: context.storeName, availableQty, inStock: availableQty > 0, availabilityKnown: true, serviceable: context.serviceable, distanceKm: context.distanceKm } };
+      const inventoryRow = inventoryMap.get(product.id);
+      const availableQty = inventoryRow?.quantity ?? 0;
+      const isVisible = Boolean(
+        inventoryRow?.isListed &&
+        !(inventoryRow.autoHideWhenOutOfStock && availableQty === 0)
+      );
+      return { ...product, availability: { storeId: context.storeId, storeName: context.storeName, availableQty, inStock: availableQty > 0, isVisible, autoHideWhenOutOfStock: inventoryRow?.autoHideWhenOutOfStock ?? true, availabilityKnown: true, serviceable: context.serviceable, distanceKm: context.distanceKm } };
     });
   }
 
