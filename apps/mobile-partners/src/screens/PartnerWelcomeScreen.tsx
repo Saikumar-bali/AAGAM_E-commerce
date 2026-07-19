@@ -1,11 +1,40 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Bike, ChevronRight, LogIn, Search, Store } from 'lucide-react-native';
+import { resolveApplicantInitialRoute } from '../navigation/applicantRoute';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 import { OnboardingShell, palette, StatusPill } from '../components/PartnerOnboardingUI';
 
 export function PartnerWelcomeScreen({ navigation }: any) {
-  const { applicationId, response } = usePartnerOnboardingStore();
+  const { applicationId, response, type } = usePartnerOnboardingStore();
+  const continueRoute = resolveApplicantInitialRoute(applicationId, response, type);
+
+  const continueExisting = () => {
+    navigation.navigate(continueRoute);
+  };
+
+  const startApplication = (requestedType: 'RIDER' | 'STORE') => {
+    if (!applicationId) {
+      navigation.navigate('ApplicationStart', { type: requestedType });
+      return;
+    }
+
+    Alert.alert(
+      'Application already in progress',
+      'Continue or finish the protected application already saved on this device before starting another one.',
+      [
+        { text: 'Stay here', style: 'cancel' },
+        { text: 'Continue application', onPress: continueExisting },
+      ],
+    );
+  };
+
+  const continueTitle =
+    continueRoute === 'VerifyApplication'
+      ? 'Verify your email to continue'
+      : continueRoute === 'RiderApplication' || continueRoute === 'StoreApplication'
+        ? 'Continue your application'
+        : 'View application status';
 
   return (
     <OnboardingShell
@@ -13,14 +42,21 @@ export function PartnerWelcomeScreen({ navigation }: any) {
       subtitle="Apply as a verified delivery partner or bring your store onto the AAGAM fulfilment network. Your operational account is created only after document review and approval."
     >
       {applicationId && response ? (
-        <TouchableOpacity
-          style={styles.continueCard}
-          onPress={() => navigation.navigate('ApplicationStatus')}
-        >
+        <TouchableOpacity style={styles.continueCard} onPress={continueExisting}>
           <View style={{ flex: 1 }}>
             <StatusPill status={response.application.status} />
-            <Text style={styles.continueTitle}>Continue your application</Text>
+            <Text style={styles.continueTitle}>{continueTitle}</Text>
             <Text style={styles.reference}>{response.application.applicationNumber}</Text>
+          </View>
+          <ChevronRight size={22} color={palette.ink} />
+        </TouchableOpacity>
+      ) : applicationId ? (
+        <TouchableOpacity style={styles.continueCard} onPress={continueExisting}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.continueTitle}>Recover your protected application</Text>
+            <Text style={styles.reference}>
+              The saved session will retry loading its latest status.
+            </Text>
           </View>
           <ChevronRight size={22} color={palette.ink} />
         </TouchableOpacity>
@@ -30,7 +66,7 @@ export function PartnerWelcomeScreen({ navigation }: any) {
       <View style={styles.cards}>
         <TouchableOpacity
           style={styles.roleCard}
-          onPress={() => navigation.navigate('ApplicationStart', { type: 'RIDER' })}
+          onPress={() => startApplication('RIDER')}
         >
           <View style={[styles.icon, { backgroundColor: '#CCFBF1' }]}>
             <Bike size={27} color="#0F766E" />
@@ -46,7 +82,7 @@ export function PartnerWelcomeScreen({ navigation }: any) {
 
         <TouchableOpacity
           style={styles.roleCard}
-          onPress={() => navigation.navigate('ApplicationStart', { type: 'STORE' })}
+          onPress={() => startApplication('STORE')}
         >
           <View style={[styles.icon, { backgroundColor: '#FEF3C7' }]}>
             <Store size={27} color="#B45309" />
