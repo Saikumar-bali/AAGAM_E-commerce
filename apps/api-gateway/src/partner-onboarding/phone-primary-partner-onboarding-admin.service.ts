@@ -33,7 +33,10 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
     return `phone-${digest}@phone.aagam.local`;
   }
 
-  private async existingOperationalUser(application: PartnerApplicationRow, email?: string | null) {
+  private async findExistingOperationalUser(
+    application: PartnerApplicationRow,
+    email?: string | null,
+  ) {
     const byPhone = application.phoneE164
       ? await prisma.user.findUnique({ where: { phone: application.phoneE164 } })
       : null;
@@ -41,7 +44,9 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
       ? await prisma.user.findUnique({ where: { email } })
       : null;
     if (byEmail && byPhone && byEmail.id !== byPhone.id) {
-      throw new ConflictException('Verified phone and email belong to different AAGAM accounts');
+      throw new ConflictException(
+        'Verified phone and email belong to different AAGAM accounts',
+      );
     }
     return byPhone || byEmail || null;
   }
@@ -54,14 +59,17 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
     const promoted = new Map<string, string>();
     const createdKeys: string[] = [];
     if (process.env.NODE_ENV === 'test' || process.env.PLAYWRIGHT_QA === 'true') {
-      documents.forEach((document) => promoted.set(document.id, document.storageKey || ''));
+      documents.forEach((document) =>
+        promoted.set(document.id, document.storageKey || ''),
+      );
       return { promoted, createdKeys };
     }
     try {
       for (const document of documents) {
         if (!document.storageKey) continue;
         const key = await this.phoneUploads.promoteEvidence(document.storageKey, {
-          scope: application.type === PartnerApplicationType.RIDER ? 'riders' : 'stores',
+          scope:
+            application.type === PartnerApplicationType.RIDER ? 'riders' : 'stores',
           ownerId,
           documentType: document.type,
         });
@@ -82,46 +90,78 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
   ) {
     const application = await this.phoneRepository.findApplication(id);
     if (!application) throw new BadRequestException('Application not found');
-    if (application.status === PartnerApplicationStatus.APPROVED) return this.detail(id);
-    if (![
-      PartnerApplicationStatus.SUBMITTED,
-      PartnerApplicationStatus.UNDER_REVIEW,
-      PartnerApplicationStatus.ACTION_REQUIRED,
-    ].includes(application.status)) {
+    if (application.status === PartnerApplicationStatus.APPROVED) {
+      return this.detail(id);
+    }
+    if (
+      ![
+        PartnerApplicationStatus.SUBMITTED,
+        PartnerApplicationStatus.UNDER_REVIEW,
+        PartnerApplicationStatus.ACTION_REQUIRED,
+      ].includes(application.status)
+    ) {
       throw new ConflictException('Application is not in a reviewable state');
     }
     const documents = await this.phoneRepository.documents(id, true);
     this.phoneRepository.validateForSubmission(application, documents, true);
 
-    const emailOnly = (process.env.PARTNER_PHONE_VERIFICATION_MODE || 'SMS_ONLY').trim().toUpperCase() === 'EMAIL_ONLY';
+    const emailOnly =
+      (process.env.PARTNER_PHONE_VERIFICATION_MODE || 'SMS_ONLY')
+        .trim()
+        .toUpperCase() === 'EMAIL_ONLY';
     if (!emailOnly && (!application.phoneE164 || !application.phoneVerifiedAt)) {
-      throw new BadRequestException('Verified primary phone is required before approval');
+      throw new BadRequestException(
+        'Verified primary phone is required before approval',
+      );
     }
-    const requestedEmail = (dto.ownerEmail || application.email || '').trim().toLowerCase() || null;
+    const requestedEmail =
+      (dto.ownerEmail || application.email || '').trim().toLowerCase() || null;
     if (emailOnly && (!requestedEmail || !application.emailVerifiedAt)) {
-      throw new BadRequestException('Verified email is required while phone verification is disabled');
+      throw new BadRequestException(
+        'Verified email is required while phone verification is disabled',
+      );
     }
-    const accountEmail = requestedEmail || this.syntheticEmail(application.phoneE164!);
-    const existingUser = await this.existingOperationalUser(application, requestedEmail);
-    const targetRole = application.type === PartnerApplicationType.RIDER ? Role.RIDER : Role.STORE_OWNER;
+    const accountEmail =
+      requestedEmail || this.syntheticEmail(application.phoneE164!);
+    const existingUser = await this.findExistingOperationalUser(
+      application,
+      requestedEmail,
+    );
+    const targetRole =
+      application.type === PartnerApplicationType.RIDER
+        ? Role.RIDER
+        : Role.STORE_OWNER;
     if (existingUser && application.type === PartnerApplicationType.RIDER) {
-      const existingRider = await prisma.riderProfile.findUnique({ where: { userId: existingUser.id } });
-      if (existingRider) throw new ConflictException('This account already has a Rider profile');
+      const existingRider = await prisma.riderProfile.findUnique({
+        where: { userId: existingUser.id },
+      });
+      if (existingRider) {
+        throw new ConflictException('This account already has a Rider profile');
+      }
     }
     if (application.provisionedUserId || application.provisionedStoreId) {
       throw new ConflictException('Application has already been provisioned');
     }
 
     const userId = existingUser?.id || randomUUID();
-    const riderProfileId = application.type === PartnerApplicationType.RIDER ? randomUUID() : null;
-    const storeId = application.type === PartnerApplicationType.STORE ? randomUUID() : null;
+    const riderProfileId =
+      application.type === PartnerApplicationType.RIDER ? randomUUID() : null;
+    const storeId =
+      application.type === PartnerApplicationType.STORE ? randomUUID() : null;
     const finalOwnerId = riderProfileId || storeId!;
-    const { promoted, createdKeys } = await this.promoteDocuments(application, documents, finalOwnerId);
+    const { promoted, createdKeys } = await this.promoteDocuments(
+      application,
+      documents,
+      finalOwnerId,
+    );
     const payload = application.applicantPayload || {};
-    const operationalCode = application.type === PartnerApplicationType.RIDER
-      ? application.applicationNumber.replace('AAG-', '')
-      : `OWN-${application.applicationNumber.replace('AAG-STR-', '')}`;
-    const directPhoneLogin = Boolean(application.phoneE164 && application.phoneVerifiedAt);
+    const operationalCode =
+      application.type === PartnerApplicationType.RIDER
+        ? application.applicationNumber.replace('AAG-', '')
+        : `OWN-${application.applicationNumber.replace('AAG-STR-', '')}`;
+    const directPhoneLogin = Boolean(
+      application.phoneE164 && application.phoneVerifiedAt,
+    );
 
     try {
       await prisma.$transaction(async (tx) => {
@@ -161,29 +201,57 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
             directPhoneLogin,
           );
         }
-        await grantUserRole(tx as any, userId, Role.CUSTOMER, 'PARTNER_APPROVAL', adminUserId);
-        await grantUserRole(tx as any, userId, targetRole, 'PARTNER_APPROVAL', adminUserId);
+        await grantUserRole(
+          tx as any,
+          userId,
+          Role.CUSTOMER,
+          'PARTNER_APPROVAL',
+          adminUserId,
+        );
+        await grantUserRole(
+          tx as any,
+          userId,
+          targetRole,
+          'PARTNER_APPROVAL',
+          adminUserId,
+        );
 
         if (application.type === PartnerApplicationType.RIDER) {
           const rider = await tx.riderProfile.create({
             data: {
-              id: riderProfileId!, userId, status: 'OFFLINE',
+              id: riderProfileId!,
+              userId,
+              status: 'OFFLINE',
               vehicleType: String(payload.vehicleType || ''),
-              vehicleNumber: payload.vehicleNumber ? String(payload.vehicleNumber) : null,
-              emergencyContactName: String(payload.emergencyContactName || ''),
-              emergencyContactPhone: String(payload.emergencyContactPhone || ''),
-              bankAccountCiphertext: String(payload.bankAccountCiphertext || ''),
+              vehicleNumber: payload.vehicleNumber
+                ? String(payload.vehicleNumber)
+                : null,
+              emergencyContactName: String(
+                payload.emergencyContactName || '',
+              ),
+              emergencyContactPhone: String(
+                payload.emergencyContactPhone || '',
+              ),
+              bankAccountCiphertext: String(
+                payload.bankAccountCiphertext || '',
+              ),
               bankIfscCiphertext: String(payload.bankIfscCiphertext || ''),
               bankAccountLast4: String(payload.bankAccountLast4 || ''),
-              bankStatus: 'APPROVED', approvalStatus: 'APPROVED',
-              bankReviewedByUserId: adminUserId, bankReviewedAt: new Date(),
-              approvalReviewedByUserId: adminUserId, approvalReviewedAt: new Date(),
+              bankStatus: 'APPROVED',
+              approvalStatus: 'APPROVED',
+              bankReviewedByUserId: adminUserId,
+              bankReviewedAt: new Date(),
+              approvalReviewedByUserId: adminUserId,
+              approvalReviewedAt: new Date(),
             },
           });
           const typeMap: Record<string, string> = {
-            IDENTITY: 'IDENTITY', DRIVING_LICENSE: 'DRIVING_LICENSE',
-            VEHICLE_REGISTRATION: 'VEHICLE_REGISTRATION', VEHICLE_INSURANCE: 'VEHICLE_INSURANCE',
-            PROFILE_PHOTO: 'OTHER', BANK_PROOF: 'OTHER',
+            IDENTITY: 'IDENTITY',
+            DRIVING_LICENSE: 'DRIVING_LICENSE',
+            VEHICLE_REGISTRATION: 'VEHICLE_REGISTRATION',
+            VEHICLE_INSURANCE: 'VEHICLE_INSURANCE',
+            PROFILE_PHOTO: 'OTHER',
+            BANK_PROOF: 'OTHER',
           };
           for (const document of documents) {
             const mappedType = typeMap[document.type];
@@ -191,10 +259,15 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
             if (!mappedType || !storageKey) continue;
             await tx.riderDocument.create({
               data: {
-                riderProfileId: rider.id, type: mappedType as any,
-                documentNumberLast4: document.documentNumberLast4, storageKey,
-                expiresAt: document.expiresAt, status: 'APPROVED',
-                reviewNote: document.reviewNote, reviewedByUserId: adminUserId, reviewedAt: new Date(),
+                riderProfileId: rider.id,
+                type: mappedType as any,
+                documentNumberLast4: document.documentNumberLast4,
+                storageKey,
+                expiresAt: document.expiresAt,
+                status: 'APPROVED',
+                reviewNote: document.reviewNote,
+                reviewedByUserId: adminUserId,
+                reviewedAt: new Date(),
               },
             });
             await tx.$executeRawUnsafe(
@@ -208,7 +281,9 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
           const latitude = Number(dto.latitude ?? payload.latitude);
           const longitude = Number(dto.longitude ?? payload.longitude);
           if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-            throw new BadRequestException('Approved store coordinates are required');
+            throw new BadRequestException(
+              'Approved store coordinates are required',
+            );
           }
           await tx.$executeRawUnsafe(
             `INSERT INTO "Store" (
@@ -216,11 +291,17 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
               "ownerId", "storeCode", "partnerStatus", "createdAt", "updatedAt"
             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::"StorePartnerStatus",CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
             storeId,
-            dto.operationalName?.trim() || String(payload.displayName || application.applicantName),
-            String(payload.storeAddress || ''), latitude, longitude,
-            directPhoneLogin || Boolean(existingUser), userId,
+            dto.operationalName?.trim() ||
+              String(payload.displayName || application.applicantName),
+            String(payload.storeAddress || ''),
+            latitude,
+            longitude,
+            directPhoneLogin || Boolean(existingUser),
+            userId,
             application.applicationNumber.replace('AAG-', ''),
-            directPhoneLogin || existingUser ? 'ACTIVE' : 'PENDING_ACTIVATION',
+            directPhoneLogin || Boolean(existingUser)
+              ? 'ACTIVE'
+              : 'PENDING_ACTIVATION',
           );
           for (const document of documents) {
             const storageKey = promoted.get(document.id) || document.storageKey;
@@ -239,16 +320,25 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
            "approvedAt" = CURRENT_TIMESTAMP, "provisionedUserId" = $2,
            "provisionedStoreId" = $3, "linkedExistingUser" = $4,
            "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = $1`,
-          id, userId, storeId, Boolean(existingUser),
+          id,
+          userId,
+          storeId,
+          Boolean(existingUser),
         );
-        await this.phoneRepository.writeEvent(tx, id, 'APPLICATION_APPROVED', 'ADMIN', {
-          actorUserId: adminUserId,
-          fromStatus: application.status,
-          toStatus: PartnerApplicationStatus.APPROVED,
-          message: directPhoneLogin
-            ? 'Application approved. Sign in directly with your verified phone number.'
-            : 'Application approved. Account activation is available.',
-        });
+        await this.phoneRepository.writeEvent(
+          tx,
+          id,
+          'APPLICATION_APPROVED',
+          'ADMIN',
+          {
+            actorUserId: adminUserId,
+            fromStatus: application.status,
+            toStatus: PartnerApplicationStatus.APPROVED,
+            message: directPhoneLogin
+              ? 'Application approved. Sign in directly with your verified phone number.'
+              : 'Application approved. Account activation is available.',
+          },
+        );
         await this.phoneRepository.writeEvent(
           tx,
           id,
@@ -258,14 +348,27 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
             message: directPhoneLogin
               ? 'Operational access is active for phone OTP login.'
               : 'Operational account provisioned securely.',
-            metadata: { userId, storeId, role: targetRole, operationalCode, directPhoneLogin },
+            metadata: {
+              userId,
+              storeId,
+              role: targetRole,
+              operationalCode,
+              directPhoneLogin,
+            },
           },
         );
-        await this.phoneRepository.writeEvent(tx, id, 'DOCUMENT_PROMOTED', 'SYSTEM', {
-          applicantVisible: false,
-          message: 'Approved private documents promoted to the final operational folder.',
-          metadata: { ownerId: finalOwnerId, documentCount: documents.length },
-        });
+        await this.phoneRepository.writeEvent(
+          tx,
+          id,
+          'DOCUMENT_PROMOTED',
+          'SYSTEM',
+          {
+            applicantVisible: false,
+            message:
+              'Approved private documents promoted to the final operational folder.',
+            metadata: { ownerId: finalOwnerId, documentCount: documents.length },
+          },
+        );
       });
     } catch (error) {
       await this.phoneUploads.deleteEvidenceMany(createdKeys);
@@ -274,7 +377,9 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
 
     const originalKeys = documents
       .map((document) => document.storageKey)
-      .filter((key) => key && ![...promoted.values()].includes(key));
+      .filter(
+        (key) => key && ![...promoted.values()].includes(key),
+      );
     await this.phoneUploads.deleteEvidenceMany(originalKeys);
     return this.detail(id);
   }
