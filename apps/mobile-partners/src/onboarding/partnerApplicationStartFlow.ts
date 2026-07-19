@@ -27,13 +27,16 @@ export async function startProtectedApplicationAndContinue(input: {
   application: PartnerApplicationStartInput;
   getSession: () => ProtectedApplicationSession;
   navigation: VerificationNavigation;
-}): Promise<{ recoveredAfterRefreshFailure: boolean }> {
+}): Promise<{ recoveredAfterProviderOrRefreshFailure: boolean }> {
   const sessionBeforeStart = input.getSession();
 
   try {
+    // The runtime DeliveringPartnerOnboardingService creates the protected
+    // draft and performs exactly one provider-backed OTP request atomically
+    // from the mobile caller's perspective.
     await input.start(input.application);
     resetToPartnerVerification(input.navigation);
-    return { recoveredAfterRefreshFailure: false };
+    return { recoveredAfterProviderOrRefreshFailure: false };
   } catch (error) {
     const sessionAfterFailure = input.getSession();
     const createdProtectedSession = Boolean(
@@ -45,9 +48,10 @@ export async function startProtectedApplicationAndContinue(input: {
 
     if (!createdProtectedSession) throw error;
 
-    // Application creation and OTP delivery succeeded, but a follow-up refresh failed.
-    // Keep the newly issued application session and let the applicant enter the OTP.
+    // The protected draft and its provider delivery attempt exist even when a
+    // follow-up application refresh fails. Keep the session and open the OTP
+    // screen so delivery state, retry and safe back navigation remain available.
     resetToPartnerVerification(input.navigation);
-    return { recoveredAfterRefreshFailure: true };
+    return { recoveredAfterProviderOrRefreshFailure: true };
   }
 }

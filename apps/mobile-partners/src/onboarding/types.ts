@@ -20,6 +20,10 @@ export type PartnerDocument = {
   expiresAt?: string | null;
   status: 'PENDING' | 'VERIFIED' | 'REJECTED' | 'EXPIRED' | 'REPLACEMENT_REQUIRED';
   reviewNote?: string | null;
+  reviewedByUserId?: string | null;
+  reviewedAt?: string | null;
+  uploadedAt?: string | null;
+  version?: number;
 };
 
 export type PartnerApplication = {
@@ -38,6 +42,10 @@ export type PartnerApplication = {
   actionRequests?: Record<string, any> | null;
   provisionedUserId?: string | null;
   provisionedStoreId?: string | null;
+  linkedExistingUser?: boolean;
+  contactVerificationMethod?: string | null;
+  contactVerificationReason?: string | null;
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };

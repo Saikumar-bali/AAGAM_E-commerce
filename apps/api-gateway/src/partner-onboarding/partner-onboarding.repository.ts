@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma, prisma } from '@aagam/database';
+import { prisma } from '@aagam/database';
 import { randomUUID } from 'crypto';
 import {
   allowedDocumentTypes,
@@ -47,6 +47,14 @@ export interface PartnerApplicationRow {
   withdrawnAt: Date | null;
   provisionedUserId: string | null;
   provisionedStoreId: string | null;
+  linkedExistingUser?: boolean;
+  deletedAt?: Date | null;
+  deletedByUserId?: string | null;
+  deletionReason?: string | null;
+  scheduledPurgeAt?: Date | null;
+  contactVerificationMethod?: string | null;
+  contactVerifiedByUserId?: string | null;
+  contactVerificationReason?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -66,6 +74,8 @@ export interface PartnerDocumentRow {
   reviewNote: string | null;
   reviewedByUserId: string | null;
   reviewedAt: Date | null;
+  version?: number;
+  uploadedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -79,10 +89,7 @@ const EDITABLE = [
 export class PartnerOnboardingRepository {
   constructor(private readonly security: PartnerOnboardingSecurity) {}
 
-  async findApplication(
-    id: string,
-    db: any = prisma,
-  ): Promise<PartnerApplicationRow | null> {
+  async findApplication(id: string, db: any = prisma): Promise<PartnerApplicationRow | null> {
     const rows = await db.$queryRawUnsafe(
       'SELECT * FROM "PartnerApplication" WHERE "id" = $1 LIMIT 1',
       id,
@@ -99,17 +106,17 @@ export class PartnerOnboardingRepository {
       throw new UnauthorizedException('Application access could not be verified');
     }
     const rows = await db.$queryRawUnsafe(
-      'SELECT * FROM "PartnerApplication" WHERE "id" = $1 AND "accessSecretHash" = $2 LIMIT 1',
+      `SELECT * FROM "PartnerApplication"
+       WHERE "id" = $1 AND "accessSecretHash" = $2 AND "deletedAt" IS NULL LIMIT 1`,
       id,
       this.security.hash(accessToken),
     );
-    if (!rows[0]) {
-      throw new UnauthorizedException('Application access could not be verified');
-    }
+    if (!rows[0]) throw new UnauthorizedException('Application access could not be verified');
     return rows[0];
   }
 
   assertEditable(application: PartnerApplicationRow) {
+    if (application.deletedAt) throw new ConflictException('Application has been deleted');
     if (!EDITABLE.includes(application.status)) {
       throw new ConflictException(
         `Application cannot be edited while status is ${application.status}`,
@@ -126,7 +133,8 @@ export class PartnerOnboardingRepository {
       ? '*'
       : `"id", "applicationId", "type", "originalFilename", "mimeType",
          "fileSize", "checksum", "documentNumberLast4", "expiresAt", "status",
-         "reviewNote", "reviewedByUserId", "reviewedAt", "createdAt", "updatedAt"`;
+         "reviewNote", "reviewedByUserId", "reviewedAt", "version", "uploadedAt",
+         "createdAt", "updatedAt"`;
     return db.$queryRawUnsafe(
       `SELECT ${columns} FROM "PartnerApplicationDocument"
        WHERE "applicationId" = $1 ORDER BY "createdAt" ASC`,
@@ -134,11 +142,7 @@ export class PartnerOnboardingRepository {
     );
   }
 
-  async events(
-    applicationId: string,
-    applicantOnly = false,
-    db: any = prisma,
-  ) {
+  async events(applicationId: string, applicantOnly = false, db: any = prisma) {
     return db.$queryRawUnsafe(
       `SELECT "id", "eventType", "actorKind", "actorUserId", "fromStatus",
               "toStatus", "applicantVisible", "message", "metadata", "createdAt"
@@ -197,9 +201,7 @@ export class PartnerOnboardingRepository {
       submittedSnapshot: snapshot
         ? {
             ...snapshot,
-            applicantPayload: this.security.sanitizePayload(
-              snapshot.applicantPayload,
-            ),
+            applicantPayload: this.security.sanitizePayload(snapshot.applicantPayload),
           }
         : null,
     };
@@ -219,9 +221,7 @@ export class PartnerOnboardingRepository {
     requireVerifiedDocuments = false,
   ) {
     if (!application.emailVerifiedAt && !application.phoneVerifiedAt) {
-      throw new BadRequestException(
-        'Verify at least one contact method before submission',
-      );
+      throw new BadRequestException('Verify at least one contact method before submission');
     }
     const missingFields = this.missingPayloadFields(application);
     if (missingFields.length) {
@@ -230,10 +230,7 @@ export class PartnerOnboardingRepository {
         missingFields,
       });
     }
-    const required = requiredDocumentTypes(
-      application.type,
-      application.applicantPayload,
-    );
+    const required = requiredDocumentTypes(application.type, application.applicantPayload);
     const byType = new Map(documents.map((document) => [document.type, document]));
     const missingDocuments = required.filter((type) => !byType.has(type));
     if (missingDocuments.length) {
@@ -263,10 +260,7 @@ export class PartnerOnboardingRepository {
 
   async response(application: PartnerApplicationRow) {
     const documents = await this.documents(application.id);
-    const required = requiredDocumentTypes(
-      application.type,
-      application.applicantPayload,
-    );
+    const required = requiredDocumentTypes(application.type, application.applicantPayload);
     const completedRequired = required.filter((type) =>
       documents.some(
         (document) =>
@@ -303,29 +297,34 @@ export class PartnerOnboardingRepository {
     type?: string;
     status?: string;
     search?: string;
+    visibility?: 'active' | 'deleted' | 'all';
     page: number;
     limit: number;
   }) {
     const type = filters.type || '';
     const status = filters.status?.trim().toUpperCase() || '';
     const search = filters.search?.trim() || '';
+    const visibility = filters.visibility || 'active';
     const pattern = `%${search}%`;
     const offset = (filters.page - 1) * filters.limit;
     const where = `
       ($1 = '' OR "type"::text = $1)
       AND ($2 = '' OR "status"::text = $2)
       AND ($3 = '' OR "applicationNumber" ILIKE $4 OR "applicantName" ILIKE $4
-        OR COALESCE("email", '') ILIKE $4 OR COALESCE("phoneE164", '') ILIKE $4)`;
+        OR COALESCE("email", '') ILIKE $4 OR COALESCE("phoneE164", '') ILIKE $4)
+      AND ($5 = 'all' OR ($5 = 'deleted' AND "deletedAt" IS NOT NULL)
+        OR ($5 = 'active' AND "deletedAt" IS NULL))`;
     const rows = await prisma.$queryRawUnsafe(
       `SELECT * FROM "PartnerApplication" WHERE ${where}
        ORDER BY CASE "status"
          WHEN 'SUBMITTED' THEN 1 WHEN 'UNDER_REVIEW' THEN 2
          WHEN 'ACTION_REQUIRED' THEN 3 ELSE 4 END,
-         "updatedAt" DESC LIMIT $5 OFFSET $6`,
+         "updatedAt" DESC LIMIT $6 OFFSET $7`,
       type,
       status,
       search,
       pattern,
+      visibility,
       filters.limit,
       offset,
     );
@@ -335,6 +334,7 @@ export class PartnerOnboardingRepository {
       status,
       search,
       pattern,
+      visibility,
     );
     return {
       items: rows.map((row: PartnerApplicationRow) => this.normalize(row)),

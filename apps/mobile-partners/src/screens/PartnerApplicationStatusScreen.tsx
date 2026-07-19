@@ -1,6 +1,20 @@
 import React, { useEffect, useMemo } from 'react';
-import { Alert, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { CheckCircle2, Clock3, FileText, RotateCcw, ShieldAlert } from 'lucide-react-native';
+import {
+  Alert,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  CheckCircle2,
+  Clock3,
+  FileText,
+  LogIn,
+  RotateCcw,
+  ShieldAlert,
+} from 'lucide-react-native';
 import {
   OnboardingShell,
   palette,
@@ -15,6 +29,17 @@ import {
 } from '../onboarding/applicationReviewProgress';
 import { editableApplication, statusLabel } from '../onboarding/types';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
+
+const DOCUMENT_REQUEST_WORDS = [
+  'document',
+  'identity',
+  'photo',
+  'license',
+  'insurance',
+  'registration',
+  'bankproof',
+  'bank_proof',
+];
 
 export function PartnerApplicationStatusScreen({ navigation }: any) {
   const {
@@ -37,7 +62,7 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
       try {
         await Promise.all([refresh(), loadEvents()]);
       } catch {
-        // Keep the last known applicant-safe snapshot visible during a transient refresh failure.
+        // Preserve the last applicant-safe snapshot during a transient failure.
       }
     };
     void sync();
@@ -77,21 +102,20 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
   const requestedFields = Array.isArray(application?.actionRequests?.fields)
     ? application!.actionRequests!.fields.map(String)
     : [];
+  const needsDocuments = requestedFields.some((field) =>
+    DOCUMENT_REQUEST_WORDS.some((word) => field.toLowerCase().includes(word)),
+  );
 
-  const returnHome = () => {
-    navigation.reset({ index: 0, routes: [{ name: 'PartnerWelcome' }] });
-  };
-
-  const edit = () => {
-    navigation.navigate(
-      application?.type === 'RIDER' ? 'RiderApplication' : 'StoreApplication',
-    );
-  };
+  const returnHome = () => navigation.reset({ index: 0, routes: [{ name: 'PartnerWelcome' }] });
+  const editProfile = () =>
+    navigation.navigate(application?.type === 'RIDER' ? 'RiderApplication' : 'StoreApplication');
+  const fixRequested = () =>
+    navigation.navigate(needsDocuments ? 'ApplicationDocuments' : application?.type === 'RIDER' ? 'RiderApplication' : 'StoreApplication');
 
   const submitApplication = async () => {
     try {
       await submit();
-      Alert.alert('Application submitted', 'Admin can now start document and profile review.');
+      Alert.alert('Application submitted', 'AAGAM can now begin profile and document review.');
     } catch (error: any) {
       Alert.alert('Submission blocked', error.message);
     }
@@ -104,6 +128,11 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
     } catch (error: any) {
       Alert.alert('Activation unavailable', error.message);
     }
+  };
+
+  const signInExisting = async () => {
+    await clear();
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 
   const confirmWithdraw = () => {
@@ -128,7 +157,7 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
   if (!application || !requirements) {
     return (
       <OnboardingShell title="Application unavailable" subtitle="Restore an application session to continue.">
-        <PrimaryButton label="Return to partner welcome" onPress={returnHome} />
+        <PrimaryButton label="Return to Partner Home" onPress={returnHome} />
       </OnboardingShell>
     );
   }
@@ -160,93 +189,98 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
         </Text>
         <Text style={styles.heroText}>{application.applicantName}</Text>
         <ProgressBar value={requirements.completionPercent} />
-        <Text style={styles.liveNote}>Status refreshes automatically while this screen is open.</Text>
+        <Text style={styles.liveNote}>This status refreshes automatically while the screen is open.</Text>
       </View>
 
-      <Section title="Application progress" subtitle="Admin decisions and correction requests appear here and in the timeline.">
+      <Section title="Application progress" subtitle="Every review decision and requested correction is recorded here.">
         <View style={styles.progressList}>
           {progressSteps.map((step, index) => (
-            <ProgressStep
-              key={step.key}
-              step={step}
-              last={index === progressSteps.length - 1}
-            />
+            <ProgressStep key={step.key} step={step} last={index === progressSteps.length - 1} />
           ))}
         </View>
       </Section>
 
       {!contactVerified ? (
-        <Section
-          title="Contact verification required"
-          subtitle="Verify the protected email before editing or submitting the application."
-        >
-          <PrimaryButton
-            label="Return to verification"
-            onPress={() => navigation.navigate('VerifyApplication')}
-          />
+        <Section title="Contact verification required" subtitle="Verify the protected contact before editing or submitting.">
+          <PrimaryButton label="Return to verification" onPress={() => navigation.navigate('VerifyApplication')} />
         </Section>
       ) : null}
 
       {application.status === 'ACTION_REQUIRED' ? (
-        <Section title="Admin requested corrections" subtitle="Complete the requested changes, then resubmit for review.">
+        <Section title="AAGAM needs changes" subtitle="Complete these items, then resubmit the application.">
           <View style={styles.warningRow}>
             <ShieldAlert size={22} color={palette.amber} />
             <View style={{ flex: 1 }}>
               <Text style={styles.warningText}>
-                {latestChangeRequest?.message || 'Admin requested updates to this application.'}
+                {latestChangeRequest?.message || 'AAGAM requested updates to this application.'}
               </Text>
               {requestedFields.length ? (
                 <View style={styles.fieldList}>
                   {requestedFields.map((field) => (
-                    <Text key={field} style={styles.fieldChip}>{field}</Text>
+                    <Text key={field} style={styles.fieldChip}>{field.replaceAll('_', ' ')}</Text>
                   ))}
                 </View>
               ) : null}
             </View>
           </View>
+          <PrimaryButton
+            label={needsDocuments ? 'Replace requested documents' : 'Update requested information'}
+            onPress={fixRequested}
+          />
         </Section>
       ) : null}
 
       {application.status === 'APPROVED' ? (
-        <Section title="Approved — activate your account" subtitle="Admin has provisioned the operational account. Create your permanent password before signing in.">
+        <Section
+          title={application.linkedExistingUser ? 'Approved — access added' : 'Approved — activate your account'}
+          subtitle={
+            application.linkedExistingUser
+              ? 'Rider or Store access was added to your existing AAGAM Customer account.'
+              : 'A new operational account was provisioned securely.'
+          }
+        >
           <View style={styles.successRow}>
             <CheckCircle2 size={25} color={palette.green} />
-            <Text style={styles.successText}>Document review and partner approval are complete.</Text>
+            <Text style={styles.successText}>Document review and Partner approval are complete.</Text>
           </View>
-          <PrimaryButton label="Create password and activate" onPress={activate} loading={isLoading} />
+          {application.linkedExistingUser ? (
+            <PrimaryButton label="Sign in with existing AAGAM account" onPress={signInExisting} />
+          ) : (
+            <PrimaryButton label="Create password and activate" onPress={activate} loading={isLoading} />
+          )}
         </Section>
       ) : null}
 
       {application.status === 'REJECTED' ? (
-        <Section title="Application not approved" subtitle="The applicant-facing reason is shown in the timeline below.">
-          <Text style={styles.rejected}>Contact Partner Support before starting another application with the same verified identity.</Text>
+        <Section title="Application not approved" subtitle="The reason appears in the timeline below.">
+          <Text style={styles.rejected}>Contact AAGAM Partner Support before starting another application with the same identity.</Text>
         </Section>
       ) : null}
 
       {editable ? (
         <Section title="Complete and submit">
-          <PrimaryButton label="Edit application details" onPress={edit} secondary />
+          <PrimaryButton label="Edit profile details" onPress={editProfile} secondary />
           <PrimaryButton label="Review documents" onPress={() => navigation.navigate('ApplicationDocuments')} secondary />
           <PrimaryButton
-            label={application.submissionVersion > 0 ? 'Resubmit corrected application' : 'Submit for Admin review'}
+            label={application.submissionVersion > 0 ? 'Resubmit corrected application' : 'Submit for AAGAM review'}
             onPress={submitApplication}
             loading={isLoading}
             disabled={requirements.completionPercent < 100}
           />
           {requirements.completionPercent < 100 ? (
-            <Text style={styles.blocked}>All mandatory documents must be present before submission.</Text>
+            <Text style={styles.blocked}>Upload every mandatory document before submission.</Text>
           ) : null}
         </Section>
       ) : null}
 
       {['SUBMITTED', 'UNDER_REVIEW'].includes(application.status) ? (
-        <Section title="Review in progress" subtitle="The submitted snapshot is locked while Admin reviews it.">
+        <Section title="Review in progress" subtitle="The submitted application is locked during review.">
           <View style={styles.waitingRow}>
             <Clock3 size={22} color="#0369A1" />
             <Text style={styles.waitingText}>
               {application.status === 'SUBMITTED'
-                ? 'Application received and waiting for an Admin reviewer.'
-                : 'Admin is checking profile details and individual documents.'}
+                ? 'Application received and waiting for an AAGAM reviewer.'
+                : 'AAGAM is checking profile details and each document.'}
             </Text>
           </View>
         </Section>
@@ -254,7 +288,7 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
 
       <Section title="Application timeline">
         {events.length === 0 ? (
-          <Text style={styles.empty}>No visible events yet. Pull down or tap refresh to check again.</Text>
+          <Text style={styles.empty}>No visible events yet. Pull down to check again.</Text>
         ) : (
           events.map((event, index) => (
             <View key={event.id} style={styles.eventRow}>
@@ -272,7 +306,7 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
         )}
       </Section>
 
-      <Section title="Application access" subtitle="Keep your application number and access token private.">
+      <Section title="Application access" subtitle="Keep your application reference private.">
         <View style={styles.referenceRow}>
           <FileText size={19} color={palette.teal} />
           <Text style={styles.reference}>{application.applicationNumber}</Text>

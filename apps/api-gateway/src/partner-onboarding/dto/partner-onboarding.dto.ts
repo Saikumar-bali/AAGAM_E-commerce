@@ -80,6 +80,8 @@ export class AdminPartnerListQueryDto {
   status?: string;
   @IsOptional() @IsString()
   search?: string;
+  @IsOptional() @Matches(/^(active|deleted|all)$/)
+  visibility: 'active' | 'deleted' | 'all' = 'active';
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   page: number = 1;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100)
@@ -96,6 +98,27 @@ export class ReviewPartnerDocumentDto {
   decision!: 'VERIFIED' | 'REJECTED' | 'REPLACEMENT_REQUIRED';
   @IsOptional() @IsString() @MaxLength(500)
   note?: string;
+}
+
+export class VerifyAllPartnerDocumentsDto {
+  @IsOptional() @IsString() @MaxLength(500)
+  note?: string;
+}
+
+export class AdminVerifyPartnerContactDto {
+  @IsEnum(PartnerContactChannel)
+  channel!: PartnerContactChannel;
+  @IsString() @Matches(/^(IN_PERSON|SUPPORT_VIDEO_CALL|DOCUMENT_MATCH|OTHER)$/)
+  method!: 'IN_PERSON' | 'SUPPORT_VIDEO_CALL' | 'DOCUMENT_MATCH' | 'OTHER';
+  @IsString() @MinLength(5) @MaxLength(1000)
+  reason!: string;
+}
+
+export class DeletePartnerDraftDto {
+  @IsString() @MinLength(5) @MaxLength(1000)
+  reason!: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(90)
+  retentionDays: number = 14;
 }
 
 export class RequestPartnerChangesDto {
