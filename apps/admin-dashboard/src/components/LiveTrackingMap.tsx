@@ -111,12 +111,6 @@ export default function LiveTrackingMap({ riders = [], orders = [], selectedOrde
     if (o.latestLocation) allPoints.push([o.latestLocation.latitude, o.latestLocation.longitude]);
   });
 
-  const bounds: [[number, number], [number, number]] | undefined = allPoints.length > 1
-    ? [
-        [Math.min(...allPoints.map(p => p[0])), Math.min(...allPoints.map(p => p[1]))],
-        [Math.max(...allPoints.map(p => p[0])), Math.max(...allPoints.map(p => p[1]))],
-      ]
-    : undefined;
 
   useEffect(() => {
     if (selectedOrderId) {
