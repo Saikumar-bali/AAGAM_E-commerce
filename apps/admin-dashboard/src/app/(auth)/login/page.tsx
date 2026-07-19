@@ -160,7 +160,7 @@ export default function LoginPage() {
     <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center">
       <div className="grid w-full gap-8 lg:grid-cols-[.95fr_1.05fr] lg:items-center">
         <section className="relative hidden min-h-[680px] overflow-hidden rounded-[2.5rem] border border-white/70 bg-slate-950 shadow-2xl lg:block">
-          <img src={loginCampaign?.imageUrl || '/brand/aagam-login-network.png'} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" />
+          {loginCampaign?.imageUrl ? <img src={loginCampaign.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" /> : <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(20,184,166,.6),transparent_32%),radial-gradient(circle_at_80%_75%,rgba(245,158,11,.35),transparent_35%)]" />}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
           <div className="relative flex h-full min-h-[680px] flex-col justify-between p-10 text-white">
             <AagamLogo inverse label="Commerce Network" />
