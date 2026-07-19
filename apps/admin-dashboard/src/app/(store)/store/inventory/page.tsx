@@ -151,7 +151,7 @@ export default function InventoryPage() {
                         <button onClick={() => setDraftQuantity(item.id, draft - 1)} className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"><Minus className="h-4 w-4" /></button>
                         <input type="number" min={0} value={draft} onChange={(e) => setDraftQuantity(item.id, Number(e.target.value))} className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-center font-black text-slate-900" />
                         <button onClick={() => setDraftQuantity(item.id, draft + 1)} className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"><Plus className="h-4 w-4" /></button>
-                        <button onClick={() => saveInventory(item)} disabled={!changed || savingId === item.id} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40"><Save className="h-3.5 w-3.5" /> {savingId === item.id ? 'Saving' : 'Save'}</button>
+                        <button onClick={() => saveInventory(item)} disabled={savingId === item.id} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40"><Save className="h-3.5 w-3.5" /> {savingId === item.id ? 'Saving' : 'Save'}</button>
                       </div>
                     </td>
                   </tr>
