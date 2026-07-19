@@ -51,7 +51,7 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
     return byPhone || byEmail || null;
   }
 
-  private async promoteDocuments(
+  private async promotePhoneDocuments(
     application: PartnerApplicationRow,
     documents: PartnerDocumentRow[],
     ownerId: string,
@@ -149,7 +149,7 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
     const storeId =
       application.type === PartnerApplicationType.STORE ? randomUUID() : null;
     const finalOwnerId = riderProfileId || storeId!;
-    const { promoted, createdKeys } = await this.promoteDocuments(
+    const { promoted, createdKeys } = await this.promotePhoneDocuments(
       application,
       documents,
       finalOwnerId,
@@ -377,9 +377,7 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
 
     const originalKeys = documents
       .map((document) => document.storageKey)
-      .filter(
-        (key) => key && ![...promoted.values()].includes(key),
-      );
+      .filter((key) => key && ![...promoted.values()].includes(key));
     await this.phoneUploads.deleteEvidenceMany(originalKeys);
     return this.detail(id);
   }
