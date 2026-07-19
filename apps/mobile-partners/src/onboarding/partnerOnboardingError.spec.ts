@@ -1,4 +1,5 @@
 import { toPartnerOnboardingError } from './partnerOnboardingError';
+import { verificationRequestErrorMessage } from './partnerVerificationPresentation';
 
 describe('partner onboarding error normalization', () => {
   it('preserves the safe provider code and correlation reference', () => {
@@ -18,6 +19,25 @@ describe('partner onboarding error normalization', () => {
     expect(normalized.message).toBe('Partner email verification could not be delivered');
     expect(normalized.safeCode).toBe('MAILJET_AUTH_REJECTED');
     expect(normalized.correlationId).toBe('mailjet-reference-1');
+  });
+
+  it('renders the preserved diagnostics in the resend popup message', () => {
+    const normalized = toPartnerOnboardingError(
+      {
+        response: {
+          data: {
+            message: 'Partner email verification could not be delivered',
+            code: 'MAILJET_AUTH_REJECTED',
+            correlationId: 'mailjet-reference-2',
+          },
+        },
+      },
+      'Could not send verification code',
+    );
+
+    const presentation = verificationRequestErrorMessage(normalized);
+    expect(presentation).toContain('Code: MAILJET_AUTH_REJECTED');
+    expect(presentation).toContain('Reference: mailjet-reference-2');
   });
 
   it('keeps array validation messages readable', () => {
