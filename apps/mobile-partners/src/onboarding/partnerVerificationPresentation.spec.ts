@@ -1,4 +1,6 @@
 import {
+  createVerificationHardwareBackHandler,
+  resetVerificationToPartnerHome,
   resolveVerificationDelivery,
   verificationRequestErrorMessage,
 } from './partnerVerificationPresentation';
@@ -21,6 +23,27 @@ function event(
     createdAt,
   };
 }
+
+describe('partner verification back recovery', () => {
+  it('resets the visible back action to Partner Home', () => {
+    const navigation = { reset: jest.fn() };
+    resetVerificationToPartnerHome(navigation);
+    expect(navigation.reset).toHaveBeenCalledWith({
+      index: 0,
+      routes: [{ name: 'PartnerWelcome' }],
+    });
+  });
+
+  it('handles Android hardware back and consumes the event', () => {
+    const navigation = { reset: jest.fn() };
+    const handler = createVerificationHardwareBackHandler(navigation);
+    expect(handler()).toBe(true);
+    expect(navigation.reset).toHaveBeenCalledWith({
+      index: 0,
+      routes: [{ name: 'PartnerWelcome' }],
+    });
+  });
+});
 
 describe('partner verification delivery presentation', () => {
   it('shows checking state before the event request completes', () => {
