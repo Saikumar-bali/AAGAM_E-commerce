@@ -108,6 +108,8 @@ model Inventory {
   storeId   String
   productId String
   quantity  Int      @default(0)
+  isListed  Boolean  @default(true)
+  autoHideWhenOutOfStock Boolean @default(true)
   store     Store    @relation(fields: [storeId], references: [id])
   product   Product  @relation(fields: [productId], references: [id])
   updatedAt DateTime @updatedAt
