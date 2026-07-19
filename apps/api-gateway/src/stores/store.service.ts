@@ -199,7 +199,16 @@ export class StoreService {
     return deleted;
   }
 
-  async updateInventory(storeId: string, productId: string, quantity: number, actor?: { id: string; role: Role }) {
+  async updateInventory(
+    storeId: string,
+    productId: string,
+    quantity: number,
+    actor?: { id: string; role: Role },
+    policy?: { isListed?: boolean; autoHideWhenOutOfStock?: boolean },
+  ) {
+    if (!Number.isInteger(quantity) || quantity < 0 || quantity > 1_000_000) {
+      throw new BadRequestException('Quantity must be a whole number between 0 and 1,000,000');
+    }
     if (actor?.role === Role.STORE_OWNER) {
       const store = await prisma.store.findUnique({ where: { id: storeId } });
       if (!store) throw new NotFoundException('Store not found');
@@ -216,8 +225,20 @@ export class StoreService {
 
       const inventory = await tx.inventory.upsert({
         where: { storeId_productId: { storeId, productId } },
-        update: { quantity },
-        create: { storeId, productId, quantity },
+        update: {
+          quantity,
+          ...(policy?.isListed !== undefined ? { isListed: policy.isListed } : {}),
+          ...(policy?.autoHideWhenOutOfStock !== undefined
+            ? { autoHideWhenOutOfStock: policy.autoHideWhenOutOfStock }
+            : {}),
+        },
+        create: {
+          storeId,
+          productId,
+          quantity,
+          isListed: policy?.isListed ?? true,
+          autoHideWhenOutOfStock: policy?.autoHideWhenOutOfStock ?? true,
+        },
       });
 
       await tx.inventoryLedger.create({
