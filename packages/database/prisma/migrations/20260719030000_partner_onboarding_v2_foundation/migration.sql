@@ -36,7 +36,8 @@ ALTER TABLE "PartnerApplication"
   ADD COLUMN IF NOT EXISTS "scheduledPurgeAt" TIMESTAMP(3),
   ADD COLUMN IF NOT EXISTS "contactVerificationMethod" TEXT,
   ADD COLUMN IF NOT EXISTS "contactVerifiedByUserId" TEXT,
-  ADD COLUMN IF NOT EXISTS "contactVerificationReason" TEXT;
+  ADD COLUMN IF NOT EXISTS "contactVerificationReason" TEXT,
+  ADD COLUMN IF NOT EXISTS "linkedExistingUser" BOOLEAN NOT NULL DEFAULT false;
 
 DO $$ BEGIN
   ALTER TABLE "PartnerApplication"
