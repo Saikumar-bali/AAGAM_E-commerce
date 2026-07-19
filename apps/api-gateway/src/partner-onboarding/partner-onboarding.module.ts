@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { UploadModule } from '../upload/upload.module';
+import { ContactVerificationModule } from '../contact-verification/contact-verification.module';
 import { PartnerOnboardingAdminController } from './partner-onboarding-admin.controller';
 import { PartnerOnboardingAdminService } from './partner-onboarding-admin.service';
 import { PartnerOnboardingController } from './partner-onboarding.controller';
@@ -14,7 +15,7 @@ import { FirebasePnvVerificationService } from './firebase-pnv-verification.serv
 import { VerificationReadinessController } from './verification-readiness.controller';
 
 @Module({
-  imports: [UploadModule],
+  imports: [UploadModule, ContactVerificationModule],
   controllers: [
     PartnerOnboardingController,
     PartnerOnboardingAdminController,
