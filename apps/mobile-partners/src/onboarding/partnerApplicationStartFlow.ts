@@ -24,7 +24,6 @@ export function resetToPartnerVerification(navigation: VerificationNavigation) {
 
 export async function startProtectedApplicationAndContinue(input: {
   start: (application: PartnerApplicationStartInput) => Promise<void>;
-  requestVerification: (channel: 'EMAIL' | 'PHONE') => Promise<void>;
   application: PartnerApplicationStartInput;
   getSession: () => ProtectedApplicationSession;
   navigation: VerificationNavigation;
@@ -32,11 +31,10 @@ export async function startProtectedApplicationAndContinue(input: {
   const sessionBeforeStart = input.getSession();
 
   try {
+    // The runtime DeliveringPartnerOnboardingService creates the protected
+    // draft and performs exactly one provider-backed OTP request atomically
+    // from the mobile caller's perspective.
     await input.start(input.application);
-    // The create endpoint protects and persists the draft. Delivery is always
-    // performed by the provider-backed verification endpoint so Resend/Mailjet
-    // or the configured phone provider is the only source of a usable OTP.
-    await input.requestVerification(input.application.verificationChannel);
     resetToPartnerVerification(input.navigation);
     return { recoveredAfterProviderOrRefreshFailure: false };
   } catch (error) {
@@ -50,9 +48,9 @@ export async function startProtectedApplicationAndContinue(input: {
 
     if (!createdProtectedSession) throw error;
 
-    // The protected draft exists even if provider delivery or the follow-up
-    // refresh failed. Keep it and open verification so the applicant can see
-    // the safe delivery state, retry, go back, or resume later.
+    // The protected draft and its provider delivery attempt exist even when a
+    // follow-up application refresh fails. Keep the session and open the OTP
+    // screen so delivery state, retry and safe back navigation remain available.
     resetToPartnerVerification(input.navigation);
     return { recoveredAfterProviderOrRefreshFailure: true };
   }
