@@ -19,7 +19,6 @@ import { PartnerApplicationType } from '../onboarding/types';
 export function PartnerApplicationStartScreen({ navigation, route }: any) {
   const type = route.params?.type as PartnerApplicationType;
   const start = usePartnerOnboardingStore((state) => state.start);
-  const requestVerification = usePartnerOnboardingStore((state) => state.requestVerification);
   const loading = usePartnerOnboardingStore((state) => state.isLoading);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -75,7 +74,6 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
     try {
       await startProtectedApplicationAndContinue({
         start,
-        requestVerification,
         application,
         navigation,
         getSession: () => {
