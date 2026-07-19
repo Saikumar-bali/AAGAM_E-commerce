@@ -259,9 +259,17 @@ export class ProductService {
   async reorderProducts(ids: string[]) {
     const uniqueIds = Array.from(new Set(ids));
     if (!uniqueIds.length || uniqueIds.length !== ids.length) throw new BadRequestException('Provide a unique ordered product id list.');
-    const count = await prisma.product.count({ where: { id: { in: uniqueIds }, deletedAt: null } });
-    if (count !== uniqueIds.length) throw new BadRequestException('One or more products do not exist.');
-    await prisma.$transaction(uniqueIds.map((id, index) => prisma.product.update({ where: { id }, data: { sortOrder: index + 1 } })) as any);
+    const selected = await prisma.product.findMany({
+      where: { id: { in: uniqueIds }, deletedAt: null },
+      select: { id: true, sortOrder: true },
+    });
+    if (selected.length !== uniqueIds.length) throw new BadRequestException('One or more products do not exist.');
+    // A filtered drag operation must only rearrange the occupied slots of the
+    // visible products; unrelated products keep their relative position.
+    const slots = selected.map((row) => row.sortOrder).sort((a, b) => a - b);
+    await prisma.$transaction(uniqueIds.map((id, index) =>
+      prisma.product.update({ where: { id }, data: { sortOrder: slots[index] } })
+    ) as any);
     await this.clearProductCache();
     return this.findAdminAll();
   }

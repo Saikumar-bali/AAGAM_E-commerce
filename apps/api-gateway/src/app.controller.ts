@@ -1,4 +1,4 @@
-import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { BadGatewayException, Controller, Get, Query, ServiceUnavailableException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
 import { createClient } from 'redis';
 import { AppService } from './app.service';
@@ -24,6 +24,7 @@ async function pingRedis(redisUrl: string, timeoutMs = 2500) {
 
 @Controller()
 export class AppController {
+  private releaseCache: { expiresAt: number; value: any } | null = null;
   constructor(private readonly appService: AppService) {}
 
   @Get()
@@ -40,6 +41,28 @@ export class AppController {
       timestamp: new Date().toISOString(),
       uptimeSeconds: Math.round(process.uptime()),
     };
+  }
+
+  @Get('app-releases/latest')
+  async latestAppRelease(@Query('app') appInput?: string) {
+    const app = String(appInput || '').toUpperCase();
+    if (!['CUSTOMER', 'PARTNERS'].includes(app)) return { updateAvailable: false };
+    if (!this.releaseCache || this.releaseCache.expiresAt < Date.now()) {
+      try {
+        const response = await fetch('https://api.github.com/repos/Saikumar-bali/AAGAM_E-commerce/releases/latest', {
+          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'aagam-api-gateway' },
+        });
+        if (!response.ok) throw new Error(`GitHub releases returned ${response.status}`);
+        this.releaseCache = { value: await response.json(), expiresAt: Date.now() + 5 * 60 * 1000 };
+      } catch {
+        throw new BadGatewayException('Latest Android release is temporarily unavailable');
+      }
+    }
+    const release = this.releaseCache.value;
+    const marker = app === 'CUSTOMER' ? 'aagam-customer-' : 'aagam-partners-';
+    const asset = (release.assets || []).find((item: any) => String(item.name).startsWith(marker) && String(item.name).endsWith('.apk'));
+    const versionCode = Number(String(release.tag_name || '').match(/^android-(\d+)-/)?.[1] || 0);
+    return { app, versionCode, versionName: release.name || release.tag_name, downloadUrl: asset?.browser_download_url || release.html_url, releaseUrl: release.html_url, publishedAt: release.published_at };
   }
 
   @Get('ready')

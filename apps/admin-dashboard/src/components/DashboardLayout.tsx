@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@aagam/utils';
-import { Bell, CheckCircle2, Command, Loader2, Search } from 'lucide-react';
+import { Bell, Command, Loader2, Search, X } from 'lucide-react';
 import Sidebar from './Sidebar';
 import PushNotificationManager from './PushNotificationManager';
 
@@ -56,6 +56,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
   const initialSession = cachedSession;
   const [ready, setReady] = useState(initialSession?.role === allowedRole);
   const [userRole, setUserRole] = useState<string | null>(initialSession?.role || null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -90,6 +94,37 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
       active = false;
     };
   }, [allowedRole, router]);
+
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+      if (event.key === 'Escape') setSearchOpen(false);
+    };
+    window.addEventListener('keydown', shortcut);
+    return () => window.removeEventListener('keydown', shortcut);
+  }, []);
+
+  useEffect(() => {
+    if (!searchOpen || searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      setSearching(true);
+      try {
+        const response = await apiClient.get('/search/global', { params: { q: searchQuery.trim() } });
+        setSearchResults(response.data?.results || []);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [searchOpen, searchQuery]);
 
   if (!ready) {
     return (
@@ -132,19 +167,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               {allowedRole !== 'CUSTOMER' ? (
-                <div className="hidden items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500 md:flex">
+                <button onClick={() => setSearchOpen(true)} className="hidden items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500 transition hover:border-teal-300 hover:text-teal-700 md:flex">
                   <Search className="h-4 w-4" />
                   Search orders, products, stores
                   <span className="ml-5 inline-flex items-center gap-1 rounded-lg bg-white px-2 py-1 text-[11px] text-slate-400 shadow-sm">
                     <Command className="h-3 w-3" /> K
                   </span>
-                </div>
-              ) : null}
-              {allowedRole !== 'CUSTOMER' ? (
-                <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Live systems
-                </div>
+                </button>
               ) : null}
               <PushNotificationManager />
               <button
@@ -159,6 +188,25 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
           <div className="relative">{children}</div>
         </div>
       </main>
+      {searchOpen && allowedRole !== 'CUSTOMER' ? (
+        <div className="fixed inset-0 z-[80] flex items-start justify-center bg-slate-950/55 p-4 pt-[10vh] backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Global search" onMouseDown={(event) => { if (event.target === event.currentTarget) setSearchOpen(false); }}>
+          <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl">
+            <div className="flex items-center gap-3 border-b border-slate-100 p-4">
+              <Search className="h-5 w-5 text-teal-700" />
+              <input autoFocus value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder={allowedRole === 'ADMIN' ? 'Search orders, products, stores, riders…' : 'Search your operational workspace…'} className="min-w-0 flex-1 bg-transparent text-base font-bold outline-none" />
+              {searching ? <Loader2 className="h-5 w-5 animate-spin text-teal-700" /> : <button onClick={() => setSearchOpen(false)} aria-label="Close global search"><X className="h-5 w-5" /></button>}
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-2">
+              {searchQuery.trim().length < 2 ? <p className="p-6 text-center font-semibold text-slate-500">Enter at least two characters.</p> : !searching && searchResults.length === 0 ? <p className="p-6 text-center font-semibold text-slate-500">No role-accessible results found.</p> : searchResults.map((result) => (
+                <button key={`${result.type}-${result.id}`} onClick={() => { setSearchOpen(false); router.push(result.href); }} className="flex w-full items-center gap-4 rounded-2xl p-4 text-left transition hover:bg-teal-50">
+                  <span className="rounded-lg bg-slate-950 px-2 py-1 text-[10px] font-black uppercase text-white">{result.type}</span>
+                  <span className="min-w-0 flex-1"><span className="block truncate font-black text-slate-950">{result.title}</span><span className="block truncate text-xs font-semibold text-slate-500">{result.subtitle}</span></span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

@@ -20,6 +20,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { PartnerOnboardingModule } from './partner-onboarding/partner-onboarding.module';
+import { GlobalSearchModule } from './search/search.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { PartnerOnboardingModule } from './partner-onboarding/partner-onboarding
     TrackingModule,
     AnalyticsModule,
     PartnerOnboardingModule,
+    GlobalSearchModule,
   ],
   controllers: [AppController],
   providers: [AppService],

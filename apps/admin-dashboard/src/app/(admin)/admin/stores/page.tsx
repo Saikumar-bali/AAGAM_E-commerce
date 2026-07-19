@@ -53,10 +53,13 @@ type StoreFormData = {
   latitude: number | null;
   longitude: number | null;
   ownerEmail: string;
+  ownerName: string;
+  ownerPhone: string;
+  password: string;
   isActive: boolean;
 };
 
-const emptyForm = (): StoreFormData => ({ name: '', address: '', latitude: null, longitude: null, ownerEmail: '', isActive: true });
+const emptyForm = (): StoreFormData => ({ name: '', address: '', latitude: null, longitude: null, ownerEmail: '', ownerName: '', ownerPhone: '', password: '', isActive: true });
 
 export default function AdminStoresPage() {
   const [stores, setStores] = useState<StoreRecord[]>([]);
@@ -114,6 +117,9 @@ export default function AdminStoresPage() {
       latitude: Number(store.latitude),
       longitude: Number(store.longitude),
       ownerEmail: store.owner?.email || '',
+      ownerName: store.owner?.name || '',
+      ownerPhone: store.owner?.phone || '',
+      password: '',
       isActive: store.isActive,
     });
     setError('');
@@ -158,6 +164,9 @@ export default function AdminStoresPage() {
         latitude: formData.latitude,
         longitude: formData.longitude,
         ownerEmail: formData.ownerEmail.trim(),
+        ownerName: formData.ownerName.trim(),
+        ownerPhone: formData.ownerPhone.trim(),
+        password: formData.password,
       });
       setShowModal(false);
       resetForm();
@@ -473,7 +482,7 @@ function StoreFormModal({
             <div className="space-y-4">
               <TextInput label="Store Name" required placeholder="Enter store name" value={formData.name} onChange={(value) => setFormData((prev) => ({ ...prev, name: value }))} />
               <TextInput label="Address" required placeholder="Enter full address" value={formData.address} onChange={(value) => setFormData((prev) => ({ ...prev, address: value }))} />
-              {showOwnerEmail && <TextInput label="Owner Email" required type="email" placeholder="owner@email.com" value={formData.ownerEmail} onChange={(value) => setFormData((prev) => ({ ...prev, ownerEmail: value }))} />}
+              {showOwnerEmail ? <div className="space-y-4 rounded-2xl border border-teal-100 bg-teal-50/60 p-4"><p className="text-sm font-black text-teal-900">Direct Store Owner login</p><TextInput label="Owner full name" required placeholder="Store owner name" value={formData.ownerName} onChange={(value) => setFormData((prev) => ({ ...prev, ownerName: value }))} /><TextInput label="Login email / username" required type="email" placeholder="owner@email.com" value={formData.ownerEmail} onChange={(value) => setFormData((prev) => ({ ...prev, ownerEmail: value }))} /><TextInput label="Owner mobile number" required placeholder="+91…" value={formData.ownerPhone} onChange={(value) => setFormData((prev) => ({ ...prev, ownerPhone: value }))} /><TextInput label="Temporary password" required type="password" placeholder="Minimum 8 characters" value={formData.password} onChange={(value) => setFormData((prev) => ({ ...prev, password: value }))} /><p className="text-xs font-bold text-teal-700">The owner can sign in immediately using the email or phone and this password.</p></div> : null}
               {showActiveToggle && (
                 <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
                   <input type="checkbox" className="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" checked={formData.isActive} onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))} />

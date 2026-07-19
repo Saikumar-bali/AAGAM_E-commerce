@@ -4,40 +4,15 @@ import { prisma } from "@aagam/database";
 @Injectable()
 export class RiderService {
   async findAll() {
-    // Get all users with RIDER role
-    const riderUsers = await prisma.user.findMany({
-      where: { role: "RIDER" },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        createdAt: true,
-      },
-    });
-
-    // Get all rider profiles
-    const riderProfiles = await prisma.riderProfile.findMany({
+    // RiderProfile is the canonical provisioned Rider record. Approved
+    // applicants may retain CUSTOMER as their primary legacy role while RIDER
+    // is granted through UserRole, so filtering User.role hid valid Riders.
+    return prisma.riderProfile.findMany({
       include: {
         user: { select: { name: true, email: true, phone: true } },
         orders: true,
       },
-    });
-
-    // Combine: use profile if exists, otherwise use user data
-    return riderUsers.map((user) => {
-      const profile = riderProfiles.find((p) => p.userId === user.id);
-      if (profile) return profile;
-      return {
-        id: `temp-${user.id}`,
-        userId: user.id,
-        status: "OFFLINE",
-        latitude: null,
-        longitude: null,
-        updatedAt: user.createdAt,
-        user: { name: user.name, email: user.email, phone: user.phone },
-        orders: [],
-      };
+      orderBy: { updatedAt: "desc" },
     });
   }
 

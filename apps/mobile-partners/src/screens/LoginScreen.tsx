@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { ArrowLeft, ArrowRight, Lock, Mail, Phone, ShieldCheck } from 'lucide-react-native';
-import { useAuthStore } from '@aagam/mobile-shared';
+import { apiClient, useAuthStore } from '@aagam/mobile-shared';
 import Toast from 'react-native-toast-message';
 
 const phoneForApi = (value: string) => {
@@ -24,8 +23,7 @@ const phoneForApi = (value: string) => {
 
 const LoginScreen = ({ navigation }: any) => {
   const login = useAuthStore((state) => state.login);
-  const requestPhoneOtp = useAuthStore((state) => state.requestPhoneOtp);
-  const verifyPhoneOtp = useAuthStore((state) => state.verifyPhoneOtp);
+  const setAuth = useAuthStore((state) => state.setAuth);
   const inputRef = useRef<TextInput>(null);
   const [mode, setMode] = useState<'PHONE' | 'PASSWORD'>('PHONE');
   const [phone, setPhone] = useState('');
@@ -50,21 +48,18 @@ const LoginScreen = ({ navigation }: any) => {
     }
     setLoading(true);
     try {
-      const result = await requestPhoneOtp(normalized, 'LOGIN');
+      const result = (await apiClient.post('/auth/partner/phone/request', {
+        phoneE164: normalized,
+        purpose: 'LOGIN',
+      })).data;
       setPhone(normalized);
       setMasked(result.maskedDestination);
       setCode('');
       setCountdown(30);
       setTimeout(() => inputRef.current?.focus(), 180);
     } catch (error: any) {
-      Alert.alert(
-        'Operational access unavailable',
-        `${error.message}\n\nYour Partner application may still be awaiting approval.`,
-        [
-          { text: 'Close', style: 'cancel' },
-          { text: 'Track application', onPress: () => navigation.navigate('ResumeApplication') },
-        ],
-      );
+      const message = error?.response?.data?.message || error.message;
+      Toast.show({ type: 'error', text1: 'Partner number not registered', text2: Array.isArray(message) ? message.join(', ') : message });
     } finally {
       setLoading(false);
     }
@@ -74,7 +69,12 @@ const LoginScreen = ({ navigation }: any) => {
     if (!/^\d{6}$/.test(candidate)) return;
     setLoading(true);
     try {
-      await verifyPhoneOtp({ phoneE164: phone, purpose: 'LOGIN', code: candidate });
+      const response = await apiClient.post('/auth/mobile/partner/phone/verify', {
+        phoneE164: phone,
+        purpose: 'LOGIN',
+        code: candidate,
+      });
+      await setAuth(response.data.user, response.data.access_token);
       Toast.show({ type: 'success', text1: 'Partner workspace ready', text2: 'Signed in securely.' });
     } catch (error: any) {
       setCode('');
@@ -87,7 +87,8 @@ const LoginScreen = ({ navigation }: any) => {
   const updateCode = (value: string) => {
     const next = value.replace(/\D/g, '').slice(0, 6);
     setCode(next);
-    if (next.length === 6) setTimeout(() => void verifyCode(next), 100);
+    // Never navigate merely because Android SMS autofill populated six digits.
+    // The Rider explicitly confirms the code with “Verify and sign in”.
   };
 
   const passwordLogin = async () => {

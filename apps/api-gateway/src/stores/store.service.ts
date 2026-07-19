@@ -5,10 +5,13 @@ import { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
+import { grantUserRole } from '../auth/user-roles';
 
 const SAFE_STORE_OWNER_SELECT = {
   id: true,
   name: true,
+  email: true,
+  phone: true,
 } as const;
 
 @Injectable()
@@ -115,24 +118,36 @@ export class StoreService {
 
   async create(data: CreateStoreDto) {
     const ownerEmail = data.ownerEmail.trim().toLowerCase();
+    const ownerPhone = data.ownerPhone.trim();
     let owner = await prisma.user.findUnique({ where: { email: ownerEmail } });
 
     if (!owner) {
+      const phoneOwner = await prisma.user.findUnique({ where: { phone: ownerPhone } });
+      if (phoneOwner) throw new ConflictException('That owner phone number already belongs to another account.');
       const userData: any = {
         email: ownerEmail,
-        name: ownerEmail.split('@')[0],
+        name: data.ownerName.trim(),
+        phone: ownerPhone,
         role: 'STORE_OWNER',
+        password: await bcrypt.hash(data.password, 10),
       };
-      if (data.password) {
-        userData.password = await bcrypt.hash(data.password, 10);
-      }
       owner = await prisma.user.create({ data: userData });
-    } else if (data.password && owner.id) {
+    } else {
+      const phoneOwner = await prisma.user.findUnique({ where: { phone: ownerPhone } });
+      if (phoneOwner && phoneOwner.id !== owner.id) {
+        throw new ConflictException('That owner phone number already belongs to another account.');
+      }
       await prisma.user.update({
         where: { id: owner.id },
-        data: { password: await bcrypt.hash(data.password, 10) },
+        data: {
+          name: data.ownerName.trim(),
+          phone: ownerPhone,
+          role: Role.STORE_OWNER,
+          password: await bcrypt.hash(data.password, 10),
+        },
       });
     }
+    await grantUserRole(prisma as any, owner.id, Role.STORE_OWNER, 'ADMIN_STORE_CREATION');
 
     const store = await prisma.store.create({
       data: {

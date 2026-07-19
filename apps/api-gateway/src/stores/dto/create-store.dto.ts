@@ -37,9 +37,18 @@ export class CreateStoreDto {
   @MaxLength(254)
   ownerEmail: string = '';
 
-  @IsOptional()
   @IsString()
-  @MinLength(6)
+  @MinLength(2)
+  @MaxLength(120)
+  ownerName: string = '';
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(18)
+  ownerPhone: string = '';
+
+  @IsString()
+  @MinLength(8)
   @MaxLength(128)
-  password?: string;
+  password: string = '';
 }

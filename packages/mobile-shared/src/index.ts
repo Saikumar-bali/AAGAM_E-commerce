@@ -12,5 +12,6 @@ export {
   setupBackgroundMessageHandler,
 } from './utils/notifications';
 export { LeafletMap } from './components/LeafletMap';
+export { checkForAppUpdate } from './utils/appUpdates';
 export { TrackingMap } from './components/TrackingMap';
 export { COLORS, SPACING, BORDER_RADIUS, SHADOWS, FONTS } from './constants/theme';
