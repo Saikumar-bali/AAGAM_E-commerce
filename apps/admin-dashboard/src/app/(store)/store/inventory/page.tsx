@@ -10,12 +10,14 @@ type InventoryItem = {
   quantity: number;
   isListed: boolean;
   autoHideWhenOutOfStock: boolean;
+  sellingPricePaise?: number | null;
   product: { id: string; name: string; price: number; image?: string | null; category?: { name: string } };
   store: { id: string; name: string };
 };
 
 export default function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([]);
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, number>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
@@ -46,6 +48,7 @@ export default function InventoryPage() {
             quantity: existing?.quantity ?? 0,
             isListed: existing?.isListed ?? true,
             autoHideWhenOutOfStock: existing?.autoHideWhenOutOfStock ?? true,
+            sellingPricePaise: existing?.sellingPricePaise ?? null,
             product,
             store: { id: store.id, name: store.name },
           });
@@ -53,6 +56,7 @@ export default function InventoryPage() {
       }
       setItems(allInventory);
       setDrafts(Object.fromEntries(allInventory.map((item) => [item.id, item.quantity])));
+      setPriceDrafts(Object.fromEntries(allInventory.map((item) => [item.id, item.sellingPricePaise == null ? '' : String(item.sellingPricePaise / 100)])));
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Failed to load inventory');
     } finally {
@@ -81,6 +85,7 @@ export default function InventoryPage() {
         quantity,
         isListed: item.isListed,
         autoHideWhenOutOfStock: item.autoHideWhenOutOfStock,
+        sellingPrice: priceDrafts[item.id] === '' ? null : Number(priceDrafts[item.id]),
       });
       setItems((current) => current.map((row) => row.id === item.id ? { ...row, quantity } : row));
       setSuccess(`${item.product.name} stock updated to ${quantity} units`);
@@ -129,7 +134,7 @@ export default function InventoryPage() {
       ) : (
         <div className="enterprise-panel overflow-hidden p-0">
           <table className="w-full text-left text-sm">
-            <thead><tr className="border-b border-slate-100 bg-slate-50/80"><th className="px-5 py-3 font-black text-slate-600">Product</th><th className="px-5 py-3 font-black text-slate-600">Store</th><th className="px-5 py-3 font-black text-slate-600">Price</th><th className="px-5 py-3 font-black text-slate-600">Stock</th><th className="px-5 py-3 font-black text-slate-600">Listing policy</th><th className="px-5 py-3 font-black text-slate-600">Adjust</th></tr></thead>
+            <thead><tr className="border-b border-slate-100 bg-slate-50/80"><th className="px-5 py-3 font-black text-slate-600">Product</th><th className="px-5 py-3 font-black text-slate-600">Store</th><th className="px-5 py-3 font-black text-slate-600">Store price</th><th className="px-5 py-3 font-black text-slate-600">Stock</th><th className="px-5 py-3 font-black text-slate-600">Listing policy</th><th className="px-5 py-3 font-black text-slate-600">Adjust</th></tr></thead>
             <tbody>
               {visibleItems.map((item) => {
                 const draft = drafts[item.id] ?? item.quantity;
@@ -138,7 +143,7 @@ export default function InventoryPage() {
                   <tr key={item.id} className="border-b border-slate-50 transition hover:bg-slate-50/50">
                     <td className="px-5 py-3 font-bold text-slate-950">{item.product.name}</td>
                     <td className="px-5 py-3 text-slate-600">{item.store.name}</td>
-                    <td className="px-5 py-3 text-slate-600">₹{Number(item.product.price).toLocaleString('en-IN')}</td>
+                    <td className="px-5 py-3"><input type="number" min={0} step="0.01" value={priceDrafts[item.id] ?? ''} onChange={(event) => setPriceDrafts((current) => ({ ...current, [item.id]: event.target.value }))} placeholder={`Admin ₹${Number(item.product.price).toLocaleString('en-IN')}`} className="w-28 rounded-xl border border-slate-200 px-3 py-2 text-sm font-black" /><p className="mt-1 text-[10px] font-bold text-slate-400">Blank uses Admin price</p></td>
                     <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-black ${item.quantity < 10 ? 'bg-red-100 text-red-700' : item.quantity < 30 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{item.quantity} units</span></td>
                     <td className="px-5 py-3">
                       <div className="flex flex-col gap-2">
