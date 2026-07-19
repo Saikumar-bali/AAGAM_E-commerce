@@ -47,8 +47,6 @@ const BlockedScreen = () => (
 const RootNavigator = () => {
   const { user, isLoading, initialize } = useAuthStore();
   const {
-    applicationId,
-    type: applicationType,
     response: applicationResponse,
     isHydrated: onboardingHydrated,
     restore: restoreOnboarding,
@@ -59,7 +57,7 @@ const RootNavigator = () => {
   }, [initialize, restoreOnboarding]);
 
   if (isLoading || !onboardingHydrated) return <LoadingScreen />;
-  const applicantInitialRoute = resolveApplicantInitialRoute(applicationId, applicationResponse, applicationType);
+  const applicantInitialRoute = resolveApplicantInitialRoute(applicationResponse);
   const roles = roleSet(user);
   const operationalRole = roles.has('ADMIN')
     ? 'ADMIN'
