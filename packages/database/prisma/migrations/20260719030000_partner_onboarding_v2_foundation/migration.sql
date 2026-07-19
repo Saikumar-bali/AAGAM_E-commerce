@@ -2,6 +2,14 @@
 -- The legacy User.role column remains as the primary/default role while all
 -- authorization paths can also use active memberships from this table.
 
+ALTER TYPE "PartnerApplicationEventType" ADD VALUE IF NOT EXISTS 'CONTACT_VERIFIED_BY_ADMIN';
+ALTER TYPE "PartnerApplicationEventType" ADD VALUE IF NOT EXISTS 'DOCUMENTS_VERIFIED';
+ALTER TYPE "PartnerApplicationEventType" ADD VALUE IF NOT EXISTS 'APPLICATION_DELETED';
+ALTER TYPE "PartnerApplicationEventType" ADD VALUE IF NOT EXISTS 'APPLICATION_RESTORED';
+ALTER TYPE "PartnerApplicationEventType" ADD VALUE IF NOT EXISTS 'ACCOUNT_LINKED';
+ALTER TYPE "PartnerApplicationEventType" ADD VALUE IF NOT EXISTS 'DOCUMENT_PROMOTED';
+ALTER TYPE "PartnerApplicationEventType" ADD VALUE IF NOT EXISTS 'DOCUMENT_ACCESSED';
+
 CREATE TABLE IF NOT EXISTS "UserRoleMembership" (
   "id" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
