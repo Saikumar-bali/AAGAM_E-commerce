@@ -1,6 +1,11 @@
 import { ConfigService } from '@nestjs/config';
 import { CopyObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { UploadService } from './upload.service';
+
+jest.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: jest.fn().mockResolvedValue('https://signed.example/private-document'),
+}));
 
 function serviceWithMockStorage() {
   const service = new UploadService({ get: jest.fn() } as unknown as ConfigService);
@@ -66,18 +71,21 @@ describe('private partner evidence storage', () => {
   });
 
   it('creates a five-minute attachment URL with a sanitized filename', async () => {
-    const { service, send } = serviceWithMockStorage();
-    send.mockImplementation(async (command: any) => {
-      if (command instanceof GetObjectCommand) return {};
-      return {};
-    });
+    const { service } = serviceWithMockStorage();
 
     const result = await service.signedEvidenceUrl('riders/rider-1/identity/id.pdf', {
       disposition: 'attachment',
       filename: '../Identity\nProof.pdf',
     });
 
-    expect(result.expiresInSeconds).toBe(300);
-    expect(typeof result.url).toBe('string');
+    expect(result).toEqual({
+      url: 'https://signed.example/private-document',
+      expiresInSeconds: 300,
+    });
+    expect(getSignedUrl).toHaveBeenCalledTimes(1);
+    const command = (getSignedUrl as jest.Mock).mock.calls[0][1] as GetObjectCommand;
+    expect(command.input.ResponseContentDisposition).toBe(
+      'attachment; filename=".._Identity_Proof.pdf"',
+    );
   });
 });
