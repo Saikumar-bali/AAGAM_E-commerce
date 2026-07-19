@@ -35,6 +35,9 @@ export const LoginScreen = () => {
   const [phone, setPhone] = useState('');
   const [masked, setMasked] = useState('');
   const [code, setCode] = useState('');
+  const [newCustomer, setNewCustomer] = useState(false);
+  const [profileName, setProfileName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
   const [countdown, setCountdown] = useState(0);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -55,21 +58,27 @@ export const LoginScreen = () => {
     if (!/^\+[1-9]\d{7,14}$/.test(normalized)) return Alert.alert('Valid mobile required', 'Enter a 10-digit Indian mobile number or an E.164 number.');
     setLoading(true);
     try {
-      const result = await requestPhoneOtp(normalized, 'LOGIN');
+      let result: any;
+      try {
+        result = await requestPhoneOtp(normalized, 'LOGIN');
+        setNewCustomer(false);
+      } catch (lookupError: any) {
+        if (!String(lookupError?.message || '').toLowerCase().includes('not found')) throw lookupError;
+        result = await requestPhoneOtp(normalized, 'SIGNUP');
+        setNewCustomer(true);
+      }
       setPhone(normalized); setMasked(result.maskedDestination); setCode(''); setCountdown(30);
       setTimeout(() => inputRef.current?.focus(), 180);
     } catch (error: any) {
-      Alert.alert('Account not found', error.message, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Create account', onPress: () => navigation.navigate('SignUp', { phone: normalized }) },
-      ]);
+      Alert.alert('Could not send OTP', error.message || 'Try again.');
     } finally { setLoading(false); }
   };
 
   const verifyCode = async (candidate = code) => {
     if (!/^\d{6}$/.test(candidate)) return;
+    if (newCustomer && profileName.trim().length < 2) return Alert.alert('Full name required', 'Enter your name to finish creating the account.');
     setLoading(true);
-    try { await verifyPhoneOtp({ phoneE164: phone, purpose: 'LOGIN', code: candidate }); }
+    try { await verifyPhoneOtp({ phoneE164: phone, purpose: newCustomer ? 'SIGNUP' : 'LOGIN', code: candidate, ...(newCustomer ? { name: profileName.trim(), email: profileEmail.trim() || undefined } : {}) }); }
     catch (error: any) { setCode(''); Alert.alert('Code not verified', error.message); }
     finally { setLoading(false); }
   };
@@ -109,6 +118,7 @@ export const LoginScreen = () => {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Sign in</Text>
           <View style={styles.tabs}><TouchableOpacity onPress={() => setMode('PHONE')} style={[styles.tab, mode === 'PHONE' && styles.tabActive]}><Phone size={17} color={mode === 'PHONE' ? '#fff' : '#64748B'} /><Text style={[styles.tabText, mode === 'PHONE' && styles.tabTextActive]}>Phone OTP</Text></TouchableOpacity><TouchableOpacity onPress={() => setMode('PASSWORD')} style={[styles.tab, mode === 'PASSWORD' && styles.tabActive]}><Lock size={17} color={mode === 'PASSWORD' ? '#fff' : '#64748B'} /><Text style={[styles.tabText, mode === 'PASSWORD' && styles.tabTextActive]}>Password</Text></TouchableOpacity></View>
+          {mode === 'PHONE' && masked && newCustomer ? <View style={{ gap: 10, padding: 12, borderRadius: 14, backgroundColor: '#F0FDFA' }}><Text style={{ fontWeight: '900', color: '#134E4A' }}>Complete your profile</Text><TextInput style={styles.inputWrapper} value={profileName} onChangeText={setProfileName} placeholder="Full name" placeholderTextColor="#94A3B8" /><TextInput style={styles.inputWrapper} value={profileEmail} onChangeText={setProfileEmail} placeholder="Email (optional)" keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#94A3B8" /></View> : null}
           {mode === 'PHONE' ? !masked ? <><View style={styles.inputWrapper}><Phone size={19} color="#0F766E" /><TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="10-digit mobile number" keyboardType="phone-pad" placeholderTextColor="#94A3B8" /></View><TouchableOpacity style={styles.primary} onPress={requestCode} disabled={loading}>{loading ? <ActivityIndicator color="#fff" /> : <><Text style={styles.primaryText}>Send OTP</Text><ArrowRight size={19} color="#fff" /></>}</TouchableOpacity></> : <><Text style={styles.sent}>Code sent to {masked}</Text><TouchableOpacity style={styles.otpRow} onPress={() => inputRef.current?.focus()}>{Array.from({ length: 6 }).map((_, index) => <View key={index} style={[styles.otpCell, code.length === index && styles.otpActive]}><Text style={styles.otpDigit}>{code[index] || ''}</Text></View>)}</TouchableOpacity><TextInput ref={inputRef} value={code} onChangeText={updateCode} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="sms-otp" maxLength={6} autoFocus style={styles.hidden} /><TouchableOpacity style={styles.primary} onPress={() => verifyCode()} disabled={loading || code.length !== 6}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Verify and sign in</Text>}</TouchableOpacity><TouchableOpacity onPress={() => countdown === 0 ? requestCode() : undefined}><Text style={styles.link}>{countdown > 0 ? `Resend in 00:${String(countdown).padStart(2, '0')}` : 'Resend OTP'}</Text></TouchableOpacity><TouchableOpacity onPress={() => { setMasked(''); setCode(''); }}><Text style={styles.secondaryLink}>Change mobile number</Text></TouchableOpacity></> : <><View style={styles.inputWrapper}><Mail size={19} color="#64748B" /><TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} placeholder="Phone number or email" autoCapitalize="none" placeholderTextColor="#94A3B8" /></View><View style={styles.inputWrapper}><Lock size={19} color="#64748B" /><TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry placeholderTextColor="#94A3B8" /></View><TouchableOpacity style={styles.primary} onPress={passwordLogin} disabled={loading}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Continue</Text>}</TouchableOpacity></>}
           <View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>or</Text><View style={styles.line} /></View>
           <TouchableOpacity style={styles.google} onPress={handleGoogleLogin} disabled={googleLoading || !googleClientConfigured}>{googleLoading ? <ActivityIndicator /> : <><Chrome size={21} color="#1E293B" /><Text style={styles.googleText}>Continue with Google</Text></>}</TouchableOpacity>
