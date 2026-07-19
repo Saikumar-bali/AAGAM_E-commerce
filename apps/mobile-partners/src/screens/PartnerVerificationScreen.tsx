@@ -1,8 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, BackHandler, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  BackHandler,
+  Keyboard,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { CheckCircle2, ChevronDown, Mail, ShieldCheck } from 'lucide-react-native';
 import { apiClient } from '@aagam/mobile-shared';
 import {
-  FormField,
   OnboardingShell,
   palette,
   PrimaryButton,
@@ -13,7 +22,6 @@ import {
   createVerificationHardwareBackHandler,
   resetVerificationToPartnerHome,
   resolveVerificationDelivery,
-  verificationRequestErrorMessage,
 } from '../onboarding/partnerVerificationPresentation';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 
@@ -21,13 +29,13 @@ function applicationHeaders(token: string) {
   return { Authorization: `Application ${token}` };
 }
 
-function errorCode(error: any): string {
-  return String(error?.code || error?.response?.data?.code || 'PNV_FAILED');
-}
-
-function errorMessage(error: any): string {
-  const raw = error?.response?.data?.message || error?.message || 'Verification failed';
-  return Array.isArray(raw) ? raw.join(', ') : String(raw);
+function maskDestination(value: string) {
+  if (value.includes('@')) {
+    const [name, domain] = value.split('@');
+    return `${name.slice(0, 1)}${'•'.repeat(Math.max(3, Math.min(7, name.length - 1)))}@${domain}`;
+  }
+  const digits = value.replace(/\D/g, '');
+  return digits.length > 4 ? `+${digits.slice(0, 2)} •••••• ${digits.slice(-4)}` : value;
 }
 
 export function PartnerVerificationScreen({ navigation }: any) {
@@ -44,21 +52,20 @@ export function PartnerVerificationScreen({ navigation }: any) {
     isLoading,
     testVerificationCode,
   } = usePartnerOnboardingStore();
+  const inputRef = useRef<TextInput>(null);
+  const verifyingRef = useRef(false);
   const [code, setCode] = useState('');
+  const [countdown, setCountdown] = useState(30);
+  const [deliveryChecked, setDeliveryChecked] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [pnvSupported, setPnvSupported] = useState<boolean | null>(null);
   const [pnvBusy, setPnvBusy] = useState(false);
   const [showSmsFallback, setShowSmsFallback] = useState(false);
-  const [fallbackQaCode, setFallbackQaCode] = useState<string | null>(null);
-  const [deliveryChecked, setDeliveryChecked] = useState(false);
   const application = response?.application;
   const phoneFlow = application?.verificationChannel === 'PHONE' && Boolean(application?.phoneE164);
   const deliveryChannel: 'EMAIL' | 'PHONE' = phoneFlow ? 'PHONE' : 'EMAIL';
-
-  const destination = useMemo(
-    () => application?.phoneE164 || application?.email || 'your verified contact',
-    [application?.email, application?.phoneE164],
-  );
-
+  const destination = application?.phoneE164 || application?.email || '';
+  const maskedDestination = maskDestination(destination);
   const delivery = useMemo(
     () => resolveVerificationDelivery(events, deliveryChannel, deliveryChecked),
     [deliveryChannel, deliveryChecked, events],
@@ -71,6 +78,12 @@ export function PartnerVerificationScreen({ navigation }: any) {
     );
     return () => subscription.remove();
   }, [navigation]);
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setInterval(() => setCountdown((value) => Math.max(0, value - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
 
   useEffect(() => {
     let active = true;
@@ -95,8 +108,7 @@ export function PartnerVerificationScreen({ navigation }: any) {
     ])
       .then(([capabilities, nativeSupport]) => {
         if (!active) return;
-        const configured = Boolean(capabilities.data?.phone?.pnvConfigured);
-        const supported = configured && nativeSupport.supported;
+        const supported = Boolean(capabilities.data?.phone?.pnvConfigured) && nativeSupport.supported;
         setPnvSupported(supported);
         setShowSmsFallback(!supported);
       })
@@ -110,50 +122,54 @@ export function PartnerVerificationScreen({ navigation }: any) {
     };
   }, [phoneFlow]);
 
-  const leaveVerification = () => {
-    resetVerificationToPartnerHome(navigation);
-  };
-
+  const leaveVerification = () => resetVerificationToPartnerHome(navigation);
   const proceedAfterVerification = () => {
     const applicationType = type || application?.type;
     navigation.replace(applicationType === 'RIDER' ? 'RiderApplication' : 'StoreApplication');
   };
 
-  const verifyCode = async () => {
-    if (!/^\d{6}$/.test(code)) {
-      Alert.alert('Enter the six-digit code', 'Use the latest verification code sent to your contact.');
-      return;
-    }
+  const verifyCode = async (candidate = code) => {
+    if (!/^\d{6}$/.test(candidate) || verifyingRef.current) return;
+    verifyingRef.current = true;
+    Keyboard.dismiss();
     try {
-      await verify(code);
+      await verify(candidate);
       proceedAfterVerification();
     } catch (error: any) {
-      Alert.alert('Verification failed', error.message);
+      setCode('');
+      Alert.alert('Code not verified', error.message || 'Use the latest six-digit code and try again.');
+      setTimeout(() => inputRef.current?.focus(), 200);
+    } finally {
+      verifyingRef.current = false;
     }
   };
 
+  const updateCode = (value: string) => {
+    const next = value.replace(/\D/g, '').slice(0, 6);
+    setCode(next);
+    if (next.length === 6) setTimeout(() => void verifyCode(next), 120);
+  };
+
   const resend = async () => {
+    if (countdown > 0) return;
     setDeliveryChecked(false);
     try {
       await requestVerification(deliveryChannel);
       await loadEvents();
       setDeliveryChecked(true);
-      Alert.alert(
-        'Code request accepted',
-        'The provider accepted a fresh verification code request. Check Inbox and Spam, then use the latest code only.',
-      );
-    } catch (error: any) {
+      setCountdown(30);
+      setCode('');
+      Alert.alert('New code sent', `Check ${maskedDestination} and use the latest code.`);
+    } catch {
       await loadEvents().catch(() => undefined);
       setDeliveryChecked(true);
-      Alert.alert('Could not send a new code', verificationRequestErrorMessage(error));
+      setHelpOpen(true);
+      Alert.alert('Code could not be sent', 'Please wait a moment and try again.');
     }
   };
 
   const startPnv = async () => {
-    if (!applicationId || !accessToken) {
-      Alert.alert('Application session missing', 'Resume the application and try again.');
-      return;
-    }
+    if (!applicationId || !accessToken) return;
     setPnvBusy(true);
     try {
       const challenge = await apiClient.post(
@@ -169,23 +185,9 @@ export function PartnerVerificationScreen({ navigation }: any) {
       );
       await refresh();
       proceedAfterVerification();
-    } catch (error: any) {
-      const code = errorCode(error);
-      const recoverable = [
-        'PNV_UNSUPPORTED',
-        'PNV_DECLINED',
-        'PNV_CREDENTIAL_FAILED',
-        'PNV_PAYLOAD_FAILED',
-        'PNV_EXCHANGE_FAILED',
-        'PNV_FAILED',
-      ].includes(code);
-      if (recoverable) setShowSmsFallback(true);
-      Alert.alert(
-        code === 'PNV_DECLINED' ? 'Phone sharing declined' : 'Phone verification failed',
-        recoverable
-          ? `${errorMessage(error)} You can verify by SMS instead.`
-          : errorMessage(error),
-      );
+    } catch {
+      setShowSmsFallback(true);
+      Alert.alert('Phone verification unavailable', 'Use the six-digit SMS option instead.');
     } finally {
       setPnvBusy(false);
     }
@@ -195,137 +197,140 @@ export function PartnerVerificationScreen({ navigation }: any) {
     if (!applicationId || !accessToken) return;
     setPnvBusy(true);
     try {
-      const { data } = await apiClient.post(
+      await apiClient.post(
         `/partner-onboarding/applications/${applicationId}/contact-code`,
         { channel: 'PHONE', fallbackFrom: 'FIREBASE_PNV' },
         { headers: applicationHeaders(accessToken) },
       );
-      setFallbackQaCode(data.code || null);
+      await loadEvents().catch(() => undefined);
+      setCountdown(30);
       setShowSmsFallback(true);
-      await loadEvents().catch(() => undefined);
-      Alert.alert('SMS code requested', 'Enter the six-digit code after it arrives.');
-    } catch (error: any) {
-      await loadEvents().catch(() => undefined);
-      Alert.alert('Could not send SMS', verificationRequestErrorMessage(error));
+    } catch {
+      setHelpOpen(true);
+      Alert.alert('SMS could not be sent', 'Please wait a moment and try again.');
     } finally {
       setPnvBusy(false);
     }
   };
 
-  const qaCode = fallbackQaCode || testVerificationCode;
-  const deliveryReference = [
-    delivery.provider ? `Provider: ${delivery.provider}` : '',
-    delivery.failureCode ? `Code: ${delivery.failureCode}` : '',
-    delivery.correlationId ? `Reference: ${delivery.correlationId}` : '',
-  ].filter(Boolean);
-
   if (!applicationId || !accessToken) {
     return (
-      <OnboardingShell
-        title="Application session unavailable"
-        subtitle="Return to the partner home and resume the application with its access details."
-      >
-        <PrimaryButton label="Back to partner home" onPress={leaveVerification} />
+      <OnboardingShell title="Application session unavailable" subtitle="Return to Partner Home and resume the application.">
+        <PrimaryButton label="Back to Partner Home" onPress={leaveVerification} />
       </OnboardingShell>
     );
   }
 
+  const supportReference = delivery.correlationId || null;
+  const failed = delivery.state === 'FAILED';
+
   return (
     <OnboardingShell
-      title="Verify your contact"
-      subtitle={
-        phoneFlow
-          ? 'Verify the phone number protecting this application.'
-          : 'Enter the latest email code accepted by the verification provider.'
-      }
+      title={phoneFlow ? 'Verify your phone' : 'Verify your email'}
+      subtitle="This protects your application and future Rider or Store account."
       onBack={leaveVerification}
     >
-      <Section title={delivery.title} subtitle={destination}>
-        <View
-          style={[
-            styles.deliveryCard,
-            delivery.state === 'SENT' && styles.deliverySent,
-            delivery.state === 'FAILED' && styles.deliveryFailed,
-            delivery.state === 'UNKNOWN' && styles.deliveryUnknown,
-          ]}
-        >
-          <Text style={styles.deliveryMessage}>{delivery.message}</Text>
-          {delivery.expiresAt ? (
-            <Text style={styles.deliveryMeta}>
-              Expires {new Date(delivery.expiresAt).toLocaleString()}
-            </Text>
-          ) : null}
-          {deliveryReference.map((item) => (
-            <Text key={item} style={styles.deliveryMeta} selectable>
-              {item}
-            </Text>
-          ))}
+      <Section title="Verification code">
+        <View style={styles.heroIcon}>
+          {failed ? <Mail size={28} color={palette.red} /> : <ShieldCheck size={28} color={palette.teal} />}
         </View>
+        <Text style={styles.sentText}>
+          {failed ? 'We could not send the code right now.' : 'We sent a six-digit code to'}
+        </Text>
+        <Text style={styles.destination}>{maskedDestination}</Text>
+
+        {phoneFlow && !showSmsFallback ? (
+          <View style={styles.phoneVerification}>
+            {pnvSupported === null ? <Text style={styles.helper}>Checking secure phone verification…</Text> : null}
+            {pnvSupported ? <PrimaryButton label="Verify phone securely" onPress={startPnv} loading={pnvBusy} /> : null}
+            {!pnvSupported ? <PrimaryButton label="Use SMS code" onPress={selectSmsFallback} loading={pnvBusy} secondary /> : null}
+          </View>
+        ) : (
+          <>
+            <TouchableOpacity style={styles.otpRow} onPress={() => inputRef.current?.focus()} activeOpacity={0.9}>
+              {Array.from({ length: 6 }).map((_, index) => (
+                <View key={index} style={[styles.otpCell, code.length === index && styles.otpCellActive, code[index] && styles.otpCellFilled]}>
+                  <Text style={styles.otpDigit}>{code[index] || ''}</Text>
+                </View>
+              ))}
+            </TouchableOpacity>
+            <TextInput
+              ref={inputRef}
+              value={code}
+              onChangeText={updateCode}
+              keyboardType="number-pad"
+              textContentType="oneTimeCode"
+              autoComplete="sms-otp"
+              maxLength={6}
+              autoFocus
+              style={styles.hiddenInput}
+              accessibilityLabel="Six-digit verification code"
+            />
+            {__DEV__ && testVerificationCode ? (
+              <TouchableOpacity onPress={() => updateCode(testVerificationCode)} style={styles.devCode}>
+                <Text style={styles.devCodeText}>Development code: {testVerificationCode}</Text>
+              </TouchableOpacity>
+            ) : null}
+            <PrimaryButton label="Verify and continue" onPress={() => verifyCode()} loading={isLoading} disabled={code.length !== 6} />
+            <TouchableOpacity onPress={resend} disabled={countdown > 0 || isLoading} style={styles.resendButton}>
+              <Text style={[styles.resendText, countdown > 0 && styles.resendDisabled]}>
+                {countdown > 0 ? `Resend code in 00:${String(countdown).padStart(2, '0')}` : 'Resend code'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
       </Section>
 
-      {phoneFlow ? (
-        <Section title="Phone number verification" subtitle={destination}>
-          <Text style={styles.explainer}>
-            Android may ask permission to share the verified number from your SIM. AAGAM sends only the signed Firebase proof to the server and confirms it there.
-          </Text>
-          {pnvSupported === null ? <Text style={styles.note}>Checking device support…</Text> : null}
-          {pnvSupported ? (
-            <PrimaryButton label="Verify phone securely" onPress={startPnv} loading={pnvBusy} />
-          ) : null}
-          {showSmsFallback ? (
-            <PrimaryButton
-              label="Use SMS verification instead"
-              onPress={selectSmsFallback}
-              secondary
-              disabled={pnvBusy}
-            />
-          ) : null}
-        </Section>
-      ) : null}
-
-      {!phoneFlow || showSmsFallback ? (
-        <Section title="Verification code" subtitle={destination}>
-          <FormField
-            label="Six-digit code"
-            value={code}
-            onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
-            keyboardType="number-pad"
-            maxLength={6}
-            placeholder="000000"
-            style={styles.code}
-          />
-          {qaCode ? (
-            <View style={styles.qaCode}>
-              <Text style={styles.qaLabel}>QA verification code</Text>
-              <Text style={styles.qaValue}>{qaCode}</Text>
+      {failed || supportReference ? (
+        <TouchableOpacity style={styles.helpCard} onPress={() => setHelpOpen((value) => !value)}>
+          <View style={styles.helpHeader}>
+            <Text style={styles.helpTitle}>Need help?</Text>
+            <ChevronDown size={17} color={palette.muted} />
+          </View>
+          {helpOpen ? (
+            <View style={styles.helpBody}>
+              <Text style={styles.helper}>Check your Inbox and Spam folder. Confirm the email is correct, then resend after the timer ends.</Text>
+              {supportReference ? <Text selectable style={styles.reference}>Support reference: {supportReference}</Text> : null}
             </View>
           ) : null}
-        </Section>
+        </TouchableOpacity>
       ) : null}
 
-      {!phoneFlow || showSmsFallback ? (
-        <>
-          <PrimaryButton label="Verify and continue" onPress={verifyCode} loading={isLoading} />
-          <PrimaryButton label="Send a new code" onPress={resend} secondary disabled={isLoading} />
-        </>
-      ) : null}
-      <PrimaryButton label="Back to partner home" onPress={leaveVerification} secondary />
-      <Text style={styles.note}>Verification is complete only after the AAGAM server confirms the proof.</Text>
+      <TouchableOpacity onPress={leaveVerification} style={styles.changeContact}>
+        <Text style={styles.changeContactText}>Back to Partner Home</Text>
+      </TouchableOpacity>
+      <View style={styles.secureNote}>
+        <CheckCircle2 size={16} color={palette.green} />
+        <Text style={styles.secureNoteText}>AAGAM never asks you to share this code with another person.</Text>
+      </View>
     </OnboardingShell>
   );
 }
 
 const styles = StyleSheet.create({
-  code: { textAlign: 'center', fontSize: 24, fontWeight: '900', letterSpacing: 8, color: palette.ink },
-  explainer: { color: palette.muted, fontSize: 13, lineHeight: 20 },
-  deliveryCard: { borderRadius: 16, borderWidth: 1, padding: 14, backgroundColor: '#F8FAFC', borderColor: '#CBD5E1', gap: 6 },
-  deliverySent: { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' },
-  deliveryFailed: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
-  deliveryUnknown: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
-  deliveryMessage: { color: palette.ink, fontSize: 12, lineHeight: 18, fontWeight: '700' },
-  deliveryMeta: { color: '#64748B', fontSize: 10, lineHeight: 15, fontWeight: '700' },
-  qaCode: { borderRadius: 16, backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA', padding: 14, alignItems: 'center' },
-  qaLabel: { color: '#9A3412', fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8 },
-  qaValue: { color: '#7C2D12', fontSize: 22, fontWeight: '900', letterSpacing: 5, marginTop: 5 },
-  note: { color: palette.muted, fontSize: 11, lineHeight: 17, textAlign: 'center' },
+  heroIcon: { width: 64, height: 64, borderRadius: 22, backgroundColor: '#F0FDFA', alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
+  sentText: { color: palette.muted, fontSize: 13, fontWeight: '700', textAlign: 'center' },
+  destination: { color: palette.ink, fontSize: 16, fontWeight: '900', textAlign: 'center' },
+  otpRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 7, marginTop: 8 },
+  otpCell: { flex: 1, maxWidth: 52, height: 58, borderRadius: 15, borderWidth: 1.5, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
+  otpCellActive: { borderColor: '#14B8A6', backgroundColor: '#F0FDFA' },
+  otpCellFilled: { borderColor: '#5EEAD4', backgroundColor: '#ECFEFF' },
+  otpDigit: { color: palette.ink, fontSize: 23, fontWeight: '900' },
+  hiddenInput: { position: 'absolute', width: 1, height: 1, opacity: 0 },
+  resendButton: { alignItems: 'center', paddingVertical: 10 },
+  resendText: { color: palette.teal, fontSize: 12, fontWeight: '900' },
+  resendDisabled: { color: '#94A3B8' },
+  phoneVerification: { gap: 10 },
+  helper: { color: palette.muted, fontSize: 12, lineHeight: 18, fontWeight: '600' },
+  helpCard: { borderRadius: 17, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC', padding: 14 },
+  helpHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  helpTitle: { color: palette.ink, fontSize: 12, fontWeight: '900' },
+  helpBody: { gap: 8, marginTop: 10 },
+  reference: { color: '#475569', fontSize: 10, lineHeight: 16, fontWeight: '800' },
+  changeContact: { alignItems: 'center', paddingVertical: 7 },
+  changeContactText: { color: palette.teal, fontSize: 12, fontWeight: '900' },
+  secureNote: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
+  secureNoteText: { color: palette.muted, fontSize: 10, lineHeight: 15, fontWeight: '700', flex: 1 },
+  devCode: { borderRadius: 12, padding: 10, backgroundColor: '#FFF7ED', alignItems: 'center' },
+  devCodeText: { color: '#9A3412', fontSize: 10, fontWeight: '900' },
 });
