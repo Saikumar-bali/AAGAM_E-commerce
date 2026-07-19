@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text } from 'react-native';
 import { apiClient } from '@aagam/mobile-shared';
 import { Mail, Phone } from 'lucide-react-native';
 import {
@@ -16,14 +16,20 @@ import {
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 import { PartnerApplicationType } from '../onboarding/types';
 
+function phoneForApi(value: string) {
+  const compact = value.replace(/[\s().-]/g, '');
+  if (/^\d{10}$/.test(compact)) return `+91${compact}`;
+  if (/^91\d{10}$/.test(compact)) return `+${compact}`;
+  return compact;
+}
+
 export function PartnerApplicationStartScreen({ navigation, route }: any) {
   const type = route.params?.type as PartnerApplicationType;
   const start = usePartnerOnboardingStore((state) => state.start);
   const loading = usePartnerOnboardingStore((state) => state.isLoading);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [channel, setChannel] = useState<'EMAIL' | 'PHONE'>('EMAIL');
+  const [email, setEmail] = useState('');
   const [phoneAvailable, setPhoneAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -32,18 +38,12 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
       .get('/partner-onboarding/verification-capabilities')
       .then(({ data }) => {
         if (!active) return;
-        const enabled = data?.mode !== 'EMAIL_ONLY' && data?.phone?.available !== false;
-        setPhoneAvailable(enabled);
-        if (!enabled) setChannel('EMAIL');
+        setPhoneAvailable(data?.mode !== 'EMAIL_ONLY' && data?.phone?.available !== false);
       })
       .catch(() => {
-        if (!active) return;
-        setPhoneAvailable(false);
-        setChannel('EMAIL');
+        if (active) setPhoneAvailable(false);
       });
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
   const submit = async () => {
@@ -51,24 +51,22 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
       Alert.alert('Full name required', 'Enter the legal name that matches your documents.');
       return;
     }
-    if (channel === 'EMAIL' && !email.trim()) {
-      Alert.alert('Email required', 'Enter the email address you can verify.');
+    const normalizedPhone = phoneForApi(phone);
+    if (phoneAvailable !== false && !/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
+      Alert.alert('Mobile number required', 'Enter a valid mobile number. Indian 10-digit numbers are accepted.');
       return;
     }
-    if (channel === 'PHONE' && (!phoneAvailable || !phone.trim())) {
-      Alert.alert(
-        'Phone verification unavailable',
-        'Use email verification while phone verification is unavailable for this deployment.',
-      );
+    if (phoneAvailable === false && !email.trim()) {
+      Alert.alert('Email required', 'Phone verification is unavailable, so enter an email address.');
       return;
     }
 
     const application: PartnerApplicationStartInput = {
       type,
       applicantName: name.trim(),
+      phoneE164: phoneAvailable === false ? undefined : normalizedPhone,
       email: email.trim() || undefined,
-      phoneE164: phone.trim() || undefined,
-      verificationChannel: channel,
+      verificationChannel: phoneAvailable === false ? 'EMAIL' : 'PHONE',
     };
 
     try {
@@ -78,10 +76,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
         navigation,
         getSession: () => {
           const state = usePartnerOnboardingStore.getState();
-          return {
-            applicationId: state.applicationId,
-            accessToken: state.accessToken,
-          };
+          return { applicationId: state.applicationId, accessToken: state.accessToken };
         },
       });
     } catch (error: any) {
@@ -92,101 +87,48 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
   return (
     <OnboardingShell
       title={type === 'RIDER' ? 'Start Rider application' : 'Start Store application'}
-      subtitle="We use a verified contact to protect your draft and send review updates. Your contact becomes an operational login only after approval."
+      subtitle="Your verified mobile number protects the application and becomes your primary AAGAM login after approval."
       onBack={() => navigation.goBack()}
     >
-      <Section title="Applicant identity" subtitle="Use details that match the submitted documents.">
+      <Section title="Applicant identity" subtitle="Use details that match your submitted documents.">
+        <FormField label="Full legal name" value={name} onChangeText={setName} autoCapitalize="words" placeholder="Enter full name" />
+        {phoneAvailable !== false ? (
+          <>
+            <Text style={styles.primaryLabel}><Phone size={15} color={palette.teal} /> Primary login</Text>
+            <FormField
+              label="Mobile number"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              placeholder="10-digit number or +91..."
+              hint="We send a six-digit SMS code. This number becomes your login after approval."
+            />
+          </>
+        ) : null}
+        <Text style={styles.optionalLabel}><Mail size={15} color={palette.muted} /> Optional recovery contact</Text>
         <FormField
-          label="Full legal name"
-          value={name}
-          onChangeText={setName}
-          autoCapitalize="words"
-          placeholder="Enter full name"
-        />
-        <FormField
-          label="Email address"
+          label={phoneAvailable === false ? 'Email address' : 'Email address (optional)'}
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
           placeholder="name@example.com"
+          hint="Used for review updates and account recovery when provided."
         />
-        {phoneAvailable ? (
-          <FormField
-            label="Mobile number"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            placeholder="+91..."
-            hint="Use international format, including country code."
-          />
-        ) : null}
       </Section>
 
-      <Section title="Verification method">
-        <View style={styles.choiceRow}>
-          <TouchableOpacity
-            style={[styles.choice, channel === 'EMAIL' && styles.choiceActive]}
-            onPress={() => setChannel('EMAIL')}
-          >
-            <Mail size={20} color={channel === 'EMAIL' ? palette.teal : palette.muted} />
-            <Text style={[styles.choiceText, channel === 'EMAIL' && styles.choiceTextActive]}>
-              Email
-            </Text>
-          </TouchableOpacity>
-          {phoneAvailable ? (
-            <TouchableOpacity
-              style={[styles.choice, channel === 'PHONE' && styles.choiceActive]}
-              onPress={() => setChannel('PHONE')}
-            >
-              <Phone size={20} color={channel === 'PHONE' ? palette.teal : palette.muted} />
-              <Text style={[styles.choiceText, channel === 'PHONE' && styles.choiceTextActive]}>
-                Phone
-              </Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-        {phoneAvailable === null ? (
-          <Text style={styles.availability}>Checking available verification methods…</Text>
-        ) : null}
-        {phoneAvailable === false ? (
-          <Text style={styles.availability}>
-            Phone verification is temporarily unavailable. Use email verification.
-          </Text>
-        ) : null}
-      </Section>
-
-      <PrimaryButton label="Create protected application" onPress={submit} loading={loading} />
-      <Text style={styles.consent}>
-        Continuing records onboarding consent, application events and document review history. It does not guarantee approval.
-      </Text>
+      {phoneAvailable === null ? <Text style={styles.availability}>Checking verification availability…</Text> : null}
+      {phoneAvailable === false ? <Text style={styles.warning}>Phone verification is unavailable on this deployment. Email verification will be used.</Text> : null}
+      <PrimaryButton label={phoneAvailable === false ? 'Continue with email' : 'Send SMS code'} onPress={submit} loading={loading} />
+      <Text style={styles.consent}>Continuing records onboarding consent, application events and document review history. It does not guarantee approval.</Text>
     </OnboardingShell>
   );
 }
 
 const styles = StyleSheet.create({
-  choiceRow: { flexDirection: 'row', gap: 12 },
-  choice: {
-    flex: 1,
-    minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 9,
-    borderRadius: 17,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-  },
-  choiceActive: { borderColor: '#2DD4BF', backgroundColor: '#F0FDFA' },
-  choiceText: { color: palette.muted, fontSize: 14, fontWeight: '800' },
-  choiceTextActive: { color: palette.teal },
-  availability: { color: '#64748B', fontSize: 12, lineHeight: 18, textAlign: 'center' },
-  consent: {
-    color: '#64748B',
-    fontSize: 11,
-    lineHeight: 17,
-    textAlign: 'center',
-    paddingHorizontal: 8,
-  },
+  primaryLabel: { color: palette.teal, fontSize: 12, fontWeight: '900', flexDirection: 'row' },
+  optionalLabel: { color: palette.muted, fontSize: 12, fontWeight: '900' },
+  availability: { color: '#64748B', fontSize: 12, textAlign: 'center' },
+  warning: { color: '#B45309', backgroundColor: '#FFFBEB', borderRadius: 14, padding: 12, fontSize: 12, lineHeight: 18, fontWeight: '700' },
+  consent: { color: '#64748B', fontSize: 11, lineHeight: 17, textAlign: 'center', paddingHorizontal: 8 },
 });
