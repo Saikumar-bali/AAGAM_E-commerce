@@ -14,6 +14,10 @@ export class UpdateProductDto {
   @IsOptional()
   price?: number;
 
+  @IsNumber()
+  @IsOptional()
+  mrp?: number;
+
   @IsString()
   @IsOptional()
   @IsNotEmpty()
