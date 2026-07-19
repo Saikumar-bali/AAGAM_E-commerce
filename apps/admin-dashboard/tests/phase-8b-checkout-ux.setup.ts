@@ -7,7 +7,7 @@ setup('authenticate as store owner', async ({ page }) => {
   await page.goto('/login');
   await page.getByRole('button', { name: 'Password', exact: true }).click();
   await page
-    .getByRole('textbox', { name: 'Email address', exact: true })
+    .getByRole('textbox', { name: /email address/i })
     .fill(process.env.STORE_OWNER_QA_EMAIL ?? 'store@aagam.com');
   await page
     .getByLabel('Password', { exact: true })
