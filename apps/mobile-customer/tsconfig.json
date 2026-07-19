@@ -4,5 +4,10 @@
     "types": ["jest"]
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["**/node_modules", "**/Pods", "src/types/react-native-dotenv.d.ts"]
+  "exclude": [
+    "**/node_modules",
+    "**/Pods",
+    "**/*.spec.ts",
+    "src/types/react-native-dotenv.d.ts"
+  ]
 }
