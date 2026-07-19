@@ -487,7 +487,7 @@ export class PartnerOnboardingAdminService {
             `INSERT INTO "Store" (
               "id", "name", "address", "latitude", "longitude", "isActive",
               "ownerId", "storeCode", "partnerStatus", "createdAt", "updatedAt"
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::"StorePartnerStatus",CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
             storeId,
             dto.operationalName?.trim() || String(payload.displayName || application.applicantName),
             String(payload.storeAddress || ''),
