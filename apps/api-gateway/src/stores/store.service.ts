@@ -204,11 +204,19 @@ export class StoreService {
     productId: string,
     quantity: number,
     actor?: { id: string; role: Role },
-    policy?: { isListed?: boolean; autoHideWhenOutOfStock?: boolean },
+    policy?: { isListed?: boolean; autoHideWhenOutOfStock?: boolean; sellingPrice?: number | null },
   ) {
     if (!Number.isInteger(quantity) || quantity < 0 || quantity > 1_000_000) {
       throw new BadRequestException('Quantity must be a whole number between 0 and 1,000,000');
     }
+    if (policy?.sellingPrice !== undefined && policy.sellingPrice !== null && (!Number.isFinite(policy.sellingPrice) || policy.sellingPrice < 0)) {
+      throw new BadRequestException('Selling price must be zero or greater');
+    }
+    const product = await prisma.product.findUnique({ where: { id: productId }, select: { pricePaise: true, price: true, mrpPaise: true } });
+    if (!product) throw new NotFoundException('Product not found');
+    const sellingPricePaise = policy?.sellingPrice === undefined ? undefined : policy.sellingPrice === null ? null : Math.round(policy.sellingPrice * 100);
+    const mrpPaise = product.mrpPaise || product.pricePaise || Math.round(product.price * 100);
+    if (sellingPricePaise !== undefined && sellingPricePaise !== null && mrpPaise > 0 && sellingPricePaise > mrpPaise) throw new BadRequestException('Store selling price cannot exceed Admin MRP');
     if (actor?.role === Role.STORE_OWNER) {
       const store = await prisma.store.findUnique({ where: { id: storeId } });
       if (!store) throw new NotFoundException('Store not found');
@@ -231,6 +239,7 @@ export class StoreService {
           ...(policy?.autoHideWhenOutOfStock !== undefined
             ? { autoHideWhenOutOfStock: policy.autoHideWhenOutOfStock }
             : {}),
+          ...(sellingPricePaise !== undefined ? { sellingPricePaise } : {}),
         },
         create: {
           storeId,
@@ -238,6 +247,7 @@ export class StoreService {
           quantity,
           isListed: policy?.isListed ?? true,
           autoHideWhenOutOfStock: policy?.autoHideWhenOutOfStock ?? true,
+          sellingPricePaise: sellingPricePaise ?? null,
         },
       });
 
