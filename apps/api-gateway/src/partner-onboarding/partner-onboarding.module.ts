@@ -13,17 +13,21 @@ import { PartnerVerificationService } from './partner-verification.service';
 import { VerificationChallengeRepository } from './verification-challenge.repository';
 import { FirebasePnvVerificationService } from './firebase-pnv-verification.service';
 import { VerificationReadinessController } from './verification-readiness.controller';
+import { PartnerApplicationRecoveryController } from './partner-application-recovery.controller';
+import { PartnerApplicationRecoveryService } from './partner-application-recovery.service';
 
 @Module({
   imports: [UploadModule, ContactVerificationModule],
   controllers: [
     PartnerOnboardingController,
+    PartnerApplicationRecoveryController,
     PartnerOnboardingAdminController,
     VerificationReadinessController,
   ],
   providers: [
     PartnerOnboardingSecurity,
     PartnerOnboardingRepository,
+    PartnerApplicationRecoveryService,
     VerificationChallengeRepository,
     PartnerVerificationDeliveryService,
     FirebasePnvVerificationService,
