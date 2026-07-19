@@ -10,8 +10,28 @@ export type VerificationDeliveryPresentation = {
   expiresAt?: string;
 };
 
+type PartnerHomeNavigation = {
+  reset(state: { index: number; routes: Array<{ name: 'PartnerWelcome' }> }): void;
+};
+
 function metadata(event?: PartnerApplicationEvent): Record<string, any> {
   return event?.metadata && typeof event.metadata === 'object' ? event.metadata : {};
+}
+
+export function resetVerificationToPartnerHome(navigation: PartnerHomeNavigation): void {
+  navigation.reset({
+    index: 0,
+    routes: [{ name: 'PartnerWelcome' }],
+  });
+}
+
+export function createVerificationHardwareBackHandler(
+  navigation: PartnerHomeNavigation,
+): () => boolean {
+  return () => {
+    resetVerificationToPartnerHome(navigation);
+    return true;
+  };
 }
 
 export function resolveVerificationDelivery(
