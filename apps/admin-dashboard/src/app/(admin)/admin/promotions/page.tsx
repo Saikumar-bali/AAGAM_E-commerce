@@ -119,7 +119,14 @@ type CouponForm = {
   eligibleCategoryIds: string[];
 };
 
-const placements = ["HOME_HERO", "HOME_TODAY_OFFERS", "DEALS_PAGE"];
+const placements = [
+  "HOME_HERO",
+  "HOME_TODAY_OFFERS",
+  "DEALS_PAGE",
+  "LANDING_HERO",
+  "LANDING_BANNER",
+  "LOGIN_SIDEBAR",
+];
 const campaignDefaults = (): CampaignForm => ({
   internalName: "",
   title: "",
