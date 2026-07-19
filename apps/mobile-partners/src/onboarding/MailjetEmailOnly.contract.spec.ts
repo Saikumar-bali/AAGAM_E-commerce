@@ -12,22 +12,24 @@ describe('Mailjet email-only onboarding contracts', () => {
       /apiClient\s*\.get\('\/partner-onboarding\/verification-capabilities'\)/,
     );
     expect(screen).toContain("data?.mode !== 'EMAIL_ONLY'");
-    expect(screen).toContain('setPhoneAvailable(enabled)');
+    expect(screen).toContain("data?.phone?.available !== false");
   });
 
-  it('defaults to email and fails closed when capabilities cannot be loaded', () => {
-    expect(screen).toContain("useState<'EMAIL' | 'PHONE'>('EMAIL')");
+  it('fails closed to email when capabilities cannot be loaded', () => {
+    expect(screen).toContain('useState<boolean | null>(null)');
     expect(screen).toContain('setPhoneAvailable(false)');
-    expect(screen).toContain("setChannel('EMAIL')");
+    expect(screen).toContain("verificationChannel: phoneAvailable === false ? 'EMAIL' : 'PHONE'");
   });
 
-  it('does not render the phone field or phone choice when phone verification is disabled', () => {
-    expect(screen).toContain('{phoneAvailable ? (');
-    expect(screen).toContain('Phone verification is temporarily unavailable. Use email verification.');
+  it('does not render or require the phone field when phone verification is disabled', () => {
+    expect(screen).toContain('{phoneAvailable !== false ? (');
+    expect(screen).toContain('Phone verification is unavailable on this deployment. Email verification will be used.');
+    expect(screen).toContain("if (phoneAvailable === false && !email.trim())");
   });
 
-  it('refuses a stale phone selection before creating the application', () => {
-    expect(screen).toContain("channel === 'PHONE' && (!phoneAvailable || !phone.trim())");
-    expect(screen).toContain('verificationChannel: channel');
+  it('requires a valid phone before creating a phone-primary application', () => {
+    expect(screen).toContain('if (phoneAvailable !== false && !/^\\+[1-9]\\d{7,14}$/.test(normalizedPhone))');
+    expect(screen).toContain('phoneE164: phoneAvailable === false ? undefined : normalizedPhone');
+    expect(screen).toContain("verificationChannel: phoneAvailable === false ? 'EMAIL' : 'PHONE'");
   });
 });
