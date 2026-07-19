@@ -6,6 +6,7 @@ import {
   PartnerApplicationResponse,
   PartnerApplicationType,
 } from './types';
+import { toPartnerOnboardingError } from './partnerOnboardingError';
 
 const STORAGE_KEY = 'aagam_partner_application_session_v1';
 
@@ -180,9 +181,12 @@ export const usePartnerOnboardingStore = create<State>((set, get) => ({
       );
       set({ testVerificationCode: data.code || null });
     } catch (error) {
-      const text = message(error, 'Could not send verification code');
-      set({ error: text });
-      throw new Error(text);
+      const normalized = toPartnerOnboardingError(
+        error,
+        'Could not send verification code',
+      );
+      set({ error: normalized.message });
+      throw normalized;
     } finally {
       set({ isLoading: false });
     }
