@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ReactElement, ReactNode } from 'react';
 import {
   ActivityIndicator,
   SafeAreaView,
@@ -31,12 +31,14 @@ export function OnboardingShell({
   children,
   onBack,
   right,
+  refreshControl,
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
   onBack?: () => void;
   right?: ReactNode;
+  refreshControl?: ReactElement;
 }) {
   return (
     <SafeAreaView style={styles.safe}>
@@ -45,6 +47,7 @@ export function OnboardingShell({
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
       >
         <View style={styles.topRow}>
           {onBack ? (
