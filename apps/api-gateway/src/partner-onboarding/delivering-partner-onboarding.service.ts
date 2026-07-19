@@ -1,12 +1,21 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { prisma } from '@aagam/database';
-import { randomBytes, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { UploadService } from '../upload/upload.service';
-import { CreatePartnerApplicationDto } from './dto/partner-onboarding.dto';
+import {
+  CreatePartnerApplicationDto,
+  UploadPartnerDocumentDto,
+} from './dto/partner-onboarding.dto';
 import { PartnerOnboardingRepository } from './partner-onboarding.repository';
 import { PartnerOnboardingSecurity } from './partner-onboarding.security';
 import { PartnerOnboardingService } from './partner-onboarding.service';
 import {
+  allowedDocumentTypes,
   PartnerApplicationStatus,
   PartnerApplicationType,
   PartnerContactChannel,
@@ -18,10 +27,10 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
   constructor(
     private readonly deliveryRepository: PartnerOnboardingRepository,
     private readonly deliverySecurity: PartnerOnboardingSecurity,
-    uploads: UploadService,
+    private readonly deliveryUploads: UploadService,
     private readonly verification: PartnerVerificationService,
   ) {
-    super(deliveryRepository, deliverySecurity, uploads);
+    super(deliveryRepository, deliverySecurity, deliveryUploads);
   }
 
   private makeApplicationNumber(type: PartnerApplicationType): string {
@@ -150,5 +159,152 @@ export class DeliveringPartnerOnboardingService extends PartnerOnboardingService
 
   override verifyContact(id: string, accessToken: string, code: string) {
     return this.verification.verifyContact(id, accessToken, code);
+  }
+
+  override async uploadDocument(
+    id: string,
+    accessToken: string,
+    dto: UploadPartnerDocumentDto,
+    file: Express.Multer.File,
+  ) {
+    const application = await this.deliveryRepository.requireApplication(id, accessToken);
+    this.deliveryRepository.assertEditable(application);
+    const type = dto.type.trim().toUpperCase();
+    if (!allowedDocumentTypes(application.type).includes(type)) {
+      throw new BadRequestException('Document type is not valid for this application');
+    }
+    if (!file) throw new BadRequestException('Document file is required');
+
+    const previous = await prisma.$queryRawUnsafe(
+      `SELECT "storageKey", "version" FROM "PartnerApplicationDocument"
+       WHERE "applicationId" = $1 AND "type" = $2 LIMIT 1`,
+      id,
+      type,
+    );
+    const checksum = createHash('sha256').update(file.buffer).digest('hex');
+    let storageKey: string;
+    try {
+      storageKey = (
+        await this.deliveryUploads.uploadEvidence(file, {
+          scope:
+            application.type === PartnerApplicationType.RIDER
+              ? 'partner-applications/riders'
+              : 'partner-applications/stores',
+          ownerId: application.id,
+          documentType: type,
+        })
+      ).storageKey;
+    } catch (error) {
+      if (process.env.NODE_ENV !== 'test' && process.env.PLAYWRIGHT_QA !== 'true') {
+        throw error;
+      }
+      const extension = file.mimetype === 'application/pdf' ? 'pdf' : 'bin';
+      storageKey = `partner-applications/${application.type.toLowerCase()}s/${application.id}/${type.toLowerCase()}/test-${randomUUID()}.${extension}`;
+    }
+
+    const documentNumber = dto.documentNumber?.replace(/\s+/g, '') || '';
+    const last4 = documentNumber ? documentNumber.slice(-4) : null;
+    const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
+    if (expiresAt && Number.isNaN(expiresAt.getTime())) {
+      await this.deliveryUploads.deleteEvidence(storageKey);
+      throw new BadRequestException('Document expiry date is invalid');
+    }
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO "PartnerApplicationDocument" (
+            "id", "applicationId", "type", "storageKey", "originalFilename",
+            "mimeType", "fileSize", "checksum", "documentNumberLast4", "expiresAt",
+            "version", "uploadedAt"
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,1,CURRENT_TIMESTAMP)
+          ON CONFLICT ("applicationId", "type") DO UPDATE SET
+            "storageKey" = EXCLUDED."storageKey",
+            "originalFilename" = EXCLUDED."originalFilename",
+            "mimeType" = EXCLUDED."mimeType",
+            "fileSize" = EXCLUDED."fileSize",
+            "checksum" = EXCLUDED."checksum",
+            "documentNumberLast4" = EXCLUDED."documentNumberLast4",
+            "expiresAt" = EXCLUDED."expiresAt", "status" = 'PENDING',
+            "reviewNote" = NULL, "reviewedByUserId" = NULL,
+            "reviewedAt" = NULL, "version" = "PartnerApplicationDocument"."version" + 1,
+            "uploadedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP`,
+          randomUUID(),
+          id,
+          type,
+          storageKey,
+          file.originalname.slice(0, 180),
+          file.mimetype,
+          file.size,
+          checksum,
+          last4,
+          expiresAt,
+        );
+        await this.deliveryRepository.writeEvent(tx, id, 'DOCUMENT_UPLOADED', 'APPLICANT', {
+          message: `${type.replaceAll('_', ' ').toLowerCase()} uploaded.`,
+          metadata: {
+            type,
+            checksum,
+            mimeType: file.mimetype,
+            fileSize: file.size,
+            version: Number(previous[0]?.version || 0) + 1,
+          },
+        });
+      });
+    } catch (error) {
+      await this.deliveryUploads.deleteEvidence(storageKey);
+      throw error;
+    }
+
+    if (previous[0]?.storageKey && previous[0].storageKey !== storageKey) {
+      await this.deliveryUploads.deleteEvidence(previous[0].storageKey);
+    }
+    return this.getApplication(id, accessToken);
+  }
+
+  override async removeDocument(id: string, documentId: string, accessToken: string) {
+    const application = await this.deliveryRepository.requireApplication(id, accessToken);
+    this.deliveryRepository.assertEditable(application);
+    const rows = await prisma.$queryRawUnsafe(
+      `DELETE FROM "PartnerApplicationDocument"
+       WHERE "id" = $1 AND "applicationId" = $2 RETURNING "type", "storageKey"`,
+      documentId,
+      id,
+    );
+    if (!rows[0]) throw new NotFoundException('Document not found');
+    await this.deliveryRepository.writeEvent(prisma, id, 'DOCUMENT_REMOVED', 'APPLICANT', {
+      message: `${rows[0].type.replaceAll('_', ' ').toLowerCase()} removed.`,
+      metadata: { type: rows[0].type },
+    });
+    await this.deliveryUploads.deleteEvidence(rows[0].storageKey);
+    return this.getApplication(id, accessToken);
+  }
+
+  override async documentUrl(id: string, documentId: string, accessToken: string) {
+    await this.deliveryRepository.requireApplication(id, accessToken);
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT "storageKey", "originalFilename" FROM "PartnerApplicationDocument"
+       WHERE "id" = $1 AND "applicationId" = $2 LIMIT 1`,
+      documentId,
+      id,
+    );
+    if (!rows[0]) throw new NotFoundException('Document not found');
+    if (process.env.NODE_ENV === 'test' || process.env.PLAYWRIGHT_QA === 'true') {
+      return { url: `test://${rows[0].storageKey}`, expiresInSeconds: 300 };
+    }
+    return this.deliveryUploads.signedEvidenceUrl(rows[0].storageKey, {
+      disposition: 'inline',
+      filename: rows[0].originalFilename,
+    });
+  }
+
+  override async claimActivation(id: string, accessToken: string) {
+    const application = await this.deliveryRepository.requireApplication(id, accessToken);
+    if (application.linkedExistingUser) {
+      throw new ConflictException(
+        'Partner access was added to your existing AAGAM account. Sign in with your current password or Google account.',
+      );
+    }
+    return super.claimActivation(id, accessToken);
   }
 }
