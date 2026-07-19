@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
 import Toast from 'react-native-toast-message';
+import { apiClient } from '@aagam/mobile-shared';
 import { Check, MapPin, Store, WalletCards } from 'lucide-react-native';
 import {
   FormField,
@@ -128,7 +129,7 @@ export function StoreApplicationScreen({ navigation }: any) {
       await update({ payload: payload() });
       if (step < 3) setStep((value) => value + 1);
       else navigation.navigate('ApplicationDocuments');
-    } catch (error: any) { Alert.alert('Check this step', error.message || 'Complete the required information.'); }
+    } catch (error: any) { Toast.show({ type: 'error', text1: 'Check this step', text2: error.message || 'Complete the required information.' }); }
   };
 
   return <OnboardingShell title="Join AAGAM as a Store" subtitle={`Step ${step + 1} of 4 · ${STEP_TITLES[step]}`} onBack={() => step > 0 ? setStep((value) => value - 1) : navigation.goBack()}>
