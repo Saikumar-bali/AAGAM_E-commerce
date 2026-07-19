@@ -200,14 +200,16 @@ export class PromotionsService {
     };
   }
 
-  async activeCampaigns(userId: string, placement?: PromotionPlacement) {
+  async activeCampaigns(userId: string | undefined, placement?: PromotionPlacement) {
     const now = new Date();
-    const hasPriorOrder = await prisma.order.count({
-      where: {
-        customerId: userId,
-        status: { notIn: ["CANCELLED", "PAYMENT_FAILED"] },
-      },
-    });
+    const hasPriorOrder = userId
+      ? await prisma.order.count({
+          where: {
+            customerId: userId,
+            status: { notIn: ["CANCELLED", "PAYMENT_FAILED"] },
+          },
+        })
+      : 0;
     const campaigns = await prisma.promotionCampaign.findMany({
       where: {
         status: { in: [PromotionStatus.ACTIVE, PromotionStatus.SCHEDULED] },
@@ -225,6 +227,9 @@ export class PromotionsService {
       HOME_HERO: [],
       HOME_TODAY_OFFERS: [],
       DEALS_PAGE: [],
+      LANDING_HERO: [],
+      LANDING_BANNER: [],
+      LOGIN_SIDEBAR: [],
     };
     for (const campaign of campaigns) {
       const publicRow = this.publicCampaign(campaign);
