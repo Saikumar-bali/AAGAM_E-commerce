@@ -102,3 +102,14 @@ export class AdminPromotionsController {
     return this.promotionsService.archiveCoupon(id);
   }
 }
+
+
+@Controller("public/promotions")
+export class PublicPromotionsController {
+  constructor(private readonly promotionsService: PromotionsService) {}
+
+  @Get("active")
+  active(@Query() query: PromotionPlacementQueryDto) {
+    return this.promotionsService.activeCampaigns(undefined, query.placement);
+  }
+}
