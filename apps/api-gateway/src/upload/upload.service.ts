@@ -94,7 +94,7 @@ export class UploadService {
       typeof owner === 'string'
         ? this.legacyEvidenceKey(owner, extension)
         : `${owner.scope}/${this.segment(owner.ownerId)}/${this.segment(owner.documentType)}/${uuidv4()}.${extension}`;
-    const metadata =
+    const metadata: Record<string, string> =
       typeof owner === 'string'
         ? { ownerReference: owner.slice(0, 120) }
         : {
