@@ -74,6 +74,7 @@ model Product {
   description String?
   price       Float
   pricePaise  Int       @default(0)
+  mrpPaise    Int       @default(0)
   image       String?
   images      Json?
   details     Json?
@@ -110,6 +111,7 @@ model Inventory {
   quantity  Int      @default(0)
   isListed  Boolean  @default(true)
   autoHideWhenOutOfStock Boolean @default(true)
+  sellingPricePaise Int?
   store     Store    @relation(fields: [storeId], references: [id])
   product   Product  @relation(fields: [productId], references: [id])
   updatedAt DateTime @updatedAt
