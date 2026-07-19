@@ -35,35 +35,29 @@ function response(overrides: Record<string, unknown> = {}): PartnerApplicationRe
 
 describe('resolveApplicantInitialRoute', () => {
   it('starts a new applicant at the welcome screen', () => {
-    expect(resolveApplicantInitialRoute(null, null, null)).toBe('PartnerWelcome');
+    expect(resolveApplicantInitialRoute(null)).toBe('PartnerWelcome');
   });
 
   it('returns an unverified restored application to OTP entry', () => {
-    expect(resolveApplicantInitialRoute('application-1', response(), 'RIDER')).toBe(
-      'VerifyApplication',
-    );
+    expect(resolveApplicantInitialRoute(response())).toBe('VerifyApplication');
   });
 
-  it('returns a verified Rider draft to the Rider form', () => {
+  it('returns a verified Rider draft to the first incomplete Rider step', () => {
     expect(
       resolveApplicantInitialRoute(
-        'application-1',
         response({ emailVerifiedAt: '2026-07-18T01:00:00.000Z' }),
-        'RIDER',
       ),
     ).toBe('RiderApplication');
   });
 
-  it('returns a verified Store correction draft to the Store form', () => {
+  it('returns a verified Store correction draft to the first incomplete Store step', () => {
     expect(
       resolveApplicantInitialRoute(
-        'application-1',
         response({
           type: 'STORE',
           status: 'ACTION_REQUIRED',
           emailVerifiedAt: '2026-07-18T01:00:00.000Z',
         }),
-        'STORE',
       ),
     ).toBe('StoreApplication');
   });
@@ -71,12 +65,10 @@ describe('resolveApplicantInitialRoute', () => {
   it('keeps submitted applications on status tracking', () => {
     expect(
       resolveApplicantInitialRoute(
-        'application-1',
         response({
           status: 'SUBMITTED',
           emailVerifiedAt: '2026-07-18T01:00:00.000Z',
         }),
-        'RIDER',
       ),
     ).toBe('ApplicationStatus');
   });
