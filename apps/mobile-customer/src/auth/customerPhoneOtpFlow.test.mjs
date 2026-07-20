@@ -15,32 +15,32 @@ const challenge = (maskedDestination = '+91*******42') => ({
 const statusError = (status, message = `HTTP ${status}`) =>
   Object.assign(new Error(message), { status });
 
-test('existing customer requests LOGIN only', async () => {
+test('first-time customer requests SIGNUP only and receives the OTP step', async () => {
   const calls = [];
   const result = await discoverCustomerPhoneOtp(async (_phone, purpose) => {
     calls.push(purpose);
     return challenge();
   }, '+919999999942');
 
-  assert.deepEqual(calls, ['LOGIN']);
-  assert.equal(result.purpose, 'LOGIN');
-  assert.equal(result.isNewCustomer, false);
-});
-
-test('first-time customer falls back from LOGIN 404 to SIGNUP once', async () => {
-  const calls = [];
-  const result = await discoverCustomerPhoneOtp(async (_phone, purpose) => {
-    calls.push(purpose);
-    if (purpose === 'LOGIN') throw statusError(404);
-    return challenge();
-  }, '+919999999942');
-
-  assert.deepEqual(calls, ['LOGIN', 'SIGNUP']);
+  assert.deepEqual(calls, ['SIGNUP']);
   assert.equal(result.purpose, 'SIGNUP');
   assert.equal(result.isNewCustomer, true);
 });
 
-test('server errors never trigger SIGNUP', async () => {
+test('existing customer falls back from SIGNUP 409 to LOGIN exactly once', async () => {
+  const calls = [];
+  const result = await discoverCustomerPhoneOtp(async (_phone, purpose) => {
+    calls.push(purpose);
+    if (purpose === 'SIGNUP') throw statusError(409);
+    return challenge();
+  }, '+919999999942');
+
+  assert.deepEqual(calls, ['SIGNUP', 'LOGIN']);
+  assert.equal(result.purpose, 'LOGIN');
+  assert.equal(result.isNewCustomer, false);
+});
+
+test('a signup server error never falls back to LOGIN', async () => {
   const calls = [];
   const failure = statusError(500, 'Service unavailable');
 
@@ -51,10 +51,10 @@ test('server errors never trigger SIGNUP', async () => {
     }, '+919999999942'),
     (error) => error === failure,
   );
-  assert.deepEqual(calls, ['LOGIN']);
+  assert.deepEqual(calls, ['SIGNUP']);
 });
 
-test('network errors never trigger SIGNUP', async () => {
+test('a signup network error never falls back to LOGIN', async () => {
   const calls = [];
   const failure = Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' });
 
@@ -65,10 +65,10 @@ test('network errors never trigger SIGNUP', async () => {
     }, '+919999999942'),
     (error) => error === failure,
   );
-  assert.deepEqual(calls, ['LOGIN']);
+  assert.deepEqual(calls, ['SIGNUP']);
 });
 
-test('rate limiting never triggers SIGNUP', async () => {
+test('signup rate limiting never falls back to LOGIN', async () => {
   const calls = [];
 
   await assert.rejects(
@@ -78,29 +78,37 @@ test('rate limiting never triggers SIGNUP', async () => {
     }, '+919999999942'),
     { status: 429 },
   );
-  assert.deepEqual(calls, ['LOGIN']);
+  assert.deepEqual(calls, ['SIGNUP']);
 });
 
-test('account-creation race retries LOGIN exactly once', async () => {
+test('a non-conflict client error never falls back to LOGIN', async () => {
   const calls = [];
-  let loginAttempts = 0;
-  const result = await discoverCustomerPhoneOtp(async (_phone, purpose) => {
-    calls.push(purpose);
-    if (purpose === 'LOGIN') {
-      loginAttempts += 1;
-      if (loginAttempts === 1) throw statusError(404);
-      return challenge();
-    }
-    throw statusError(409);
-  }, '+919999999942');
 
-  assert.deepEqual(calls, ['LOGIN', 'SIGNUP', 'LOGIN']);
-  assert.equal(loginAttempts, 2);
-  assert.equal(result.purpose, 'LOGIN');
-  assert.equal(result.isNewCustomer, false);
+  await assert.rejects(
+    discoverCustomerPhoneOtp(async (_phone, purpose) => {
+      calls.push(purpose);
+      throw statusError(400);
+    }, '+919999999942'),
+    { status: 400 },
+  );
+  assert.deepEqual(calls, ['SIGNUP']);
 });
 
-test('resend uses the resolved SIGNUP purpose without a LOGIN lookup', async () => {
+test('LOGIN failure after an existing-phone conflict does not loop', async () => {
+  const calls = [];
+
+  await assert.rejects(
+    discoverCustomerPhoneOtp(async (_phone, purpose) => {
+      calls.push(purpose);
+      if (purpose === 'SIGNUP') throw statusError(409);
+      throw statusError(404);
+    }, '+919999999942'),
+    { status: 404 },
+  );
+  assert.deepEqual(calls, ['SIGNUP', 'LOGIN']);
+});
+
+test('resend uses the resolved SIGNUP purpose directly', async () => {
   const calls = [];
   await resendCustomerPhoneOtp(async (_phone, purpose) => {
     calls.push(purpose);
@@ -108,6 +116,16 @@ test('resend uses the resolved SIGNUP purpose without a LOGIN lookup', async () 
   }, '+919999999942', 'SIGNUP');
 
   assert.deepEqual(calls, ['SIGNUP']);
+});
+
+test('resend uses the resolved LOGIN purpose directly', async () => {
+  const calls = [];
+  await resendCustomerPhoneOtp(async (_phone, purpose) => {
+    calls.push(purpose);
+    return challenge();
+  }, '+919999999942', 'LOGIN');
+
+  assert.deepEqual(calls, ['LOGIN']);
 });
 
 test('request lock rejects concurrent duplicate submissions and unlocks afterward', async () => {
