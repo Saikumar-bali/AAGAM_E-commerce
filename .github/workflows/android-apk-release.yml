@@ -77,6 +77,10 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             [[ "$REQUESTED_APP" == "both" || "$REQUESTED_APP" == "customer" ]] && customer=true
             [[ "$REQUESTED_APP" == "both" || "$REQUESTED_APP" == "partners" ]] && partners=true
+          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            # Stable main releases always publish a complete Android set.
+            customer=true
+            partners=true
           else
             base="$BEFORE_SHA"
             if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
