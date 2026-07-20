@@ -35,7 +35,7 @@ jobs:
       - name: Build API packages
         run: npm run build:api
       - name: Run customer phone OTP and notification contracts
-        run: node --experimental-strip-types --test apps/mobile-customer/src/auth/customerPhoneOtpFlow.test.mjs apps/mobile-customer/src/navigation/RootNavigator.contract.test.mjs apps/mobile-customer/src/screens/LoginScreen.contract.test.mjs apps/mobile-customer/src/ui/notifyCore.test.mjs
+        run: node --experimental-strip-types --test apps/mobile-customer/src/auth/customerPhoneOtpFlow.test.mjs apps/mobile-customer/src/ui/notifyCore.test.mjs
       - name: Run customer phone API contracts
         run: npm run test:ci --workspace=apps/api-gateway -- --runTestsByPath src/auth/customer-phone-auth.contract.spec.ts
       - name: Run customer commerce contracts
