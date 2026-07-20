@@ -44,7 +44,9 @@ const evidenceUploadOptions = {
 
 function validPrivateKey(storageKey: string) {
   if (!storageKey || storageKey.includes('..') || storageKey.startsWith('/')) return false;
-  return /^(evidence|partner-applications|riders|stores)\/[A-Za-z0-9._/-]{3,1000}$/.test(storageKey);
+  // Use a simpler, non-backtracking regex to avoid ReDoS vulnerability
+  const safeKeyRegex = /^(evidence|partner-applications|riders|stores)\/[A-Za-z0-9._/-]{3,1000}$/;
+  return safeKeyRegex.test(storageKey);
 }
 
 @Controller('upload')

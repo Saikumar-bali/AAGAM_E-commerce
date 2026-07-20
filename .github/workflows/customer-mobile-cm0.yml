@@ -8,6 +8,11 @@ on:
       - '.github/workflows/customer-mobile-cm0.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
 jobs:
   baseline:
     runs-on: ubuntu-latest

@@ -41,9 +41,29 @@ export function normalizePhoneE164(raw: string): string {
 
 export function normalizeEmail(raw: string): string {
   const email = String(raw || '').trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  // Use a linear-time email validation that preserves valid local-part characters
+  // Avoids ReDoS while supporting apostrophes and other valid RFC 5322 characters
+  if (!email || email.length > 254) {
     throw new BadRequestException('Enter a valid email address');
   }
+  const atIndex = email.lastIndexOf('@');
+  if (atIndex <= 0 || atIndex !== email.indexOf('@')) {
+    throw new BadRequestException('Enter a valid email address');
+  }
+  const localPart = email.slice(0, atIndex);
+  const domainPart = email.slice(atIndex + 1);
+  
+  // Validate local part: allow letters, digits, and common special characters
+  // including apostrophe, dot, underscore, percent, plus, hyphen
+  if (!/^[a-zA-Z0-9._%+'-]+$/.test(localPart) || localPart.length === 0 || localPart.length > 64) {
+    throw new BadRequestException('Enter a valid email address');
+  }
+  
+  // Validate domain part: simple non-backtracking check
+  if (!/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domainPart)) {
+    throw new BadRequestException('Enter a valid email address');
+  }
+  
   return email;
 }
 

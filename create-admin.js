@@ -10,9 +10,21 @@ const adminName = process.env.ADMIN_NAME || 'Aagam Admin';
 function generateSecurePassword(length = 16) {
   const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
   let password = '';
-  const bytes = crypto.randomBytes(length);
+  const charsetLength = charset.length;
+  const maxByteValue = Math.floor(256 / charsetLength) * charsetLength;
+  
+  // Generate fresh bytes as needed using rejection sampling
   for (let i = 0; i < length; i++) {
-    password += charset[bytes[i] % charset.length];
+    const byteBuffer = crypto.randomBytes(1);
+    let byte = byteBuffer[0];
+    
+    // Rejection sampling to avoid modulo bias
+    while (byte >= maxByteValue) {
+      const newByteBuffer = crypto.randomBytes(1);
+      byte = newByteBuffer[0];
+    }
+    
+    password += charset[byte % charsetLength];
   }
   return password;
 }
