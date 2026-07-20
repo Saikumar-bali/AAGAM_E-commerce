@@ -1,10 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import {
   createAsyncRequestLock,
   discoverCustomerPhoneOtp,
   resendCustomerPhoneOtp,
 } from './customerPhoneOtpFlow.ts';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const loginSource = readFileSync(path.join(here, '../screens/LoginScreen.tsx'), 'utf8');
+const navigatorSource = readFileSync(path.join(here, '../navigation/RootNavigator.tsx'), 'utf8');
 
 const challenge = (maskedDestination = '+91*******42') => ({
   channel: 'PHONE',
@@ -175,4 +182,30 @@ test('separate request and verification locks prevent both duplicate paths', asy
   releaseRequest();
   releaseVerification();
   await Promise.all([send, autoVerify]);
+});
+
+test('customer login renders the profile and OTP step on the same mounted screen', () => {
+  assert.match(loginSource, /ScrollView/);
+  assert.match(loginSource, /keyboardShouldPersistTaps="handled"/);
+  assert.match(loginSource, /NEW CUSTOMER/);
+  assert.match(loginSource, /Verify and create account/);
+  assert.match(loginSource, /Change mobile number/);
+  assert.match(loginSource, /if \(isNewCustomer\) profileNameRef\.current\?\.focus\(\)/);
+  assert.match(loginSource, /else otpInputRef\.current\?\.focus\(\)/);
+  assert.match(loginSource, /New customers receive a signup OTP automatically/);
+  assert.doesNotMatch(loginSource, /navigation\.navigate\('SignUp'/);
+});
+
+test('customer navigator never unmounts auth screens for request loading', () => {
+  assert.match(navigatorSource, /useAuthStore\(\(state\) => state\.user\)/);
+  assert.match(navigatorSource, /useAuthStore\(\(state\) => state\.initialize\)/);
+  assert.doesNotMatch(navigatorSource, /\bisLoading\b/);
+  assert.doesNotMatch(navigatorSource, /const\s*\{[^}]*isLoading[^}]*\}\s*=\s*useAuthStore\(\)/s);
+});
+
+test('customer navigator gates only on one-time secure-session initialization', () => {
+  assert.match(navigatorSource, /const \[isInitializing, setIsInitializing\] = useState\(true\)/);
+  assert.match(navigatorSource, /initialize\(\)\.finally\(\(\) =>/);
+  assert.match(navigatorSource, /if \(mounted\) setIsInitializing\(false\)/);
+  assert.match(navigatorSource, /if \(isInitializing\)/);
 });
