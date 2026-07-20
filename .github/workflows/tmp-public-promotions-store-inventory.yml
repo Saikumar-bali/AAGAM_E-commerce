@@ -1,4 +1,4 @@
-name: Temporary Public Promotions Store Inventory Finalizer
+name: Temporary Public Promotions Store Inventory Object Builder
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ permissions:
   actions: read
 
 jobs:
-  verify-and-publish:
+  verify-and-build-object:
     if: github.head_ref == 'tmp/public-promotions-store-inventory-work'
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -42,6 +42,7 @@ jobs:
       BASE_SHA: 8cd5964052a0a190c1d0aea03e35fe9c630f5d77
       FINAL_BRANCH: fix/public-promotions-store-inventory
       EXPECTED_FINAL_HEAD: f7fdb2d863322772e60a47bee7971f95ae31b319
+      OBJECT_BRANCH: tmp/public-promotions-store-inventory-object
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_ecom_test
       REDIS_URL: redis://localhost:6379
       NODE_ENV: test
@@ -179,7 +180,7 @@ jobs:
           done
           file "${proof_dir}"/*.png
 
-      - name: Review diff and publish one focused commit
+      - name: Review diff and publish verified commit object
         shell: bash
         run: |
           set -euo pipefail
@@ -240,13 +241,10 @@ jobs:
           test "$parent_sha" = "$BASE_SHA"
           test "$(git -C "$worktree" rev-list --count "$BASE_SHA..HEAD")" = "1"
 
-          git -C "$worktree" push \
-            --force-with-lease="refs/heads/${FINAL_BRANCH}:${EXPECTED_FINAL_HEAD}" \
-            origin "HEAD:refs/heads/${FINAL_BRANCH}"
-
+          git -C "$worktree" push origin "HEAD:refs/heads/${OBJECT_BRANCH}"
           printf '%s\n' "$final_sha" | tee /tmp/final-commit-sha.txt
 
-      - name: Upload final proof bundle
+      - name: Upload final proof and commit SHA
         uses: actions/upload-artifact@v4
         with:
           name: final-public-promotions-store-inventory-proof
@@ -262,7 +260,3 @@ jobs:
             /tmp/final-commit-sha.txt
           if-no-files-found: error
           retention-days: 14
-
-      - name: Delete temporary validation branch
-        shell: bash
-        run: git push origin --delete tmp/public-promotions-store-inventory-work
