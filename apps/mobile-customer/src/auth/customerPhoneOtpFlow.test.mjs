@@ -184,15 +184,17 @@ test('separate request and verification locks prevent both duplicate paths', asy
   await Promise.all([send, autoVerify]);
 });
 
-test('customer login renders the profile and OTP step on the same mounted screen', () => {
+test('customer login renders a production-ready profile and OTP flow', () => {
   assert.match(loginSource, /ScrollView/);
   assert.match(loginSource, /keyboardShouldPersistTaps="handled"/);
-  assert.match(loginSource, /NEW CUSTOMER/);
+  assert.match(loginSource, /Complete your profile/);
   assert.match(loginSource, /Verify and create account/);
   assert.match(loginSource, /Change mobile number/);
   assert.match(loginSource, /if \(isNewCustomer\) profileNameRef\.current\?\.focus\(\)/);
   assert.match(loginSource, /else otpInputRef\.current\?\.focus\(\)/);
-  assert.match(loginSource, /New customers receive a signup OTP automatically/);
+  assert.match(loginSource, /We'll send a secure OTP to verify your mobile number\./);
+  assert.doesNotMatch(loginSource, /New customers receive a signup OTP automatically/);
+  assert.doesNotMatch(loginSource, /NEW CUSTOMER|EXISTING CUSTOMER/);
   assert.doesNotMatch(loginSource, /navigation\.navigate\('SignUp'/);
 });
 
