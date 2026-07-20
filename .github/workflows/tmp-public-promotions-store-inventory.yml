@@ -1,0 +1,150 @@
+name: Temporary Public Promotions Store Inventory Verification
+
+on:
+  push:
+    branches:
+      - "tmp/public-promotions-store-inventory-work"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    if: github.event_name == 'push' || github.head_ref == 'tmp/public-promotions-store-inventory-work'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aagam_ecom_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_ecom_test
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+      NEXT_PUBLIC_API_URL: http://localhost:3005
+      PLAYWRIGHT_QA: "true"
+      PLAYWRIGHT_QA_SEED: "true"
+      PLAYWRIGHT_WORKERS: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.3"
+          cache: npm
+
+      - name: Configure isolated QA credentials
+        shell: bash
+        run: |
+          suffix="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "JWT_SECRET=$(openssl rand -hex 32)"
+            echo "ADMIN_EMAIL=qa-admin-${suffix}@example.test"
+            echo "ADMIN_PASSWORD=QaAdmin-${suffix}!"
+            echo "CUSTOMER_EMAIL=qa-customer-${suffix}@example.test"
+            echo "CUSTOMER_PASSWORD=QaCustomer-${suffix}!"
+            echo "STORE_EMAIL=qa-store-${suffix}@example.test"
+            echo "STORE_PASSWORD=QaStore-${suffix}!"
+            echo "RIDER_EMAIL=qa-rider-${suffix}@example.test"
+            echo "RIDER_PASSWORD=QaRider-${suffix}!"
+          } >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Prepare database
+        run: |
+          npx prisma generate --schema packages/database/prisma/schema.prisma
+          npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+          node packages/database/seed.js
+
+      - name: Build Admin
+        id: build_admin
+        continue-on-error: true
+        run: npm run build:admin
+
+      - name: API CI
+        id: ci_api
+        continue-on-error: true
+        run: npm run ci:api
+
+      - name: Build and start API
+        run: |
+          npm run build:api
+          node apps/api-gateway/dist/src/main.js > /tmp/aagam-api.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3005/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/aagam-api.log
+          exit 1
+        env:
+          PORT: "3005"
+          CORS_ORIGINS: http://localhost:3001
+
+      - name: Install Chromium
+        run: npx playwright install chromium --with-deps
+        working-directory: apps/admin-dashboard
+
+      - name: Focused Playwright
+        id: playwright
+        continue-on-error: true
+        run: >-
+          npx playwright test
+          --config apps/admin-dashboard/playwright.config.ts
+          apps/admin-dashboard/tests/public-promotions-store-inventory.spec.ts
+
+      - name: Record command outcomes
+        if: always()
+        run: |
+          mkdir -p docs/qa/public-promotions-store-inventory
+          {
+            echo
+            echo "Verification command outcomes"
+            echo "npm run build:admin: ${{ steps.build_admin.outcome }}"
+            echo "npm run ci:api: ${{ steps.ci_api.outcome }}"
+            echo "focused Playwright: ${{ steps.playwright.outcome }}"
+          } >> docs/qa/public-promotions-store-inventory/test-results.txt
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-promotions-store-inventory-proof
+          path: docs/qa/public-promotions-store-inventory
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce verification result
+        if: always()
+        run: |
+          test "${{ steps.build_admin.outcome }}" = "success"
+          test "${{ steps.ci_api.outcome }}" = "success"
+          test "${{ steps.playwright.outcome }}" = "success"
