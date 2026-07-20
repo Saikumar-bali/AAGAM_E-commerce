@@ -11,8 +11,20 @@ function generateSecurePassword(length = 16) {
   const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
   let password = '';
   const bytes = crypto.randomBytes(length);
-  for (let i = 0; i < length; i++) {
-    password += charset[bytes[i] % charset.length];
+  // Use rejection sampling to avoid modulo bias in password generation
+  const charsetLength = charset.length;
+  const maxByteValue = Math.floor(256 / charsetLength) * charsetLength;
+  for (let i = 0, byteIndex = 0; i < length; i++) {
+    let byte = bytes[byteIndex++];
+    while (byte >= maxByteValue) {
+      if (byteIndex >= bytes.length) {
+        // Generate more bytes if we've exhausted the buffer
+        const newBytes = crypto.randomBytes(length - i);
+        bytes.set(newBytes, byteIndex);
+      }
+      byte = bytes[byteIndex++];
+    }
+    password += charset[byte % charsetLength];
   }
   return password;
 }

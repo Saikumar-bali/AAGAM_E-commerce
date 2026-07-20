@@ -41,7 +41,9 @@ export function normalizePhoneE164(raw: string): string {
 
 export function normalizeEmail(raw: string): string {
   const email = String(raw || '').trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  // Use a simpler, non-backtracking regex to avoid ReDoS vulnerability
+  const safeEmailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!safeEmailRegex.test(email)) {
     throw new BadRequestException('Enter a valid email address');
   }
   return email;

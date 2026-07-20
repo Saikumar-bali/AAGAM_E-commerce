@@ -153,7 +153,16 @@ export class DeliveryOperationsService {
 
   private pickupCode(method: PickupVerificationMethod) {
     if (method === PickupVerificationMethod.STORE_PICKUP_PIN) {
-      return String(randomBytes(4).readUInt32BE(0) % 1_000_000).padStart(
+      // Use unbiased random number generation to avoid cryptographic bias
+      const max = 1_000_000;
+      const bytes = randomBytes(4);
+      // Rejection sampling to avoid modulo bias
+      let value = bytes.readUInt32BE(0);
+      const limit = Math.floor(0x100000000 / max) * max;
+      while (value >= limit) {
+        value = randomBytes(4).readUInt32BE(0);
+      }
+      return String(value % max).padStart(
         6,
         "0"
       );
