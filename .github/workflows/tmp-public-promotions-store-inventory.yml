@@ -62,16 +62,34 @@ jobs:
         shell: bash
         run: |
           suffix="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          admin_email="qa-admin-${suffix}@example.test"
+          admin_password="QaAdmin-${suffix}!"
+          customer_email="qa-customer-${suffix}@example.test"
+          customer_password="QaCustomer-${suffix}!"
+          store_email="qa-store-${suffix}@example.test"
+          store_password="QaStore-${suffix}!"
+          rider_email="qa-rider-${suffix}@example.test"
+          rider_password="QaRider-${suffix}!"
           {
             echo "JWT_SECRET=$(openssl rand -hex 32)"
-            echo "ADMIN_EMAIL=qa-admin-${suffix}@example.test"
-            echo "ADMIN_PASSWORD=QaAdmin-${suffix}!"
-            echo "CUSTOMER_EMAIL=qa-customer-${suffix}@example.test"
-            echo "CUSTOMER_PASSWORD=QaCustomer-${suffix}!"
-            echo "STORE_EMAIL=qa-store-${suffix}@example.test"
-            echo "STORE_PASSWORD=QaStore-${suffix}!"
-            echo "RIDER_EMAIL=qa-rider-${suffix}@example.test"
-            echo "RIDER_PASSWORD=QaRider-${suffix}!"
+            echo "ADMIN_EMAIL=${admin_email}"
+            echo "ADMIN_PASSWORD=${admin_password}"
+            echo "QA_ADMIN_EMAIL=${admin_email}"
+            echo "QA_ADMIN_PASSWORD=${admin_password}"
+            echo "CUSTOMER_EMAIL=${customer_email}"
+            echo "CUSTOMER_PASSWORD=${customer_password}"
+            echo "QA_CUSTOMER_EMAIL=${customer_email}"
+            echo "QA_CUSTOMER_PASSWORD=${customer_password}"
+            echo "STORE_EMAIL=${store_email}"
+            echo "STORE_PASSWORD=${store_password}"
+            echo "QA_STORE_EMAIL=${store_email}"
+            echo "QA_STORE_PASSWORD=${store_password}"
+            echo "STORE_OWNER_QA_EMAIL=${store_email}"
+            echo "STORE_OWNER_QA_PASSWORD=${store_password}"
+            echo "RIDER_EMAIL=${rider_email}"
+            echo "RIDER_PASSWORD=${rider_password}"
+            echo "QA_RIDER_EMAIL=${rider_email}"
+            echo "QA_RIDER_PASSWORD=${rider_password}"
           } >> "$GITHUB_ENV"
 
       - name: Install dependencies
@@ -91,6 +109,9 @@ jobs:
           set -o pipefail
           mkdir -p docs/qa/public-promotions-store-inventory
           npm run build:admin 2>&1 | tee docs/qa/public-promotions-store-inventory/build-admin.log
+
+      - name: Build database workspace for API tests
+        run: npm run build --workspace @aagam/database
 
       - name: API CI
         id: ci_api
