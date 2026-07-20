@@ -1,7 +1,9 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import * as fs from 'fs';
 import * as path from 'path';
+
+const logger = new Logger('WebPushService');
 
 export type PushPayload = {
   title: string;
@@ -30,7 +32,7 @@ export class WebPushService implements OnModuleInit {
       const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
       if (raw) {
         admin.initializeApp({ credential: admin.credential.cert(JSON.parse(raw)) });
-        console.log('[WebPushService] Firebase Admin initialized from environment.');
+        logger.log('Firebase Admin initialized from environment.');
         return;
       }
 
@@ -39,13 +41,13 @@ export class WebPushService implements OnModuleInit {
         admin.initializeApp({
           credential: admin.credential.cert(JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'))),
         });
-        console.log('[WebPushService] Firebase Admin initialized from firebase-adminsdk.json.');
+        logger.log('Firebase Admin initialized from firebase-adminsdk.json.');
         return;
       }
 
-      console.warn('[WebPushService] Firebase credentials missing. In-app notifications remain available; push attempts will be skipped.');
+      logger.warn('Firebase credentials missing. In-app notifications remain available; push attempts will be skipped.');
     } catch (error) {
-      console.error('[WebPushService] Firebase initialization failed:', error);
+      logger.error(`Firebase initialization failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
