@@ -25,18 +25,44 @@ export default function InventoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const fetchAllProducts = async (): Promise<any[]> => {
+    const PAGE_SIZE = 50;
+    const MAX_PAGES = 100;
+    const allProducts: any[] = [];
+    const seenIds = new Set<string>();
+
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const { data } = await apiClient.get('/products', {
+        params: { pageSize: PAGE_SIZE, page },
+      });
+      const payload = data;
+      const items: any[] = Array.isArray(payload)
+        ? payload
+        : payload?.items || payload?.products || [];
+
+      for (const product of items) {
+        if (!seenIds.has(product.id)) {
+          seenIds.add(product.id);
+          allProducts.push(product);
+        }
+      }
+
+      if (Array.isArray(payload) || !payload?.totalPages) break;
+      if (page >= payload.totalPages) break;
+    }
+    return allProducts;
+  };
+
   const fetchInventory = async () => {
     setLoading(true);
     setError(null);
     setSuccess(null);
     try {
-      const [storeResult, productResult] = await Promise.all([
+      const [storeResult, products] = await Promise.all([
         apiClient.get('/stores/my-stores'),
-        apiClient.get('/products', { params: { pageSize: 500 } }),
+        fetchAllProducts(),
       ]);
       const stores = storeResult.data || [];
-      const productPayload = productResult.data;
-      const products = Array.isArray(productPayload) ? productPayload : productPayload?.items || productPayload?.products || [];
       setSelectedStoreId((current) => current || stores[0]?.id || '');
       const allInventory: InventoryItem[] = [];
       for (const store of stores) {
@@ -80,15 +106,22 @@ export default function InventoryPage() {
     setError(null);
     setSuccess(null);
     try {
-      await apiClient.patch(`/stores/${item.store.id}/inventory`, {
+      const { data: saved } = await apiClient.patch(`/stores/${item.store.id}/inventory`, {
         productId: item.product.id,
         quantity,
         isListed: item.isListed,
         autoHideWhenOutOfStock: item.autoHideWhenOutOfStock,
         sellingPrice: priceDrafts[item.id] === '' ? null : Number(priceDrafts[item.id]),
       });
-      setItems((current) => current.map((row) => row.id === item.id ? { ...row, quantity } : row));
-      setSuccess(`${item.product.name} stock updated to ${quantity} units`);
+      setItems((current) => current.map((row) => row.id === item.id ? {
+        ...row,
+        id: saved?.id ?? row.id,
+        quantity: saved?.quantity ?? quantity,
+        isListed: saved?.isListed ?? row.isListed,
+        autoHideWhenOutOfStock: saved?.autoHideWhenOutOfStock ?? row.autoHideWhenOutOfStock,
+        sellingPricePaise: saved?.sellingPricePaise ?? row.sellingPricePaise,
+      } : row));
+      setSuccess(`${item.product.name} stock updated to ${saved?.quantity ?? quantity} units`);
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Failed to update inventory');
     } finally {

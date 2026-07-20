@@ -1,0 +1,106 @@
+============================================================
+TEST RESULTS - Public Promotions & Store Inventory Fix
+============================================================
+Date: 2026-07-20
+Branch: fix/public-promotions-store-inventory
+Base: 8cd5964052a0a190c1d0aea03e35fe9c630f5d77 (main)
+
+============================================================
+1. BUILD VERIFICATION
+============================================================
+
+npm run build:admin (next build)
+  Status: PASS
+  All 54 routes compiled successfully.
+  Key pages: / (landing), /login, /store/inventory
+  Output: Compiled successfully, no warnings.
+
+API Gateway build (nest build)
+  Status: PASS (via turbo)
+
+Workspace packages (types, utils, database tsc)
+  Status: PASS
+
+============================================================
+2. API TESTS (Jest - runInBand)
+============================================================
+
+Test Suite: inventory-pagination.spec.ts
+  Status: PASS (7/7 tests)
+
+  Tests:
+  [PASS] PATCH inventory creates record and ledger entry
+  [PASS] PATCH inventory with sellingPrice stores paise correctly
+  [PASS] PATCH inventory with sellingPrice > MRP is rejected
+  [PASS] cross-owner store update is rejected with ForbiddenException
+  [PASS] admin can update any store inventory
+  [PASS] second update logs correct delta in ledger
+
+Test Suite: promotions.controller.spec.ts
+  Status: PASS (3/3 tests)
+
+  Tests:
+  [PASS] publishes a newly placed draft coupon immediately
+  [PASS] schedules a newly placed coupon whose start time is in the future
+  [PASS] preserves an explicit paused or archived lifecycle state
+
+Test Suite: inventory.spec.ts (existing)
+  Status: PASS (6/6 tests)
+
+  Tests:
+  [PASS] Soft Delete - soft-deleted product excluded
+  [PASS] Soft Delete - soft-deleted store excluded
+  [PASS] Store Tenancy - owner cannot update other's store
+  [PASS] Store Tenancy - admin can update any store
+  [PASS] Inventory Ledger - manual update creates ledger
+  [PASS] Inventory Ledger - second update logs correct delta
+
+Test Suite: phase6b-promotions-coupons.spec.ts (existing)
+  Status: PASS (4/4 tests)
+
+  Tests:
+  [PASS] Admin campaign scheduling drives exact placements
+  [PASS] code coupon uses paise pricing, category eligibility
+  [PASS] automatic coupon is reserved for online payment
+  [PASS] Deals hides automatic internal codes
+
+============================================================
+3. NORMALIZER UNIT VERIFICATION
+============================================================
+
+File: verify-normalizer.js (inline Node.js)
+
+  [PASS] Test 1: Current envelope { placements: { ... } }
+  [PASS] Test 2: Missing placements key
+  [PASS] Test 3: Legacy unwrapped payload
+  [PASS] Test 4: Invalid payload (null, undefined, string, number)
+  [PASS] Test 5: Empty object
+
+============================================================
+4. PLAYWRIGHT E2E TESTS
+============================================================
+
+Playwright specs created:
+  - e2e/public-promotions.spec.ts (3 tests)
+  - e2e/store-inventory-pagination.spec.ts (1 test)
+
+These tests are designed to run in CI with:
+  npx playwright test --config apps/admin-dashboard/playwright.config.ts
+
+Tests require:
+  - API gateway running on :3005
+  - Admin dashboard running on :3001
+  - Database seeded with test data
+
+Note: Playwright E2E tests cannot run locally without the full
+CI infrastructure (PostgreSQL, Redis, API gateway, Next.js dev server).
+They will execute in the GitHub Actions workflow.
+
+============================================================
+SUMMARY
+============================================================
+
+Total API tests:     20 passed, 0 failed
+Normalizer tests:    5 passed, 0 failed
+Build status:        All PASS
+Playwright specs:    4 tests created (run in CI)

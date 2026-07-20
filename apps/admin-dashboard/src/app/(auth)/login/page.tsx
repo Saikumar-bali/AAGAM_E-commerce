@@ -7,6 +7,7 @@ import Script from 'next/script';
 import { apiClient } from '@aagam/utils';
 import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles } from 'lucide-react';
 import AagamLogo from '@/components/AagamLogo';
+import { normalizePromotionPlacements } from '@/lib/promotion-normalizer';
 
 const DEFAULT_GOOGLE_WEB_CLIENT_ID = '416380795567-5de3kea0pbb9ibke91rl5pre0sdu82vo.apps.googleusercontent.com';
 
@@ -63,7 +64,8 @@ export default function LoginPage() {
   useEffect(() => {
     apiClient.get('/public/promotions/active', { params: { placement: 'LOGIN_SIDEBAR' } })
       .then((response) => {
-        const campaigns = response.data?.LOGIN_SIDEBAR || response.data?.loginSidebar || [];
+        const placements = normalizePromotionPlacements(response.data);
+        const campaigns = placements['LOGIN_SIDEBAR'] || [];
         setLoginCampaign(Array.isArray(campaigns) ? campaigns[0] || null : null);
       })
       .catch(() => setLoginCampaign(null));
