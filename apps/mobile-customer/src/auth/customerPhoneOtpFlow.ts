@@ -57,26 +57,27 @@ export const createAsyncRequestLock = (): AsyncRequestLock => {
   };
 };
 
+/**
+ * Customer mobile intentionally starts with SIGNUP.
+ *
+ * This mirrors the working web registration flow and means a first-time phone
+ * receives an OTP without depending on how a LOGIN "not found" response is
+ * represented by a deployed API, reverse proxy, or Axios adapter. An existing
+ * phone returns the stable SIGNUP conflict contract (409), after which LOGIN is
+ * requested exactly once. No message text is inspected and no loop is possible.
+ */
 export const discoverCustomerPhoneOtp = async (
   requestOtp: RequestCustomerPhoneOtp,
   phoneE164: string,
 ): Promise<CustomerPhoneOtpResolution> => {
   try {
+    const challenge = await requestOtp(phoneE164, 'SIGNUP');
+    return { challenge, purpose: 'SIGNUP', isNewCustomer: true };
+  } catch (signupError) {
+    if (getHttpStatus(signupError) !== 409) throw signupError;
+
     const challenge = await requestOtp(phoneE164, 'LOGIN');
     return { challenge, purpose: 'LOGIN', isNewCustomer: false };
-  } catch (loginError) {
-    if (getHttpStatus(loginError) !== 404) throw loginError;
-
-    try {
-      const challenge = await requestOtp(phoneE164, 'SIGNUP');
-      return { challenge, purpose: 'SIGNUP', isNewCustomer: true };
-    } catch (signupError) {
-      if (getHttpStatus(signupError) !== 409) throw signupError;
-
-      // The account may have been created after the LOGIN lookup. Retry once only.
-      const challenge = await requestOtp(phoneE164, 'LOGIN');
-      return { challenge, purpose: 'LOGIN', isNewCustomer: false };
-    }
   }
 };
 
