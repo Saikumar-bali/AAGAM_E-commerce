@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import cookieParser = require('cookie-parser');
 import { ValidationPipe } from '@nestjs/common';
@@ -7,11 +8,13 @@ import { ServerOptions } from 'socket.io';
 import { createClient } from 'redis';
 import { createAdapter } from '@socket.io/redis-adapter';
 
+const logger = new Logger('Bootstrap');
+
 // Backward-compatible repair for the WILIO_FROM_PHONE typo used in an earlier
 // deployment setup. TWILIO_FROM_PHONE is the canonical variable going forward.
 if (!process.env.TWILIO_FROM_PHONE && process.env.WILIO_FROM_PHONE) {
   process.env.TWILIO_FROM_PHONE = process.env.WILIO_FROM_PHONE;
-  console.warn('⚠️ WILIO_FROM_PHONE detected; migrate it to TWILIO_FROM_PHONE.');
+  logger.warn('WILIO_FROM_PHONE detected; migrate it to TWILIO_FROM_PHONE.');
 }
 
 // ─── Environment Validation ──────────────────────────────────────────────────
@@ -44,14 +47,14 @@ function validateEnvironment(): void {
     }
     if (!value && check.default) {
       process.env[check.key] = check.default;
-      console.log(`  ✓ ${check.key} — using default: ${check.default}`);
+      logger.log(`${check.key} — using default: ${check.default}`);
       continue;
     }
     if (value && check.minLen && value.length < check.minLen) {
       errors.push(`  ✗ ${check.key} — too short (${value.length}/${check.minLen} min). ${check.description}`);
       continue;
     }
-    if (value) console.log(`  ✓ ${check.key} — set`);
+    if (value) logger.log(`${check.key} — set`);
   }
 
   if (nodeEnv === 'production') {
@@ -66,12 +69,10 @@ function validateEnvironment(): void {
   }
 
   if (errors.length > 0) {
-    console.error('\n❌ Environment validation failed:');
-    errors.forEach((e) => console.error(e));
-    console.error('\nFix these issues before starting the server.\n');
+    logger.error('\nEnvironment validation failed:\n' + errors.join('\n') + '\nFix these issues before starting the server.\n');
     process.exit(1);
   }
-  console.log('✅ Environment validation passed\n');
+  logger.log('Environment validation passed');
 }
 
 class RedisIoAdapter extends IoAdapter {
@@ -96,7 +97,7 @@ class RedisIoAdapter extends IoAdapter {
 
 async function bootstrap() {
   try {
-    console.log('🔍 Validating environment...');
+    logger.log('Validating environment...');
     validateEnvironment();
     const app = await NestFactory.create(AppModule);
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -105,13 +106,13 @@ async function bootstrap() {
       const redisIoAdapter = new RedisIoAdapter(app);
       await redisIoAdapter.connectToRedis(redisUrl);
       app.useWebSocketAdapter(redisIoAdapter);
-      console.log('✅ Redis adapter connected for WebSockets');
+      logger.log('Redis adapter connected for WebSockets');
     } catch (redisError) {
       if (isProduction) {
-        console.error('❌ Redis required in production but not available:', redisError);
+        logger.error(`Redis required in production but not available: ${redisError instanceof Error ? redisError.message : String(redisError)}`);
         process.exit(1);
       }
-      console.warn('⚠️ Redis not available, using default WebSocket adapter');
+      logger.warn('Redis not available, using default WebSocket adapter');
       app.useWebSocketAdapter(new IoAdapter(app));
     }
 
@@ -125,7 +126,7 @@ async function bootstrap() {
           'http://192.168.0.18:3000', 'http://192.168.0.18:3001', 'http://localhost:5173',
         ];
     if (isProduction && corsOrigins.length === 0) {
-      console.error('❌ CORS_ORIGINS must be set in production mode');
+      logger.error('CORS_ORIGINS must be set in production mode');
       process.exit(1);
     }
     app.enableCors({
@@ -137,9 +138,9 @@ async function bootstrap() {
     });
     const port = parseInt(process.env.PORT || '3005', 10);
     await app.listen(port, '0.0.0.0');
-    console.log(`✅ API Gateway is live on port ${port} [${process.env.NODE_ENV || 'development'}]`);
+    logger.log(`API Gateway is live on port ${port} [${process.env.NODE_ENV || 'development'}]`);
   } catch (error) {
-    console.error('❌ Failed to start API Gateway:', error);
+    logger.error(`Failed to start API Gateway: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
 }

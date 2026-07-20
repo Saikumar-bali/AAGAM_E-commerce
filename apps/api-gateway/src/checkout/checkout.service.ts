@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { CouponRedemptionStatus, PaymentMethod, PaymentStatus, Prisma, prisma } from '@aagam/database';
 import { calculateDistance } from '@aagam/utils';
 
@@ -6,6 +6,8 @@ import { CheckoutPlaceOrderDto, CheckoutQuoteDto } from './dto/checkout.dto';
 import { TrackingGateway } from '../tracking.gateway';
 import { NotificationService } from '../notifications/notification.service';
 import { PromotionsService } from '../promotions/promotions.service';
+
+const logger = new Logger('CheckoutService');
 
 const haversineKm = calculateDistance;
 
@@ -98,8 +100,8 @@ export class CheckoutService {
         where: { role: "RIDER", fcmToken: { not: null } },
         select: { fcmToken: true },
       });
-      console.log(
-        `[CheckoutService] Rider push fanout count=${riders.length} for order=${created.id}`
+      logger.log(
+        `Rider push fanout count=${riders.length} for order=${created.id}`
       );
       const pushResults = await Promise.allSettled(
         riders
@@ -121,13 +123,12 @@ export class CheckoutService {
       const failed = pushResults.filter(
         (result) => result.status === "rejected"
       ).length;
-      console.log(
-        `[CheckoutService] Rider push results sent=${sent} failed=${failed} order=${created.id}`
+      logger.log(
+        `Rider push results sent=${sent} failed=${failed} order=${created.id}`
       );
     } catch (error) {
-      console.error(
-        "[CheckoutService] Failed to announce committed order:",
-        error
+      logger.error(
+        `Failed to announce committed order: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }

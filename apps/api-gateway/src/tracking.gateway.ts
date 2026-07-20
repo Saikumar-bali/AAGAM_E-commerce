@@ -9,6 +9,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { prisma, Role } from '@aagam/database';
+import { Logger } from '@nestjs/common';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const allowedOrigins = isProduction
@@ -40,6 +41,8 @@ const LEGACY_RIDER_QUEUE_ERROR = {
   message: 'Public rider queues are disabled. Riders receive only addressed dispatch assignment offers.',
 };
 
+const logger = new Logger('TrackingGateway');
+
 @WebSocketGateway({
   cors: {
     origin: allowedOrigins,
@@ -63,7 +66,7 @@ export class TrackingGateway implements OnGatewayConnection {
           ?.split('=')[1];
 
       if (!token) {
-        console.log('[Socket] Connection rejected: no token');
+        logger.warn('[Socket] Connection rejected: no token');
         client.disconnect();
         return;
       }
@@ -75,15 +78,15 @@ export class TrackingGateway implements OnGatewayConnection {
       });
 
       if (!user) {
-        console.log('[Socket] Connection rejected: user not found');
+        logger.warn('[Socket] Connection rejected: user not found');
         client.disconnect();
         return;
       }
 
       client.data.user = user;
-      console.log(`[Socket] Authenticated: ${user.email} (${user.role})`);
+      logger.log(`Authenticated: ${user.email} (${user.role})`);
     } catch (err) {
-      console.log('[Socket] Connection rejected: invalid token');
+      logger.warn('[Socket] Connection rejected: invalid token');
       client.disconnect();
     }
   }
@@ -123,7 +126,7 @@ export class TrackingGateway implements OnGatewayConnection {
   ) {
     const user = client.data.user;
     if (!user) {
-      console.log('[Socket] joinOrder rejected: unauthenticated');
+      logger.warn('[Socket] joinOrder rejected: unauthenticated');
       return;
     }
 
@@ -133,52 +136,52 @@ export class TrackingGateway implements OnGatewayConnection {
     });
 
     if (!order) {
-      console.log(`[Socket] joinOrder rejected: order ${data.orderId} not found`);
+      logger.warn(`joinOrder rejected: order ${data.orderId} not found`);
       return;
     }
 
     if (user.role === Role.CUSTOMER && order.customerId !== user.id) {
-      console.log(`[Socket] joinOrder rejected: customer ${user.id} cannot join order ${data.orderId}`);
+      logger.warn(`joinOrder rejected: customer ${user.id} cannot join order ${data.orderId}`);
       return;
     }
 
     if (user.role === Role.RIDER) {
       const riderProfile = await prisma.riderProfile.findUnique({ where: { userId: user.id } });
       if (!riderProfile || order.riderId !== riderProfile.id) {
-        console.log(`[Socket] joinOrder rejected: rider ${user.id} not assigned to order ${data.orderId}`);
+        logger.warn(`joinOrder rejected: rider ${user.id} not assigned to order ${data.orderId}`);
         return;
       }
     }
 
     if (user.role === Role.STORE_OWNER && order.store.ownerId !== user.id) {
-      console.log(`[Socket] joinOrder rejected: store owner ${user.id} does not own order ${data.orderId}`);
+      logger.warn(`joinOrder rejected: store owner ${user.id} does not own order ${data.orderId}`);
       return;
     }
 
     client.join(`order_${data.orderId}`);
-    console.log(`[Socket] ${user.email} joined room: order_${data.orderId}`);
+    logger.log(`${user.email} joined room: order_${data.orderId}`);
   }
 
   @SubscribeMessage('joinAdminMonitor')
   handleJoinAdminMonitor(@ConnectedSocket() client: AuthenticatedSocket) {
     const user = client.data.user;
     if (!user || user.role !== Role.ADMIN) {
-      console.log('[Socket] joinAdminMonitor rejected: not admin');
+      logger.warn('[Socket] joinAdminMonitor rejected: not admin');
       return;
     }
     client.join('admin_monitor');
-    console.log('[Socket] Admin joined global monitor room');
+    logger.log('Admin joined global monitor room');
   }
 
   @SubscribeMessage('joinAdminOrders')
   handleJoinAdminOrders(@ConnectedSocket() client: AuthenticatedSocket) {
     const user = client.data.user;
     if (!user || user.role !== Role.ADMIN) {
-      console.log('[Socket] joinAdminOrders rejected: not admin');
+      logger.warn('[Socket] joinAdminOrders rejected: not admin');
       return;
     }
     client.join('admin_orders');
-    console.log('[Socket] Admin joined admin_orders room');
+    logger.log('Admin joined admin_orders room');
   }
 
   @SubscribeMessage('updateRiderLocation')
@@ -196,28 +199,28 @@ export class TrackingGateway implements OnGatewayConnection {
   ) {
     const user = client.data.user;
     if (!user || user.role !== Role.RIDER) {
-      console.log('[Socket] updateRiderLocation rejected: not a rider');
+      logger.warn('[Socket] updateRiderLocation rejected: not a rider');
       return;
     }
 
     const riderProfile = await prisma.riderProfile.findUnique({ where: { userId: user.id } });
     if (!riderProfile) {
-      console.log(`[Socket] updateRiderLocation rejected: no rider profile for ${user.id}`);
+      logger.warn(`updateRiderLocation rejected: no rider profile for ${user.id}`);
       return;
     }
 
     if (data.orderId) {
       const order = await prisma.order.findUnique({ where: { id: data.orderId } });
       if (!order) {
-        console.log(`[Socket] updateRiderLocation rejected: order ${data.orderId} not found`);
+        logger.warn(`updateRiderLocation rejected: order ${data.orderId} not found`);
         return;
       }
       if (order.riderId !== riderProfile.id) {
-        console.log(`[Socket] updateRiderLocation rejected: rider ${user.id} not assigned to order ${data.orderId}`);
+        logger.warn(`updateRiderLocation rejected: rider ${user.id} not assigned to order ${data.orderId}`);
         return;
       }
       if (!TRACKABLE_STATUSES.includes(order.status)) {
-        console.log(`[Socket] updateRiderLocation rejected: order ${data.orderId} status ${order.status} not trackable`);
+        logger.warn(`updateRiderLocation rejected: order ${data.orderId} status ${order.status} not trackable`);
         return;
       }
     }
@@ -236,13 +239,13 @@ export class TrackingGateway implements OnGatewayConnection {
 
   @SubscribeMessage('joinRiderZone')
   handleJoinRiderZone(@ConnectedSocket() client: AuthenticatedSocket) {
-    console.log(`[Socket] joinRiderZone rejected for ${client.data.user?.id || 'unknown'}: public queue removed`);
+    logger.warn(`joinRiderZone rejected for ${client.data.user?.id || 'unknown'}: public queue removed`);
     return LEGACY_RIDER_QUEUE_ERROR;
   }
 
   @SubscribeMessage('joinRidersQueue')
   handleJoinRidersQueue(@ConnectedSocket() client: AuthenticatedSocket) {
-    console.log(`[Socket] joinRidersQueue rejected for ${client.data.user?.id || 'unknown'}: public queue removed`);
+    logger.warn(`joinRidersQueue rejected for ${client.data.user?.id || 'unknown'}: public queue removed`);
     return LEGACY_RIDER_QUEUE_ERROR;
   }
 }
