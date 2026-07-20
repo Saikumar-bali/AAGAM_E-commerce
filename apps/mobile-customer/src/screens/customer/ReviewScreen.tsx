@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { apiClient } from '@aagam/mobile-shared';
+import { getUserSafeError, notify } from '../../ui/notify';
 
 export const ReviewScreen = () => {
   const route = useRoute<RouteProp<Record<string, { orderId: string }>, string>>();
@@ -9,27 +10,38 @@ export const ReviewScreen = () => {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [issue, setIssue] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [submittingSupport, setSubmittingSupport] = useState(false);
 
   const submitReview = async () => {
+    if (submittingReview) return;
+    setSubmittingReview(true);
     try {
-      await apiClient.post(`/orders/post-delivery/${orderId}/rating`, { orderRating: rating, storeRating: rating, riderRating: rating, comment });
-      Alert.alert('Done', 'Thank you for the review.');
-    } catch (error: any) {
-      Alert.alert('Failed', error.response?.data?.message || 'Could not submit review');
+      await apiClient.post(`/orders/post-delivery/${orderId}/rating`, { orderRating: rating, storeRating: rating, riderRating: rating, comment: comment.trim() || undefined });
+      setComment('');
+      notify.success('Review submitted', 'Thank you for sharing your experience.');
+    } catch (error) {
+      notify.error('Could not submit review', getUserSafeError(error, 'Please try again.'));
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
   const openSupport = async () => {
     if (issue.trim().length < 5) {
-      Alert.alert('Add details', 'Please describe the issue in at least 5 characters.');
+      notify.warning('Add more details', 'Describe the issue using at least 5 characters.');
       return;
     }
+    if (submittingSupport) return;
+    setSubmittingSupport(true);
     try {
-      await apiClient.post(`/orders/post-delivery/${orderId}/support`, { category: 'OTHER', message: issue, priority: 'NORMAL', requestedRefund: false });
+      await apiClient.post(`/orders/post-delivery/${orderId}/support`, { category: 'OTHER', message: issue.trim(), priority: 'NORMAL', requestedRefund: false });
       setIssue('');
-      Alert.alert('Done', 'Support ticket opened.');
-    } catch (error: any) {
-      Alert.alert('Failed', error.response?.data?.message || 'Could not open support ticket');
+      notify.success('Support ticket opened', 'The support team can now review your request.');
+    } catch (error) {
+      notify.error('Could not open support ticket', getUserSafeError(error, 'Please try again.'));
+    } finally {
+      setSubmittingSupport(false);
     }
   };
 
@@ -41,12 +53,12 @@ export const ReviewScreen = () => {
         <Text style={styles.cardTitle}>Rating</Text>
         <View style={styles.stars}>{[1, 2, 3, 4, 5].map((star) => <TouchableOpacity key={star} onPress={() => setRating(star)}><Text style={[styles.star, star <= rating && styles.starActive]}>★</Text></TouchableOpacity>)}</View>
         <TextInput style={styles.input} value={comment} onChangeText={setComment} placeholder="Comment optional" placeholderTextColor="#94A3B8" />
-        <TouchableOpacity style={styles.button} onPress={submitReview}><Text style={styles.buttonText}>Submit review</Text></TouchableOpacity>
+        <TouchableOpacity disabled={submittingReview} style={[styles.button, submittingReview && styles.disabled]} onPress={() => void submitReview()}><Text style={styles.buttonText}>{submittingReview ? 'Submitting…' : 'Submit review'}</Text></TouchableOpacity>
       </View>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Need help?</Text>
         <TextInput style={[styles.input, styles.textArea]} value={issue} onChangeText={setIssue} placeholder="Describe the issue" placeholderTextColor="#94A3B8" multiline />
-        <TouchableOpacity style={styles.supportButton} onPress={openSupport}><Text style={styles.buttonText}>Open support ticket</Text></TouchableOpacity>
+        <TouchableOpacity disabled={submittingSupport} style={[styles.supportButton, submittingSupport && styles.disabled]} onPress={() => void openSupport()}><Text style={styles.buttonText}>{submittingSupport ? 'Opening…' : 'Open support ticket'}</Text></TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -66,5 +78,6 @@ const styles = StyleSheet.create({
   textArea: { minHeight: 90, textAlignVertical: 'top' },
   button: { marginTop: 14, borderRadius: 16, backgroundColor: '#0F766E', paddingVertical: 15, alignItems: 'center' },
   supportButton: { marginTop: 14, borderRadius: 16, backgroundColor: '#0F172A', paddingVertical: 15, alignItems: 'center' },
+  disabled: { opacity: 0.55 },
   buttonText: { color: '#FFFFFF', fontWeight: '900' },
 });

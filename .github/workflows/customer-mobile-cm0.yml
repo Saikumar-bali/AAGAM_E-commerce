@@ -5,6 +5,7 @@ on:
     paths:
       - 'apps/mobile-customer/**'
       - 'packages/mobile-shared/**'
+      - 'apps/api-gateway/src/auth/customer-phone-auth.contract.spec.ts'
       - '.github/workflows/customer-mobile-cm0.yml'
   workflow_dispatch:
 
@@ -33,6 +34,10 @@ jobs:
         run: npm ci
       - name: Build API packages
         run: npm run build:api
+      - name: Run customer phone OTP and notification contracts
+        run: node --experimental-strip-types --test apps/mobile-customer/src/auth/customerPhoneOtpFlow.test.mjs apps/mobile-customer/src/ui/notifyCore.test.mjs
+      - name: Run customer phone API contracts
+        run: npm run test:ci --workspace=apps/api-gateway -- --runTestsByPath src/auth/customer-phone-auth.contract.spec.ts
       - name: Run customer commerce contracts
         run: node --experimental-strip-types --test apps/mobile-customer/src/utils/customerCommerce.test.mjs
       - name: Typecheck shared mobile package
@@ -42,3 +47,9 @@ jobs:
       - name: Android debug build
         working-directory: apps/mobile-customer/android
         run: gradle assembleDebug
+      - name: Upload customer debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: aagam-customer-debug-apk
+          path: apps/mobile-customer/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7

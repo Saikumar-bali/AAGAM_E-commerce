@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'react-native';
-import Toast from 'react-native-toast-message';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { checkForAppUpdate, startMobilePushLifecycle, useAuthStore } from '@aagam/mobile-shared';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { CustomerToast } from './src/ui/CustomerToast';
+import { notify } from './src/ui/notify';
 
 const queryClient = new QueryClient();
 
@@ -16,11 +17,10 @@ function PushLifecycle() {
     let disposed = false;
     let unsubscribe: () => void = () => undefined;
     void startMobilePushLifecycle('AAGAM Customer', (message) => {
-      Toast.show({
-        type: 'info',
-        text1: message.notification?.title || message.data?.title || 'AAGAM update',
-        text2: message.notification?.body || message.data?.body || 'Your order has an update.',
-      });
+      notify.info(
+        message.notification?.title || message.data?.title || 'AAGAM update',
+        message.notification?.body || message.data?.body || 'Your order has an update.',
+      );
     }).then((cleanup) => {
       if (disposed) cleanup();
       else unsubscribe = cleanup;
@@ -42,7 +42,7 @@ function App() {
         <StatusBar barStyle="dark-content" />
         <PushLifecycle />
         <RootNavigator />
-        <Toast />
+        <CustomerToast />
       </SafeAreaProvider>
     </QueryClientProvider>
   );
