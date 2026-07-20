@@ -276,10 +276,10 @@ export const LoginScreen = () => {
   };
 
   const phoneBusy = requesting || verifying;
-  const challengeTitle = newCustomer ? 'Create your account' : 'Verify your number';
+  const challengeTitle = newCustomer ? 'Complete your account' : 'Verify your mobile number';
   const challengeSubtitle = newCustomer
-    ? 'This is a new mobile number. Complete your profile and enter the OTP.'
-    : 'This mobile number already has an AAGAM account. Enter the OTP to sign in.';
+    ? 'Enter your details and the OTP sent to your mobile number.'
+    : 'Enter the OTP sent to your mobile number to continue.';
 
   return (
     <View style={styles.container}>
@@ -295,15 +295,15 @@ export const LoginScreen = () => {
           <View style={styles.header}>
             <View style={styles.logo}><Text style={styles.logoText}>A</Text></View>
             <Text style={styles.title}>AAGAM</Text>
-            <Text style={styles.subtitle}>Fast, secure Customer access</Text>
+            <Text style={styles.subtitle}>Fast, secure access</Text>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>{masked ? challengeTitle : 'Customer access'}</Text>
+            <Text style={styles.cardTitle}>{masked ? challengeTitle : 'Sign in to AAGAM'}</Text>
             <Text style={styles.cardSubtitle}>
               {masked
                 ? challengeSubtitle
-                : 'Use one mobile number for both first-time signup and returning login.'}
+                : 'Enter your mobile number to continue securely.'}
             </Text>
 
             {!masked ? (
@@ -335,7 +335,7 @@ export const LoginScreen = () => {
                   <View style={styles.infoPanel}>
                     <ShieldCheck size={18} color="#0F766E" />
                     <Text style={styles.infoText}>
-                      New customers receive a signup OTP automatically. Existing customers receive a login OTP.
+                      We'll send a secure OTP to verify your mobile number.
                     </Text>
                   </View>
                   <View style={styles.inputWrapper}>
@@ -367,18 +367,13 @@ export const LoginScreen = () => {
                 </>
               ) : (
                 <>
-                  <View style={[styles.customerBadge, newCustomer ? styles.newBadge : styles.existingBadge]}>
-                    <Text style={styles.customerBadgeText}>
-                      {newCustomer ? 'NEW CUSTOMER' : 'EXISTING CUSTOMER'}
-                    </Text>
-                  </View>
                   <Text style={styles.sent}>Code sent to {masked}</Text>
 
                   {newCustomer ? (
                     <View style={styles.profilePanel}>
                       <Text style={styles.profileTitle}>Complete your profile</Text>
                       <Text style={styles.profileHelp}>
-                        Full name is required. Email is optional.
+                        Enter your full name. Email is optional.
                       </Text>
                       <View style={styles.profileInputRow}>
                         <User size={18} color="#0F766E" />
@@ -411,7 +406,7 @@ export const LoginScreen = () => {
                     </View>
                   ) : null}
 
-                  <Text style={styles.otpLabel}>Enter six-digit OTP</Text>
+                  <Text style={styles.otpLabel}>Enter the 6-digit OTP</Text>
                   <TouchableOpacity
                     style={styles.otpRow}
                     onPress={() => otpInputRef.current?.focus()}
@@ -629,15 +624,6 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.55 },
   primaryText: { color: '#fff', fontSize: 16, fontWeight: '900' },
-  customerBadge: {
-    alignSelf: 'center',
-    borderRadius: 999,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-  },
-  newBadge: { backgroundColor: '#CCFBF1' },
-  existingBadge: { backgroundColor: '#DBEAFE' },
-  customerBadgeText: { color: '#134E4A', fontSize: 10, fontWeight: '900', letterSpacing: 0.7 },
   sent: { textAlign: 'center', color: '#475569', fontWeight: '800' },
   profilePanel: {
     gap: 9,
