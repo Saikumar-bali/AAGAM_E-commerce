@@ -1,6 +1,7 @@
+import path from 'path';
 import { defineConfig, devices } from '@playwright/test';
 
-const AUTH_FILE = './.auth/customer.json';
+const AUTH_FILE = path.resolve(__dirname, '.auth/customer.json');
 const workers = Number.parseInt(process.env.PLAYWRIGHT_WORKERS || '4', 10);
 
 export default defineConfig({
