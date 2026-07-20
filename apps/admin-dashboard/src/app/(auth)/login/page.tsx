@@ -7,6 +7,7 @@ import Script from 'next/script';
 import { apiClient } from '@aagam/utils';
 import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles } from 'lucide-react';
 import AagamLogo from '@/components/AagamLogo';
+import { normalizePromotionPlacements, type PublicPromotionCampaign } from '@/lib/promotion-placements';
 
 const DEFAULT_GOOGLE_WEB_CLIENT_ID = '416380795567-5de3kea0pbb9ibke91rl5pre0sdu82vo.apps.googleusercontent.com';
 
@@ -44,7 +45,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [loginCampaign, setLoginCampaign] = useState<any>(null);
+  const [loginCampaign, setLoginCampaign] = useState<PublicPromotionCampaign | null>(null);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID;
 
   const routeUser = (user: any) => {
@@ -63,10 +64,13 @@ export default function LoginPage() {
   useEffect(() => {
     apiClient.get('/public/promotions/active', { params: { placement: 'LOGIN_SIDEBAR' } })
       .then((response) => {
-        const campaigns = response.data?.LOGIN_SIDEBAR || response.data?.loginSidebar || [];
-        setLoginCampaign(Array.isArray(campaigns) ? campaigns[0] || null : null);
+        const placements = normalizePromotionPlacements(response.data);
+        setLoginCampaign(placements.LOGIN_SIDEBAR[0] || null);
       })
-      .catch(() => setLoginCampaign(null));
+      .catch((requestError) => {
+        console.error('Failed to load the login sidebar promotion', requestError);
+        setLoginCampaign(null);
+      });
   }, []);
 
   useEffect(() => {
