@@ -1,9 +1,9 @@
-name: Temporary Public Promotions Store Inventory Verification
+name: Temporary Public Promotions Store Inventory Finalizer
 
 on:
-  push:
+  pull_request:
     branches:
-      - "tmp/public-promotions-store-inventory-work"
+      - main
 
 permissions:
   contents: write
@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   verify-and-publish:
+    if: github.head_ref == 'tmp/public-promotions-store-inventory-work'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     services:
@@ -40,6 +41,7 @@ jobs:
     env:
       BASE_SHA: 8cd5964052a0a190c1d0aea03e35fe9c630f5d77
       FINAL_BRANCH: fix/public-promotions-store-inventory
+      EXPECTED_FINAL_HEAD: f7fdb2d863322772e60a47bee7971f95ae31b319
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_ecom_test
       REDIS_URL: redis://localhost:6379
       NODE_ENV: test
@@ -184,6 +186,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          current_final_head="$(git ls-remote origin "refs/heads/${FINAL_BRANCH}" | cut -f1)"
+          test "$current_final_head" = "$EXPECTED_FINAL_HEAD"
+
           worktree="$(mktemp -d)"
           git worktree add --detach "$worktree" "$BASE_SHA"
           git -C "$worktree" switch -C "$FINAL_BRANCH" "$BASE_SHA"
@@ -236,7 +241,7 @@ jobs:
           test "$(git -C "$worktree" rev-list --count "$BASE_SHA..HEAD")" = "1"
 
           git -C "$worktree" push \
-            --force-with-lease="refs/heads/${FINAL_BRANCH}:${BASE_SHA}" \
+            --force-with-lease="refs/heads/${FINAL_BRANCH}:${EXPECTED_FINAL_HEAD}" \
             origin "HEAD:refs/heads/${FINAL_BRANCH}"
 
           printf '%s\n' "$final_sha" | tee /tmp/final-commit-sha.txt
@@ -257,3 +262,7 @@ jobs:
             /tmp/final-commit-sha.txt
           if-no-files-found: error
           retention-days: 14
+
+      - name: Delete temporary validation branch
+        shell: bash
+        run: git push origin --delete tmp/public-promotions-store-inventory-work
