@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
@@ -10,13 +10,24 @@ import { CustomerNavigator } from './CustomerNavigator';
 const Stack = createNativeStackNavigator();
 
 export const RootNavigator = () => {
-  const { user, isLoading, initialize } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
+  const initialize = useAuthStore((state) => state.initialize);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
-    initialize();
+    let mounted = true;
+    void initialize().finally(() => {
+      if (mounted) setIsInitializing(false);
+    });
+    return () => {
+      mounted = false;
+    };
   }, [initialize]);
 
-  if (isLoading) {
+  // Only secure-session restoration may replace the navigator with a splash.
+  // OTP/login request loading is owned by each screen so its local form state
+  // remains mounted while an authentication request is in flight.
+  if (isInitializing) {
     return (
       <View style={styles.loadingPage}>
         <View style={styles.loadingMark}><Text style={styles.loadingLogo}>A</Text></View>
