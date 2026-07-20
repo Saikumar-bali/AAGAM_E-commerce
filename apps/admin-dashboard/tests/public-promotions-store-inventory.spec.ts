@@ -109,7 +109,7 @@ test.describe.serial('Public promotions and store inventory regression coverage'
         ctaLabel: 'Shop now',
         targetType: 'DEALS',
         status: 'ACTIVE',
-        priority: 1001,
+        priority: 999,
         placements: ['LANDING_HERO'],
       });
       await createCampaign({
@@ -121,7 +121,7 @@ test.describe.serial('Public promotions and store inventory regression coverage'
         targetType: 'INTERNAL_PATH',
         targetPath: bannerTarget,
         status: 'ACTIVE',
-        priority: 1002,
+        priority: 998,
         placements: ['LANDING_BANNER'],
       });
 
