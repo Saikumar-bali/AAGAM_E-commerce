@@ -86,12 +86,19 @@ jobs:
       - name: Build Admin
         id: build_admin
         continue-on-error: true
-        run: npm run build:admin
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p docs/qa/public-promotions-store-inventory
+          npm run build:admin 2>&1 | tee docs/qa/public-promotions-store-inventory/build-admin.log
 
       - name: API CI
         id: ci_api
         continue-on-error: true
-        run: npm run ci:api
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run ci:api 2>&1 | tee docs/qa/public-promotions-store-inventory/ci-api.log
 
       - name: Build and start API
         run: |
@@ -116,10 +123,13 @@ jobs:
       - name: Focused Playwright
         id: playwright
         continue-on-error: true
-        run: >-
-          npx playwright test
-          --config apps/admin-dashboard/playwright.config.ts
-          apps/admin-dashboard/tests/public-promotions-store-inventory.spec.ts
+        shell: bash
+        run: |
+          set -o pipefail
+          npx playwright test \
+            --config apps/admin-dashboard/playwright.config.ts \
+            apps/admin-dashboard/tests/public-promotions-store-inventory.spec.ts \
+            2>&1 | tee docs/qa/public-promotions-store-inventory/playwright.log
 
       - name: Record command outcomes
         if: always()
@@ -133,7 +143,7 @@ jobs:
             echo "focused Playwright: ${{ steps.playwright.outcome }}"
           } >> docs/qa/public-promotions-store-inventory/test-results.txt
 
-      - name: Upload proof
+      - name: Upload proof and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -145,6 +155,6 @@ jobs:
       - name: Enforce verification result
         if: always()
         run: |
-          test "${{ steps.build_admin.outcome }}" = "success"
-          test "${{ steps.ci_api.outcome }}" = "success"
-          test "${{ steps.playwright.outcome }}" = "success"
+          [[ "${{ steps.build_admin.outcome }}" == "success" ]]
+          [[ "${{ steps.ci_api.outcome }}" == "success" ]]
+          [[ "${{ steps.playwright.outcome }}" == "success" ]]
