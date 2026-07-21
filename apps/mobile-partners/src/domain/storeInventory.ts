@@ -11,9 +11,15 @@ export const normalizeWholeQuantity = (value: string | number) => {
 
 export const normalizeOptionalPrice = (value: string | number | null | undefined) => {
   if (value === '' || value === null || value === undefined) return null;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return Math.round((parsed + Number.EPSILON) * 100) / 100;
+  const normalized = String(value).trim();
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null;
+
+  const [wholePart, fractionPart = ''] = normalized.split('.');
+  const fraction = `${fractionPart}000`;
+  let paise = Number(wholePart) * 100 + Number(fraction.slice(0, 2));
+  if (Number(fraction[2]) >= 5) paise += 1;
+
+  return paise / 100;
 };
 
 export const availableForSale = (item: {
