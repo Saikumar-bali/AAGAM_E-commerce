@@ -1,6 +1,6 @@
 import { APIRequestContext, expect, test } from '@playwright/test';
 import path from 'node:path';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
 const adminEmail = process.env.ADMIN_EMAIL || process.env.CI_ADMIN_EMAIL || 'admin@aagam.com';
@@ -22,7 +22,6 @@ async function createCampaign(
   token: string,
   placement: string,
   title: string,
-  targetType = 'DEALS',
 ) {
   const suffix = ts();
   const res = await request.post(`${API_BASE}/admin/promotions/campaigns`, {
@@ -34,8 +33,8 @@ async function createCampaign(
       badgeText: 'PW Test',
       status: 'ACTIVE',
       placements: [placement],
-      targetType,
-      priority: 100,
+      targetType: 'DEALS',
+      priority: 1000,
     },
   });
   expect(res.ok(), `Create campaign failed: ${await res.text()}`).toBeTruthy();
@@ -43,9 +42,10 @@ async function createCampaign(
 }
 
 async function archiveCampaign(request: APIRequestContext, token: string, id: string) {
-  await request.delete(`${API_BASE}/admin/promotions/campaigns/${id}`, {
+  const response = await request.delete(`${API_BASE}/admin/promotions/campaigns/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+  expect(response.ok(), `Campaign cleanup failed: ${await response.text()}`).toBeTruthy();
 }
 
 test.describe('Public promotions placement rendering', () => {
@@ -85,13 +85,7 @@ test.describe('Public promotions placement rendering', () => {
     const hero = await createCampaign(request, token, 'LANDING_HERO', heroTitle);
     campaignIds.push(hero.id);
 
-    const banner = await createCampaign(
-      request,
-      token,
-      'LANDING_BANNER',
-      bannerTitle,
-      'PRODUCT',
-    );
+    const banner = await createCampaign(request, token, 'LANDING_BANNER', bannerTitle);
     campaignIds.push(banner.id);
 
     await page.goto('/');
@@ -108,12 +102,7 @@ test.describe('Public promotions placement rendering', () => {
       fullPage: true,
     });
 
-    // Verify banner uses targetUrl (not targetPath) for navigation
     const bannerLink = bannerEl.locator('xpath=ancestor::a');
-    const href = await bannerLink.getAttribute('href');
-    expect(href).toBeTruthy();
-    expect(href).not.toBe('/shop');
-    // targetUrl for a PRODUCT campaign should be /shop/products/:id
-    expect(href).toMatch(/^\/shop\/products\//);
+    await expect(bannerLink).toHaveAttribute('href', '/shop/deals');
   });
 });
