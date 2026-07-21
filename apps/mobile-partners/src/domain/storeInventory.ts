@@ -13,7 +13,7 @@ export const normalizeOptionalPrice = (value: string | number | null | undefined
   if (value === '' || value === null || value === undefined) return null;
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return Math.round(parsed * 100) / 100;
+  return Math.round((parsed + Number.EPSILON) * 100) / 100;
 };
 
 export const availableForSale = (item: {
