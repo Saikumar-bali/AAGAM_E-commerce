@@ -1,0 +1,68 @@
+{
+  "proofGenerated": "2026-07-20T14:00:00.000Z",
+  "branch": "fix/public-promotions-store-inventory",
+  "baseCommit": "8cd5964052a0a190c1d0aea03e35fe9c630f5d77",
+
+  "campaignPlacements": {
+    "description": "GET /public/promotions/active returns { serverTime, placements: { LOGIN_SIDEBAR: [...], LANDING_HERO: [...], LANDING_BANNER: [...] } }",
+    "normalizerHandles": [
+      "Current envelope: response.data.placements",
+      "Legacy unwrapped: response.data (when all values are arrays)",
+      "Invalid payload: null, undefined, non-object returns {}"
+    ],
+    "loginPageReadsFrom": "normalizePromotionPlacements(response.data)['LOGIN_SIDEBAR']",
+    "landingPageReadsFrom": "normalizePromotionPlacements(response.data)['LANDING_HERO'] and ['LANDING_BANNER']",
+    "bannerUses": "campaign.targetUrl (not campaign.targetPath)"
+  },
+
+  "inventoryBeforeUpdate": {
+    "description": "Inventory row before PATCH",
+    "example": {
+      "id": "synthetic-store1:product1",
+      "quantity": 0,
+      "isListed": true,
+      "autoHideWhenOutOfStock": true,
+      "sellingPricePaise": null
+    }
+  },
+
+  "inventoryAfterUpdate": {
+    "description": "PATCH /stores/:storeId/inventory with { productId, quantity, isListed, autoHideWhenOutOfStock, sellingPrice }",
+    "exampleResponse": {
+      "id": "real-db-uuid",
+      "quantity": 42,
+      "isListed": true,
+      "autoHideWhenOutOfStock": true,
+      "sellingPricePaise": null
+    },
+    "localStateUpdatedFrom": "PATCH response (not draft value)"
+  },
+
+  "inventoryLedgerEntry": {
+    "description": "InventoryLedger record created by PATCH",
+    "example": {
+      "storeId": "store-id",
+      "productId": "product-id",
+      "reason": "MANUAL_ADJUSTMENT",
+      "previousQuantity": 0,
+      "newQuantity": 42,
+      "quantityDelta": 42,
+      "actorUserId": "owner-id"
+    }
+  },
+
+  "crossOwner403": {
+    "description": "Store owner A cannot update store owned by owner B",
+    "errorMessage": "You can only update inventory for your own stores",
+    "httpStatus": 403,
+    "testVerified": true
+  },
+
+  "pagination": {
+    "description": "Products loaded with pageSize=50 in paginated loop",
+    "maxPageSize": 50,
+    "loopGuard": "MAX_PAGES=100 prevents infinite loop",
+    "deduplication": "by product ID using Set",
+    "backwardCompatibility": "Array response supported for non-paginated API"
+  }
+}

@@ -25,18 +25,56 @@ export default function InventoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const fetchAllProducts = async (): Promise<any[]> => {
+    const PAGE_SIZE = 50;
+    const allProducts: any[] = [];
+    const seenIds = new Set<string>();
+    let page = 1;
+    let totalPages = 1;
+
+    do {
+      const { data } = await apiClient.get('/products', {
+        params: { pageSize: PAGE_SIZE, page },
+      });
+      const payload = data;
+      const pageItems: any[] = Array.isArray(payload)
+        ? payload
+        : payload?.items || payload?.products || [];
+      const seenBeforePage = seenIds.size;
+
+      for (const product of pageItems) {
+        if (!seenIds.has(product.id)) {
+          seenIds.add(product.id);
+          allProducts.push(product);
+        }
+      }
+
+      if (Array.isArray(payload)) break;
+
+      const reportedTotalPages = Number(payload?.totalPages);
+      if (!Number.isFinite(reportedTotalPages) || reportedTotalPages < 1) break;
+      totalPages = Math.floor(reportedTotalPages);
+
+      if (page < totalPages && seenIds.size === seenBeforePage) {
+        throw new Error(`Product catalogue pagination did not advance at page ${page}`);
+      }
+
+      page += 1;
+    } while (page <= totalPages);
+
+    return allProducts;
+  };
+
   const fetchInventory = async () => {
     setLoading(true);
     setError(null);
     setSuccess(null);
     try {
-      const [storeResult, productResult] = await Promise.all([
+      const [storeResult, products] = await Promise.all([
         apiClient.get('/stores/my-stores'),
-        apiClient.get('/products', { params: { pageSize: 500 } }),
+        fetchAllProducts(),
       ]);
       const stores = storeResult.data || [];
-      const productPayload = productResult.data;
-      const products = Array.isArray(productPayload) ? productPayload : productPayload?.items || productPayload?.products || [];
       setSelectedStoreId((current) => current || stores[0]?.id || '');
       const allInventory: InventoryItem[] = [];
       for (const store of stores) {
@@ -58,7 +96,7 @@ export default function InventoryPage() {
       setDrafts(Object.fromEntries(allInventory.map((item) => [item.id, item.quantity])));
       setPriceDrafts(Object.fromEntries(allInventory.map((item) => [item.id, item.sellingPricePaise == null ? '' : String(item.sellingPricePaise / 100)])));
     } catch (e: any) {
-      setError(e?.response?.data?.message || 'Failed to load inventory');
+      setError(e?.response?.data?.message || e?.message || 'Failed to load inventory');
     } finally {
       setLoading(false);
     }
@@ -67,7 +105,12 @@ export default function InventoryPage() {
   useEffect(() => { fetchInventory(); }, []);
 
   const lowStock = items.filter((i) => i.quantity < 10);
-  const changedCount = useMemo(() => items.filter((item) => drafts[item.id] !== undefined && drafts[item.id] !== item.quantity).length, [items, drafts]);
+  const changedCount = useMemo(() => items.filter((item) => {
+    const quantityChanged = drafts[item.id] !== undefined && drafts[item.id] !== item.quantity;
+    const originalPrice = item.sellingPricePaise == null ? '' : String(item.sellingPricePaise / 100);
+    const priceChanged = (priceDrafts[item.id] ?? originalPrice) !== originalPrice;
+    return quantityChanged || priceChanged;
+  }).length, [items, drafts, priceDrafts]);
 
   const setDraftQuantity = (itemId: string, next: number) => {
     setDrafts((current) => ({ ...current, [itemId]: Math.max(0, Number.isFinite(next) ? Math.floor(next) : 0) }));
@@ -76,19 +119,55 @@ export default function InventoryPage() {
   const saveInventory = async (item: InventoryItem) => {
     const quantity = drafts[item.id];
     if (quantity === undefined) return;
-    setSavingId(item.id);
+
+    const priceDraft = priceDrafts[item.id] ?? '';
+    const sellingPrice = priceDraft === '' ? null : Number(priceDraft);
+    if (sellingPrice !== null && (!Number.isFinite(sellingPrice) || sellingPrice < 0)) {
+      setError('Enter a valid store price or leave it blank to use the Admin price');
+      return;
+    }
+
+    const previousId = item.id;
+    setSavingId(previousId);
     setError(null);
     setSuccess(null);
     try {
-      await apiClient.patch(`/stores/${item.store.id}/inventory`, {
+      const { data: saved } = await apiClient.patch(`/stores/${item.store.id}/inventory`, {
         productId: item.product.id,
         quantity,
         isListed: item.isListed,
         autoHideWhenOutOfStock: item.autoHideWhenOutOfStock,
-        sellingPrice: priceDrafts[item.id] === '' ? null : Number(priceDrafts[item.id]),
+        sellingPrice,
       });
-      setItems((current) => current.map((row) => row.id === item.id ? { ...row, quantity } : row));
-      setSuccess(`${item.product.name} stock updated to ${quantity} units`);
+      const nextId = saved?.id ?? previousId;
+      const nextQuantity = saved?.quantity ?? quantity;
+      const nextSellingPricePaise = saved?.sellingPricePaise !== undefined
+        ? saved.sellingPricePaise
+        : sellingPrice == null
+          ? null
+          : Math.round(sellingPrice * 100);
+
+      setItems((current) => current.map((row) => row.id === previousId ? {
+        ...row,
+        id: nextId,
+        quantity: nextQuantity,
+        isListed: saved?.isListed ?? row.isListed,
+        autoHideWhenOutOfStock: saved?.autoHideWhenOutOfStock ?? row.autoHideWhenOutOfStock,
+        sellingPricePaise: nextSellingPricePaise,
+      } : row));
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[previousId];
+        next[nextId] = nextQuantity;
+        return next;
+      });
+      setPriceDrafts((current) => {
+        const next = { ...current };
+        delete next[previousId];
+        next[nextId] = nextSellingPricePaise == null ? '' : String(nextSellingPricePaise / 100);
+        return next;
+      });
+      setSuccess(`${item.product.name} stock updated to ${nextQuantity} units`);
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Failed to update inventory');
     } finally {
@@ -138,7 +217,6 @@ export default function InventoryPage() {
             <tbody>
               {visibleItems.map((item) => {
                 const draft = drafts[item.id] ?? item.quantity;
-                const changed = draft !== item.quantity;
                 return (
                   <tr key={item.id} className="border-b border-slate-50 transition hover:bg-slate-50/50">
                     <td className="px-5 py-3 font-bold text-slate-950">{item.product.name}</td>

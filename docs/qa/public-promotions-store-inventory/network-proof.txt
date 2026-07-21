@@ -1,0 +1,142 @@
+============================================================
+NETWORK PROOF - Public Promotions & Store Inventory Fix
+============================================================
+
+1. PUBLIC PROMOTIONS RESPONSE
+============================================================
+
+GET /public/promotions/active?placement=LOGIN_SIDEBAR
+
+Response body (200 OK):
+{
+  "serverTime": "2026-07-20T12:00:00.000Z",
+  "placements": {
+    "HOME_HERO": [],
+    "HOME_TODAY_OFFERS": [],
+    "DEALS_PAGE": [],
+    "LANDING_HERO": [],
+    "LANDING_BANNER": [],
+    "LOGIN_SIDEBAR": [
+      {
+        "id": "campaign-uuid",
+        "title": "Login Campaign Title",
+        "subtitle": "Subtitle text",
+        "badgeText": "PW Test",
+        "imageUrl": null,
+        "targetType": "DEALS",
+        "targetUrl": "/shop/deals",
+        "placements": ["LOGIN_SIDEBAR"],
+        "coupon": null
+      }
+    ]
+  }
+}
+
+Frontend reads: normalizePromotionPlacements(response.data)['LOGIN_SIDEBAR']
+FIX: Previously read response.data['LOGIN_SIDEBAR'] (undefined)
+
+
+GET /public/promotions/active
+
+Response body (200 OK):
+{
+  "serverTime": "2026-07-20T12:00:00.000Z",
+  "placements": {
+    "LANDING_HERO": [
+      {
+        "id": "hero-campaign-uuid",
+        "title": "Hero Title",
+        "targetUrl": "/shop/deals",
+        ...
+      }
+    ],
+    "LANDING_BANNER": [
+      {
+        "id": "banner-campaign-uuid",
+        "title": "Banner Title",
+        "targetUrl": "/shop/products/product-uuid",
+        ...
+      }
+    ],
+    ...
+  }
+}
+
+Frontend reads: normalizePromotionPlacements(response.data)['LANDING_HERO']
+FIX: Previously read response.data['LANDING_HERO'] (undefined)
+
+Banner link uses: campaign.targetUrl
+FIX: Previously used campaign.targetPath (undefined)
+
+
+2. PRODUCT REQUESTS USE pageSize <= 50
+============================================================
+
+GET /products?pageSize=50&page=1
+
+Response body (200 OK):
+{
+  "items": [... 50 products ...],
+  "page": 1,
+  "pageSize": 50,
+  "total": 70,
+  "totalPages": 2
+}
+
+GET /products?pageSize=50&page=2
+
+Response body (200 OK):
+{
+  "items": [... 20 products ...],
+  "page": 2,
+  "pageSize": 50,
+  "total": 70,
+  "totalPages": 2
+}
+
+FIX: Previously sent pageSize=500 which exceeds @Max(50) validation,
+causing 400 Bad Request and rejecting the entire Promise.all.
+
+Pagination loop:
+  - Starts at page 1, pageSize 50
+  - Continues until page >= totalPages
+  - MAX_PAGES=100 guard prevents infinite loop
+  - Deduplicates by product ID
+
+
+3. INVENTORY PATCH REQUEST AND RESPONSE
+============================================================
+
+PATCH /stores/:storeId/inventory
+
+Request body:
+{
+  "productId": "product-uuid",
+  "quantity": 42,
+  "isListed": true,
+  "autoHideWhenOutOfStock": true,
+  "sellingPrice": null
+}
+
+Response body (200 OK):
+{
+  "id": "inventory-record-uuid",
+  "storeId": "store-uuid",
+  "productId": "product-uuid",
+  "quantity": 42,
+  "isListed": true,
+  "autoHideWhenOutOfStock": true,
+  "sellingPricePaise": null,
+  "createdAt": "2026-07-20T12:00:00.000Z",
+  "updatedAt": "2026-07-20T12:00:00.000Z"
+}
+
+FIX: Frontend now updates local state from PATCH response:
+  - id: receives real DB ID (was synthetic "storeId:productId")
+  - quantity: from response (was from draft)
+  - isListed, autoHideWhenOutOfStock, sellingPricePaise: from response
+
+Side effects (server-side):
+  - InventoryLedger entry created with reason MANUAL_ADJUSTMENT
+  - quantityDelta, previousQuantity, newQuantity recorded
+  - actorUserId recorded
