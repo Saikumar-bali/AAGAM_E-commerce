@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Image as ImageIcon, Eye, EyeOff, Edit, Trash2 } from 'lucide-react';
+import { GripVertical, Image as ImageIcon, Eye, EyeOff, Edit, Trash2, Store } from 'lucide-react';
 
 type Category = { id: string; name: string };
 type Product = {
@@ -52,9 +52,6 @@ function SortableProduct({
   onEdit,
   onDelete,
   stock,
-  onStockChange,
-  onSaveStock,
-  savingStock,
   selectedStoreId,
 }: {
   product: Product;
@@ -62,9 +59,6 @@ function SortableProduct({
   onEdit: (product: Product) => void;
   onDelete: (product: Product) => void;
   stock: string;
-  onStockChange: (productId: string, value: string) => void;
-  onSaveStock: (productId: string) => void;
-  savingStock: boolean;
   selectedStoreId: string;
 }) {
   const {
@@ -84,7 +78,8 @@ function SortableProduct({
   };
 
   const inactive = product.isActive === false;
-  const unavailable = Number(stock || 0) <= 0;
+  const quantity = Number(stock || 0);
+  const unavailable = quantity <= 0;
 
   return (
     <tr
@@ -95,7 +90,8 @@ function SortableProduct({
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
           <button
-            className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+            aria-label={`Reorder ${product.name}`}
+            className="cursor-grab text-gray-400 hover:text-gray-600 active:cursor-grabbing"
             {...attributes}
             {...listeners}
           >
@@ -111,7 +107,7 @@ function SortableProduct({
           <div>
             <p className="text-sm font-black text-gray-950">{product.name}</p>
             <p className="max-w-xs truncate text-xs font-semibold text-gray-500">
-              {inactive ? 'Hidden from customers' : product.description || 'No description'}
+              {inactive ? 'Globally hidden from customers' : product.description || 'No description'}
             </p>
           </div>
         </div>
@@ -125,21 +121,14 @@ function SortableProduct({
         ₹{Number(product.price || 0).toFixed(2)}
       </td>
       <td className="px-6 py-4">
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min={0}
-            value={stock}
-            onChange={(e) => onStockChange(product.id, e.target.value)}
-            className="w-20 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-emerald-500"
-          />
-          <button
-            onClick={() => onSaveStock(product.id)}
-            disabled={!selectedStoreId || savingStock}
-            className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50"
-          >
-            Save
-          </button>
+        <div data-testid={`admin-stock-overview-${product.id}`}>
+          <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <Store className="h-4 w-4 text-slate-400" />
+            <span className="text-sm font-black text-slate-800">
+              {selectedStoreId ? `${quantity} units` : 'Select store'}
+            </span>
+          </div>
+          <p className="mt-1 text-[10px] font-bold text-slate-400">Managed by the Store Owner</p>
         </div>
       </td>
       <td className="px-6 py-4">
@@ -148,11 +137,11 @@ function SortableProduct({
             inactive
               ? 'bg-amber-100 text-amber-800'
               : unavailable
-              ? 'bg-red-50 text-red-700'
-              : 'bg-emerald-50 text-emerald-700'
+                ? 'bg-red-50 text-red-700'
+                : 'bg-emerald-50 text-emerald-700'
           }`}
         >
-          {inactive ? 'Inactive / hidden' : unavailable ? 'Out of stock' : 'Active'}
+          {inactive ? 'Catalogue inactive' : unavailable ? 'Store unavailable' : 'Store available'}
         </span>
       </td>
       <td className="px-6 py-4 text-right">
@@ -160,19 +149,21 @@ function SortableProduct({
           <button
             onClick={() => onToggleVisibility(product)}
             className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-            title={inactive ? 'Show to customers' : 'Hide from customers'}
+            title={inactive ? 'Activate catalogue product' : 'Deactivate catalogue product'}
           >
             {inactive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
           <button
             onClick={() => onEdit(product)}
             className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            title="Edit catalogue product"
           >
             <Edit className="h-4 w-4" />
           </button>
           <button
             onClick={() => onDelete(product)}
             className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"
+            title="Delete catalogue product"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -189,9 +180,6 @@ export default function SortableProducts({
   onEdit,
   onDelete,
   stockDrafts,
-  onStockChange,
-  onSaveStock,
-  savingStock,
   selectedStoreId,
 }: SortableProductsProps) {
   const sensors = useSensors(
@@ -202,35 +190,26 @@ export default function SortableProducts({
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (active.id !== over?.id) {
-      const oldIndex = products.findIndex((p) => p.id === active.id);
-      const newIndex = products.findIndex((p) => p.id === over?.id);
-
-      const reordered = arrayMove(products, oldIndex, newIndex).map((prod, index) => ({
-        ...prod,
+      const oldIndex = products.findIndex((product) => product.id === active.id);
+      const newIndex = products.findIndex((product) => product.id === over?.id);
+      const reordered = arrayMove(products, oldIndex, newIndex).map((product, index) => ({
+        ...product,
         sortOrder: index + 1,
       }));
-
       onReorder(reordered);
     }
   };
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext
-        items={products.map((p) => p.id)}
-        strategy={verticalListSortingStrategy}
-      >
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={products.map((product) => product.id)} strategy={verticalListSortingStrategy}>
         <tbody className="divide-y divide-gray-50">
           {products.map((product) => (
             <SortableProduct
@@ -240,9 +219,6 @@ export default function SortableProducts({
               onEdit={onEdit}
               onDelete={onDelete}
               stock={stockDrafts[product.id] ?? '0'}
-              onStockChange={onStockChange}
-              onSaveStock={onSaveStock}
-              savingStock={savingStock[product.id] ?? false}
               selectedStoreId={selectedStoreId}
             />
           ))}
