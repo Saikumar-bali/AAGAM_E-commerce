@@ -1,8 +1,9 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { ClipboardCheck, LayoutGrid, Settings, ShoppingBag } from 'lucide-react-native';
+import { ClipboardCheck, LayoutGrid, Package, Settings, ShoppingBag } from 'lucide-react-native';
 import { StoreDashboard } from '../screens/store/StoreDashboard';
 import { StoreDeliveryOperationsScreen } from '../screens/store/StoreDeliveryOperationsScreen';
+import { StoreInventoryScreen } from '../screens/store/StoreInventoryScreen';
 import { StoreOrdersScreen } from '../screens/store/StoreOrdersScreen';
 import { StoreSettingsScreen } from '../screens/store/StoreSettingsScreen';
 
@@ -15,11 +16,12 @@ export const StoreNavigator = () => {
         tabBarActiveTintColor: '#0F172A',
         tabBarInactiveTintColor: '#A8A29E',
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           position: 'absolute',
-          left: 18,
-          right: 18,
-          bottom: 16,
+          left: 12,
+          right: 12,
+          bottom: 12,
           height: 74,
           paddingBottom: 14,
           paddingTop: 8,
@@ -32,11 +34,13 @@ export const StoreNavigator = () => {
           shadowOpacity: 0.14,
           shadowRadius: 24,
         },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '900' },
+        tabBarItemStyle: { minWidth: 0 },
+        tabBarLabelStyle: { fontSize: 9, fontWeight: '900' },
       }}
     >
       <Tab.Screen name="Dashboard" component={StoreDashboard} options={{ tabBarIcon: ({ color, size }) => <LayoutGrid size={size} color={color} /> }} />
       <Tab.Screen name="Orders" component={StoreOrdersScreen} options={{ tabBarIcon: ({ color, size }) => <ShoppingBag size={size} color={color} /> }} />
+      <Tab.Screen name="Inventory" component={StoreInventoryScreen} options={{ tabBarIcon: ({ color, size }) => <Package size={size} color={color} /> }} />
       <Tab.Screen name="Operations" component={StoreDeliveryOperationsScreen} options={{ tabBarIcon: ({ color, size }) => <ClipboardCheck size={size} color={color} /> }} />
       <Tab.Screen name="Settings" component={StoreSettingsScreen} options={{ tabBarIcon: ({ color, size }) => <Settings size={size} color={color} /> }} />
     </Tab.Navigator>

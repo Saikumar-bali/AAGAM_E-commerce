@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Param, Patch, Delete, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { StoreService } from './store.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -6,6 +6,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@aagam/database';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
+import { AddStoreProductDto } from './dto/add-store-product.dto';
+import { StoreCatalogQueryDto } from './dto/store-catalog-query.dto';
 
 @Controller('stores')
 export class StoreController {
@@ -55,6 +57,35 @@ export class StoreController {
   @Roles(Role.STORE_OWNER)
   async findMyStores(@Req() req: any) {
     return this.storeService.findByOwnerId(req.user.id);
+  }
+
+  @Get(':id/assortment')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.STORE_OWNER, Role.ADMIN)
+  async getStoreAssortment(@Param('id') storeId: string, @Req() req: any) {
+    return this.storeService.getStoreAssortment(storeId, req.user);
+  }
+
+  @Get(':id/catalog')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.STORE_OWNER, Role.ADMIN)
+  async getAvailableCatalogue(
+    @Param('id') storeId: string,
+    @Query() query: StoreCatalogQueryDto,
+    @Req() req: any,
+  ) {
+    return this.storeService.getAvailableCatalogue(storeId, req.user, query);
+  }
+
+  @Post(':id/assortment')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.STORE_OWNER)
+  async addStoreProduct(
+    @Param('id') storeId: string,
+    @Body() data: AddStoreProductDto,
+    @Req() req: any,
+  ) {
+    return this.storeService.addStoreProduct(storeId, data, req.user);
   }
 
   @Get(':id/orders')
