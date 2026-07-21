@@ -371,14 +371,12 @@ export class StoreService {
         data: {
           storeId,
           productId,
-          reason: existing ? 'MANUAL_ADJUSTMENT' : 'OPENING_STOCK',
+          reason: 'MANUAL_ADJUSTMENT',
           quantityDelta: quantity - previousQuantity,
           previousQuantity,
           newQuantity: quantity,
           actorUserId: actor?.id ?? null,
-          note: existing
-            ? `Manual adjustment: ${previousQuantity} -> ${quantity}`
-            : `Product added to store assortment with ${quantity} opening units`,
+          note: `Manual adjustment: ${previousQuantity} -> ${quantity}`,
         },
       });
 
