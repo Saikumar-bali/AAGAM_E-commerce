@@ -27,11 +27,12 @@ export default function InventoryPage() {
 
   const fetchAllProducts = async (): Promise<any[]> => {
     const PAGE_SIZE = 50;
-    const MAX_PAGES = 100;
     const allProducts: any[] = [];
     const seenIds = new Set<string>();
+    let page = 1;
+    let totalPages = 1;
 
-    for (let page = 1; page <= MAX_PAGES; page++) {
+    do {
       const { data } = await apiClient.get('/products', {
         params: { pageSize: PAGE_SIZE, page },
       });
@@ -39,6 +40,7 @@ export default function InventoryPage() {
       const pageItems: any[] = Array.isArray(payload)
         ? payload
         : payload?.items || payload?.products || [];
+      const seenBeforePage = seenIds.size;
 
       for (const product of pageItems) {
         if (!seenIds.has(product.id)) {
@@ -47,9 +49,19 @@ export default function InventoryPage() {
         }
       }
 
-      if (Array.isArray(payload) || !payload?.totalPages) break;
-      if (page >= payload.totalPages) break;
-    }
+      if (Array.isArray(payload)) break;
+
+      const reportedTotalPages = Number(payload?.totalPages);
+      if (!Number.isFinite(reportedTotalPages) || reportedTotalPages < 1) break;
+      totalPages = Math.floor(reportedTotalPages);
+
+      if (page < totalPages && seenIds.size === seenBeforePage) {
+        throw new Error(`Product catalogue pagination did not advance at page ${page}`);
+      }
+
+      page += 1;
+    } while (page <= totalPages);
+
     return allProducts;
   };
 
@@ -84,7 +96,7 @@ export default function InventoryPage() {
       setDrafts(Object.fromEntries(allInventory.map((item) => [item.id, item.quantity])));
       setPriceDrafts(Object.fromEntries(allInventory.map((item) => [item.id, item.sellingPricePaise == null ? '' : String(item.sellingPricePaise / 100)])));
     } catch (e: any) {
-      setError(e?.response?.data?.message || 'Failed to load inventory');
+      setError(e?.response?.data?.message || e?.message || 'Failed to load inventory');
     } finally {
       setLoading(false);
     }
