@@ -1,0 +1,49 @@
+name: Store Assortment Diagnostics
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "apps/api-gateway/**"
+      - "apps/admin-dashboard/**"
+      - "apps/mobile-partners/**"
+      - ".github/workflows/store-assortment-diagnostics.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Compile ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: api-gateway
+            command: npm run build --workspace=apps/api-gateway
+          - target: admin-dashboard
+            command: npm run build --workspace=apps/admin-dashboard
+          - target: mobile-partners
+            command: npm run build --workspace=apps/mobile-partners
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_diagnostics
+      NEXT_PUBLIC_API_URL: http://localhost:3005
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.3
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund >/dev/null
+      - name: Generate Prisma client
+        run: npx prisma generate --schema packages/database/prisma/schema.prisma >/dev/null
+      - name: Build selected target
+        shell: bash
+        run: |
+          set +e
+          ${{ matrix.command }} > /tmp/build.log 2>&1
+          status=$?
+          tail -n 100 /tmp/build.log
+          exit $status
