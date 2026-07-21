@@ -1,1 +1,1 @@
-Trigger source-only reviewed patch workflow, corrected extraction attempt 3.
+Trigger deterministic reviewed source patch attempt 4.
