@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { loginWithCookieSession, QaRole } from '../tests/helpers/login';
+import { loginWithCookieSession } from '../tests/helpers/login';
+import type { QaRole } from '../tests/helpers/login';
 
 const PROOF_DIR = path.resolve(__dirname, '../../../docs/qa/responsive-role-navigation');
 
@@ -110,6 +111,16 @@ test.describe('Responsive role navigation', () => {
         await expect(dialog.locator(`a[href="${item.href}"]`)).toHaveCount(1);
       }
 
+      const drawerHasHorizontalOverflow = await page.locator('#responsive-role-navigation').evaluate(
+        (drawer) => drawer.scrollWidth > drawer.clientWidth,
+      );
+      expect(drawerHasHorizontalOverflow).toBe(false);
+
+      await page.screenshot({
+        path: path.join(PROOF_DIR, `${navigationCase.role.toLowerCase()}-mobile-menu.png`),
+        fullPage: true,
+      });
+
       const hiddenTarget = dialog.locator(`a[href="${navigationCase.hiddenTarget}"]`);
       await hiddenTarget.scrollIntoViewIfNeeded();
       await expect(hiddenTarget).toBeVisible();
@@ -117,16 +128,6 @@ test.describe('Responsive role navigation', () => {
 
       await expect(page).toHaveURL(new RegExp(`${navigationCase.hiddenTarget.replaceAll('/', '\\/')}(?:$|\\?)`));
       await expect(dialog).toBeHidden();
-
-      const hasHorizontalOverflow = await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-      );
-      expect(hasHorizontalOverflow).toBe(false);
-
-      await page.screenshot({
-        path: path.join(PROOF_DIR, `${navigationCase.role.toLowerCase()}-mobile.png`),
-        fullPage: true,
-      });
     });
   }
 
@@ -146,13 +147,13 @@ test.describe('Responsive role navigation', () => {
     expect(box!.x).toBeGreaterThan(0);
     await expect(dialog.locator('a[href="/admin/live-tracking"]')).toHaveCount(1);
 
-    await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
-
     await page.screenshot({
-      path: path.join(PROOF_DIR, 'admin-tablet.png'),
+      path: path.join(PROOF_DIR, 'admin-tablet-menu.png'),
       fullPage: true,
     });
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
   });
 
   test('admin desktop keeps the complete sidebar and hides mobile controls', async ({ page }) => {
@@ -167,7 +168,7 @@ test.describe('Responsive role navigation', () => {
     await expect(page.getByRole('button', { name: 'Open all navigation' })).toBeHidden();
 
     await page.screenshot({
-      path: path.join(PROOF_DIR, 'admin-desktop.png'),
+      path: path.join(PROOF_DIR, 'admin-desktop-sidebar.png'),
       fullPage: true,
     });
   });
