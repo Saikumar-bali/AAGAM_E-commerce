@@ -143,6 +143,7 @@ test.describe('Responsive role navigation', () => {
     const dialog = page.getByRole('dialog');
     const closeButton = dialog.getByRole('button', { name: 'Close all navigation' });
     const signOutButton = dialog.getByRole('button', { name: 'Sign out' });
+    const firstDrawerLink = dialog.locator('#responsive-role-navigation a[href="/"]').first();
     await expect(dialog).toBeVisible();
     await expect(closeButton).toBeFocused();
     await expect(page.locator('main')).toHaveAttribute('inert', '');
@@ -155,10 +156,11 @@ test.describe('Responsive role navigation', () => {
     expect(box!.x).toBeGreaterThan(0);
     await expect(dialog.locator('a[href="/admin/live-tracking"]')).toHaveCount(1);
 
+    await firstDrawerLink.focus();
     await page.keyboard.press('Shift+Tab');
     await expect(signOutButton).toBeFocused();
     await page.keyboard.press('Tab');
-    await expect(closeButton).toBeFocused();
+    await expect(firstDrawerLink).toBeFocused();
 
     await page.screenshot({
       path: path.join(PROOF_DIR, 'admin-tablet-menu.png'),
