@@ -113,6 +113,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const mobileMenuTriggerRef = React.useRef<HTMLButtonElement>(null);
   const mobileDrawerRef = React.useRef<HTMLElement>(null);
+  const mobileCloseButtonRef = React.useRef<HTMLButtonElement>(null);
   const quickNavigationRef = React.useRef<HTMLElement>(null);
 
   React.useEffect(() => {
@@ -198,8 +199,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     inertTargets.forEach((target) => target.setAttribute("inert", ""));
     window.addEventListener("keydown", handleKeyDown);
     const focusFrame = window.requestAnimationFrame(() => {
-      const firstFocusable = getFocusableElements()[0];
-      (firstFocusable || mobileDrawerRef.current)?.focus();
+      const focusTarget = mobileCloseButtonRef.current || getFocusableElements()[0] || mobileDrawerRef.current;
+      focusTarget?.focus();
     });
 
     return () => {
@@ -395,6 +396,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
                 <p className="mt-3 text-[10px] font-black uppercase tracking-[0.2em] text-teal-300">Complete navigation</p>
               </div>
               <button
+                ref={mobileCloseButtonRef}
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
                 aria-label="Close all navigation"
