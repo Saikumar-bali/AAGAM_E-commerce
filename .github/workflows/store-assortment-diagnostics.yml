@@ -40,10 +40,19 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate --schema packages/database/prisma/schema.prisma >/dev/null
       - name: Build selected target
+        id: build
         shell: bash
         run: |
           set +e
-          ${{ matrix.command }} > /tmp/build.log 2>&1
+          ${{ matrix.command }} > build-${{ matrix.target }}.log 2>&1
           status=$?
-          tail -n 100 /tmp/build.log
+          tail -n 100 build-${{ matrix.target }}.log
           exit $status
+      - name: Upload isolated build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.target }}-log
+          path: build-${{ matrix.target }}.log
+          if-no-files-found: error
+          retention-days: 2
