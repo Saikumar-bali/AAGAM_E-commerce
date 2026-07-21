@@ -124,11 +124,11 @@ describe('Store assortment ownership', () => {
   it('blocks another owner from browsing or changing the store assortment', async () => {
     await expect(
       service.getStoreAssortment(storeId, { id: otherOwnerId, role: Role.STORE_OWNER }),
-    ).rejects.toThrow('You can only manage products for your own stores');
+    ).rejects.toThrow('You can only update inventory for your own stores');
 
     await expect(
       service.updateInventory(storeId, productId, 30, { id: otherOwnerId, role: Role.STORE_OWNER }),
-    ).rejects.toThrow('You can only manage products for your own stores');
+    ).rejects.toThrow('You can only update inventory for your own stores');
   });
 
   it('rejects a store selling price above Admin MRP', async () => {

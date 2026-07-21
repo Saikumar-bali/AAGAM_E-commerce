@@ -34,7 +34,7 @@ export class StoreService {
     });
     if (!store || store.deletedAt) throw new NotFoundException('Store not found');
     if (actor.role === Role.STORE_OWNER && store.ownerId !== actor.id) {
-      throw new ForbiddenException('You can only manage products for your own stores');
+      throw new ForbiddenException('You can only update inventory for your own stores');
     }
     return store;
   }

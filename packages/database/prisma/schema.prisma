@@ -838,6 +838,7 @@ model RiderSupportMessage {
 }
 
 enum InventoryAdjustmentReason {
+  OPENING_STOCK
   MANUAL_ADJUSTMENT
   CHECKOUT_RESERVATION
   ORDER_CANCEL_RESTORE
