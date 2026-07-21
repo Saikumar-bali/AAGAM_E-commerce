@@ -1,249 +1,392 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
-import { Package, RefreshCw, AlertTriangle, Save, Minus, Plus, Eye, EyeOff } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  Eye,
+  EyeOff,
+  Minus,
+  Package,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  ShoppingBag,
+} from 'lucide-react';
 
+type StoreSummary = { id: string; name: string; address?: string };
+type Product = {
+  id: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  pricePaise?: number;
+  mrpPaise?: number;
+  image?: string | null;
+  category?: { id: string; name: string } | null;
+};
 type InventoryItem = {
   id: string;
+  storeId: string;
+  productId: string;
   quantity: number;
   isListed: boolean;
   autoHideWhenOutOfStock: boolean;
   sellingPricePaise?: number | null;
-  product: { id: string; name: string; price: number; image?: string | null; category?: { name: string } };
-  store: { id: string; name: string };
+  product: Product;
 };
+type Draft = { quantity: string; sellingPrice: string };
+
+const money = (paise?: number | null, fallbackRupees = 0) =>
+  `₹${((paise == null ? fallbackRupees * 100 : paise) / 100).toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
 
 export default function InventoryPage() {
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
-  const [drafts, setDrafts] = useState<Record<string, number>>({});
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
+  const [stores, setStores] = useState<StoreSummary[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState('');
+  const [tab, setTab] = useState<'mine' | 'catalogue'>('mine');
+  const [assortment, setAssortment] = useState<InventoryItem[]>([]);
+  const [catalogue, setCatalogue] = useState<Product[]>([]);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [addDrafts, setAddDrafts] = useState<Record<string, Draft>>({});
+  const [editDrafts, setEditDrafts] = useState<Record<string, Draft>>({});
 
-  const fetchAllProducts = async (): Promise<any[]> => {
-    const PAGE_SIZE = 50;
-    const allProducts: any[] = [];
-    const seenIds = new Set<string>();
-    let page = 1;
-    let totalPages = 1;
+  const loadStores = useCallback(async () => {
+    const { data } = await apiClient.get('/stores/my-stores');
+    const nextStores: StoreSummary[] = Array.isArray(data) ? data : [];
+    setStores(nextStores);
+    setSelectedStoreId((current) => current || nextStores[0]?.id || '');
+  }, []);
 
-    do {
-      const { data } = await apiClient.get('/products', {
-        params: { pageSize: PAGE_SIZE, page },
-      });
-      const payload = data;
-      const pageItems: any[] = Array.isArray(payload)
-        ? payload
-        : payload?.items || payload?.products || [];
-      const seenBeforePage = seenIds.size;
-
-      for (const product of pageItems) {
-        if (!seenIds.has(product.id)) {
-          seenIds.add(product.id);
-          allProducts.push(product);
-        }
-      }
-
-      if (Array.isArray(payload)) break;
-
-      const reportedTotalPages = Number(payload?.totalPages);
-      if (!Number.isFinite(reportedTotalPages) || reportedTotalPages < 1) break;
-      totalPages = Math.floor(reportedTotalPages);
-
-      if (page < totalPages && seenIds.size === seenBeforePage) {
-        throw new Error(`Product catalogue pagination did not advance at page ${page}`);
-      }
-
-      page += 1;
-    } while (page <= totalPages);
-
-    return allProducts;
-  };
-
-  const fetchInventory = async () => {
+  const loadInventory = useCallback(async (storeId: string, query = search) => {
+    if (!storeId) return;
     setLoading(true);
-    setError(null);
-    setSuccess(null);
+    setMessage(null);
     try {
-      const [storeResult, products] = await Promise.all([
-        apiClient.get('/stores/my-stores'),
-        fetchAllProducts(),
+      const [assortmentResult, catalogueResult] = await Promise.all([
+        apiClient.get(`/stores/${storeId}/assortment`),
+        apiClient.get(`/stores/${storeId}/catalog`, {
+          params: { page: 1, pageSize: 50, search: query || undefined },
+        }),
       ]);
-      const stores = storeResult.data || [];
-      setSelectedStoreId((current) => current || stores[0]?.id || '');
-      const allInventory: InventoryItem[] = [];
-      for (const store of stores) {
-        const inventoryByProduct = new Map((store.inventory || []).map((row: any) => [row.productId, row]));
-        for (const product of products) {
-          const existing: any = inventoryByProduct.get(product.id);
-          allInventory.push({
-            id: existing?.id || `${store.id}:${product.id}`,
-            quantity: existing?.quantity ?? 0,
-            isListed: existing?.isListed ?? true,
-            autoHideWhenOutOfStock: existing?.autoHideWhenOutOfStock ?? true,
-            sellingPricePaise: existing?.sellingPricePaise ?? null,
-            product,
-            store: { id: store.id, name: store.name },
-          });
-        }
-      }
-      setItems(allInventory);
-      setDrafts(Object.fromEntries(allInventory.map((item) => [item.id, item.quantity])));
-      setPriceDrafts(Object.fromEntries(allInventory.map((item) => [item.id, item.sellingPricePaise == null ? '' : String(item.sellingPricePaise / 100)])));
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to load inventory');
+      const nextAssortment: InventoryItem[] = Array.isArray(assortmentResult.data)
+        ? assortmentResult.data
+        : [];
+      const nextCatalogue: Product[] = catalogueResult.data?.items || [];
+      setAssortment(nextAssortment);
+      setCatalogue(nextCatalogue);
+      setEditDrafts(Object.fromEntries(nextAssortment.map((item) => [
+        item.id,
+        {
+          quantity: String(item.quantity),
+          sellingPrice: item.sellingPricePaise == null ? '' : String(item.sellingPricePaise / 100),
+        },
+      ])));
+      setAddDrafts((current) => {
+        const next = { ...current };
+        nextCatalogue.forEach((product) => {
+          next[product.id] ||= { quantity: '0', sellingPrice: '' };
+        });
+        return next;
+      });
+    } catch (error: any) {
+      setMessage({ tone: 'error', text: error?.response?.data?.message || 'Failed to load store products' });
     } finally {
       setLoading(false);
     }
+  }, [search]);
+
+  useEffect(() => {
+    loadStores().catch((error: any) => {
+      setLoading(false);
+      setMessage({ tone: 'error', text: error?.response?.data?.message || 'Failed to load stores' });
+    });
+  }, [loadStores]);
+
+  useEffect(() => {
+    if (selectedStoreId) void loadInventory(selectedStoreId, '');
+  }, [selectedStoreId]);
+
+  const lowStockCount = useMemo(
+    () => assortment.filter((item) => item.quantity > 0 && item.quantity < 10).length,
+    [assortment],
+  );
+
+  const setAddDraft = (productId: string, field: keyof Draft, value: string) => {
+    setAddDrafts((current) => ({
+      ...current,
+      [productId]: { ...(current[productId] || { quantity: '0', sellingPrice: '' }), [field]: value },
+    }));
   };
 
-  useEffect(() => { fetchInventory(); }, []);
-
-  const lowStock = items.filter((i) => i.quantity < 10);
-  const changedCount = useMemo(() => items.filter((item) => {
-    const quantityChanged = drafts[item.id] !== undefined && drafts[item.id] !== item.quantity;
-    const originalPrice = item.sellingPricePaise == null ? '' : String(item.sellingPricePaise / 100);
-    const priceChanged = (priceDrafts[item.id] ?? originalPrice) !== originalPrice;
-    return quantityChanged || priceChanged;
-  }).length, [items, drafts, priceDrafts]);
-
-  const setDraftQuantity = (itemId: string, next: number) => {
-    setDrafts((current) => ({ ...current, [itemId]: Math.max(0, Number.isFinite(next) ? Math.floor(next) : 0) }));
+  const setEditDraft = (inventoryId: string, field: keyof Draft, value: string) => {
+    setEditDrafts((current) => ({
+      ...current,
+      [inventoryId]: { ...(current[inventoryId] || { quantity: '0', sellingPrice: '' }), [field]: value },
+    }));
   };
 
-  const saveInventory = async (item: InventoryItem) => {
-    const quantity = drafts[item.id];
-    if (quantity === undefined) return;
-
-    const priceDraft = priceDrafts[item.id] ?? '';
-    const sellingPrice = priceDraft === '' ? null : Number(priceDraft);
-    if (sellingPrice !== null && (!Number.isFinite(sellingPrice) || sellingPrice < 0)) {
-      setError('Enter a valid store price or leave it blank to use the Admin price');
+  const addProduct = async (product: Product) => {
+    if (!selectedStoreId) return;
+    const draft = addDrafts[product.id] || { quantity: '0', sellingPrice: '' };
+    const openingQuantity = Number(draft.quantity);
+    const sellingPrice = draft.sellingPrice === '' ? null : Number(draft.sellingPrice);
+    if (!Number.isInteger(openingQuantity) || openingQuantity < 0) {
+      setMessage({ tone: 'error', text: 'Opening stock must be a whole number of zero or more.' });
       return;
     }
-
-    const previousId = item.id;
-    setSavingId(previousId);
-    setError(null);
-    setSuccess(null);
+    setSavingId(product.id);
+    setMessage(null);
     try {
-      const { data: saved } = await apiClient.patch(`/stores/${item.store.id}/inventory`, {
-        productId: item.product.id,
-        quantity,
-        isListed: item.isListed,
-        autoHideWhenOutOfStock: item.autoHideWhenOutOfStock,
+      const { data } = await apiClient.post(`/stores/${selectedStoreId}/assortment`, {
+        productId: product.id,
+        openingQuantity,
         sellingPrice,
+        isListed: true,
+        autoHideWhenOutOfStock: true,
       });
-      const nextId = saved?.id ?? previousId;
-      const nextQuantity = saved?.quantity ?? quantity;
-      const nextSellingPricePaise = saved?.sellingPricePaise !== undefined
-        ? saved.sellingPricePaise
-        : sellingPrice == null
-          ? null
-          : Math.round(sellingPrice * 100);
-
-      setItems((current) => current.map((row) => row.id === previousId ? {
-        ...row,
-        id: nextId,
-        quantity: nextQuantity,
-        isListed: saved?.isListed ?? row.isListed,
-        autoHideWhenOutOfStock: saved?.autoHideWhenOutOfStock ?? row.autoHideWhenOutOfStock,
-        sellingPricePaise: nextSellingPricePaise,
-      } : row));
-      setDrafts((current) => {
-        const next = { ...current };
-        delete next[previousId];
-        next[nextId] = nextQuantity;
-        return next;
-      });
-      setPriceDrafts((current) => {
-        const next = { ...current };
-        delete next[previousId];
-        next[nextId] = nextSellingPricePaise == null ? '' : String(nextSellingPricePaise / 100);
-        return next;
-      });
-      setSuccess(`${item.product.name} stock updated to ${nextQuantity} units`);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || 'Failed to update inventory');
+      setAssortment((current) => [...current, data].sort((a, b) => a.product.name.localeCompare(b.product.name)));
+      setCatalogue((current) => current.filter((item) => item.id !== product.id));
+      setEditDrafts((current) => ({
+        ...current,
+        [data.id]: {
+          quantity: String(data.quantity),
+          sellingPrice: data.sellingPricePaise == null ? '' : String(data.sellingPricePaise / 100),
+        },
+      }));
+      setMessage({ tone: 'success', text: `${product.name} added to this store with ${openingQuantity} opening units.` });
+      setTab('mine');
+    } catch (error: any) {
+      setMessage({ tone: 'error', text: error?.response?.data?.message || 'Failed to add product to store' });
     } finally {
       setSavingId(null);
     }
   };
 
-  const visibleItems = selectedStoreId ? items.filter((item) => item.store.id === selectedStoreId) : items;
-  const updatePolicy = (itemId: string, policy: Partial<Pick<InventoryItem, 'isListed' | 'autoHideWhenOutOfStock'>>) => {
-    setItems((current) => current.map((item) => item.id === itemId ? { ...item, ...policy } : item));
+  const saveItem = async (item: InventoryItem, patch?: Partial<Pick<InventoryItem, 'isListed' | 'autoHideWhenOutOfStock'>>) => {
+    const draft = editDrafts[item.id] || {
+      quantity: String(item.quantity),
+      sellingPrice: item.sellingPricePaise == null ? '' : String(item.sellingPricePaise / 100),
+    };
+    const quantity = Number(draft.quantity);
+    const sellingPrice = draft.sellingPrice === '' ? null : Number(draft.sellingPrice);
+    if (!Number.isInteger(quantity) || quantity < 0) {
+      setMessage({ tone: 'error', text: 'Stock must be a whole number of zero or more.' });
+      return;
+    }
+    setSavingId(item.id);
+    setMessage(null);
+    try {
+      const { data } = await apiClient.patch(`/stores/${selectedStoreId}/inventory`, {
+        productId: item.productId,
+        quantity,
+        sellingPrice,
+        isListed: patch?.isListed ?? item.isListed,
+        autoHideWhenOutOfStock: patch?.autoHideWhenOutOfStock ?? item.autoHideWhenOutOfStock,
+      });
+      setAssortment((current) => current.map((row) => row.id === item.id ? { ...row, ...data } : row));
+      setEditDrafts((current) => ({
+        ...current,
+        [item.id]: {
+          quantity: String(data.quantity ?? quantity),
+          sellingPrice: data.sellingPricePaise == null ? '' : String(data.sellingPricePaise / 100),
+        },
+      }));
+      setMessage({ tone: 'success', text: `${item.product.name} inventory updated.` });
+    } catch (error: any) {
+      setMessage({ tone: 'error', text: error?.response?.data?.message || 'Failed to update inventory' });
+    } finally {
+      setSavingId(null);
+    }
   };
+
+  const selectedStore = stores.find((store) => store.id === selectedStoreId);
 
   return (
     <DashboardLayout allowedRole="STORE_OWNER">
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="enterprise-kicker">Stock management</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight">Inventory</h1>
-          <p className="mt-2 text-sm font-semibold text-slate-500">Adjust stock for products in stores you own. Changes are written to inventory ledger.</p>
+      <div className="space-y-6 pb-28 lg:pb-8">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="enterprise-kicker">Store assortment</p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Products & inventory</h1>
+            <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-500">
+              Admin maintains the product catalogue. You choose what this store carries, set opening stock, and manage daily quantities.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {stores.length > 1 ? (
+              <select
+                aria-label="Select store"
+                value={selectedStoreId}
+                onChange={(event) => setSelectedStoreId(event.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold"
+              >
+                {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+              </select>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void loadInventory(selectedStoreId)}
+              disabled={loading || !selectedStoreId}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            </button>
+          </div>
+        </header>
+
+        {selectedStore ? (
+          <div className="rounded-2xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm font-bold text-teal-900">
+            Managing <strong>{selectedStore.name}</strong>{selectedStore.address ? ` · ${selectedStore.address}` : ''}
+          </div>
+        ) : null}
+
+        {message ? (
+          <div className={`rounded-2xl border px-4 py-3 text-sm font-bold ${message.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+            {message.text}
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="enterprise-panel p-5"><p className="text-xs font-black uppercase tracking-wider text-slate-400">My products</p><p className="mt-2 text-3xl font-black text-slate-950">{assortment.length}</p></div>
+          <div className="enterprise-panel p-5"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Available to add</p><p className="mt-2 text-3xl font-black text-slate-950">{catalogue.length}</p></div>
+          <div className="enterprise-panel p-5"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Low stock</p><p className="mt-2 text-3xl font-black text-amber-600">{lowStockCount}</p></div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {changedCount > 0 && <span className="rounded-full bg-amber-100 px-3 py-2 text-xs font-black text-amber-800">{changedCount} unsaved change{changedCount > 1 ? 's' : ''}</span>}
-          {Array.from(new Map(items.map((item) => [item.store.id, item.store])).values()).length > 1 ? <select value={selectedStoreId} onChange={(event) => setSelectedStoreId(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold">{Array.from(new Map(items.map((item) => [item.store.id, item.store])).values()).map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select> : null}
-          <button onClick={fetchInventory} disabled={loading} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50">
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+
+        <div className="flex rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm" role="tablist" aria-label="Inventory sections">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'mine'}
+            data-testid="my-products-tab"
+            onClick={() => setTab('mine')}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black ${tab === 'mine' ? 'bg-slate-950 text-white' : 'text-slate-500'}`}
+          >
+            <ShoppingBag className="h-4 w-4" /> My products
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'catalogue'}
+            data-testid="add-products-tab"
+            onClick={() => setTab('catalogue')}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black ${tab === 'catalogue' ? 'bg-slate-950 text-white' : 'text-slate-500'}`}
+          >
+            <Plus className="h-4 w-4" /> Add products
           </button>
         </div>
-      </div>
 
-      {error && <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
-      {success && <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{success}</div>}
-
-      {lowStock.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-          <div className="flex items-center gap-2 text-sm font-black text-amber-700"><AlertTriangle className="h-4 w-4" /> Low stock alert: {lowStock.length} item{lowStock.length > 1 ? 's' : ''} below 10 units</div>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="space-y-3">{[1, 2, 3, 4].map((i) => <div key={i} className="h-20 animate-pulse rounded-2xl bg-slate-100" />)}</div>
-      ) : visibleItems.length === 0 ? (
-        <div className="rounded-[2rem] border border-dashed border-slate-200 p-16 text-center"><Package className="mx-auto h-16 w-16 text-slate-300" /><p className="mt-6 text-2xl font-black text-slate-950">No inventory yet</p><p className="mt-2 text-sm text-slate-500">Products will appear here once added to your stores.</p></div>
-      ) : (
-        <div className="enterprise-panel overflow-hidden p-0">
-          <table className="w-full text-left text-sm">
-            <thead><tr className="border-b border-slate-100 bg-slate-50/80"><th className="px-5 py-3 font-black text-slate-600">Product</th><th className="px-5 py-3 font-black text-slate-600">Store</th><th className="px-5 py-3 font-black text-slate-600">Store price</th><th className="px-5 py-3 font-black text-slate-600">Stock</th><th className="px-5 py-3 font-black text-slate-600">Listing policy</th><th className="px-5 py-3 font-black text-slate-600">Adjust</th></tr></thead>
-            <tbody>
-              {visibleItems.map((item) => {
-                const draft = drafts[item.id] ?? item.quantity;
+        {loading ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[1, 2, 3, 4, 5, 6].map((key) => <div key={key} className="h-56 animate-pulse rounded-3xl bg-slate-100" />)}</div>
+        ) : tab === 'mine' ? (
+          assortment.length === 0 ? (
+            <div className="rounded-[2rem] border border-dashed border-slate-200 bg-white p-12 text-center">
+              <Package className="mx-auto h-14 w-14 text-slate-300" />
+              <h2 className="mt-5 text-xl font-black text-slate-950">This store has no products yet</h2>
+              <p className="mt-2 text-sm font-semibold text-slate-500">Open Add products and choose items from the Admin catalogue.</p>
+              <button type="button" onClick={() => setTab('catalogue')} className="mt-5 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white">Browse catalogue</button>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="my-products-grid">
+              {assortment.map((item) => {
+                const draft = editDrafts[item.id] || { quantity: String(item.quantity), sellingPrice: '' };
+                const quantity = Number(draft.quantity || 0);
                 return (
-                  <tr key={item.id} className="border-b border-slate-50 transition hover:bg-slate-50/50">
-                    <td className="px-5 py-3 font-bold text-slate-950">{item.product.name}</td>
-                    <td className="px-5 py-3 text-slate-600">{item.store.name}</td>
-                    <td className="px-5 py-3"><input type="number" min={0} step="0.01" value={priceDrafts[item.id] ?? ''} onChange={(event) => setPriceDrafts((current) => ({ ...current, [item.id]: event.target.value }))} placeholder={`Admin ₹${Number(item.product.price).toLocaleString('en-IN')}`} className="w-28 rounded-xl border border-slate-200 px-3 py-2 text-sm font-black" /><p className="mt-1 text-[10px] font-bold text-slate-400">Blank uses Admin price</p></td>
-                    <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-black ${item.quantity < 10 ? 'bg-red-100 text-red-700' : item.quantity < 30 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{item.quantity} units</span></td>
-                    <td className="px-5 py-3">
-                      <div className="flex flex-col gap-2">
-                        <button onClick={() => updatePolicy(item.id, { isListed: !item.isListed })} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-black ${item.isListed ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{item.isListed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{item.isListed ? 'Listed' : 'Hidden'}</button>
-                        <button onClick={() => updatePolicy(item.id, { autoHideWhenOutOfStock: !item.autoHideWhenOutOfStock })} className={`rounded-xl px-3 py-2 text-left text-xs font-black ${item.autoHideWhenOutOfStock ? 'bg-teal-50 text-teal-700' : 'bg-amber-50 text-amber-700'}`}>Auto-hide at zero: {item.autoHideWhenOutOfStock ? 'On' : 'Off'}</button>
+                  <article key={item.id} className="enterprise-panel flex flex-col gap-4 p-5">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
+                        {item.product.image ? <img src={item.product.image} alt="" className="h-full w-full object-cover" /> : <Package className="h-6 w-6 text-slate-400" />}
                       </div>
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setDraftQuantity(item.id, draft - 1)} className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"><Minus className="h-4 w-4" /></button>
-                        <input type="number" min={0} value={draft} onChange={(e) => setDraftQuantity(item.id, Number(e.target.value))} className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-center font-black text-slate-900" />
-                        <button onClick={() => setDraftQuantity(item.id, draft + 1)} className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"><Plus className="h-4 w-4" /></button>
-                        <button onClick={() => saveInventory(item)} disabled={savingId === item.id} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40"><Save className="h-3.5 w-3.5" /> {savingId === item.id ? 'Saving' : 'Save'}</button>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-teal-700">{item.product.category?.name || 'Catalogue'}</p>
+                        <h2 className="truncate text-base font-black text-slate-950">{item.product.name}</h2>
+                        <p className="mt-1 text-xs font-bold text-slate-400">Admin MRP {money(item.product.mrpPaise, item.product.price)}</p>
                       </div>
-                    </td>
-                  </tr>
+                    </div>
+
+                    {item.quantity < 10 ? <div className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-black text-amber-700"><AlertTriangle className="h-4 w-4" /> {item.quantity === 0 ? 'Out of stock' : 'Low stock'}</div> : null}
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="text-xs font-black text-slate-500">Store price
+                        <input aria-label={`${item.product.name} store price`} type="number" min={0} step="0.01" value={draft.sellingPrice} onChange={(event) => setEditDraft(item.id, 'sellingPrice', event.target.value)} placeholder={String(item.product.price)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-black text-slate-950" />
+                      </label>
+                      <label className="text-xs font-black text-slate-500">Current stock
+                        <input aria-label={`${item.product.name} stock`} type="number" min={0} step={1} value={draft.quantity} onChange={(event) => setEditDraft(item.id, 'quantity', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-black text-slate-950" />
+                      </label>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button type="button" aria-label={`Decrease ${item.product.name} stock`} onClick={() => setEditDraft(item.id, 'quantity', String(Math.max(0, quantity - 1)))} className="rounded-xl border border-slate-200 p-2.5"><Minus className="h-4 w-4" /></button>
+                      <button type="button" aria-label={`Increase ${item.product.name} stock`} onClick={() => setEditDraft(item.id, 'quantity', String(quantity + 1))} className="rounded-xl border border-slate-200 p-2.5"><Plus className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => void saveItem(item)} disabled={savingId === item.id} className="ml-auto inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50"><Save className="h-4 w-4" /> Save</button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => void saveItem(item, { isListed: !item.isListed })} className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black ${item.isListed ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{item.isListed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{item.isListed ? 'Listed' : 'Hidden'}</button>
+                      <button type="button" onClick={() => void saveItem(item, { autoHideWhenOutOfStock: !item.autoHideWhenOutOfStock })} className="rounded-xl bg-teal-50 px-3 py-2.5 text-xs font-black text-teal-700">Auto-hide: {item.autoHideWhenOutOfStock ? 'On' : 'Off'}</button>
+                    </div>
+                  </article>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
-      )}
+            </div>
+          )
+        ) : (
+          <div className="space-y-4">
+            <form onSubmit={(event) => { event.preventDefault(); void loadInventory(selectedStoreId, search); }} className="flex gap-2">
+              <label className="relative flex-1">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input aria-label="Search Admin catalogue" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search product name or description" className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm font-bold" />
+              </label>
+              <button type="submit" className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white">Search</button>
+            </form>
+
+            {catalogue.length === 0 ? (
+              <div className="rounded-[2rem] border border-dashed border-slate-200 bg-white p-12 text-center">
+                <Check className="mx-auto h-14 w-14 text-emerald-500" />
+                <h2 className="mt-5 text-xl font-black text-slate-950">No more catalogue products</h2>
+                <p className="mt-2 text-sm font-semibold text-slate-500">Every matching Admin product is already carried by this store.</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="catalogue-grid">
+                {catalogue.map((product) => {
+                  const draft = addDrafts[product.id] || { quantity: '0', sellingPrice: '' };
+                  return (
+                    <article key={product.id} className="enterprise-panel flex flex-col gap-4 p-5">
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
+                          {product.image ? <img src={product.image} alt="" className="h-full w-full object-cover" /> : <Package className="h-6 w-6 text-slate-400" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-teal-700">{product.category?.name || 'Catalogue'}</p>
+                          <h2 className="truncate text-base font-black text-slate-950">{product.name}</h2>
+                          <p className="mt-1 text-xs font-bold text-slate-400">MRP {money(product.mrpPaise, product.price)}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="text-xs font-black text-slate-500">Opening stock
+                          <input aria-label={`${product.name} opening stock`} type="number" min={0} step={1} value={draft.quantity} onChange={(event) => setAddDraft(product.id, 'quantity', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-black" />
+                        </label>
+                        <label className="text-xs font-black text-slate-500">Store price
+                          <input aria-label={`${product.name} new store price`} type="number" min={0} step="0.01" value={draft.sellingPrice} onChange={(event) => setAddDraft(product.id, 'sellingPrice', event.target.value)} placeholder={String(product.price)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-black" />
+                        </label>
+                      </div>
+                      <button type="button" onClick={() => void addProduct(product)} disabled={savingId === product.id} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-black text-white disabled:opacity-50"><Plus className="h-4 w-4" /> {savingId === product.id ? 'Adding…' : 'Add to store'}</button>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </DashboardLayout>
   );
 }
