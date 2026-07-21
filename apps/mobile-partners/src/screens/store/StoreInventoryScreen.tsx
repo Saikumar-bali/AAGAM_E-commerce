@@ -28,9 +28,9 @@ import {
 import { storeService } from '../../api/storeService';
 import {
   defaultDraft,
-  normalizeOptionalPrice,
-  normalizeWholeQuantity,
+  parseWholeQuantity,
   StoreInventoryDraft,
+  validateStoreInventoryDraft,
 } from '../../domain/storeInventory';
 
 type Product = {
@@ -122,25 +122,28 @@ export const StoreInventoryScreen = () => {
   };
 
   const addMutation = useMutation({
-    mutationFn: ({ product, draft }: { product: Product; draft: StoreInventoryDraft }) =>
-      storeService.addStoreProduct(selectedStoreId, {
+    mutationFn: ({ storeId, product, draft }: { storeId: string; product: Product; draft: StoreInventoryDraft }) => {
+      const parsed = validateStoreInventoryDraft(draft, 'Opening stock');
+      if (!parsed.valid) throw new Error(parsed.message);
+      return storeService.addStoreProduct(storeId, {
         productId: product.id,
-        openingQuantity: normalizeWholeQuantity(draft.quantity),
-        sellingPrice: normalizeOptionalPrice(draft.sellingPrice),
+        openingQuantity: parsed.quantity,
+        sellingPrice: parsed.sellingPrice,
         isListed: true,
         autoHideWhenOutOfStock: true,
-      }),
+      });
+    },
     onSuccess: async (data, variables) => {
-      queryClient.setQueryData<InventoryItem[]>(['store-assortment', selectedStoreId], (current = []) => [
+      queryClient.setQueryData<InventoryItem[]>(['store-assortment', variables.storeId], (current = []) => [
         ...current,
         data,
       ].sort((a, b) => a.product.name.localeCompare(b.product.name)));
-      queryClient.setQueryData(['store-catalogue', selectedStoreId, submittedSearch], (current: any) => ({
+      queryClient.setQueryData(['store-catalogue', variables.storeId, submittedSearch], (current: any) => ({
         ...(current || {}),
         items: (current?.items || []).filter((product: Product) => product.id !== variables.product.id),
         total: Math.max(0, Number(current?.total || 1) - 1),
       }));
-      setSection('mine');
+      if (variables.storeId === selectedStoreId) setSection('mine');
       Toast.show({
         type: 'success',
         text1: 'Product added',
@@ -151,25 +154,30 @@ export const StoreInventoryScreen = () => {
       Toast.show({
         type: 'error',
         text1: 'Could not add product',
-        text2: error?.response?.data?.message || 'Please try again.',
+        text2: error?.response?.data?.message || error?.message || 'Please try again.',
       });
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ item, draft, policy }: {
+    mutationFn: ({ storeId, item, draft, policy }: {
+      storeId: string;
       item: InventoryItem;
       draft: StoreInventoryDraft;
       policy?: Partial<Pick<InventoryItem, 'isListed' | 'autoHideWhenOutOfStock'>>;
-    }) => storeService.updateInventory(selectedStoreId, {
-      productId: item.productId,
-      quantity: normalizeWholeQuantity(draft.quantity),
-      sellingPrice: normalizeOptionalPrice(draft.sellingPrice),
-      isListed: policy?.isListed ?? item.isListed,
-      autoHideWhenOutOfStock: policy?.autoHideWhenOutOfStock ?? item.autoHideWhenOutOfStock,
-    }),
+    }) => {
+      const parsed = validateStoreInventoryDraft(draft);
+      if (!parsed.valid) throw new Error(parsed.message);
+      return storeService.updateInventory(storeId, {
+        productId: item.productId,
+        quantity: parsed.quantity,
+        sellingPrice: parsed.sellingPrice,
+        isListed: policy?.isListed ?? item.isListed,
+        autoHideWhenOutOfStock: policy?.autoHideWhenOutOfStock ?? item.autoHideWhenOutOfStock,
+      });
+    },
     onSuccess: (data, variables) => {
-      queryClient.setQueryData<InventoryItem[]>(['store-assortment', selectedStoreId], (current = []) =>
+      queryClient.setQueryData<InventoryItem[]>(['store-assortment', variables.storeId], (current = []) =>
         current.map((item) => item.id === variables.item.id ? { ...item, ...data } : item),
       );
       setEditDrafts((current) => ({
@@ -182,7 +190,7 @@ export const StoreInventoryScreen = () => {
       Toast.show({
         type: 'error',
         text1: 'Update failed',
-        text2: error?.response?.data?.message || 'Please try again.',
+        text2: error?.response?.data?.message || error?.message || 'Please try again.',
       });
     },
   });
@@ -324,8 +332,8 @@ export const StoreInventoryScreen = () => {
           ) : (
             assortment.map((item) => {
               const draft = editDrafts[item.id] || defaultDraft(item.quantity, item.sellingPricePaise);
-              const quantity = normalizeWholeQuantity(draft.quantity);
-              const updating = updateMutation.isPending && updateMutation.variables?.item.id === item.id;
+              const quantity = parseWholeQuantity(draft.quantity) ?? item.quantity;
+              const updating = updateMutation.isPending && updateMutation.variables?.storeId === selectedStoreId && updateMutation.variables?.item.id === item.id;
               return (
                 <View key={item.id} style={styles.productCard}>
                   <View style={styles.productHeader}>
@@ -377,7 +385,7 @@ export const StoreInventoryScreen = () => {
                     <TouchableOpacity
                       disabled={updating}
                       style={[styles.saveButton, updating && styles.disabledButton]}
-                      onPress={() => updateMutation.mutate({ item, draft })}
+                      onPress={() => updateMutation.mutate({ storeId: selectedStoreId, item, draft })}
                     >
                       {updating ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.saveButtonText}>Save inventory</Text>}
                     </TouchableOpacity>
@@ -386,14 +394,14 @@ export const StoreInventoryScreen = () => {
                   <View style={styles.policyRow}>
                     <TouchableOpacity
                       style={[styles.policyButton, item.isListed ? styles.policyPositive : styles.policyNeutral]}
-                      onPress={() => updateMutation.mutate({ item, draft, policy: { isListed: !item.isListed } })}
+                      onPress={() => updateMutation.mutate({ storeId: selectedStoreId, item, draft, policy: { isListed: !item.isListed } })}
                     >
                       {item.isListed ? <Eye size={16} color="#047857" /> : <EyeOff size={16} color="#475569" />}
                       <Text style={[styles.policyText, item.isListed ? styles.policyPositiveText : styles.policyNeutralText]}>{item.isListed ? 'Listed' : 'Hidden'}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.policyButton, styles.policyAuto]}
-                      onPress={() => updateMutation.mutate({ item, draft, policy: { autoHideWhenOutOfStock: !item.autoHideWhenOutOfStock } })}
+                      onPress={() => updateMutation.mutate({ storeId: selectedStoreId, item, draft, policy: { autoHideWhenOutOfStock: !item.autoHideWhenOutOfStock } })}
                     >
                       <Text style={styles.policyAutoText}>Auto-hide: {item.autoHideWhenOutOfStock ? 'On' : 'Off'}</Text>
                     </TouchableOpacity>
@@ -433,7 +441,7 @@ export const StoreInventoryScreen = () => {
             ) : (
               catalogue.map((product) => {
                 const draft = addDrafts[product.id] || defaultDraft();
-                const adding = addMutation.isPending && addMutation.variables?.product.id === product.id;
+                const adding = addMutation.isPending && addMutation.variables?.storeId === selectedStoreId && addMutation.variables?.product.id === product.id;
                 return (
                   <View key={product.id} style={styles.productCard}>
                     <View style={styles.productHeader}>
@@ -470,7 +478,7 @@ export const StoreInventoryScreen = () => {
                     <TouchableOpacity
                       disabled={adding}
                       style={[styles.addButton, adding && styles.disabledButton]}
-                      onPress={() => addMutation.mutate({ product, draft })}
+                      onPress={() => addMutation.mutate({ storeId: selectedStoreId, product, draft })}
                     >
                       {adding ? <ActivityIndicator size="small" color="#FFFFFF" /> : <><Plus size={18} color="#FFFFFF" /><Text style={styles.addButtonText}>Add to store</Text></>}
                     </TouchableOpacity>

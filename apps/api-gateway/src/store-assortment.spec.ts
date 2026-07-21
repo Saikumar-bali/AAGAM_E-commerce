@@ -131,6 +131,39 @@ describe('Store assortment ownership', () => {
     ).rejects.toThrow('You can only update inventory for your own stores');
   });
 
+  it('enforces ownership when STORE_OWNER is an effective secondary role', async () => {
+    const extra = await prisma.product.create({
+      data: {
+        name: `${PREFIX}secondary-role-product`,
+        price: 35,
+        pricePaise: 3500,
+        mrpPaise: 3800,
+        categoryId: (await prisma.category.findFirstOrThrow({ where: { name: `${PREFIX}category` } })).id,
+      },
+    });
+
+    const effectiveStoreOwner = {
+      id: otherOwnerId,
+      role: Role.CUSTOMER,
+      roles: [Role.CUSTOMER, Role.STORE_OWNER],
+    };
+    await expect(service.getStoreAssortment(storeId, effectiveStoreOwner)).rejects.toThrow(
+      'You can only update inventory for your own stores',
+    );
+    await expect(
+      service.addStoreProduct(storeId, { productId: extra.id, openingQuantity: 3 }, effectiveStoreOwner),
+    ).rejects.toThrow('You can only update inventory for your own stores');
+  });
+
+  it('allows an effective Admin to review any store without weakening owner checks', async () => {
+    const result = await service.getStoreAssortment(storeId, {
+      id: otherOwnerId,
+      role: Role.CUSTOMER,
+      roles: [Role.CUSTOMER, Role.ADMIN],
+    });
+    expect(result.map((item) => item.productId)).toContain(productId);
+  });
+
   it('rejects a store selling price above Admin MRP', async () => {
     const extra = await prisma.product.create({
       data: {

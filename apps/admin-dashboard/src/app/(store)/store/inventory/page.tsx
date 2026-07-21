@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
 import {
@@ -46,6 +46,22 @@ const money = (paise?: number | null, fallbackRupees = 0) =>
     maximumFractionDigits: 2,
   })}`;
 
+const parseWholeQuantity = (value: string): number | null => {
+  const normalized = value.trim();
+  if (!/^\d+$/.test(normalized)) return null;
+  const parsed = Number(normalized);
+  return Number.isSafeInteger(parsed) && parsed <= 1_000_000 ? parsed : null;
+};
+
+const parseOptionalPrice = (value: string) => {
+  const normalized = value.trim();
+  if (normalized === '') return { valid: true as const, value: null };
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return { valid: false as const, value: null };
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0) return { valid: false as const, value: null };
+  return { valid: true as const, value: parsed };
+};
+
 export default function InventoryPage() {
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
@@ -58,6 +74,9 @@ export default function InventoryPage() {
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [addDrafts, setAddDrafts] = useState<Record<string, Draft>>({});
   const [editDrafts, setEditDrafts] = useState<Record<string, Draft>>({});
+  const inventoryRequestIdRef = useRef(0);
+  const selectedStoreIdRef = useRef(selectedStoreId);
+  selectedStoreIdRef.current = selectedStoreId;
 
   const loadStores = useCallback(async () => {
     const { data } = await apiClient.get('/stores/my-stores');
@@ -68,6 +87,7 @@ export default function InventoryPage() {
 
   const loadInventory = useCallback(async (storeId: string, query = search) => {
     if (!storeId) return;
+    const requestId = ++inventoryRequestIdRef.current;
     setLoading(true);
     setMessage(null);
     try {
@@ -77,6 +97,7 @@ export default function InventoryPage() {
           params: { page: 1, pageSize: 50, search: query || undefined },
         }),
       ]);
+      if (requestId !== inventoryRequestIdRef.current || selectedStoreIdRef.current !== storeId) return;
       const nextAssortment: InventoryItem[] = Array.isArray(assortmentResult.data)
         ? assortmentResult.data
         : [];
@@ -98,9 +119,13 @@ export default function InventoryPage() {
         return next;
       });
     } catch (error: any) {
-      setMessage({ tone: 'error', text: error?.response?.data?.message || 'Failed to load store products' });
+      if (requestId === inventoryRequestIdRef.current && selectedStoreIdRef.current === storeId) {
+        setMessage({ tone: 'error', text: error?.response?.data?.message || 'Failed to load store products' });
+      }
     } finally {
-      setLoading(false);
+      if (requestId === inventoryRequestIdRef.current && selectedStoreIdRef.current === storeId) {
+        setLoading(false);
+      }
     }
   }, [search]);
 
@@ -113,6 +138,7 @@ export default function InventoryPage() {
 
   useEffect(() => {
     if (selectedStoreId) void loadInventory(selectedStoreId, '');
+    else inventoryRequestIdRef.current += 1;
   }, [selectedStoreId]);
 
   const lowStockCount = useMemo(
@@ -135,24 +161,31 @@ export default function InventoryPage() {
   };
 
   const addProduct = async (product: Product) => {
-    if (!selectedStoreId) return;
+    const storeId = selectedStoreId;
+    if (!storeId) return;
     const draft = addDrafts[product.id] || { quantity: '0', sellingPrice: '' };
-    const openingQuantity = Number(draft.quantity);
-    const sellingPrice = draft.sellingPrice === '' ? null : Number(draft.sellingPrice);
-    if (!Number.isInteger(openingQuantity) || openingQuantity < 0) {
-      setMessage({ tone: 'error', text: 'Opening stock must be a whole number of zero or more.' });
+    const openingQuantity = parseWholeQuantity(draft.quantity);
+    const parsedPrice = parseOptionalPrice(draft.sellingPrice);
+    if (openingQuantity === null) {
+      setMessage({ tone: 'error', text: 'Opening stock must be a whole number between 0 and 1,000,000.' });
       return;
     }
+    if (!parsedPrice.valid) {
+      setMessage({ tone: 'error', text: 'Store price must be a valid non-negative amount.' });
+      return;
+    }
+    const sellingPrice = parsedPrice.value;
     setSavingId(product.id);
     setMessage(null);
     try {
-      const { data } = await apiClient.post(`/stores/${selectedStoreId}/assortment`, {
+      const { data } = await apiClient.post(`/stores/${storeId}/assortment`, {
         productId: product.id,
         openingQuantity,
         sellingPrice,
         isListed: true,
         autoHideWhenOutOfStock: true,
       });
+      if (selectedStoreIdRef.current !== storeId) return;
       setAssortment((current) => [...current, data].sort((a, b) => a.product.name.localeCompare(b.product.name)));
       setCatalogue((current) => current.filter((item) => item.id !== product.id));
       setEditDrafts((current) => ({
@@ -172,26 +205,34 @@ export default function InventoryPage() {
   };
 
   const saveItem = async (item: InventoryItem, patch?: Partial<Pick<InventoryItem, 'isListed' | 'autoHideWhenOutOfStock'>>) => {
+    const storeId = selectedStoreId;
+    if (!storeId) return;
     const draft = editDrafts[item.id] || {
       quantity: String(item.quantity),
       sellingPrice: item.sellingPricePaise == null ? '' : String(item.sellingPricePaise / 100),
     };
-    const quantity = Number(draft.quantity);
-    const sellingPrice = draft.sellingPrice === '' ? null : Number(draft.sellingPrice);
-    if (!Number.isInteger(quantity) || quantity < 0) {
-      setMessage({ tone: 'error', text: 'Stock must be a whole number of zero or more.' });
+    const quantity = parseWholeQuantity(draft.quantity);
+    const parsedPrice = parseOptionalPrice(draft.sellingPrice);
+    if (quantity === null) {
+      setMessage({ tone: 'error', text: 'Stock must be a whole number between 0 and 1,000,000.' });
       return;
     }
+    if (!parsedPrice.valid) {
+      setMessage({ tone: 'error', text: 'Store price must be a valid non-negative amount.' });
+      return;
+    }
+    const sellingPrice = parsedPrice.value;
     setSavingId(item.id);
     setMessage(null);
     try {
-      const { data } = await apiClient.patch(`/stores/${selectedStoreId}/inventory`, {
+      const { data } = await apiClient.patch(`/stores/${storeId}/inventory`, {
         productId: item.productId,
         quantity,
         sellingPrice,
         isListed: patch?.isListed ?? item.isListed,
         autoHideWhenOutOfStock: patch?.autoHideWhenOutOfStock ?? item.autoHideWhenOutOfStock,
       });
+      if (selectedStoreIdRef.current !== storeId) return;
       setAssortment((current) => current.map((row) => row.id === item.id ? { ...row, ...data } : row));
       setEditDrafts((current) => ({
         ...current,
@@ -298,7 +339,7 @@ export default function InventoryPage() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="my-products-grid">
               {assortment.map((item) => {
                 const draft = editDrafts[item.id] || { quantity: String(item.quantity), sellingPrice: '' };
-                const quantity = Number(draft.quantity || 0);
+                const quantity = parseWholeQuantity(draft.quantity) ?? item.quantity;
                 return (
                   <article key={item.id} className="enterprise-panel flex flex-col gap-4 p-5">
                     <div className="flex items-start gap-4">

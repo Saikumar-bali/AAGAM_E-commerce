@@ -1,23 +1,35 @@
 import {
   availableForSale,
   defaultDraft,
-  normalizeOptionalPrice,
-  normalizeWholeQuantity,
+  parseWholeQuantity,
+  validateStoreInventoryDraft,
 } from './storeInventory';
 
 describe('store inventory domain helpers', () => {
-  it('normalizes opening and adjustment quantities as non-negative whole numbers', () => {
-    expect(normalizeWholeQuantity('12')).toBe(12);
-    expect(normalizeWholeQuantity('12.9')).toBe(12);
-    expect(normalizeWholeQuantity('-5')).toBe(0);
-    expect(normalizeWholeQuantity('invalid')).toBe(0);
+  it('accepts only explicit non-negative whole quantities', () => {
+    expect(parseWholeQuantity('12')).toBe(12);
+    expect(parseWholeQuantity('')).toBeNull();
+    expect(parseWholeQuantity('12.9')).toBeNull();
+    expect(parseWholeQuantity('-5')).toBeNull();
+    expect(parseWholeQuantity('invalid')).toBeNull();
+    expect(parseWholeQuantity('1000001')).toBeNull();
   });
 
-  it('normalizes optional store prices without inventing invalid values', () => {
-    expect(normalizeOptionalPrice('39.995')).toBe(40);
-    expect(normalizeOptionalPrice('')).toBeNull();
-    expect(normalizeOptionalPrice('-1')).toBeNull();
-    expect(normalizeOptionalPrice('invalid')).toBeNull();
+  it('validates a complete mutation draft without inventing values', () => {
+    expect(validateStoreInventoryDraft({ quantity: '12', sellingPrice: '39.995' })).toEqual({
+      valid: true,
+      quantity: 12,
+      sellingPrice: 40,
+    });
+    expect(validateStoreInventoryDraft({ quantity: '12', sellingPrice: '' })).toEqual({
+      valid: true,
+      quantity: 12,
+      sellingPrice: null,
+    });
+    expect(validateStoreInventoryDraft({ quantity: '', sellingPrice: '40' }).valid).toBe(false);
+    expect(validateStoreInventoryDraft({ quantity: '12.5', sellingPrice: '40' }).valid).toBe(false);
+    expect(validateStoreInventoryDraft({ quantity: '12', sellingPrice: '-1' }).valid).toBe(false);
+    expect(validateStoreInventoryDraft({ quantity: '12', sellingPrice: 'invalid' }).valid).toBe(false);
   });
 
   it('uses Admin price when no store-specific price exists', () => {

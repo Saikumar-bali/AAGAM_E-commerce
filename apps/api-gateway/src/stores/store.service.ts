@@ -14,7 +14,7 @@ const SAFE_STORE_OWNER_SELECT = {
   name: true,
 } as const;
 
-type StoreActor = { id: string; role: Role };
+type StoreActor = { id: string; role: Role; roles?: Role[] };
 
 @Injectable()
 export class StoreService {
@@ -33,7 +33,8 @@ export class StoreService {
       select: { id: true, ownerId: true, deletedAt: true, isActive: true, name: true },
     });
     if (!store || store.deletedAt) throw new NotFoundException('Store not found');
-    if (actor.role === Role.STORE_OWNER && store.ownerId !== actor.id) {
+    const effectiveRoles = new Set<Role>([actor.role, ...(actor.roles || [])]);
+    if (!effectiveRoles.has(Role.ADMIN) && store.ownerId !== actor.id) {
       throw new ForbiddenException('You can only update inventory for your own stores');
     }
     return store;

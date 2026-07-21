@@ -3,23 +3,52 @@ export type StoreInventoryDraft = {
   sellingPrice: string;
 };
 
-export const normalizeWholeQuantity = (value: string | number) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return 0;
-  return Math.floor(parsed);
+export type ValidatedStoreInventoryDraft =
+  | { valid: true; quantity: number; sellingPrice: number | null }
+  | { valid: false; message: string };
+
+export const parseWholeQuantity = (value: string | number): number | null => {
+  const normalized = String(value).trim();
+  if (!/^\d+$/.test(normalized)) return null;
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > 1_000_000) return null;
+  return parsed;
 };
 
-export const normalizeOptionalPrice = (value: string | number | null | undefined) => {
-  if (value === '' || value === null || value === undefined) return null;
+const parseOptionalPrice = (value: string | number | null | undefined) => {
+  if (value === null || value === undefined || String(value).trim() === '') {
+    return { valid: true as const, value: null };
+  }
   const normalized = String(value).trim();
-  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null;
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return { valid: false as const, value: null };
 
   const [wholePart, fractionPart = ''] = normalized.split('.');
+  const whole = Number(wholePart);
+  if (!Number.isSafeInteger(whole) || whole < 0) return { valid: false as const, value: null };
   const fraction = `${fractionPart}000`;
-  let paise = Number(wholePart) * 100 + Number(fraction.slice(0, 2));
+  let paise = whole * 100 + Number(fraction.slice(0, 2));
   if (Number(fraction[2]) >= 5) paise += 1;
+  if (!Number.isSafeInteger(paise)) return { valid: false as const, value: null };
 
-  return paise / 100;
+  return { valid: true as const, value: paise / 100 };
+};
+
+export const validateStoreInventoryDraft = (
+  draft: StoreInventoryDraft,
+  quantityLabel = 'Stock',
+): ValidatedStoreInventoryDraft => {
+  const quantity = parseWholeQuantity(draft.quantity);
+  if (quantity === null) {
+    return {
+      valid: false,
+      message: `${quantityLabel} must be a whole number between 0 and 1,000,000.`,
+    };
+  }
+  const price = parseOptionalPrice(draft.sellingPrice);
+  if (!price.valid) {
+    return { valid: false, message: 'Store price must be a valid non-negative amount.' };
+  }
+  return { valid: true, quantity, sellingPrice: price.value };
 };
 
 export const availableForSale = (item: {

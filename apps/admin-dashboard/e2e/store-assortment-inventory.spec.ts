@@ -186,4 +186,69 @@ test.describe('Store assortment and inventory ownership', () => {
 
     await page.screenshot({ path: path.join(PROOF_DIR, 'admin-inventory-read-only.png'), fullPage: true });
   });
+
+  test('ignores stale Store A responses after switching to Store B', async ({ page }) => {
+    const stores = [
+      { id: 'store-a', name: 'Store A', address: 'A address' },
+      { id: 'store-b', name: 'Store B', address: 'B address' },
+    ];
+    const makeInventory = (storeId: string, suffix: string) => ({
+      id: `inventory-${suffix}`,
+      storeId,
+      productId: `product-${suffix}`,
+      quantity: 7,
+      isListed: true,
+      autoHideWhenOutOfStock: true,
+      sellingPricePaise: 2500,
+      product: {
+        id: `product-${suffix}`,
+        name: `Store ${suffix.toUpperCase()} Product`,
+        price: 25,
+        pricePaise: 2500,
+        mrpPaise: 3000,
+        categoryId: 'test',
+        category: { id: 'test', name: 'Test' },
+        image: null,
+        isActive: true,
+        sortOrder: 1,
+      },
+    });
+
+    let releaseStoreA!: () => void;
+    const storeAGate = new Promise<void>((resolve) => { releaseStoreA = resolve; });
+    let signalStoreAStarted!: () => void;
+    const storeAStarted = new Promise<void>((resolve) => { signalStoreAStarted = resolve; });
+
+    await page.route('**/stores/my-stores', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(stores) });
+    });
+    await page.route('**/stores/store-a/assortment', async (route) => {
+      signalStoreAStarted();
+      await storeAGate;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([makeInventory('store-a', 'a')]) });
+    });
+    await page.route('**/stores/store-a/catalog**', async (route) => {
+      await storeAGate;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [], total: 0, page: 1, pageSize: 50, totalPages: 1 }) });
+    });
+    await page.route('**/stores/store-b/assortment', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([makeInventory('store-b', 'b')]) });
+    });
+    await page.route('**/stores/store-b/catalog**', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [], total: 0, page: 1, pageSize: 50, totalPages: 1 }) });
+    });
+
+    await loginWithCookieSession(page, 'STORE_OWNER');
+    await page.goto('/store/inventory');
+    await storeAStarted;
+    await page.getByLabel('Select store').selectOption('store-b');
+    await expect(page.getByText(/Managing Store B/)).toBeVisible();
+    await expect(page.getByTestId('my-products-grid')).toContainText('Store B Product');
+
+    releaseStoreA();
+    await page.waitForTimeout(300);
+    await expect(page.getByTestId('my-products-grid')).toContainText('Store B Product');
+    await expect(page.getByTestId('my-products-grid')).not.toContainText('Store A Product');
+  });
+
 });
