@@ -23,21 +23,23 @@ test.describe('Store inventory pagination', () => {
     mkdirSync(PROOF_DIR, { recursive: true });
   });
 
-  test('loads every admin product with pageSize <= 50 and saves store stock', async ({ page }) => {
+  test('continues through reported page 101 and saves store stock', async ({ page }) => {
+    test.setTimeout(60_000);
+
+    const capturedPages: number[] = [];
     const capturedPageSizeValues: number[] = [];
     const patchBodies: any[] = [];
-
     const pageSize = 50;
-    const page1Products = Array.from({ length: pageSize }, (_, i) => makeProduct(i));
-    const page2Products = Array.from({ length: 20 }, (_, i) => makeProduct(pageSize + i));
+    const totalPages = 101;
 
     await page.route('**/products?**', async (route) => {
       const url = new URL(route.request().url());
       const requestedPageSize = Number(url.searchParams.get('pageSize') || 12);
       const requestedPage = Number(url.searchParams.get('page') || 1);
+      capturedPages.push(requestedPage);
       capturedPageSizeValues.push(requestedPageSize);
 
-      const items = requestedPage === 1 ? page1Products : requestedPage === 2 ? page2Products : [];
+      const items = requestedPage <= totalPages ? [makeProduct(requestedPage - 1)] : [];
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -45,8 +47,8 @@ test.describe('Store inventory pagination', () => {
           items,
           page: requestedPage,
           pageSize,
-          total: 70,
-          totalPages: 2,
+          total: totalPages,
+          totalPages,
         }),
       });
     });
@@ -96,25 +98,27 @@ test.describe('Store inventory pagination', () => {
     await page.goto('/store/inventory');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByText('Paginated Product 5').first()).toBeVisible();
-    await expect(page.getByText('Paginated Product 60').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Paginated Product 0').first()).toBeVisible();
+    await expect(page.getByText('Paginated Product 100').first()).toBeVisible({ timeout: 30000 });
 
-    expect(capturedPageSizeValues.length).toBeGreaterThanOrEqual(2);
+    expect(capturedPages).toHaveLength(totalPages);
+    expect(capturedPages[0]).toBe(1);
+    expect(capturedPages.at(-1)).toBe(totalPages);
     for (const value of capturedPageSizeValues) {
       expect(value).toBeLessThanOrEqual(50);
     }
 
-    const targetRow = page.locator('tr').filter({ hasText: 'Paginated Product 60' }).first();
+    const targetRow = page.locator('tr').filter({ hasText: 'Paginated Product 100' }).first();
     await expect(targetRow).toBeVisible();
     const numberInputs = targetRow.locator('input[type="number"]');
     await numberInputs.nth(0).fill('120.50');
     await numberInputs.nth(1).fill('7');
     await targetRow.getByRole('button', { name: 'Save' }).click();
 
-    await expect(page.getByText('Paginated Product 60 stock updated to 7 units')).toBeVisible();
+    await expect(page.getByText('Paginated Product 100 stock updated to 7 units')).toBeVisible();
     expect(patchBodies).toHaveLength(1);
     expect(patchBodies[0]).toEqual({
-      productId: 'page-prod-60',
+      productId: 'page-prod-100',
       quantity: 7,
       isListed: true,
       autoHideWhenOutOfStock: true,
