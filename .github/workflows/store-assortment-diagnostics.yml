@@ -55,12 +55,20 @@ jobs:
           exit $status
       - name: Run Aagam Partners inventory domain tests
         if: matrix.target == 'mobile-partners'
-        run: npm test --workspace=apps/mobile-partners -- src/domain/storeInventory.spec.ts
-      - name: Upload isolated build log
+        shell: bash
+        run: |
+          set +e
+          npm test --workspace=apps/mobile-partners -- src/domain/storeInventory.spec.ts > mobile-inventory-tests.log 2>&1
+          status=$?
+          cat mobile-inventory-tests.log
+          exit $status
+      - name: Upload isolated diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-${{ matrix.target }}-log
-          path: build-${{ matrix.target }}.log
-          if-no-files-found: error
+          name: ${{ matrix.target }}-assortment-diagnostics
+          path: |
+            build-${{ matrix.target }}.log
+            mobile-inventory-tests.log
+          if-no-files-found: warn
           retention-days: 2
