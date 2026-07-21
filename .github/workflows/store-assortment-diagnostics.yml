@@ -39,6 +39,11 @@ jobs:
         run: npm ci --no-audit --no-fund >/dev/null
       - name: Generate Prisma client
         run: npx prisma generate --schema packages/database/prisma/schema.prisma >/dev/null
+      - name: Build shared workspace packages
+        run: |
+          npx tsc --project packages/types/tsconfig.json
+          npx tsc --project packages/utils/tsconfig.json
+          npx tsc --project packages/database/tsconfig.json
       - name: Build selected target
         id: build
         shell: bash
