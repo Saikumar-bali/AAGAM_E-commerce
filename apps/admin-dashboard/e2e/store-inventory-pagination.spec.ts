@@ -90,7 +90,7 @@ test.describe('Store inventory pagination', () => {
     await page.getByRole('button', { name: 'Password' }).click();
     await page.getByLabel('Phone number or email').fill(storeEmail);
     await page.getByLabel('Password', { exact: true }).fill(storePassword);
-    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
     await page.waitForURL('**/store**', { timeout: 20000 });
 
     await page.goto('/store/inventory');
