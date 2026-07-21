@@ -1,0 +1,75 @@
+name: Apply Store Assortment Schema Fix
+
+on:
+  push:
+    branches:
+      - phase/store-assortment-inventory-ownership
+    paths:
+      - .github/workflows/apply-store-assortment-schema-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: phase/store-assortment-inventory-ownership
+          fetch-depth: 0
+      - name: Apply verified schema and compatibility patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          schema = Path('packages/database/prisma/schema.prisma')
+          text = schema.read_text()
+          old_enum = '''enum InventoryAdjustmentReason {
+            MANUAL_ADJUSTMENT
+            CHECKOUT_RESERVATION
+            ORDER_CANCEL_RESTORE
+            ORDER_DELIVERED_FINALIZE
+            STOCK_CORRECTION
+          }'''
+          new_enum = '''enum InventoryAdjustmentReason {
+            OPENING_STOCK
+            MANUAL_ADJUSTMENT
+            CHECKOUT_RESERVATION
+            ORDER_CANCEL_RESTORE
+            ORDER_DELIVERED_FINALIZE
+            STOCK_CORRECTION
+          }'''
+          if old_enum not in text:
+              raise SystemExit('InventoryAdjustmentReason enum block was not found exactly once')
+          schema.write_text(text.replace(old_enum, new_enum, 1))
+
+          service = Path('apps/api-gateway/src/stores/store.service.ts')
+          service_text = service.read_text()
+          old_message = 'You can only manage products for your own stores'
+          if old_message not in service_text:
+              raise SystemExit('Store ownership message was not found')
+          service.write_text(service_text.replace(old_message, 'You can only update inventory for your own stores'))
+
+          spec = Path('apps/api-gateway/src/store-assortment.spec.ts')
+          spec_text = spec.read_text()
+          spec.write_text(spec_text.replace(
+              'You can only manage products for your own stores',
+              'You can only update inventory for your own stores',
+          ))
+
+          migration = Path('packages/database/prisma/migrations/20260721150500_store_assortment_opening_stock/migration.sql')
+          migration.parent.mkdir(parents=True, exist_ok=True)
+          migration.write_text('''-- Add an explicit audit reason for the first physical stock recorded when a store adopts a catalogue product.\nALTER TYPE "InventoryAdjustmentReason" ADD VALUE IF NOT EXISTS 'OPENING_STOCK';\n''')
+          PY
+      - name: Commit schema fix
+        run: |
+          git config user.name "Aagam CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add packages/database/prisma/schema.prisma \
+            packages/database/prisma/migrations/20260721150500_store_assortment_opening_stock/migration.sql \
+            apps/api-gateway/src/stores/store.service.ts \
+            apps/api-gateway/src/store-assortment.spec.ts
+          git commit -m "fix: add opening stock ledger reason"
+          git push origin HEAD:phase/store-assortment-inventory-ownership
