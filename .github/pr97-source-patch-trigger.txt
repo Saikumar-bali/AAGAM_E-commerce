@@ -1,1 +1,1 @@
-Trigger source-only reviewed patch workflow, diagnostic attempt 2.
+Trigger source-only reviewed patch workflow, corrected extraction attempt 3.
