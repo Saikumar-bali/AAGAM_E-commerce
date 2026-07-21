@@ -53,6 +53,9 @@ jobs:
           status=$?
           tail -n 100 build-${{ matrix.target }}.log
           exit $status
+      - name: Run Aagam Partners inventory domain tests
+        if: matrix.target == 'mobile-partners'
+        run: npm test --workspace=apps/mobile-partners -- src/domain/storeInventory.spec.ts
       - name: Upload isolated build log
         if: always()
         uses: actions/upload-artifact@v4
