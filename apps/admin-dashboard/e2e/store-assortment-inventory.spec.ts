@@ -102,6 +102,10 @@ async function installInventoryMocks(page: import('@playwright/test').Page) {
 
 async function installAdminCatalogueMocks(page: import('@playwright/test').Page) {
   await page.route('**/admin/products', async (route) => {
+    if (route.request().resourceType() === 'document') {
+      await route.continue();
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -141,8 +145,9 @@ test.describe('Store assortment and inventory ownership', () => {
 
     await expect(page.getByText('Whole Wheat Bread added to this store with 18 opening units.')).toBeVisible();
     await expect(page.getByTestId('my-products-grid')).toContainText('Whole Wheat Bread');
-    await page.getByLabel('Whole Wheat Bread stock').fill('22');
-    await page.getByRole('button', { name: 'Save' }).last().click();
+    const breadCard = page.getByRole('article').filter({ hasText: 'Whole Wheat Bread' });
+    await breadCard.getByRole('spinbutton', { name: 'Whole Wheat Bread stock', exact: true }).fill('22');
+    await breadCard.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByText('Whole Wheat Bread inventory updated.')).toBeVisible();
 
     await page.screenshot({ path: path.join(PROOF_DIR, 'store-inventory-mobile.png'), fullPage: true });
