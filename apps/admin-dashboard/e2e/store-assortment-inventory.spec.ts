@@ -5,7 +5,13 @@ import { loginWithCookieSession } from '../tests/helpers/login';
 
 const PROOF_DIR = path.resolve(__dirname, '../../../docs/qa/store-assortment-inventory');
 
-const store = { id: 'store-1', name: 'Aagam Test Store', address: 'Madhapur, Hyderabad' };
+const store = {
+  id: 'store-1',
+  name: 'Aagam Test Store',
+  address: 'Madhapur, Hyderabad',
+  isActive: true,
+  inventory: [{ productId: 'product-milk', quantity: 8 }],
+};
 const milk = {
   id: 'inventory-1',
   storeId: store.id,
@@ -17,19 +23,29 @@ const milk = {
   product: {
     id: 'product-milk',
     name: 'Fresh Milk 500 ml',
+    description: 'Daily fresh milk',
     price: 30,
     pricePaise: 3000,
     mrpPaise: 3200,
+    categoryId: 'dairy',
     category: { id: 'dairy', name: 'Dairy' },
+    image: null,
+    isActive: true,
+    sortOrder: 1,
   },
 };
 const bread = {
   id: 'product-bread',
   name: 'Whole Wheat Bread',
+  description: 'Fresh whole wheat loaf',
   price: 42,
   pricePaise: 4200,
   mrpPaise: 4500,
+  categoryId: 'bakery',
   category: { id: 'bakery', name: 'Bakery' },
+  image: null,
+  isActive: true,
+  sortOrder: 2,
 };
 
 async function installInventoryMocks(page: import('@playwright/test').Page) {
@@ -84,6 +100,26 @@ async function installInventoryMocks(page: import('@playwright/test').Page) {
   });
 }
 
+async function installAdminCatalogueMocks(page: import('@playwright/test').Page) {
+  await page.route('**/admin/products', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([milk.product, bread]),
+    });
+  });
+  await page.route('**/products/categories', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([milk.product.category, bread.category]),
+    });
+  });
+  await page.route('**/stores', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([store]) });
+  });
+}
+
 test.describe('Store assortment and inventory ownership', () => {
   test.beforeAll(() => mkdirSync(PROOF_DIR, { recursive: true }));
 
@@ -125,5 +161,24 @@ test.describe('Store assortment and inventory ownership', () => {
     expect(hasHorizontalOverflow).toBe(false);
 
     await page.screenshot({ path: path.join(PROOF_DIR, 'store-inventory-desktop.png'), fullPage: true });
+  });
+
+  test('Admin can review selected-store availability but cannot edit ordinary stock', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await loginWithCookieSession(page, 'ADMIN');
+    await installAdminCatalogueMocks(page);
+    await page.goto('/admin/products');
+
+    await expect(page.getByRole('heading', { name: 'Product Catalog' })).toBeVisible();
+    const milkOverview = page.getByTestId('admin-stock-overview-product-milk');
+    await expect(milkOverview).toContainText('8 units');
+    await expect(milkOverview).toContainText('Managed by the Store Owner');
+    await expect(milkOverview.getByRole('spinbutton')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Save$/ })).toHaveCount(0);
+
+    const breadOverview = page.getByTestId('admin-stock-overview-product-bread');
+    await expect(breadOverview).toContainText('0 units');
+
+    await page.screenshot({ path: path.join(PROOF_DIR, 'admin-inventory-read-only.png'), fullPage: true });
   });
 });
