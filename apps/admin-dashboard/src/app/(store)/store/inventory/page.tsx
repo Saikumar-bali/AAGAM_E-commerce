@@ -36,11 +36,11 @@ export default function InventoryPage() {
         params: { pageSize: PAGE_SIZE, page },
       });
       const payload = data;
-      const items: any[] = Array.isArray(payload)
+      const pageItems: any[] = Array.isArray(payload)
         ? payload
         : payload?.items || payload?.products || [];
 
-      for (const product of items) {
+      for (const product of pageItems) {
         if (!seenIds.has(product.id)) {
           seenIds.add(product.id);
           allProducts.push(product);
@@ -93,7 +93,12 @@ export default function InventoryPage() {
   useEffect(() => { fetchInventory(); }, []);
 
   const lowStock = items.filter((i) => i.quantity < 10);
-  const changedCount = useMemo(() => items.filter((item) => drafts[item.id] !== undefined && drafts[item.id] !== item.quantity).length, [items, drafts]);
+  const changedCount = useMemo(() => items.filter((item) => {
+    const quantityChanged = drafts[item.id] !== undefined && drafts[item.id] !== item.quantity;
+    const originalPrice = item.sellingPricePaise == null ? '' : String(item.sellingPricePaise / 100);
+    const priceChanged = (priceDrafts[item.id] ?? originalPrice) !== originalPrice;
+    return quantityChanged || priceChanged;
+  }).length, [items, drafts, priceDrafts]);
 
   const setDraftQuantity = (itemId: string, next: number) => {
     setDrafts((current) => ({ ...current, [itemId]: Math.max(0, Number.isFinite(next) ? Math.floor(next) : 0) }));
@@ -102,7 +107,16 @@ export default function InventoryPage() {
   const saveInventory = async (item: InventoryItem) => {
     const quantity = drafts[item.id];
     if (quantity === undefined) return;
-    setSavingId(item.id);
+
+    const priceDraft = priceDrafts[item.id] ?? '';
+    const sellingPrice = priceDraft === '' ? null : Number(priceDraft);
+    if (sellingPrice !== null && (!Number.isFinite(sellingPrice) || sellingPrice < 0)) {
+      setError('Enter a valid store price or leave it blank to use the Admin price');
+      return;
+    }
+
+    const previousId = item.id;
+    setSavingId(previousId);
     setError(null);
     setSuccess(null);
     try {
@@ -111,17 +125,37 @@ export default function InventoryPage() {
         quantity,
         isListed: item.isListed,
         autoHideWhenOutOfStock: item.autoHideWhenOutOfStock,
-        sellingPrice: priceDrafts[item.id] === '' ? null : Number(priceDrafts[item.id]),
+        sellingPrice,
       });
-      setItems((current) => current.map((row) => row.id === item.id ? {
+      const nextId = saved?.id ?? previousId;
+      const nextQuantity = saved?.quantity ?? quantity;
+      const nextSellingPricePaise = saved?.sellingPricePaise !== undefined
+        ? saved.sellingPricePaise
+        : sellingPrice == null
+          ? null
+          : Math.round(sellingPrice * 100);
+
+      setItems((current) => current.map((row) => row.id === previousId ? {
         ...row,
-        id: saved?.id ?? row.id,
-        quantity: saved?.quantity ?? quantity,
+        id: nextId,
+        quantity: nextQuantity,
         isListed: saved?.isListed ?? row.isListed,
         autoHideWhenOutOfStock: saved?.autoHideWhenOutOfStock ?? row.autoHideWhenOutOfStock,
-        sellingPricePaise: saved?.sellingPricePaise ?? row.sellingPricePaise,
+        sellingPricePaise: nextSellingPricePaise,
       } : row));
-      setSuccess(`${item.product.name} stock updated to ${saved?.quantity ?? quantity} units`);
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[previousId];
+        next[nextId] = nextQuantity;
+        return next;
+      });
+      setPriceDrafts((current) => {
+        const next = { ...current };
+        delete next[previousId];
+        next[nextId] = nextSellingPricePaise == null ? '' : String(nextSellingPricePaise / 100);
+        return next;
+      });
+      setSuccess(`${item.product.name} stock updated to ${nextQuantity} units`);
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Failed to update inventory');
     } finally {
@@ -171,7 +205,6 @@ export default function InventoryPage() {
             <tbody>
               {visibleItems.map((item) => {
                 const draft = drafts[item.id] ?? item.quantity;
-                const changed = draft !== item.quantity;
                 return (
                   <tr key={item.id} className="border-b border-slate-50 transition hover:bg-slate-50/50">
                     <td className="px-5 py-3 font-bold text-slate-950">{item.product.name}</td>
