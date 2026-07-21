@@ -5,12 +5,16 @@ import { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
+import { AddStoreProductDto } from './dto/add-store-product.dto';
+import { StoreCatalogQueryDto } from './dto/store-catalog-query.dto';
 import { grantUserRole } from '../auth/user-roles';
 
 const SAFE_STORE_OWNER_SELECT = {
   id: true,
   name: true,
 } as const;
+
+type StoreActor = { id: string; role: Role };
 
 @Injectable()
 export class StoreService {
@@ -21,6 +25,43 @@ export class StoreService {
       this.cacheManager.del('all_products'),
       this.cacheManager.del('all_categories'),
     ]);
+  }
+
+  private async assertStoreAccess(storeId: string, actor: StoreActor) {
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { id: true, ownerId: true, deletedAt: true, isActive: true, name: true },
+    });
+    if (!store || store.deletedAt) throw new NotFoundException('Store not found');
+    if (actor.role === Role.STORE_OWNER && store.ownerId !== actor.id) {
+      throw new ForbiddenException('You can only manage products for your own stores');
+    }
+    return store;
+  }
+
+  private validateQuantity(quantity: number) {
+    if (!Number.isInteger(quantity) || quantity < 0 || quantity > 1_000_000) {
+      throw new BadRequestException('Quantity must be a whole number between 0 and 1,000,000');
+    }
+  }
+
+  private resolveSellingPricePaise(
+    sellingPrice: number | null | undefined,
+    product: { price: number; pricePaise: number; mrpPaise: number },
+  ) {
+    if (sellingPrice !== undefined && sellingPrice !== null && (!Number.isFinite(sellingPrice) || sellingPrice < 0)) {
+      throw new BadRequestException('Selling price must be zero or greater');
+    }
+    const sellingPricePaise = sellingPrice === undefined
+      ? undefined
+      : sellingPrice === null
+        ? null
+        : Math.round(sellingPrice * 100);
+    const mrpPaise = product.mrpPaise || product.pricePaise || Math.round(product.price * 100);
+    if (sellingPricePaise !== undefined && sellingPricePaise !== null && mrpPaise > 0 && sellingPricePaise > mrpPaise) {
+      throw new BadRequestException('Store selling price cannot exceed Admin MRP');
+    }
+    return sellingPricePaise;
   }
 
   async findAll() {
@@ -73,7 +114,7 @@ export class StoreService {
     return prisma.store.findMany({
       where: { ownerId, deletedAt: null },
       include: {
-        inventory: { include: { product: true } },
+        inventory: { include: { product: { include: { category: true } } } },
         orders: {
           include: {
             customer: { select: { id: true, name: true, email: true } },
@@ -83,6 +124,99 @@ export class StoreService {
         },
       },
     });
+  }
+
+  async getStoreAssortment(storeId: string, actor: StoreActor) {
+    await this.assertStoreAccess(storeId, actor);
+    return prisma.inventory.findMany({
+      where: { storeId },
+      include: { product: { include: { category: true } } },
+      orderBy: [{ product: { category: { name: 'asc' } } }, { product: { name: 'asc' } }],
+    });
+  }
+
+  async getAvailableCatalogue(storeId: string, actor: StoreActor, query: StoreCatalogQueryDto) {
+    await this.assertStoreAccess(storeId, actor);
+    const page = Math.max(1, Number(query.page) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(query.pageSize) || 24));
+    const search = String(query.search || '').trim();
+    const existing = await prisma.inventory.findMany({ where: { storeId }, select: { productId: true } });
+    const carriedProductIds = existing.map((row) => row.productId);
+    const where: any = {
+      isActive: true,
+      deletedAt: null,
+      ...(carriedProductIds.length ? { id: { notIn: carriedProductIds } } : {}),
+      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+    const [items, total] = await prisma.$transaction([
+      prisma.product.findMany({
+        where,
+        include: { category: true },
+        orderBy: [{ category: { name: 'asc' } }, { name: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.product.count({ where }),
+    ]);
+    return {
+      items,
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  }
+
+  async addStoreProduct(storeId: string, data: AddStoreProductDto, actor: StoreActor) {
+    await this.assertStoreAccess(storeId, actor);
+    this.validateQuantity(data.openingQuantity);
+    const product = await prisma.product.findFirst({
+      where: { id: data.productId, isActive: true, deletedAt: null },
+      select: { id: true, price: true, pricePaise: true, mrpPaise: true },
+    });
+    if (!product) throw new NotFoundException('Active product not found');
+    const sellingPricePaise = this.resolveSellingPricePaise(data.sellingPrice, product);
+    const existing = await prisma.inventory.findUnique({
+      where: { storeId_productId: { storeId, productId: data.productId } },
+    });
+    if (existing) throw new ConflictException('Product is already part of this store assortment');
+
+    const inventory = await prisma.$transaction(async (tx) => {
+      const created = await tx.inventory.create({
+        data: {
+          storeId,
+          productId: data.productId,
+          quantity: data.openingQuantity,
+          isListed: data.isListed ?? true,
+          autoHideWhenOutOfStock: data.autoHideWhenOutOfStock ?? true,
+          sellingPricePaise: sellingPricePaise ?? null,
+        },
+        include: { product: { include: { category: true } } },
+      });
+      await tx.inventoryLedger.create({
+        data: {
+          storeId,
+          productId: data.productId,
+          reason: 'OPENING_STOCK',
+          quantityDelta: data.openingQuantity,
+          previousQuantity: 0,
+          newQuantity: data.openingQuantity,
+          actorUserId: actor.id,
+          note: `Product added to store assortment with ${data.openingQuantity} opening units`,
+        },
+      });
+      return created;
+    });
+    await this.invalidateCommerceCache();
+    return inventory;
   }
 
   async findOne(id: string) {
@@ -97,13 +231,8 @@ export class StoreService {
     return store;
   }
 
-  async getStoreOrders(storeId: string, actor: { id: string; role: Role }) {
-    if (actor.role === Role.STORE_OWNER) {
-      const store = await prisma.store.findUnique({ where: { id: storeId } });
-      if (!store || store.ownerId !== actor.id) {
-        throw new ForbiddenException('You can only view orders for your own stores');
-      }
-    }
+  async getStoreOrders(storeId: string, actor: StoreActor) {
+    await this.assertStoreAccess(storeId, actor);
     return prisma.order.findMany({
       where: { storeId },
       include: {
@@ -203,27 +332,14 @@ export class StoreService {
     storeId: string,
     productId: string,
     quantity: number,
-    actor?: { id: string; role: Role },
+    actor?: StoreActor,
     policy?: { isListed?: boolean; autoHideWhenOutOfStock?: boolean; sellingPrice?: number | null },
   ) {
-    if (!Number.isInteger(quantity) || quantity < 0 || quantity > 1_000_000) {
-      throw new BadRequestException('Quantity must be a whole number between 0 and 1,000,000');
-    }
-    if (policy?.sellingPrice !== undefined && policy.sellingPrice !== null && (!Number.isFinite(policy.sellingPrice) || policy.sellingPrice < 0)) {
-      throw new BadRequestException('Selling price must be zero or greater');
-    }
+    this.validateQuantity(quantity);
     const product = await prisma.product.findUnique({ where: { id: productId }, select: { pricePaise: true, price: true, mrpPaise: true } });
     if (!product) throw new NotFoundException('Product not found');
-    const sellingPricePaise = policy?.sellingPrice === undefined ? undefined : policy.sellingPrice === null ? null : Math.round(policy.sellingPrice * 100);
-    const mrpPaise = product.mrpPaise || product.pricePaise || Math.round(product.price * 100);
-    if (sellingPricePaise !== undefined && sellingPricePaise !== null && mrpPaise > 0 && sellingPricePaise > mrpPaise) throw new BadRequestException('Store selling price cannot exceed Admin MRP');
-    if (actor?.role === Role.STORE_OWNER) {
-      const store = await prisma.store.findUnique({ where: { id: storeId } });
-      if (!store) throw new NotFoundException('Store not found');
-      if (store.ownerId !== actor.id) {
-        throw new ForbiddenException('You can only update inventory for your own stores');
-      }
-    }
+    const sellingPricePaise = this.resolveSellingPricePaise(policy?.sellingPrice, product);
+    if (actor) await this.assertStoreAccess(storeId, actor);
 
     return prisma.$transaction(async (tx) => {
       const existing = await tx.inventory.findUnique({
@@ -255,12 +371,14 @@ export class StoreService {
         data: {
           storeId,
           productId,
-          reason: 'MANUAL_ADJUSTMENT',
+          reason: existing ? 'MANUAL_ADJUSTMENT' : 'OPENING_STOCK',
           quantityDelta: quantity - previousQuantity,
           previousQuantity,
           newQuantity: quantity,
           actorUserId: actor?.id ?? null,
-          note: `Manual adjustment: ${previousQuantity} -> ${quantity}`,
+          note: existing
+            ? `Manual adjustment: ${previousQuantity} -> ${quantity}`
+            : `Product added to store assortment with ${quantity} opening units`,
         },
       });
 
