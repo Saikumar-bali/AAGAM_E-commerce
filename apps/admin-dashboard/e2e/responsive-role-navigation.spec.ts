@@ -131,14 +131,22 @@ test.describe('Responsive role navigation', () => {
     });
   }
 
-  test('admin tablet uses a bounded right drawer and supports Escape close', async ({ page }) => {
+  test('admin tablet traps focus, restores focus, and supports Escape close', async ({ page }) => {
     await page.setViewportSize({ width: 820, height: 1180 });
     await loginWithCookieSession(page, 'ADMIN');
     await page.goto('/admin');
 
-    await page.getByRole('button', { name: 'Open all navigation' }).click();
+    const trigger = page.getByRole('button', { name: 'Open all navigation' });
+    const quickNavigation = page.getByRole('navigation', { name: 'Quick navigation' });
+    await trigger.click();
+
     const dialog = page.getByRole('dialog');
+    const closeButton = dialog.getByRole('button', { name: 'Close all navigation' });
+    const signOutButton = dialog.getByRole('button', { name: 'Sign out' });
     await expect(dialog).toBeVisible();
+    await expect(closeButton).toBeFocused();
+    await expect(page.locator('main')).toHaveAttribute('inert', '');
+    await expect(quickNavigation).toHaveAttribute('inert', '');
 
     const drawer = page.locator('#responsive-role-navigation');
     const box = await drawer.boundingBox();
@@ -147,6 +155,11 @@ test.describe('Responsive role navigation', () => {
     expect(box!.x).toBeGreaterThan(0);
     await expect(dialog.locator('a[href="/admin/live-tracking"]')).toHaveCount(1);
 
+    await page.keyboard.press('Shift+Tab');
+    await expect(signOutButton).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(closeButton).toBeFocused();
+
     await page.screenshot({
       path: path.join(PROOF_DIR, 'admin-tablet-menu.png'),
       fullPage: true,
@@ -154,6 +167,9 @@ test.describe('Responsive role navigation', () => {
 
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(page.locator('main')).not.toHaveAttribute('inert', '');
+    await expect(quickNavigation).not.toHaveAttribute('inert', '');
   });
 
   test('admin desktop keeps the complete sidebar and hides mobile controls', async ({ page }) => {
