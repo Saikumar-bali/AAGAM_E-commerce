@@ -2,13 +2,6 @@ name: Live Store Owner W1-W7
 
 on:
   push:
-    branches: ["qa/live-store-owner-w1-w7-20260722"]
-    paths:
-      - "scripts/provision-live-qa-store-owner.js"
-      - "apps/admin-dashboard/e2e/live-store-owner-w1-w7.spec.ts"
-      - "apps/admin-dashboard/e2e/playwright.live-store.config.ts"
-      - ".github/workflows/live-store-owner-w1-w7.yml"
-  pull_request:
     branches: ["main"]
     paths:
       - "scripts/provision-live-qa-store-owner.js"
@@ -21,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: live-store-owner-w1-w7-${{ github.event.pull_request.number || github.ref }}
+  group: live-store-owner-w1-w7-main
   cancel-in-progress: false
 
 jobs:
@@ -29,19 +22,22 @@ jobs:
     name: Provision QA stores and run W1-W7
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
 
     env:
       NODE_VERSION: "22.22.3"
-      LIVE_BASE_URL: ${{ vars.PRODUCTION_URL || 'https://aagam.accesscam.org' }}
+      LIVE_BASE_URL: ${{ vars.PRODUCTION_URL }}
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
       DEPLOY_USER: ${{ vars.DEPLOY_USER }}
       DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
       DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
       PUBLIC_HEALTHCHECK_URL: ${{ vars.PUBLIC_HEALTHCHECK_URL }}
-      EXPECTED_REVISION: "e6a6280c52fb1fc18610e93df3872f79fda3f85f"
+      EXPECTED_REVISION: ${{ github.sha }}
 
     steps:
-      - name: Checkout QA branch
+      - name: Checkout deployed main revision
         uses: actions/checkout@v4
 
       - name: Validate protected production configuration
@@ -53,6 +49,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           missing=()
+          [[ -n "$LIVE_BASE_URL" ]] || missing+=("PRODUCTION_URL")
           [[ -n "$DEPLOY_HOST" ]] || missing+=("DEPLOY_HOST")
           [[ -n "$DEPLOY_USER" ]] || missing+=("DEPLOY_USER")
           [[ -n "$DEPLOY_PATH" ]] || missing+=("DEPLOY_PATH")
@@ -91,22 +88,22 @@ jobs:
           chmod 600 "$HOME/.ssh/known_hosts"
           ssh-keygen -y -f "$HOME/.ssh/deploy_key" > /dev/null
 
-      - name: Wait for merged PR 99 revision in production
+      - name: Wait for this exact main revision in production
         shell: bash
         run: |
           set -Eeuo pipefail
           health_url="${PUBLIC_HEALTHCHECK_URL:-${LIVE_BASE_URL%/}/api/health}"
-          for attempt in $(seq 1 90); do
+          for attempt in $(seq 1 120); do
             body="$(curl --location --silent --show-error --max-time 15 "$health_url" || true)"
             if HEALTH_BODY="$body" node -e '
               let value;
               try { value = JSON.parse(process.env.HEALTH_BODY || "{}"); } catch { process.exit(1); }
               if (value.status !== "ok" || value.revision !== process.env.EXPECTED_REVISION) process.exit(1);
             '; then
-              echo "Production is serving PR 99 revision $EXPECTED_REVISION"
+              echo "Production is serving exact revision $EXPECTED_REVISION"
               exit 0
             fi
-            echo "Waiting for PR 99 deployment ($attempt/90)"
+            echo "Waiting for exact production revision ($attempt/120)"
             sleep 10
           done
           echo "Production did not reach revision $EXPECTED_REVISION"
