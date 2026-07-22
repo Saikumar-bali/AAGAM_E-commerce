@@ -18,7 +18,7 @@ export type UpdateStoreInventoryPayload = {
 
 export const storeService = {
   getMyStores: async () => {
-    const r = await apiClient.get('/stores/mine');
+    const r = await apiClient.get('/stores/my-stores');
     return r.data;
   },
 
