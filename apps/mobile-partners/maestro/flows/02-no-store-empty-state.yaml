@@ -1,0 +1,44 @@
+appId: com.aagampartners
+name: Partners release APK - unassigned Store Owner empty state
+tags:
+  - release
+  - store-owner
+  - empty-state
+---
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+- extendedWaitUntil:
+    visible: "Join AAGAM professionally"
+    timeout: 30000
+- tapOn:
+    text: "Approved partner sign in"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Sign in to operations"
+    timeout: 15000
+- tapOn:
+    text: "Use password sign in"
+    retryTapIfNoChange: true
+- tapOn: "Partner login identifier"
+- inputText: ${MAESTRO_EMPTY_STORE_EMAIL}
+- tapOn: "Partner login password"
+- inputText: ${MAESTRO_STORE_PASSWORD}
+- hideKeyboard
+- tapOn:
+    text: "Partner login submit"
+    enabled: true
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Inventory"
+    timeout: 30000
+- tapOn:
+    text: "^Inventory$"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "No assigned store"
+    timeout: 30000
+- assertVisible: "Your approved store must be assigned before you can manage products."
+- assertNotVisible: "Products & inventory"
+- takeScreenshot: 07-no-assigned-store-empty-state
