@@ -51,8 +51,7 @@ export class StoreController {
     return this.storeService.updateDeliveryZone(id, body);
   }
 
-  @Get('my-stores')
-  @Get('mine')
+  @Get(['my-stores', 'mine'])
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.STORE_OWNER)
   async findMyStores(@Req() req: any) {
