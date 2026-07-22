@@ -29,6 +29,12 @@ collect_device_proof() {
 }
 trap collect_device_proof EXIT
 
+# ADB reverse is more deterministic than relying on the emulator-specific
+# 10.0.2.2 host alias. The release bundle points to 127.0.0.1:3005 and this
+# tunnel maps that device port directly to the CI runner's API gateway.
+adb -s "$device_serial" reverse tcp:3005 tcp:3005
+adb -s "$device_serial" reverse --list | tee artifacts/maestro/adb-reverse.txt
+
 set +e
 adb -s "$device_serial" install -r release/aagam-partners-maestro-release.apk \
   2>&1 | tee artifacts/maestro/adb-install.txt
