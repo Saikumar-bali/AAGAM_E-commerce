@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: live-store-owner-w1-w7-main
@@ -170,6 +169,7 @@ jobs:
             > docs/qa/live-store-owner-w1-w7/bootstrap.json
 
       - name: Export QA identifiers and prepare restore state
+        id: export
         if: steps.provision.outcome == 'success'
         shell: bash
         run: |
@@ -200,7 +200,7 @@ jobs:
 
       - name: Run inactive-store core scenarios W1-W5 and W7
         id: core
-        if: steps.provision.outcome == 'success'
+        if: steps.export.outcome == 'success'
         continue-on-error: true
         env:
           LIVE_QA_PHASE: core
@@ -209,7 +209,7 @@ jobs:
 
       - name: Activate only isolated Store A for W6
         id: visibility_enable
-        if: always() && steps.provision.outcome == 'success'
+        if: always() && steps.export.outcome == 'success'
         continue-on-error: true
         shell: bash
         run: |
@@ -256,6 +256,19 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          if [[ ! -s /tmp/aagam-live-qa-cleanup.json ]]; then
+            node - <<'NODE'
+            const fs = require('fs');
+            const path = 'docs/qa/live-store-owner-w1-w7/bootstrap.json';
+            if (!fs.existsSync(path)) throw new Error('Bootstrap output is unavailable for cleanup.');
+            const value = JSON.parse(fs.readFileSync(path, 'utf8'));
+            fs.writeFileSync('/tmp/aagam-live-qa-cleanup.json', JSON.stringify({
+              mode: 'cleanup',
+              productSnapshot: value.productSnapshot,
+            }));
+            NODE
+            chmod 600 /tmp/aagam-live-qa-cleanup.json
+          fi
           ssh_options=(
             -i "$HOME/.ssh/deploy_key"
             -p "$DEPLOY_PORT"
@@ -292,19 +305,31 @@ jobs:
         run: |
           set -Eeuo pipefail
           report="docs/qa/live-store-owner-w1-w7/REPORT.md"
+          mkdir -p "$(dirname "$report")"
           {
             echo "# AAGAM Live Store Owner W1-W7"
             echo
             echo "- Revision: \`$GITHUB_SHA\`"
+            echo "- Provision outcome: ${{ steps.provision.outcome }}"
+            echo "- Export outcome: ${{ steps.export.outcome }}"
             echo "- Core outcome: ${{ steps.core.outcome }}"
             echo "- Visibility activation outcome: ${{ steps.visibility_enable.outcome }}"
             echo "- W6 outcome: ${{ steps.visibility.outcome }}"
             echo "- Cleanup outcome: ${{ steps.cleanup.outcome }}"
             echo
-            [[ -f docs/qa/live-store-owner-w1-w7/core/REPORT.md ]] && cat docs/qa/live-store-owner-w1-w7/core/REPORT.md
+            if [[ -f docs/qa/live-store-owner-w1-w7/core/REPORT.md ]]; then
+              cat docs/qa/live-store-owner-w1-w7/core/REPORT.md
+            else
+              echo "Core scenario report was not generated."
+            fi
             echo
-            [[ -f docs/qa/live-store-owner-w1-w7/visibility/REPORT.md ]] && cat docs/qa/live-store-owner-w1-w7/visibility/REPORT.md
+            if [[ -f docs/qa/live-store-owner-w1-w7/visibility/REPORT.md ]]; then
+              cat docs/qa/live-store-owner-w1-w7/visibility/REPORT.md
+            else
+              echo "Visibility scenario report was not generated."
+            fi
           } > "$report"
+          cat "$report" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload W1-W7 browser evidence
         if: always()
@@ -315,29 +340,13 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Publish inspectable W1-W7 summary
-        if: always()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -Eeuo pipefail
-          report_path="docs/qa/live-store-owner-w1-w7/REPORT.md"
-          if [[ -f "$report_path" ]]; then
-            report="$(cat "$report_path")"
-          else
-            report="No scenario report was generated. The workflow failed before browser execution."
-          fi
-          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          body="$(printf '## Live Store Owner W1-W7 run\n\n- Revision: `%s`\n- Run: %s\n\n%s\n' "$GITHUB_SHA" "$run_url" "$report")"
-          gh api "repos/${GITHUB_REPOSITORY}/issues/100/comments" -f body="$body"
-
       - name: Enforce final QA result
         if: always()
         shell: bash
         run: |
           set -Eeuo pipefail
           [[ "${{ steps.provision.outcome }}" == "success" ]]
+          [[ "${{ steps.export.outcome }}" == "success" ]]
           [[ "${{ steps.core.outcome }}" == "success" ]]
           [[ "${{ steps.visibility_enable.outcome }}" == "success" ]]
           [[ "${{ steps.visibility.outcome }}" == "success" ]]
