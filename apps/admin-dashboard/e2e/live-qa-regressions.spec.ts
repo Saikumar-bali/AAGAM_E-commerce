@@ -16,6 +16,8 @@ test.describe('Live QA regression protections', () => {
     await expect(page.getByRole('heading', { name: 'No stores are assigned to this account' })).toBeVisible();
     await expect(page.getByText('Contact an administrator to assign a store')).toBeVisible();
     await expect(page.locator('.animate-pulse')).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'My products' })).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'Add products' })).toHaveCount(0);
 
     const refresh = page.getByRole('button', { name: 'Refresh' });
     await expect(refresh).toBeEnabled();

@@ -70,6 +70,7 @@ export default function InventoryPage() {
   const [catalogue, setCatalogue] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [storesLoaded, setStoresLoaded] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [addDrafts, setAddDrafts] = useState<Record<string, Draft>>({});
@@ -81,22 +82,29 @@ export default function InventoryPage() {
   const loadStores = useCallback(async () => {
     setLoading(true);
     setMessage(null);
-    const { data } = await apiClient.get('/stores/my-stores');
-    const nextStores: StoreSummary[] = Array.isArray(data) ? data : [];
-    setStores(nextStores);
+    try {
+      const { data } = await apiClient.get('/stores/my-stores');
+      const nextStores: StoreSummary[] = Array.isArray(data) ? data : [];
+      setStores(nextStores);
+      setStoresLoaded(true);
 
-    if (nextStores.length === 0) {
-      inventoryRequestIdRef.current += 1;
-      setSelectedStoreId('');
-      setAssortment([]);
-      setCatalogue([]);
+      if (nextStores.length === 0) {
+        inventoryRequestIdRef.current += 1;
+        setSelectedStoreId('');
+        setAssortment([]);
+        setCatalogue([]);
+        setLoading(false);
+        return;
+      }
+
+      setSelectedStoreId((current) =>
+        nextStores.some((store) => store.id === current) ? current : nextStores[0].id,
+      );
+    } catch (error: any) {
+      setStoresLoaded(false);
       setLoading(false);
-      return;
+      setMessage({ tone: 'error', text: error?.response?.data?.message || 'Failed to load stores' });
     }
-
-    setSelectedStoreId((current) =>
-      nextStores.some((store) => store.id === current) ? current : nextStores[0].id,
-    );
   }, []);
 
   const loadInventory = useCallback(async (storeId: string, query = search) => {
@@ -144,10 +152,7 @@ export default function InventoryPage() {
   }, [search]);
 
   useEffect(() => {
-    loadStores().catch((error: any) => {
-      setLoading(false);
-      setMessage({ tone: 'error', text: error?.response?.data?.message || 'Failed to load stores' });
-    });
+    void loadStores();
   }, [loadStores]);
 
   useEffect(() => {
@@ -155,9 +160,11 @@ export default function InventoryPage() {
       void loadInventory(selectedStoreId, '');
       return;
     }
-    inventoryRequestIdRef.current += 1;
-    setLoading(false);
-  }, [selectedStoreId]);
+    if (storesLoaded) {
+      inventoryRequestIdRef.current += 1;
+      setLoading(false);
+    }
+  }, [selectedStoreId, storesLoaded]);
 
   const lowStockCount = useMemo(
     () => assortment.filter((item) => item.quantity > 0 && item.quantity < 10).length,
@@ -268,6 +275,7 @@ export default function InventoryPage() {
   };
 
   const selectedStore = stores.find((store) => store.id === selectedStoreId);
+  const hasNoAssignedStores = storesLoaded && stores.length === 0;
 
   return (
     <DashboardLayout allowedRole="STORE_OWNER">
@@ -314,7 +322,7 @@ export default function InventoryPage() {
           </div>
         ) : null}
 
-        {!loading && stores.length === 0 ? (
+        {hasNoAssignedStores ? (
           <div data-testid="no-assigned-stores" className="rounded-[2rem] border border-dashed border-amber-200 bg-amber-50 p-10 text-center">
             <Package className="mx-auto h-14 w-14 text-amber-500" />
             <h2 className="mt-5 text-xl font-black text-slate-950">No stores are assigned to this account</h2>
@@ -323,8 +331,8 @@ export default function InventoryPage() {
               <RefreshCw className="h-4 w-4" /> Check again
             </button>
           </div>
-        ) : null}
-
+        ) : (
+          <>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="enterprise-panel p-5"><p className="text-xs font-black uppercase tracking-wider text-slate-400">My products</p><p className="mt-2 text-3xl font-black text-slate-950">{assortment.length}</p></div>
           <div className="enterprise-panel p-5"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Available to add</p><p className="mt-2 text-3xl font-black text-slate-950">{catalogue.length}</p></div>
@@ -455,6 +463,8 @@ export default function InventoryPage() {
               </div>
             )}
           </div>
+        )}
+          </>
         )}
       </div>
     </DashboardLayout>
