@@ -24,6 +24,7 @@ def releaseKeyPassword = System.getenv("AAGAM_ANDROID_KEY_PASSWORD")
 def hasReleaseSigning = releaseStorePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
 def releaseVersionCode = (project.findProperty("VERSION_CODE") ?: "1").toString().toInteger()
 def releaseVersionName = (project.findProperty("VERSION_NAME") ?: "1.0").toString()
+def allowCleartextInRelease = (project.findProperty("E2E_ALLOW_CLEARTEXT") ?: "false").toString().toBoolean()
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -60,7 +61,9 @@ android {
             signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
-            manifestPlaceholders = [usesCleartextTraffic: false]
+            // Production remains HTTPS-only. The dedicated emulator workflow must
+            // opt in explicitly because 10.0.2.2 is an HTTP-only local test host.
+            manifestPlaceholders = [usesCleartextTraffic: allowCleartextInRelease]
         }
     }
 }
