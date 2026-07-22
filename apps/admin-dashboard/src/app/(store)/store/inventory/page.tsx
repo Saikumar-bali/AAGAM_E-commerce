@@ -79,10 +79,24 @@ export default function InventoryPage() {
   selectedStoreIdRef.current = selectedStoreId;
 
   const loadStores = useCallback(async () => {
+    setLoading(true);
+    setMessage(null);
     const { data } = await apiClient.get('/stores/my-stores');
     const nextStores: StoreSummary[] = Array.isArray(data) ? data : [];
     setStores(nextStores);
-    setSelectedStoreId((current) => current || nextStores[0]?.id || '');
+
+    if (nextStores.length === 0) {
+      inventoryRequestIdRef.current += 1;
+      setSelectedStoreId('');
+      setAssortment([]);
+      setCatalogue([]);
+      setLoading(false);
+      return;
+    }
+
+    setSelectedStoreId((current) =>
+      nextStores.some((store) => store.id === current) ? current : nextStores[0].id,
+    );
   }, []);
 
   const loadInventory = useCallback(async (storeId: string, query = search) => {
@@ -137,8 +151,12 @@ export default function InventoryPage() {
   }, [loadStores]);
 
   useEffect(() => {
-    if (selectedStoreId) void loadInventory(selectedStoreId, '');
-    else inventoryRequestIdRef.current += 1;
+    if (selectedStoreId) {
+      void loadInventory(selectedStoreId, '');
+      return;
+    }
+    inventoryRequestIdRef.current += 1;
+    setLoading(false);
   }, [selectedStoreId]);
 
   const lowStockCount = useMemo(
@@ -275,8 +293,8 @@ export default function InventoryPage() {
             ) : null}
             <button
               type="button"
-              onClick={() => void loadInventory(selectedStoreId)}
-              disabled={loading || !selectedStoreId}
+              onClick={() => selectedStoreId ? void loadInventory(selectedStoreId) : void loadStores()}
+              disabled={loading}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
@@ -293,6 +311,17 @@ export default function InventoryPage() {
         {message ? (
           <div className={`rounded-2xl border px-4 py-3 text-sm font-bold ${message.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
             {message.text}
+          </div>
+        ) : null}
+
+        {!loading && stores.length === 0 ? (
+          <div data-testid="no-assigned-stores" className="rounded-[2rem] border border-dashed border-amber-200 bg-amber-50 p-10 text-center">
+            <Package className="mx-auto h-14 w-14 text-amber-500" />
+            <h2 className="mt-5 text-xl font-black text-slate-950">No stores are assigned to this account</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm font-semibold text-slate-600">Contact an administrator to assign a store before managing products and inventory.</p>
+            <button type="button" onClick={() => void loadStores()} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white">
+              <RefreshCw className="h-4 w-4" /> Check again
+            </button>
           </div>
         ) : null}
 
