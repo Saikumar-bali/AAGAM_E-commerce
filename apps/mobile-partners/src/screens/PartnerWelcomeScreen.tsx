@@ -112,6 +112,7 @@ export function PartnerWelcomeScreen({ navigation }: any) {
         <Text style={styles.actionText}>Resume with phone or email</Text>
       </TouchableOpacity>
       <TouchableOpacity
+        accessibilityLabel="Approved partner sign in"
         style={styles.action}
         onPress={() => navigation.navigate('Login')}
       >
