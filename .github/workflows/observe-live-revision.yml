@@ -1,0 +1,26 @@
+name: Observe Live Revision
+
+on:
+  push:
+    branches: ["qa/observe-live-revision-20260722"]
+    paths: [".github/workflows/observe-live-revision.yml"]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read and publish public health revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          body="$(curl --location --silent --show-error --max-time 20 https://aagam.accesscam.org/api/health)"
+          compact="$(HEALTH_BODY="$body" node -e 'const v=JSON.parse(process.env.HEALTH_BODY); process.stdout.write(JSON.stringify(v))')"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          comment="$(printf '## Production revision observer\n\n- Observer run: %s\n- Health response: `%s`\n' "$run_url" "$compact")"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/100/comments" -f body="$comment"
