@@ -1,0 +1,72 @@
+name: Live Inventory UI QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/admin-dashboard/e2e/live-inventory-production.spec.ts"
+      - "apps/admin-dashboard/e2e/playwright.live.config.ts"
+      - ".github/workflows/live-inventory-ui.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-inventory-ui:
+    name: A1-A2 W1-W8 live browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      NODE_VERSION: "22.22.3"
+      LIVE_BASE_URL: "https://aagam.accesscam.org"
+      ADMIN_EMAIL: "admin@aagam.com"
+      ADMIN_PASSWORD: "admin@2026!"
+      STORE_EMAIL: "store@aagam.com"
+      STORE_PASSWORD: "store@2026!"
+
+    steps:
+      - name: Checkout QA branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Prepare independent live suite
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          target = Path('apps/admin-dashboard/e2e/live-inventory-production.spec.ts')
+          source = target.read_text()
+          source = source.replace("test.describe.serial(", "test.describe(")
+          source = source.replace(
+              "const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });",
+              "const context = await browser.newContext({ baseURL: process.env.LIVE_BASE_URL || 'https://aagam.accesscam.org', viewport: { width: 1440, height: 900 } });",
+          )
+          target.write_text(source)
+          PY
+
+      - name: Install Chromium
+        run: npx playwright install chromium --with-deps
+        working-directory: apps/admin-dashboard
+
+      - name: Run live Admin and Store inventory UI tests
+        run: npx playwright test -c e2e/playwright.live.config.ts
+        working-directory: apps/admin-dashboard
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-inventory-ui-evidence
+          path: docs/qa/live-inventory-ui
+          if-no-files-found: warn
+          retention-days: 30
