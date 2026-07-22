@@ -1,0 +1,167 @@
+appId: com.aagampartners
+name: Partners release APK - store inventory ownership
+tags:
+  - release
+  - store-owner
+  - inventory
+---
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+- extendedWaitUntil:
+    visible: "Join AAGAM professionally"
+    timeout: 30000
+- takeScreenshot: 01-partners-welcome
+- tapOn:
+    text: "Approved partner sign in"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Sign in to operations"
+    timeout: 15000
+- tapOn:
+    text: "Use password sign in"
+    retryTapIfNoChange: true
+- tapOn: "Partner login identifier"
+- inputText: ${MAESTRO_STORE_EMAIL}
+- tapOn: "Partner login password"
+- inputText: ${MAESTRO_STORE_PASSWORD}
+- hideKeyboard
+- takeScreenshot: 02-partners-password-login
+- tapOn:
+    text: "Partner login submit"
+    enabled: true
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Inventory"
+    timeout: 30000
+- tapOn:
+    text: "^Inventory$"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Products & inventory"
+    timeout: 30000
+- tapOn:
+    text: "Select store"
+    retryTapIfNoChange: true
+- tapOn:
+    text: "Maestro Store Alpha"
+    retryTapIfNoChange: true
+- assertVisible: "Maestro Store Alpha"
+- tapOn:
+    text: "Add products"
+    retryTapIfNoChange: true
+- tapOn: "Search Admin catalogue"
+- eraseText
+- inputText: "Maestro Test Biscuits"
+- hideKeyboard
+- tapOn:
+    text: "^Search$"
+    enabled: true
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Maestro Test Biscuits"
+    timeout: 20000
+- assertVisible: "MRP.*100"
+- tapOn: "Maestro Test Biscuits opening stock"
+- eraseText
+- inputText: "12"
+- tapOn: "Maestro Test Biscuits new store price"
+- eraseText
+- inputText: "90"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Add to store"
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 80
+- tapOn:
+    text: "^Add to store$"
+    enabled: true
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Maestro Test Biscuits"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "12 units"
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 80
+- assertVisible: "12 units"
+- takeScreenshot: 03-product-added-with-opening-stock
+- tapOn: "Maestro Test Biscuits stock"
+- eraseText
+- inputText: "7"
+- tapOn: "Maestro Test Biscuits store price"
+- eraseText
+- inputText: "85"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save inventory"
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 80
+- tapOn:
+    text: "^Save inventory$"
+    enabled: true
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "7 units"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "Listed"
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 80
+- tapOn:
+    text: "^Listed$"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Hidden"
+    timeout: 15000
+- tapOn:
+    text: "Auto-hide: On"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Auto-hide: Off"
+    timeout: 15000
+- takeScreenshot: 04-product-updated-and-hidden
+- scrollUntilVisible:
+    element: "Select store"
+    direction: UP
+    timeout: 20000
+    visibilityPercentage: 80
+- tapOn:
+    text: "Select store"
+    retryTapIfNoChange: true
+- tapOn:
+    text: "Maestro Store Beta"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Maestro Beta Bread"
+    timeout: 20000
+- assertNotVisible: "Maestro Test Biscuits"
+- takeScreenshot: 05-beta-store-isolated
+- scrollUntilVisible:
+    element: "Select store"
+    direction: UP
+    timeout: 15000
+    visibilityPercentage: 80
+- tapOn:
+    text: "Select store"
+    retryTapIfNoChange: true
+- tapOn:
+    text: "Maestro Store Alpha"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Maestro Existing Milk"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "Maestro Test Biscuits"
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 70
+- assertVisible: "7 units"
+- assertVisible: "Hidden"
+- assertVisible: "Auto-hide: Off"
+- takeScreenshot: 06-alpha-store-final-state
