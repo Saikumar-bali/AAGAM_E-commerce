@@ -27,5 +27,5 @@ jobs:
           printf 'PRODUCTION_HEALTH=%s\n' "$compact"
           for workflow in live-store-owner-w1-w7.yml ci.yml deploy.yml; do
             gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?branch=main&per_page=5" \
-              --jq --arg workflow "$workflow" '.workflow_runs[] | "WORKFLOW=\($workflow) id=\(.id) status=\(.status) conclusion=\(.conclusion) sha=\(.head_sha) event=\(.event)"'
+              | jq -r --arg workflow "$workflow" '.workflow_runs[] | "WORKFLOW=\($workflow) id=\(.id) status=\(.status) conclusion=\(.conclusion) sha=\(.head_sha) event=\(.event)"'
           done
