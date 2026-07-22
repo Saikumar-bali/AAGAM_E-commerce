@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -45,7 +45,8 @@ const BlockedScreen = () => (
 );
 
 const RootNavigator = () => {
-  const { user, isLoading, initialize } = useAuthStore();
+  const { user, initialize } = useAuthStore();
+  const [authHydrated, setAuthHydrated] = useState(false);
   const {
     response: applicationResponse,
     isHydrated: onboardingHydrated,
@@ -53,10 +54,21 @@ const RootNavigator = () => {
   } = usePartnerOnboardingStore();
 
   useEffect(() => {
-    void Promise.all([initialize(), restoreOnboarding()]);
+    let active = true;
+    void Promise.allSettled([initialize(), restoreOnboarding()]).finally(() => {
+      if (active) setAuthHydrated(true);
+    });
+    return () => {
+      active = false;
+    };
   }, [initialize, restoreOnboarding]);
 
-  if (isLoading || !onboardingHydrated) return <LoadingScreen />;
+  // Only the one-time secure-session hydration owns the root loading screen.
+  // Interactive sign-in operations use their screen-local spinner. Reusing the
+  // auth store's operation flag here unmounted Login on a failed request and
+  // recreated the applicant navigator at PartnerWelcome, hiding the real error.
+  if (!authHydrated || !onboardingHydrated) return <LoadingScreen />;
+
   const applicantInitialRoute = resolveApplicantInitialRoute(applicationResponse);
   const roles = roleSet(user);
   const operationalRole = roles.has('ADMIN')
