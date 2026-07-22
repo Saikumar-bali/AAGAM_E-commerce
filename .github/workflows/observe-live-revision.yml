@@ -16,16 +16,15 @@ jobs:
   observe:
     runs-on: ubuntu-latest
     steps:
-      - name: Read production and final workflow state
+      - name: Inspect cleanup failure
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          body="$(curl --location --silent --show-error --max-time 20 https://aagam.accesscam.org/api/health)"
-          compact="$(HEALTH_BODY="$body" node -e 'const v=JSON.parse(process.env.HEALTH_BODY); process.stdout.write(JSON.stringify(v))')"
-          printf 'PRODUCTION_HEALTH=%s\n' "$compact"
-          for workflow in live-store-owner-w1-w7.yml ci.yml deploy.yml; do
-            gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?branch=main&per_page=8" \
-              | jq -r --arg workflow "$workflow" '.workflow_runs[] | "WORKFLOW=\($workflow) id=\(.id) status=\(.status) conclusion=\(.conclusion) sha=\(.head_sha) event=\(.event)"'
-          done
+          gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/88840863567/logs" > /tmp/qa-job.log
+          printf '%s\n' '--- CLEANUP-RELATED LINES ---'
+          grep -Ein 'Restore catalogue|cleanup|productRestored|productRemoved|Prisma|Error|P[0-9]{4}|constraint|foreign|deleteMany|updateMany|DbNull|Invalid' /tmp/qa-job.log \
+            | tail -n 180 || true
+          printf '%s\n' '--- FINAL 180 LINES ---'
+          tail -n 180 /tmp/qa-job.log
