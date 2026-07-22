@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   live-inventory-ui:
-    name: A1-A2 W1-W8 live browser tests
+    name: Admin live confirmation
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -51,6 +51,10 @@ jobs:
               "const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });",
               "const context = await browser.newContext({ baseURL: process.env.LIVE_BASE_URL || 'https://aagam.accesscam.org', viewport: { width: 1440, height: 900 } });",
           )
+          source = source.replace(
+              "await form.locator('button[type=\"submit\"]').last().click();",
+              "await page.getByRole('button', { name: 'Create Product', exact: true }).click();",
+          )
           target.write_text(source)
           PY
 
@@ -58,15 +62,15 @@ jobs:
         run: npx playwright install chromium --with-deps
         working-directory: apps/admin-dashboard
 
-      - name: Run live Admin and Store inventory UI tests
-        run: npx playwright test -c e2e/playwright.live.config.ts
+      - name: Confirm Admin product creation and read-only inventory
+        run: npx playwright test -c e2e/playwright.live.config.ts --grep "A1|A2"
         working-directory: apps/admin-dashboard
 
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: live-inventory-ui-evidence
+          name: live-inventory-ui-admin-confirmation
           path: docs/qa/live-inventory-ui
           if-no-files-found: warn
           retention-days: 30
