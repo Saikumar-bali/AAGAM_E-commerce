@@ -16,12 +16,16 @@ jobs:
   observe:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect failed live QA provisioning
+      - name: Read production and final workflow state
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/88837867659/logs" > /tmp/qa-job.log
-          grep -Ein 'Prisma|Error|P[0-9]{4}|Manual Test|opening|bootstrap|transaction|constraint|foreign|unique|store owner|qa store' /tmp/qa-job.log \
-            | tail -n 100 || true
+          body="$(curl --location --silent --show-error --max-time 20 https://aagam.accesscam.org/api/health)"
+          compact="$(HEALTH_BODY="$body" node -e 'const v=JSON.parse(process.env.HEALTH_BODY); process.stdout.write(JSON.stringify(v))')"
+          printf 'PRODUCTION_HEALTH=%s\n' "$compact"
+          for workflow in live-store-owner-w1-w7.yml ci.yml deploy.yml; do
+            gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?branch=main&per_page=8" \
+              | jq -r --arg workflow "$workflow" '.workflow_runs[] | "WORKFLOW=\($workflow) id=\(.id) status=\(.status) conclusion=\(.conclusion) sha=\(.head_sha) event=\(.event)"'
+          done
