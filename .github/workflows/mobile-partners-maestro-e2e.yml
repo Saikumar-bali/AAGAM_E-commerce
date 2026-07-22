@@ -39,7 +39,7 @@ env:
   MAESTRO_VERSION: "2.4.0"
   MAESTRO_STORE_EMAIL: "maestro.store@aagam.test"
   MAESTRO_EMPTY_STORE_EMAIL: "maestro.empty@aagam.test"
-  MAESTRO_STORE_PASSWORD: "Maestro@2026!"
+  MAESTRO_STORE_PASSWORD: "Maestro2026Test"
   DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_maestro"
   REDIS_URL: "redis://localhost:6379"
   JWT_SECRET: "aagam-maestro-ci-only-jwt-secret"
@@ -149,15 +149,20 @@ jobs:
           exit 1
         env:
           PORT: "3005"
-          CORS_ORIGINS: "http://10.0.2.2:3005"
+          CORS_ORIGINS: "http://127.0.0.1:3005"
           PLAYWRIGHT_QA: "true"
           PLAYWRIGHT_QA_SEED: "true"
 
-      - name: Configure release APK for local emulator API
+      - name: Preflight seeded mobile authentication
+        run: node apps/mobile-partners/maestro/verify-auth-api.js
+        env:
+          MAESTRO_API_URL: "http://127.0.0.1:3005"
+
+      - name: Configure release APK for reversed emulator API
         shell: bash
         run: |
           cat > apps/mobile-partners/.env <<EOF
-          API_URL=http://10.0.2.2:3005
+          API_URL=http://127.0.0.1:3005
           APP_VARIANT=PARTNERS
           APP_VERSION_CODE=${GITHUB_RUN_NUMBER}
           EOF
