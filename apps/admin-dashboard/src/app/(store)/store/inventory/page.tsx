@@ -70,6 +70,7 @@ export default function InventoryPage() {
   const [catalogue, setCatalogue] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [storesLoaded, setStoresLoaded] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [addDrafts, setAddDrafts] = useState<Record<string, Draft>>({});
@@ -79,10 +80,31 @@ export default function InventoryPage() {
   selectedStoreIdRef.current = selectedStoreId;
 
   const loadStores = useCallback(async () => {
-    const { data } = await apiClient.get('/stores/my-stores');
-    const nextStores: StoreSummary[] = Array.isArray(data) ? data : [];
-    setStores(nextStores);
-    setSelectedStoreId((current) => current || nextStores[0]?.id || '');
+    setLoading(true);
+    setMessage(null);
+    try {
+      const { data } = await apiClient.get('/stores/my-stores');
+      const nextStores: StoreSummary[] = Array.isArray(data) ? data : [];
+      setStores(nextStores);
+      setStoresLoaded(true);
+
+      if (nextStores.length === 0) {
+        inventoryRequestIdRef.current += 1;
+        setSelectedStoreId('');
+        setAssortment([]);
+        setCatalogue([]);
+        setLoading(false);
+        return;
+      }
+
+      setSelectedStoreId((current) =>
+        nextStores.some((store) => store.id === current) ? current : nextStores[0].id,
+      );
+    } catch (error: any) {
+      setStoresLoaded(false);
+      setLoading(false);
+      setMessage({ tone: 'error', text: error?.response?.data?.message || 'Failed to load stores' });
+    }
   }, []);
 
   const loadInventory = useCallback(async (storeId: string, query = search) => {
@@ -130,16 +152,19 @@ export default function InventoryPage() {
   }, [search]);
 
   useEffect(() => {
-    loadStores().catch((error: any) => {
-      setLoading(false);
-      setMessage({ tone: 'error', text: error?.response?.data?.message || 'Failed to load stores' });
-    });
+    void loadStores();
   }, [loadStores]);
 
   useEffect(() => {
-    if (selectedStoreId) void loadInventory(selectedStoreId, '');
-    else inventoryRequestIdRef.current += 1;
-  }, [selectedStoreId]);
+    if (selectedStoreId) {
+      void loadInventory(selectedStoreId, '');
+      return;
+    }
+    if (storesLoaded) {
+      inventoryRequestIdRef.current += 1;
+      setLoading(false);
+    }
+  }, [selectedStoreId, storesLoaded]);
 
   const lowStockCount = useMemo(
     () => assortment.filter((item) => item.quantity > 0 && item.quantity < 10).length,
@@ -250,6 +275,7 @@ export default function InventoryPage() {
   };
 
   const selectedStore = stores.find((store) => store.id === selectedStoreId);
+  const hasNoAssignedStores = storesLoaded && stores.length === 0;
 
   return (
     <DashboardLayout allowedRole="STORE_OWNER">
@@ -275,8 +301,8 @@ export default function InventoryPage() {
             ) : null}
             <button
               type="button"
-              onClick={() => void loadInventory(selectedStoreId)}
-              disabled={loading || !selectedStoreId}
+              onClick={() => selectedStoreId ? void loadInventory(selectedStoreId) : void loadStores()}
+              disabled={loading}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
@@ -296,6 +322,17 @@ export default function InventoryPage() {
           </div>
         ) : null}
 
+        {hasNoAssignedStores ? (
+          <div data-testid="no-assigned-stores" className="rounded-[2rem] border border-dashed border-amber-200 bg-amber-50 p-10 text-center">
+            <Package className="mx-auto h-14 w-14 text-amber-500" />
+            <h2 className="mt-5 text-xl font-black text-slate-950">No stores are assigned to this account</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm font-semibold text-slate-600">Contact an administrator to assign a store before managing products and inventory.</p>
+            <button type="button" onClick={() => void loadStores()} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white">
+              <RefreshCw className="h-4 w-4" /> Check again
+            </button>
+          </div>
+        ) : (
+          <>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="enterprise-panel p-5"><p className="text-xs font-black uppercase tracking-wider text-slate-400">My products</p><p className="mt-2 text-3xl font-black text-slate-950">{assortment.length}</p></div>
           <div className="enterprise-panel p-5"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Available to add</p><p className="mt-2 text-3xl font-black text-slate-950">{catalogue.length}</p></div>
@@ -426,6 +463,8 @@ export default function InventoryPage() {
               </div>
             )}
           </div>
+        )}
+          </>
         )}
       </div>
     </DashboardLayout>

@@ -29,6 +29,16 @@ function resetSessionCache() {
   ['user_role', 'user_name', 'user_email', 'user_avatar', 'access_token'].forEach((key) => localStorage.removeItem(key));
 }
 
+function friendlyAuthError(error: any, fallback: string) {
+  const status = error?.response?.status;
+  const rawMessage = error?.response?.data?.message;
+  const message = Array.isArray(rawMessage) ? rawMessage.join(' ') : typeof rawMessage === 'string' ? rawMessage : '';
+  if (status === 429 || /ThrottlerException|Too Many Requests/i.test(message)) {
+    return 'Too many login attempts. Please try again later.';
+  }
+  return message || fallback;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<'PHONE' | 'PASSWORD'>('PHONE');
@@ -105,7 +115,7 @@ export default function LoginPage() {
       }
       setPhone(normalized); setMasked(data.maskedDestination); setCode(''); setCountdown(30);
     } catch (requestError: any) {
-      setError(requestError?.response?.data?.message || 'Could not send the verification code.');
+      setError(friendlyAuthError(requestError, 'Could not send the verification code.'));
     } finally { setLoading(false); }
   };
 
@@ -118,7 +128,7 @@ export default function LoginPage() {
       routeUser(data.user);
     } catch (requestError: any) {
       setCode('');
-      setError(requestError?.response?.data?.message || 'Verification code is invalid or expired.');
+      setError(friendlyAuthError(requestError, 'Verification code is invalid or expired.'));
     } finally { setLoading(false); }
   };
 
@@ -129,7 +139,7 @@ export default function LoginPage() {
       const { data } = await apiClient.post('/auth/login', { identifier: identifier.trim(), password });
       routeUser(data.user);
     } catch (requestError: any) {
-      setError(requestError?.response?.data?.message || 'Invalid credentials');
+      setError(friendlyAuthError(requestError, 'Invalid credentials'));
     } finally { setLoading(false); }
   };
 
@@ -150,7 +160,7 @@ export default function LoginPage() {
         const { data } = await apiClient.post('/auth/google', { idToken: response.credential });
         routeUser(data.user);
       } catch (requestError: any) {
-        setError(requestError?.response?.data?.message || 'Google sign-in failed');
+        setError(friendlyAuthError(requestError, 'Google sign-in failed'));
       } finally { setGoogleLoading(false); }
     };
     if (window.google) window.setTimeout(initializeGoogle, 0);
