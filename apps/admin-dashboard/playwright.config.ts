@@ -43,9 +43,6 @@ export default defineConfig({
       },
       dependencies: ['setup'],
       testMatch: /[\\/](tests|e2e)[\\/].*\.spec\.ts$/,
-      // This suite intentionally targets the deployed production URL and uses
-      // protected QA credentials. The dedicated live config runs it separately.
-      testIgnore: /[\\/]e2e[\\/]live-store-owner-w1-w7\.spec\.ts$/,
     },
   ],
   webServer: {
