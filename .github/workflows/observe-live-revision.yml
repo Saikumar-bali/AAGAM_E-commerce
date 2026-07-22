@@ -23,4 +23,5 @@ jobs:
         run: |
           set -Eeuo pipefail
           gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/88837867659/logs" > /tmp/qa-job.log
-          tail -n 240 /tmp/qa-job.log
+          grep -Ein 'Prisma|Error|P[0-9]{4}|Manual Test|opening|bootstrap|transaction|constraint|foreign|unique|store owner|qa store' /tmp/qa-job.log \
+            | tail -n 100 || true
