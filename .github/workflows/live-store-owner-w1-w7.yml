@@ -29,13 +29,10 @@ jobs:
     name: Provision QA stores and run W1-W7
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    environment:
-      name: production
-      url: ${{ vars.PRODUCTION_URL }}
 
     env:
       NODE_VERSION: "22.22.3"
-      LIVE_BASE_URL: ${{ vars.PRODUCTION_URL }}
+      LIVE_BASE_URL: ${{ vars.PRODUCTION_URL || 'https://aagam.accesscam.org' }}
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
       DEPLOY_USER: ${{ vars.DEPLOY_USER }}
       DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
@@ -98,8 +95,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          base_url="${LIVE_BASE_URL:-https://aagam.accesscam.org}"
-          health_url="${PUBLIC_HEALTHCHECK_URL:-${base_url%/}/api/health}"
+          health_url="${PUBLIC_HEALTHCHECK_URL:-${LIVE_BASE_URL%/}/api/health}"
           for attempt in $(seq 1 90); do
             body="$(curl --location --silent --show-error --max-time 15 "$health_url" || true)"
             if HEALTH_BODY="$body" node -e '
