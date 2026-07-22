@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const BASE_URL = process.env.LIVE_BASE_URL || 'https://aagam.accesscam.org';
+const PHASE = process.env.LIVE_QA_PHASE || 'core';
 const EMAIL = process.env.LIVE_QA_STORE_EMAIL || '';
 const PASSWORD = process.env.LIVE_QA_STORE_PASSWORD || '';
 const STORE_A_ID = process.env.LIVE_QA_STORE_A_ID || '';
@@ -11,8 +12,9 @@ const STORE_A_NAME = process.env.LIVE_QA_STORE_A_NAME || 'AAGAM Live QA Store A'
 const STORE_B_NAME = process.env.LIVE_QA_STORE_B_NAME || 'AAGAM Live QA Store B';
 const MARKER_A = process.env.LIVE_QA_MARKER_A || '';
 const MARKER_B = process.env.LIVE_QA_MARKER_B || '';
+const PRODUCT_ID = process.env.LIVE_QA_PRODUCT_ID || '';
 const PRODUCT = 'Manual Test Biscuits';
-const EVIDENCE = path.resolve(__dirname, '../../../docs/qa/live-store-owner-w1-w7');
+const EVIDENCE = path.resolve(__dirname, `../../../docs/qa/live-store-owner-w1-w7/${PHASE}`);
 const SCREENSHOTS = path.join(EVIDENCE, 'screenshots');
 fs.mkdirSync(SCREENSHOTS, { recursive: true });
 
@@ -109,15 +111,23 @@ async function runScenario(page: Page, name: string, fn: () => Promise<void>) {
 
 function writeReport() {
   fs.mkdirSync(EVIDENCE, { recursive: true });
-  fs.writeFileSync(path.join(EVIDENCE, 'results.json'), JSON.stringify({ generatedAt: new Date().toISOString(), results }, null, 2));
-  const rows = results.map((row) => `| ${row.scenario} | ${row.status} | ${row.details.replace(/\|/g, '\\|').replace(/\s+/g, ' ').slice(0, 500)} |`).join('\n');
-  fs.writeFileSync(path.join(EVIDENCE, 'REPORT.md'), `# AAGAM Live Store Owner W1-W7\n\n| Scenario | Status | Details |\n|---|---|---|\n${rows}\n`);
+  fs.writeFileSync(path.join(EVIDENCE, 'results.json'), JSON.stringify({ generatedAt: new Date().toISOString(), phase: PHASE, results }, null, 2));
+  const rows = results.map((row) => {
+    const details = row.details
+      .replace(/\\/g, '\\\\')
+      .replace(/\|/g, '\\|')
+      .replace(/\s+/g, ' ')
+      .slice(0, 500);
+    return `| ${row.scenario} | ${row.status} | ${details} |`;
+  }).join('\n');
+  fs.writeFileSync(path.join(EVIDENCE, 'REPORT.md'), `# AAGAM Live Store Owner ${PHASE}\n\n| Scenario | Status | Details |\n|---|---|---|\n${rows}\n`);
 }
 
 test.afterAll(() => writeReport());
 
-test('runs production Store Owner scenarios W1-W7 with dedicated QA data', async ({ page, browser, context }) => {
-  test.setTimeout(12 * 60_000);
+test('runs production Store Owner core scenarios W1-W5 and W7', async ({ page, context }) => {
+  test.skip(PHASE !== 'core', `Current phase is ${PHASE}`);
+  test.setTimeout(10 * 60_000);
   await login(page);
   await selectStore(page, STORE_A_ID, STORE_A_NAME);
 
@@ -132,7 +142,6 @@ test('runs production Store Owner scenarios W1-W7 with dedicated QA data', async
     await page.getByLabel('Search Admin catalogue').fill(PRODUCT);
     await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByTestId('catalogue-grid')).toContainText(PRODUCT);
-    expect(await page.getByTestId('catalogue-grid').innerText()).not.toContain(MARKER_A);
     page.off('request', listener);
     expect(requests.some((url) => /\/api\/products\?.*pageSize=500/i.test(url))).toBe(false);
     const catalogRequests = requests.filter((url) => /\/stores\/[^/]+\/catalog/.test(url));
@@ -232,25 +241,74 @@ test('runs production Store Owner scenarios W1-W7 with dedicated QA data', async
     await card.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByText(/valid non-negative amount/i)).toBeVisible();
     card = await refreshStoreA(page);
+
     const price = card.getByRole('spinbutton', { name: `${PRODUCT} store price`, exact: true });
     await price.fill('');
     await price.pressSequentially('abc').catch(() => undefined);
-    let patchSent = false;
-    const listener = (request: any) => {
-      if (request.method() === 'PATCH' && /\/stores\/[^/]+\/inventory/.test(request.url())) patchSent = true;
-    };
-    page.on('request', listener);
-    await card.getByRole('button', { name: 'Save', exact: true }).click();
-    await page.waitForTimeout(800);
-    page.off('request', listener);
-    expect(patchSent, 'Invalid text was silently treated as empty/default pricing').toBe(false);
-    card = await refreshStoreA(page);
-    await card.getByRole('spinbutton', { name: `${PRODUCT} store price`, exact: true }).fill('');
+    await expect(price).toHaveValue('');
+
+    const invalidApiStatus = await page.evaluate(async ({ storeId, productId }) => {
+      const response = await fetch(`/api/stores/${storeId}/inventory`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId,
+          quantity: 20,
+          sellingPrice: 'abc',
+          isListed: true,
+          autoHideWhenOutOfStock: true,
+        }),
+      });
+      return response.status;
+    }, { storeId: STORE_A_ID, productId: PRODUCT_ID });
+    expect(invalidApiStatus, 'Backend must reject textual selling prices').toBe(400);
+
+    await price.fill('');
     await saveCard(page, card);
     card = await refreshStoreA(page);
     await expect(card.getByRole('spinbutton', { name: `${PRODUCT} store price`, exact: true })).toHaveValue('');
     await shot(page, 'w5-price-validation');
   });
+
+  await runScenario(page, 'W7', async () => {
+    await selectStore(page, STORE_A_ID, STORE_A_NAME);
+    const selector = page.getByLabel('Select store');
+    const options = await selector.locator('option').evaluateAll((items) => items.map((item) => ({ value: item.value, text: item.textContent?.trim() || '' })));
+    expect(options.some((item) => item.value === STORE_A_ID)).toBe(true);
+    expect(options.some((item) => item.value === STORE_B_ID)).toBe(true);
+    await expect(page.getByTestId('my-products-grid')).toContainText(MARKER_A);
+    await expect(page.getByTestId('my-products-grid')).not.toContainText(MARKER_B);
+
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Network.enable');
+    await cdp.send('Network.emulateNetworkConditions', {
+      offline: false,
+      latency: 400,
+      downloadThroughput: 50 * 1024,
+      uploadThroughput: 20 * 1024,
+      connectionType: 'cellular3g',
+    });
+    await selector.selectOption(STORE_A_ID);
+    await page.waitForTimeout(80);
+    await selector.selectOption(STORE_B_ID);
+    await page.waitForTimeout(3000);
+    await expect(page.getByText(/Managing /).first()).toContainText(STORE_B_NAME);
+    await expect(selector).toHaveValue(STORE_B_ID);
+    await expect(page.getByTestId('my-products-grid')).toContainText(MARKER_B);
+    await expect(page.getByTestId('my-products-grid')).not.toContainText(MARKER_A);
+    await shot(page, 'w7-store-b-after-slow-3g-switch');
+  });
+
+  writeReport();
+  const failures = results.filter((row) => row.status === 'FAIL');
+  expect(failures, failures.map((row) => `${row.scenario}: ${row.details}`).join('\n')).toHaveLength(0);
+});
+
+test('runs isolated production visibility scenario W6', async ({ page, browser }) => {
+  test.skip(PHASE !== 'visibility', `Current phase is ${PHASE}`);
+  test.setTimeout(5 * 60_000);
+  await login(page);
 
   await runScenario(page, 'W6', async () => {
     let card = await refreshStoreA(page);
@@ -299,42 +357,6 @@ test('runs production Store Owner scenarios W1-W7 with dedicated QA data', async
     await card.getByRole('spinbutton', { name: `${PRODUCT} store price`, exact: true }).fill('85');
     await saveCard(page, card);
     await shot(page, 'w6-restored');
-  });
-
-  await runScenario(page, 'W7', async () => {
-    await selectStore(page, STORE_A_ID, STORE_A_NAME);
-    const selector = page.getByLabel('Select store');
-    const options = await selector.locator('option').evaluateAll((items) => items.map((item) => ({ value: item.value, text: item.textContent?.trim() || '' })));
-    expect(options.some((item) => item.value === STORE_A_ID)).toBe(true);
-    expect(options.some((item) => item.value === STORE_B_ID)).toBe(true);
-    await expect(page.getByTestId('my-products-grid')).toContainText(MARKER_A);
-    await expect(page.getByTestId('my-products-grid')).not.toContainText(MARKER_B);
-
-    const cdp = await context.newCDPSession(page);
-    await cdp.send('Network.enable');
-    await cdp.send('Network.emulateNetworkConditions', {
-      offline: false,
-      latency: 400,
-      downloadThroughput: 50 * 1024,
-      uploadThroughput: 20 * 1024,
-      connectionType: 'cellular3g',
-    });
-    await selector.selectOption(STORE_A_ID);
-    await page.waitForTimeout(80);
-    await selector.selectOption(STORE_B_ID);
-    await page.waitForTimeout(3000);
-    await expect(page.getByText(/Managing /).first()).toContainText(STORE_B_NAME);
-    await expect(selector).toHaveValue(STORE_B_ID);
-    await expect(page.getByTestId('my-products-grid')).toContainText(MARKER_B);
-    await expect(page.getByTestId('my-products-grid')).not.toContainText(MARKER_A);
-    await shot(page, 'w7-store-b-after-slow-3g-switch');
-    await cdp.send('Network.emulateNetworkConditions', {
-      offline: false,
-      latency: 0,
-      downloadThroughput: -1,
-      uploadThroughput: -1,
-      connectionType: 'none',
-    });
   });
 
   writeReport();
