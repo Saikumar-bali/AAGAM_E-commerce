@@ -8,13 +8,20 @@ on:
       - "apps/admin-dashboard/e2e/live-store-owner-w1-w7.spec.ts"
       - "apps/admin-dashboard/e2e/playwright.live-store.config.ts"
       - ".github/workflows/live-store-owner-w1-w7.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "scripts/provision-live-qa-store-owner.js"
+      - "apps/admin-dashboard/e2e/live-store-owner-w1-w7.spec.ts"
+      - "apps/admin-dashboard/e2e/playwright.live-store.config.ts"
+      - ".github/workflows/live-store-owner-w1-w7.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: live-store-owner-w1-w7
+  group: live-store-owner-w1-w7-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
