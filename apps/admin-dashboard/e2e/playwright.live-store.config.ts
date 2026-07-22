@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Production-only runner. Standard localhost smoke CI explicitly ignores this suite.
 export default defineConfig({
   testDir: '.',
   testMatch: /live-store-owner-w1-w7\.spec\.ts$/,
