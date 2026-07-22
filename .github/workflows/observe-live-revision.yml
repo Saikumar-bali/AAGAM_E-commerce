@@ -16,15 +16,11 @@ jobs:
   observe:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect cleanup failure
+      - name: Observe forced cleanup
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/88840863567/logs" > /tmp/qa-job.log
-          printf '%s\n' '--- CLEANUP-RELATED LINES ---'
-          grep -Ein 'Restore catalogue|cleanup|productRestored|productRemoved|Prisma|Error|P[0-9]{4}|constraint|foreign|deleteMany|updateMany|DbNull|Invalid' /tmp/qa-job.log \
-            | tail -n 180 || true
-          printf '%s\n' '--- FINAL 180 LINES ---'
-          tail -n 180 /tmp/qa-job.log
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/force-live-qa-cleanup.yml/runs?branch=main&per_page=5" \
+            | jq -r '.workflow_runs[] | "CLEANUP_RUN id=\(.id) status=\(.status) conclusion=\(.conclusion) sha=\(.head_sha) event=\(.event)"'
