@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: live-store-owner-w1-w7-main
@@ -234,3 +235,21 @@ jobs:
           path: docs/qa/live-store-owner-w1-w7
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Publish inspectable W1-W7 summary
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -Eeuo pipefail
+          report_path="docs/qa/live-store-owner-w1-w7/REPORT.md"
+          if [[ -f "$report_path" ]]; then
+            report="$(cat "$report_path")"
+          else
+            report="No scenario report was generated. The workflow failed before browser execution."
+          fi
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          body="$(printf '## Live Store Owner W1-W7 run\n\n- Revision: `%s`\n- Workflow result: **%s**\n- Run: %s\n- QA stores cleanup step executed: **yes**\n\n%s\n' "$GITHUB_SHA" "$JOB_STATUS" "$run_url" "$report")"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/100/comments" -f body="$body"
