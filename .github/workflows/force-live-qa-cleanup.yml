@@ -1,0 +1,258 @@
+name: Force Live QA Cleanup
+
+on:
+  push:
+    branches: ["main"]
+    paths: [".github/workflows/force-live-qa-cleanup.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Restore production QA data
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+
+    steps:
+      - name: Validate cleanup configuration
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$DEPLOY_HOST" ]]
+          [[ -n "$DEPLOY_USER" ]]
+          [[ -n "$DEPLOY_PATH" ]]
+          [[ -n "$SSH_PRIVATE_KEY" ]]
+          [[ -n "$SSH_KNOWN_HOSTS" ]]
+
+      - name: Configure production SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/deploy_key" > /dev/null
+
+      - name: Prepare deterministic cleanup script
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > /tmp/aagam-force-live-qa-cleanup.js <<'NODE'
+          'use strict';
+
+          const path = require('path');
+          require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
+          const { PrismaClient, Prisma } = require('@prisma/client');
+          const { createClient } = require('redis');
+
+          const prisma = new PrismaClient();
+          const STORE_NAMES = ['AAGAM Live QA Store A', 'AAGAM Live QA Store B'];
+          const QA_EMAIL = 'live.qa.store.owner@aagam.test';
+          const PRODUCT_ID = 'cmrvf2ywc000bkohd0ex0ii0m';
+          const ORIGINAL_DELETED_AT = new Date('2026-07-22T03:47:16.028Z');
+
+          async function main() {
+            const cleanup = await prisma.$transaction(async (tx) => {
+              const stores = await tx.store.findMany({
+                where: { name: { in: STORE_NAMES }, deletedAt: null },
+                select: { id: true, name: true, ownerId: true },
+              });
+              if (stores.length !== 2) {
+                throw new Error(`Expected 2 QA stores, found ${stores.length}`);
+              }
+              const storeIds = stores.map((store) => store.id);
+
+              const ledger = await tx.inventoryLedger.deleteMany({
+                where: { storeId: { in: storeIds } },
+              });
+              const inventory = await tx.inventory.deleteMany({
+                where: { storeId: { in: storeIds } },
+              });
+              await tx.store.updateMany({
+                where: { id: { in: storeIds } },
+                data: { isActive: false },
+              });
+
+              const product = await tx.product.update({
+                where: { id: PRODUCT_ID },
+                data: {
+                  name: 'Manual Test Biscuits',
+                  description: null,
+                  price: 90,
+                  pricePaise: 9000,
+                  mrpPaise: 10000,
+                  image: null,
+                  images: Prisma.DbNull,
+                  details: Prisma.DbNull,
+                  isActive: false,
+                  sortOrder: 7,
+                  deletedAt: ORIGINAL_DELETED_AT,
+                  categoryId: 'cat-vegetables',
+                },
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  price: true,
+                  pricePaise: true,
+                  mrpPaise: true,
+                  image: true,
+                  images: true,
+                  details: true,
+                  isActive: true,
+                  sortOrder: true,
+                  deletedAt: true,
+                  categoryId: true,
+                },
+              });
+
+              return {
+                stores,
+                deletedLedgerRows: ledger.count,
+                deletedInventoryRows: inventory.count,
+                product,
+              };
+            });
+
+            let cacheInvalidated = false;
+            if (process.env.REDIS_URL) {
+              const redis = createClient({ url: process.env.REDIS_URL });
+              redis.on('error', (error) => console.error('Redis cleanup error:', error.message));
+              await redis.connect();
+              await redis.del(['all_products', 'all_categories']);
+              await redis.quit();
+              cacheInvalidated = true;
+            }
+
+            const owner = await prisma.user.findUnique({
+              where: { email: QA_EMAIL },
+              select: { id: true, email: true, role: true },
+            });
+            if (!owner) throw new Error('Dedicated QA Store Owner is missing.');
+
+            const stores = await prisma.store.findMany({
+              where: { name: { in: STORE_NAMES }, deletedAt: null },
+              orderBy: { name: 'asc' },
+              select: { id: true, name: true, ownerId: true, isActive: true, latitude: true, longitude: true },
+            });
+            const storeIds = stores.map((store) => store.id);
+            const inventoryCount = await prisma.inventory.count({ where: { storeId: { in: storeIds } } });
+            const ledgerCount = await prisma.inventoryLedger.count({ where: { storeId: { in: storeIds } } });
+            const product = await prisma.product.findUnique({
+              where: { id: PRODUCT_ID },
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                pricePaise: true,
+                mrpPaise: true,
+                image: true,
+                images: true,
+                details: true,
+                isActive: true,
+                sortOrder: true,
+                deletedAt: true,
+                categoryId: true,
+              },
+            });
+
+            const verification = {
+              ownerExists: Boolean(owner),
+              bothStoresOwnedByQaAccount: stores.length === 2 && stores.every((store) => store.ownerId === owner.id),
+              bothStoresInactive: stores.length === 2 && stores.every((store) => store.isActive === false),
+              inventoryCount,
+              ledgerCount,
+              productRestored: Boolean(
+                product &&
+                product.name === 'Manual Test Biscuits' &&
+                product.description === null &&
+                product.price === 90 &&
+                product.pricePaise === 9000 &&
+                product.mrpPaise === 10000 &&
+                product.image === null &&
+                product.isActive === false &&
+                product.sortOrder === 7 &&
+                product.categoryId === 'cat-vegetables' &&
+                product.deletedAt?.toISOString() === ORIGINAL_DELETED_AT.toISOString()
+              ),
+              cacheInvalidated,
+            };
+
+            if (!verification.bothStoresOwnedByQaAccount) throw new Error('QA stores are not both assigned to the dedicated QA owner.');
+            if (!verification.bothStoresInactive) throw new Error('One or more QA stores remain active.');
+            if (inventoryCount !== 0) throw new Error(`QA store inventory remains: ${inventoryCount}`);
+            if (ledgerCount !== 0) throw new Error(`QA inventory ledger rows remain: ${ledgerCount}`);
+            if (!verification.productRestored) throw new Error('Manual Test Biscuits was not restored to its original soft-deleted state.');
+
+            process.stdout.write(JSON.stringify({ cleanup, verification, stores, product }, null, 2));
+          }
+
+          main()
+            .catch((error) => {
+              console.error(error?.stack || error?.message || error);
+              process.exitCode = 1;
+            })
+            .finally(async () => {
+              await prisma.$disconnect();
+            });
+          NODE
+          chmod 600 /tmp/aagam-force-live-qa-cleanup.js
+
+      - name: Run cleanup and verify production state
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p cleanup-evidence
+          ssh_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -p "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=15
+          )
+          scp_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -P "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=15
+          )
+          target="${DEPLOY_USER}@${DEPLOY_HOST}"
+          remote_script="${DEPLOY_PATH%/}/scripts/.aagam-force-live-qa-cleanup-${GITHUB_RUN_ID}.js"
+          scp -q "${scp_options[@]}" /tmp/aagam-force-live-qa-cleanup.js "$target:$remote_script"
+          printf -v app_path '%q' "$DEPLOY_PATH"
+          printf -v script_path '%q' "$remote_script"
+          ssh "${ssh_options[@]}" "$target" "cd $app_path && node $script_path; status=\$?; rm -f $script_path .aagam-live-qa-*29894211954.json; exit \$status" \
+            | tee cleanup-evidence/cleanup-verification.json
+          node -e 'JSON.parse(require("fs").readFileSync("cleanup-evidence/cleanup-verification.json", "utf8"))'
+
+      - name: Upload cleanup verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-qa-cleanup-verification
+          path: cleanup-evidence
+          if-no-files-found: warn
+          retention-days: 30
