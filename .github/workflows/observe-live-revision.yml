@@ -22,9 +22,5 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          body="$(curl --location --silent --show-error --max-time 20 https://aagam.accesscam.org/api/health)"
-          compact="$(HEALTH_BODY="$body" node -e 'const v=JSON.parse(process.env.HEALTH_BODY); process.stdout.write(JSON.stringify(v))')"
-          printf 'PRODUCTION_HEALTH=%s\n' "$compact"
           gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/88837867659/logs" > /tmp/qa-job.log
-          sed -n '/Provision inactive dedicated QA owner and stores/,/Export QA identifiers and prepare restore state/p' /tmp/qa-job.log \
-            | tail -n 160
+          tail -n 240 /tmp/qa-job.log
