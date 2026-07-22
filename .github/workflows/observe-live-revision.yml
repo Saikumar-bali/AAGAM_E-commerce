@@ -10,15 +10,20 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   observe:
     runs-on: ubuntu-latest
     steps:
-      - name: Read public health revision
+      - name: Read public health revision and QA workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -Eeuo pipefail
           body="$(curl --location --silent --show-error --max-time 20 https://aagam.accesscam.org/api/health)"
           compact="$(HEALTH_BODY="$body" node -e 'const v=JSON.parse(process.env.HEALTH_BODY); process.stdout.write(JSON.stringify(v))')"
           printf 'PRODUCTION_HEALTH=%s\n' "$compact"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/live-store-owner-w1-w7.yml/runs?branch=main&per_page=10" \
+            --jq '.workflow_runs[] | "QA_RUN id=\(.id) status=\(.status) conclusion=\(.conclusion) sha=\(.head_sha) event=\(.event)"'
