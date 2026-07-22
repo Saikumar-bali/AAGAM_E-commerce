@@ -51,6 +51,8 @@ async function ensureStore(tx, name, ownerId, coordinates) {
 function snapshotProduct(product) {
   return {
     id: product.id,
+    createdForQa: false,
+    categoryCreatedForQa: false,
     name: product.name,
     description: product.description,
     price: product.price,
@@ -68,29 +70,63 @@ function snapshotProduct(product) {
 
 async function ensureTestProduct(tx) {
   const existing = await tx.product.findFirst({
-    where: { name: TEST_PRODUCT_NAME, deletedAt: null },
+    where: { name: TEST_PRODUCT_NAME },
     orderBy: { createdAt: 'asc' },
   });
-  if (!existing) {
-    throw new Error(`${TEST_PRODUCT_NAME} must already exist from Admin scenario A1 before W1-W7 runs.`);
+
+  if (existing) {
+    const original = snapshotProduct(existing);
+    const product = await tx.product.update({
+      where: { id: existing.id },
+      data: {
+        description: existing.description || 'Dedicated live browser QA product',
+        price: 90,
+        pricePaise: 9000,
+        mrpPaise: 10000,
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+    return { product, original };
   }
-  const original = snapshotProduct(existing);
-  const product = await tx.product.update({
-    where: { id: existing.id },
+
+  let category = await tx.category.findFirst({
+    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+  });
+  let categoryCreatedForQa = false;
+  if (!category) {
+    category = await tx.category.create({
+      data: { name: 'QA Catalogue', sortOrder: 9999 },
+    });
+    categoryCreatedForQa = true;
+  }
+
+  const product = await tx.product.create({
     data: {
+      name: TEST_PRODUCT_NAME,
+      description: 'Dedicated live browser QA product; removed automatically after testing',
       price: 90,
       pricePaise: 9000,
       mrpPaise: 10000,
+      categoryId: category.id,
       isActive: true,
-      deletedAt: null,
+      sortOrder: 9999,
     },
   });
-  return { product, original };
+  return {
+    product,
+    original: {
+      id: product.id,
+      createdForQa: true,
+      categoryCreatedForQa,
+      categoryId: category.id,
+    },
+  };
 }
 
 async function cleanup(input) {
   const snapshot = input.productSnapshot;
-  if (!snapshot?.id) throw new Error('Cleanup requires the original product snapshot.');
+  if (!snapshot?.id) throw new Error('Cleanup requires the product snapshot.');
 
   return prisma.$transaction(async (tx) => {
     const stores = await tx.store.findMany({
@@ -105,6 +141,19 @@ async function cleanup(input) {
         where: { id: { in: storeIds } },
         data: { isActive: false },
       });
+    }
+
+    if (snapshot.createdForQa) {
+      await tx.product.delete({ where: { id: snapshot.id } });
+      if (snapshot.categoryCreatedForQa) {
+        const remainingProducts = await tx.product.count({ where: { categoryId: snapshot.categoryId } });
+        if (remainingProducts === 0) await tx.category.delete({ where: { id: snapshot.categoryId } });
+      }
+      return {
+        mode: 'cleanup',
+        storesDeactivated: storeIds.length,
+        productRemoved: snapshot.id,
+      };
     }
 
     await tx.product.update({
@@ -221,7 +270,7 @@ async function provision(input) {
       ownerId: owner.id,
       storeA: { id: storeA.id, name: storeA.name, markerName: markerProducts[0].name, isActive: false },
       storeB: { id: storeB.id, name: storeB.name, markerName: markerProducts[1].name, isActive: false },
-      testProduct: { id: testProduct.id, name: testProduct.name },
+      testProduct: { id: testProduct.id, name: testProduct.name, createdForQa: productSnapshot.createdForQa },
       productSnapshot,
     };
   });
