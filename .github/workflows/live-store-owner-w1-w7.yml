@@ -156,11 +156,19 @@ jobs:
             -o StrictHostKeyChecking=yes
             -o ConnectTimeout=15
           )
+          scp_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -P "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=15
+          )
           target="${DEPLOY_USER}@${DEPLOY_HOST}"
-          remote_script="/tmp/aagam-provision-live-qa-${GITHUB_RUN_ID}.js"
-          remote_input="/tmp/aagam-live-qa-input-${GITHUB_RUN_ID}.json"
-          scp -q "${ssh_options[@]}" scripts/provision-live-qa-store-owner.js "$target:$remote_script"
-          scp -q "${ssh_options[@]}" /tmp/aagam-live-qa-input.json "$target:$remote_input"
+          remote_script="${DEPLOY_PATH%/}/scripts/.aagam-provision-live-qa-${GITHUB_RUN_ID}.js"
+          remote_input="${DEPLOY_PATH%/}/.aagam-live-qa-input-${GITHUB_RUN_ID}.json"
+          scp -q "${scp_options[@]}" scripts/provision-live-qa-store-owner.js "$target:$remote_script"
+          scp -q "${scp_options[@]}" /tmp/aagam-live-qa-input.json "$target:$remote_input"
           printf -v app_path '%q' "$DEPLOY_PATH"
           printf -v script_path '%q' "$remote_script"
           printf -v input_path '%q' "$remote_input"
@@ -205,15 +213,25 @@ jobs:
             -o StrictHostKeyChecking=yes
             -o ConnectTimeout=15
           )
+          scp_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -P "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=15
+          )
           target="${DEPLOY_USER}@${DEPLOY_HOST}"
-          remote_script="/tmp/aagam-provision-live-qa-${GITHUB_RUN_ID}.js"
-          remote_cleanup="/tmp/aagam-live-qa-cleanup-${GITHUB_RUN_ID}.json"
+          remote_script="${DEPLOY_PATH%/}/scripts/.aagam-provision-live-qa-${GITHUB_RUN_ID}.js"
+          remote_input="${DEPLOY_PATH%/}/.aagam-live-qa-input-${GITHUB_RUN_ID}.json"
+          remote_cleanup="${DEPLOY_PATH%/}/.aagam-live-qa-cleanup-${GITHUB_RUN_ID}.json"
           printf '{"mode":"cleanup"}' > /tmp/aagam-live-qa-cleanup.json
-          scp -q "${ssh_options[@]}" /tmp/aagam-live-qa-cleanup.json "$target:$remote_cleanup"
+          scp -q "${scp_options[@]}" /tmp/aagam-live-qa-cleanup.json "$target:$remote_cleanup"
           printf -v app_path '%q' "$DEPLOY_PATH"
           printf -v script_path '%q' "$remote_script"
           printf -v cleanup_path '%q' "$remote_cleanup"
-          ssh "${ssh_options[@]}" "$target" "cd $app_path && node $script_path < $cleanup_path; rm -f $script_path $cleanup_path /tmp/aagam-live-qa-input-${GITHUB_RUN_ID}.json"
+          printf -v input_path '%q' "$remote_input"
+          ssh "${ssh_options[@]}" "$target" "cd $app_path && node $script_path < $cleanup_path; rm -f $script_path $cleanup_path $input_path"
 
       - name: Upload W1-W7 browser evidence
         if: always()
