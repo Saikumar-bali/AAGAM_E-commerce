@@ -194,7 +194,7 @@ jobs:
           "$HOME/.maestro/bin/maestro" --version \
             | tee artifacts/maestro/maestro-version.txt
 
-      - name: Run release APK flows on Android 15 emulator
+      - name: Run release APK flows on Android 14 emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
           MAESTRO_CLI_NO_ANALYTICS: "true"
@@ -202,12 +202,11 @@ jobs:
           MAESTRO_DISABLE_UPDATE_CHECK: "true"
           MAESTRO_DRIVER_STARTUP_TIMEOUT: "60000"
         with:
-          api-level: 35
+          api-level: 34
           target: google_apis
           arch: x86_64
-          profile: pixel_7_pro
+          profile: pixel_6
           force-avd-creation: true
-          ram-size: 4096M
           disable-animations: true
           disable-spellchecker: true
           enable-hw-keyboard: false
