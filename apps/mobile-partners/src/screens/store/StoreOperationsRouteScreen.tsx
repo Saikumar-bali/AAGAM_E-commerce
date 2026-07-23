@@ -9,7 +9,7 @@ export const StoreOperationsRouteScreen = ({ route }: { route?: any }) => {
       {orderId ? (
         <View style={styles.contextBanner}>
           <Text style={styles.contextLabel}>OPENED FROM ORDERS</Text>
-          <Text style={styles.contextText}>Order #{orderId.slice(-8).toUpperCase()} is prioritized for operational review.</Text>
+          <Text style={styles.contextText}>Review Order #{orderId.slice(-8).toUpperCase()} here when return, inspection or COD work is available.</Text>
         </View>
       ) : null}
       <StoreDeliveryOperationsScreen />
