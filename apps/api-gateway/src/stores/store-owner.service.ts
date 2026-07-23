@@ -60,12 +60,12 @@ export class StoreOwnerService {
 
   async updateOwnedProfile(storeId: string, ownerId: string, data: UpdateOwnedStoreProfileDto) {
     await this.assertOwnedStore(storeId, ownerId);
-    const phone = data.phone.trim();
-    const alternatePhone = `+91${phone}`;
+    const phoneE164 = data.phone.trim();
+    const legacyNationalPhone = phoneE164.replace(/^\+91/, '');
     const conflictingUser = await prisma.user.findFirst({
       where: {
         id: { not: ownerId },
-        phone: { in: [phone, alternatePhone] },
+        phone: { in: [phoneE164, legacyNationalPhone] },
       },
       select: { id: true },
     });
@@ -80,7 +80,7 @@ export class StoreOwnerService {
       }),
       prisma.user.update({
         where: { id: ownerId },
-        data: { phone },
+        data: { phone: phoneE164 },
       }),
     ]);
 
