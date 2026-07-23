@@ -20,7 +20,7 @@
       "@aagam/utils": ["../../packages/utils/src"],
       "@aagam/mobile-shared": ["../../packages/mobile-shared/src"]
     },
-    "types": ["jest", "react", "react-native"]
+    "types": ["jest", "node", "react", "react-native"]
   },
   "include": ["src/**/*", "App.tsx", "index.js"],
   "exclude": [
