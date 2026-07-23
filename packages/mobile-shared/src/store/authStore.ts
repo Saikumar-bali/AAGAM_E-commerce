@@ -3,6 +3,11 @@ import * as Keychain from 'react-native-keychain';
 import { UserType } from '@aagam/types';
 import { apiClient, setAuthToken } from '../api/client';
 import { disableCurrentMobilePushSubscription } from '../utils/notifications';
+import {
+  decodeStoredMobileSession,
+  encodeStoredMobileSession,
+  shouldInvalidateStoredSession,
+} from './authSession';
 
 type PhonePurpose = 'LOGIN' | 'SIGNUP';
 type PhoneRequestResult = {
@@ -34,18 +39,59 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
-const KEYCHAIN_TIMEOUT = 5000;
+const KEYCHAIN_TIMEOUT = 8000;
+const AUTH_KEYCHAIN_SERVICE = 'com.aagam.mobile.auth';
+const KEYCHAIN_OPTIONS = {
+  service: AUTH_KEYCHAIN_SERVICE,
+  accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+};
+
+let initializationPromise: Promise<void> | null = null;
 
 async function persistAuth(user: UserType, token: string) {
   await withTimeout(
-    Keychain.setGenericPassword('auth', JSON.stringify({ user, token })),
+    Keychain.setGenericPassword('aagam-auth', encodeStoredMobileSession(user, token), KEYCHAIN_OPTIONS),
     KEYCHAIN_TIMEOUT,
   );
   setAuthToken(token);
 }
 
+async function readPersistedAuth(): Promise<{ user: UserType; token: string } | null> {
+  const currentCredentials = await withTimeout(
+    Keychain.getGenericPassword({ service: AUTH_KEYCHAIN_SERVICE }),
+    KEYCHAIN_TIMEOUT,
+  ).catch(() => false as const);
+
+  if (currentCredentials) {
+    const currentSession = decodeStoredMobileSession<UserType>(currentCredentials.password);
+    if (currentSession) return { user: currentSession.user, token: currentSession.token };
+    await Keychain.resetGenericPassword({ service: AUTH_KEYCHAIN_SERVICE }).catch(() => undefined);
+  }
+
+  // Migrate sessions created before an explicit Keychain service was introduced.
+  const legacyCredentials = await withTimeout(Keychain.getGenericPassword(), KEYCHAIN_TIMEOUT).catch(
+    () => false as const,
+  );
+  if (!legacyCredentials) return null;
+
+  const legacySession = decodeStoredMobileSession<UserType>(legacyCredentials.password);
+  if (!legacySession) {
+    await Keychain.resetGenericPassword().catch(() => undefined);
+    return null;
+  }
+
+  await persistAuth(legacySession.user, legacySession.token);
+  await Keychain.resetGenericPassword().catch(() => undefined);
+  return { user: legacySession.user, token: legacySession.token };
+}
+
 async function clearLocalAuth() {
-  await withTimeout(Keychain.resetGenericPassword(), KEYCHAIN_TIMEOUT).catch(() => undefined);
+  await Promise.all([
+    withTimeout(Keychain.resetGenericPassword({ service: AUTH_KEYCHAIN_SERVICE }), KEYCHAIN_TIMEOUT).catch(
+      () => undefined,
+    ),
+    withTimeout(Keychain.resetGenericPassword(), KEYCHAIN_TIMEOUT).catch(() => undefined),
+  ]);
   setAuthToken(null);
 }
 
@@ -158,23 +204,49 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   initialize: async () => {
-    try {
-      const credentials = await withTimeout(Keychain.getGenericPassword(), KEYCHAIN_TIMEOUT);
-      if (credentials) {
-        const { token } = JSON.parse(credentials.password);
-        setAuthToken(token);
-        try {
-          const response = await apiClient.get('/auth/me', { headers: { Authorization: `Bearer ${token}` } });
-          set({ user: response.data, token, isLoading: false });
-        } catch {
-          await clearLocalAuth();
+    if (initializationPromise) return initializationPromise;
+
+    initializationPromise = (async () => {
+      set({ isLoading: true });
+      try {
+        const stored = await readPersistedAuth();
+        if (!stored) {
+          setAuthToken(null);
           set({ user: null, token: null, isLoading: false });
+          return;
         }
-      } else {
+
+        // Restore the durable session before making a network call. A cold-start
+        // timeout or brief offline period must not throw the user back to Login.
+        setAuthToken(stored.token);
+        set({ user: stored.user, token: stored.token, isLoading: false });
+
+        try {
+          const response = await apiClient.get('/auth/me', {
+            headers: { Authorization: `Bearer ${stored.token}` },
+          });
+          const refreshedUser = response.data as UserType;
+          set({ user: refreshedUser, token: stored.token, isLoading: false });
+          await persistAuth(refreshedUser, stored.token).catch(() => undefined);
+        } catch (error: any) {
+          if (shouldInvalidateStoredSession(error)) {
+            await clearLocalAuth();
+            set({ user: null, token: null, isLoading: false });
+          } else {
+            // Keep the local session for network errors, 5xx responses and
+            // throttling. The next authenticated request remains authoritative.
+            set({ user: stored.user, token: stored.token, isLoading: false });
+          }
+        }
+      } catch {
+        // Secure-storage access failed. Do not delete credentials that may still
+        // be valid; leave them available for the next cold-start attempt.
         set({ isLoading: false });
+      } finally {
+        initializationPromise = null;
       }
-    } catch {
-      set({ user: null, token: null, isLoading: false });
-    }
+    })();
+
+    return initializationPromise;
   },
 }));
