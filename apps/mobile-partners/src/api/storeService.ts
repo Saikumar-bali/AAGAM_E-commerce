@@ -42,9 +42,9 @@ export const storeService = {
     return r.data;
   },
 
-  getAvailableCatalogue: async (storeId: string, search = '') => {
+  getAvailableCatalogue: async (storeId: string, search = '', page = 1, pageSize = 50) => {
     const r = await apiClient.get(`/stores/${storeId}/catalog`, {
-      params: { page: 1, pageSize: 50, search: search || undefined },
+      params: { page, pageSize, search: search || undefined },
     });
     return r.data;
   },

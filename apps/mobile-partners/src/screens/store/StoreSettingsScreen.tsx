@@ -44,6 +44,11 @@ export const StoreSettingsScreen = () => {
       Alert.alert('Missing details', 'Store name, address, and phone are required.');
       return;
     }
+    const digitsOnly = phone.replace(/\D/g, '');
+    if (!/^\d{10}$/.test(digitsOnly)) {
+      Alert.alert('Invalid phone', 'Phone number must be exactly 10 digits.');
+      return;
+    }
     setSaving(true);
     try {
       await storeService.updateStore(selected.id, {

@@ -138,6 +138,7 @@ function OfferCard({
 
       <View style={styles.offerActions}>
         <TouchableOpacity
+          testID="rider_dashboard_offer_reject_button"
           style={[styles.secondaryButton, (busy || !actionable) && styles.disabledButton]}
           disabled={busy || !actionable}
           onPress={onReject}
@@ -146,6 +147,7 @@ function OfferCard({
           <Text style={styles.rejectText}>Reject</Text>
         </TouchableOpacity>
         <TouchableOpacity
+          testID="rider_dashboard_offer_accept_button"
           style={[styles.primaryButton, (busy || !actionable) && styles.disabledButton]}
           disabled={busy || !actionable}
           onPress={onAccept}
@@ -224,7 +226,7 @@ function CurrentDelivery({
           <Text style={styles.locationLabel}>PICKUP</Text>
           <Text style={styles.locationName}>{order.store?.name || 'AAGAM store'}</Text>
           <Text style={styles.locationAddress}>{order.store?.address || 'Store address unavailable'}</Text>
-          <TouchableOpacity onPress={() => openPoint(order.store?.latitude, order.store?.longitude, 'Store')}>
+          <TouchableOpacity testID="rider_dashboard_navigate_store_button" onPress={() => openPoint(order.store?.latitude, order.store?.longitude, 'Store')}>
             <Text style={styles.linkText}>Navigate to store →</Text>
           </TouchableOpacity>
         </View>
@@ -237,10 +239,11 @@ function CurrentDelivery({
           <Text style={styles.locationName}>{customerName}</Text>
           <Text style={styles.locationAddress}>{formatAddress(order.addressSnapshot)}</Text>
           <View style={styles.inlineActions}>
-            <TouchableOpacity onPress={() => openPoint(order.deliveryLat, order.deliveryLng, 'Customer')}>
+            <TouchableOpacity testID="rider_dashboard_navigate_customer_button" onPress={() => openPoint(order.deliveryLat, order.deliveryLng, 'Customer')}>
               <View style={styles.inlineAction}><Navigation size={14} color="#0F766E" /><Text style={styles.inlineActionText}>Navigate</Text></View>
             </TouchableOpacity>
             <TouchableOpacity
+              testID="rider_dashboard_call_customer_button"
               onPress={() => customerPhone
                 ? Linking.openURL(`tel:${customerPhone}`)
                 : Alert.alert('Phone unavailable', 'Customer phone number is unavailable.')}
@@ -276,6 +279,7 @@ function CurrentDelivery({
 
       {next ? (
         <TouchableOpacity
+          testID="rider_dashboard_job_action_button"
           style={[styles.jobActionButton, transitionBusy && styles.disabledButton]}
           disabled={transitionBusy}
           onPress={() => onTransition(next.action)}
@@ -293,7 +297,10 @@ export const RiderDashboard = () => {
   const { user } = useAuthStore();
   const [now, setNow] = useState(Date.now());
   const [locating, setLocating] = useState(false);
-  const [isOnline, setIsOnline] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => {
+    const cached = queryClient.getQueryData<RiderWorkspace>(WORKSPACE_KEY);
+    return cached?.rider?.status != null && cached.rider.status !== 'OFFLINE';
+  });
   const [trackingSnapshot, setTrackingSnapshot] = useState<TrackingSnapshot>({
     active: false,
     orderId: null,
@@ -520,6 +527,7 @@ export const RiderDashboard = () => {
           <Text style={styles.subheading}>Addressed offers and one active delivery</Text>
         </View>
         <TouchableOpacity
+          testID="rider_dashboard_online_toggle"
           style={[styles.onlineToggle, isOnline ? styles.online : styles.offline]}
           disabled={locating}
           onPress={isOnline ? goOffline : goOnline}
@@ -548,7 +556,7 @@ export const RiderDashboard = () => {
             <AlertTriangle size={26} color="#B91C1C" />
             <Text style={styles.errorTitle}>Workspace unavailable</Text>
             <Text style={styles.errorText}>{(workspaceQuery.error as any)?.response?.data?.message || (workspaceQuery.error as Error)?.message || 'Could not load delivery work.'}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => workspaceQuery.refetch()}><RefreshCw size={16} color="#FFFFFF" /><Text style={styles.retryText}>Retry</Text></TouchableOpacity>
+            <TouchableOpacity testID="rider_dashboard_retry_button" style={styles.retryButton} onPress={() => workspaceQuery.refetch()}><RefreshCw size={16} color="#FFFFFF" /><Text style={styles.retryText}>Retry</Text></TouchableOpacity>
           </View>
         ) : (
           <>
@@ -573,7 +581,7 @@ export const RiderDashboard = () => {
 
             <View style={styles.sectionHeadingRow}>
               <View><Text style={styles.sectionHeading}>Addressed offers</Text><Text style={styles.sectionCaption}>Other riders cannot see or accept these offers</Text></View>
-              <TouchableOpacity onPress={() => workspaceQuery.refetch()} style={styles.refreshButton}><RefreshCw size={16} color="#0F766E" /></TouchableOpacity>
+              <TouchableOpacity testID="rider_dashboard_refresh_button" onPress={() => workspaceQuery.refetch()} style={styles.refreshButton}><RefreshCw size={16} color="#0F766E" /></TouchableOpacity>
             </View>
             {offers.length ? offers.map((offer) => (
               <OfferCard

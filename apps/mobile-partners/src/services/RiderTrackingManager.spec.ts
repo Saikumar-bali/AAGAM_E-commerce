@@ -115,4 +115,73 @@ describe('RiderTrackingManager', () => {
     expect(manager.getSnapshot().error).toBe('GPS disabled');
     expect(sendPing).not.toHaveBeenCalled();
   });
+
+  it('stop() clears watcher, resets state, and notifies listeners', async () => {
+    const manager = createManager();
+    const listener = jest.fn();
+    manager.subscribe(listener);
+
+    await manager.start({ orderId: 'order-1', deliveryJobId: 'job-1', status: 'RIDER_ASSIGNED' });
+    expect(manager.getSnapshot().active).toBe(true);
+
+    await manager.stop('MANUAL_STOP');
+    expect(clearWatch).toHaveBeenCalledWith(77);
+    expect(stopSession).toHaveBeenCalledWith('order-1', 'MANUAL_STOP');
+    expect(manager.getSnapshot().active).toBe(false);
+    expect(manager.getSnapshot().orderId).toBeNull();
+    expect(manager.getSnapshot().stopReason).toBe('MANUAL_STOP');
+
+    const lastCall = listener.mock.calls[listener.mock.calls.length - 1][0];
+    expect(lastCall.active).toBe(false);
+  });
+
+  it('subscribe receives current snapshot immediately and can unsubscribe', async () => {
+    const manager = createManager();
+    const listener = jest.fn();
+    const unsubscribe = manager.subscribe(listener);
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith(manager.getSnapshot());
+
+    unsubscribe();
+    await manager.start({ orderId: 'order-1', deliveryJobId: 'job-1', status: 'RIDER_ASSIGNED' });
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores queued pings from storage on restart', async () => {
+    storageValue = JSON.stringify([
+      { orderId: 'order-1', latitude: 17.7, longitude: 83.3, clientPingId: 'old-1', sequence: 1, capturedAt: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const manager = createManager();
+    await manager.start({ orderId: 'order-1', deliveryJobId: 'job-1', status: 'OUT_FOR_DELIVERY' });
+
+    expect(manager.getSnapshot().queuedCount).toBeGreaterThanOrEqual(0);
+    expect(sendPing).toHaveBeenCalled();
+  });
+
+  it('updates status in place when restarting the same order without clearing the watcher', async () => {
+    const manager = createManager();
+    await manager.start({ orderId: 'order-1', deliveryJobId: 'job-1', status: 'RIDER_ASSIGNED' });
+    expect(startSession).toHaveBeenCalledTimes(1);
+    expect(successHandler).toBeTruthy();
+
+    await manager.start({ orderId: 'order-1', deliveryJobId: 'job-1', status: 'OUT_FOR_DELIVERY' });
+    expect(manager.getSnapshot().status).toBe('OUT_FOR_DELIVERY');
+    expect(clearWatch).not.toHaveBeenCalled();
+  });
+
+  it('caps queued pings at 200', async () => {
+    sendPing.mockRejectedValue(new Error('offline'));
+    const manager = createManager();
+    await manager.start({ orderId: 'order-1', deliveryJobId: 'job-1', status: 'OUT_FOR_DELIVERY' });
+
+    for (let i = 0; i < 250; i++) {
+      now += 20_000;
+      successHandler?.({ coords: { latitude: 17.7 + i * 0.001, longitude: 83.3 }, timestamp: now });
+      await flush();
+    }
+
+    expect(manager.getSnapshot().queuedCount).toBeLessThanOrEqual(200);
+  });
 });

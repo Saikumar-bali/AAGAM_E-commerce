@@ -133,6 +133,7 @@ export const StoreInventoryScreen = () => {
   const [section, setSection] = useState<'mine' | 'catalogue'>('mine');
   const [search, setSearch] = useState('');
   const [submittedSearch, setSubmittedSearch] = useState('');
+  const [cataloguePage, setCataloguePage] = useState(1);
   const [addDrafts, setAddDrafts] = useState<Record<string, StoreInventoryDraft>>({});
   const [editDrafts, setEditDrafts] = useState<Record<string, StoreInventoryDraft>>({});
   const [storePickerOpen, setStorePickerOpen] = useState(false);
@@ -162,8 +163,8 @@ export const StoreInventoryScreen = () => {
   });
 
   const catalogueQuery = useQuery({
-    queryKey: ['store-catalogue', selectedStoreId, submittedSearch],
-    queryFn: () => storeService.getAvailableCatalogue(selectedStoreId, submittedSearch),
+    queryKey: ['store-catalogue', selectedStoreId, submittedSearch, cataloguePage],
+    queryFn: () => storeService.getAvailableCatalogue(selectedStoreId, submittedSearch, cataloguePage),
     enabled: Boolean(selectedStoreId),
     retry: 1,
   });
@@ -176,6 +177,12 @@ export const StoreInventoryScreen = () => {
     () => (Array.isArray(catalogueQuery.data?.items) ? catalogueQuery.data.items : []),
     [catalogueQuery.data],
   );
+  const catalogueTotal: number = catalogueQuery.data?.total ?? 0;
+  const hasMoreCatalogue = catalogue.length < catalogueTotal;
+
+  useEffect(() => {
+    setCataloguePage(1);
+  }, [selectedStoreId, submittedSearch]);
 
   useEffect(() => {
     setEditDrafts(Object.fromEntries(
@@ -377,7 +384,7 @@ export const StoreInventoryScreen = () => {
             <Text style={styles.title}>Products & inventory</Text>
             <Text style={styles.subtitle}>Manage product visibility, selling price and physical stock.</Text>
           </View>
-          <TouchableOpacity accessibilityLabel="Refresh inventory" onPress={refresh} style={styles.iconButton}>
+          <TouchableOpacity testID="inventory_refresh_button" accessibilityLabel="Refresh inventory" onPress={refresh} style={styles.iconButton}>
             <RefreshCw size={20} color="#0F172A" />
           </TouchableOpacity>
         </View>
@@ -385,6 +392,7 @@ export const StoreInventoryScreen = () => {
         {stores.length > 1 ? (
           <View style={styles.pickerWrap}>
             <TouchableOpacity
+              testID="inventory_store_picker"
               accessibilityRole="button"
               accessibilityLabel="Select store"
               style={styles.storePicker}
@@ -401,6 +409,7 @@ export const StoreInventoryScreen = () => {
               <View style={styles.storeOptions}>
                 {stores.map((store) => (
                   <TouchableOpacity
+                    testID="inventory_store_option"
                     key={store.id}
                     style={[styles.storeOption, store.id === selectedStoreId && styles.storeOptionActive]}
                     onPress={() => {
@@ -437,6 +446,7 @@ export const StoreInventoryScreen = () => {
 
         <View style={styles.tabs}>
           <TouchableOpacity
+            testID="inventory_tab_mine"
             accessibilityRole="tab"
             accessibilityState={{ selected: section === 'mine' }}
             style={[styles.tab, section === 'mine' && styles.tabActive]}
@@ -446,6 +456,7 @@ export const StoreInventoryScreen = () => {
             <Text style={[styles.tabText, section === 'mine' && styles.tabTextActive]}>My products</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            testID="inventory_tab_catalogue"
             accessibilityRole="tab"
             accessibilityState={{ selected: section === 'catalogue' }}
             style={[styles.tab, section === 'catalogue' && styles.tabActive]}
@@ -473,7 +484,7 @@ export const StoreInventoryScreen = () => {
               <Package size={46} color="#94A3B8" />
               <Text style={styles.emptyTitle}>No products in this store</Text>
               <Text style={styles.emptyBody}>Use Add products to choose items from the Admin catalogue.</Text>
-              <TouchableOpacity style={styles.primaryButton} onPress={() => setSection('catalogue')}>
+              <TouchableOpacity testID="inventory_browse_catalogue_button" style={styles.primaryButton} onPress={() => setSection('catalogue')}>
                 <Text style={styles.primaryButtonText}>Browse catalogue</Text>
               </TouchableOpacity>
             </View>
@@ -509,6 +520,7 @@ export const StoreInventoryScreen = () => {
                     <View style={styles.fieldWrap}>
                       <Text style={styles.fieldLabel}>Store selling price</Text>
                       <TextInput
+                        testID="inventory_edit_selling_price_input"
                         accessibilityLabel={`${item.product.name} store price`}
                         value={draft.sellingPrice}
                         onChangeText={(value) => setEditDraft(item.id, 'sellingPrice', value)}
@@ -522,6 +534,7 @@ export const StoreInventoryScreen = () => {
                     <View style={styles.fieldWrap}>
                       <Text style={styles.fieldLabel}>Current stock</Text>
                       <TextInput
+                        testID="inventory_edit_quantity_input"
                         accessibilityLabel={`${item.product.name} stock`}
                         value={draft.quantity}
                         onChangeText={(value) => setEditDraft(item.id, 'quantity', value)}
@@ -533,6 +546,7 @@ export const StoreInventoryScreen = () => {
 
                   <View style={styles.actionRow}>
                     <TouchableOpacity
+                      testID="inventory_decrease_quantity_button"
                       accessibilityLabel={`Decrease ${item.product.name} stock`}
                       style={styles.stepButton}
                       onPress={() => setEditDraft(item.id, 'quantity', String(Math.max(0, quantity - 1)))}
@@ -540,6 +554,7 @@ export const StoreInventoryScreen = () => {
                       <Minus size={18} color="#334155" />
                     </TouchableOpacity>
                     <TouchableOpacity
+                      testID="inventory_increase_quantity_button"
                       accessibilityLabel={`Increase ${item.product.name} stock`}
                       style={styles.stepButton}
                       onPress={() => setEditDraft(item.id, 'quantity', String(quantity + 1))}
@@ -547,6 +562,7 @@ export const StoreInventoryScreen = () => {
                       <Plus size={18} color="#334155" />
                     </TouchableOpacity>
                     <TouchableOpacity
+                      testID="inventory_save_button"
                       disabled={updating}
                       style={[styles.saveButton, updating && styles.disabledButton]}
                       onPress={() => updateMutation.mutate({ storeId: selectedStoreId, item, draft })}
@@ -557,6 +573,7 @@ export const StoreInventoryScreen = () => {
 
                   <View style={styles.policyRow}>
                     <TouchableOpacity
+                      testID="inventory_listed_toggle"
                       style={[styles.policyButton, item.isListed ? styles.policyPositive : styles.policyNeutral]}
                       onPress={() => updateMutation.mutate({
                         storeId: selectedStoreId,
@@ -571,6 +588,7 @@ export const StoreInventoryScreen = () => {
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
+                      testID="inventory_auto_hide_toggle"
                       style={[styles.policyButton, styles.policyAuto]}
                       onPress={() => updateMutation.mutate({
                         storeId: selectedStoreId,
@@ -592,6 +610,7 @@ export const StoreInventoryScreen = () => {
               <View style={styles.searchInputWrap}>
                 <Search size={18} color="#94A3B8" />
                 <TextInput
+                  testID="inventory_search_input"
                   accessibilityLabel="Search Admin catalogue"
                   value={search}
                   onChangeText={setSearch}
@@ -602,7 +621,7 @@ export const StoreInventoryScreen = () => {
                   style={styles.searchInput}
                 />
               </View>
-              <TouchableOpacity style={styles.searchButton} onPress={() => setSubmittedSearch(search.trim())}>
+              <TouchableOpacity testID="inventory_search_button" style={styles.searchButton} onPress={() => setSubmittedSearch(search.trim())}>
                 <Text style={styles.searchButtonText}>Search</Text>
               </TouchableOpacity>
             </View>
@@ -640,6 +659,7 @@ export const StoreInventoryScreen = () => {
                       <View style={styles.fieldWrap}>
                         <Text style={styles.fieldLabel}>Opening stock</Text>
                         <TextInput
+                          testID="inventory_add_quantity_input"
                           accessibilityLabel={`${product.name} opening stock`}
                           value={draft.quantity}
                           onChangeText={(value) => setAddDraft(product.id, 'quantity', value)}
@@ -650,6 +670,7 @@ export const StoreInventoryScreen = () => {
                       <View style={styles.fieldWrap}>
                         <Text style={styles.fieldLabel}>Store selling price</Text>
                         <TextInput
+                          testID="inventory_add_selling_price_input"
                           accessibilityLabel={`${product.name} new store price`}
                           value={draft.sellingPrice}
                           onChangeText={(value) => setAddDraft(product.id, 'sellingPrice', value)}
@@ -662,6 +683,7 @@ export const StoreInventoryScreen = () => {
                       </View>
                     </View>
                     <TouchableOpacity
+                      testID="inventory_add_to_store_button"
                       disabled={adding}
                       style={[styles.addButton, adding && styles.disabledButton]}
                       onPress={() => addMutation.mutate({
@@ -681,6 +703,20 @@ export const StoreInventoryScreen = () => {
                 );
               })
             )}
+            {hasMoreCatalogue ? (
+              <TouchableOpacity
+                testID="catalogue_load_more_button"
+                style={[styles.primaryButton, { marginTop: 14 }]}
+                disabled={catalogueQuery.isFetching}
+                onPress={() => setCataloguePage((p) => p + 1)}
+              >
+                {catalogueQuery.isFetching ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Load more products</Text>
+                )}
+              </TouchableOpacity>
+            ) : null}
           </>
         )}
 

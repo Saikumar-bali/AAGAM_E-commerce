@@ -1,0 +1,185 @@
+jest.mock('./client', () => ({
+  apiClient: {
+    get: jest.fn(),
+    post: jest.fn(),
+    patch: jest.fn(),
+    defaults: { headers: { common: {} }, baseURL: '' },
+  },
+}));
+
+jest.mock('../services/NativeRiderTracking', () => ({
+  NativeRiderTracking: {
+    start: jest.fn().mockResolvedValue(undefined),
+    stop: jest.fn().mockResolvedValue(undefined),
+    status: jest.fn().mockResolvedValue({ supported: false }),
+  },
+  nativeRiderTrackingSupported: jest.fn().mockReturnValue(false),
+}));
+
+import { apiClient } from './client';
+import { riderService } from './riderService';
+
+const get = apiClient.get as jest.Mock;
+const post = apiClient.post as jest.Mock;
+const patch = apiClient.patch as jest.Mock;
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
+describe('riderService.getWorkspace', () => {
+  it('returns normalized workspace from the dispatch endpoint', async () => {
+    get.mockResolvedValueOnce({
+      data: { rider: { id: 'r1', status: 'ONLINE' } },
+    });
+
+    const workspace = await riderService.getWorkspace();
+    expect(get).toHaveBeenCalledWith('/orders/dispatch/rider/workspace');
+    expect(workspace.rider).toEqual({ id: 'r1', status: 'ONLINE' });
+    expect(workspace.pendingOffers).toEqual([]);
+    expect(workspace.activeJob).toBeNull();
+  });
+
+  it('normalizes missing arrays to empty', async () => {
+    get.mockResolvedValueOnce({ data: {} });
+
+    const workspace = await riderService.getWorkspace();
+    expect(workspace.pendingOffers).toEqual([]);
+    expect(workspace.assignmentHistory).toEqual([]);
+  });
+});
+
+describe('riderService.acceptOffer', () => {
+  it('calls PATCH accept endpoint with the assignment id', async () => {
+    patch.mockResolvedValueOnce({ data: { ok: true } });
+
+    const result = await riderService.acceptOffer('assignment-42');
+    expect(patch).toHaveBeenCalledTimes(1);
+    expect(patch).toHaveBeenCalledWith('/orders/dispatch/assignments/assignment-42/accept');
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('encodes special characters in the assignment id', async () => {
+    patch.mockResolvedValueOnce({ data: { ok: true } });
+
+    await riderService.acceptOffer('a/b=c');
+    expect(patch).toHaveBeenCalledWith('/orders/dispatch/assignments/a%2Fb%3Dc/accept');
+  });
+});
+
+describe('riderService.rejectOffer', () => {
+  it('calls PATCH reject endpoint without a reason by default', async () => {
+    patch.mockResolvedValueOnce({ data: { ok: true } });
+
+    await riderService.rejectOffer('assignment-99');
+    expect(patch).toHaveBeenCalledWith('/orders/dispatch/assignments/assignment-99/reject', {});
+  });
+
+  it('includes the reason when provided', async () => {
+    patch.mockResolvedValueOnce({ data: { ok: true } });
+
+    await riderService.rejectOffer('assignment-99', 'too far');
+    expect(patch).toHaveBeenCalledWith('/orders/dispatch/assignments/assignment-99/reject', {
+      reason: 'too far',
+    });
+  });
+});
+
+describe('riderService.transitionJob', () => {
+  it('maps EN_ROUTE_TO_STORE to the correct path', async () => {
+    patch.mockResolvedValueOnce({ data: { status: 'RIDER_EN_ROUTE_TO_STORE' } });
+
+    const result = await riderService.transitionJob('job-1', 'EN_ROUTE_TO_STORE');
+    expect(patch).toHaveBeenCalledWith(
+      '/orders/dispatch/jobs/job-1/en-route-to-store',
+      {},
+    );
+    expect(result).toEqual({ status: 'RIDER_EN_ROUTE_TO_STORE' });
+  });
+
+  it('maps ARRIVED_AT_CUSTOMER to the correct path', async () => {
+    patch.mockResolvedValueOnce({ data: { status: 'RIDER_AT_CUSTOMER' } });
+
+    await riderService.transitionJob('job-2', 'ARRIVED_AT_CUSTOMER');
+    expect(patch).toHaveBeenCalledWith(
+      '/orders/dispatch/jobs/job-2/arrived-at-customer',
+      {},
+    );
+  });
+
+  it('sends proof payload for DELIVERED action', async () => {
+    patch.mockResolvedValueOnce({ data: { status: 'DELIVERED' } });
+
+    const proof = { proofType: 'OTP', code: '123456' };
+    await riderService.transitionJob('job-3', 'DELIVERED', proof);
+    expect(patch).toHaveBeenCalledWith(
+      '/orders/dispatch/jobs/job-3/delivered',
+      proof,
+    );
+  });
+
+  it('sends default proof when DELIVERED has no proof arg', async () => {
+    patch.mockResolvedValueOnce({ data: {} });
+
+    await riderService.transitionJob('job-4', 'DELIVERED');
+    expect(patch).toHaveBeenCalledWith(
+      '/orders/dispatch/jobs/job-4/delivered',
+      { proofType: 'RIDER_CONFIRMATION' },
+    );
+  });
+});
+
+describe('riderService.updateMyStatus', () => {
+  it('calls PATCH /riders/me/status with the given status', async () => {
+    patch.mockResolvedValueOnce({ data: { status: 'ONLINE' } });
+
+    const result = await riderService.updateMyStatus('ONLINE');
+    expect(patch).toHaveBeenCalledWith('/riders/me/status', { status: 'ONLINE' });
+    expect(result).toEqual({ status: 'ONLINE' });
+  });
+
+  it('includes location when provided', async () => {
+    patch.mockResolvedValueOnce({ data: {} });
+
+    await riderService.updateMyStatus('BUSY', { latitude: 17.5, longitude: 78.4 });
+    expect(patch).toHaveBeenCalledWith('/riders/me/status', {
+      status: 'BUSY',
+      latitude: 17.5,
+      longitude: 78.4,
+    });
+  });
+});
+
+describe('riderService.sendLocationPing', () => {
+  it('POSTs location with the order id and source tag', async () => {
+    post.mockResolvedValueOnce({ data: { sent: true } });
+
+    const result = await riderService.sendLocationPing('order-10', {
+      latitude: 17.7,
+      longitude: 83.3,
+      clientPingId: 'ping-1',
+      sequence: 1,
+      capturedAt: '2026-01-01T00:00:00Z',
+    });
+    expect(post).toHaveBeenCalledWith('/tracking/rider-location', {
+      orderId: 'order-10',
+      latitude: 17.7,
+      longitude: 83.3,
+      clientPingId: 'ping-1',
+      sequence: 1,
+      capturedAt: '2026-01-01T00:00:00Z',
+      source: 'MOBILE_PARTNERS',
+    });
+    expect(result).toEqual({ sent: true });
+  });
+});
+
+describe('riderService.getProfile', () => {
+  it('fetches rider profile by user id', async () => {
+    get.mockResolvedValueOnce({ data: { id: 'u1', name: 'Test' } });
+
+    const result = await riderService.getProfile('u1');
+    expect(get).toHaveBeenCalledWith('/riders/u1');
+    expect(result).toEqual({ id: 'u1', name: 'Test' });
+  });
+});
