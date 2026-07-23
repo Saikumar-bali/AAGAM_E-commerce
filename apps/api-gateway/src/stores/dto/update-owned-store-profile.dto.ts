@@ -3,7 +3,10 @@ import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 function normalizeIndianPhone(value: unknown): string {
   const digits = String(value ?? '').replace(/\D/g, '');
-  return digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+  const national = digits.length === 12 && digits.startsWith('91')
+    ? digits.slice(2)
+    : digits;
+  return /^[6-9]\d{9}$/.test(national) ? `+91${national}` : String(value ?? '').trim();
 }
 
 export class UpdateOwnedStoreProfileDto {
@@ -19,8 +22,8 @@ export class UpdateOwnedStoreProfileDto {
 
   @Transform(({ value }) => normalizeIndianPhone(value))
   @IsString()
-  @Matches(/^[6-9]\d{9}$/, {
-    message: 'Phone number must be a valid 10-digit Indian mobile number',
+  @Matches(/^\+91[6-9]\d{9}$/, {
+    message: 'Phone number must be a valid Indian mobile number',
   })
   phone: string = '';
 }
