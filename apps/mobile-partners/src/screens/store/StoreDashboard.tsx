@@ -2,11 +2,13 @@ import React, { useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions, RefreshControl } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { storeService } from '../../api/storeService';
+import { useAuthStore } from '@aagam/mobile-shared';
 import { LayoutGrid, Package, TrendingUp, ShoppingBag, Plus, ChevronRight, Store } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
-export const StoreDashboard = () => {
+export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
+  const { user } = useAuthStore();
   const { data: stores, isLoading, refetch } = useQuery({
     queryKey: ['my-stores'],
     queryFn: storeService.getMyStores,
@@ -16,11 +18,11 @@ export const StoreDashboard = () => {
 
   const totals = useMemo(() => {
     const totalOrders = storeList.reduce((sum: number, s: any) => sum + (s._count?.orders || s.orderCount || 0), 0);
-    const totalRevenue = storeList.reduce((sum: number, s: any) => sum + (s.revenue || 0), 0);
+    const totalRevenue = storeList.reduce((sum: number, s: any) => sum + (s.revenue || s.totalRevenue || 0), 0);
     return {
       totalStores: storeList.length,
       totalOrders,
-      totalRevenue: totalRevenue || storeList.length * 0,
+      totalRevenue,
     };
   }, [storeList]);
 
@@ -39,7 +41,7 @@ export const StoreDashboard = () => {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.greeting}>Welcome back,</Text>
-          <Text style={styles.storeName}>Store Manager</Text>
+          <Text style={styles.storeName}>{user?.name || 'Store Manager'}</Text>
         </View>
       </View>
 
@@ -55,7 +57,12 @@ export const StoreDashboard = () => {
       </View>
 
       {storeList.map((store: any) => (
-        <TouchableOpacity key={store.id} style={styles.storeCard} activeOpacity={0.7}>
+        <TouchableOpacity
+          key={store.id}
+          style={styles.storeCard}
+          activeOpacity={0.7}
+          onPress={() => navigation?.navigate?.('StoreOrders')}
+        >
           <View style={styles.storeInfo}>
             <View style={styles.storeAvatar}><Text style={styles.storeAvatarText}>{store.name?.[0] || 'S'}</Text></View>
             <View style={styles.storeDetails}>

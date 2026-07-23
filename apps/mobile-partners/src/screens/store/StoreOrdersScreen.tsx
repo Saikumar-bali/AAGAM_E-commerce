@@ -21,7 +21,7 @@ function statusTone(status: string) {
   return { backgroundColor: '#FEF3C7', color: '#92400E' };
 }
 
-export const StoreOrdersScreen = () => {
+export const StoreOrdersScreen = ({ navigation }: { navigation?: any }) => {
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const storesQuery = useQuery({
     queryKey: ['partner-stores'],
@@ -114,7 +114,12 @@ export const StoreOrdersScreen = () => {
               const tone = statusTone(order.status || 'PENDING');
               const total = Number(order.grandTotal ?? order.totalAmount ?? 0);
               return (
-                <View key={order.id} style={styles.orderCard}>
+                <TouchableOpacity
+                  key={order.id}
+                  style={styles.orderCard}
+                  activeOpacity={0.7}
+                  onPress={() => navigation?.navigate?.('StoreDeliveryOps', { orderId: order.id })}
+                >
                   <View style={styles.orderTopRow}>
                     <View>
                       <Text style={styles.orderId}>Order #{String(order.id).slice(-8).toUpperCase()}</Text>
@@ -132,7 +137,7 @@ export const StoreOrdersScreen = () => {
                     <Text style={styles.orderTime}>{order.createdAt ? new Date(order.createdAt).toLocaleString() : 'Recently created'}</Text>
                     <ChevronRight size={18} color="#64748B" />
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })
           )}

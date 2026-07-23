@@ -2,9 +2,17 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { ArrowRight, Bell, LogOut, PackageCheck, ShieldCheck } from 'lucide-react-native';
 import { useAuthStore } from '@aagam/mobile-shared';
+import { useQuery } from '@tanstack/react-query';
+import { storeService } from '../api/storeService';
 
-export const HomeScreen = ({ role }: { role: string }) => {
+export const HomeScreen = ({ role, navigation }: { role: string; navigation?: any }) => {
   const { user, logout } = useAuthStore();
+  const { data: stores } = useQuery({
+    queryKey: ['my-stores'],
+    queryFn: storeService.getMyStores,
+  });
+  const storeList = Array.isArray(stores) ? stores : [];
+  const totalOrders = storeList.reduce((sum: number, s: any) => sum + (s._count?.orders || s.orderCount || 0), 0);
 
   return (
     <View style={styles.page}>
@@ -37,21 +45,26 @@ export const HomeScreen = ({ role }: { role: string }) => {
 
       <View style={styles.content}>
         <View style={styles.summaryRow}>
-          <Metric label="Today" value="Live" tone="#0F766E" />
-          <Metric label="Quality" value="99%" tone="#B45309" />
-          <Metric label="Queue" value="Ready" tone="#4338CA" />
+          <Metric label="Stores" value={String(storeList.length)} tone="#0F766E" />
+          <Metric label="Orders" value={String(totalOrders)} tone="#B45309" />
+          <Metric label="Status" value={storeList.length > 0 ? 'Active' : 'Setup'} tone="#4338CA" />
         </View>
 
         <View style={styles.panel}>
           <View style={styles.panelIcon}>
             <PackageCheck size={28} color="#0F172A" />
           </View>
-          <Text style={styles.panelTitle}>Workspace prepared</Text>
+          <Text style={styles.panelTitle}>Your Workspace</Text>
           <Text style={styles.panelText}>
-            This area is ready for your next operational screen. The design system is now aligned with the premium Aagam app shell.
+            {storeList.length > 0
+              ? `You have ${storeList.length} store(s) assigned. Tap below to manage orders, inventory, and more.`
+              : 'Contact admin to assign stores to your account, or continue to explore your dashboard.'}
           </Text>
-          <TouchableOpacity style={styles.primaryAction}>
-            <Text style={styles.primaryActionText}>Continue setup</Text>
+          <TouchableOpacity
+            style={styles.primaryAction}
+            onPress={() => navigation?.navigate?.('StoreTabs')}
+          >
+            <Text style={styles.primaryActionText}>Go to Dashboard</Text>
             <ArrowRight size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
