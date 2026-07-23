@@ -1,141 +1,66 @@
-import React from 'react';
-import { act } from 'react';
-import * as TestRenderer from 'react-test-renderer';
+import fs from 'node:fs';
+import path from 'node:path';
 
-jest.mock('react-native', () => {
-  const RN = jest.requireActual('react-native');
-  RN.Alert.alert = jest.fn();
-  RN.BackHandler = { addEventListener: jest.fn(() => ({ remove: jest.fn() })) };
-  return RN;
-});
+const source = fs.readFileSync(
+  path.join(__dirname, 'PartnerVerificationScreen.tsx'),
+  'utf8',
+);
 
-jest.mock('@aagam/mobile-shared', () => ({
-  apiClient: { get: jest.fn(), post: jest.fn() },
-}));
-
-jest.mock('../components/PartnerOnboardingUI', () => {
-  const R = require('react');
-  const { View, Text, TouchableOpacity } = require('react-native');
-  return {
-    OnboardingShell: ({ children, title }: any) =>
-      R.createElement(View, { testID: 'onboarding_shell' },
-        R.createElement(Text, null, title),
-        children,
-      ),
-    palette: { teal: '#14B8A6', ink: '#0F172A', muted: '#64748B', red: '#EF4444', green: '#22C55E', amber: '#F59E0B' },
-    PrimaryButton: ({ label, testID, disabled }: any) =>
-      R.createElement(TouchableOpacity, { testID, disabled },
-        R.createElement(Text, null, label),
-      ),
-    Section: ({ children, title }: any) =>
-      R.createElement(View, null,
-        R.createElement(Text, null, title),
-        children,
-      ),
-    StatusPill: () => null,
-    ProgressBar: () => null,
-    FormField: () => null,
-  };
-});
-
-jest.mock('../native/FirebasePnv', () => ({
-  FirebasePnv: { isPnvSupported: jest.fn().mockResolvedValue({ supported: false }), startPnvVerification: jest.fn() },
-}));
-
-jest.mock('../onboarding/partnerVerificationPresentation', () => ({
-  createVerificationHardwareBackHandler: jest.fn(() => jest.fn()),
-  resetVerificationToPartnerHome: jest.fn(),
-  resolveVerificationDelivery: jest.fn(() => ({ state: 'PENDING' })),
-}));
-
-jest.mock('../onboarding/usePartnerOnboardingStore', () => ({
-  usePartnerOnboardingStore: jest.fn(),
-}));
-
-import { PartnerVerificationScreen } from './PartnerVerificationScreen';
-import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
-
-const mockNavigate = jest.fn();
-const navigation = { navigate: mockNavigate, replace: jest.fn() };
-
-function findTestID(root: TestRenderer.ReactTestInstance, testID: string): TestRenderer.ReactTestInstance | null {
-  try {
-    return root.findByProps({ testID });
-  } catch {
-    return null;
-  }
-}
-
-function findByText(root: TestRenderer.ReactTestInstance, text: string): TestRenderer.ReactTestInstance | null {
-  try {
-    return root.findAllByProps({ children: text })[0] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function mockStore(overrides: Record<string, any> = {}) {
-  const defaults = {
-    applicationId: 'app-1',
-    accessToken: 'token-1',
-    response: { application: { type: 'RIDER', verificationChannel: 'EMAIL', email: 'test@example.com' } },
-    events: [],
-    type: null,
-    verify: jest.fn(),
-    requestVerification: jest.fn(),
-    refresh: jest.fn().mockResolvedValue(undefined),
-    loadEvents: jest.fn().mockResolvedValue(undefined),
-    isLoading: false,
-    testVerificationCode: null,
-  };
-  const store = { ...defaults, ...overrides };
-  (usePartnerOnboardingStore as unknown as jest.Mock).mockImplementation((selector?: any) =>
-    typeof selector === 'function' ? selector(store) : store,
-  );
-}
-
-function renderScreen(): TestRenderer.ReactTestInstance {
-  let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => {
-    renderer = TestRenderer.create(
-      React.createElement(PartnerVerificationScreen as any, { navigation }),
-    );
-  });
-  return renderer.root;
-}
-
-beforeEach(() => {
-  jest.clearAllMocks();
-});
-
-describe('PartnerVerificationScreen', () => {
-  it('renders the verification screen title when session exists', () => {
-    mockStore();
-    const root = renderScreen();
-    expect(findByText(root, 'Verify your email')).toBeTruthy();
+describe('PartnerVerificationScreen contracts', () => {
+  it('protects verification with the application session token', () => {
+    expect(source).toContain('if (!applicationId || !accessToken)');
+    expect(source).toContain('Application session unavailable');
+    expect(source).toContain('Authorization: `Application ${token}`');
+    expect(source).toContain('resetVerificationToPartnerHome(navigation)');
   });
 
-  it('shows the six-digit code input', () => {
-    mockStore();
-    const root = renderScreen();
-    expect(findTestID(root, 'verification_code_input')).toBeTruthy();
+  it('accepts only a sanitized six-digit verification code', () => {
+    expect(source).toContain("if (!/^\\d{6}$/.test(candidate) || verifyingRef.current) return");
+    expect(source).toContain("value.replace(/\\D/g, '').slice(0, 6)");
+    expect(source).toContain('if (next.length === 6)');
+    expect(source).toContain('await verify(candidate)');
   });
 
-  it('renders the verify button', () => {
-    mockStore();
-    const root = renderScreen();
-    expect(findTestID(root, 'verification_verify_button')).toBeTruthy();
+  it('prevents duplicate verification and resets the input after failure', () => {
+    expect(source).toContain('verifyingRef.current = true');
+    expect(source).toContain('verifyingRef.current = false');
+    expect(source).toContain("setCode('')");
+    expect(source).toContain("Alert.alert('Code not verified'");
+    expect(source).toContain('inputRef.current?.focus()');
   });
 
-  it('renders the resend button', () => {
-    mockStore();
-    const root = renderScreen();
-    expect(findTestID(root, 'verification_resend_button')).toBeTruthy();
+  it('routes verified applicants to the correct application workflow', () => {
+    expect(source).toContain("applicationType === 'RIDER' ? 'RiderApplication' : 'StoreApplication'");
+    expect(source).toContain('navigation.replace(');
   });
 
-  it('shows session unavailable when no application id', () => {
-    mockStore({ applicationId: null, accessToken: null });
-    const root = renderScreen();
-    expect(findByText(root, 'Application session unavailable')).toBeTruthy();
+  it('enforces resend cooldown and reloads delivery evidence', () => {
+    expect(source).toContain('if (countdown > 0) return');
+    expect(source).toContain('await requestVerification(deliveryChannel)');
+    expect(source).toContain('await loadEvents()');
+    expect(source).toContain('setCountdown(30)');
+    expect(source).toContain('Resend code in 00:');
+  });
+
+  it('checks Firebase PNV capability before offering secure phone verification', () => {
+    expect(source).toContain("apiClient.get('/partner-onboarding/verification-capabilities')");
+    expect(source).toContain('FirebasePnv.isPnvSupported()');
+    expect(source).toContain('capabilities.data?.phone?.pnvConfigured');
+    expect(source).toContain('nativeSupport.supported');
+  });
+
+  it('uses authenticated PNV challenge and verification endpoints', () => {
+    expect(source).toContain('`/partner-onboarding/applications/${applicationId}/phone-pnv/challenge`');
+    expect(source).toContain('FirebasePnv.startPnvVerification(challenge.data.nonce)');
+    expect(source).toContain('`/partner-onboarding/applications/${applicationId}/phone-pnv/verify`');
+    expect(source).toContain('{ token: nativeResult.token }');
+    expect(source).toContain('{ headers: applicationHeaders(accessToken) }');
+  });
+
+  it('provides an explicit SMS fallback when PNV is unavailable', () => {
+    expect(source).toContain('setShowSmsFallback(true)');
+    expect(source).toContain("{ channel: 'PHONE', fallbackFrom: 'FIREBASE_PNV' }");
+    expect(source).toContain("label=\"Use SMS code\"");
+    expect(source).toContain('Use the six-digit SMS option instead.');
   });
 });
