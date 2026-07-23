@@ -11,6 +11,7 @@ on:
       - "apps/api-gateway/src/partner-onboarding/**"
       - "apps/mobile-partners/**"
       - "apps/admin-dashboard/**"
+      - "packages/mobile-shared/**"
       - "packages/database/prisma/migrations/20260718*/**"
       - ".github/workflows/partner-onboarding-diagnostics.yml"
 
@@ -48,6 +49,7 @@ jobs:
             npm run build --workspace @aagam/database
             npm run build --workspace @aagam/api-gateway
             npx tsc --project apps/mobile-partners/tsconfig.json --noEmit
+            npm test --workspace=apps/mobile-partners -- src/auth/mobileSessionPersistence.spec.ts
           } 2>&1 | tee onboarding-build-output.log
       - name: Upload onboarding compile diagnostics
         if: always()
