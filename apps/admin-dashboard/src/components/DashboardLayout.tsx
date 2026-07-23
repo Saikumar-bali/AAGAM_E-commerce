@@ -15,6 +15,7 @@ interface DashboardLayoutProps {
 type SessionUser = {
   id?: string;
   role: DashboardLayoutProps['allowedRole'];
+  roles?: string[];
   name?: string | null;
   email?: string | null;
   avatarUrl?: string | null;
@@ -54,7 +55,8 @@ const notificationHrefByRole: Record<DashboardLayoutProps['allowedRole'], string
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole }) => {
   const initialSession = cachedSession;
-  const [ready, setReady] = useState(initialSession?.role === allowedRole);
+  const initialRoles = initialSession ? (Array.isArray(initialSession.roles) ? initialSession.roles : [initialSession.role]) : [];
+  const [ready, setReady] = useState(initialRoles.includes(allowedRole));
   const [userRole, setUserRole] = useState<string | null>(initialSession?.role || null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,7 +69,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
 
     const acceptSession = (user: SessionUser) => {
       if (!active) return;
-      if (user.role !== allowedRole) {
+      const userRoles = Array.isArray(user.roles) ? user.roles : [user.role];
+      if (!userRoles.includes(allowedRole)) {
         setReady(false);
         router.replace(homeForRole(user.role));
         return;
