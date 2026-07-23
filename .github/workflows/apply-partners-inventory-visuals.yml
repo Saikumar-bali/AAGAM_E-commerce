@@ -7,12 +7,23 @@ on:
     paths:
       - scripts/apply-partners-inventory-visuals.py
       - .github/workflows/apply-partners-inventory-visuals.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/apply-partners-inventory-visuals.py
+      - .github/workflows/apply-partners-inventory-visuals.yml
 
 permissions:
   contents: write
 
+concurrency:
+  group: apply-partners-inventory-visuals
+  cancel-in-progress: false
+
 jobs:
   apply-and-verify:
+    if: github.repository == 'Saikumar-bali/AAGAM_E-commerce'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
