@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
-import { StatusBar } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { checkForAppUpdate, startMobilePushLifecycle, useAuthStore } from '@aagam/mobile-shared';
 import RootNavigator from './src/navigation/RootNavigator';
+import { hydrateCachedRiderWorkspace } from './src/api/riderService';
 
 const queryClient = new QueryClient();
 
@@ -36,17 +37,41 @@ function PushLifecycle() {
 }
 
 function App() {
+  const [cacheReady, setCacheReady] = useState(false);
+
   useEffect(() => { void checkForAppUpdate(); }, []);
+  useEffect(() => {
+    let active = true;
+    void hydrateCachedRiderWorkspace(queryClient).finally(() => {
+      if (active) setCacheReady(true);
+    });
+    return () => { active = false; };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" />
-        <PushLifecycle />
-        <RootNavigator />
+        {cacheReady ? (
+          <>
+            <PushLifecycle />
+            <RootNavigator />
+          </>
+        ) : (
+          <View style={styles.loading}>
+            <ActivityIndicator color="#0F766E" />
+            <Text style={styles.loadingText}>Restoring partner workspace…</Text>
+          </View>
+        )}
         <Toast />
       </SafeAreaProvider>
     </QueryClientProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC', gap: 12 },
+  loadingText: { color: '#64748B', fontSize: 13, fontWeight: '700' },
+});
 
 export default App;
