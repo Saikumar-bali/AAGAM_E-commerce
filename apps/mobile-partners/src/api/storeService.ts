@@ -16,9 +16,20 @@ export type UpdateStoreInventoryPayload = {
   autoHideWhenOutOfStock: boolean;
 };
 
+export type StoreOwnerProfilePayload = {
+  name: string;
+  address: string;
+  phone: string;
+};
+
 export const storeService = {
   getMyStores: async () => {
     const r = await apiClient.get('/stores/my-stores');
+    return r.data;
+  },
+
+  getStoreDashboardSummaries: async () => {
+    const r = await apiClient.get('/store-owner/stores');
     return r.data;
   },
 
@@ -42,9 +53,9 @@ export const storeService = {
     return r.data;
   },
 
-  getAvailableCatalogue: async (storeId: string, search = '') => {
+  getAvailableCatalogue: async (storeId: string, search = '', page = 1, pageSize = 50) => {
     const r = await apiClient.get(`/stores/${storeId}/catalog`, {
-      params: { page: 1, pageSize: 50, search: search || undefined },
+      params: { page, pageSize, search: search || undefined },
     });
     return r.data;
   },
@@ -56,6 +67,11 @@ export const storeService = {
 
   updateInventory: async (storeId: string, data: UpdateStoreInventoryPayload) => {
     const r = await apiClient.patch(`/stores/${storeId}/inventory`, data);
+    return r.data;
+  },
+
+  updateOwnedStoreProfile: async (storeId: string, data: StoreOwnerProfilePayload) => {
+    const r = await apiClient.patch(`/store-owner/stores/${storeId}/profile`, data);
     return r.data;
   },
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { ClipboardCheck, LayoutGrid, Package, Settings, ShoppingBag } from 'lucide-react-native';
 import { StoreDashboard } from '../screens/store/StoreDashboard';
-import { StoreDeliveryOperationsScreen } from '../screens/store/StoreDeliveryOperationsScreen';
+import { StoreOperationsRouteScreen } from '../screens/store/StoreOperationsRouteScreen';
 import { StoreInventoryScreen } from '../screens/store/StoreInventoryScreen';
 import { StoreOrdersScreen } from '../screens/store/StoreOrdersScreen';
 import { StoreSettingsScreen } from '../screens/store/StoreSettingsScreen';
@@ -41,7 +41,7 @@ export const StoreNavigator = () => {
       <Tab.Screen name="Dashboard" component={StoreDashboard} options={{ tabBarIcon: ({ color, size }) => <LayoutGrid size={size} color={color} /> }} />
       <Tab.Screen name="Orders" component={StoreOrdersScreen} options={{ tabBarIcon: ({ color, size }) => <ShoppingBag size={size} color={color} /> }} />
       <Tab.Screen name="Inventory" component={StoreInventoryScreen} options={{ tabBarIcon: ({ color, size }) => <Package size={size} color={color} /> }} />
-      <Tab.Screen name="Operations" component={StoreDeliveryOperationsScreen} options={{ tabBarIcon: ({ color, size }) => <ClipboardCheck size={size} color={color} /> }} />
+      <Tab.Screen name="Operations" component={StoreOperationsRouteScreen} options={{ tabBarIcon: ({ color, size }) => <ClipboardCheck size={size} color={color} /> }} />
       <Tab.Screen name="Settings" component={StoreSettingsScreen} options={{ tabBarIcon: ({ color, size }) => <Settings size={size} color={color} /> }} />
     </Tab.Navigator>
   );

@@ -48,10 +48,10 @@ export const HomeScreen = ({ role }: { role: string }) => {
           </View>
           <Text style={styles.panelTitle}>Workspace prepared</Text>
           <Text style={styles.panelText}>
-            This area is ready for your next operational screen. The design system is now aligned with the premium Aagam app shell.
+            This area is ready for your next operational screen. The design system is aligned with the AAGAM operations shell.
           </Text>
-          <TouchableOpacity style={styles.primaryAction}>
-            <Text style={styles.primaryActionText}>Continue setup</Text>
+          <TouchableOpacity style={styles.primaryAction} disabled>
+            <Text style={styles.primaryActionText}>Admin mobile workspace</Text>
             <ArrowRight size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
   panelIcon: { width: 62, height: 62, borderRadius: 22, backgroundColor: '#FDE68A', alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
   panelTitle: { color: '#111827', fontSize: 22, fontWeight: '900' },
   panelText: { color: '#57534E', fontSize: 14, lineHeight: 22, marginTop: 10 },
-  primaryAction: { height: 56, borderRadius: 18, backgroundColor: '#0F172A', marginTop: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  primaryAction: { height: 56, borderRadius: 18, backgroundColor: '#0F172A', marginTop: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: 0.8 },
   primaryActionText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
   logoutButton: { height: 54, borderRadius: 18, backgroundColor: '#FEF2F2', marginTop: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   logoutText: { color: '#DC2626', fontSize: 14, fontWeight: '900' },

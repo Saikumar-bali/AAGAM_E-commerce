@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   DeliveryJobStatus,
   RiderJobAction,
@@ -21,6 +22,11 @@ export type RiderLocationPayload = {
   capturedAt: string;
 };
 
+export const RIDER_WORKSPACE_QUERY_KEY = ['rider', 'delivery-workspace'] as const;
+const RIDER_STATUS_CACHE_KEY = 'aagam:partners:rider-status:v1';
+
+type CachedRiderStatus = 'ONLINE' | 'OFFLINE' | 'BUSY';
+
 const TRANSITION_PATHS: Record<RiderJobAction, string> = {
   EN_ROUTE_TO_STORE: 'en-route-to-store',
   ARRIVED_AT_STORE: 'arrived-at-store',
@@ -34,16 +40,39 @@ function currentBearerToken() {
   return typeof value === 'string' ? value.replace(/^Bearer\s+/i, '') : '';
 }
 
+function validCachedStatus(value: unknown): value is CachedRiderStatus {
+  return value === 'ONLINE' || value === 'OFFLINE' || value === 'BUSY';
+}
+
+async function cacheRiderStatus(status: unknown) {
+  if (!validCachedStatus(status)) return;
+  await AsyncStorage.setItem(RIDER_STATUS_CACHE_KEY, status).catch(() => undefined);
+}
+
+export async function readCachedRiderStatus(): Promise<CachedRiderStatus | null> {
+  const status = await AsyncStorage.getItem(RIDER_STATUS_CACHE_KEY).catch(() => null);
+  return validCachedStatus(status) ? status : null;
+}
+
+export async function hydrateCachedRiderWorkspace(queryClient: { setQueryData: (key: readonly unknown[], value: any) => void }) {
+  const status = await readCachedRiderStatus();
+  if (!status) return;
+  queryClient.setQueryData(
+    RIDER_WORKSPACE_QUERY_KEY,
+    normalizeRiderWorkspace({ rider: { status }, pendingOffers: [], activeJob: null, assignmentHistory: [] }),
+  );
+}
+
 export const riderService = {
   getWorkspace: async (): Promise<RiderWorkspace> => {
     const response = await apiClient.get('/orders/dispatch/rider/workspace');
-    return normalizeRiderWorkspace(response.data);
+    const workspace = normalizeRiderWorkspace(response.data);
+    await cacheRiderStatus(workspace.rider?.status);
+    return workspace;
   },
 
   acceptOffer: async (assignmentId: string) => {
-    const response = await apiClient.patch(
-      `/orders/dispatch/assignments/${encodeURIComponent(assignmentId)}/accept`,
-    );
+    const response = await apiClient.patch(`/orders/dispatch/assignments/${encodeURIComponent(assignmentId)}/accept`);
     return response.data;
   },
 
@@ -55,8 +84,6 @@ export const riderService = {
     return response.data;
   },
 
-  // DELIVERED is retained only for older compiled callers. The current action
-  // policy never emits it; Phase 3 completion uses deliveryOperationsService.
   transitionJob: async (
     deliveryJobId: string,
     action: RiderJobAction,
@@ -70,21 +97,10 @@ export const riderService = {
     return response.data;
   },
 
-  startTracking: async (
-    orderId: string,
-    deliveryJobId?: string,
-    deliveryStatus?: DeliveryJobStatus,
-  ) => {
+  startTracking: async (orderId: string, deliveryJobId?: string, deliveryStatus?: DeliveryJobStatus) => {
     const response = await apiClient.post(`/tracking/start/${encodeURIComponent(orderId)}`);
     let nativeTracking = false;
-
-    if (
-      nativeRiderTrackingSupported()
-      && deliveryJobId
-      && deliveryStatus
-      && apiClient.defaults.baseURL
-      && currentBearerToken()
-    ) {
+    if (nativeRiderTrackingSupported() && deliveryJobId && deliveryStatus && apiClient.defaults.baseURL && currentBearerToken()) {
       await NativeRiderTracking.start({
         apiUrl: String(apiClient.defaults.baseURL),
         authToken: currentBearerToken(),
@@ -94,38 +110,28 @@ export const riderService = {
       });
       nativeTracking = true;
     }
-
     return { ...response.data, nativeTracking };
   },
 
   stopTracking: async (orderId: string, reason = 'WORKSPACE_INACTIVE') => {
     await NativeRiderTracking.stop(reason).catch(() => false);
-    const response = await apiClient.post(
-      `/tracking/stop/${encodeURIComponent(orderId)}`,
-      { reason },
-    );
+    const response = await apiClient.post(`/tracking/stop/${encodeURIComponent(orderId)}`, { reason });
     return response.data;
   },
 
   getNativeTrackingStatus: () => NativeRiderTracking.status(),
 
   sendLocationPing: async (orderId: string, location: RiderLocationPayload) => {
-    const response = await apiClient.post('/tracking/rider-location', {
-      orderId,
-      ...location,
-      source: 'MOBILE_PARTNERS',
-    });
+    const response = await apiClient.post('/tracking/rider-location', { orderId, ...location, source: 'MOBILE_PARTNERS' });
     return response.data;
   },
 
   updateMyStatus: async (
-    status: 'ONLINE' | 'OFFLINE' | 'BUSY',
+    status: CachedRiderStatus,
     location?: { latitude: number; longitude: number },
   ) => {
-    const response = await apiClient.patch('/riders/me/status', {
-      status,
-      ...(location || {}),
-    });
+    const response = await apiClient.patch('/riders/me/status', { status, ...(location || {}) });
+    await cacheRiderStatus(response.data?.status || status);
     return response.data;
   },
 

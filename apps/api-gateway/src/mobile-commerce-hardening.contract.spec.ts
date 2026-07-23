@@ -86,16 +86,24 @@ describe("Mobile commerce hardening contracts", () => {
     expect(podApi).toContain("proofType: 'CUSTOMER_OTP_PIN'");
   });
 
-  test("store mobile settings are implemented rather than a placeholder", () => {
+  test("store mobile settings use the ownership-safe profile endpoint", () => {
     const navigator = read(
       "apps/mobile-partners/src/navigation/StoreNavigator.tsx"
     );
     const settings = read(
       "apps/mobile-partners/src/screens/store/StoreSettingsScreen.tsx"
     );
+    const service = read(
+      "apps/mobile-partners/src/api/storeService.ts"
+    );
+    const controller = read(
+      "apps/api-gateway/src/stores/store-owner.controller.ts"
+    );
 
     expect(navigator).toContain("StoreSettingsScreen");
-    expect(settings).toContain("storeService.updateStore");
+    expect(settings).toContain("storeService.updateOwnedStoreProfile");
+    expect(service).toContain("/store-owner/stores/${storeId}/profile");
+    expect(controller).toContain("@Roles(Role.STORE_OWNER)");
     expect(settings).not.toContain("coming soon");
   });
 
