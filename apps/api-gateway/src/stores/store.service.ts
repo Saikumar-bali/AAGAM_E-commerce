@@ -247,34 +247,26 @@ export class StoreService {
   async create(data: CreateStoreDto) {
     const ownerEmail = data.ownerEmail.trim().toLowerCase();
     const ownerPhone = data.ownerPhone.trim();
-    let owner = await prisma.user.findUnique({ where: { email: ownerEmail } });
 
-    if (!owner) {
-      const phoneOwner = await prisma.user.findUnique({ where: { phone: ownerPhone } });
-      if (phoneOwner) throw new ConflictException('That owner phone number already belongs to another account.');
-      const userData: any = {
+    const existingEmailUser = await prisma.user.findUnique({ where: { email: ownerEmail } });
+    if (existingEmailUser) {
+      throw new ConflictException('An account with this email already exists. Please use a different email.');
+    }
+
+    const existingPhoneUser = await prisma.user.findUnique({ where: { phone: ownerPhone } });
+    if (existingPhoneUser) {
+      throw new ConflictException('An account with this phone number already exists. Please use a different phone number.');
+    }
+
+    const owner = await prisma.user.create({
+      data: {
         email: ownerEmail,
         name: data.ownerName.trim(),
         phone: ownerPhone,
         role: 'STORE_OWNER',
         password: await bcrypt.hash(data.password, 10),
-      };
-      owner = await prisma.user.create({ data: userData });
-    } else {
-      const phoneOwner = await prisma.user.findUnique({ where: { phone: ownerPhone } });
-      if (phoneOwner && phoneOwner.id !== owner.id) {
-        throw new ConflictException('That owner phone number already belongs to another account.');
-      }
-      await prisma.user.update({
-        where: { id: owner.id },
-        data: {
-          name: data.ownerName.trim(),
-          phone: ownerPhone,
-          role: Role.STORE_OWNER,
-          password: await bcrypt.hash(data.password, 10),
-        },
-      });
-    }
+      },
+    });
     await grantUserRole(prisma as any, owner.id, Role.STORE_OWNER, 'ADMIN_STORE_CREATION');
 
     const store = await prisma.store.create({
