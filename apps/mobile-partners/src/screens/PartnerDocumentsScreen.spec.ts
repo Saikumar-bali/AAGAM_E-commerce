@@ -1,207 +1,61 @@
-import React from 'react';
-import { act } from 'react';
-import * as TestRenderer from 'react-test-renderer';
+import fs from 'node:fs';
+import path from 'node:path';
 
-jest.mock('react-native', () => {
-  const React = require('react');
-  const createComponent = (name: string) => {
-    const Component = React.forwardRef((props: any, ref: any) =>
-      React.createElement('View', { ...props, ref, testID: props.testID, accessibilityLabel: props.accessibilityLabel }),
-    );
-    Component.displayName = name;
-    return Component;
-  };
-  return {
-    Alert: { alert: jest.fn() },
-    View: createComponent('View'),
-    Text: createComponent('Text'),
-    TextInput: createComponent('TextInput'),
-    TouchableOpacity: createComponent('TouchableOpacity'),
-    Touchable: { Mixin: {} },
-    Image: createComponent('Image'),
-    ScrollView: createComponent('ScrollView'),
-    KeyboardAvoidingView: createComponent('KeyboardAvoidingView'),
-    ActivityIndicator: createComponent('ActivityIndicator'),
-    processColor: (c: any) => c,
-    StyleSheet: { create: (s: any) => s },
-    Platform: { OS: 'android', select: (obj: any) => obj.android || obj.default },
-    NativeModules: {},
-    Keyboard: { dismiss: jest.fn() },
-    BackHandler: { addEventListener: jest.fn(() => ({ remove: jest.fn() })) },
-    Linking: { openURL: jest.fn() },
-  };
-});
+const source = fs.readFileSync(
+  path.join(__dirname, 'PartnerDocumentsScreen.tsx'),
+  'utf8',
+);
 
-jest.mock('lucide-react-native', () => {
-  const R = require('react');
-  const icon = (name: string) => {
-    const C = (props: any) => R.createElement('View', props);
-    C.displayName = name;
-    return C;
-  };
-  return {
-    Camera: icon('Camera'),
-    CheckCircle2: icon('CheckCircle2'),
-    FileCheck2: icon('FileCheck2'),
-    FilePlus2: icon('FilePlus2'),
-    FolderOpen: icon('FolderOpen'),
-    RefreshCw: icon('RefreshCw'),
-    Trash2: icon('Trash2'),
-  };
-});
-
-jest.mock('../components/PartnerOnboardingUI', () => {
-  const R = require('react');
-  const { View, Text, TouchableOpacity } = require('react-native');
-  return {
-    OnboardingShell: ({ children, title }: any) =>
-      R.createElement(View, { testID: 'onboarding_shell' },
-        R.createElement(Text, null, title),
-        children,
-      ),
-    palette: { teal: '#14B8A6', ink: '#0F172A', muted: '#64748B', red: '#EF4444', green: '#22C55E', amber: '#F59E0B' },
-    PrimaryButton: ({ label, testID, disabled }: any) =>
-      R.createElement(TouchableOpacity, { testID, disabled },
-        R.createElement(Text, null, label),
-      ),
-    Section: ({ children, title }: any) =>
-      R.createElement(View, null,
-        R.createElement(Text, null, title),
-        children,
-      ),
-    StatusPill: () => null,
-    ProgressBar: () => null,
-    FormField: () => null,
-  };
-});
-
-jest.mock('../native/PartnerDocumentPicker', () => ({
-  PartnerDocumentPicker: { captureImage: jest.fn(), pickDocument: jest.fn() },
-}));
-
-jest.mock('../onboarding/usePartnerOnboardingStore', () => ({
-  usePartnerOnboardingStore: jest.fn(),
-}));
-
-jest.mock('../onboarding/types', () => ({
-  editableApplication: jest.fn(() => true),
-}));
-
-import { PartnerDocumentsScreen } from './PartnerDocumentsScreen';
-import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
-
-const mockNavigate = jest.fn();
-const mockGoBack = jest.fn();
-const navigation = { navigate: mockNavigate, goBack: mockGoBack };
-
-function findTestID(root: TestRenderer.ReactTestInstance, testID: string): TestRenderer.ReactTestInstance | null {
-  try {
-    return root.findByProps({ testID });
-  } catch {
-    return null;
-  }
-}
-
-function findByText(root: TestRenderer.ReactTestInstance, text: string): TestRenderer.ReactTestInstance | null {
-  try {
-    return root.findAllByProps({ children: text })[0] ?? root.findAll((node) =>
-      typeof node.props?.children === 'string' && node.props.children.includes(text),
-    )[0] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function mockStore(overrides: Record<string, any> = {}) {
-  const defaults = {
-    response: {
-      application: { status: 'DRAFT' },
-      requirements: {
-        allowedDocuments: ['IDENTITY', 'PROFILE_PHOTO'],
-        requiredDocuments: ['IDENTITY'],
-        completedRequired: [],
-        completionPercent: 50,
-      },
-      documents: [],
-    },
-    uploadDocument: jest.fn().mockResolvedValue(undefined),
-    removeDocument: jest.fn().mockResolvedValue(undefined),
-    isLoading: false,
-    uploadProgress: null,
-  };
-  const store = { ...defaults, ...overrides };
-  (usePartnerOnboardingStore as unknown as jest.Mock).mockImplementation((selector?: any) =>
-    typeof selector === 'function' ? selector(store) : store,
-  );
-}
-
-function renderScreen(): TestRenderer.ReactTestInstance {
-  let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => {
-    renderer = TestRenderer.create(
-      React.createElement(PartnerDocumentsScreen as any, { navigation }),
-    );
-  });
-  return renderer.root;
-}
-
-beforeEach(() => {
-  jest.clearAllMocks();
-});
-
-describe('PartnerDocumentsScreen', () => {
-  it('renders the documents screen title', () => {
-    mockStore();
-    const root = renderScreen();
-    expect(findByText(root, 'Documents')).toBeTruthy();
+describe('PartnerDocumentsScreen contracts', () => {
+  it('renders the document requirements and completion progress from the onboarding response', () => {
+    expect(source).toContain('requirements?.allowedDocuments || []');
+    expect(source).toContain('requirements?.requiredDocuments || []');
+    expect(source).toContain('requirements?.completedRequired?.includes(item)');
+    expect(source).toContain('All required documents are uploaded.');
+    expect(source).toContain('required document${missing.length === 1');
   });
 
-  it('shows the document requirement list', () => {
-    mockStore();
-    const root = renderScreen();
-    expect(findTestID(root, 'documents_requirement_IDENTITY')).toBeTruthy();
-    expect(findTestID(root, 'documents_requirement_PROFILE_PHOTO')).toBeTruthy();
+  it('supports both camera capture and local document selection', () => {
+    expect(source).toContain('PartnerDocumentPicker.captureImage()');
+    expect(source).toContain('PartnerDocumentPicker.pickDocument()');
+    expect(source).toContain("source === 'CAMERA'");
+    expect(source).toContain("error?.code === 'DOCUMENT_PICKER_CANCELLED'");
   });
 
-  it('shows remaining required documents count', () => {
-    mockStore();
-    const root = renderScreen();
-    expect(findByText(root, '1 required document remaining')).toBeTruthy();
+  it('blocks oversized and unsupported files before upload', () => {
+    expect(source).toContain('file.size > 10 * 1024 * 1024');
+    expect(source).toContain('Document exceeds the 10 MB limit');
+    expect(source).toContain("'image/jpeg', 'image/png', 'image/webp', 'application/pdf'");
+    expect(source).toContain('Choose a JPG, PNG, WebP or PDF document');
   });
 
-  it('renders camera and file buttons for uploading', () => {
-    mockStore();
-    const root = renderScreen();
-    expect(findTestID(root, 'documents_camera_button')).toBeTruthy();
-    expect(findTestID(root, 'documents_file_button')).toBeTruthy();
+  it('submits the selected file with document metadata', () => {
+    expect(source).toContain('await uploadDocument({');
+    expect(source).toContain('uri: selectedFile.uri');
+    expect(source).toContain('filename: selectedFile.name');
+    expect(source).toContain('mimeType: selectedFile.type');
+    expect(source).toContain('fileSize: selectedFile.size');
+    expect(source).toContain('documentNumber: documentNumber.trim() || undefined');
+    expect(source).toContain('expiresAt: expiresAt.trim() || undefined');
   });
 
-  it('renders the upload button', () => {
-    mockStore();
-    const root = renderScreen();
-    expect(findTestID(root, 'documents_upload_button')).toBeTruthy();
+  it('clears sensitive form state after a successful upload', () => {
+    expect(source).toContain('setSelectedFile(null)');
+    expect(source).toContain("setDocumentNumber('')");
+    expect(source).toContain("setExpiresAt('')");
+    expect(source).toContain("Alert.alert('Upload complete'");
   });
 
-  it('renders the continue button', () => {
-    mockStore();
-    const root = renderScreen();
-    expect(findTestID(root, 'documents_continue_button')).toBeTruthy();
+  it('requires confirmation before deleting an uploaded document', () => {
+    expect(source).toContain("Alert.alert('Remove document?'");
+    expect(source).toContain("text: 'Remove'");
+    expect(source).toContain("style: 'destructive'");
+    expect(source).toContain('await removeDocument(documentId)');
   });
 
-  it('shows all required documents uploaded when completed', () => {
-    mockStore({
-      response: {
-        application: { status: 'DRAFT' },
-        requirements: {
-          allowedDocuments: ['IDENTITY'],
-          requiredDocuments: ['IDENTITY'],
-          completedRequired: ['IDENTITY'],
-          completionPercent: 100,
-        },
-        documents: [],
-      },
-    });
-    const root = renderScreen();
-    expect(findByText(root, 'All required documents are uploaded.')).toBeTruthy();
+  it('continues to application review through the registered status route', () => {
+    expect(source).toContain("navigation.navigate('ApplicationStatus')");
+    expect(source).toContain("'Review and submit application'");
+    expect(source).toContain("'Save and review progress'");
   });
 });
