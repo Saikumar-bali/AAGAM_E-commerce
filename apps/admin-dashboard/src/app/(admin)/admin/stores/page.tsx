@@ -518,6 +518,7 @@ function TextInput({ label, value, onChange, required = false, type = 'text', pl
       <input
         type={type}
         required={required}
+        autoComplete="off"
         className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
         value={value}
         onChange={(e) => onChange(e.target.value)}
