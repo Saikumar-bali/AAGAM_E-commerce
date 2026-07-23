@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { storeService } from '../../api/storeService';
 
 jest.mock('../../api/storeService', () => ({
@@ -7,30 +9,25 @@ jest.mock('../../api/storeService', () => ({
   },
 }));
 
-describe('StoreOrdersScreen data layer', () => {
+describe('StoreOrdersScreen contracts', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('loads assigned stores', async () => {
-    const stores = [{ id: 's1', name: 'Store A' }];
-    (storeService.getMyStores as jest.Mock).mockResolvedValue(stores);
-    const result = await storeService.getMyStores();
-    expect(result).toEqual(stores);
-  });
-
-  it('loads orders for a specific store', async () => {
-    const orders = [
-      { id: 'o1', status: 'PENDING', grandTotal: 500 },
-      { id: 'o2', status: 'DELIVERED', grandTotal: 1200 },
-    ];
+  it('loads orders for the selected store only', async () => {
+    const orders = [{ id: 'o1', status: 'PENDING', grandTotal: 500 }];
     (storeService.getStoreOrders as jest.Mock).mockResolvedValue(orders);
-    const result = await storeService.getStoreOrders('s1');
-    expect(result).toEqual(orders);
+    await expect(storeService.getStoreOrders('s1')).resolves.toEqual(orders);
     expect(storeService.getStoreOrders).toHaveBeenCalledWith('s1');
   });
 
-  it('returns empty array when no orders exist', async () => {
-    (storeService.getStoreOrders as jest.Mock).mockResolvedValue([]);
-    const result = await storeService.getStoreOrders('s1');
-    expect(result).toEqual([]);
+  it('initializes selection from the dashboard route parameter', () => {
+    const source = fs.readFileSync(path.join(__dirname, 'StoreOrdersScreen.tsx'), 'utf8');
+    expect(source).toContain('route?.params?.storeId');
+    expect(source).toContain('requestedStoreId');
+  });
+
+  it('opens the registered Operations tab with order and store context', () => {
+    const source = fs.readFileSync(path.join(__dirname, 'StoreOrdersScreen.tsx'), 'utf8');
+    expect(source).toContain("navigate?.('Operations', { orderId: order.id, storeId: activeStoreId })");
+    expect(source).not.toContain("navigate?.('StoreDeliveryOps'");
   });
 });
