@@ -63,6 +63,7 @@ set -a
 source <(sed 's/\r$//' .env)
 set +a
 export NODE_ENV=production
+export REQUIRE_CLOSED_APP_PUSH=true
 if [[ -n "$DEPLOY_PUBLIC_API_URL" ]]; then
   export NEXT_PUBLIC_API_URL="$DEPLOY_PUBLIC_API_URL"
 fi
@@ -135,7 +136,7 @@ if [[ "$healthy" != true ]]; then
 fi
 
 health_base="${HEALTHCHECK_URL%/health}"
-for readiness_path in ready ready/realtime; do
+for readiness_path in ready ready/realtime ready/notifications; do
   readiness_url="$health_base/$readiness_path"
   readiness_response="$(curl --fail --silent --show-error --max-time 10 "$readiness_url")"
   READINESS_RESPONSE="$readiness_response" node -e '

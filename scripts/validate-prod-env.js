@@ -12,6 +12,9 @@ const required = [
 const verificationRequired =
   process.env.NODE_ENV === 'production' &&
   (process.env.CI !== 'true' || process.env.FORCE_VERIFICATION_ENV_VALIDATION === 'true');
+const closedAppPushRequired =
+  process.env.NODE_ENV === 'production' &&
+  (process.env.CI !== 'true' || process.env.REQUIRE_CLOSED_APP_PUSH === 'true');
 
 const emailProvider = (process.env.PARTNER_EMAIL_PROVIDER || '').trim().toUpperCase();
 const phoneMode = (process.env.PARTNER_PHONE_VERIFICATION_MODE || '').trim().toUpperCase();
@@ -39,6 +42,10 @@ if (verificationRequired) {
       'PARTNER_SMS_PROVIDER',
     );
   }
+}
+
+if (closedAppPushRequired) {
+  required.push('FIREBASE_SERVICE_ACCOUNT_JSON');
 }
 
 const missing = required.filter(
@@ -85,6 +92,26 @@ if (
   !/^\d+$/.test(process.env.FIREBASE_PROJECT_NUMBER)
 ) {
   weak.push('FIREBASE_PROJECT_NUMBER must contain digits only');
+}
+
+if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    for (const key of ['project_id', 'client_email', 'private_key']) {
+      if (typeof serviceAccount?.[key] !== 'string' || !serviceAccount[key].trim()) {
+        weak.push(`FIREBASE_SERVICE_ACCOUNT_JSON is missing ${key}`);
+      }
+    }
+    if (
+      process.env.FIREBASE_PROJECT_ID &&
+      serviceAccount?.project_id &&
+      process.env.FIREBASE_PROJECT_ID.trim() !== serviceAccount.project_id.trim()
+    ) {
+      weak.push('FIREBASE_SERVICE_ACCOUNT_JSON project_id must match FIREBASE_PROJECT_ID');
+    }
+  } catch {
+    weak.push('FIREBASE_SERVICE_ACCOUNT_JSON must contain valid JSON');
+  }
 }
 
 if (process.env.PARTNER_VERIFICATION_FROM_EMAIL) {
