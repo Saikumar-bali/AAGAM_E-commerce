@@ -4,11 +4,15 @@ import { NotificationDeliveryService } from './notification-delivery.service';
 describe('NotificationDeliveryService provider outcomes', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  it('does not mark a recipient SENT when every configured provider skips delivery', async () => {
-    const recipientUpdate = jest.spyOn(prisma.notificationRecipient, 'update').mockImplementation(async (args: any) => ({
+  function mockRecipientUpdate() {
+    return jest.spyOn(prisma.notificationRecipient, 'update').mockImplementation((async (args: any) => ({
       id: 'recipient-1',
       ...args.data,
-    }) as any);
+    })) as any);
+  }
+
+  it('does not mark a recipient SENT when every configured provider skips delivery', async () => {
+    const recipientUpdate = mockRecipientUpdate();
     jest.spyOn(prisma.notificationRecipient, 'findUnique').mockResolvedValue({
       id: 'recipient-1',
       userId: 'owner-1',
@@ -57,10 +61,7 @@ describe('NotificationDeliveryService provider outcomes', () => {
   });
 
   it('marks the recipient SENT when at least one device receives the push', async () => {
-    const recipientUpdate = jest.spyOn(prisma.notificationRecipient, 'update').mockImplementation(async (args: any) => ({
-      id: 'recipient-1',
-      ...args.data,
-    }) as any);
+    const recipientUpdate = mockRecipientUpdate();
     jest.spyOn(prisma.notificationRecipient, 'findUnique').mockResolvedValue({
       id: 'recipient-1',
       userId: 'rider-1',
