@@ -5,6 +5,7 @@ import { calculateDistance } from '@aagam/utils';
 import { CheckoutPlaceOrderDto, CheckoutQuoteDto } from './dto/checkout.dto';
 import { TrackingGateway } from '../tracking.gateway';
 import { NotificationService } from '../notifications/notification.service';
+import { enqueueOutboxEvent } from '../notifications/outbox.service';
 import { PromotionsService } from '../promotions/promotions.service';
 
 const logger = new Logger('CheckoutService');
@@ -78,7 +79,7 @@ export class CheckoutService {
         grandTotal: created.grandTotal,
         itemCount: created.items?.length ?? 0,
         paymentMethod,
-        priority: paymentMethod === PaymentMethod.COD ? "HIGH" : "NORMAL",
+        priority: paymentMethod === PaymentMethod.COD ? 'HIGH' : 'NORMAL',
         createdAt: created.createdAt,
         store: { id: storeId, name: created.store?.name || null },
         customer: { name: user.name, email: user.email },
@@ -90,42 +91,12 @@ export class CheckoutService {
         },
       };
       this.trackingGateway.server
-        ?.to("admin_orders")
-        .emit("orderPlaced", payload);
+        ?.to('admin_orders')
+        .emit('orderPlaced', payload);
       this.trackingGateway.server
-        ?.to("admin_monitor")
-        .emit("orderPlaced", payload);
-
-      const riders = await prisma.user.findMany({
-        where: { role: "RIDER", fcmToken: { not: null } },
-        select: { fcmToken: true },
-      });
-      logger.log(
-        `Rider push fanout count=${riders.length} for order=${created.id}`
-      );
-      const pushResults = await Promise.allSettled(
-        riders
-          .filter((rider) => Boolean(rider.fcmToken))
-          .map((rider) =>
-            this.notificationService.sendNewOrderAlert(
-              rider.fcmToken as string,
-              {
-                orderId: created.id,
-                amount: created.grandTotal,
-                storeName: created.store?.name || "Store",
-              }
-            )
-          )
-      );
-      const sent = pushResults.filter(
-        (result) => result.status === "fulfilled"
-      ).length;
-      const failed = pushResults.filter(
-        (result) => result.status === "rejected"
-      ).length;
-      logger.log(
-        `Rider push results sent=${sent} failed=${failed} order=${created.id}`
-      );
+        ?.to('admin_monitor')
+        .emit('orderPlaced', payload);
+      logger.log(`Order placement announced to operational dashboards order=${created.id}`);
     } catch (error) {
       logger.error(
         `Failed to announce committed order: ${error instanceof Error ? error.message : String(error)}`
@@ -613,6 +584,24 @@ export class CheckoutService {
           actorUserId: userId,
           actorRole: 'CUSTOMER',
           note: dto.paymentMethod === PaymentMethod.COD ? 'Order placed and confirmed' : 'Order placed, awaiting payment',
+        },
+      });
+
+      await enqueueOutboxEvent(tx, {
+        eventType: 'ORDER_PLACED',
+        aggregateType: 'ORDER',
+        aggregateId: created.id,
+        idempotencyKey: `checkout:order-placed:${created.id}`,
+        payload: {
+          orderId: created.id,
+          actorUserId: userId,
+          actorRole: 'CUSTOMER',
+          metadata: {
+            storeId,
+            paymentMethod: dto.paymentMethod,
+            itemCount: created.items?.length ?? quote.invoice.items.length,
+            grandTotalPaise: quote.invoice.grandTotalPaise,
+          },
         },
       });
 
