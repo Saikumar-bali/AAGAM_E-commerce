@@ -95,6 +95,8 @@ function PushLifecycle() {
     const deviceName = user.role === 'RIDER' ? 'AAGAM Rider' : 'AAGAM Store Partner';
     void startMobilePushLifecycle(deviceName, (message) => {
       const eventType = String(message.data?.eventType || '');
+      const recipientId = String(message.data?.recipientId || '');
+      if (recipientId) seenRecipientIds.current.add(recipientId);
       showMessage(
         message.notification?.title || String(message.data?.title || ''),
         message.notification?.body || String(message.data?.body || ''),
@@ -115,11 +117,15 @@ function PushLifecycle() {
 
     try {
       unsubscribeOpened = messaging().onNotificationOpenedApp((message) => {
+        const recipientId = String(message.data?.recipientId || '');
+        if (recipientId) seenRecipientIds.current.add(recipientId);
         invalidateOperationalQueries(String(message.data?.eventType || ''));
         openOperationalDestination(message);
       });
       void messaging().getInitialNotification().then((message) => {
         if (!message) return;
+        const recipientId = String(message.data?.recipientId || '');
+        if (recipientId) seenRecipientIds.current.add(recipientId);
         setTimeout(() => openOperationalDestination(message), 500);
       }).catch(() => undefined);
     } catch (_error) {
