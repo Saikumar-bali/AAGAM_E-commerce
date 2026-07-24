@@ -56,6 +56,7 @@ export class NotificationDeliveryService {
     let sentCount = 0;
     let skippedCount = 0;
     const failures: string[] = [];
+    const skippedReasons: string[] = [];
     const deepLink = this.recipientDeepLink(
       recipient.user.role,
       recipient.notification.orderId,
@@ -96,6 +97,8 @@ export class NotificationDeliveryService {
           });
         } else {
           skippedCount += 1;
+          const reason = String(result.reason || 'Push provider skipped delivery').slice(0, 2000);
+          skippedReasons.push(reason);
           await prisma.notificationDeliveryAttempt.create({
             data: {
               recipientId: recipient.id,
@@ -103,7 +106,8 @@ export class NotificationDeliveryService {
               attemptNumber,
               provider: subscription.provider,
               status: 'SKIPPED',
-              errorMessage: result.reason,
+              errorMessage: reason,
+              nextRetryAt: new Date(Date.now() + Math.min(300, Math.pow(2, attemptNumber) * 10) * 1000),
             },
           });
         }
@@ -134,26 +138,30 @@ export class NotificationDeliveryService {
       }
     }
 
-    if (sentCount > 0 || skippedCount > 0) {
+    if (sentCount > 0) {
       return prisma.notificationRecipient.update({
         where: { id: recipient.id },
         data: {
           status: 'SENT',
           sentAt: recipient.sentAt || new Date(),
           failedAt: null,
-          failureReason: failures.length ? failures.join(' | ').slice(0, 2000) : null,
+          failureReason: failures.length || skippedReasons.length
+            ? [...failures, ...skippedReasons].join(' | ').slice(0, 2000)
+            : null,
         },
       });
     }
 
+    const failureReason = [...failures, ...skippedReasons].join(' | ').slice(0, 2000)
+      || (skippedCount > 0 ? 'All configured push providers skipped delivery' : 'All push attempts failed');
     await prisma.notificationRecipient.update({
       where: { id: recipient.id },
       data: {
         status: 'FAILED',
         failedAt: new Date(),
-        failureReason: failures.join(' | ').slice(0, 2000) || 'All push attempts failed',
+        failureReason,
       },
     });
-    throw new Error(failures.join(' | ') || 'All push attempts failed');
+    throw new Error(failureReason);
   }
 }
