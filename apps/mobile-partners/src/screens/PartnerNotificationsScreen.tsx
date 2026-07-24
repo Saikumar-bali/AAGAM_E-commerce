@@ -41,6 +41,24 @@ export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any })
   const items = inboxQuery.data?.items || [];
   const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
 
+  const openRoleWorkspace = (item: PartnerNotification) => {
+    const eventType = String(item.type || item.metadata?.eventType || '');
+    const rootNavigation = navigation?.getParent?.() || navigation;
+    if (user?.role === 'STORE_OWNER' && (eventType === 'ORDER_PLACED' || eventType.startsWith('ORDER_'))) {
+      rootNavigation?.navigate?.('StoreTabs', {
+        screen: 'Orders',
+        params: {
+          screen: 'OrderQueue',
+          params: { storeId: item.metadata?.storeId ? String(item.metadata.storeId) : undefined },
+        },
+      });
+      return;
+    }
+    if (user?.role === 'RIDER' && (eventType === 'ASSIGNMENT_OFFERED' || eventType.startsWith('ASSIGNMENT_') || eventType.startsWith('DELIVERY_'))) {
+      rootNavigation?.navigate?.('RiderTabs', { screen: 'Dashboard' });
+    }
+  };
+
   const markReadMutation = useMutation({
     mutationFn: async (item: PartnerNotification) => {
       if (!item.readAt) await notificationService.markRead(item.sourceHistoryId || item.id);
@@ -49,24 +67,22 @@ export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any })
     },
     onSuccess: async (item) => {
       await queryClient.invalidateQueries({ queryKey: PARTNER_NOTIFICATION_QUERY_KEY });
-      const eventType = String(item.type || item.metadata?.eventType || '');
-      if (user?.role === 'STORE_OWNER' && eventType === 'ORDER_PLACED') {
-        navigation?.navigate?.('StoreTabs', { screen: 'Orders', params: { screen: 'OrderQueue', params: { storeId: item.metadata?.storeId } } });
-      } else if (user?.role === 'RIDER' && eventType === 'ASSIGNMENT_OFFERED') {
-        navigation?.navigate?.('RiderTabs', { screen: 'Dashboard' });
-      }
+      openRoleWorkspace(item);
     },
     onError: (error: any) => Toast.show({ type: 'error', text1: 'Could not open notification', text2: errorMessage(error) }),
   });
 
   const recentCount = useMemo(() => items.filter((item) => Date.now() - new Date(item.createdAt).getTime() < 24 * 60 * 60 * 1000).length, [items]);
+  const canGoBack = Boolean(navigation?.canGoBack?.());
 
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <TouchableOpacity testID="partner_notifications_back" style={styles.backButton} onPress={() => navigation?.goBack?.()}>
-          <ArrowLeft size={21} color="#FFFFFF" />
-        </TouchableOpacity>
+        {canGoBack ? (
+          <TouchableOpacity testID="partner_notifications_back" style={styles.backButton} onPress={() => navigation?.goBack?.()}>
+            <ArrowLeft size={21} color="#FFFFFF" />
+          </TouchableOpacity>
+        ) : <View style={styles.backSpacer} />}
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{user?.role === 'RIDER' ? 'RIDER ALERTS' : 'STORE ALERTS'}</Text>
           <Text style={styles.title}>Notifications</Text>
@@ -128,6 +144,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' },
   header: { backgroundColor: '#0F172A', paddingTop: 52, paddingBottom: 18, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   backButton: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
+  backSpacer: { width: 42, height: 42 },
   refreshButton: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
   eyebrow: { color: '#5EEAD4', fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
   title: { color: '#FFFFFF', fontSize: 23, fontWeight: '900', marginTop: 3 },
