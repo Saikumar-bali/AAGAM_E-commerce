@@ -11,8 +11,10 @@ import {
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@aagam/mobile-shared';
-import { ChevronRight, Package, ShoppingBag, Store, TrendingUp } from 'lucide-react-native';
+import { Bell, ChevronRight, Package, ShoppingBag, Store, TrendingUp } from 'lucide-react-native';
 import { storeService } from '../../api/storeService';
+import { notificationService } from '../../api/notificationService';
+import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 
 const { width } = Dimensions.get('window');
 
@@ -32,7 +34,14 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
     queryFn: storeService.getStoreDashboardSummaries,
     retry: 1,
   });
+  const inboxQuery = useQuery({
+    queryKey: PARTNER_NOTIFICATION_QUERY_KEY,
+    queryFn: () => notificationService.getInbox(30),
+    refetchInterval: 15_000,
+    retry: 1,
+  });
   const stores: StoreSummary[] = Array.isArray(storesQuery.data) ? storesQuery.data : [];
+  const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
 
   const totals = useMemo(() => ({
     stores: stores.length,
@@ -46,12 +55,20 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
       style={styles.container}
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl refreshing={storesQuery.isRefetching} onRefresh={() => void storesQuery.refetch()} />
+        <RefreshControl refreshing={storesQuery.isRefetching} onRefresh={() => void Promise.all([storesQuery.refetch(), inboxQuery.refetch()])} />
       }
     >
       <View style={styles.header}>
-        <Text style={styles.greeting}>Welcome back,</Text>
-        <Text style={styles.managerName}>{user?.name || 'Store Manager'}</Text>
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.greeting}>Welcome back,</Text>
+            <Text style={styles.managerName}>{user?.name || 'Store Manager'}</Text>
+          </View>
+          <TouchableOpacity testID="store_dashboard_notifications" style={styles.notificationButton} onPress={() => navigation?.getParent?.()?.navigate?.('Notifications')}>
+            <Bell size={21} color="#0F172A" />
+            {unreadCount > 0 ? <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View> : null}
+          </TouchableOpacity>
+        </View>
         <Text style={styles.headerCopy}>Live operational totals from your assigned stores.</Text>
       </View>
 
@@ -80,7 +97,7 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
               key={store.id}
               style={styles.storeCard}
               activeOpacity={0.75}
-              onPress={() => navigation?.navigate?.('Orders', { storeId: store.id })}
+              onPress={() => navigation?.navigate?.('Orders', { screen: 'OrderQueue', params: { storeId: store.id } })}
             >
               <View style={styles.storeAvatar}>
                 <Text style={styles.storeAvatarText}>{store.name?.[0]?.toUpperCase() || 'S'}</Text>
@@ -121,9 +138,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   content: { paddingBottom: 120 },
   header: { paddingHorizontal: 24, paddingTop: 58, paddingBottom: 24, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   greeting: { fontSize: 14, color: '#64748B' },
   managerName: { fontSize: 25, fontWeight: '900', color: '#1E293B', marginTop: 3 },
   headerCopy: { color: '#64748B', marginTop: 6, fontSize: 12 },
+  notificationButton: { width: 46, height: 46, borderRadius: 15, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  notificationBadge: { position: 'absolute', right: -4, top: -4, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: '#FFFFFF' },
+  notificationBadgeText: { color: '#FFFFFF', fontSize: 8, fontWeight: '900' },
   loading: { minHeight: 300, alignItems: 'center', justifyContent: 'center' },
   statsGrid: { padding: 24, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   statCard: { width: (width - 60) / 2, backgroundColor: '#FFFFFF', padding: 16, borderRadius: 20, marginBottom: 12, borderLeftWidth: 4, elevation: 2 },
