@@ -21,6 +21,7 @@ if (verificationRequired) {
     'PARTNER_EMAIL_PROVIDER',
     'PARTNER_VERIFICATION_FROM_EMAIL',
     'PARTNER_PHONE_VERIFICATION_MODE',
+    'FIREBASE_SERVICE_ACCOUNT_JSON',
   );
 
   if (emailProvider === 'MAILJET') {
@@ -85,6 +86,26 @@ if (
   !/^\d+$/.test(process.env.FIREBASE_PROJECT_NUMBER)
 ) {
   weak.push('FIREBASE_PROJECT_NUMBER must contain digits only');
+}
+
+if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    for (const key of ['project_id', 'client_email', 'private_key']) {
+      if (typeof serviceAccount?.[key] !== 'string' || !serviceAccount[key].trim()) {
+        weak.push(`FIREBASE_SERVICE_ACCOUNT_JSON is missing ${key}`);
+      }
+    }
+    if (
+      process.env.FIREBASE_PROJECT_ID &&
+      serviceAccount?.project_id &&
+      process.env.FIREBASE_PROJECT_ID.trim() !== serviceAccount.project_id.trim()
+    ) {
+      weak.push('FIREBASE_SERVICE_ACCOUNT_JSON project_id must match FIREBASE_PROJECT_ID');
+    }
+  } catch {
+    weak.push('FIREBASE_SERVICE_ACCOUNT_JSON must contain valid JSON');
+  }
 }
 
 if (process.env.PARTNER_VERIFICATION_FROM_EMAIL) {
