@@ -44,6 +44,14 @@ export default defineConfig({
       dependencies: ['setup'],
       testMatch: /[\\/](tests|e2e)[\\/].*\.spec\.ts$/,
     },
+    {
+      name: 'new-e2e',
+      use: {
+        ...devices['Desktop Chrome'],
+        headless: true,
+      },
+      testMatch: /e2e[\\/](store-inventory-full-lifecycle|campaign-lifecycle-e2e|partner-admin-review-e2e|live-tracking-map|dispatch-assign)\.spec\.ts$/,
+    },
   ],
   webServer: {
     // CI already creates a production build. Serving that immutable build keeps

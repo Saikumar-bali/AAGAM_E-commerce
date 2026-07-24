@@ -87,7 +87,7 @@ export const DealsScreen = () => {
       {error ? (
         <View style={styles.errorCard}>
           <Text style={styles.errorText}>Could not load current deals.</Text>
-          <TouchableOpacity onPress={() => refetch()}><Text style={styles.retry}>Try again</Text></TouchableOpacity>
+          <TouchableOpacity testID="deals_retry_button" onPress={() => refetch()}><Text style={styles.retry}>Try again</Text></TouchableOpacity>
         </View>
       ) : null}
 
@@ -129,7 +129,7 @@ export const DealsScreen = () => {
               {!coupon.eligible ? (
                 <Text style={styles.ineligible}>{coupon.ineligibleReason || 'Not eligible for this account'}</Text>
               ) : coupon.code ? (
-                <TouchableOpacity style={styles.useButton} onPress={() => useCoupon(coupon)}>
+                <TouchableOpacity testID="deals_use_at_checkout" style={styles.useButton} onPress={() => useCoupon(coupon)}>
                   <Text style={styles.useButtonText}>Use at checkout</Text>
                 </TouchableOpacity>
               ) : (

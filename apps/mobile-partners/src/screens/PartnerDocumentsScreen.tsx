@@ -174,6 +174,7 @@ export function PartnerDocumentsScreen({ navigation }: any) {
             const isRequired = required.includes(item);
             return (
               <TouchableOpacity
+                testID={`documents_requirement_${item}`}
                 key={item}
                 onPress={() => selectType(item)}
                 style={[styles.requirementCard, type === item && styles.requirementCardActive]}
@@ -214,12 +215,12 @@ export function PartnerDocumentsScreen({ navigation }: any) {
           subtitle={DOCUMENT_HELP[type] || 'Choose a clear image or PDF.'}
         >
           <View style={styles.sourceRow}>
-            <TouchableOpacity style={styles.sourceButton} onPress={() => choose('CAMERA')}>
+            <TouchableOpacity testID="documents_camera_button" style={styles.sourceButton} onPress={() => choose('CAMERA')}>
               <Camera size={22} color={palette.teal} />
               <Text style={styles.sourceTitle}>Take photo</Text>
               <Text style={styles.sourceSubtitle}>Use camera</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.sourceButton} onPress={() => choose('DOCUMENT')}>
+            <TouchableOpacity testID="documents_file_button" style={styles.sourceButton} onPress={() => choose('DOCUMENT')}>
               <FolderOpen size={22} color={palette.teal} />
               <Text style={styles.sourceTitle}>Choose file</Text>
               <Text style={styles.sourceSubtitle}>Image or PDF</Text>
@@ -247,6 +248,7 @@ export function PartnerDocumentsScreen({ navigation }: any) {
 
           {NUMBER_TYPES.has(type) ? (
             <FormField
+              testID="documents_number_input"
               label="Document number"
               value={documentNumber}
               onChangeText={setDocumentNumber}
@@ -256,6 +258,7 @@ export function PartnerDocumentsScreen({ navigation }: any) {
           ) : null}
           {EXPIRY_TYPES.has(type) ? (
             <FormField
+              testID="documents_expiry_input"
               label="Expiry date"
               value={expiresAt}
               onChangeText={setExpiresAt}
@@ -269,6 +272,7 @@ export function PartnerDocumentsScreen({ navigation }: any) {
             </View>
           ) : null}
           <PrimaryButton
+            testID="documents_upload_button"
             label={documents.some((entry) => entry.type === type) ? 'Replace document' : 'Upload document'}
             onPress={upload}
             loading={isLoading}
@@ -280,7 +284,7 @@ export function PartnerDocumentsScreen({ navigation }: any) {
       {documents.length ? (
         <Section title="Uploaded documents">
           {documents.map((document) => (
-            <View key={document.id} style={styles.documentCard}>
+            <View key={document.id} style={styles.documentCard} testID="documents_list_item">
               <FileCheck2 size={21} color={palette.teal} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.documentType}>{title(document.type)}</Text>
@@ -290,7 +294,7 @@ export function PartnerDocumentsScreen({ navigation }: any) {
               <View style={styles.documentActions}>
                 <StatusPill status={document.status} />
                 {editable ? (
-                  <TouchableOpacity onPress={() => remove(document.id, document.type)} style={styles.deleteButton}>
+                  <TouchableOpacity testID="documents_delete_button" onPress={() => remove(document.id, document.type)} style={styles.deleteButton}>
                     <Trash2 size={16} color={palette.red} />
                   </TouchableOpacity>
                 ) : null}
@@ -301,6 +305,7 @@ export function PartnerDocumentsScreen({ navigation }: any) {
       ) : null}
 
       <PrimaryButton
+        testID="documents_continue_button"
         label={missing.length ? 'Save and review progress' : 'Review and submit application'}
         onPress={() => navigation.navigate('ApplicationStatus')}
         secondary={missing.length > 0}

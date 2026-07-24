@@ -15,18 +15,18 @@ export const CartScreen = () => {
         <Text style={styles.itemName}>{item.product.name}</Text>
         <Text style={styles.itemPrice}>₹{item.product.price}</Text>
         <View style={styles.quantityContainer}>
-          <TouchableOpacity onPress={() => updateQuantity(item.product.id, item.quantity - 1)} style={styles.qtyButton}><Text style={styles.qtyLabel}>-</Text></TouchableOpacity>
+          <TouchableOpacity testID="cart_decrease_quantity" onPress={() => updateQuantity(item.product.id, item.quantity - 1)} style={styles.qtyButton}><Text style={styles.qtyLabel}>-</Text></TouchableOpacity>
           <Text style={styles.quantity}>{item.quantity}</Text>
-          <TouchableOpacity onPress={() => updateQuantity(item.product.id, item.quantity + 1)} style={styles.qtyButton}><Text style={styles.qtyLabel}>+</Text></TouchableOpacity>
+          <TouchableOpacity testID="cart_increase_quantity" onPress={() => updateQuantity(item.product.id, item.quantity + 1)} style={styles.qtyButton}><Text style={styles.qtyLabel}>+</Text></TouchableOpacity>
         </View>
       </View>
-      <TouchableOpacity onPress={() => removeItem(item.product.id)} style={styles.removeButton}><Text style={styles.removeText}>Remove</Text></TouchableOpacity>
+      <TouchableOpacity testID="cart_remove_item" onPress={() => removeItem(item.product.id)} style={styles.removeButton}><Text style={styles.removeText}>Remove</Text></TouchableOpacity>
     </View>
   );
 
   if (items.length === 0) return <View style={styles.centered}><Text style={styles.emptyText}>Your cart is empty</Text></View>;
 
-  return <FlatList data={items} renderItem={renderItem} keyExtractor={(item) => item.product.id} contentContainerStyle={styles.list} ListFooterComponent={<View style={styles.footer}><View style={styles.totalRow}><Text style={styles.totalLabel}>Total Amount:</Text><Text style={styles.totalValue}>₹{total()}</Text></View><TouchableOpacity style={styles.checkoutButton} onPress={() => navigation.navigate('Checkout')}><Text style={styles.checkoutText}>Checkout</Text></TouchableOpacity><TouchableOpacity style={styles.clearButton} onPress={clearCart}><Text style={styles.clearButtonText}>Clear Cart</Text></TouchableOpacity></View>} />;
+  return <FlatList data={items} renderItem={renderItem} keyExtractor={(item) => item.product.id} contentContainerStyle={styles.list} ListFooterComponent={<View style={styles.footer}><View style={styles.totalRow}><Text style={styles.totalLabel}>Total Amount:</Text><Text style={styles.totalValue}>₹{total()}</Text></View><TouchableOpacity testID="cart_checkout_button" style={styles.checkoutButton} onPress={() => navigation.navigate('Checkout')}><Text style={styles.checkoutText}>Checkout</Text></TouchableOpacity><TouchableOpacity testID="cart_clear_button" style={styles.clearButton} onPress={clearCart}><Text style={styles.clearButtonText}>Clear Cart</Text></TouchableOpacity></View>} />;
 };
 
 const styles = StyleSheet.create({

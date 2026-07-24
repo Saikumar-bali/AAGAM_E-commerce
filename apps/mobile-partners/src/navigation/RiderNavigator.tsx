@@ -4,7 +4,8 @@ import { RiderDashboard } from '../screens/rider/RiderDashboard';
 import { RiderDeliveryOperationsScreen } from '../screens/rider/RiderDeliveryOperationsScreen';
 import { RiderHistoryScreen } from '../screens/rider/RiderHistoryScreen';
 import { RiderProfileScreen } from '../screens/rider/RiderProfileScreen';
-import { ClipboardCheck, History, LayoutGrid, User } from 'lucide-react-native';
+import { PartnerNotificationsScreen } from '../screens/PartnerNotificationsScreen';
+import { Bell, ClipboardCheck, History, LayoutGrid, User } from 'lucide-react-native';
 
 const Tab = createBottomTabNavigator();
 
@@ -32,28 +33,33 @@ export const RiderNavigator = () => {
           shadowOpacity: 0.14,
           shadowRadius: 24,
         },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '900' },
+        tabBarLabelStyle: { fontSize: 9, fontWeight: '900' },
       }}
     >
       <Tab.Screen
         name="Dashboard"
         component={RiderDashboard}
-        options={{ tabBarIcon: ({ color, size }) => <LayoutGrid size={size} color={color} /> }}
+        options={{ tabBarButtonTestID: 'tab_dashboard', tabBarIcon: ({ color, size }) => <LayoutGrid size={size} color={color} /> }}
       />
       <Tab.Screen
         name="Operations"
         component={RiderDeliveryOperationsScreen}
-        options={{ tabBarIcon: ({ color, size }) => <ClipboardCheck size={size} color={color} /> }}
+        options={{ tabBarButtonTestID: 'tab_deliveries', tabBarIcon: ({ color, size }) => <ClipboardCheck size={size} color={color} /> }}
+      />
+      <Tab.Screen
+        name="Alerts"
+        component={PartnerNotificationsScreen}
+        options={{ tabBarButtonTestID: 'tab_alerts', tabBarIcon: ({ color, size }) => <Bell size={size} color={color} /> }}
       />
       <Tab.Screen
         name="History"
         component={RiderHistoryScreen}
-        options={{ tabBarIcon: ({ color, size }) => <History size={size} color={color} /> }}
+        options={{ tabBarButtonTestID: 'tab_history', tabBarIcon: ({ color, size }) => <History size={size} color={color} /> }}
       />
       <Tab.Screen
         name="Profile"
         component={RiderProfileScreen}
-        options={{ tabBarIcon: ({ color, size }) => <User size={size} color={color} /> }}
+        options={{ tabBarButtonTestID: 'tab_profile', tabBarIcon: ({ color, size }) => <User size={size} color={color} /> }}
       />
     </Tab.Navigator>
   );

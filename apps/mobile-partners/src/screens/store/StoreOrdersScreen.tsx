@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, RefreshCw, ShoppingBag, Store } from 'lucide-react-native';
+import { ChevronRight, Package, RefreshCw, ShoppingBag, Store } from 'lucide-react-native';
 import { storeService } from '../../api/storeService';
 
 function statusTone(status: string) {
@@ -67,8 +67,9 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
     >
       <View style={styles.header}>
         <View>
-          <Text style={styles.eyebrow}>STORE OPERATIONS</Text>
+          <Text style={styles.eyebrow}>STORE FULFILLMENT</Text>
           <Text style={styles.title}>Orders</Text>
+          <Text style={styles.headerCopy}>Review products, prepare parcels and hand packed orders to riders.</Text>
         </View>
         <TouchableOpacity testID="store_orders_refresh" style={styles.refreshButton} onPress={() => void refresh()}>
           <RefreshCw size={20} color="#FFFFFF" />
@@ -119,24 +120,39 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
             orders.map((order: any) => {
               const tone = statusTone(order.status || 'PENDING');
               const total = Number(order.grandTotal ?? order.totalAmount ?? 0);
+              const items = Array.isArray(order.items) ? order.items : [];
+              const totalUnits = items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
               return (
                 <TouchableOpacity
                   testID={`store_order_card_${order.id}`}
                   key={order.id}
                   style={styles.orderCard}
                   activeOpacity={0.75}
-                  onPress={() => navigation?.navigate?.('Operations', { orderId: order.id, storeId: activeStoreId })}
+                  onPress={() => navigation?.navigate?.('OrderDetails', { orderId: order.id, storeId: activeStoreId })}
                 >
                   <View style={styles.orderTopRow}>
-                    <View>
+                    <View style={{ flex: 1 }}>
                       <Text style={styles.orderId}>Order #{String(order.id).slice(-8).toUpperCase()}</Text>
                       <Text style={styles.customerName}>{order.customer?.name || order.addressSnapshot?.recipientName || 'Customer'}</Text>
                     </View>
                     <View style={[styles.statusChip, { backgroundColor: tone.backgroundColor }]}><Text style={[styles.statusText, { color: tone.color }]}>{String(order.status || 'PENDING').replaceAll('_', ' ')}</Text></View>
                   </View>
+
+                  <View style={styles.itemsPreview}>
+                    <View style={styles.itemsHeading}><Package size={15} color="#0F766E" /><Text style={styles.itemsHeadingText}>{items.length} product(s) · {totalUnits} unit(s)</Text></View>
+                    {items.slice(0, 3).map((item: any, index: number) => (
+                      <View key={item.id || `${order.id}-${index}`} style={styles.previewLine}>
+                        <Text style={styles.previewName} numberOfLines={1}>{item.product?.name || 'Product'}</Text>
+                        <Text style={styles.previewQty}>×{Number(item.quantity || 0)}</Text>
+                      </View>
+                    ))}
+                    {items.length > 3 ? <Text style={styles.moreItems}>+{items.length - 3} more product line(s)</Text> : null}
+                    {!items.length ? <Text style={styles.noProductWarning}>No product lines returned. Open the order and refresh before preparing.</Text> : null}
+                  </View>
+
                   <View style={styles.orderBottomRow}>
                     <View><Text style={styles.totalLabel}>ORDER TOTAL</Text><Text style={styles.total}>₹{total.toFixed(2)}</Text></View>
-                    <Text style={styles.orderTime}>{order.createdAt ? new Date(order.createdAt).toLocaleString() : 'Recently created'}</Text>
+                    <Text style={styles.orderTime}>{order.createdAt ? new Date(order.createdAt).toLocaleString('en-IN') : 'Recently created'}</Text>
                     <ChevronRight size={18} color="#64748B" />
                   </View>
                 </TouchableOpacity>
@@ -153,9 +169,10 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F8FAFC' },
   content: { paddingBottom: 20 },
-  header: { backgroundColor: '#0F172A', paddingTop: 56, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: { backgroundColor: '#0F172A', paddingTop: 56, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   eyebrow: { color: '#5EEAD4', fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
   title: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', marginTop: 4 },
+  headerCopy: { color: '#CBD5E1', fontSize: 11, lineHeight: 16, marginTop: 5, maxWidth: 260 },
   refreshButton: { width: 44, height: 44, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   loading: { minHeight: 160, alignItems: 'center', justifyContent: 'center' },
   storeRail: { gap: 8, padding: 18, paddingBottom: 8 },
@@ -174,8 +191,16 @@ const styles = StyleSheet.create({
   orderTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
   orderId: { color: '#0F766E', fontSize: 11, fontWeight: '900' },
   customerName: { color: '#0F172A', fontSize: 16, fontWeight: '900', marginTop: 5 },
-  statusChip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  statusText: { fontSize: 9, fontWeight: '900' },
+  statusChip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, maxWidth: 130 },
+  statusText: { fontSize: 9, fontWeight: '900', textAlign: 'center' },
+  itemsPreview: { marginTop: 14, borderRadius: 15, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', padding: 11 },
+  itemsHeading: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 7 },
+  itemsHeadingText: { color: '#0F766E', fontSize: 10, fontWeight: '900', textTransform: 'uppercase' },
+  previewLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 3 },
+  previewName: { color: '#334155', fontSize: 12, fontWeight: '700', flex: 1 },
+  previewQty: { color: '#0F172A', fontSize: 12, fontWeight: '900' },
+  moreItems: { color: '#64748B', fontSize: 10, fontWeight: '700', marginTop: 5 },
+  noProductWarning: { color: '#B45309', fontSize: 10, fontWeight: '700', lineHeight: 15 },
   orderBottomRow: { marginTop: 14, paddingTop: 13, borderTopWidth: 1, borderTopColor: '#F1F5F9', flexDirection: 'row', alignItems: 'center', gap: 12 },
   totalLabel: { color: '#94A3B8', fontSize: 9, fontWeight: '900' },
   total: { color: '#0F172A', fontSize: 16, fontWeight: '900', marginTop: 2 },

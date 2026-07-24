@@ -482,7 +482,7 @@ function StoreFormModal({
             <div className="space-y-4">
               <TextInput label="Store Name" required placeholder="Enter store name" value={formData.name} onChange={(value) => setFormData((prev) => ({ ...prev, name: value }))} />
               <TextInput label="Address" required placeholder="Enter full address" value={formData.address} onChange={(value) => setFormData((prev) => ({ ...prev, address: value }))} />
-              {showOwnerEmail ? <div className="space-y-4 rounded-2xl border border-teal-100 bg-teal-50/60 p-4"><p className="text-sm font-black text-teal-900">Direct Store Owner login</p><TextInput label="Owner full name" required placeholder="Store owner name" value={formData.ownerName} onChange={(value) => setFormData((prev) => ({ ...prev, ownerName: value }))} /><TextInput label="Login email / username" required type="email" placeholder="owner@email.com" value={formData.ownerEmail} onChange={(value) => setFormData((prev) => ({ ...prev, ownerEmail: value }))} /><TextInput label="Owner mobile number" required placeholder="+91…" value={formData.ownerPhone} onChange={(value) => setFormData((prev) => ({ ...prev, ownerPhone: value }))} /><TextInput label="Temporary password" required type="password" placeholder="Minimum 8 characters" value={formData.password} onChange={(value) => setFormData((prev) => ({ ...prev, password: value }))} /><p className="text-xs font-bold text-teal-700">The owner can sign in immediately using the email or phone and this password.</p></div> : null}
+              {showOwnerEmail ? <div className="space-y-4 rounded-2xl border border-teal-100 bg-teal-50/60 p-4"><p className="text-sm font-black text-teal-900">Direct Store Owner login</p><TextInput label="Owner full name" required placeholder="Store owner name" value={formData.ownerName} onChange={(value) => setFormData((prev) => ({ ...prev, ownerName: value }))} autoComplete="off" /><TextInput label="Login email / username" required type="email" placeholder="owner@email.com" value={formData.ownerEmail} onChange={(value) => setFormData((prev) => ({ ...prev, ownerEmail: value }))} autoComplete="new-email" /><TextInput label="Owner mobile number" required placeholder="+91…" value={formData.ownerPhone} onChange={(value) => setFormData((prev) => ({ ...prev, ownerPhone: value }))} autoComplete="off" /><TextInput label="Temporary password" required type="password" placeholder="Minimum 8 characters" value={formData.password} onChange={(value) => setFormData((prev) => ({ ...prev, password: value }))} autoComplete="new-password" /><p className="text-xs font-bold text-teal-700">The owner can sign in immediately using the email or phone and this password.</p></div> : null}
               {showActiveToggle && (
                 <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
                   <input type="checkbox" className="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" checked={formData.isActive} onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))} />
@@ -511,14 +511,14 @@ function StoreFormModal({
   );
 }
 
-function TextInput({ label, value, onChange, required = false, type = 'text', placeholder = '' }: { label: string; value: string; onChange: (value: string) => void; required?: boolean; type?: string; placeholder?: string }) {
+function TextInput({ label, value, onChange, required = false, type = 'text', placeholder = '', autoComplete }: { label: string; value: string; onChange: (value: string) => void; required?: boolean; type?: string; placeholder?: string; autoComplete?: string }) {
   return (
     <label className="block text-sm font-medium text-gray-700">
       {label}
       <input
         type={type}
         required={required}
-        autoComplete="off"
+        autoComplete={autoComplete || 'off'}
         className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
         value={value}
         onChange={(e) => onChange(e.target.value)}

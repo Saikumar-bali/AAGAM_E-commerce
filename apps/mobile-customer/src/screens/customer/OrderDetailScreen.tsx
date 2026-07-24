@@ -107,11 +107,11 @@ export const OrderDetailScreen = () => {
             {distanceKm != null ? <View style={styles.trackingInfoItem}><Text style={styles.trackingInfoLabel}>Distance</Text><Text style={styles.trackingInfoValue}>{distanceKm} km</Text></View> : null}
             <View style={styles.trackingInfoItem}><Text style={styles.trackingInfoLabel}>Last Update</Text><Text style={styles.trackingInfoValue}>{getPingAgeText()}</Text></View>
           </View>
-          {trackingPayload?.rider && <View style={styles.riderInfo}><View style={styles.riderInfoRow}><Text style={styles.riderLabel}>Rider</Text><Text style={styles.riderName}>{trackingPayload.rider.name || 'Assigned'}</Text></View>{trackingPayload.rider.phone && <TouchableOpacity style={styles.callBtn} onPress={() => Linking.openURL(`tel:${trackingPayload.rider.phone}`)}><Text style={styles.callBtnText}>Call Rider</Text></TouchableOpacity>}</View>}
+          {trackingPayload?.rider && <View style={styles.riderInfo}><View style={styles.riderInfoRow}><Text style={styles.riderLabel}>Rider</Text><Text style={styles.riderName}>{trackingPayload.rider.name || 'Assigned'}</Text></View>{trackingPayload.rider.phone && <TouchableOpacity testID="order_detail_call_rider" style={styles.callBtn} onPress={() => Linking.openURL(`tel:${trackingPayload.rider.phone}`)}><Text style={styles.callBtnText}>Call Rider</Text></TouchableOpacity>}</View>}
         </View>
       ) : null}
 
-      {canReview ? <TouchableOpacity style={styles.reviewButton} onPress={() => navigation.navigate('Review', { orderId })}><Text style={styles.reviewButtonText}>Review order</Text></TouchableOpacity> : null}
+      {canReview ? <TouchableOpacity testID="order_detail_review_button" style={styles.reviewButton} onPress={() => navigation.navigate('Review', { orderId })}><Text style={styles.reviewButtonText}>Review order</Text></TouchableOpacity> : null}
 
       <View style={styles.card}><Text style={styles.cardTitle}>Timeline</Text>{(trackingPayload.timeline || []).map((event: any) => <View key={event.id} style={styles.timelineRow}><View style={[styles.timelineDot, event.toStatus === order.status && styles.timelineDotActive]} /><View style={{ flex: 1 }}><Text style={[styles.boldText, event.toStatus === order.status && styles.timelineTextActive]}>{String(event.toStatus).replace(/_/g, ' ')}</Text><Text style={styles.bodyText}>{new Date(event.createdAt).toLocaleString()}</Text>{event.note ? <Text style={styles.bodyText}>{event.note}</Text> : null}</View></View>)}</View>
 

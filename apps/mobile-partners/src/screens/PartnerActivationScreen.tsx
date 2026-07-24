@@ -43,10 +43,10 @@ export function PartnerActivationScreen({ navigation }: any) {
       onBack={() => navigation.goBack()}
     >
       <Section title="Secure password" subtitle="Use a unique password that is not shared with store staff or delivery coordinators.">
-        <FormField label="New password" value={password} onChangeText={setPassword} secureTextEntry placeholder="At least 10 characters" autoCapitalize="none" />
-        <FormField label="Confirm password" value={confirm} onChangeText={setConfirm} secureTextEntry placeholder="Repeat password" autoCapitalize="none" />
+        <FormField testID="activation_password_input" label="New password" value={password} onChangeText={setPassword} secureTextEntry placeholder="At least 10 characters" autoCapitalize="none" />
+        <FormField testID="activation_confirm_password_input" label="Confirm password" value={confirm} onChangeText={setConfirm} secureTextEntry placeholder="Repeat password" autoCapitalize="none" />
       </Section>
-      <PrimaryButton label="Activate operational account" onPress={submit} loading={isLoading} />
+      <PrimaryButton testID="activation_activate_button" label="Activate operational account" onPress={submit} loading={isLoading} />
       <Text style={styles.note}>
         The one-time activation token expires and becomes unusable immediately after successful activation.
       </Text>

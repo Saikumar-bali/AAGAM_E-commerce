@@ -256,6 +256,7 @@ export function PartnerVerificationScreen({ navigation }: any) {
             </TouchableOpacity>
             <TextInput
               ref={inputRef}
+              testID="verification_code_input"
               value={code}
               onChangeText={updateCode}
               keyboardType="number-pad"
@@ -271,8 +272,8 @@ export function PartnerVerificationScreen({ navigation }: any) {
                 <Text style={styles.devCodeText}>Development code: {testVerificationCode}</Text>
               </TouchableOpacity>
             ) : null}
-            <PrimaryButton label="Verify and continue" onPress={() => verifyCode()} loading={isLoading} disabled={code.length !== 6} />
-            <TouchableOpacity onPress={resend} disabled={countdown > 0 || isLoading} style={styles.resendButton}>
+            <PrimaryButton testID="verification_verify_button" label="Verify and continue" onPress={() => verifyCode()} loading={isLoading} disabled={code.length !== 6} />
+            <TouchableOpacity testID="verification_resend_button" onPress={resend} disabled={countdown > 0 || isLoading} style={styles.resendButton}>
               <Text style={[styles.resendText, countdown > 0 && styles.resendDisabled]}>
                 {countdown > 0 ? `Resend code in 00:${String(countdown).padStart(2, '0')}` : 'Resend code'}
               </Text>
@@ -282,7 +283,7 @@ export function PartnerVerificationScreen({ navigation }: any) {
       </Section>
 
       {failed || supportReference ? (
-        <TouchableOpacity style={styles.helpCard} onPress={() => setHelpOpen((value) => !value)}>
+        <TouchableOpacity testID="verification_help_card" style={styles.helpCard} onPress={() => setHelpOpen((value) => !value)}>
           <View style={styles.helpHeader}>
             <Text style={styles.helpTitle}>Need help?</Text>
             <ChevronDown size={17} color={palette.muted} />
@@ -296,7 +297,7 @@ export function PartnerVerificationScreen({ navigation }: any) {
         </TouchableOpacity>
       ) : null}
 
-      <TouchableOpacity onPress={leaveVerification} style={styles.changeContact}>
+      <TouchableOpacity testID="verification_back_button" onPress={leaveVerification} style={styles.changeContact}>
         <Text style={styles.changeContactText}>Back to Partner Home</Text>
       </TouchableOpacity>
       <View style={styles.secureNote}>

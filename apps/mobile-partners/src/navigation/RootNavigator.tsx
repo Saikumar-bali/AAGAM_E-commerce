@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { LoginScreen } from '../screens/LoginScreen';
@@ -16,10 +16,12 @@ import { PartnerDocumentsScreen } from '../screens/PartnerDocumentsScreen';
 import { PartnerApplicationStatusScreen } from '../screens/PartnerApplicationStatusScreen';
 import { PartnerActivationScreen } from '../screens/PartnerActivationScreen';
 import { PartnerResumeScreen } from '../screens/PartnerResumeScreen';
+import { PartnerNotificationsScreen } from '../screens/PartnerNotificationsScreen';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 import { resolveApplicantInitialRoute } from './applicantRoute';
 
 const Stack = createNativeStackNavigator();
+export const partnerNavigationRef = createNavigationContainerRef<any>();
 
 const roleSet = (user: any) =>
   new Set<string>([user?.role, ...(Array.isArray(user?.roles) ? user.roles : [])].filter(Boolean));
@@ -68,7 +70,7 @@ const RootNavigator = () => {
         : null;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={partnerNavigationRef}>
       <Stack.Navigator
         key={user ? `user-${user.id}-${operationalRole || 'blocked'}` : 'applicant'}
         initialRouteName={user ? undefined : applicantInitialRoute}
@@ -84,6 +86,7 @@ const RootNavigator = () => {
                   {(props: any) => <HomeScreen {...props} role="Admin Panel" />}
                 </Stack.Screen>
               ) : null}
+              {(operationalRole === 'RIDER' || operationalRole === 'STORE_OWNER') ? <Stack.Screen name="Notifications" component={PartnerNotificationsScreen} /> : null}
             </>
           ) : (
             <Stack.Screen name="Blocked" component={BlockedScreen} />

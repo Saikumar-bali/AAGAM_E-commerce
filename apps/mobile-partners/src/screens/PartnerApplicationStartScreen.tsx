@@ -91,11 +91,12 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
       onBack={() => navigation.goBack()}
     >
       <Section title="Applicant identity" subtitle="Use details that match your submitted documents.">
-        <FormField label="Full legal name" value={name} onChangeText={setName} autoCapitalize="words" placeholder="Enter full name" />
+        <FormField testID="application_start_name_input" label="Full legal name" value={name} onChangeText={setName} autoCapitalize="words" placeholder="Enter full name" />
         {phoneAvailable !== false ? (
           <>
             <Text style={styles.primaryLabel}><Phone size={15} color={palette.teal} /> Primary login</Text>
             <FormField
+              testID="application_start_phone_input"
               label="Mobile number"
               value={phone}
               onChangeText={setPhone}
@@ -107,6 +108,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
         ) : null}
         <Text style={styles.optionalLabel}><Mail size={15} color={palette.muted} /> Optional recovery contact</Text>
         <FormField
+          testID="application_start_email_input"
           label={phoneAvailable === false ? 'Email address' : 'Email address (optional)'}
           value={email}
           onChangeText={setEmail}
@@ -119,7 +121,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
 
       {phoneAvailable === null ? <Text style={styles.availability}>Checking verification availability…</Text> : null}
       {phoneAvailable === false ? <Text style={styles.warning}>Phone verification is unavailable on this deployment. Email verification will be used.</Text> : null}
-      <PrimaryButton label={phoneAvailable === false ? 'Continue with email' : 'Send SMS code'} onPress={submit} loading={loading} />
+      <PrimaryButton testID="application_start_submit_button" label={phoneAvailable === false ? 'Continue with email' : 'Send SMS code'} onPress={submit} loading={loading} />
       <Text style={styles.consent}>Continuing records onboarding consent, application events and document review history. It does not guarantee approval.</Text>
     </OnboardingShell>
   );

@@ -13,7 +13,7 @@ describe('StoreOrdersScreen contracts', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('loads orders for the selected store only', async () => {
-    const orders = [{ id: 'o1', status: 'PENDING', grandTotal: 500 }];
+    const orders = [{ id: 'o1', status: 'PENDING', grandTotal: 500, items: [{ id: 'i1', quantity: 2, product: { name: 'Rice' } }] }];
     (storeService.getStoreOrders as jest.Mock).mockResolvedValue(orders);
     await expect(storeService.getStoreOrders('s1')).resolves.toEqual(orders);
     expect(storeService.getStoreOrders).toHaveBeenCalledWith('s1');
@@ -25,9 +25,18 @@ describe('StoreOrdersScreen contracts', () => {
     expect(source).toContain('requestedStoreId');
   });
 
-  it('opens the registered Operations tab with order and store context', () => {
+  it('renders the ordered products and quantities in the queue', () => {
     const source = fs.readFileSync(path.join(__dirname, 'StoreOrdersScreen.tsx'), 'utf8');
-    expect(source).toContain("navigate?.('Operations', { orderId: order.id, storeId: activeStoreId })");
+    expect(source).toContain('items.slice(0, 3).map');
+    expect(source).toContain("item.product?.name || 'Product'");
+    expect(source).toContain('Number(item.quantity || 0)');
+    expect(source).toContain('totalUnits');
+  });
+
+  it('opens the dedicated fulfillment details stack instead of Returns and COD', () => {
+    const source = fs.readFileSync(path.join(__dirname, 'StoreOrdersScreen.tsx'), 'utf8');
+    expect(source).toContain("navigate?.('OrderDetails', { orderId: order.id, storeId: activeStoreId })");
+    expect(source).not.toContain("navigate?.('Operations'");
     expect(source).not.toContain("navigate?.('StoreDeliveryOps'");
   });
 });
