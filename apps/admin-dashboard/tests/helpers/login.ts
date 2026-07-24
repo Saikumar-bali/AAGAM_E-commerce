@@ -26,10 +26,20 @@ export function qaCredentials(role: QaRole) {
 export async function loginWithCookieSession(page: Page, role: QaRole) {
   const { email, password } = qaCredentials(role);
   await page.goto('/login');
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
-  await page.click('button[type="submit"]');
+  // The login page defaults to phone mode; switch to password mode
+  const passwordTab = page.getByRole('button', { name: 'Password', exact: true });
+  if (await passwordTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await passwordTab.click();
+  }
+  // Fill credentials using flexible selectors
+  const emailInput = page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i], input[placeholder*="phone" i]').first();
+  await emailInput.waitFor({ timeout: 10000 });
+  await emailInput.fill(email);
+  const passwordInput = page.locator('input[type="password"], input[name="password"]').first();
+  await passwordInput.fill(password);
+  // Submit
+  const submitBtn = page.locator('button[type="submit"], button:has-text("Continue"), button:has-text("Sign in")').first();
+  await submitBtn.click();
   await page.waitForFunction(() => localStorage.getItem('user_role') !== null, { timeout: 15000 });
   await page.waitForLoadState('networkidle');
 

@@ -168,6 +168,7 @@ export const ProductDetailScreen = () => {
             </View>
             <View style={styles.quantityControl}>
               <TouchableOpacity
+                testID="product_detail_decrease_quantity"
                 accessibilityLabel="Decrease product quantity"
                 style={styles.quantityButton}
                 onPress={() => updateQuantity(product.id, productQuantity - 1)}
@@ -176,6 +177,7 @@ export const ProductDetailScreen = () => {
               </TouchableOpacity>
               <Text style={styles.quantityValue}>{productQuantity}</Text>
               <TouchableOpacity
+                testID="product_detail_increase_quantity"
                 accessibilityLabel="Increase product quantity"
                 style={styles.quantityButton}
                 onPress={() => addItem(product)}
@@ -186,6 +188,7 @@ export const ProductDetailScreen = () => {
           </View>
         ) : (
           <TouchableOpacity
+            testID="product_detail_add_to_cart"
             style={[styles.addButton, !inStock && styles.addButtonDisabled]}
             disabled={!inStock}
             onPress={() => addItem(product)}
@@ -212,6 +215,7 @@ export const ProductDetailScreen = () => {
                 const itemQuantity = getProductCartQuantity(items, item.id);
                 return (
                   <TouchableOpacity
+                    testID="product_detail_related_product"
                     style={styles.relatedCard}
                     onPress={() =>
                       navigation.push('ProductDetail', { productId: item.id })
@@ -230,6 +234,7 @@ export const ProductDetailScreen = () => {
                     </Text>
                     <Text style={styles.relatedPrice}>₹{item.price}</Text>
                     <TouchableOpacity
+                      testID="product_detail_related_add"
                       disabled={!itemInStock}
                       onPress={(event) => {
                         event.stopPropagation();
@@ -258,6 +263,7 @@ export const ProductDetailScreen = () => {
 
       {totalItemCount > 0 ? (
         <TouchableOpacity
+          testID="product_detail_floating_cart"
           accessibilityLabel={`Open cart with ${totalItemCount} items`}
           style={styles.floatingCart}
           activeOpacity={0.94}

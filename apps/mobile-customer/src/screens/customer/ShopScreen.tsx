@@ -15,7 +15,7 @@ const unavailable = (product: any) => product.availability?.inStock === false;
 function ProductCard({ product, compact, quantity, onOpen, onAdd }: any) {
   const inStock = !unavailable(product);
   return (
-    <TouchableOpacity style={[styles.card, compact && styles.cardCompact, !inStock && styles.disabled]} disabled={!inStock} onPress={onOpen} activeOpacity={0.92}>
+    <TouchableOpacity testID="shop_product_card" style={[styles.card, compact && styles.cardCompact, !inStock && styles.disabled]} disabled={!inStock} onPress={onOpen} activeOpacity={0.92}>
       <View>
         <Image source={{ uri: getProductImage(product) }} style={styles.productImage} />
         {quantity > 0 ? <View style={styles.inCart}><Text style={styles.inCartText}>{quantity} in cart</Text></View> : null}
@@ -25,7 +25,7 @@ function ProductCard({ product, compact, quantity, onOpen, onAdd }: any) {
         <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
         <View style={styles.cardFooter}>
           <View><Text style={styles.price}>₹{product.price}</Text><Text style={inStock ? styles.stock : styles.out}>{inStock ? 'In stock' : 'Unavailable'}</Text></View>
-          <TouchableOpacity style={[styles.add, !inStock && styles.addDisabled]} disabled={!inStock} onPress={(event) => { event.stopPropagation(); onAdd(); }}>
+          <TouchableOpacity testID="shop_product_add_button" style={[styles.add, !inStock && styles.addDisabled]} disabled={!inStock} onPress={(event) => { event.stopPropagation(); onAdd(); }}>
             <Text style={styles.addText}>{quantity > 0 ? `+ (${quantity})` : 'Add'}</Text>
           </TouchableOpacity>
         </View>

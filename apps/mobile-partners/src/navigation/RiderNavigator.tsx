@@ -38,22 +38,22 @@ export const RiderNavigator = () => {
       <Tab.Screen
         name="Dashboard"
         component={RiderDashboard}
-        options={{ tabBarIcon: ({ color, size }) => <LayoutGrid size={size} color={color} /> }}
+        options={{ tabBarButtonTestID: "tab_dashboard", tabBarIcon: ({ color, size }) => <LayoutGrid size={size} color={color} /> }}
       />
       <Tab.Screen
         name="Operations"
         component={RiderDeliveryOperationsScreen}
-        options={{ tabBarIcon: ({ color, size }) => <ClipboardCheck size={size} color={color} /> }}
+        options={{ tabBarButtonTestID: "tab_deliveries", tabBarIcon: ({ color, size }) => <ClipboardCheck size={size} color={color} /> }}
       />
       <Tab.Screen
         name="History"
         component={RiderHistoryScreen}
-        options={{ tabBarIcon: ({ color, size }) => <History size={size} color={color} /> }}
+        options={{ tabBarButtonTestID: "tab_history", tabBarIcon: ({ color, size }) => <History size={size} color={color} /> }}
       />
       <Tab.Screen
         name="Profile"
         component={RiderProfileScreen}
-        options={{ tabBarIcon: ({ color, size }) => <User size={size} color={color} /> }}
+        options={{ tabBarButtonTestID: "tab_profile", tabBarIcon: ({ color, size }) => <User size={size} color={color} /> }}
       />
     </Tab.Navigator>
   );

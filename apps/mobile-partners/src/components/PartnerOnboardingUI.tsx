@@ -104,6 +104,7 @@ export function PrimaryButton({
   disabled,
   secondary,
   danger,
+  testID,
 }: {
   label: string;
   onPress: () => void;
@@ -111,9 +112,11 @@ export function PrimaryButton({
   disabled?: boolean;
   secondary?: boolean;
   danger?: boolean;
+  testID?: string;
 }) {
   return (
     <TouchableOpacity
+      testID={testID}
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.82}

@@ -138,7 +138,7 @@ export const RiderHistoryScreen = () => {
           || assignment.deliveryJob.updatedAt;
 
         return (
-          <View key={assignment.id} style={styles.card}>
+          <View testID="rider_history_card" key={assignment.id} style={styles.card}>
             <View style={styles.headerRow}>
               <View style={styles.orderHeading}>
                 <Package size={17} color="#0F766E" />
@@ -204,6 +204,7 @@ export const RiderHistoryScreen = () => {
               {typeof order.deliveryLat === 'number'
                 && typeof order.deliveryLng === 'number' ? (
                   <TouchableOpacity
+                    testID="rider_history_route_button"
                     accessibilityRole="button"
                     accessibilityLabel={`Open route for order ${order.id}`}
                     style={styles.routeButton}

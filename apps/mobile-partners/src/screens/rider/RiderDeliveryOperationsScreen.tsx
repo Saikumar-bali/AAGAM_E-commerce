@@ -222,7 +222,7 @@ export const RiderDeliveryOperationsScreen = () => {
             OTP, COD, GPS evidence, failure reasons, and returns
           </Text>
         </View>
-        <TouchableOpacity style={styles.refreshButton} onPress={() => void refresh()}>
+        <TouchableOpacity testID="rider_operations_refresh_button" style={styles.refreshButton} onPress={() => void refresh()}>
           <RefreshCw size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
@@ -273,6 +273,7 @@ export const RiderDeliveryOperationsScreen = () => {
             >
               {policy.collectCod ? (
                 <ActionButton
+                  testID="rider_operations_record_cod_button"
                   label="Record exact COD collection"
                   busy={busy === 'cod'}
                   disabled={Boolean(busy)}
@@ -321,6 +322,7 @@ export const RiderDeliveryOperationsScreen = () => {
               <>
                 {policy.issueOtp ? (
                   <ActionButton
+                    testID="rider_operations_issue_otp_button"
                     label={summary.otp.issued ? 'Issue a fresh customer OTP' : 'Issue customer OTP'}
                     busy={busy === 'otp'}
                     disabled={Boolean(busy)}
@@ -336,6 +338,7 @@ export const RiderDeliveryOperationsScreen = () => {
                   />
                 ) : null}
                 <TextInput
+                  testID="rider_operations_otp_input"
                   style={styles.input}
                   value={otpCode}
                   onChangeText={(value) => setOtpCode(value.replace(/\D/g, '').slice(0, 6))}
@@ -345,6 +348,7 @@ export const RiderDeliveryOperationsScreen = () => {
                   maxLength={6}
                 />
                 <TextInput
+                  testID="rider_operations_pod_note_input"
                   style={[styles.input, styles.multiline]}
                   value={podNote}
                   onChangeText={setPodNote}
@@ -354,6 +358,7 @@ export const RiderDeliveryOperationsScreen = () => {
                   maxLength={500}
                 />
                 <TouchableOpacity
+                  testID="rider_operations_confirm_checkbox"
                   style={[styles.confirmRow, riderConfirmed && styles.confirmRowActive]}
                   onPress={() => setRiderConfirmed((value) => !value)}
                 >
@@ -371,6 +376,7 @@ export const RiderDeliveryOperationsScreen = () => {
                 ) : null}
                 {policy.completeDelivery ? (
                   <ActionButton
+                    testID="rider_operations_record_pod_button"
                     label="Verify OTP and record POD"
                     busy={busy === 'complete'}
                     disabled={Boolean(busy)}
@@ -398,6 +404,7 @@ export const RiderDeliveryOperationsScreen = () => {
               >
                 {DELIVERY_FAILURE_OPTIONS.map((option) => (
                   <TouchableOpacity
+                    testID="rider_operations_failure_reason_chip"
                     key={option.value}
                     onPress={() => setFailureReason(option.value)}
                     style={[
@@ -417,6 +424,7 @@ export const RiderDeliveryOperationsScreen = () => {
                 ))}
               </ScrollView>
               <TextInput
+                testID="rider_operations_failure_note_input"
                 style={[styles.input, styles.multiline]}
                 value={failureNote}
                 onChangeText={setFailureNote}
@@ -426,6 +434,7 @@ export const RiderDeliveryOperationsScreen = () => {
                 maxLength={500}
               />
               <ActionButton
+                testID="rider_operations_record_failure_button"
                 label="Record failed delivery"
                 busy={busy === 'failure'}
                 disabled={Boolean(busy)}
@@ -438,6 +447,7 @@ export const RiderDeliveryOperationsScreen = () => {
           {policy.startReturn ? (
             <Section icon={RotateCcw} title="Return to store" text="Start tracked reverse logistics">
               <ActionButton
+                testID="rider_operations_start_return_button"
                 label="Start return to store"
                 busy={busy === 'return'}
                 disabled={Boolean(busy)}
@@ -526,6 +536,7 @@ function ActionButton({
   disabled,
   secondary,
   danger,
+  testID,
 }: {
   label: string;
   onPress: () => void;
@@ -533,9 +544,11 @@ function ActionButton({
   disabled?: boolean;
   secondary?: boolean;
   danger?: boolean;
+  testID?: string;
 }) {
   return (
     <TouchableOpacity
+      testID={testID}
       onPress={onPress}
       disabled={disabled}
       style={[
