@@ -188,8 +188,10 @@ export class NotificationRoutingService {
       data: {
         eventType,
         orderId,
+        storeId: payload.storeId || order?.storeId || null,
         deliveryJobId,
         assignmentId: payload.assignmentId || null,
+        riderUserId: payload.riderUserId || assignment?.riderProfile?.userId || order?.rider?.userId || null,
         ...(payload.metadata || {}),
       },
       recipients,
