@@ -63,6 +63,7 @@ set -a
 source <(sed 's/\r$//' .env)
 set +a
 export NODE_ENV=production
+export REQUIRE_CLOSED_APP_PUSH=true
 if [[ -n "$DEPLOY_PUBLIC_API_URL" ]]; then
   export NEXT_PUBLIC_API_URL="$DEPLOY_PUBLIC_API_URL"
 fi
