@@ -22,6 +22,17 @@ export type StoreOwnerProfilePayload = {
   phone: string;
 };
 
+export type StoreOrderStatus =
+  | 'PENDING'
+  | 'PAYMENT_PENDING'
+  | 'CONFIRMED'
+  | 'PICKING'
+  | 'PACKED'
+  | 'RIDER_ASSIGNED'
+  | 'OUT_FOR_DELIVERY'
+  | 'DELIVERED'
+  | 'CANCELLED';
+
 export const storeService = {
   getMyStores: async () => {
     const r = await apiClient.get('/stores/my-stores');
@@ -45,6 +56,31 @@ export const storeService = {
 
   getStoreOrders: async (storeId: string) => {
     const r = await apiClient.get(`/stores/${storeId}/orders`);
+    return r.data;
+  },
+
+  updateOrderStatus: async (orderId: string, status: StoreOrderStatus) => {
+    const r = await apiClient.patch(`/orders/${orderId}/status`, { status });
+    return r.data;
+  },
+
+  markOrderReady: async (orderId: string) => {
+    const r = await apiClient.patch(`/orders/store/${orderId}/ready`);
+    return r.data;
+  },
+
+  markOrderItemUnavailable: async (orderId: string, itemId: string, reason = 'Store marked item unavailable') => {
+    const r = await apiClient.patch(`/orders/store/${orderId}/items/${itemId}/unavailable`, { reason });
+    return r.data;
+  },
+
+  getOrderItemSubstitutes: async (orderId: string, itemId: string) => {
+    const r = await apiClient.get(`/orders/store/${orderId}/items/${itemId}/substitutes`);
+    return r.data;
+  },
+
+  applyOrderItemSubstitute: async (orderId: string, itemId: string, productId: string) => {
+    const r = await apiClient.patch(`/orders/store/${orderId}/items/${itemId}/substitute`, { productId });
     return r.data;
   },
 
