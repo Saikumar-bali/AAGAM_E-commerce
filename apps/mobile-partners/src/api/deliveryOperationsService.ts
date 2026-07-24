@@ -174,6 +174,32 @@ export const deliveryOperationsService = {
     return response.data;
   },
 
+  issuePickupChallenge: async (
+    deliveryJobId: string,
+    input: { method: 'STORE_PICKUP_PIN' | 'QR_CODE'; parcelCount: number },
+    idempotencyKey = operationKey('mobile-pickup-challenge', deliveryJobId),
+  ) => {
+    const response = await apiClient.post(
+      `/orders/delivery-operations/jobs/${encodeURIComponent(deliveryJobId)}/pickup/challenge`,
+      input,
+      headers(idempotencyKey),
+    );
+    return response.data;
+  },
+
+  confirmStoreHandoff: async (
+    deliveryJobId: string,
+    input: { parcelCount: number; latitude?: number; longitude?: number; accuracyMetres?: number },
+    idempotencyKey = operationKey('mobile-pickup-confirm', deliveryJobId),
+  ) => {
+    const response = await apiClient.post(
+      `/orders/delivery-operations/jobs/${encodeURIComponent(deliveryJobId)}/pickup/confirm`,
+      input,
+      headers(idempotencyKey),
+    );
+    return response.data;
+  },
+
   settleCod: async (
     deliveryJobId: string,
     input: { amountPaise: number; settlementReference: string; note?: string },

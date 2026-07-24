@@ -1,10 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigation } from '@react-navigation/native';
 import {
   AlertTriangle,
   Banknote,
   Boxes,
   CheckCircle2,
   ClipboardCheck,
+  PackageCheck,
   RefreshCw,
   RotateCcw,
   Store,
@@ -47,6 +49,7 @@ function shortId(value?: string | null) {
 }
 
 export const StoreDeliveryOperationsScreen = () => {
+  const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
   const [quantities, setQuantities] = useState<QuantityState>({});
@@ -147,6 +150,27 @@ export const StoreDeliveryOperationsScreen = () => {
           <RefreshCw size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
+
+      {(() => {
+        const pickupJobs = jobs.filter((j: any) => j.status === 'RIDER_AT_STORE');
+        if (pickupJobs.length > 0) {
+          return (
+            <TouchableOpacity
+              style={styles.pickupBanner}
+              onPress={() => navigation.navigate('StorePickupVerification')}
+            >
+              <PackageCheck size={22} color="#FFFFFF" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pickupBannerTitle}>
+                  {pickupJobs.length} rider{pickupJobs.length > 1 ? 's' : ''} waiting for pickup
+                </Text>
+                <Text style={styles.pickupBannerText}>Tap to verify parcel handoff</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        }
+        return null;
+      })()}
 
       {queueQuery.isLoading ? (
         <View style={styles.center}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.muted}>Loading operations queue…</Text></View>
@@ -412,4 +436,21 @@ const styles = StyleSheet.create({
   auditType: { color: '#334155', fontSize: 11, fontWeight: '900' },
   auditMeta: { color: '#94A3B8', fontSize: 9, marginTop: 2 },
   disabled: { opacity: 0.5 },
+  pickupBanner: {
+    marginHorizontal: 18,
+    marginTop: 16,
+    borderRadius: 20,
+    backgroundColor: '#0F766E',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 18,
+    elevation: 4,
+    shadowColor: '#0F766E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  pickupBannerTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  pickupBannerText: { color: '#CCFBF1', fontSize: 11, fontWeight: '800', marginTop: 3 },
 });
