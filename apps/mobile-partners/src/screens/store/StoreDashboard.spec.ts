@@ -8,6 +8,12 @@ jest.mock('../../api/storeService', () => ({
   },
 }));
 
+jest.mock('../../api/notificationService', () => ({
+  notificationService: {
+    getInbox: jest.fn(),
+  },
+}));
+
 describe('StoreDashboard contracts', () => {
   beforeEach(() => jest.clearAllMocks());
 
@@ -17,10 +23,17 @@ describe('StoreDashboard contracts', () => {
     await expect(storeService.getStoreDashboardSummaries()).resolves.toEqual(stores);
   });
 
-  it('navigates to the registered Orders tab with selected store context', () => {
+  it('navigates to the nested OrderQueue with selected store context', () => {
     const source = fs.readFileSync(path.join(__dirname, 'StoreDashboard.tsx'), 'utf8');
-    expect(source).toContain("navigate?.('Orders', { storeId: store.id })");
+    expect(source).toContain("navigate?.('Orders', { screen: 'OrderQueue', params: { storeId: store.id } })");
     expect(source).not.toContain("navigate?.('StoreOrders')");
+  });
+
+  it('provides a visible notification inbox with unread count', () => {
+    const source = fs.readFileSync(path.join(__dirname, 'StoreDashboard.tsx'), 'utf8');
+    expect(source).toContain('store_dashboard_notifications');
+    expect(source).toContain('unreadCount');
+    expect(source).toContain("navigate?.('Notifications')");
   });
 
   it('renders API-provided order, inventory and revenue totals', () => {
