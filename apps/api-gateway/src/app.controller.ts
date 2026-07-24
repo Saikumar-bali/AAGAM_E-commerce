@@ -2,6 +2,7 @@ import { BadGatewayException, Controller, Get, Query, ServiceUnavailableExceptio
 import { prisma } from '@aagam/database';
 import { createClient } from 'redis';
 import { AppService } from './app.service';
+import { WebPushService } from './notifications/web-push.service';
 
 async function pingRedis(redisUrl: string, timeoutMs = 2500) {
   const client = createClient({ url: redisUrl });
@@ -25,7 +26,10 @@ async function pingRedis(redisUrl: string, timeoutMs = 2500) {
 @Controller()
 export class AppController {
   private releaseCache: { expiresAt: number; value: any } | null = null;
-  constructor(private readonly appService: AppService) {}
+  constructor(
+    private readonly appService: AppService,
+    private readonly webPushService: WebPushService,
+  ) {}
 
   @Get()
   getHello(): string {
@@ -111,5 +115,26 @@ export class AppController {
         timestamp: new Date().toISOString(),
       });
     }
+  }
+
+  @Get('ready/notifications')
+  getNotificationReady() {
+    const readiness = this.webPushService.getReadiness();
+    const response = {
+      status: readiness.configured ? 'ready' : 'not_ready',
+      checks: {
+        closedAppPhonePush: readiness.configured ? 'ok' : 'failed',
+        provider: 'firebase-cloud-messaging',
+        credentialSource: readiness.source,
+        projectId: readiness.projectId || null,
+        reason: readiness.configured ? null : readiness.reason || 'Firebase push provider is unavailable',
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    if (!readiness.configured) {
+      throw new ServiceUnavailableException(response);
+    }
+    return response;
   }
 }
