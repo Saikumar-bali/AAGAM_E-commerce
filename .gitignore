@@ -17,6 +17,9 @@ apps/api-gateway/src/**/*.d.ts.map
 # Turbo
 .turbo/
 
+# CommandCodeBot config
+.commandcode/
+
 # Environment variables
 .env
 .env.local
