@@ -3,7 +3,9 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { prisma, Role } from "@aagam/database";
 import {
@@ -22,10 +24,13 @@ type Actor = { id: string; role: Role };
 
 @Injectable()
 export class DispatchAssignmentService {
+  private readonly logger = new Logger(DispatchAssignmentService.name);
+
   constructor(
     private readonly jobs: DeliveryJobService,
     private readonly workflow: DeliveryWorkflowService,
-    private readonly events: DeliveryEventService
+    private readonly events: DeliveryEventService,
+    @Optional() private readonly autoDispatch?: any,
   ) {}
 
   private async assertDispatcher(job: any, actor: Actor) {
@@ -322,7 +327,7 @@ export class DispatchAssignmentService {
   }
 
   async reject(assignmentId: string, riderUserId: string, reason?: string) {
-    return prisma.$transaction(
+    const txResult = await prisma.$transaction(
       async (tx) => {
         const assignment = await tx.dispatchAssignment.findUnique({
           where: { id: assignmentId },
@@ -404,6 +409,15 @@ export class DispatchAssignmentService {
       },
       { isolationLevel: "Serializable" as any }
     );
+
+    // After rejection, offer the job to the next nearest rider.
+    if (this.autoDispatch) {
+      await this.autoDispatch.dispatchNearestRider(txResult.deliveryJobId).catch((err: any) => {
+        this.logger.warn(`Auto-dispatch after rejection failed for job ${txResult.deliveryJobId}: ${err?.message || err}`);
+      });
+    }
+
+    return txResult;
   }
 
   async findCurrentForOrderAndRider(orderId: string, riderUserId: string) {
