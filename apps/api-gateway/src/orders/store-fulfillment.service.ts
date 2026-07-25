@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException,
 import { OrderStatus, Role, prisma } from '@aagam/database';
 import { OrderService } from './order.service';
 import { DeliveryJobService } from './delivery-job.service';
+import { AutoDispatchService } from './auto-dispatch.service';
 
 type FulfillmentIssue = {
   itemId: string;
@@ -20,6 +21,7 @@ export class StoreFulfillmentService {
   constructor(
     private readonly orderService: OrderService,
     @Optional() private readonly deliveryJobs?: DeliveryJobService,
+    @Optional() private readonly autoDispatch?: AutoDispatchService,
   ) {}
 
   private editableStatuses = [OrderStatus.PENDING, OrderStatus.PAYMENT_PENDING, OrderStatus.CONFIRMED, OrderStatus.PICKING];
@@ -196,7 +198,12 @@ export class StoreFulfillmentService {
     // Nest injects DeliveryJobService in the running API. It is optional so the
     // existing isolated store tests can still construct this service directly.
     if (this.deliveryJobs) {
-      await this.deliveryJobs.createForPackedOrder(orderId, { id: ownerId, role: Role.STORE_OWNER });
+      const job = await this.deliveryJobs.createForPackedOrder(orderId, { id: ownerId, role: Role.STORE_OWNER });
+      if (job && this.autoDispatch) {
+        await this.autoDispatch.dispatchNearestRider(job.id).catch((err) => {
+          console.error('[AutoDispatch] Failed to dispatch nearest rider:', err?.message || err);
+        });
+      }
     }
 
     return packedOrder;

@@ -14,6 +14,7 @@ import { PostDeliveryController } from './post-delivery.controller';
 import { PostDeliveryService } from './post-delivery.service';
 import { DeliveryOperationsController } from './delivery-operations.controller';
 import { PaymentsModule } from '../payments/payments.module';
+import { AutoDispatchService } from './auto-dispatch.service';
 
 @Module({
   imports: [PaymentsModule],
@@ -34,6 +35,7 @@ import { PaymentsModule } from '../payments/payments.module';
     DispatchService,
     DeliveryOperationsService,
     PostDeliveryService,
+    AutoDispatchService,
   ],
   exports: [
     OrderService,
@@ -41,6 +43,7 @@ import { PaymentsModule } from '../payments/payments.module';
     DeliveryJobService,
     DeliveryWorkflowService,
     DispatchAssignmentService,
+    AutoDispatchService,
   ],
 })
 export class OrderModule {}
