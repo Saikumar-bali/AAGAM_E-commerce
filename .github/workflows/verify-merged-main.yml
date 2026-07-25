@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      TARGET_SHA: b7fedcb4f776f9c367006e7953677873d510d2f7
+      TARGET_SHA: f65d8f96a50bd88d38eb49d6e2e60cf57e9ba49a
     steps:
       - name: Observe exact merged revision
         shell: bash
