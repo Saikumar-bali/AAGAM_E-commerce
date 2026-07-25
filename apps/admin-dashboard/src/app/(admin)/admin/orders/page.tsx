@@ -257,7 +257,11 @@ export default function AdminOrdersPage() {
     if (!selectedOrder || !reassignUserId) return;
     setReassigning(true);
     try {
-      await apiClient.post(`/orders/${selectedOrder.id}/reassign-rider`, { userId: reassignUserId });
+      // Use the dispatch flow so a DeliveryJob and DispatchAssignment are
+      // created — the rider workspace only sees orders through those tables.
+      await apiClient.post(`/orders/dispatch/${selectedOrder.id}/assign`, {
+        riderUserId: reassignUserId,
+      });
       setShowReassignModal(false);
       setReassignUserId('');
       setSelectedOrder(null);
