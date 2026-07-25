@@ -46,6 +46,14 @@ export class AuthService {
   }
 
   private async assertAccountActive(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { isActive: true },
+    });
+    if (!user) throw new UnauthorizedException('User not found');
+    if (user.isActive === false) {
+      throw new UnauthorizedException('Your account has been deactivated. Contact admin.');
+    }
     const rows = await prisma.$queryRawUnsafe(
       'SELECT "accountStatus" FROM "User" WHERE "id" = $1 LIMIT 1',
       userId,

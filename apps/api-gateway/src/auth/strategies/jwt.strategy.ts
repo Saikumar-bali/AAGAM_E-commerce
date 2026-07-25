@@ -34,9 +34,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         phone: true,
         avatarUrl: true,
         emailVerified: true,
+        isActive: true,
       },
     });
     if (!user) throw new UnauthorizedException('User account no longer exists');
+    if (user.isActive === false) {
+      throw new UnauthorizedException('Your account has been deactivated. Contact admin.');
+    }
     const identity = await prisma.$queryRawUnsafe(
       'SELECT "phoneVerifiedAt" FROM "User" WHERE "id" = $1 LIMIT 1',
       user.id,

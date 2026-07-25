@@ -301,6 +301,19 @@ export class StoreService {
       throw new BadRequestException('No supported store fields were provided');
     }
 
+    if (data.isActive === true) {
+      const existing = await prisma.store.findUnique({
+        where: { id },
+        select: { ownerId: true },
+      });
+      if (existing) {
+        await prisma.user.update({
+          where: { id: existing.ownerId },
+          data: { isActive: true, deactivatedAt: null, deactivationReason: null },
+        });
+      }
+    }
+
     const store = await prisma.store.update({
       where: { id },
       data: updateData,
@@ -313,10 +326,16 @@ export class StoreService {
     const store = await prisma.store.findUnique({ where: { id } });
     if (!store) throw new NotFoundException('Store not found');
 
-    const deleted = await prisma.store.update({
-      where: { id },
-      data: { deletedAt: new Date(), isActive: false },
-    });
+    const [deleted] = await prisma.$transaction([
+      prisma.store.update({
+        where: { id },
+        data: { deletedAt: new Date(), isActive: false },
+      }),
+      prisma.user.update({
+        where: { id: store.ownerId },
+        data: { isActive: false, deactivatedAt: new Date(), deactivationReason: 'Store deleted by admin' },
+      }),
+    ]);
     await this.invalidateCommerceCache();
     return deleted;
   }
