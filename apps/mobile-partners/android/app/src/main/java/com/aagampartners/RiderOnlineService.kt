@@ -31,7 +31,7 @@ class RiderOnlineService : Service() {
     const val CHANNEL_ID = "aagam_rider_online"
     const val NOTIFICATION_ID = 4201
 
-    private const val PREFS_NAME = "aagam_rider_online"
+    const val PREFS_NAME = "aagam_rider_online"
     private const val KEY_ACTIVE = "active"
     private const val KEY_RIDER_NAME = "riderName"
   }
