@@ -575,12 +575,12 @@ export class OrderService {
   }
 
   async assignRider(orderId: string, userId: string) {
-    // Validate user exists and is a rider
+    // Validate user exists
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-    if (user.role !== 'RIDER') throw new BadRequestException('User is not a rider');
 
-    // Validate rider profile exists and is not OFFLINE
+    // Validate rider profile exists (User.role may stay CUSTOMER for
+    // mobile-onboarded riders; the RiderProfile is the canonical check)
     const riderProfile = await prisma.riderProfile.findUnique({ where: { userId } });
     if (!riderProfile) throw new NotFoundException('Rider profile not found');
     if (riderProfile.status === 'OFFLINE') throw new BadRequestException('Rider is offline and cannot be assigned');
@@ -659,7 +659,6 @@ export class OrderService {
 
     const newUser = await prisma.user.findUnique({ where: { id: newUserId } });
     if (!newUser) throw new NotFoundException('New rider user not found');
-    if (newUser.role !== 'RIDER') throw new BadRequestException('User is not a rider');
 
     const newRiderProfile = await prisma.riderProfile.findUnique({ where: { userId: newUserId } });
     if (!newRiderProfile) throw new NotFoundException('New rider profile not found');

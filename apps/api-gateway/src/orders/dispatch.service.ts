@@ -333,10 +333,12 @@ export class DispatchService {
     const riderUser = await prisma.user.findUnique({
       where: { id: riderUserId },
     });
-    if (!riderUser || riderUser.role !== Role.RIDER) {
-      throw new BadRequestException("User is not a rider");
+    if (!riderUser) {
+      throw new NotFoundException("Rider user not found");
     }
 
+    // RiderProfile is the canonical check; User.role may remain CUSTOMER
+    // for mobile-onboarded riders.
     const rider = await prisma.riderProfile.findUnique({
       where: { userId: riderUserId },
     });

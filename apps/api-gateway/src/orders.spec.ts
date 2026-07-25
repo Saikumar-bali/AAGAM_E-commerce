@@ -376,7 +376,7 @@ describe('Phase 3: Rider Operations', () => {
 
     await expect(
       service.assignRider(order.id, customerId),
-    ).rejects.toThrow('User is not a rider');
+    ).rejects.toThrow('Rider profile not found');
   });
 
   it('rider should set OUT_FOR_DELIVERY on own assigned order', async () => {

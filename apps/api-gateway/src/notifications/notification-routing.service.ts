@@ -98,11 +98,13 @@ export class NotificationRoutingService {
         break;
       case 'ASSIGNMENT_OFFERED': {
         if (payload.riderUserId) {
-          const rider = await prisma.user.findFirst({
-            where: { id: payload.riderUserId, role: Role.RIDER },
-            select: { id: true, role: true },
+          // Look up via RiderProfile; User.role may stay CUSTOMER for
+          // mobile-onboarded riders.
+          const profile = await prisma.riderProfile.findUnique({
+            where: { userId: payload.riderUserId },
+            select: { userId: true },
           });
-          add(rider);
+          if (profile) add({ id: profile.userId, role: Role.RIDER });
         } else {
           addRider();
         }

@@ -80,9 +80,11 @@ export class DispatchAssignmentService {
           const riderUser = await tx.user.findUnique({
             where: { id: riderUserId },
           });
-          if (!riderUser || riderUser.role !== Role.RIDER) {
-            throw new BadRequestException("Selected user is not a rider");
+          if (!riderUser) {
+            throw new NotFoundException("Rider user not found");
           }
+          // RiderProfile is the canonical check; User.role may remain
+          // CUSTOMER for mobile-onboarded riders.
           const rider = await tx.riderProfile.findUnique({
             where: { userId: riderUserId },
           });

@@ -49,6 +49,7 @@ import {
   nextActionForStatus,
   offerSecondsRemaining,
 } from '../../domain/riderWorkspace';
+import { RiderOnlineService } from '../../services/RiderOnlineService';
 import { RiderTrackingManager, TrackingSnapshot } from '../../services/RiderTrackingManager';
 import {
   setupBackgroundMessageHandler,
@@ -337,7 +338,14 @@ export const RiderDashboard = () => {
   );
 
   useEffect(() => {
-    if (workspace?.rider?.status) setIsOnline(workspace.rider.status !== 'OFFLINE');
+    if (workspace?.rider?.status) {
+      const online = workspace.rider.status !== 'OFFLINE';
+      setIsOnline(online);
+      // Ensure the foreground service matches the server-side status.
+      if (online) {
+        RiderOnlineService.start(user?.name || 'Rider').catch(() => undefined);
+      }
+    }
   }, [workspace?.rider?.status]);
 
   useEffect(() => {
@@ -448,6 +456,8 @@ export const RiderDashboard = () => {
           const { latitude, longitude } = position.coords;
           await riderService.updateMyStatus('ONLINE', { latitude, longitude });
           setIsOnline(true);
+          // Start the foreground service so Android keeps the app alive while online.
+          RiderOnlineService.start(user?.name || 'Rider').catch(() => undefined);
           await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
           setLocating(false);
         },
@@ -472,6 +482,8 @@ export const RiderDashboard = () => {
       await riderService.updateMyStatus('OFFLINE');
       setIsOnline(false);
       await trackingManager.stop('RIDER_OFFLINE');
+      // Stop the foreground service — no longer need to stay alive.
+      RiderOnlineService.stop().catch(() => undefined);
       await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
     } catch (error: any) {
       Toast.show({ type: 'error', text1: 'Could not go offline', text2: error?.response?.data?.message || error?.message || 'Please try again.' });
