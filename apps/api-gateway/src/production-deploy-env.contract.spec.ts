@@ -28,7 +28,9 @@ const baseEnv = [
   'MAILJET_SECRET_KEY=ci-secret',
   'PARTNER_VERIFICATION_FROM_EMAIL=verify@aagam.example.com',
   'PARTNER_PHONE_VERIFICATION_MODE=EMAIL_ONLY',
-  'FIREBASE_PROJECT_ID=aagam-ci',
+  // Model a stale value in PRODUCTION_ENV_FILE_B64. A protected service-account
+  // secret is authoritative and must align the final project ID automatically.
+  'FIREBASE_PROJECT_ID=legacy-aagam-project',
   '',
 ].join('\n');
 
@@ -48,7 +50,7 @@ function runPrepare(extraEnv: NodeJS.ProcessEnv) {
 }
 
 describe('production deployment environment contracts', () => {
-  it('overlays a raw Firebase service-account secret and passes production validation', () => {
+  it('overlays a raw Firebase credential, aligns its project id, and passes validation', () => {
     const run = runPrepare({
       FIREBASE_SERVICE_ACCOUNT_JSON_SECRET: JSON.stringify(serviceAccount),
       FIREBASE_SERVICE_ACCOUNT_JSON_B64: '',
@@ -57,8 +59,12 @@ describe('production deployment environment contracts', () => {
     try {
       expect(run.result.status).toBe(0);
       const generated = readFileSync(run.output, 'utf8');
+      expect(generated).toContain("FIREBASE_PROJECT_ID='aagam-ci'");
       expect(generated).toContain('FIREBASE_SERVICE_ACCOUNT_JSON=');
       expect(generated).toContain('firebase-adminsdk@aagam-ci.iam.gserviceaccount.com');
+      expect(run.result.stdout).toContain(
+        'Aligned FIREBASE_PROJECT_ID with the protected Firebase service account.',
+      );
 
       // Workflows that call the API suite may export QA-only variables. The real
       // production deploy job does not, so validate against a deliberately clean
@@ -94,7 +100,7 @@ describe('production deployment environment contracts', () => {
     }
   });
 
-  it('accepts a base64 Firebase service-account secret', () => {
+  it('accepts a base64 Firebase service-account secret and aligns its project id', () => {
     const run = runPrepare({
       FIREBASE_SERVICE_ACCOUNT_JSON_SECRET: '',
       FIREBASE_SERVICE_ACCOUNT_JSON_B64: Buffer.from(JSON.stringify(serviceAccount)).toString('base64'),
@@ -102,7 +108,9 @@ describe('production deployment environment contracts', () => {
 
     try {
       expect(run.result.status).toBe(0);
-      expect(readFileSync(run.output, 'utf8')).toContain('FIREBASE_SERVICE_ACCOUNT_JSON=');
+      const generated = readFileSync(run.output, 'utf8');
+      expect(generated).toContain("FIREBASE_PROJECT_ID='aagam-ci'");
+      expect(generated).toContain('FIREBASE_SERVICE_ACCOUNT_JSON=');
     } finally {
       rmSync(run.dir, { recursive: true, force: true });
     }
