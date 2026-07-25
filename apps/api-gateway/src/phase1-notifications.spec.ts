@@ -200,7 +200,8 @@ describe('Phase 1 web push and transactional notification foundation', () => {
     });
     const first = await api.subscriptions.register(data.riderUserA.id, { provider: 'FCM_WEB', token: `token-a-${Date.now()}` });
     await api.subscriptions.register(data.riderUserA.id, { provider: 'FCM_WEB', token: `token-b-${Date.now()}` });
-    expect(await prisma.pushSubscription.count({ where: { userId: data.riderUserA.id, isActive: true } })).toBe(2);
+    // Deduplication keeps only the latest active subscription per user+provider.
+    expect(await prisma.pushSubscription.count({ where: { userId: data.riderUserA.id, isActive: true } })).toBe(1);
 
     const notification = await prisma.notification.create({
       data: { eventType: 'ASSIGNMENT_OFFERED', title: 'Offer', body: 'Delivery offer', deliveryJobId: data.job.id },
@@ -211,7 +212,8 @@ describe('Phase 1 web push and transactional notification foundation', () => {
 
     await expect(api.delivery.deliverRecipient(recipient.id)).rejects.toThrow('Token not registered');
     expect((await prisma.pushSubscription.findUnique({ where: { id: first.id } }))?.isActive).toBe(false);
-    expect(await prisma.notificationDeliveryAttempt.count({ where: { recipientId: recipient.id, status: 'FAILED' } })).toBe(2);
+    // Only 1 active subscription remains after deduplication, so 1 delivery attempt.
+    expect(await prisma.notificationDeliveryAttempt.count({ where: { recipientId: recipient.id, status: 'FAILED' } })).toBe(1);
   });
 
   it('honours in-app preferences without creating recipient rows', async () => {

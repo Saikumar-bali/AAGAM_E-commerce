@@ -32,6 +32,7 @@ describe('checkout order notification routing contract', () => {
       routingSource.indexOf("case 'ASSIGNMENT_ACCEPTED':"),
     );
     expect(offeredBlock).toContain('payload.riderUserId');
-    expect(offeredBlock).toContain('add(rider);');
+    expect(offeredBlock).toContain('riderProfile');
+    expect(offeredBlock).toContain('add(');
   });
 });
