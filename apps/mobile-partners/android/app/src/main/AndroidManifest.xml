@@ -59,5 +59,10 @@
           android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
           android:value="rider_availability" />
       </service>
+
+      <receiver
+        android:name=".AlarmReceiver"
+        android:enabled="true"
+        android:exported="false" />
     </application>
 </manifest>
