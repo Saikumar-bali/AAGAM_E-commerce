@@ -268,7 +268,11 @@ export class DeliveryJobService {
       );
     }
 
-    await this.backfillDispatchableOrders(actor);
+    try {
+      await this.backfillDispatchableOrders(actor);
+    } catch {
+      // Best-effort: proceed even if backfill fails.
+    }
 
     const jobs = await prisma.deliveryJob.findMany({
       where: {
