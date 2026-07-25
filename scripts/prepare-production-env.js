@@ -34,7 +34,10 @@ function validateServiceAccount(raw) {
     }
   }
 
-  return JSON.stringify(parsed);
+  return {
+    json: JSON.stringify(parsed),
+    projectId: parsed.project_id.trim(),
+  };
 }
 
 function shellSingleQuote(value) {
@@ -57,18 +60,20 @@ let envFile = decodeBase64(rawBaseEnv, 'PRODUCTION_ENV_FILE_B64').toString('utf8
 if (!envFile.trim()) fail('PRODUCTION_ENV_FILE_B64 decoded to an empty environment file');
 if (!envFile.endsWith('\n')) envFile += '\n';
 
-let serviceAccountJson;
+let serviceAccount;
 if (rawJson) {
-  serviceAccountJson = validateServiceAccount(rawJson);
+  serviceAccount = validateServiceAccount(rawJson);
 } else if (base64Json) {
-  serviceAccountJson = validateServiceAccount(
+  serviceAccount = validateServiceAccount(
     decodeBase64(base64Json, 'FIREBASE_SERVICE_ACCOUNT_JSON_B64').toString('utf8'),
   );
 }
 
-if (serviceAccountJson) {
-  envFile += `\n# Managed by GitHub production deployment. This final assignment overrides earlier values.\n`;
-  envFile += `FIREBASE_SERVICE_ACCOUNT_JSON=${shellSingleQuote(serviceAccountJson)}\n`;
+if (serviceAccount) {
+  envFile += `\n# Managed by GitHub production deployment. These final assignments override earlier values.\n`;
+  envFile += `FIREBASE_PROJECT_ID=${shellSingleQuote(serviceAccount.projectId)}\n`;
+  envFile += `FIREBASE_SERVICE_ACCOUNT_JSON=${shellSingleQuote(serviceAccount.json)}\n`;
+  console.log('Aligned FIREBASE_PROJECT_ID with the protected Firebase service account.');
 }
 
 const outputPath = resolve(outputArg);
