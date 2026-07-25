@@ -60,18 +60,35 @@ describe('production deployment environment contracts', () => {
       expect(generated).toContain('FIREBASE_SERVICE_ACCOUNT_JSON=');
       expect(generated).toContain('firebase-adminsdk@aagam-ci.iam.gserviceaccount.com');
 
+      // Workflows that call the API suite may export QA-only variables. The real
+      // production deploy job does not, so validate against a deliberately clean
+      // child environment rather than leaking the parent test workflow's flags.
+      const validationEnv: NodeJS.ProcessEnv = {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        CI: 'true',
+        REQUIRE_CLOSED_APP_PUSH: 'true',
+      };
       const validate = spawnSync(
         'bash',
         [
           '-lc',
-          'set -a; source "$1"; set +a; export CI=true REQUIRE_CLOSED_APP_PUSH=true; node "$2"',
+          'set -a; source "$1"; set +a; node "$2"',
           'bash',
           run.output,
           validatorScript,
         ],
-        { cwd: root, encoding: 'utf8', env: { ...process.env } },
+        { cwd: root, encoding: 'utf8', env: validationEnv },
       );
-      expect(validate.status).toBe(0);
+      expect({
+        status: validate.status,
+        stderr: validate.stderr,
+        stdout: validate.stdout,
+      }).toEqual({
+        status: 0,
+        stderr: '',
+        stdout: expect.stringContaining('Production environment validation passed.'),
+      });
     } finally {
       rmSync(run.dir, { recursive: true, force: true });
     }
