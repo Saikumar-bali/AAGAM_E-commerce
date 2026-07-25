@@ -7,8 +7,10 @@ export class PushSubscriptionService {
   async register(userId: string, input: RegisterPushSubscriptionDto) {
     const now = new Date();
 
+    let result: any;
+
     if (input.token) {
-      return prisma.pushSubscription.upsert({
+      result = await prisma.pushSubscription.upsert({
         where: { token: input.token },
         update: {
           userId,
@@ -35,39 +37,51 @@ export class PushSubscriptionService {
           lastSeenAt: now,
         },
       });
-    }
-
-    const existing = await prisma.pushSubscription.findFirst({
-      where: { provider: input.provider, endpoint: input.endpoint || null },
-    });
-    if (existing) {
-      return prisma.pushSubscription.update({
-        where: { id: existing.id },
-        data: {
-          userId,
-          p256dh: input.p256dh || null,
-          auth: input.auth || null,
-          userAgent: input.userAgent || null,
-          deviceName: input.deviceName || null,
-          isActive: true,
-          invalidatedAt: null,
-          lastSeenAt: now,
-        },
+    } else {
+      const existing = await prisma.pushSubscription.findFirst({
+        where: { provider: input.provider, endpoint: input.endpoint || null },
       });
+      if (existing) {
+        result = await prisma.pushSubscription.update({
+          where: { id: existing.id },
+          data: {
+            userId,
+            p256dh: input.p256dh || null,
+            auth: input.auth || null,
+            userAgent: input.userAgent || null,
+            deviceName: input.deviceName || null,
+            isActive: true,
+            invalidatedAt: null,
+            lastSeenAt: now,
+          },
+        });
+      } else {
+        result = await prisma.pushSubscription.create({
+          data: {
+            userId,
+            provider: input.provider,
+            endpoint: input.endpoint || null,
+            p256dh: input.p256dh || null,
+            auth: input.auth || null,
+            userAgent: input.userAgent || null,
+            deviceName: input.deviceName || null,
+            lastSeenAt: now,
+          },
+        });
+      }
     }
 
-    return prisma.pushSubscription.create({
-      data: {
+    await prisma.pushSubscription.updateMany({
+      where: {
         userId,
         provider: input.provider,
-        endpoint: input.endpoint || null,
-        p256dh: input.p256dh || null,
-        auth: input.auth || null,
-        userAgent: input.userAgent || null,
-        deviceName: input.deviceName || null,
-        lastSeenAt: now,
+        isActive: true,
+        id: { not: result.id },
       },
+      data: { isActive: false, invalidatedAt: now },
     });
+
+    return result;
   }
 
   list(userId: string) {

@@ -22,6 +22,9 @@
         android:name="com.google.firebase.messaging.default_notification_channel_id"
         android:value="high_priority_orders"
         tools:replace="android:value" />
+      <meta-data
+        android:name="com.google.firebase.messaging.default_notification_icon"
+        android:value="@drawable/ic_notification" />
 
       <activity
         android:name=".MainActivity"
