@@ -44,15 +44,21 @@ export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any })
   const openRoleWorkspace = (item: PartnerNotification) => {
     const eventType = String(item.type || item.metadata?.eventType || '');
     const rootNavigation = navigation?.getParent?.() || navigation;
-    if (user?.role === 'STORE_OWNER' && (eventType === 'ORDER_PLACED' || eventType.startsWith('ORDER_'))) {
-      rootNavigation?.navigate?.('StoreTabs', {
-        screen: 'Orders',
-        params: {
-          screen: 'OrderQueue',
-          params: { storeId: item.metadata?.storeId ? String(item.metadata.storeId) : undefined },
-        },
-      });
-      return;
+    if (user?.role === 'STORE_OWNER') {
+      if (eventType === 'RIDER_AT_STORE' || eventType === 'PICKUP_VERIFIED') {
+        rootNavigation?.navigate?.('StoreTabs', { screen: 'StorePickupVerification' });
+        return;
+      }
+      if (eventType === 'ORDER_PLACED' || eventType.startsWith('ORDER_')) {
+        rootNavigation?.navigate?.('StoreTabs', {
+          screen: 'Orders',
+          params: {
+            screen: 'OrderQueue',
+            params: { storeId: item.metadata?.storeId ? String(item.metadata.storeId) : undefined },
+          },
+        });
+        return;
+      }
     }
     if (user?.role === 'RIDER' && (eventType === 'ASSIGNMENT_OFFERED' || eventType.startsWith('ASSIGNMENT_') || eventType.startsWith('DELIVERY_'))) {
       rootNavigation?.navigate?.('RiderTabs', { screen: 'Dashboard' });

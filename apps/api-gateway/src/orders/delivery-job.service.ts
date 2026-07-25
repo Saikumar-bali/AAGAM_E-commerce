@@ -239,7 +239,11 @@ export class DeliveryJobService {
     });
 
     for (const order of orders) {
-      await this.createForPackedOrder(order.id, actor);
+      try {
+        await this.createForPackedOrder(order.id, actor);
+      } catch {
+        // Best-effort: skip orders that fail backfill so the board still loads.
+      }
     }
   }
 
@@ -264,7 +268,11 @@ export class DeliveryJobService {
       );
     }
 
-    await this.backfillDispatchableOrders(actor);
+    try {
+      await this.backfillDispatchableOrders(actor);
+    } catch {
+      // Best-effort: proceed even if backfill fails.
+    }
 
     const jobs = await prisma.deliveryJob.findMany({
       where: {

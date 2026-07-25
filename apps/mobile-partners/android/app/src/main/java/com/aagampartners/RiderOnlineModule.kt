@@ -75,8 +75,10 @@ class RiderOnlineModule(
 
   /**
    * On Android 6+ request that the user exempt this app from Doze battery
-   * optimisation. This is non-blocking — the system dialog is best-effort and
-   * the user may dismiss it.
+   * optimisation. Tries multiple approaches for different OEM skins:
+   * 1. Standard Android battery optimization dialog
+   * 2. Xiaomi MIUI battery saver settings
+   * 3. Samsung/Huawei generic app settings
    */
   private fun requestBatteryOptimisationExemption() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
@@ -88,7 +90,15 @@ class RiderOnlineModule(
       }
       reactContext.startActivity(intent)
     } catch (_: Exception) {
-      // Some OEMs block this intent; silently ignore.
+      // OEM blocked the intent — try opening battery settings directly.
+      try {
+        val settingsIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        reactContext.startActivity(settingsIntent)
+      } catch (_: Exception) {
+        // Silently ignore — user can enable manually.
+      }
     }
   }
 
