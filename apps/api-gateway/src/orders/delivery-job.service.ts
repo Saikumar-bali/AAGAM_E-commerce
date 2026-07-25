@@ -239,7 +239,11 @@ export class DeliveryJobService {
     });
 
     for (const order of orders) {
-      await this.createForPackedOrder(order.id, actor);
+      try {
+        await this.createForPackedOrder(order.id, actor);
+      } catch {
+        // Best-effort: skip orders that fail backfill so the board still loads.
+      }
     }
   }
 
