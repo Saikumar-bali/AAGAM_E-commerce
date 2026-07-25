@@ -1,0 +1,107 @@
+name: Verify merged main deployment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/verify-merged-main.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    name: Verify main CI and production deploy
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TARGET_SHA: b7fedcb4f776f9c367006e7953677873d510d2f7
+    steps:
+      - name: Observe exact merged revision
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs?branch=main&per_page=100"
+          deadline=$((SECONDS + 2400))
+          final_result="pending"
+
+          while (( SECONDS < deadline )); do
+            curl --fail --silent --show-error \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$api" > "$RUNNER_TEMP/all-main-runs.json"
+
+            jq --arg sha "$TARGET_SHA" '
+              [.workflow_runs[]
+                | select(.head_sha == $sha)
+                | {
+                    id,
+                    name,
+                    event,
+                    status,
+                    conclusion,
+                    run_number,
+                    run_attempt,
+                    head_branch,
+                    head_sha,
+                    html_url,
+                    created_at,
+                    updated_at
+                  }
+              ]
+            ' "$RUNNER_TEMP/all-main-runs.json" > "$RUNNER_TEMP/target-runs.json"
+
+            ci_status="$(jq -r '[.[] | select(.name == "CI" and .event == "push")][0].status // "missing"' "$RUNNER_TEMP/target-runs.json")"
+            ci_conclusion="$(jq -r '[.[] | select(.name == "CI" and .event == "push")][0].conclusion // "pending"' "$RUNNER_TEMP/target-runs.json")"
+            deploy_status="$(jq -r '[.[] | select(.name == "Deploy production" and .event == "workflow_run")][0].status // "missing"' "$RUNNER_TEMP/target-runs.json")"
+            deploy_conclusion="$(jq -r '[.[] | select(.name == "Deploy production" and .event == "workflow_run")][0].conclusion // "pending"' "$RUNNER_TEMP/target-runs.json")"
+
+            echo "main CI: ${ci_status}/${ci_conclusion}; deploy: ${deploy_status}/${deploy_conclusion}"
+
+            if [[ "$ci_status" == "completed" && "$ci_conclusion" != "success" ]]; then
+              final_result="main-ci-${ci_conclusion}"
+              break
+            fi
+
+            if [[ "$ci_status" == "completed" && "$ci_conclusion" == "success" && "$deploy_status" == "completed" ]]; then
+              final_result="deploy-${deploy_conclusion}"
+              break
+            fi
+
+            sleep 15
+          done
+
+          jq --arg target "$TARGET_SHA" --arg result "$final_result" \
+            '{target_sha: $target, observer_result: $result, workflow_runs: .}' \
+            "$RUNNER_TEMP/target-runs.json" > merged-main-verification.json
+
+          cat merged-main-verification.json
+
+          case "$final_result" in
+            deploy-success)
+              echo "Exact merged revision passed main CI and production deployment."
+              ;;
+            pending)
+              echo "Timed out before main CI and deployment reached a terminal state." >&2
+              exit 1
+              ;;
+            *)
+              echo "Merged revision verification failed: $final_result" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: merged-main-verification-${{ env.TARGET_SHA }}
+          path: merged-main-verification.json
+          if-no-files-found: error
+          retention-days: 7
