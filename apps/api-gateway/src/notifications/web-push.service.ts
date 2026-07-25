@@ -16,38 +16,112 @@ export type PushSendResult =
   | { status: 'SENT'; responseId: string }
   | { status: 'SKIPPED'; reason: string };
 
+export type FirebasePushReadiness = {
+  configured: boolean;
+  source: 'environment' | 'file' | 'existing_app' | 'missing' | 'invalid';
+  projectId?: string;
+  reason?: string;
+};
+
+type FirebaseServiceAccount = {
+  project_id: string;
+  client_email: string;
+  private_key: string;
+};
+
+export function parseFirebaseServiceAccount(raw: string): FirebaseServiceAccount {
+  let parsed: any;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON must contain valid JSON');
+  }
+
+  for (const key of ['project_id', 'client_email', 'private_key']) {
+    if (typeof parsed?.[key] !== 'string' || !parsed[key].trim()) {
+      throw new Error(`Firebase service account is missing ${key}`);
+    }
+  }
+
+  const expectedProjectId = process.env.FIREBASE_PROJECT_ID?.trim();
+  if (expectedProjectId && parsed.project_id !== expectedProjectId) {
+    throw new Error(
+      `Firebase service account project_id ${parsed.project_id} does not match FIREBASE_PROJECT_ID ${expectedProjectId}`,
+    );
+  }
+
+  return parsed as FirebaseServiceAccount;
+}
+
 @Injectable()
 export class WebPushService implements OnModuleInit {
   private initializationAttempted = false;
+  private readiness: FirebasePushReadiness = {
+    configured: false,
+    source: 'missing',
+    reason: 'Firebase initialization has not run',
+  };
 
   onModuleInit() {
     this.initializeFirebase();
   }
 
+  getReadiness(): FirebasePushReadiness {
+    this.initializeFirebase();
+    return { ...this.readiness };
+  }
+
   private initializeFirebase() {
-    if (this.initializationAttempted || admin.apps.length > 0) return;
+    if (admin.apps.length > 0) {
+      this.readiness = {
+        configured: true,
+        source: this.readiness.configured ? this.readiness.source : 'existing_app',
+        projectId: this.readiness.projectId || admin.app().options.projectId,
+      };
+      return;
+    }
+    if (this.initializationAttempted) return;
     this.initializationAttempted = true;
 
     try {
       const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
       if (raw) {
-        admin.initializeApp({ credential: admin.credential.cert(JSON.parse(raw)) });
+        const serviceAccount = parseFirebaseServiceAccount(raw);
+        admin.initializeApp({ credential: admin.credential.cert(serviceAccount as admin.ServiceAccount) });
+        this.readiness = {
+          configured: true,
+          source: 'environment',
+          projectId: serviceAccount.project_id,
+        };
         logger.log('Firebase Admin initialized from environment.');
         return;
       }
 
       const serviceAccountPath = path.resolve(process.cwd(), 'firebase-adminsdk.json');
       if (fs.existsSync(serviceAccountPath)) {
+        const serviceAccount = parseFirebaseServiceAccount(fs.readFileSync(serviceAccountPath, 'utf8'));
         admin.initializeApp({
-          credential: admin.credential.cert(JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'))),
+          credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
         });
+        this.readiness = {
+          configured: true,
+          source: 'file',
+          projectId: serviceAccount.project_id,
+        };
         logger.log('Firebase Admin initialized from firebase-adminsdk.json.');
         return;
       }
 
-      logger.warn('Firebase credentials missing. In-app notifications remain available; push attempts will be skipped.');
+      this.readiness = {
+        configured: false,
+        source: 'missing',
+        reason: 'FIREBASE_SERVICE_ACCOUNT_JSON is not configured',
+      };
+      logger.warn('Firebase credentials missing. In-app notifications remain available; phone push attempts will be skipped.');
     } catch (error) {
-      logger.error(`Firebase initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      const reason = error instanceof Error ? error.message : String(error);
+      this.readiness = { configured: false, source: 'invalid', reason };
+      logger.error(`Firebase initialization failed: ${reason}`);
     }
   }
 
@@ -65,8 +139,11 @@ export class WebPushService implements OnModuleInit {
     if (!subscription?.token) {
       return { status: 'SKIPPED', reason: 'Subscription has no FCM token' };
     }
-    if (admin.apps.length === 0) {
-      return { status: 'SKIPPED', reason: 'Firebase push provider is not configured' };
+    if (!this.readiness.configured || admin.apps.length === 0) {
+      return {
+        status: 'SKIPPED',
+        reason: this.readiness.reason || 'Firebase push provider is not configured',
+      };
     }
 
     const data: Record<string, string> = Object.fromEntries(
@@ -76,9 +153,9 @@ export class WebPushService implements OnModuleInit {
     data.body = payload.body;
     if (payload.deepLink) data.deepLink = payload.deepLink;
 
-    // Web receives a data-only message. The service worker is the single owner
-    // of background display, preventing Firebase auto-display plus a second
-    // custom notification. Android/APNs may still use their native configs.
+    // Android receives a native notification payload. Firebase displays it when
+    // the app is backgrounded, swiped away, or the process is not running. The
+    // data payload is retained so tapping it can open the Store/Rider workspace.
     const responseId = await admin.messaging().send({
       token: subscription.token,
       data,
@@ -88,15 +165,21 @@ export class WebPushService implements OnModuleInit {
       },
       android: {
         priority: 'high',
+        ttl: 5 * 60 * 1000,
+        collapseKey: data.recipientId || data.notificationId || data.eventType || 'aagam-operations',
         notification: {
           title: payload.title,
           body: payload.body,
           sound: 'default',
           channelId: 'high_priority_orders',
-          tag: data.notificationId || data.eventType || 'aagam-notification',
+          tag: data.recipientId || data.notificationId || data.eventType || 'aagam-notification',
+          visibility: 'public',
+          defaultVibrateTimings: true,
+          defaultSound: true,
         },
       },
       apns: {
+        headers: { 'apns-priority': '10' },
         payload: {
           aps: {
             alert: { title: payload.title, body: payload.body },
