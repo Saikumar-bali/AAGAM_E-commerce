@@ -29,6 +29,7 @@ jobs:
           api="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs?branch=main&per_page=100"
           deadline=$((SECONDS + 2400))
           final_result="pending"
+          mkdir -p verification-evidence
 
           while (( SECONDS < deadline )); do
             curl --fail --silent --show-error \
@@ -79,9 +80,39 @@ jobs:
 
           jq --arg target "$TARGET_SHA" --arg result "$final_result" \
             '{target_sha: $target, observer_result: $result, workflow_runs: .}' \
-            "$RUNNER_TEMP/target-runs.json" > merged-main-verification.json
+            "$RUNNER_TEMP/target-runs.json" > verification-evidence/merged-main-verification.json
 
-          cat merged-main-verification.json
+          if [[ "$final_result" == deploy-* && "$final_result" != "deploy-success" ]]; then
+            deploy_id="$(jq -r '[.[] | select(.name == "Deploy production" and .event == "workflow_run")][0].id // empty' "$RUNNER_TEMP/target-runs.json")"
+            if [[ -n "$deploy_id" ]]; then
+              curl --fail --silent --show-error \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${deploy_id}/jobs?per_page=100" \
+                > verification-evidence/deploy-jobs.json
+
+              failed_job_id="$(jq -r '[.jobs[] | select(.conclusion == "failure")][0].id // empty' verification-evidence/deploy-jobs.json)"
+              if [[ -n "$failed_job_id" ]]; then
+                curl --location --fail --silent --show-error \
+                  -H "Authorization: Bearer ${GH_TOKEN}" \
+                  -H "Accept: application/vnd.github+json" \
+                  -H "X-GitHub-Api-Version: 2022-11-28" \
+                  "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${failed_job_id}/logs" \
+                  > verification-evidence/deploy-job.log
+
+                grep -E 'Production environment|Missing required env|Invalid env|preparation failed|Missing GitHub production configuration|FIREBASE|Error:|error:' \
+                  verification-evidence/deploy-job.log \
+                  > verification-evidence/deploy-failure-summary.txt || true
+              fi
+            fi
+          fi
+
+          cat verification-evidence/merged-main-verification.json
+          if [[ -s verification-evidence/deploy-failure-summary.txt ]]; then
+            echo "Deployment failure summary:"
+            cat verification-evidence/deploy-failure-summary.txt
+          fi
 
           case "$final_result" in
             deploy-success)
@@ -102,6 +133,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: merged-main-verification-${{ env.TARGET_SHA }}
-          path: merged-main-verification.json
+          path: verification-evidence/
           if-no-files-found: error
           retention-days: 7
