@@ -220,6 +220,36 @@ export class StoreService {
     return inventory;
   }
 
+  async findAllAdmin() {
+    return prisma.store.findMany({
+      where: {},
+      include: {
+        owner: { select: { id: true, name: true, email: true, phone: true } },
+        inventory: true,
+      },
+      orderBy: [{ deletedAt: { sort: 'asc', nulls: 'first' } }, { name: 'asc' }],
+    });
+  }
+
+  async restore(id: string) {
+    const store = await prisma.store.findUnique({ where: { id } });
+    if (!store) throw new NotFoundException('Store not found');
+    if (!store.deletedAt) throw new BadRequestException('Store is not deleted');
+
+    const [restored] = await prisma.$transaction([
+      prisma.store.update({
+        where: { id },
+        data: { deletedAt: null, isActive: true },
+      }),
+      prisma.user.update({
+        where: { id: store.ownerId },
+        data: { isActive: true, deactivatedAt: null, deactivationReason: null },
+      }),
+    ]);
+    await this.invalidateCommerceCache();
+    return restored;
+  }
+
   async findOne(id: string) {
     const store = await prisma.store.findUnique({
       where: { id, deletedAt: null },

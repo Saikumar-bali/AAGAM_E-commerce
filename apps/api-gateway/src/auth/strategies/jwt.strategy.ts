@@ -38,7 +38,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       },
     });
     if (!user) throw new UnauthorizedException('User account no longer exists');
-    if (user.isActive === false) {
+    if (user.isActive === false && (user.role === 'STORE_OWNER' || user.role === 'RIDER')) {
       throw new UnauthorizedException('Your account has been deactivated. Contact admin.');
     }
     const identity = await prisma.$queryRawUnsafe(

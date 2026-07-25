@@ -13,6 +13,7 @@ import {
   MapPin,
   Package,
   Plus,
+  RotateCcw,
   Search,
   Store as StoreIcon,
   Trash2,
@@ -43,6 +44,7 @@ interface StoreRecord {
   isActive: boolean;
   ownerId: string;
   createdAt: string;
+  deletedAt?: string | null;
   owner?: { name: string | null; email: string | null; phone: string | null };
   inventory?: { id: string; quantity: number; product: { name: string; price: number } }[];
 }
@@ -74,10 +76,11 @@ export default function AdminStoresPage() {
   const [selectedStore, setSelectedStore] = useState<StoreRecord | null>(null);
   const [formData, setFormData] = useState<StoreFormData>(emptyForm());
   const [error, setError] = useState('');
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const fetchStores = async () => {
     try {
-      const response = await apiClient.get('/stores');
+      const response = await apiClient.get('/stores/admin/all');
       setStores(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       console.error('Failed to fetch stores', err);
@@ -88,20 +91,24 @@ export default function AdminStoresPage() {
 
   useEffect(() => { fetchStores(); }, []);
 
-  const filteredStores = stores.filter((store) =>
-    store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    store.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    store.owner?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    store.owner?.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredStores = stores.filter((store) => {
+    if (!showDeleted && store.deletedAt) return false;
+    return (
+      store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      store.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      store.owner?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      store.owner?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
 
-  const activeStores = stores.filter((s) => s.isActive).length;
+  const activeStores = stores.filter((s) => s.isActive && !s.deletedAt).length;
+  const deletedStores = stores.filter((s) => s.deletedAt).length;
   const totalInventory = stores.reduce((acc, s) => acc + (s.inventory?.reduce((a, i) => a + i.quantity, 0) || 0), 0);
   const stats = [
     { label: 'Total Stores', value: stores.length, icon: StoreIcon, color: 'bg-blue-500' },
     { label: 'Active Stores', value: activeStores, icon: CheckCircle, color: 'bg-emerald-500' },
+    { label: 'Deleted Stores', value: deletedStores, icon: XCircle, color: 'bg-red-500' },
     { label: 'Total Inventory', value: totalInventory, icon: Package, color: 'bg-purple-500' },
-    { label: 'New This Month', value: stores.filter((s) => new Date(s.createdAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length, icon: TrendingUp, color: 'bg-amber-500' },
   ];
 
   const resetForm = () => {
@@ -226,6 +233,15 @@ export default function AdminStoresPage() {
     }
   };
 
+  const handleRestore = async (store: StoreRecord) => {
+    try {
+      await apiClient.post(`/stores/${store.id}/restore`);
+      await fetchStores();
+    } catch (err) {
+      console.error('Failed to restore store', err);
+    }
+  };
+
   return (
     <DashboardLayout allowedRole="ADMIN">
       <div className="mb-8">
@@ -262,8 +278,8 @@ export default function AdminStoresPage() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="border-b border-gray-50 bg-gray-50/50 p-4">
-          <div className="relative max-w-md">
+        <div className="flex flex-wrap items-center gap-3 border-b border-gray-50 bg-gray-50/50 p-4">
+          <div className="relative max-w-md flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -273,6 +289,16 @@ export default function AdminStoresPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 transition-all hover:bg-gray-100 has-[:checked]:border-red-200 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+              checked={showDeleted}
+              onChange={(e) => setShowDeleted(e.target.checked)}
+            />
+            Show deleted
+            {deletedStores > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-600">{deletedStores}</span>}
+          </label>
         </div>
 
         <div className="overflow-x-auto">
@@ -305,16 +331,19 @@ export default function AdminStoresPage() {
                   </td>
                 </tr>
               ) : (
-                filteredStores.map((store) => (
-                  <tr key={store.id} className="group transition-colors hover:bg-gray-50">
+                filteredStores.map((store) => {
+                  const isDeleted = !!store.deletedAt;
+                  return (
+                  <tr key={store.id} className={`group transition-colors hover:bg-gray-50 ${isDeleted ? 'bg-red-50/30' : ''}`}>
                     <td className="px-6 py-4">
                       <div className="flex items-center">
-                        <div className={`mr-4 flex h-12 w-12 items-center justify-center rounded-xl text-white shadow-lg ${store.isActive ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-200' : 'bg-gray-400 shadow-gray-200'}`}>
+                        <div className={`mr-4 flex h-12 w-12 items-center justify-center rounded-xl text-white shadow-lg ${isDeleted ? 'bg-red-400 shadow-red-200' : store.isActive ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-200' : 'bg-gray-400 shadow-gray-200'}`}>
                           <StoreIcon className="h-6 w-6" />
                         </div>
                         <div>
                           <p className="text-sm font-bold text-gray-900">{store.name}</p>
                           <p className="text-xs text-gray-500">ID: {store.id.substring(0, 8)}</p>
+                          {isDeleted && <span className="mt-1 inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-600">Deleted</span>}
                         </div>
                       </div>
                     </td>
@@ -336,22 +365,35 @@ export default function AdminStoresPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
+                      {isDeleted ? (
+                        <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600">
+                          <XCircle className="mr-1.5 h-3 w-3" /> Deleted
+                        </span>
+                      ) : (
                       <button
                         onClick={() => toggleStatus(store)}
                         className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-bold transition-all ${store.isActive ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                       >
                         {store.isActive ? <><CheckCircle className="mr-1.5 h-3 w-3" /> Active</> : <><XCircle className="mr-1.5 h-3 w-3" /> Inactive</>}
                       </button>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end space-x-1.5">
                         <button onClick={() => handleView(store)} className="rounded-lg p-2 text-gray-400 opacity-0 transition-all hover:bg-blue-50 hover:text-blue-600 group-hover:opacity-100"><Eye className="h-4 w-4" /></button>
-                        <button onClick={() => handleEdit(store)} className="rounded-lg p-2 text-gray-400 opacity-0 transition-all hover:bg-emerald-50 hover:text-emerald-600 group-hover:opacity-100"><Edit className="h-4 w-4" /></button>
-                        <button onClick={() => handleDelete(store)} className="rounded-lg p-2 text-gray-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"><Trash2 className="h-4 w-4" /></button>
+                        {isDeleted ? (
+                          <button onClick={() => handleRestore(store)} className="rounded-lg p-2 text-amber-600 opacity-0 transition-all hover:bg-amber-50 group-hover:opacity-100" title="Restore store"><RotateCcw className="h-4 w-4" /></button>
+                        ) : (
+                          <>
+                            <button onClick={() => handleEdit(store)} className="rounded-lg p-2 text-gray-400 opacity-0 transition-all hover:bg-emerald-50 hover:text-emerald-600 group-hover:opacity-100"><Edit className="h-4 w-4" /></button>
+                            <button onClick={() => handleDelete(store)} className="rounded-lg p-2 text-gray-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"><Trash2 className="h-4 w-4" /></button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

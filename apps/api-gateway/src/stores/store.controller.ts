@@ -94,6 +94,20 @@ export class StoreController {
     return this.storeService.getStoreOrders(id, req.user);
   }
 
+  @Get('admin/all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async findAllAdmin() {
+    return this.storeService.findAllAdmin();
+  }
+
+  @Post(':id/restore')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async restore(@Param('id') id: string) {
+    return this.storeService.restore(id);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.storeService.findOne(id);

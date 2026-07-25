@@ -45,13 +45,14 @@ export class AuthService {
     return [...new Set(audiences)];
   }
 
-  private async assertAccountActive(userId: string) {
+  private async assertAccountActive(userId: string, role?: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { isActive: true },
+      select: { isActive: true, role: true },
     });
     if (!user) throw new UnauthorizedException('User not found');
-    if (user.isActive === false) {
+    const effectiveRole = role || user.role;
+    if (user.isActive === false && (effectiveRole === 'STORE_OWNER' || effectiveRole === 'RIDER')) {
       throw new UnauthorizedException('Your account has been deactivated. Contact admin.');
     }
     const rows = await prisma.$queryRawUnsafe(
