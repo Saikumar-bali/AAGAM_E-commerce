@@ -27,7 +27,21 @@ export class AutoDispatchService {
 
   constructor(private readonly events: DeliveryEventService) {}
 
+  private isEnabled() {
+    const configured = process.env.AUTO_DISPATCH_ENABLED?.trim().toLowerCase();
+    if (configured) return configured === 'true';
+
+    // E2E and unit suites exercise the manual dispatch flow with seeded riders.
+    // Keep that flow deterministic unless a test explicitly opts into auto-dispatch.
+    return process.env.NODE_ENV !== 'test';
+  }
+
   async dispatchNearestRider(deliveryJobId: string): Promise<void> {
+    if (!this.isEnabled()) {
+      this.logger.debug(`Auto-dispatch disabled for job ${deliveryJobId}`);
+      return;
+    }
+
     const job = await prisma.deliveryJob.findUnique({
       where: { id: deliveryJobId },
       include: {
@@ -41,30 +55,36 @@ export class AutoDispatchService {
 
     if (!job) return;
     if (job.status !== DeliveryJobStatus.WAITING_FOR_DISPATCH) return;
-    if (!job.order.store.latitude || !job.order.store.longitude) {
-      this.logger.warn(`Store ${job.order.storeId} has no coordinates — skipping auto-dispatch for job ${deliveryJobId}`);
+    if (!Number.isFinite(job.order.store.latitude) || !Number.isFinite(job.order.store.longitude)) {
+      this.logger.warn(`Store ${job.order.storeId} has no valid coordinates — skipping auto-dispatch for job ${deliveryJobId}`);
       return;
     }
 
     const storeLat = job.order.store.latitude;
     const storeLng = job.order.store.longitude;
 
-    const existingAssignmentRiderIds = (
+    const activeAssignment = await prisma.dispatchAssignment.findFirst({
+      where: {
+        deliveryJobId,
+        status: { in: [DispatchAssignmentStatus.OFFERED, DispatchAssignmentStatus.ACCEPTED] },
+      },
+      select: { id: true },
+    });
+    if (activeAssignment) return;
+
+    const previouslyTriedRiderIds = (
       await prisma.dispatchAssignment.findMany({
-        where: {
-          deliveryJobId,
-          status: { in: [DispatchAssignmentStatus.OFFERED, DispatchAssignmentStatus.ACCEPTED] },
-        },
+        where: { deliveryJobId },
         select: { riderProfileId: true },
       })
-    ).map((a) => a.riderProfileId);
+    ).map((assignment) => assignment.riderProfileId);
 
     const candidates = await prisma.riderProfile.findMany({
       where: {
         status: 'ONLINE' as any,
         latitude: { not: null },
         longitude: { not: null },
-        id: { notIn: existingAssignmentRiderIds },
+        id: { notIn: previouslyTriedRiderIds },
       },
       include: { user: { select: { id: true, name: true } } },
     });
@@ -74,17 +94,21 @@ export class AutoDispatchService {
       return;
     }
 
-    const busyRiderIds = (
-      await prisma.deliveryJob.findMany({
-        where: {
-          currentRiderId: { in: candidates.map((c) => c.id) },
-          status: { in: ACTIVE_JOB_STATUSES as any },
-        },
-        select: { currentRiderId: true },
-      })
-    ).map((j) => j.currentRiderId);
+    const busyRiderIds = new Set(
+      (
+        await prisma.deliveryJob.findMany({
+          where: {
+            currentRiderId: { in: candidates.map((candidate) => candidate.id) },
+            status: { in: ACTIVE_JOB_STATUSES as any },
+          },
+          select: { currentRiderId: true },
+        })
+      )
+        .map((activeJob) => activeJob.currentRiderId)
+        .filter((riderId): riderId is string => Boolean(riderId)),
+    );
 
-    const eligible = candidates.filter((c) => !busyRiderIds.includes(c.id));
+    const eligible = candidates.filter((candidate) => !busyRiderIds.has(candidate.id));
     if (eligible.length === 0) {
       this.logger.log(`All nearby riders are busy — no auto-dispatch for job ${deliveryJobId}`);
       return;
@@ -94,45 +118,68 @@ export class AutoDispatchService {
       rider,
       distanceKm: calculateDistance(storeLat, storeLng, rider.latitude!, rider.longitude!),
     }));
-    withDistance.sort((a, b) => a.distanceKm - b.distanceKm);
+    withDistance.sort((left, right) => left.distanceKm - right.distanceKm);
 
     const nearest = withDistance[0].rider;
     const distanceKm = Math.round(withDistance[0].distanceKm * 10) / 10;
 
     this.logger.log(`Auto-dispatch: offering job ${deliveryJobId} to ${nearest.user?.name || nearest.id} (${distanceKm} km away)`);
 
-    const now = new Date();
-    const assignment = await prisma.dispatchAssignment.create({
-      data: {
-        deliveryJobId,
-        riderProfileId: nearest.id,
-        status: DispatchAssignmentStatus.OFFERED,
-        offeredAt: now,
-        expiresAt: new Date(now.getTime() + OFFER_EXPIRY_SECONDS * 1000),
-        createdByUserId: 'system-auto-dispatch',
-      },
+    await prisma.$transaction(async (tx) => {
+      const currentJob = await tx.deliveryJob.findUnique({
+        where: { id: deliveryJobId },
+        select: { status: true, currentRiderId: true },
+      });
+      if (
+        !currentJob ||
+        currentJob.status !== DeliveryJobStatus.WAITING_FOR_DISPATCH ||
+        currentJob.currentRiderId
+      ) {
+        return;
+      }
+
+      const competingAssignment = await tx.dispatchAssignment.findFirst({
+        where: {
+          deliveryJobId,
+          status: { in: [DispatchAssignmentStatus.OFFERED, DispatchAssignmentStatus.ACCEPTED] },
+        },
+        select: { id: true },
+      });
+      if (competingAssignment) return;
+
+      const now = new Date();
+      const assignment = await tx.dispatchAssignment.create({
+        data: {
+          deliveryJobId,
+          riderProfileId: nearest.id,
+          status: DispatchAssignmentStatus.OFFERED,
+          offeredAt: now,
+          expiresAt: new Date(now.getTime() + OFFER_EXPIRY_SECONDS * 1000),
+          createdByUserId: null,
+        },
+      });
+
+      await this.events.record(
+        {
+          deliveryJobId,
+          assignmentId: assignment.id,
+          eventType: DeliveryEventType.ASSIGNMENT_CREATED,
+          actor: { id: null, role: Role.ADMIN },
+          metadata: { riderProfileId: nearest.id, riderUserId: nearest.userId, distanceKm, autoDispatch: true },
+        },
+        tx,
+      );
+
+      await this.events.record(
+        {
+          deliveryJobId,
+          assignmentId: assignment.id,
+          eventType: DeliveryEventType.ASSIGNMENT_OFFERED,
+          actor: { id: null, role: Role.ADMIN },
+          metadata: { riderProfileId: nearest.id, riderUserId: nearest.userId, distanceKm, expiresInSeconds: OFFER_EXPIRY_SECONDS, autoDispatch: true },
+        },
+        tx,
+      );
     });
-
-    await this.events.record(
-      {
-        deliveryJobId,
-        assignmentId: assignment.id,
-        eventType: DeliveryEventType.ASSIGNMENT_CREATED,
-        actor: { id: 'system-auto-dispatch', role: Role.ADMIN },
-        metadata: { riderProfileId: nearest.id, riderUserId: nearest.userId, distanceKm, autoDispatch: true },
-      },
-      prisma,
-    );
-
-    await this.events.record(
-      {
-        deliveryJobId,
-        assignmentId: assignment.id,
-        eventType: DeliveryEventType.ASSIGNMENT_OFFERED,
-        actor: { id: 'system-auto-dispatch', role: Role.ADMIN },
-        metadata: { riderProfileId: nearest.id, riderUserId: nearest.userId, distanceKm, expiresInSeconds: OFFER_EXPIRY_SECONDS, autoDispatch: true },
-      },
-      prisma,
-    );
   }
 }

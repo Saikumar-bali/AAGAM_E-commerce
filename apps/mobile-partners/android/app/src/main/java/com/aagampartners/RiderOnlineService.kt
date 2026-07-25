@@ -21,12 +21,10 @@ import androidx.core.app.NotificationCompat
  * Uses three layers of protection against Android battery optimisation:
  * 1. Foreground service with persistent notification (standard)
  * 2. Partial WakeLock (keeps CPU running when screen is off)
- * 3. AlarmManager periodic alarm (re-starts the service every 15 min if killed)
+ * 3. AlarmManager best-effort wake-up (re-starts the service if the OS kills it)
  *
- * On aggressive OEM skins (Xiaomi MIUI, Samsung OneUI, Huawei EMUI), the OS may
- * still kill the foreground service. The periodic alarm is the last line of defence
- * — it fires via AlarmManager.ELAPSED_REALTIME_WAKEUP which survives Doze and
- * app standby, and re-launches the service.
+ * The alarm is deliberately inexact. Exact alarms require privileged Android
+ * access on recent releases and are not appropriate for a delivery-app keep-alive.
  */
 class RiderOnlineService : Service() {
   companion object {
@@ -42,7 +40,7 @@ class RiderOnlineService : Service() {
     private const val KEY_RIDER_NAME = "riderName"
 
     private const val ALARM_REQUEST_CODE = 7701
-    private const val ALARM_INTERVAL_MS = 15 * 60 * 1000L // 15 minutes
+    private const val ALARM_INTERVAL_MS = 15 * 60 * 1000L
 
     fun scheduleAlarm(context: Context) {
       val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -56,11 +54,28 @@ class RiderOnlineService : Service() {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
       )
       val triggerAt = SystemClock.elapsedRealtime() + ALARM_INTERVAL_MS
-      alarmManager.setExactAndAllowWhileIdle(
-        AlarmManager.ELAPSED_REALTIME_WAKEUP,
-        triggerAt,
-        pendingIntent,
-      )
+
+      try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+          alarmManager.setAndAllowWhileIdle(
+            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            triggerAt,
+            pendingIntent,
+          )
+        } else {
+          @Suppress("DEPRECATION")
+          alarmManager.set(
+            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            triggerAt,
+            pendingIntent,
+          )
+        }
+      } catch (_: SecurityException) {
+        // Do not crash the foreground service when an OEM restricts alarms.
+      } catch (_: RuntimeException) {
+        // Some OEM alarm implementations fail at runtime; FCM and START_STICKY
+        // remain the primary recovery mechanisms.
+      }
     }
 
     fun cancelAlarm(context: Context) {
@@ -99,7 +114,6 @@ class RiderOnlineService : Service() {
           .apply()
       }
       ACTION_ALARM_TICK -> {
-        // Alarm fired — service was likely killed and restarted. Re-persist state.
         if (!preferences().getBoolean(KEY_ACTIVE, false)) {
           stopSelf()
           return START_NOT_STICKY
@@ -123,8 +137,6 @@ class RiderOnlineService : Service() {
 
   override fun onDestroy() {
     releaseWakeLock()
-    // Re-schedule alarm if still active — gives the service a chance to restart
-    // even after onDestroy on aggressive OEMs.
     if (preferences().getBoolean(KEY_ACTIVE, false)) {
       scheduleAlarm(this)
     }
@@ -201,25 +213,28 @@ class RiderOnlineService : Service() {
 }
 
 /**
- * BroadcastReceiver that fires every 15 minutes via AlarmManager.
- * If the foreground service was killed by the OS, this receiver restarts it.
+ * BroadcastReceiver fired by the best-effort keep-alive alarm. If the service
+ * was killed while the Rider remained online, the receiver attempts to restore it.
  */
 class AlarmReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent?) {
     val prefs = context.getSharedPreferences(RiderOnlineService.PREFS_NAME, Context.MODE_PRIVATE)
     if (!prefs.getBoolean("active", false)) return
 
-    // Re-launch the foreground service.
     val serviceIntent = Intent(context, RiderOnlineService::class.java).apply {
       action = RiderOnlineService.ACTION_ALARM_TICK
     }
     try {
-      context.startForegroundService(serviceIntent)
-    } catch (_: Exception) {
-      // Some OEMs restrict background starts; the alarm itself keeps the process alive.
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        context.startForegroundService(serviceIntent)
+      } else {
+        context.startService(serviceIntent)
+      }
+    } catch (_: RuntimeException) {
+      // Android may restrict background starts. FCM remains responsible for
+      // delivering assignment offers when the app process is not running.
     }
 
-    // Schedule the next alarm.
     RiderOnlineService.scheduleAlarm(context)
   }
 }
