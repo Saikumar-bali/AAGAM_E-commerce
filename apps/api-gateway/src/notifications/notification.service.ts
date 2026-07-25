@@ -198,6 +198,20 @@ export class NotificationService {
 
     const routed = await this.routingService.route(outboxEvent);
 
+    // Guard against stale FK references: if the referenced Order or
+    // DeliveryJob was deleted (e.g. by test cleanup) before the outbox event
+    // was processed, null the FK so the INSERT does not violate a constraint.
+    let safeOrderId = routed.orderId;
+    let safeDeliveryJobId = routed.deliveryJobId;
+    if (safeOrderId) {
+      const exists = await prisma.order.findUnique({ where: { id: safeOrderId }, select: { id: true } });
+      if (!exists) safeOrderId = null;
+    }
+    if (safeDeliveryJobId) {
+      const exists = await prisma.deliveryJob.findUnique({ where: { id: safeDeliveryJobId }, select: { id: true } });
+      if (!exists) safeDeliveryJobId = null;
+    }
+
     try {
       return await prisma.$transaction(async (tx) => {
         const notification = await tx.notification.create({
@@ -206,8 +220,8 @@ export class NotificationService {
             title: routed.title,
             body: routed.body,
             data: routed.data,
-            orderId: routed.orderId,
-            deliveryJobId: routed.deliveryJobId,
+            orderId: safeOrderId,
+            deliveryJobId: safeDeliveryJobId,
             outboxEventId: outboxEvent.id,
           },
         });
