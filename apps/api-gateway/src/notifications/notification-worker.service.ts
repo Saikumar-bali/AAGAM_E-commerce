@@ -1,5 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
-import { ModuleRef } from '@nestjs/core';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { prisma } from '@aagam/database';
 import { NotificationService } from './notification.service';
 import { OutboxService } from './outbox.service';
@@ -17,23 +16,13 @@ export type NotificationBatchResult = {
 export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private running = false;
-  private readonly logger = new Logger(NotificationWorkerService.name);
-  private autoDispatch: any;
 
   constructor(
     private readonly outbox: OutboxService,
     private readonly notifications: NotificationService,
-    private readonly moduleRef: ModuleRef,
   ) {}
 
   onModuleInit() {
-    // Lazy-resolve AutoDispatchService to avoid circular dependency.
-    try {
-      this.autoDispatch = this.moduleRef.get('AutoDispatchService', { strict: false });
-    } catch {
-      this.autoDispatch = null;
-    }
-
     if (process.env.NODE_ENV === 'test' || process.env.NOTIFICATION_WORKER_DISABLED === 'true') return;
     const intervalMs = Math.max(2000, Number(process.env.NOTIFICATION_WORKER_INTERVAL_MS || 10000));
     this.timer = setInterval(() => {
@@ -93,19 +82,6 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
       if (changed.count === 1) {
         expiredNow += 1;
         await this.createExpiryEvent(assignment, 'NOTIFICATION_WORKER');
-
-        // Auto-dispatch: offer to the next nearest rider.
-        if (this.autoDispatch) {
-          const job = await prisma.deliveryJob.findUnique({
-            where: { id: assignment.deliveryJobId },
-            select: { status: true },
-          });
-          if (job?.status === 'WAITING_FOR_DISPATCH') {
-            await this.autoDispatch.dispatchNearestRider(assignment.deliveryJobId).catch((err: any) => {
-              this.logger.warn(`Auto-dispatch after expiry failed for job ${assignment.deliveryJobId}: ${err?.message || err}`);
-            });
-          }
-        }
       }
     }
 
