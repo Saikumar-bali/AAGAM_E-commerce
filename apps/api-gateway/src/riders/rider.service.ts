@@ -65,7 +65,18 @@ export class RiderService {
     });
   }
 
-  async create(data: { email: string; name: string; phone: string; password?: string }) {
+  async create(data: {
+    email: string;
+    name: string;
+    phone: string;
+    password?: string;
+    vehicleType?: string;
+    vehicleNumber?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    latitude?: number;
+    longitude?: number;
+  }) {
     const hashedPassword = data.password
       ? await bcrypt.hash(data.password, 10)
       : undefined;
@@ -84,6 +95,12 @@ export class RiderService {
       data: {
         userId: user.id,
         status: "OFFLINE",
+        vehicleType: data.vehicleType || null,
+        vehicleNumber: data.vehicleNumber || null,
+        emergencyContactName: data.emergencyContactName || null,
+        emergencyContactPhone: data.emergencyContactPhone || null,
+        latitude: data.latitude ?? null,
+        longitude: data.longitude ?? null,
       },
     });
   }
