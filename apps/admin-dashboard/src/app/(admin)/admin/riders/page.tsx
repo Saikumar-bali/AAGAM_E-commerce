@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
@@ -21,7 +21,56 @@ import {
   X,
   Loader2,
   MapPin,
+  Key,
+  Lock,
+  Vehicle,
 } from 'lucide-react';
+
+const StoreLocationPicker = dynamic(
+  () => import('@/components/StoreLocationPicker').then((m) => m.StoreLocationPicker),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-56 bg-gray-50 rounded-xl border border-gray-200 animate-pulse flex items-center justify-center">
+        <span className="text-xs text-gray-400">Loading map...</span>
+      </div>
+    ),
+  }
+);
+
+interface Rider {
+  id: string;
+  status: 'ONLINE' | 'OFFLINE' | 'BUSY';
+  latitude: number | null;
+  longitude: number | null;
+  bearing?: number;
+  updatedAt: string;
+  user?: { name: string | null; email: string | null; phone: string | null };
+  vehicleType?: string | null;
+  vehicleNumber?: string | null;
+  orders?: Array<{ id: string }>;
+}
+
+type RiderFormData = {
+  name: string;
+  email: string;
+  phone: string;
+  username: string;
+  password: string;
+  vehicleType: string;
+  vehicleNumber: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+const emptyForm = (): RiderFormData => ({
+  name: '', email: '', phone: '', username: '', password: '',
+  vehicleType: 'MOTORCYCLE', vehicleNumber: '',
+  emergencyContactName: '', emergencyContactPhone: '',
+  latitude: null, longitude: null,
+});
 
 const LiveTrackingMap = dynamic(() => import('@/components/LiveTrackingMap'), {
   ssr: false,
@@ -57,7 +106,7 @@ export default function AdminRidersPage() {
   const [showMapModal, setShowMapModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
+  const [formData, setFormData] = useState<RiderFormData>(emptyForm());
   const [error, setError] = useState('');
   const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
 
@@ -137,6 +186,11 @@ export default function AdminRidersPage() {
     setShowMapModal(true);
   };
 
+  const autoUsername = useMemo(() => {
+    if (!formData.email) return '';
+    return formData.email.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
+  }, [formData.email]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -147,9 +201,12 @@ export default function AdminRidersPage() {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
+        password: formData.password || undefined,
+        vehicleType: formData.vehicleType || undefined,
+        vehicleNumber: formData.vehicleNumber || undefined,
       });
       setShowModal(false);
-      setFormData({ name: '', email: '', phone: '' });
+      setFormData(emptyForm());
       fetchRiders();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to create rider');
@@ -391,56 +448,118 @@ export default function AdminRidersPage() {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Add New Rider</h2>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Add New Rider</h2>
+                <p className="text-sm text-gray-500 font-medium">Create a rider account with full credentials</p>
+              </div>
               <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6">
-              {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Enter full name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    required
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="rider@email.com"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    required
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="+1234567890"
-                  />
+            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm font-medium">{error}</div>}
+
+              {/* Contact Information */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Contact Information</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+                    <input type="text" required className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. Sai Kumar Bali" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
+                      <input type="email" required className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="rider@email.com" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone <span className="text-red-500">*</span></label>
+                      <input type="tel" required className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="+919876543210" />
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="mt-6 flex gap-3">
+
+              {/* Credentials */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3 flex items-center"><Key className="h-4 w-4 mr-1.5" /> Credentials</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                    <input type="text" readOnly className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-500 bg-gray-50 focus:outline-none cursor-not-allowed" value={autoUsername} />
+                    <p className="text-xs text-gray-400 mt-1">Auto-generated from email</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input type="password" required minLength={8} className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder="Min. 8 characters" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Vehicle */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3 flex items-center"><Bike className="h-4 w-4 mr-1.5" /> Vehicle Details</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                    <select className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" value={formData.vehicleType} onChange={(e) => setFormData({ ...formData, vehicleType: e.target.value })}>
+                      <option value="MOTORCYCLE">Motorcycle</option>
+                      <option value="BICYCLE">Bicycle</option>
+                      <option value="SCOOTER">Scooter</option>
+                      <option value="WALKING">Walking</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Number</label>
+                    <input type="text" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" value={formData.vehicleNumber} onChange={(e) => setFormData({ ...formData, vehicleNumber: e.target.value })} placeholder="e.g. AP3557" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Emergency Contact */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Emergency Contact</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+                    <input type="text" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" value={formData.emergencyContactName} onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })} placeholder="e.g. Ravi Kumar" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Contact Phone</label>
+                    <input type="tel" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" value={formData.emergencyContactPhone} onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })} placeholder="+919876543210" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Location */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3 flex items-center"><MapPin className="h-4 w-4 mr-1.5" /> Initial Location</h3>
+                <div className="w-full">
+                  <StoreLocationPicker
+                    latitude={formData.latitude ?? 17.73}
+                    longitude={formData.longitude ?? 83.30}
+                    onChange={(lat, lng) => setFormData({ ...formData, latitude: lat, longitude: lng })}
+                  />
+                  {formData.latitude && formData.longitude && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Lat: {formData.latitude.toFixed(6)}, Lng: {formData.longitude.toFixed(6)}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all">
                   Cancel
                 </button>
                 <button type="submit" disabled={submitting} className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all disabled:opacity-50 flex items-center justify-center">
-                  {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Add Rider'}
+                  {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Create Rider'}
                 </button>
               </div>
             </form>
