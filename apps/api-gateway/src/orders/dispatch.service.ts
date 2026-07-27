@@ -132,6 +132,20 @@ export class DispatchService {
     return this.assignmentService.offerForOrder(orderId, riderUserId, actor);
   }
 
+  // Reassign: release the old rider (if any), then assign the new rider via
+  // the standard dispatch flow so a DeliveryJob and DispatchAssignment are
+  // created and the rider sees the offer in their workspace.
+  async reassignOrder(
+    orderId: string,
+    riderUserId: string,
+    actor: Actor
+  ): Promise<any> {
+    if (this.legacyOrderService) {
+      return this.legacyReassignOrder(orderId, riderUserId, actor);
+    }
+    return this.reassignOrderDispatch(orderId, riderUserId, actor);
+  }
+
   // Compatibility adapter retained while clients migrate from order IDs to
   // assignment IDs.
   async acceptAssignment(orderId: string, riderUserId: string): Promise<any> {
@@ -229,6 +243,91 @@ export class DispatchService {
     if (!detailedJob)
       throw new NotFoundException("Delivery job not found after completion");
     return { ...detailedJob.order, deliveryJob: detailedJob };
+  }
+
+  // Modern path: release the old rider, reset job to WAITING_FOR_DISPATCH,
+  // then offer to the new rider.
+  private async reassignOrderDispatch(
+    orderId: string,
+    riderUserId: string,
+    actor: Actor
+  ): Promise<any> {
+    const job = await this.jobs.getByOrderId(orderId);
+    if (job) {
+      const oldRiderId = job.currentRiderId;
+      if (oldRiderId) {
+        // Transition the job back to WAITING_FOR_DISPATCH so the new rider
+        // can be offered via the standard flow.
+        await this.workflowService.transition(
+          job.id,
+          "WAITING_FOR_DISPATCH" as any,
+          actor,
+          { reason: "Admin reassigning rider" }
+        ).catch(() => {});
+        // Release the old rider's busyness if they have no other active jobs.
+        const riderProfile = await prisma.riderProfile.findUnique({
+          where: { id: oldRiderId },
+        });
+        if (riderProfile) {
+          const otherActive = await prisma.deliveryJob.findFirst({
+            where: {
+              currentRiderId: oldRiderId,
+              status: {
+                notIn: ["WAITING_FOR_DISPATCH", "CANCELLED", "DELIVERED"] as any,
+              },
+            },
+          });
+          if (!otherActive) {
+            await prisma.riderProfile.update({
+              where: { id: oldRiderId },
+              data: { status: "ONLINE" },
+            });
+          }
+        }
+      }
+    }
+    return this.assignmentService.offerForOrder(orderId, riderUserId, actor);
+  }
+
+  // Legacy path: release old rider on the order table, then assign new rider.
+  private async legacyReassignOrder(
+    orderId: string,
+    riderUserId: string,
+    actor: Actor
+  ): Promise<any> {
+    const orderService = this.legacyOrderService!;
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, status: true, riderId: true, storeId: true },
+    });
+    if (!order) throw new NotFoundException("Order not found");
+
+    // Release old rider if one exists.
+    if (order.riderId) {
+      const oldRider = await prisma.riderProfile.findUnique({
+        where: { id: order.riderId },
+      });
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { riderId: null, status: OrderStatus.PACKED },
+      });
+      if (oldRider) {
+        const otherActive = await prisma.order.findFirst({
+          where: {
+            riderId: oldRider.id,
+            status: { in: ACTIVE_RIDER_ORDER_STATUSES },
+          },
+        });
+        if (!otherActive) {
+          await prisma.riderProfile.update({
+            where: { id: oldRider.id },
+            data: { status: "ONLINE" },
+          });
+        }
+      }
+    }
+
+    return this.legacyAssignPackedOrder(orderId, riderUserId, actor);
   }
 
   private async getLegacyBoard(actor: Actor) {
