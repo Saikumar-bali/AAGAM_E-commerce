@@ -14,12 +14,15 @@ JWT_SECRET=replace-with-at-least-32-random-characters
 
 # Public frontend origins allowed to call this API. Comma-separated.
 CORS_ORIGINS=https://admin.example.com,https://customer.example.com
+NEXT_PUBLIC_API_URL=https://api.example.com
+
+# Required for closed-app Store/Rider push notifications.
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account","project_id":"your-firebase-project-id","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"firebase-adminsdk@example.iam.gserviceaccount.com"}'
 
 # Optional provider integrations. Fill only when that feature is enabled.
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
-FIREBASE_PROJECT_ID=
-FIREBASE_SERVICE_ACCOUNT_JSON=
 AWS_REGION=
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
@@ -28,4 +31,6 @@ AWS_S3_BUCKET=
 # Deployment notes
 # 1. DATABASE_URL must not point to localhost in production.
 # 2. REDIS_URL must not point to localhost in production.
-# 3. /ready/realtime must pass before production traffic.
+# 3. /ready/realtime and /ready/notifications must pass before production traffic.
+# 4. For GitHub Actions, prefer the protected production environment secret
+#    FIREBASE_SERVICE_ACCOUNT_JSON instead of embedding the JSON in PRODUCTION_ENV_FILE_B64.

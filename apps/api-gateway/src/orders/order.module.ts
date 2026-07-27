@@ -30,12 +30,26 @@ import { AutoDispatchService } from './auto-dispatch.service';
     DeliveryEventService,
     DeliveryJobService,
     DeliveryWorkflowService,
-    DispatchAssignmentService,
     StoreFulfillmentService,
     DispatchService,
     DeliveryOperationsService,
     PostDeliveryService,
     AutoDispatchService,
+    {
+      provide: DispatchAssignmentService,
+      useFactory: (
+        jobs: DeliveryJobService,
+        workflow: DeliveryWorkflowService,
+        events: DeliveryEventService,
+        autoDispatch: AutoDispatchService,
+      ) => new DispatchAssignmentService(jobs, workflow, events, autoDispatch),
+      inject: [
+        DeliveryJobService,
+        DeliveryWorkflowService,
+        DeliveryEventService,
+        AutoDispatchService,
+      ],
+    },
   ],
   exports: [
     OrderService,
