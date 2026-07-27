@@ -63,7 +63,7 @@ export class RiderController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  async create(@Body() data: { email: string; name: string; phone: string; password?: string }) {
+  async create(@Body() data: { email: string; name: string; phone: string; password?: string; vehicleType?: string; vehicleNumber?: string; emergencyContactName?: string; emergencyContactPhone?: string; latitude?: number; longitude?: number }) {
     return this.riderService.create(data);
   }
 

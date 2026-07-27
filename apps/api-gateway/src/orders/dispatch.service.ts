@@ -285,6 +285,20 @@ export class DispatchService {
           }
         }
       }
+
+      // Mark any stale assignments for this job as REASSIGNED so
+      // AutoDispatchService.dispatchNearestRider doesn't see them as
+      // active and skip offering to the next rider.
+      await prisma.dispatchAssignment.updateMany({
+        where: {
+          deliveryJobId: job.id,
+          status: { in: ["OFFERED", "ACCEPTED"] as any },
+        },
+        data: {
+          status: "REASSIGNED",
+          respondedAt: new Date(),
+        },
+      });
     }
     return this.assignmentService.offerForOrder(orderId, riderUserId, actor);
   }
