@@ -541,9 +541,10 @@ export default function AdminRidersPage() {
                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3 flex items-center"><MapPin className="h-4 w-4 mr-1.5" /> Initial Location</h3>
                 <div className="w-full">
                   <StoreLocationPicker
-                    latitude={formData.latitude ?? 17.73}
-                    longitude={formData.longitude ?? 83.30}
-                    onChange={(lat, lng) => setFormData({ ...formData, latitude: lat, longitude: lng })}
+                    coords={{ lat: formData.latitude ?? null, lng: formData.longitude ?? null }}
+                    onCoordsChange={(lat, lng) => setFormData({ ...formData, latitude: lat, longitude: lng })}
+                    apiClient={apiClient}
+                    compact
                   />
                   {formData.latitude && formData.longitude && (
                     <p className="text-xs text-gray-500 mt-1">
