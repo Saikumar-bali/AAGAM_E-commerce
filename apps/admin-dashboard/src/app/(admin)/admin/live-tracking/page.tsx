@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import dynamic from 'next/dynamic';
 import { apiClient } from '@aagam/utils';
-import { io, Socket } from 'socket.io-client';
+import { createRealtimeSocket } from '@/lib/realtimeSocket';
 import { MapPin, Clock, User, Phone, Package, Truck, AlertTriangle, RefreshCw, X, Store, Navigation } from 'lucide-react';
 
 const LiveTrackingMap = dynamic(() => import('@/components/LiveTrackingMap'), { ssr: false });
@@ -44,14 +44,14 @@ export default function AdminLiveTrackingPage() {
 
   useEffect(() => {
     fetchLiveTracking();
-    const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000', {
-      withCredentials: true,
-      transports: ['websocket', 'polling'],
-      auth: { token: typeof document !== 'undefined' ? document.cookie.split('; ').find(c => c.startsWith('access_token='))?.split('=')[1] : undefined },
-    });
+    const socket = createRealtimeSocket();
 
     socket.on('connect', () => {
       socket.emit('joinAdminMonitor');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Admin tracking socket connection failed', err.message);
     });
 
     socket.on('adminRiderUpdate', (payload: any) => {

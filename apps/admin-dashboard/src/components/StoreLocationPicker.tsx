@@ -168,10 +168,14 @@ export function StoreLocationPicker({
         const data = res.data;
         if (data?.ok && data?.address) {
           const a = data.address;
+          const displayName = [a.line1, a.city, a.state].filter(Boolean).join(', ') || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          setSearchQuery(displayName);
           onAddressChange({ address: a.line1 || '', city: a.city || '', state: a.state || '', pincode: a.pincode || '' });
+        } else {
+          setSearchQuery(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
         }
       } catch {
-        // Reverse geocode is optional. Coordinates remain usable even when it fails.
+        setSearchQuery(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
       }
     },
     [apiClient, onAddressChange]
@@ -237,7 +241,7 @@ export function StoreLocationPicker({
         const lat = Number(pos.coords.latitude);
         const lng = Number(pos.coords.longitude);
         setLocationAccuracy(pos.coords.accuracy ?? null);
-        setSearchQuery('Current location');
+        setSearchQuery(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
         setManualZoom(LOCATION_ZOOM);
         onCoordsChange(lat, lng);
         await doReverseGeocode(lat, lng);
