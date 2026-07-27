@@ -257,11 +257,13 @@ export default function AdminOrdersPage() {
     if (!selectedOrder || !reassignUserId) return;
     setReassigning(true);
     try {
-      // Use the dispatch flow so a DeliveryJob and DispatchAssignment are
-      // created — the rider workspace only sees orders through those tables.
-      await apiClient.post(`/orders/dispatch/${selectedOrder.id}/assign`, {
-        riderUserId: reassignUserId,
-      });
+      // If the order already has a rider, use the reassign endpoint which
+      // releases the old rider first. Otherwise use the assign endpoint.
+      const hasExistingRider = !!selectedOrder.riderId;
+      const endpoint = hasExistingRider
+        ? `/orders/dispatch/${selectedOrder.id}/reassign`
+        : `/orders/dispatch/${selectedOrder.id}/assign`;
+      await apiClient.post(endpoint, { riderUserId: reassignUserId });
       setShowReassignModal(false);
       setReassignUserId('');
       setSelectedOrder(null);

@@ -188,6 +188,20 @@ export class DispatchController {
     return this.dispatch.assignPackedOrder(orderId, dto.riderUserId, req.user);
   }
 
+  @Post(":orderId/reassign")
+  @Roles(Role.ADMIN)
+  reassign(
+    @Param("orderId") orderId: string,
+    @Body() body: unknown,
+    @Req() req: any
+  ) {
+    const dto = this.parse<{ riderUserId: string }>(
+      OfferDispatchAssignmentSchema,
+      body
+    );
+    return this.dispatch.reassignOrder(orderId, dto.riderUserId, req.user);
+  }
+
   @Patch(":orderId/rider/accept")
   @Roles(Role.RIDER)
   accept(@Param("orderId") orderId: string, @Req() req: any) {
