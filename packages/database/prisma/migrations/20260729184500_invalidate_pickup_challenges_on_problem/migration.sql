@@ -17,6 +17,14 @@ WHERE challenge."deliveryJobId" = task."deliveryJobId"
 CREATE OR REPLACE FUNCTION "supersede_pickup_challenges_on_problem"()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Challenge issuance already locks this exact key before it reads checklist
+  -- readiness. Taking the same transaction lock before the problem status is
+  -- written removes the race where a challenge could be inserted after the
+  -- problem transition but before invalidation completes.
+  PERFORM pg_advisory_xact_lock(
+    hashtext('pickup-proof:' || NEW."deliveryJobId")
+  );
+
   UPDATE "PickupChallenge"
   SET
     "status" = 'SUPERSEDED'::"PickupChallengeStatus",
@@ -32,7 +40,7 @@ DROP TRIGGER IF EXISTS "RiderPickupTask_supersede_challenges_on_problem"
 ON "RiderPickupTask";
 
 CREATE TRIGGER "RiderPickupTask_supersede_challenges_on_problem"
-AFTER INSERT OR UPDATE OF "status" ON "RiderPickupTask"
+BEFORE INSERT OR UPDATE OF "status" ON "RiderPickupTask"
 FOR EACH ROW
 WHEN (NEW."status" = 'PROBLEM_REPORTED'::"RiderPickupStatus")
 EXECUTE FUNCTION "supersede_pickup_challenges_on_problem"();

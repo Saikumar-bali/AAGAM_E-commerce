@@ -60,11 +60,22 @@ describe('order-to-delivery mobile UI contract', () => {
     );
     expect(migration).toContain('FROM "RiderPickupTask" AS task');
     expect(migration).toContain('task."status" = \'PROBLEM_REPORTED\'::"RiderPickupStatus"');
-    expect(migration).toContain('AFTER INSERT OR UPDATE OF "status" ON "RiderPickupTask"');
+    expect(migration).toContain('PERFORM pg_advisory_xact_lock');
+    expect(migration).toContain("hashtext('pickup-proof:' || NEW.\"deliveryJobId\")");
+    expect(migration).toContain('BEFORE INSERT OR UPDATE OF "status" ON "RiderPickupTask"');
     expect(migration).toContain('NEW."status" = \'PROBLEM_REPORTED\'::"RiderPickupStatus"');
     expect(migration).toContain('UPDATE "PickupChallenge"');
     expect(migration).toContain('"status" = \'SUPERSEDED\'::"PickupChallengeStatus"');
     expect(migration).toContain('AND "status" = \'PENDING\'::"PickupChallengeStatus"');
+  });
+
+  it('uses the same advisory-lock namespace as challenge issuance', () => {
+    const migration = read(
+      'packages/database/prisma/migrations/20260729184500_invalidate_pickup_challenges_on_problem/migration.sql',
+    );
+    const operations = read('apps/api-gateway/src/orders/delivery-operations.service.ts');
+    expect(operations).toContain('await this.lock(tx, `pickup-proof:${deliveryJobId}`)');
+    expect(migration).toContain("hashtext('pickup-proof:' || NEW.\"deliveryJobId\")");
   });
 
   it('runs focused contracts for migration-only changes', () => {
