@@ -15,6 +15,8 @@ import { PostDeliveryService } from './post-delivery.service';
 import { DeliveryOperationsController } from './delivery-operations.controller';
 import { PaymentsModule } from '../payments/payments.module';
 import { AutoDispatchService } from './auto-dispatch.service';
+import { CustomerDeliveryContextController } from './customer-delivery-context.controller';
+import { PickupReadinessController } from './pickup-readiness.controller';
 
 @Module({
   imports: [PaymentsModule],
@@ -24,6 +26,8 @@ import { AutoDispatchService } from './auto-dispatch.service';
     DispatchController,
     PostDeliveryController,
     DeliveryOperationsController,
+    CustomerDeliveryContextController,
+    PickupReadinessController,
   ],
   providers: [
     OrderService,
