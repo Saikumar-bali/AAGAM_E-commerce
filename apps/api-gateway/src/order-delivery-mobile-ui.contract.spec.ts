@@ -38,6 +38,17 @@ describe('order-to-delivery mobile UI contract', () => {
     expect(riderPortal).toContain('Every item quantity must match the order before pickup verification');
   });
 
+  it('invalidates every pending pickup challenge when a parcel problem is reported', () => {
+    const migration = read(
+      'packages/database/prisma/migrations/20260729184500_invalidate_pickup_challenges_on_problem/migration.sql',
+    );
+    expect(migration).toContain('AFTER INSERT OR UPDATE OF "status" ON "RiderPickupTask"');
+    expect(migration).toContain('NEW."status" = \'PROBLEM_REPORTED\'::"RiderPickupStatus"');
+    expect(migration).toContain('UPDATE "PickupChallenge"');
+    expect(migration).toContain('"status" = \'SUPERSEDED\'::"PickupChallengeStatus"');
+    expect(migration).toContain('AND "status" = \'PENDING\'::"PickupChallengeStatus"');
+  });
+
   it('wires the customer code and partner pickup UI to the role-scoped endpoints', () => {
     const customer = read('apps/mobile-customer/src/components/orders/DeliveryCodeCard.tsx');
     const rider = read('apps/mobile-partners/src/screens/rider/RiderPickupOperationsScreen.tsx');
@@ -46,8 +57,10 @@ describe('order-to-delivery mobile UI contract', () => {
     expect(customer).toContain('/otp/customer');
     expect(rider).toContain('Verify complete checklist');
     expect(rider).toContain('Verify store handoff');
+    expect(rider).not.toContain('QR_CODE');
     expect(store).toContain('Rider checklist pending');
     expect(store).toContain('Confirm physical handoff');
+    expect(store).not.toContain('QR_CODE');
   });
 
   it('keeps all Customer Jest contracts in the standard workspace test command', () => {
