@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { RiderDashboard } from '../screens/rider/RiderDashboard';
-import { RiderDeliveryOperationsScreen } from '../screens/rider/RiderDeliveryOperationsScreen';
+import { RiderOperationsRouterScreen } from '../screens/rider/RiderOperationsRouterScreen';
 import { RiderHistoryScreen } from '../screens/rider/RiderHistoryScreen';
 import { RiderProfileScreen } from '../screens/rider/RiderProfileScreen';
 import { PartnerNotificationsScreen } from '../screens/PartnerNotificationsScreen';
@@ -43,7 +43,7 @@ export const RiderNavigator = () => {
       />
       <Tab.Screen
         name="Operations"
-        component={RiderDeliveryOperationsScreen}
+        component={RiderOperationsRouterScreen}
         options={{ tabBarButtonTestID: 'tab_deliveries', tabBarIcon: ({ color, size }) => <ClipboardCheck size={size} color={color} /> }}
       />
       <Tab.Screen
