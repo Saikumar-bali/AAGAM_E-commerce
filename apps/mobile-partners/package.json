@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
     "test:phase2b": "jest --runInBand src/domain/riderWorkspace.spec.ts src/domain/deliveryOperations.spec.ts src/services/RiderTrackingManager.spec.ts",
-    "test:phase3": "jest --runInBand src/domain/riderWorkspace.spec.ts src/domain/deliveryOperations.spec.ts src/services/RiderTrackingManager.spec.ts"
+    "test:phase3": "jest --runInBand src/domain/riderWorkspace.spec.ts src/domain/deliveryOperations.spec.ts src/services/RiderTrackingManager.spec.ts",
+    "test:order-delivery-ui": "jest --runInBand src/domain/pickupOperations.spec.ts"
   },
   "dependencies": {
     "@aagam/mobile-shared": "*",
