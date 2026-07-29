@@ -66,7 +66,7 @@ jobs:
         run: npm run test:order-delivery-ui --workspace=AagamPartners
 
       - name: Test backend and UI route contracts
-        run: npm test --workspace=apps/api-gateway -- order-delivery-mobile-ui.contract.spec.ts
+        run: npx jest --config apps/api-gateway/jest.config.js --runInBand --runTestsByPath apps/api-gateway/src/order-delivery-mobile-ui.contract.spec.ts
 
       - name: Verify no legacy pickup bypass is reintroduced
         shell: bash
