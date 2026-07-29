@@ -18,10 +18,23 @@ export type RiderPickupTask = {
 };
 
 export function checkedStateFromTask(task?: RiderPickupTask | null) {
+  const checklist = task?.checklist || [];
+
+  // A reported problem invalidates the previous physical inspection. Even when
+  // the backend retains the prior checklist for audit history, the rider must
+  // actively re-check every corrected item before verification can be restored.
+  if (task?.status === 'PROBLEM_REPORTED') {
+    return Object.fromEntries(
+      checklist.map((item) => [item.orderItemId, false]),
+    ) as Record<string, boolean>;
+  }
+
   return Object.fromEntries(
-    (task?.checklist || []).map((item) => [
+    checklist.map((item) => [
       item.orderItemId,
-      task?.status === 'VERIFIED' || item.verified === true || Number(item.checkedQuantity || 0) === Number(item.expectedQuantity || 0),
+      task?.status === 'VERIFIED' ||
+        item.verified === true ||
+        Number(item.checkedQuantity || 0) === Number(item.expectedQuantity || 0),
     ]),
   ) as Record<string, boolean>;
 }
