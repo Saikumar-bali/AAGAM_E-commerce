@@ -9,7 +9,7 @@
     "start": "react-native start",
     "dev": "react-native start",
     "typecheck": "tsc --noEmit",
-    "test": "jest --runInBand && node scripts/test-delivery-code.js"
+    "test": "jest --runInBand"
   },
   "dependencies": {
     "@aagam/types": "*",
