@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -23,7 +23,11 @@ import {
 } from 'lucide-react-native';
 import { deliveryOperationsService } from '../../api/deliveryOperationsService';
 import { pickupOperationsService } from '../../api/pickupOperationsService';
-import { normalizeParcelCount, pickupReadinessLabel } from '../../domain/pickupOperations';
+import {
+  normalizeParcelCount,
+  pickupReadinessLabel,
+  pruneIssuedPickupPins,
+} from '../../domain/pickupOperations';
 
 const QUEUE_KEY = ['store', 'pickup-verification'] as const;
 
@@ -70,6 +74,10 @@ export const StorePickupVerificationScreen = () => {
   });
 
   const jobs = queueQuery.data || [];
+
+  useEffect(() => {
+    setIssuedPins((current) => pruneIssuedPickupPins(current, jobs));
+  }, [jobs]);
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: QUEUE_KEY });
@@ -262,7 +270,7 @@ export const StorePickupVerificationScreen = () => {
                 />
               </View>
 
-              {pin ? (
+              {pin && ready ? (
                 <View style={styles.pinCard}>
                   <KeyRound size={22} color="#B45309" />
                   <View style={styles.flex}>

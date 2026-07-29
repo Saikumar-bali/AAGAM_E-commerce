@@ -4,6 +4,7 @@ import {
   checkedStateFromTask,
   normalizeParcelCount,
   pickupReadinessLabel,
+  pruneIssuedPickupPins,
 } from './pickupOperations';
 
 const checklist = [
@@ -42,6 +43,25 @@ describe('pickup operations helpers', () => {
         problemNote: 'Store corrected the parcel after the mismatch was reported.',
       }),
     ).toEqual({ a: false, b: false });
+  });
+
+  it('removes cached PINs as soon as pickup readiness is lost', () => {
+    const issued = {
+      stale: { code: '111111' },
+      valid: { code: '222222' },
+    };
+    const pruned = pruneIssuedPickupPins(issued, [
+      { id: 'stale', pickupReadiness: { ready: false } },
+      { id: 'valid', pickupReadiness: { ready: true } },
+    ]);
+
+    expect(pruned).toEqual({ valid: { code: '222222' } });
+    expect(
+      pruneIssuedPickupPins(pruned, [
+        { id: 'stale', pickupReadiness: { ready: true } },
+        { id: 'valid', pickupReadiness: { ready: true } },
+      ]),
+    ).toEqual({ valid: { code: '222222' } });
   });
 
   it('normalizes parcel counts and readiness copy', () => {

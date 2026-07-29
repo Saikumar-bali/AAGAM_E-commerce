@@ -17,6 +17,11 @@ export type RiderPickupTask = {
   updatedAt?: string | null;
 };
 
+export type PickupReadinessJob = {
+  id: string;
+  pickupReadiness?: { ready?: boolean | null } | null;
+};
+
 export function checkedStateFromTask(task?: RiderPickupTask | null) {
   const checklist = task?.checklist || [];
 
@@ -60,4 +65,22 @@ export function pickupReadinessLabel(status?: string | null) {
   if (status === 'VERIFIED') return 'Rider checklist verified';
   if (status === 'PROBLEM_REPORTED') return 'Rider reported a pickup problem';
   return 'Waiting for rider checklist';
+}
+
+export function pruneIssuedPickupPins<T>(
+  issuedPins: Record<string, T>,
+  jobs: PickupReadinessJob[],
+) {
+  const readyJobIds = new Set(
+    jobs.filter((job) => job.pickupReadiness?.ready === true).map((job) => job.id),
+  );
+  let changed = false;
+  const next: Record<string, T> = {};
+
+  Object.entries(issuedPins).forEach(([jobId, pin]) => {
+    if (readyJobIds.has(jobId)) next[jobId] = pin;
+    else changed = true;
+  });
+
+  return changed ? next : issuedPins;
 }
