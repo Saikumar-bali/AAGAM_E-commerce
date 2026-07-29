@@ -56,7 +56,7 @@ jobs:
       - name: Typecheck Customer app
         run: npm run typecheck --workspace=AagamCustomer
 
-      - name: Test Customer delivery-code helpers
+      - name: Test Customer delivery-code and checkout contracts
         run: npm test --workspace=AagamCustomer
 
       - name: Typecheck Partners app
@@ -83,3 +83,6 @@ jobs:
           grep -Fq '/otp/customer' apps/mobile-customer/src/components/orders/DeliveryCodeCard.tsx
           grep -Fq '/pickup/verify' apps/mobile-partners/src/api/pickupOperationsService.ts
           grep -Fq '/riders/portal/pickup' apps/mobile-partners/src/api/pickupOperationsService.ts
+          grep -Fq '"test": "jest --runInBand"' apps/mobile-customer/package.json
+          test -f apps/mobile-customer/src/domain/deliveryCode.spec.ts
+          test ! -e apps/mobile-customer/scripts/test-delivery-code.js

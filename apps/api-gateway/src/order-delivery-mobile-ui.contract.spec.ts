@@ -4,6 +4,8 @@ import path from 'path';
 const root = path.resolve(__dirname, '../../..');
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
 
+const exists = (relative: string) => fs.existsSync(path.join(root, relative));
+
 describe('order-to-delivery mobile UI contract', () => {
   it('exposes customer delivery context without leaking another customer order', () => {
     const source = read('apps/api-gateway/src/orders/customer-delivery-context.controller.ts');
@@ -46,5 +48,13 @@ describe('order-to-delivery mobile UI contract', () => {
     expect(rider).toContain('Verify store handoff');
     expect(store).toContain('Rider checklist pending');
     expect(store).toContain('Confirm physical handoff');
+  });
+
+  it('keeps all Customer Jest contracts in the standard workspace test command', () => {
+    const customerPackage = JSON.parse(read('apps/mobile-customer/package.json'));
+    expect(customerPackage.scripts.test).toBe('jest --runInBand');
+    expect(exists('apps/mobile-customer/src/domain/deliveryCode.spec.ts')).toBe(true);
+    expect(exists('apps/mobile-customer/src/screens/customer/CheckoutScreen.contract.spec.ts')).toBe(true);
+    expect(exists('apps/mobile-customer/scripts/test-delivery-code.js')).toBe(false);
   });
 });
