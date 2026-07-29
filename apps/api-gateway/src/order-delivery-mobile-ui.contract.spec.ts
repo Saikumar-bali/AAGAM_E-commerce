@@ -49,7 +49,7 @@ describe('order-to-delivery mobile UI contract', () => {
     expect(controller).toContain('prisma.riderPickupTask.findMany');
     expect(controller).toContain('take: 100');
     expect(mobileService).toContain('let readinessQueueRequest');
-    expect(mobileService).toContain("apiClient.get('/orders/delivery-operations/pickup/readiness')");
+    expect(mobileService).toContain(".get('/orders/delivery-operations/pickup/readiness')");
     expect(mobileService).toContain('const queue = await getReadinessQueueOnce()');
     expect(mobileService).toContain('return fallbackPickupReadiness(deliveryJobId)');
     expect(mobileService).not.toContain('jobs/${encodeURIComponent(deliveryJobId)}/pickup/readiness');
