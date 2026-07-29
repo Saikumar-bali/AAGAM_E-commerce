@@ -1,0 +1,85 @@
+name: Order Delivery Mobile UI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/api-gateway/src/orders/**"
+      - "apps/api-gateway/src/order-delivery-mobile-ui.contract.spec.ts"
+      - "apps/mobile-customer/**"
+      - "apps/mobile-partners/**"
+      - "packages/database/prisma/schema.prisma"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/order-delivery-mobile-ui.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: order-delivery-mobile-ui-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22.22.3"
+  DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_mobile_ui_contract"
+
+jobs:
+  mobile-ui-contracts:
+    name: Mobile UI contracts and types
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install workspace dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate Prisma client
+        run: npx prisma generate --schema packages/database/prisma/schema.prisma
+
+      - name: Build shared TypeScript packages
+        run: |
+          npx tsc --project packages/types/tsconfig.json
+          npx tsc --project packages/utils/tsconfig.json
+          npx tsc --project packages/database/tsconfig.json
+
+      - name: Typecheck Customer app
+        run: npm run typecheck --workspace=AagamCustomer
+
+      - name: Test Customer delivery-code helpers
+        run: npm test --workspace=AagamCustomer -- src/domain/deliveryCode.spec.ts
+
+      - name: Typecheck Partners app
+        run: npm run typecheck --workspace=AagamPartners
+
+      - name: Test Rider and Store pickup helpers
+        run: npm run test:order-delivery-ui --workspace=AagamPartners
+
+      - name: Test backend and UI route contracts
+        run: npm test --workspace=apps/api-gateway -- order-delivery-mobile-ui.contract.spec.ts
+
+      - name: Verify no legacy pickup bypass is reintroduced
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R --line-number --fixed-strings '/orders/assign' apps/mobile-customer apps/mobile-partners; then
+            echo 'Legacy public assignment path must not be used by mobile apps.'
+            exit 1
+          fi
+          if grep -R --line-number --fixed-strings '/orders/rider/queue' apps/mobile-customer apps/mobile-partners; then
+            echo 'Legacy public rider queue must not be used by mobile apps.'
+            exit 1
+          fi
+          grep -Fq '/otp/customer' apps/mobile-customer/src/components/orders/DeliveryCodeCard.tsx
+          grep -Fq '/pickup/verify' apps/mobile-partners/src/api/pickupOperationsService.ts
+          grep -Fq '/riders/portal/pickup' apps/mobile-partners/src/api/pickupOperationsService.ts
