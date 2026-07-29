@@ -39,6 +39,23 @@ describe('order-to-delivery mobile UI contract', () => {
     expect(source).toContain("ready: task?.status === 'VERIFIED'");
   });
 
+  it('batches store pickup readiness and keeps the queue visible when readiness refresh fails', () => {
+    const controller = read('apps/api-gateway/src/orders/pickup-readiness.controller.ts');
+    const mobileService = read('apps/mobile-partners/src/api/pickupOperationsService.ts');
+    const storeScreen = read('apps/mobile-partners/src/screens/store/StorePickupVerificationScreen.tsx');
+
+    expect(controller).toContain("@Get('pickup/readiness')");
+    expect(controller).toContain('prisma.deliveryJob.findMany');
+    expect(controller).toContain('prisma.riderPickupTask.findMany');
+    expect(controller).toContain('take: 100');
+    expect(mobileService).toContain('let readinessQueueRequest');
+    expect(mobileService).toContain("apiClient.get('/orders/delivery-operations/pickup/readiness')");
+    expect(mobileService).toContain('const queue = await getReadinessQueueOnce()');
+    expect(mobileService).toContain('return fallbackPickupReadiness(deliveryJobId)');
+    expect(mobileService).not.toContain('jobs/${encodeURIComponent(deliveryJobId)}/pickup/readiness');
+    expect(storeScreen).toContain('pickupOperationsService.getReadiness(job.id)');
+  });
+
   it('registers both UI support controllers in the order module', () => {
     const source = read('apps/api-gateway/src/orders/order.module.ts');
     expect(source).toContain('CustomerDeliveryContextController');

@@ -19,6 +19,30 @@ export type PickupReadiness = {
   } | null;
 };
 
+let readinessQueueRequest: Promise<PickupReadiness[]> | null = null;
+
+function fallbackPickupReadiness(deliveryJobId: string): PickupReadiness {
+  return {
+    deliveryJobId,
+    deliveryStatus: 'RIDER_AT_STORE',
+    ready: false,
+    task: null,
+  };
+}
+
+function getReadinessQueueOnce(): Promise<PickupReadiness[]> {
+  if (!readinessQueueRequest) {
+    readinessQueueRequest = apiClient
+      .get('/orders/delivery-operations/pickup/readiness')
+      .then((response) => (Array.isArray(response.data) ? response.data : []))
+      .finally(() => {
+        readinessQueueRequest = null;
+      });
+  }
+
+  return readinessQueueRequest;
+}
+
 export const pickupOperationsService = {
   getRiderPickup: async (): Promise<RiderPickupPayload | null> => {
     const response = await apiClient.get('/riders/portal/pickup');
@@ -50,7 +74,7 @@ export const pickupOperationsService = {
   verifyChallenge: async (
     deliveryJobId: string,
     input: {
-      method: 'STORE_PICKUP_PIN' | 'QR_CODE';
+      method: 'STORE_PICKUP_PIN';
       code: string;
       parcelCount: number;
       latitude?: number;
@@ -65,10 +89,17 @@ export const pickupOperationsService = {
     return response.data;
   },
 
+  getReadinessQueue: async (): Promise<PickupReadiness[]> => getReadinessQueueOnce(),
+
   getReadiness: async (deliveryJobId: string): Promise<PickupReadiness> => {
-    const response = await apiClient.get(
-      `/orders/delivery-operations/jobs/${encodeURIComponent(deliveryJobId)}/pickup/readiness`,
-    );
-    return response.data;
+    try {
+      const queue = await getReadinessQueueOnce();
+      return queue.find((entry) => entry.deliveryJobId === deliveryJobId)
+        || fallbackPickupReadiness(deliveryJobId);
+    } catch {
+      // The operational queue is still useful even when readiness refresh is
+      // temporarily unavailable. Keep controls locked and retry on the next poll.
+      return fallbackPickupReadiness(deliveryJobId);
+    }
   },
 };
