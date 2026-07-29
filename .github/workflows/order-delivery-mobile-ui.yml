@@ -57,7 +57,7 @@ jobs:
         run: npm run typecheck --workspace=AagamCustomer
 
       - name: Test Customer delivery-code helpers
-        run: npm test --workspace=AagamCustomer -- src/domain/deliveryCode.spec.ts
+        run: npm test --workspace=AagamCustomer
 
       - name: Typecheck Partners app
         run: npm run typecheck --workspace=AagamPartners
