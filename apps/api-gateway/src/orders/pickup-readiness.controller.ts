@@ -12,6 +12,22 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 
+type ReadinessCaller = {
+  id?: string;
+  role?: Role;
+  roles?: Role[];
+};
+
+export function canViewPickupReadiness(user: ReadinessCaller, storeOwnerId: string) {
+  const callerRoles = new Set<Role>();
+  if (user?.role) callerRoles.add(user.role);
+  if (Array.isArray(user?.roles)) {
+    user.roles.forEach((role) => callerRoles.add(role));
+  }
+
+  return callerRoles.has(Role.ADMIN) || user?.id === storeOwnerId;
+}
+
 @Controller('orders/delivery-operations')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class PickupReadinessController {
@@ -32,7 +48,7 @@ export class PickupReadinessController {
     });
 
     if (!job) throw new NotFoundException('Delivery job not found');
-    if (req.user.role === Role.STORE_OWNER && job.order.store.ownerId !== req.user.id) {
+    if (!canViewPickupReadiness(req.user, job.order.store.ownerId)) {
       throw new ForbiddenException('Only the owning store can view pickup readiness');
     }
 

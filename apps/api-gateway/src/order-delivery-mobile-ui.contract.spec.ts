@@ -1,9 +1,10 @@
 import fs from 'fs';
 import path from 'path';
+import { Role } from '@aagam/database';
+import { canViewPickupReadiness } from './orders/pickup-readiness.controller';
 
 const root = path.resolve(__dirname, '../../..');
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
-
 const exists = (relative: string) => fs.existsSync(path.join(root, relative));
 
 describe('order-to-delivery mobile UI contract', () => {
@@ -16,10 +17,25 @@ describe('order-to-delivery mobile UI contract', () => {
     expect(source).toContain('deliveryJobId: order.deliveryJob?.id || null');
   });
 
+  it('requires ownership for every non-admin readiness caller, including secondary-role store owners', () => {
+    expect(canViewPickupReadiness(
+      { id: 'store-owner', role: Role.CUSTOMER, roles: [Role.CUSTOMER, Role.STORE_OWNER] },
+      'store-owner',
+    )).toBe(true);
+    expect(canViewPickupReadiness(
+      { id: 'other-owner', role: Role.CUSTOMER, roles: [Role.CUSTOMER, Role.STORE_OWNER] },
+      'store-owner',
+    )).toBe(false);
+    expect(canViewPickupReadiness(
+      { id: 'admin', role: Role.CUSTOMER, roles: [Role.CUSTOMER, Role.ADMIN] },
+      'store-owner',
+    )).toBe(true);
+  });
+
   it('exposes owning-store pickup readiness and preserves role isolation', () => {
     const source = read('apps/api-gateway/src/orders/pickup-readiness.controller.ts');
     expect(source).toContain('@Roles(Role.ADMIN, Role.STORE_OWNER)');
-    expect(source).toContain('job.order.store.ownerId !== req.user.id');
+    expect(source).toContain('canViewPickupReadiness(req.user, job.order.store.ownerId)');
     expect(source).toContain("ready: task?.status === 'VERIFIED'");
   });
 
