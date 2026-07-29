@@ -8,7 +8,8 @@
     "lint": "eslint .",
     "start": "react-native start",
     "dev": "react-native start",
-    "test": "jest"
+    "typecheck": "tsc --noEmit",
+    "test": "jest --runInBand"
   },
   "dependencies": {
     "@aagam/types": "*",
