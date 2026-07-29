@@ -8,7 +8,6 @@
     "lint": "eslint .",
     "start": "react-native start",
     "dev": "react-native start",
-    "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand"
   },
