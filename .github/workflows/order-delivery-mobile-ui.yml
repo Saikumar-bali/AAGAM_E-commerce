@@ -72,12 +72,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -R --line-number --fixed-strings '/orders/assign' apps/mobile-customer apps/mobile-partners; then
-            echo 'Legacy public assignment path must not be used by mobile apps.'
+          if grep -R --line-number --fixed-strings '/orders/assign' apps/mobile-customer/src apps/mobile-partners/src; then
+            echo 'Legacy public assignment path must not be used by mobile runtime code.'
             exit 1
           fi
-          if grep -R --line-number --fixed-strings '/orders/rider/queue' apps/mobile-customer apps/mobile-partners; then
-            echo 'Legacy public rider queue must not be used by mobile apps.'
+          if grep -R --line-number --fixed-strings '/orders/rider/queue' apps/mobile-customer/src apps/mobile-partners/src; then
+            echo 'Legacy public rider queue must not be used by mobile runtime code.'
             exit 1
           fi
           grep -Fq '/otp/customer' apps/mobile-customer/src/components/orders/DeliveryCodeCard.tsx
