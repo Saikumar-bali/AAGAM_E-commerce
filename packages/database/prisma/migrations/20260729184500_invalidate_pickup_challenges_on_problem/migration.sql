@@ -3,6 +3,17 @@
 -- remain usable for a corrected parcel. Enforce this invariant at the database
 -- boundary so every current and future application code path is covered.
 
+-- Triggers are not retroactive. Supersede any stale authorizations that already
+-- exist when this migration is deployed before installing the ongoing trigger.
+UPDATE "PickupChallenge" AS challenge
+SET
+  "status" = 'SUPERSEDED'::"PickupChallengeStatus",
+  "updatedAt" = CURRENT_TIMESTAMP
+FROM "RiderPickupTask" AS task
+WHERE challenge."deliveryJobId" = task."deliveryJobId"
+  AND challenge."status" = 'PENDING'::"PickupChallengeStatus"
+  AND task."status" = 'PROBLEM_REPORTED'::"RiderPickupStatus";
+
 CREATE OR REPLACE FUNCTION "supersede_pickup_challenges_on_problem"()
 RETURNS TRIGGER AS $$
 BEGIN

@@ -54,15 +54,22 @@ describe('order-to-delivery mobile UI contract', () => {
     expect(riderPortal).toContain('Every item quantity must match the order before pickup verification');
   });
 
-  it('invalidates every pending pickup challenge when a parcel problem is reported', () => {
+  it('invalidates current and future pending pickup challenges after a parcel problem', () => {
     const migration = read(
       'packages/database/prisma/migrations/20260729184500_invalidate_pickup_challenges_on_problem/migration.sql',
     );
+    expect(migration).toContain('FROM "RiderPickupTask" AS task');
+    expect(migration).toContain('task."status" = \'PROBLEM_REPORTED\'::"RiderPickupStatus"');
     expect(migration).toContain('AFTER INSERT OR UPDATE OF "status" ON "RiderPickupTask"');
     expect(migration).toContain('NEW."status" = \'PROBLEM_REPORTED\'::"RiderPickupStatus"');
     expect(migration).toContain('UPDATE "PickupChallenge"');
     expect(migration).toContain('"status" = \'SUPERSEDED\'::"PickupChallengeStatus"');
     expect(migration).toContain('AND "status" = \'PENDING\'::"PickupChallengeStatus"');
+  });
+
+  it('runs focused contracts for migration-only changes', () => {
+    const workflow = read('.github/workflows/order-delivery-mobile-ui.yml');
+    expect(workflow).toContain('packages/database/prisma/migrations/**');
   });
 
   it('wires the customer code and partner pickup UI to the role-scoped endpoints', () => {

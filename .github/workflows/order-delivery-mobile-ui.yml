@@ -9,6 +9,7 @@ on:
       - "apps/mobile-customer/**"
       - "apps/mobile-partners/**"
       - "packages/database/prisma/schema.prisma"
+      - "packages/database/prisma/migrations/**"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/order-delivery-mobile-ui.yml"
