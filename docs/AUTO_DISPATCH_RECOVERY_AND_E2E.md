@@ -48,7 +48,7 @@ The selected Rider is re-read inside the serializable offer transaction. Availab
 
 ## Rider location heartbeat
 
-The Partners app refreshes the Rider's dedicated availability location every 60 seconds while the Rider is online. This uses the authenticated `PATCH /riders/me/status` endpoint and stores a server-received timestamp independently from `RiderProfile.updatedAt`.
+The Partners app refreshes the Rider's dedicated availability location every 20 seconds while the Rider is online. Both the native Android foreground service and JavaScript fallback use this cadence, which remains safely below the backend's minimum supported 30-second freshness window. Heartbeats use the authenticated `POST /riders/me/heartbeat` endpoint and store a server-received timestamp independently from `RiderProfile.updatedAt`.
 
 `RiderAvailabilityLocation` is represented in both the SQL migration and `schema.prisma`, including its one-to-one `RiderProfile` relation and freshness index. Prisma validation, generation, migration, and `db push` workflows therefore retain the table instead of treating it as unmanaged drift.
 
