@@ -140,6 +140,21 @@ export class StoreFulfillmentService {
     const newLinePaise = newUnitPaise * item.quantity;
     const deltaPaise = newLinePaise - oldLinePaise;
     const snapshot = this.snapshot(order);
+    const pricingSnapshot = order.pricingSnapshot && typeof order.pricingSnapshot === 'object' && !Array.isArray(order.pricingSnapshot)
+      ? order.pricingSnapshot as Record<string, unknown>
+      : {};
+    const currentSubtotalPaise = order.items.reduce(
+      (sum, entry) => sum + (entry.lineTotalPaise || Math.round(entry.price * 100) * entry.quantity),
+      0,
+    );
+    const nextSubtotalPaise = Math.max(0, currentSubtotalPaise + deltaPaise);
+    const currentDeliveryFeePaise = order.deliveryFeePaise || Math.round((order.deliveryFee || 0) * 100);
+    const currentDiscountPaise = order.discountPaise || Math.round((order.discountAmount || 0) * 100);
+    const currentTaxPaise = order.taxPaise || Math.round((order.taxAmount || 0) * 100);
+    const deliveryFeePaise = currentDeliveryFeePaise || Number(pricingSnapshot.deliveryFeePaise || 0);
+    const discountPaise = currentDiscountPaise || Number(pricingSnapshot.discountPaise || 0);
+    const taxPaise = currentTaxPaise || Number(pricingSnapshot.taxPaise || 0);
+    const nextGrandTotalPaise = Math.max(0, nextSubtotalPaise + deliveryFeePaise + taxPaise - discountPaise);
     const issues = this.issues(snapshot).map((issue) =>
       issue.itemId === itemId && issue.status === 'UNAVAILABLE'
         ? { ...issue, status: 'RESOLVED' as const, substituteProductId: substitute.id, substituteProductName: substitute.name, resolvedAt: new Date().toISOString() }
@@ -156,11 +171,11 @@ export class StoreFulfillmentService {
       const orderUpdate = await tx.order.update({
         where: { id: orderId },
         data: {
-          totalAmount: Number(((order.totalAmount || 0) + deltaPaise / 100).toFixed(2)),
-          subtotal: Number(((order.subtotal || 0) + deltaPaise / 100).toFixed(2)),
-          grandTotal: Number(((order.grandTotal || 0) + deltaPaise / 100).toFixed(2)),
-          subtotalPaise: (order.subtotalPaise || 0) + deltaPaise,
-          grandTotalPaise: (order.grandTotalPaise || 0) + deltaPaise,
+          totalAmount: Number((nextGrandTotalPaise / 100).toFixed(2)),
+          subtotal: Number((nextSubtotalPaise / 100).toFixed(2)),
+          grandTotal: Number((nextGrandTotalPaise / 100).toFixed(2)),
+          subtotalPaise: nextSubtotalPaise,
+          grandTotalPaise: nextGrandTotalPaise,
           itemsSnapshot: { ...snapshot, fulfillmentIssues: issues, substitutions },
         },
         include: { items: { include: { product: true } }, statusHistory: { orderBy: { createdAt: 'asc' } } },

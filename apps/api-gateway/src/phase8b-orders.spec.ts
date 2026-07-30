@@ -32,7 +32,24 @@ describe('Phase 8.2 store item issues', () => {
       { storeId: store.id, productId: original.id, quantity: 5 },
       { storeId: store.id, productId: substitute.id, quantity: 5 },
     ] });
-    const order = await prisma.order.create({ data: { customerId: customer.id, storeId: store.id, status: OrderStatus.CONFIRMED, totalAmount: 10, subtotal: 10, grandTotal: 10, subtotalPaise: 1000, grandTotalPaise: 1000, items: { create: [{ productId: original.id, quantity: 1, price: 10, unitPricePaise: 1000, lineTotalPaise: 1000 }] } }, include: { items: true } });
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id,
+      storeId: store.id,
+      status: OrderStatus.CONFIRMED,
+      totalAmount: 10,
+      subtotal: 0,
+      grandTotal: 0,
+      subtotalPaise: 0,
+      grandTotalPaise: 0,
+      pricingSnapshot: {
+        subtotalPaise: 1000,
+        deliveryFeePaise: 0,
+        discountPaise: 0,
+        taxPaise: 0,
+        grandTotalPaise: 1000,
+      },
+      items: { create: [{ productId: original.id, quantity: 1, price: 10, unitPricePaise: 1000, lineTotalPaise: 1000 }] },
+    }, include: { items: true } });
     const itemId = order.items[0].id;
     const { OrderService } = await import('./orders/order.service');
     const { StoreFulfillmentService } = await import('./orders/store-fulfillment.service');
@@ -49,7 +66,9 @@ describe('Phase 8.2 store item issues', () => {
 
     const replaced = await service.substituteItem(order.id, itemId, substitute.id, owner.id);
     expect(replaced.items[0].productId).toBe(substitute.id);
+    expect(replaced.subtotalPaise).toBe(1200);
     expect(replaced.grandTotalPaise).toBe(1200);
+    expect(replaced.totalAmount).toBe(12);
 
     const ready = await service.readyForPickup(order.id, owner.id);
     expect(ready.status).toBe(OrderStatus.PACKED);
