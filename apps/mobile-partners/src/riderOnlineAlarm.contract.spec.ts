@@ -24,6 +24,14 @@ describe('Rider online Android keep-alive contract', () => {
     expect(source).toContain('SERVER_MARKED_OFFLINE');
   });
 
+  it('rejects stale cached coordinates before sending availability heartbeats', () => {
+    expect(source).toContain('AVAILABILITY_LOCATION_MAX_AGE_MS = 180_000L');
+    expect(source).toContain('private fun isFreshLocation(location: Location)');
+    expect(source).toContain('System.currentTimeMillis() - capturedAt');
+    expect(source).toContain('if (!isFreshLocation(location))');
+    expect(source).toContain('Ignored stale availability location');
+  });
+
   it('starts the service with the API-appropriate Android method', () => {
     expect(source).toContain('context.startForegroundService(serviceIntent)');
     expect(source).toContain('context.startService(serviceIntent)');

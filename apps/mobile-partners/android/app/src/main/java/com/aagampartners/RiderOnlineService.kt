@@ -65,6 +65,7 @@ class RiderOnlineService : Service() {
     private const val ALARM_REQUEST_CODE = 7701
     private const val ALARM_INTERVAL_MS = 15 * 60 * 1000L
     private const val HEARTBEAT_INTERVAL_MS = 60_000L
+    private const val AVAILABILITY_LOCATION_MAX_AGE_MS = 180_000L
 
     fun scheduleAlarm(context: Context) {
       val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -234,7 +235,18 @@ class RiderOnlineService : Service() {
     locationCallback = null
   }
 
+  private fun isFreshLocation(location: Location): Boolean {
+    val capturedAt = location.time
+    if (capturedAt <= 0L) return false
+    val ageMs = System.currentTimeMillis() - capturedAt
+    return ageMs in 0..AVAILABILITY_LOCATION_MAX_AGE_MS
+  }
+
   private fun sendHeartbeat(location: Location) {
+    if (!isFreshLocation(location)) {
+      recordError("Ignored stale availability location")
+      return
+    }
     if (!configurationIsActive() || !sending.compareAndSet(false, true)) return
     val prefs = preferences()
     val apiUrl = prefs.getString(KEY_API_URL, "") ?: ""
