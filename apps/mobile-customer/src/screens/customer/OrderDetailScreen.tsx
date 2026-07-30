@@ -66,8 +66,10 @@ export const OrderDetailScreen = () => {
   if (error || !order) return <View style={styles.centered}><Text style={styles.errorText}>Unable to load order details.</Text></View>;
 
   const address = order.addressSnapshot;
-  const orderItems = order.itemsSnapshot?.length ? order.itemsSnapshot : trackingPayload.items || [];
-  const pricing = normalizeOrderPricing(order, orderItems);
+  const currentItems = Array.isArray(trackingPayload?.items) ? trackingPayload.items : [];
+  const orderItems = currentItems.length > 0 ? currentItems : Array.isArray(order.itemsSnapshot) ? order.itemsSnapshot : [];
+  const currentItemSubtotal = currentItems.reduce((sum: number, item: any) => sum + normalizeOrderLine(item).lineTotal, 0);
+  const pricing = normalizeOrderPricing(currentItems.length > 0 ? { ...order, subtotal: currentItemSubtotal, subtotalPaise: undefined } : order, orderItems);
   const canReview = order.status === 'DELIVERED';
 
   return <ScrollView style={styles.container} contentContainerStyle={styles.content}>
