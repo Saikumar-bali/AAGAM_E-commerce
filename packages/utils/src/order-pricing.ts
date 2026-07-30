@@ -63,6 +63,9 @@ export function normalizeOrderPricing(
   const snapshot = order?.pricingSnapshot && typeof order.pricingSnapshot === 'object'
     ? order.pricingSnapshot
     : {};
+  const fulfillmentSnapshot = order?.itemsSnapshot && typeof order.itemsSnapshot === 'object'
+    ? order.itemsSnapshot
+    : {};
   const itemSubtotal = items.reduce((sum, item) => sum + normalizeOrderLine(item).lineTotal, 0);
 
   // Store fulfillment can mutate the persisted order totals after checkout (for
@@ -112,16 +115,37 @@ export function normalizeOrderPricing(
     ) ?? 0,
   );
   const calculatedGrandTotal = Math.max(0, subtotal + deliveryFee + taxAmount - discountAmount);
+  const currentGrandTotalValues = [
+    finiteNumber(order?.grandTotal),
+    paiseToRupees(order?.grandTotalPaise),
+    finiteNumber(order?.totalAmount),
+  ];
+  const positiveCurrentGrandTotal = firstPositive(...currentGrandTotalValues);
+  const currentBreakdownValues = [
+    finiteNumber(order?.subtotal),
+    paiseToRupees(order?.subtotalPaise),
+    finiteNumber(order?.deliveryFee),
+    paiseToRupees(order?.deliveryFeePaise),
+    finiteNumber(order?.discountAmount),
+    paiseToRupees(order?.discountPaise),
+    finiteNumber(order?.taxAmount),
+    paiseToRupees(order?.taxPaise),
+  ];
+  const hasCurrentPricingEvidence = currentBreakdownValues.some((value) => value !== null && value !== 0)
+    || (Array.isArray(fulfillmentSnapshot.substitutions) && fulfillmentSnapshot.substitutions.length > 0);
+  const hasAuthoritativeCurrentZero = hasCurrentPricingEvidence
+    && currentGrandTotalValues.some((value) => value === 0)
+    && positiveCurrentGrandTotal === null;
   const grandTotal = Math.max(
     0,
-    firstPositive(
-      finiteNumber(order?.grandTotal),
-      paiseToRupees(order?.grandTotalPaise),
-      finiteNumber(order?.totalAmount),
-      finiteNumber(snapshot.grandTotal),
-      paiseToRupees(snapshot.grandTotalPaise),
-      calculatedGrandTotal,
-    ) ?? 0,
+    positiveCurrentGrandTotal
+      ?? (hasAuthoritativeCurrentZero
+        ? 0
+        : firstPositive(
+            finiteNumber(snapshot.grandTotal),
+            paiseToRupees(snapshot.grandTotalPaise),
+            calculatedGrandTotal,
+          ) ?? 0),
   );
 
   return { subtotal, deliveryFee, discountAmount, taxAmount, grandTotal };
