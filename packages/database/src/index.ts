@@ -27,7 +27,51 @@ type AagamPrismaClient = Omit<PrismaClient, '$queryRawUnsafe' | '$transaction'> 
   ): Promise<UnwrapPrismaTuple<P>>
 }
 
-export const prisma = new PrismaClient() as AagamPrismaClient
+type TransactionOptions = {
+  maxWait?: number
+  timeout?: number
+  isolationLevel?: Prisma.TransactionIsolationLevel
+}
+
+const prismaClient = new PrismaClient()
+const baseTransaction = prismaClient.$transaction.bind(prismaClient) as (
+  input: unknown,
+  options?: TransactionOptions,
+) => Promise<unknown>
+
+const transactionWithSerializableRetry = async (
+  input: unknown,
+  options?: TransactionOptions,
+) => {
+  const isInteractive = typeof input === 'function'
+  const isSerializable = String(options?.isolationLevel || '').toLowerCase() === 'serializable'
+
+  if (!isInteractive || !isSerializable) {
+    return baseTransaction(input, options)
+  }
+
+  const maxAttempts = 3
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await baseTransaction(input, options)
+    } catch (error: any) {
+      const retryable = error?.code === 'P2034'
+      if (!retryable || attempt === maxAttempts) throw error
+      await new Promise((resolve) => setTimeout(resolve, attempt * 25))
+    }
+  }
+
+  throw new Error('Serializable transaction retry loop exited unexpectedly')
+}
+
+Object.defineProperty(prismaClient, '$transaction', {
+  value: transactionWithSerializableRetry,
+  configurable: false,
+  enumerable: false,
+  writable: false,
+})
+
+export const prisma = prismaClient as AagamPrismaClient
 
 export const Role = {
   CUSTOMER: 'CUSTOMER',
