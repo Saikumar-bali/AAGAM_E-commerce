@@ -54,6 +54,38 @@ describe('customer order pricing display', () => {
     });
   });
 
+  test('preserves an authoritative zero total after fulfillment repricing', () => {
+    expect(normalizeOrderPricing({
+      subtotal: 0,
+      subtotalPaise: 0,
+      deliveryFee: 10,
+      deliveryFeePaise: 1000,
+      discountAmount: 10,
+      discountPaise: 1000,
+      taxAmount: 0,
+      taxPaise: 0,
+      grandTotal: 0,
+      grandTotalPaise: 0,
+      totalAmount: 0,
+      itemsSnapshot: {
+        substitutions: [{ itemId: 'item-1', deltaPaise: -10000 }],
+      },
+      pricingSnapshot: {
+        subtotalPaise: 10000,
+        deliveryFeePaise: 1000,
+        discountPaise: 1000,
+        taxPaise: 0,
+        grandTotalPaise: 10000,
+      },
+    })).toEqual({
+      subtotal: 100,
+      deliveryFee: 10,
+      discountAmount: 10,
+      taxAmount: 0,
+      grandTotal: 0,
+    });
+  });
+
   test('prefers store-updated mutable totals over the checkout snapshot', () => {
     const items = [{ quantity: 2, price: 60 }];
 
