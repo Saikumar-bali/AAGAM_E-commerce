@@ -34,7 +34,7 @@ type TransactionOptions = {
 }
 
 const prismaClient = new PrismaClient()
-const baseTransaction = prismaClient.$transaction.bind(prismaClient) as (
+const baseTransaction = prismaClient.$transaction.bind(prismaClient) as unknown as (
   input: unknown,
   options?: TransactionOptions,
 ) => Promise<unknown>
