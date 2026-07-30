@@ -140,8 +140,8 @@ describe('auto-dispatch recovery contracts', () => {
     const source = read(
       'apps/mobile-partners/src/screens/rider/RiderDashboard.tsx',
     );
-    expect(source).toContain('} else {
-        RiderOnlineService.stop()');
+    expect(source).toContain('} else {');
+    expect(source).toContain('RiderOnlineService.stop().catch');
   });
 
   it('stops the Rider availability heartbeat before signing out', () => {

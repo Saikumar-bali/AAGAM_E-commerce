@@ -101,7 +101,18 @@ describe('automatic dispatch recovery E2E', () => {
     const target = await waiting(`online_${Date.now()}`);
     const candidate = await rider('late', 'OFFLINE', null, null);
     await new RiderService(dispatch()).updateStatusForUser(candidate.user.id, { status: 'ONLINE', latitude: 17.7005, longitude: 83.3005 });
-    expect(await prisma.dispatchAssignment.findFirst({ where: { deliveryJobId: target.job.id, riderProfileId: candidate.profile.id, status: DispatchAssignmentStatus.OFFERED } })).not.toBeNull();
+    let assignment = null;
+    for (let attempt = 0; attempt < 20 && !assignment; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      assignment = await prisma.dispatchAssignment.findFirst({
+        where: {
+          deliveryJobId: target.job.id,
+          riderProfileId: candidate.profile.id,
+          status: DispatchAssignmentStatus.OFFERED,
+        },
+      });
+    }
+    expect(assignment).not.toBeNull();
   });
 
   it('uses the dedicated capture timestamp and rejects a stale heartbeat after OFFLINE', async () => {
