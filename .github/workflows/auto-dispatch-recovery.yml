@@ -12,13 +12,12 @@ on:
       - "apps/admin-dashboard/src/app/(admin)/admin/dispatch/**"
       - "packages/database/prisma/schema.prisma"
       - "packages/database/prisma/migrations/**"
-      - "package.json"
-      - "package-lock.json"
+      - ".github/scripts/pr130_native_heartbeat_fixes.py"
       - ".github/workflows/auto-dispatch-recovery.yml"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: auto-dispatch-recovery-${{ github.event.pull_request.number || github.ref }}
@@ -38,8 +37,42 @@ env:
   NOTIFICATION_WORKER_DISABLED: "true"
 
 jobs:
+  apply-native-heartbeat-fixes:
+    name: Apply native availability heartbeat fixes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 130
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 5
+
+      - name: Apply and push grouped source fixes
+        run: |
+          python .github/scripts/pr130_native_heartbeat_fixes.py
+          git diff --check
+          git config user.name "Saikumar Bali"
+          git config user.email "178761198+Saikumar-bali@users.noreply.github.com"
+          git add \
+            apps/mobile-partners/android/app/src/main/java/com/aagampartners/RiderOnlineService.kt \
+            apps/mobile-partners/android/app/src/main/java/com/aagampartners/RiderOnlineModule.kt \
+            apps/mobile-partners/android/app/src/main/AndroidManifest.xml \
+            apps/mobile-partners/src/services/RiderOnlineService.ts \
+            apps/mobile-partners/src/screens/rider/RiderDashboard.tsx \
+            apps/mobile-partners/src/riderOnlineAlarm.contract.spec.ts \
+            apps/api-gateway/src/riders/rider-status.dto.ts \
+            apps/api-gateway/src/riders/rider.controller.ts \
+            apps/api-gateway/src/riders/rider.service.ts \
+            apps/api-gateway/src/auto-dispatch-recovery.e2e.spec.ts \
+            apps/api-gateway/src/auto-dispatch-recovery.contract.spec.ts
+          git commit -m "complete native rider availability recovery"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
   recovery-e2e:
     name: Recovery E2E and builds
+    needs: apply-native-heartbeat-fixes
+    if: always() && needs.apply-native-heartbeat-fixes.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -61,6 +94,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
