@@ -119,11 +119,16 @@ export class RiderService {
           );
         }
 
-        // A heartbeat may arrive while the Rider is fulfilling a delivery. It
-        // refreshes the dedicated availability location but cannot overwrite
-        // the server-owned BUSY state.
+        // Heartbeats refresh GPS only. They cannot overwrite BUSY, whether
+        // BUSY comes from an active delivery or an explicit administrator action.
+        const preserveServerBusy =
+          data.heartbeat === true &&
+          data.status === 'ONLINE' &&
+          existing?.status === 'BUSY';
         const effectiveStatus =
-          data.status === 'ONLINE' && activeJob ? 'BUSY' : data.status;
+          data.status === 'ONLINE' && (activeJob || preserveServerBusy)
+            ? 'BUSY'
+            : data.status;
 
         const updated = await tx.riderProfile.upsert({
           where: { userId },

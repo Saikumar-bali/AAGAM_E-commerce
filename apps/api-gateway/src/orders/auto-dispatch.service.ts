@@ -472,24 +472,68 @@ export class AutoDispatchService {
           return null;
         }
 
-        const [activeJob, otherOpenOffer] = await Promise.all([
-          tx.deliveryJob.findFirst({
+        // Candidate eligibility and the partial unique index must agree.
+        // Reconcile expired OFFERED rows while this Rider's availability row is
+        // locked, then check for a genuinely live offer before inserting.
+        const offerCheckAt = new Date();
+        const expiredOffers = await tx.dispatchAssignment.findMany({
+          where: {
+            riderProfileId: rider.id,
+            status: DispatchAssignmentStatus.OFFERED,
+            expiresAt: { lt: offerCheckAt },
+          },
+          select: {
+            id: true,
+            deliveryJobId: true,
+            riderProfileId: true,
+            expiresAt: true,
+          },
+        });
+        for (const expiredOffer of expiredOffers) {
+          const changed = await tx.dispatchAssignment.updateMany({
             where: {
-              currentRiderId: rider.id,
-              status: { in: ACTIVE_JOB_STATUSES as any },
-            },
-            select: { id: true },
-          }),
-          tx.dispatchAssignment.findFirst({
-            where: {
-              deliveryJobId: { not: input.deliveryJobId },
-              riderProfileId: rider.id,
+              id: expiredOffer.id,
               status: DispatchAssignmentStatus.OFFERED,
-              OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+              expiresAt: { lt: offerCheckAt },
             },
-            select: { id: true },
-          }),
-        ]);
+            data: {
+              status: DispatchAssignmentStatus.EXPIRED,
+              respondedAt: offerCheckAt,
+            },
+          });
+          if (changed.count !== 1) continue;
+          await this.events.record(
+            {
+              deliveryJobId: expiredOffer.deliveryJobId,
+              assignmentId: expiredOffer.id,
+              eventType: DeliveryEventType.ASSIGNMENT_EXPIRED,
+              actor: { id: null, role: Role.ADMIN },
+              metadata: {
+                source: 'AUTO_DISPATCH_CANDIDATE_RECONCILER',
+                riderProfileId: expiredOffer.riderProfileId,
+                expiresAt: expiredOffer.expiresAt?.toISOString() || null,
+              },
+            },
+            tx,
+          );
+        }
+
+        const activeJob = await tx.deliveryJob.findFirst({
+          where: {
+            currentRiderId: rider.id,
+            status: { in: ACTIVE_JOB_STATUSES as any },
+          },
+          select: { id: true },
+        });
+        const otherOpenOffer = await tx.dispatchAssignment.findFirst({
+          where: {
+            deliveryJobId: { not: input.deliveryJobId },
+            riderProfileId: rider.id,
+            status: DispatchAssignmentStatus.OFFERED,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: offerCheckAt } }],
+          },
+          select: { id: true },
+        });
         if (activeJob || otherOpenOffer) return null;
 
         const currentDistance = calculateDistance(

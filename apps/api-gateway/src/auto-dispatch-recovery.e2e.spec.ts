@@ -1,5 +1,5 @@
 import { OrderStatus, Prisma, Role, prisma } from '@aagam/database';
-import { DeliveryJobStatus, DispatchAssignmentStatus } from '@aagam/types';
+import { DeliveryEventType, DeliveryJobStatus, DispatchAssignmentStatus } from '@aagam/types';
 import { NotificationWorkerService } from './notifications/notification-worker.service';
 import { AutoDispatchService } from './orders/auto-dispatch.service';
 import { DeliveryEventService } from './orders/delivery-event.service';
@@ -250,6 +250,73 @@ describe('automatic dispatch recovery E2E', () => {
     ).resolves.toMatchObject({ status: 'ONLINE' });
     await new Promise<void>((resolve) => setImmediate(resolve));
     expect(autoDispatch.dispatchWaitingJobs).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves an administrator-set BUSY status during Rider heartbeats', async () => {
+    const target = await waiting(`admin_busy_${Date.now()}`);
+    const candidate = await rider('admin_busy', 'ONLINE', 17.7003, 83.3003);
+    await prisma.riderProfile.update({
+      where: { id: candidate.profile.id },
+      data: { status: 'BUSY' },
+    });
+
+    const service = new RiderService(dispatch());
+    await expect(
+      service.updateStatusForUser(candidate.user.id, {
+        status: 'ONLINE',
+        heartbeat: true,
+        latitude: 17.7004,
+        longitude: 83.3004,
+      }),
+    ).resolves.toMatchObject({ status: 'BUSY' });
+    await expect(
+      prisma.riderProfile.findUnique({ where: { id: candidate.profile.id } }),
+    ).resolves.toMatchObject({ status: 'BUSY' });
+    await expect(dispatch().dispatchNearestRider(target.job.id)).resolves.toMatchObject({
+      offered: false,
+      reason: 'NO_FRESH_AVAILABLE_RIDER',
+    });
+  });
+
+  it('reconciles a Rider expired offer before creating the next offer', async () => {
+    const previous = await waiting(`expired_previous_${Date.now()}`);
+    const target = await waiting(`expired_target_${Date.now()}`);
+    const candidate = await rider('expired_candidate', 'ONLINE', 17.7003, 83.3003);
+    const expiredAt = new Date(Date.now() - 1_000);
+    const expiredOffer = await prisma.dispatchAssignment.create({
+      data: {
+        deliveryJobId: previous.job.id,
+        riderProfileId: candidate.profile.id,
+        status: DispatchAssignmentStatus.OFFERED,
+        offeredAt: new Date(Date.now() - 61_000),
+        expiresAt: expiredAt,
+      },
+    });
+
+    await expect(dispatch().dispatchNearestRider(target.job.id)).resolves.toMatchObject({
+      offered: true,
+      riderProfileId: candidate.profile.id,
+    });
+    await expect(
+      prisma.dispatchAssignment.findUnique({ where: { id: expiredOffer.id } }),
+    ).resolves.toMatchObject({ status: DispatchAssignmentStatus.EXPIRED });
+    await expect(
+      prisma.dispatchAssignment.count({
+        where: {
+          riderProfileId: candidate.profile.id,
+          status: DispatchAssignmentStatus.OFFERED,
+        },
+      }),
+    ).resolves.toBe(1);
+    expect(
+      await prisma.deliveryEvent.findFirst({
+        where: {
+          deliveryJobId: previous.job.id,
+          assignmentId: expiredOffer.id,
+          eventType: DeliveryEventType.ASSIGNMENT_EXPIRED,
+        },
+      }),
+    ).not.toBeNull();
   });
 
   it('prevents active Riders from going offline and concurrent jobs from double-offering one Rider', async () => {
