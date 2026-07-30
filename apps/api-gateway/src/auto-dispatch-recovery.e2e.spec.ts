@@ -353,15 +353,18 @@ describe('automatic dispatch recovery E2E', () => {
     await expect(
       prisma.dispatchAssignment.findUnique({ where: { id: expiredOffer.id } }),
     ).resolves.toMatchObject({ status: DispatchAssignmentStatus.EXPIRED });
-    expect(
-      await prisma.deliveryEvent.findFirst({
+    await expect(
+      prisma.deliveryEvent.findFirst({
         where: {
           deliveryJobId: previous.job.id,
           assignmentId: expiredOffer.id,
           eventType: DeliveryEventType.ASSIGNMENT_EXPIRED,
         },
       }),
-    ).not.toBeNull();
+    ).resolves.toMatchObject({
+      actorUserId: null,
+      actorRole: Role.ADMIN,
+    });
   });
 
   it('prevents active Riders from going offline and concurrent jobs from double-offering one Rider', async () => {

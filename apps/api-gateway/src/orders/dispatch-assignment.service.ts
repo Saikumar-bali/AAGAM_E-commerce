@@ -143,7 +143,7 @@ export class DispatchAssignmentService {
                 deliveryJobId: expiredOffer.deliveryJobId,
                 assignmentId: expiredOffer.id,
                 eventType: DeliveryEventType.ASSIGNMENT_EXPIRED,
-                actor,
+                actor: { id: null, role: Role.ADMIN },
                 metadata: {
                   source: 'MANUAL_DISPATCH_RIDER_RECONCILER',
                   riderProfileId: expiredOffer.riderProfileId,
