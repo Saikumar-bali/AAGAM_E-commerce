@@ -115,7 +115,8 @@ export class AutoDispatchService {
     let after: { updatedAt: Date; id: string } | null = null;
 
     while (offered < offerLimit) {
-      const jobs = await prisma.deliveryJob.findMany({
+      const jobs: Array<{ id: string; updatedAt: Date }> =
+        await prisma.deliveryJob.findMany({
         where: {
           ...baseWhere,
           ...(after
