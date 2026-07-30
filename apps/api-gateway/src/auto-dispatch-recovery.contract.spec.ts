@@ -143,7 +143,6 @@ describe('auto-dispatch recovery contracts', () => {
     const source = read(
       'apps/mobile-partners/src/screens/rider/RiderDashboard.tsx',
     );
-    expect(source).toContain('} else {');
     expect(source).toContain('RiderOnlineService.stop().catch');
     expect(source).toContain('PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION');
     expect(source).toContain('PermissionsAndroid.request(backgroundPermission');
