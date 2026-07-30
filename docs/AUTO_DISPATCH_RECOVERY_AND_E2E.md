@@ -28,6 +28,10 @@ A `REASSIGN_RIDER` failure resolution returns the job to `WAITING_FOR_DISPATCH`.
 
 Rejected offers continue to invoke immediate redispatch. Expired offers are reconciled by the notification worker, which then tries the next eligible Rider. A Rider who rejected or missed an offer becomes retryable after the configured cooldown.
 
+### Fair waiting-job sweeps
+
+The reconciliation limit controls how many offers may be created, not how many waiting rows may be inspected. The sweep uses stable `(updatedAt, id)` pagination and continues past jobs that are currently ineligible, such as stores with unusable coordinates or jobs with no Rider inside the pickup radius. Later dispatchable jobs therefore cannot be permanently blocked by older ineligible rows.
+
 ## Candidate safety rules
 
 An automatic offer is created only when the Rider:
@@ -45,6 +49,8 @@ The selected Rider is re-read inside the serializable offer transaction. Availab
 ## Rider location heartbeat
 
 The Partners app refreshes the Rider's dedicated availability location every 60 seconds while the Rider is online. This uses the authenticated `PATCH /riders/me/status` endpoint and stores a server-received timestamp independently from `RiderProfile.updatedAt`.
+
+`RiderAvailabilityLocation` is represented in both the SQL migration and `schema.prisma`, including its one-to-one `RiderProfile` relation and freshness index. Prisma validation, generation, migration, and `db push` workflows therefore retain the table instead of treating it as unmanaged drift.
 
 During an active delivery, the same heartbeat updates coordinates but cannot overwrite the server-owned `BUSY` state. Existing live-delivery pings also update the canonical RiderProfile coordinates.
 
@@ -108,6 +114,7 @@ The board silently refreshes every eight seconds. Manual assignment remains avai
 - unrelated profile updates do not refresh location eligibility;
 - stale in-flight heartbeats cannot reactivate an offline Rider;
 - capped sweeps skip jobs that already have active offers;
+- capped sweeps page past ineligible jobs and reach later dispatchable jobs;
 - the notification-worker sweep recovers waiting and reassigned jobs;
 - a Rider with an active delivery cannot go offline;
 - an expired Rider becomes retryable after cooldown;
@@ -118,6 +125,8 @@ The board silently refreshes every eight seconds. Manual assignment remains avai
 - DTO validation;
 - zero-coordinate support;
 - radius and freshness configuration;
+- stable waiting-job pagination;
+- the Prisma availability-location model and relation;
 - transaction-time revalidation;
 - waiting-job worker recovery;
 - mobile heartbeat wiring;
