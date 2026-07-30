@@ -298,6 +298,7 @@ export const RiderDashboard = () => {
   const { user } = useAuthStore();
   const [now, setNow] = useState(Date.now());
   const [locating, setLocating] = useState(false);
+  const [onlinePermissionMissing, setOnlinePermissionMissing] = useState(false);
   const [isOnline, setIsOnline] = useState(() => {
     const cached = queryClient.getQueryData<RiderWorkspace>(WORKSPACE_KEY);
     return cached?.rider?.status != null && cached.rider.status !== 'OFFLINE';
@@ -341,14 +342,12 @@ export const RiderDashboard = () => {
     if (workspace?.rider?.status) {
       const online = workspace.rider.status !== 'OFFLINE';
       setIsOnline(online);
-      // Ensure the foreground service matches the server-side status.
-      if (online) {
-        RiderOnlineService.start(user?.name || 'Rider').catch(() => undefined);
-      } else {
+      if (!online) {
+        setOnlinePermissionMissing(false);
         RiderOnlineService.stop().catch(() => undefined);
       }
     }
-  }, [workspace?.rider?.status, user?.name]);
+  }, [workspace?.rider?.status]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1_000);
@@ -473,6 +472,54 @@ export const RiderDashboard = () => {
     return false;
   };
 
+  const grantOnlinePermission = async () => {
+    setLocating(true);
+    try {
+      const permitted = await requestLocationPermission();
+      if (!permitted) {
+        setOnlinePermissionMissing(true);
+        await RiderOnlineService.stop().catch(() => undefined);
+        Toast.show({
+          type: 'error',
+          text1: 'Background location required',
+          text2: 'Grant “Allow all the time” to remain eligible while the app is in the background.',
+        });
+        return false;
+      }
+
+      await RiderOnlineService.start(user?.name || 'Rider');
+      setOnlinePermissionMissing(false);
+      return true;
+    } catch (error: any) {
+      setOnlinePermissionMissing(true);
+      await RiderOnlineService.stop().catch(() => undefined);
+      Toast.show({
+        type: 'error',
+        text1: 'Online recovery unavailable',
+        text2: error?.message || 'Could not start background Rider availability.',
+      });
+      return false;
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!workspace?.rider?.status || workspace.rider.status === 'OFFLINE') return;
+    let cancelled = false;
+
+    const restoreOnlineAvailability = async () => {
+      const started = await grantOnlinePermission();
+      if (cancelled || started) return;
+      setOnlinePermissionMissing(true);
+    };
+
+    void restoreOnlineAvailability();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace?.rider?.status, user?.name]);
+
   const goOnline = async () => {
     setLocating(true);
     try {
@@ -573,11 +620,11 @@ export const RiderDashboard = () => {
           testID="rider_dashboard_online_toggle"
           style={[styles.onlineToggle, isOnline ? styles.online : styles.offline]}
           disabled={locating}
-          onPress={isOnline ? goOffline : goOnline}
+          onPress={onlinePermissionMissing ? grantOnlinePermission : isOnline ? goOffline : goOnline}
         >
           {locating ? <ActivityIndicator color="#0F766E" /> : <Power size={18} color={isOnline ? '#047857' : '#64748B'} />}
           <Text style={[styles.onlineToggleText, { color: isOnline ? '#047857' : '#64748B' }]}>
-            {isOnline ? 'ONLINE' : 'OFFLINE'}
+            {onlinePermissionMissing ? 'GRANT LOCATION' : isOnline ? 'ONLINE' : 'OFFLINE'}
           </Text>
         </TouchableOpacity>
       </View>

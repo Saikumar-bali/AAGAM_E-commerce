@@ -148,6 +148,11 @@ describe('auto-dispatch recovery contracts', () => {
     expect(source).toContain('PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION');
     expect(source).toContain('PermissionsAndroid.request(backgroundPermission');
     expect(source).toContain('Linking.openSettings()');
+    expect(source).toContain('onlinePermissionMissing');
+    expect(source).toContain('const grantOnlinePermission = async () =>');
+    expect(source).toContain('const restoreOnlineAvailability = async () =>');
+    expect(source).toContain('onlinePermissionMissing ? grantOnlinePermission');
+    expect(source).toContain("'GRANT LOCATION'");
   });
 
   it('stops the Rider availability heartbeat before signing out', () => {
