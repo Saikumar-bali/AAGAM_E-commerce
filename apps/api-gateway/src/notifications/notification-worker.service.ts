@@ -28,28 +28,45 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
   ) {}
 
   onModuleInit() {
-    // Resolve by the provider class token registered by OrderModule. Looking up
-    // the string "AutoDispatchService" never matches Nest's class-token provider
-    // and silently disabled re-dispatch after an offer expired.
     try {
       this.autoDispatch = this.moduleRef?.get(AutoDispatchService, { strict: false });
     } catch (error) {
       this.autoDispatch = undefined;
       this.logger.warn(
-        `Auto-dispatch provider is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+        `Auto-dispatch provider is unavailable: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
 
-    if (process.env.NODE_ENV === 'test' || process.env.NOTIFICATION_WORKER_DISABLED === 'true') return;
-    const intervalMs = Math.max(2000, Number(process.env.NOTIFICATION_WORKER_INTERVAL_MS || 10000));
+    if (
+      process.env.NODE_ENV === 'test' ||
+      process.env.NOTIFICATION_WORKER_DISABLED === 'true'
+    ) {
+      return;
+    }
+
+    const intervalMs = Math.max(
+      2_000,
+      Number(process.env.NOTIFICATION_WORKER_INTERVAL_MS || 10_000),
+    );
     this.timer = setInterval(() => {
       void this.processBatch().catch((error) => {
-        this.logger.error(`Batch failed: ${error instanceof Error ? error.message : String(error)}`);
+        this.logger.error(
+          `Batch failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
       });
     }, intervalMs);
     this.timer.unref?.();
+
     void this.processBatch().catch((error) => {
-      this.logger.error(`Initial batch failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Initial batch failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     });
   }
 
@@ -67,7 +84,10 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
           metadata: {
             source,
             riderProfileId: assignment.riderProfileId,
-            expiresAt: assignment.expiresAt?.toISOString?.() || assignment.expiresAt || null,
+            expiresAt:
+              assignment.expiresAt?.toISOString?.() ||
+              assignment.expiresAt ||
+              null,
           },
         },
       });
@@ -93,7 +113,11 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
 
     for (const assignment of overdue) {
       const changed = await prisma.dispatchAssignment.updateMany({
-        where: { id: assignment.id, status: 'OFFERED', expiresAt: { lt: now } },
+        where: {
+          id: assignment.id,
+          status: 'OFFERED',
+          expiresAt: { lt: now },
+        },
         data: { status: 'EXPIRED', respondedAt: now },
       });
       if (changed.count === 1) {
@@ -106,11 +130,17 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
             select: { status: true },
           });
           if (job?.status === 'WAITING_FOR_DISPATCH') {
-            await this.autoDispatch.dispatchNearestRider(assignment.deliveryJobId).catch((error) => {
-              this.logger.warn(
-                `Auto-dispatch after expiry failed for job ${assignment.deliveryJobId}: ${error instanceof Error ? error.message : String(error)}`,
-              );
-            });
+            await this.autoDispatch
+              .dispatchNearestRider(assignment.deliveryJobId)
+              .catch((error) => {
+                this.logger.warn(
+                  `Auto-dispatch after expiry failed for job ${
+                    assignment.deliveryJobId
+                  }: ${
+                    error instanceof Error ? error.message : String(error)
+                  }`,
+                );
+              });
           }
         }
       }
@@ -126,7 +156,10 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
     });
 
     for (const assignment of missingEvents) {
-      const event = await this.createExpiryEvent(assignment, 'EXPIRY_EVENT_BACKFILL');
+      const event = await this.createExpiryEvent(
+        assignment,
+        'EXPIRY_EVENT_BACKFILL',
+      );
       if (event) backfilled += 1;
     }
 
@@ -144,12 +177,29 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
         backfilledExpiryEvents: 0,
       };
     }
+
     this.running = true;
     let processed = 0;
     let failed = 0;
 
     try {
-      const expiry = await this.reconcileExpiredAssignments(Math.max(limit, 20));
+      const expiry = await this.reconcileExpiredAssignments(
+        Math.max(limit, 20),
+      );
+
+      // This sweep is the recovery path for jobs that had no Rider when they
+      // were packed, jobs returned to dispatch after a failure resolution, and
+      // jobs whose earlier Riders become retryable after the cooldown.
+      if (this.autoDispatch) {
+        await this.autoDispatch.dispatchWaitingJobs().catch((error) => {
+          this.logger.warn(
+            `Waiting-job auto-dispatch sweep failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
+      }
+
       const events = await this.outbox.claimBatch(limit);
       for (const event of events) {
         try {
@@ -161,6 +211,7 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
           await this.outbox.markFailed(event.id, error);
         }
       }
+
       return {
         claimed: events.length,
         processed,

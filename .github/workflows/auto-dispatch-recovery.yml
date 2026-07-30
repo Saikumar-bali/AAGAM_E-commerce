@@ -1,0 +1,108 @@
+name: Auto Dispatch Recovery
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/api-gateway/src/orders/**"
+      - "apps/api-gateway/src/riders/**"
+      - "apps/api-gateway/src/notifications/**"
+      - "apps/api-gateway/src/auto-dispatch-*.spec.ts"
+      - "apps/mobile-partners/**"
+      - "apps/admin-dashboard/src/app/(admin)/admin/dispatch/**"
+      - "packages/database/prisma/schema.prisma"
+      - "packages/database/prisma/migrations/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/auto-dispatch-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-dispatch-recovery-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22.22.3"
+  DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_auto_dispatch_recovery"
+  NODE_ENV: test
+  AUTO_DISPATCH_ENABLED: "true"
+  AUTO_DISPATCH_MAX_PICKUP_KM: "8"
+  AUTO_DISPATCH_LOCATION_MAX_AGE_SECONDS: "180"
+  AUTO_DISPATCH_RETRY_COOLDOWN_SECONDS: "30"
+  AUTO_DISPATCH_RECONCILE_LIMIT: "50"
+  AUTO_DISPATCH_RECONCILE_SCAN_LIMIT: "500"
+  DELIVERY_OTP_SECRET: "auto-dispatch-recovery-ci-only-secret"
+  NOTIFICATION_WORKER_DISABLED: "true"
+
+jobs:
+  recovery-e2e:
+    name: Recovery E2E and builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aagam_auto_dispatch_recovery
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install workspace dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate and generate Prisma client
+        run: |
+          npx prisma validate --schema packages/database/prisma/schema.prisma
+          npx prisma generate --schema packages/database/prisma/schema.prisma
+
+      - name: Apply all database migrations
+        run: npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+
+      - name: Build shared packages
+        run: |
+          npx tsc --project packages/types/tsconfig.json
+          npx tsc --project packages/utils/tsconfig.json
+          npx tsc --project packages/database/tsconfig.json
+
+      - name: Run auto-dispatch recovery and existing delivery contracts
+        run: >-
+          npx jest --config apps/api-gateway/jest.config.js --runInBand --runTestsByPath
+          apps/api-gateway/src/auto-dispatch-recovery.contract.spec.ts
+          apps/api-gateway/src/auto-dispatch-recovery.e2e.spec.ts
+          apps/api-gateway/src/auto-dispatch-ci.contract.spec.ts
+          apps/api-gateway/src/phase2b-mobile-delivery.spec.ts
+          apps/api-gateway/src/phase5-delivery-proof-cod-failures.spec.ts
+          apps/api-gateway/src/order-delivery-mobile-ui.contract.spec.ts
+
+      - name: Build API
+        run: npm run build:api
+
+      - name: Typecheck Partners app
+        run: npm run typecheck --workspace=AagamPartners
+
+      - name: Test Partners app
+        run: npm test --workspace=AagamPartners
+
+      - name: Build admin dashboard
+        run: npm run build:admin

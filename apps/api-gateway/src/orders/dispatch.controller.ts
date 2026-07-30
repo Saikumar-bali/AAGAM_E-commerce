@@ -1,36 +1,47 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Get,
   GoneException,
   Headers,
+  NotFoundException,
   Param,
   Patch,
   Post,
   Req,
   UseGuards,
 } from "@nestjs/common";
-import { Role } from "@aagam/database";
+import { prisma, Role } from "@aagam/database";
 import {
+  DeliveryEventType,
   DeliveryJobStatus,
   DeliveryProofSchema,
+  DispatchAssignmentStatus,
   OfferDispatchAssignmentSchema,
   RejectDispatchAssignmentSchema,
 } from "@aagam/types";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
+import { DeliveryEventService } from "./delivery-event.service";
+import { ACTIVE_JOB_STATUSES } from "./delivery-job.service";
 import { DeliveryOperationsService } from "./delivery-operations.service";
 import { ConfirmStoreHandoffDto } from "./delivery-operations.dto";
+import { DeliveryWorkflowService } from "./delivery-workflow.service";
 import { DispatchService } from "./dispatch.service";
+
+type Actor = { id: string; role: Role };
 
 @Controller("orders/dispatch")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class DispatchController {
   constructor(
     private readonly dispatch: DispatchService,
-    private readonly operations: DeliveryOperationsService
+    private readonly operations: DeliveryOperationsService,
+    private readonly workflow: DeliveryWorkflowService,
+    private readonly events: DeliveryEventService
   ) {}
 
   private parse<T>(
@@ -45,6 +56,224 @@ export class DispatchController {
       });
     }
     return parsed.data as T;
+  }
+
+  private async reassignAtomically(
+    orderId: string,
+    riderUserId: string,
+    actor: Actor
+  ) {
+    const now = new Date();
+
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          const lockedJobs = await tx.$queryRaw<Array<{ id: string }>>`
+            SELECT "id"
+            FROM "DeliveryJob"
+            WHERE "orderId" = ${orderId}
+            FOR UPDATE
+          `;
+          if (lockedJobs.length === 0) {
+            throw new NotFoundException("Delivery job not found");
+          }
+
+          const job = await tx.deliveryJob.findUnique({
+            where: { id: lockedJobs[0].id },
+            include: { order: { include: { store: true } } },
+          });
+          if (!job) throw new NotFoundException("Delivery job not found");
+          if (
+            job.status !== DeliveryJobStatus.RIDER_ASSIGNED ||
+            !job.currentRiderId
+          ) {
+            throw new ConflictException(
+              "Only a rider-assigned delivery can be reassigned"
+            );
+          }
+
+          const lockedRiders = await tx.$queryRaw<
+            Array<{ id: string; status: string }>
+          >`
+            SELECT "id", "status"
+            FROM "RiderProfile"
+            WHERE "userId" = ${riderUserId}
+            FOR UPDATE
+          `;
+          const rider = lockedRiders[0];
+          if (!rider) throw new NotFoundException("Rider profile not found");
+          if (rider.id === job.currentRiderId) {
+            throw new ConflictException(
+              "Replacement rider is already assigned to this delivery"
+            );
+          }
+          if (rider.status !== "ONLINE") {
+            throw new ConflictException("Rider must be online and available");
+          }
+
+          const activeJob = await tx.deliveryJob.findFirst({
+            where: {
+              id: { not: job.id },
+              currentRiderId: rider.id,
+              status: { in: ACTIVE_JOB_STATUSES as any },
+            },
+            select: { id: true },
+          });
+          if (activeJob) {
+            throw new ConflictException(
+              `Rider already has active delivery ${activeJob.id}`
+            );
+          }
+
+          const expiredOffers = await tx.dispatchAssignment.findMany({
+            where: {
+              riderProfileId: rider.id,
+              status: DispatchAssignmentStatus.OFFERED,
+              expiresAt: { lt: now },
+            },
+            select: {
+              id: true,
+              deliveryJobId: true,
+              riderProfileId: true,
+              expiresAt: true,
+            },
+          });
+          for (const expiredOffer of expiredOffers) {
+            const changed = await tx.dispatchAssignment.updateMany({
+              where: {
+                id: expiredOffer.id,
+                status: DispatchAssignmentStatus.OFFERED,
+                expiresAt: { lt: now },
+              },
+              data: {
+                status: DispatchAssignmentStatus.EXPIRED,
+                respondedAt: now,
+              },
+            });
+            if (changed.count !== 1) continue;
+            await this.events.record(
+              {
+                deliveryJobId: expiredOffer.deliveryJobId,
+                assignmentId: expiredOffer.id,
+                eventType: DeliveryEventType.ASSIGNMENT_EXPIRED,
+                actor: { id: null, role: Role.ADMIN },
+                metadata: {
+                  source: "ATOMIC_REASSIGN_RIDER_RECONCILER",
+                  riderProfileId: expiredOffer.riderProfileId,
+                  expiresAt: expiredOffer.expiresAt?.toISOString() || null,
+                },
+              },
+              tx
+            );
+          }
+
+          const otherOpenOffer = await tx.dispatchAssignment.findFirst({
+            where: {
+              riderProfileId: rider.id,
+              status: DispatchAssignmentStatus.OFFERED,
+              OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+            select: { id: true },
+          });
+          if (otherOpenOffer) {
+            throw new ConflictException(
+              `Rider already has active offer ${otherOpenOffer.id}`
+            );
+          }
+
+          await tx.dispatchAssignment.updateMany({
+            where: {
+              deliveryJobId: job.id,
+              status: {
+                in: [
+                  DispatchAssignmentStatus.OFFERED,
+                  DispatchAssignmentStatus.ACCEPTED,
+                ] as any,
+              },
+            },
+            data: {
+              status: DispatchAssignmentStatus.REASSIGNED,
+              respondedAt: now,
+            },
+          });
+
+          await this.workflow.transitionWithinTransaction(
+            tx,
+            job.id,
+            DeliveryJobStatus.WAITING_FOR_DISPATCH,
+            actor,
+            {
+              expectedStatus: DeliveryJobStatus.RIDER_ASSIGNED,
+              metadata: {
+                reason: "Admin reassigning rider",
+                replacementRiderProfileId: rider.id,
+              },
+            }
+          );
+
+          const assignment = await tx.dispatchAssignment.create({
+            data: {
+              deliveryJobId: job.id,
+              riderProfileId: rider.id,
+              status: DispatchAssignmentStatus.OFFERED,
+              offeredAt: now,
+              expiresAt: new Date(now.getTime() + 60_000),
+              createdByUserId: actor.id,
+            },
+            include: {
+              riderProfile: { include: { user: true } },
+              deliveryJob: {
+                include: {
+                  order: {
+                    include: {
+                      customer: true,
+                      store: true,
+                      items: { include: { product: true } },
+                    },
+                  },
+                },
+              },
+            },
+          });
+
+          await this.events.record(
+            {
+              deliveryJobId: job.id,
+              assignmentId: assignment.id,
+              eventType: DeliveryEventType.ASSIGNMENT_CREATED,
+              actor,
+              metadata: { riderProfileId: rider.id, riderUserId },
+            },
+            tx
+          );
+          await this.events.record(
+            {
+              deliveryJobId: job.id,
+              assignmentId: assignment.id,
+              eventType: DeliveryEventType.ASSIGNMENT_OFFERED,
+              actor,
+              metadata: {
+                riderProfileId: rider.id,
+                riderUserId,
+                expiresInSeconds: 60,
+                source: "ATOMIC_ADMIN_REASSIGNMENT",
+              },
+            },
+            tx
+          );
+
+          return assignment;
+        },
+        { isolationLevel: "Serializable" as any }
+      );
+    } catch (error: any) {
+      if (error?.code === "P2002" || error?.code === "P2034") {
+        throw new ConflictException(
+          "Rider availability changed before reassignment completed"
+        );
+      }
+      throw error;
+    }
   }
 
   @Get("board")
@@ -199,7 +428,7 @@ export class DispatchController {
       OfferDispatchAssignmentSchema,
       body
     );
-    return this.dispatch.reassignOrder(orderId, dto.riderUserId, req.user);
+    return this.reassignAtomically(orderId, dto.riderUserId, req.user);
   }
 
   @Patch(":orderId/rider/accept")

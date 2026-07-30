@@ -53,12 +53,8 @@
         android:name=".RiderOnlineService"
         android:enabled="true"
         android:exported="false"
-        android:foregroundServiceType="specialUse"
-        android:stopWithTask="false">
-        <property
-          android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-          android:value="rider_availability" />
-      </service>
+        android:foregroundServiceType="location"
+        android:stopWithTask="false" />
 
       <receiver
         android:name=".AlarmReceiver"

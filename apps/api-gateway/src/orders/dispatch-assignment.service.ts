@@ -112,17 +112,61 @@ export class DispatchAssignmentService {
           }
 
           const now = new Date();
-          await tx.dispatchAssignment.updateMany({
+          const expiredOffers = await tx.dispatchAssignment.findMany({
             where: {
-              deliveryJobId,
+              riderProfileId: rider.id,
               status: DispatchAssignmentStatus.OFFERED,
               expiresAt: { lt: now },
             },
-            data: {
-              status: DispatchAssignmentStatus.EXPIRED,
-              respondedAt: now,
+            select: {
+              id: true,
+              deliveryJobId: true,
+              riderProfileId: true,
+              expiresAt: true,
             },
           });
+          for (const expiredOffer of expiredOffers) {
+            const changed = await tx.dispatchAssignment.updateMany({
+              where: {
+                id: expiredOffer.id,
+                status: DispatchAssignmentStatus.OFFERED,
+                expiresAt: { lt: now },
+              },
+              data: {
+                status: DispatchAssignmentStatus.EXPIRED,
+                respondedAt: now,
+              },
+            });
+            if (changed.count !== 1) continue;
+            await this.events.record(
+              {
+                deliveryJobId: expiredOffer.deliveryJobId,
+                assignmentId: expiredOffer.id,
+                eventType: DeliveryEventType.ASSIGNMENT_EXPIRED,
+                actor: { id: null, role: Role.ADMIN },
+                metadata: {
+                  source: 'MANUAL_DISPATCH_RIDER_RECONCILER',
+                  riderProfileId: expiredOffer.riderProfileId,
+                  expiresAt: expiredOffer.expiresAt?.toISOString() || null,
+                },
+              },
+              tx
+            );
+          }
+
+          const otherOpenOffer = await tx.dispatchAssignment.findFirst({
+            where: {
+              riderProfileId: rider.id,
+              status: DispatchAssignmentStatus.OFFERED,
+              OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+            select: { id: true, deliveryJobId: true },
+          });
+          if (otherOpenOffer) {
+            throw new ConflictException(
+              `Rider already has active offer ${otherOpenOffer.id}`
+            );
+          }
 
           const assignment = await tx.dispatchAssignment.create({
             data: {

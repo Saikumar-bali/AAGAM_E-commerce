@@ -298,6 +298,7 @@ export const RiderDashboard = () => {
   const { user } = useAuthStore();
   const [now, setNow] = useState(Date.now());
   const [locating, setLocating] = useState(false);
+  const [onlinePermissionMissing, setOnlinePermissionMissing] = useState(false);
   const [isOnline, setIsOnline] = useState(() => {
     const cached = queryClient.getQueryData<RiderWorkspace>(WORKSPACE_KEY);
     return cached?.rider?.status != null && cached.rider.status !== 'OFFLINE';
@@ -341,9 +342,9 @@ export const RiderDashboard = () => {
     if (workspace?.rider?.status) {
       const online = workspace.rider.status !== 'OFFLINE';
       setIsOnline(online);
-      // Ensure the foreground service matches the server-side status.
-      if (online) {
-        RiderOnlineService.start(user?.name || 'Rider').catch(() => undefined);
+      if (!online) {
+        setOnlinePermissionMissing(false);
+        RiderOnlineService.stop().catch(() => undefined);
       }
     }
   }, [workspace?.rider?.status]);
@@ -431,24 +432,101 @@ export const RiderDashboard = () => {
 
   const requestLocationPermission = async () => {
     if (Platform.OS !== 'android') return true;
-    const result = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      {
-        title: 'Allow rider location',
-        message: 'AAGAM Partners uses your location only while you are online and fulfilling a delivery.',
-        buttonPositive: 'Allow',
-        buttonNegative: 'Not now',
-      },
-    );
-    return result === PermissionsAndroid.RESULTS.GRANTED;
+
+    const finePermission = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
+    const fineResult = await PermissionsAndroid.check(finePermission)
+      ? PermissionsAndroid.RESULTS.GRANTED
+      : await PermissionsAndroid.request(finePermission, {
+          title: 'Allow rider location',
+          message: 'AAGAM Partners uses precise location while you are online and fulfilling a delivery.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Not now',
+        });
+    if (fineResult !== PermissionsAndroid.RESULTS.GRANTED) return false;
+
+    if (Number(Platform.Version) < 29) return true;
+    const backgroundPermission = PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION;
+    if (await PermissionsAndroid.check(backgroundPermission)) return true;
+
+    const backgroundResult = await PermissionsAndroid.request(backgroundPermission, {
+      title: 'Allow background rider location',
+      message: 'Choose Allow all the time so Android can keep you eligible for delivery offers while the app is in the background.',
+      buttonPositive: 'Continue',
+      buttonNegative: 'Not now',
+    });
+    if (backgroundResult === PermissionsAndroid.RESULTS.GRANTED) return true;
+
+    if (Number(Platform.Version) >= 30) {
+      Alert.alert(
+        'Allow background location',
+        'Open App permissions → Location and choose Allow all the time. Then return and tap ONLINE again.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          {
+            text: 'Open settings',
+            onPress: () => Linking.openSettings().catch(() => undefined),
+          },
+        ],
+      );
+    }
+    return false;
   };
+
+  const grantOnlinePermission = async () => {
+    setLocating(true);
+    try {
+      const permitted = await requestLocationPermission();
+      if (!permitted) {
+        setOnlinePermissionMissing(true);
+        await RiderOnlineService.stop().catch(() => undefined);
+        Toast.show({
+          type: 'error',
+          text1: 'Background location required',
+          text2: 'Grant “Allow all the time” to remain eligible while the app is in the background.',
+        });
+        return false;
+      }
+
+      await RiderOnlineService.start(user?.name || 'Rider');
+      setOnlinePermissionMissing(false);
+      return true;
+    } catch (error: any) {
+      setOnlinePermissionMissing(true);
+      await RiderOnlineService.stop().catch(() => undefined);
+      Toast.show({
+        type: 'error',
+        text1: 'Online recovery unavailable',
+        text2: error?.message || 'Could not start background Rider availability.',
+      });
+      return false;
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!workspace?.rider?.status || workspace.rider.status === 'OFFLINE') return;
+    let cancelled = false;
+
+    const restoreOnlineAvailability = async () => {
+      const started = await grantOnlinePermission();
+      if (cancelled || started) return;
+      setOnlinePermissionMissing(true);
+    };
+
+    void restoreOnlineAvailability();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace?.rider?.status, user?.name]);
 
   const goOnline = async () => {
     setLocating(true);
     try {
       const permitted = await requestLocationPermission();
       if (!permitted) {
-        Toast.show({ type: 'error', text1: 'Location permission required', text2: 'Allow precise location before going online.' });
+        setLocating(false);
+        Toast.show({ type: 'error', text1: 'Location permission required', text2: 'Allow precise and background location before going online.' });
         return;
       }
       Geolocation.getCurrentPosition(
@@ -542,11 +620,11 @@ export const RiderDashboard = () => {
           testID="rider_dashboard_online_toggle"
           style={[styles.onlineToggle, isOnline ? styles.online : styles.offline]}
           disabled={locating}
-          onPress={isOnline ? goOffline : goOnline}
+          onPress={onlinePermissionMissing ? grantOnlinePermission : isOnline ? goOffline : goOnline}
         >
           {locating ? <ActivityIndicator color="#0F766E" /> : <Power size={18} color={isOnline ? '#047857' : '#64748B'} />}
           <Text style={[styles.onlineToggleText, { color: isOnline ? '#047857' : '#64748B' }]}>
-            {isOnline ? 'ONLINE' : 'OFFLINE'}
+            {onlinePermissionMissing ? 'GRANT LOCATION' : isOnline ? 'ONLINE' : 'OFFLINE'}
           </Text>
         </TouchableOpacity>
       </View>

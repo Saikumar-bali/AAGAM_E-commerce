@@ -18,21 +18,23 @@ class RiderOnlineModule(
 ) : ReactContextBaseJavaModule(reactContext) {
   override fun getName() = "AagamRiderOnline"
 
-  /**
-   * Start the foreground service that keeps the app alive while the rider is online.
-   * Also requests battery-optimisation exemption on first call.
-   */
   @ReactMethod
   fun start(options: ReadableMap, promise: Promise) {
     try {
       val riderName = if (options.hasKey("riderName")) options.getString("riderName") ?: "Rider" else "Rider"
+      val apiUrl = if (options.hasKey("apiUrl")) options.getString("apiUrl") ?: "" else ""
+      val authToken = if (options.hasKey("authToken")) options.getString("authToken") ?: "" else ""
+      if (apiUrl.isBlank() || authToken.isBlank()) {
+        promise.reject("RIDER_ONLINE_CONFIGURATION_MISSING", "API URL and mobile bearer token are required")
+        return
+      }
 
-      // Best-effort: ask user to exempt from battery optimisation.
       requestBatteryOptimisationExemption()
-
       val intent = Intent(reactContext, RiderOnlineService::class.java).apply {
         action = RiderOnlineService.ACTION_START
-        putExtra("riderName", riderName)
+        putExtra(RiderOnlineService.EXTRA_RIDER_NAME, riderName)
+        putExtra(RiderOnlineService.EXTRA_API_URL, apiUrl)
+        putExtra(RiderOnlineService.EXTRA_AUTH_TOKEN, authToken)
       }
       ContextCompat.startForegroundService(reactContext, intent)
       promise.resolve(true)
@@ -63,8 +65,10 @@ class RiderOnlineModule(
       )
       val result = Arguments.createMap().apply {
         putBoolean("supported", true)
-        putBoolean("active", prefs.getBoolean("active", false))
-        putString("riderName", prefs.getString("riderName", null))
+        putBoolean("active", prefs.getBoolean(RiderOnlineService.KEY_ACTIVE, false))
+        putString("riderName", prefs.getString(RiderOnlineService.KEY_RIDER_NAME, null))
+        putString("lastSentAt", prefs.getString(RiderOnlineService.KEY_LAST_SENT_AT, null))
+        putString("lastError", prefs.getString(RiderOnlineService.KEY_LAST_ERROR, null))
         putBoolean("batteryOptimisationExempt", isIgnoringBatteryOptimisations())
       }
       promise.resolve(result)
@@ -73,13 +77,6 @@ class RiderOnlineModule(
     }
   }
 
-  /**
-   * On Android 6+ request that the user exempt this app from Doze battery
-   * optimisation. Tries multiple approaches for different OEM skins:
-   * 1. Standard Android battery optimization dialog
-   * 2. Xiaomi MIUI battery saver settings
-   * 3. Samsung/Huawei generic app settings
-   */
   private fun requestBatteryOptimisationExemption() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
     if (isIgnoringBatteryOptimisations()) return
@@ -90,14 +87,13 @@ class RiderOnlineModule(
       }
       reactContext.startActivity(intent)
     } catch (_: Exception) {
-      // OEM blocked the intent — try opening battery settings directly.
       try {
         val settingsIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
           addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         reactContext.startActivity(settingsIntent)
       } catch (_: Exception) {
-        // Silently ignore — user can enable manually.
+        // The user can enable the exemption manually.
       }
     }
   }

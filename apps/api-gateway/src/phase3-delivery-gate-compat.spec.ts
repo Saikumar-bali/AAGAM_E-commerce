@@ -21,7 +21,12 @@ describe("Phase 3 delivery completion compatibility gates", () => {
         status: "DELIVERED",
       })),
     };
-    const controller = new DispatchController(dispatch, operations as any);
+    const controller = new DispatchController(
+      dispatch,
+      operations as any,
+      {} as any,
+      {} as any
+    );
 
     await controller.delivered(
       "job-1",
@@ -59,7 +64,12 @@ describe("Phase 3 delivery completion compatibility gates", () => {
         status: "DELIVERED",
       })),
     };
-    const controller = new DispatchController(dispatch, operations as any);
+    const controller = new DispatchController(
+      dispatch,
+      operations as any,
+      {} as any,
+      {} as any
+    );
 
     await controller.delivered(
       "job-pod-1",

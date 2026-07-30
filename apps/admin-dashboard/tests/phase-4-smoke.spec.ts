@@ -172,14 +172,30 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
 
     const reassignBtn = page.locator('button:has-text("Reassign Rider")').first();
     await expect(reassignBtn).toBeVisible({ timeout: 5000 });
+    const boardResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes('/orders/dispatch/board') &&
+        response.status() === 200,
+      { timeout: 10000 },
+    );
     await reassignBtn.click();
-    await page.waitForTimeout(2000);
+    const boardResponse = await boardResponsePromise;
+    const boardPayload = await boardResponse.json();
+    expect(Array.isArray(boardPayload?.riders)).toBe(true);
+    expect(Array.isArray(boardPayload?.openOffers)).toBe(true);
 
     const raModalTitle = page.locator('h2:has-text("Reassign Rider")');
     await expect(raModalTitle).toBeVisible({ timeout: 5000 });
 
-    const riderSelect = page.locator('select').filter({ hasText: 'Select a rider' });
+    const riderSelect = page
+      .locator('select')
+      .filter({ has: page.locator('option[value=""]') })
+      .last();
     await expect(riderSelect).toBeVisible({ timeout: 3000 });
+    await expect(riderSelect.locator('option[value=""]')).toHaveText(
+      /Select a rider|No available riders/,
+    );
 
     const confirmBtn = page.locator('button:has-text("Confirm Reassign")');
     await expect(confirmBtn).toBeVisible({ timeout: 3000 });
