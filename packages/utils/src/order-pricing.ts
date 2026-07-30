@@ -66,7 +66,22 @@ export function normalizeOrderPricing(
   const fulfillmentSnapshot = order?.itemsSnapshot && typeof order.itemsSnapshot === 'object'
     ? order.itemsSnapshot
     : {};
+  const substitutions = Array.isArray(fulfillmentSnapshot.substitutions)
+    ? fulfillmentSnapshot.substitutions
+    : [];
+  const substitutionDelta = substitutions.reduce(
+    (sum: number, substitution: Record<string, unknown>) => sum + (paiseToRupees(substitution?.deltaPaise) ?? 0),
+    0,
+  );
+  const hasSubstitutions = substitutions.length > 0;
   const itemSubtotal = items.reduce((sum, item) => sum + normalizeOrderLine(item).lineTotal, 0);
+  const snapshotSubtotal = firstDefined(
+    finiteNumber(snapshot.subtotal),
+    paiseToRupees(snapshot.subtotalPaise),
+  );
+  const repricedSnapshotSubtotal = hasSubstitutions && snapshotSubtotal !== null
+    ? Math.max(0, snapshotSubtotal + substitutionDelta)
+    : null;
   const currentSubtotalValues = [
     finiteNumber(order?.subtotal),
     paiseToRupees(order?.subtotalPaise),
@@ -81,28 +96,25 @@ export function normalizeOrderPricing(
     paiseToRupees(order?.taxPaise),
   ];
   const hasCurrentPricingEvidence = currentBreakdownValues.some((value) => value !== null && value !== 0)
-    || (Array.isArray(fulfillmentSnapshot.substitutions) && fulfillmentSnapshot.substitutions.length > 0);
+    || hasSubstitutions;
 
-  // Store fulfillment can mutate the persisted order totals after checkout (for
-  // example, following an item substitution). Prefer those current values over
-  // the immutable checkout snapshot, while retaining snapshot and item fallbacks
-  // for historical rows that do not have usable persisted totals. A zero subtotal
-  // is authoritative when fulfillment metadata or another current pricing field
-  // proves the mutable pricing record was recalculated.
+  // Fulfillment substitutions carry their deltas in itemsSnapshot while the
+  // immutable checkout snapshot remains the pricing base. Replaying those deltas
+  // avoids accepting legacy "delta-only" mutable columns and also preserves a
+  // legitimate repriced zero. For orders without substitutions, prefer current
+  // mutable totals and retain snapshot/item fallbacks for historical rows.
   const positiveCurrentSubtotal = firstPositive(...currentSubtotalValues);
   const hasAuthoritativeCurrentSubtotalZero = hasCurrentPricingEvidence
     && currentSubtotalValues.some((value) => value === 0)
     && positiveCurrentSubtotal === null;
   const subtotal = Math.max(
     0,
-    positiveCurrentSubtotal
-      ?? (hasAuthoritativeCurrentSubtotalZero
-        ? 0
-        : firstPositive(
-            finiteNumber(snapshot.subtotal),
-            paiseToRupees(snapshot.subtotalPaise),
-            itemSubtotal,
-          ) ?? 0),
+    hasSubstitutions
+      ? firstDefined(repricedSnapshotSubtotal, items.length > 0 ? itemSubtotal : null, positiveCurrentSubtotal) ?? 0
+      : positiveCurrentSubtotal
+        ?? (hasAuthoritativeCurrentSubtotalZero
+          ? 0
+          : firstPositive(snapshotSubtotal, itemSubtotal) ?? 0),
   );
 
   // Prisma-backed legacy rows may serialize newer money columns as zero even
@@ -137,6 +149,13 @@ export function normalizeOrderPricing(
     ) ?? 0,
   );
   const calculatedGrandTotal = Math.max(0, subtotal + deliveryFee + taxAmount - discountAmount);
+  const snapshotGrandTotal = firstDefined(
+    finiteNumber(snapshot.grandTotal),
+    paiseToRupees(snapshot.grandTotalPaise),
+  );
+  const repricedSnapshotGrandTotal = hasSubstitutions && snapshotGrandTotal !== null
+    ? Math.max(0, snapshotGrandTotal + substitutionDelta)
+    : null;
   const currentGrandTotalValues = [
     finiteNumber(order?.grandTotal),
     paiseToRupees(order?.grandTotalPaise),
@@ -148,14 +167,17 @@ export function normalizeOrderPricing(
     && positiveCurrentGrandTotal === null;
   const grandTotal = Math.max(
     0,
-    positiveCurrentGrandTotal
-      ?? (hasAuthoritativeCurrentZero
-        ? 0
-        : firstPositive(
-            finiteNumber(snapshot.grandTotal),
-            paiseToRupees(snapshot.grandTotalPaise),
-            calculatedGrandTotal,
-          ) ?? 0),
+    hasSubstitutions
+      ? firstDefined(
+          calculatedGrandTotal,
+          finiteNumber(order?.totalAmount),
+          repricedSnapshotGrandTotal,
+          positiveCurrentGrandTotal,
+        ) ?? 0
+      : positiveCurrentGrandTotal
+        ?? (hasAuthoritativeCurrentZero
+          ? 0
+          : firstPositive(snapshotGrandTotal, calculatedGrandTotal) ?? 0),
   );
 
   return { subtotal, deliveryFee, discountAmount, taxAmount, grandTotal };
