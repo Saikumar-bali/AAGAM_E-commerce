@@ -9,6 +9,10 @@ describe('Rider online Android keep-alive contract', () => {
     ),
     'utf8',
   );
+  const fallbackSource = readFileSync(
+    resolve(__dirname, './services/RiderOnlineService.ts'),
+    'utf8',
+  );
 
   it('uses a policy-safe inexact alarm and never requires exact-alarm privileges', () => {
     expect(source).toContain('setAndAllowWhileIdle(');
@@ -22,6 +26,13 @@ describe('Rider online Android keep-alive contract', () => {
     expect(source).toContain('/riders/me/heartbeat');
     expect(source).toContain('START_STICKY');
     expect(source).toContain('SERVER_MARKED_OFFLINE');
+  });
+
+  it('keeps native and fallback heartbeat cadence below the minimum freshness window', () => {
+    expect(source).toContain('HEARTBEAT_INTERVAL_MS = 20_000L');
+    expect(fallbackSource).toContain('HEARTBEAT_INTERVAL_MS = 20_000');
+    expect(source).not.toContain('HEARTBEAT_INTERVAL_MS = 60_000L');
+    expect(fallbackSource).not.toContain('HEARTBEAT_INTERVAL_MS = 60_000');
   });
 
   it('requires background permission before native recovery can collect GPS', () => {
