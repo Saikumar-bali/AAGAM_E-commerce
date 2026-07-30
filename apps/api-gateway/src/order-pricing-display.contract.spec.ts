@@ -54,6 +54,38 @@ describe('customer order pricing display', () => {
     });
   });
 
+  test('recovers a legacy substituted order from the checkout base and delta', () => {
+    expect(normalizeOrderPricing({
+      subtotal: 20,
+      subtotalPaise: 2000,
+      deliveryFee: 0,
+      deliveryFeePaise: 0,
+      discountAmount: 0,
+      discountPaise: 0,
+      taxAmount: 0,
+      taxPaise: 0,
+      grandTotal: 20,
+      grandTotalPaise: 2000,
+      totalAmount: 120,
+      itemsSnapshot: {
+        substitutions: [{ itemId: 'item-1', deltaPaise: 2000 }],
+      },
+      pricingSnapshot: {
+        subtotalPaise: 10000,
+        deliveryFeePaise: 0,
+        discountPaise: 0,
+        taxPaise: 0,
+        grandTotalPaise: 10000,
+      },
+    })).toEqual({
+      subtotal: 120,
+      deliveryFee: 0,
+      discountAmount: 0,
+      taxAmount: 0,
+      grandTotal: 120,
+    });
+  });
+
   test('preserves authoritative zero pricing after fulfillment repricing', () => {
     expect(normalizeOrderPricing({
       subtotal: 0,
