@@ -119,6 +119,7 @@ describe('auto-dispatch recovery contracts', () => {
     const manifest = read('apps/mobile-partners/android/app/src/main/AndroidManifest.xml');
     expect(nativeService).toContain('FusedLocationProviderClient');
     expect(nativeService).toContain('LocationRequest.Builder(');
+    expect(nativeService).toContain('HEARTBEAT_INTERVAL_MS = 20_000L');
     expect(nativeService).toContain('START_STICKY');
     expect(nativeService).toContain('/riders/me/heartbeat');
     expect(nativeService).toContain('EXTRA_AUTH_TOKEN');
@@ -134,7 +135,7 @@ describe('auto-dispatch recovery contracts', () => {
     const source = read(
       'apps/mobile-partners/src/services/RiderOnlineService.ts',
     );
-    expect(source).toContain('HEARTBEAT_INTERVAL_MS');
+    expect(source).toContain('HEARTBEAT_INTERVAL_MS = 20_000');
     expect(source).toContain("apiClient.post('/riders/me/heartbeat'");
     expect(source).toContain('nativeModule.start({ riderName, apiUrl, authToken })');
     expect(source).toContain('useAuthStore.getState().token');
