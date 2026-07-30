@@ -20,7 +20,7 @@ type NativeOnlineModule = {
 };
 
 const nativeModule = NativeModules.AagamRiderOnline as NativeOnlineModule | undefined;
-const HEARTBEAT_INTERVAL_MS = 60_000;
+const HEARTBEAT_INTERVAL_MS = 20_000;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let heartbeatGeneration = 0;
 let heartbeatController: AbortController | null = null;
