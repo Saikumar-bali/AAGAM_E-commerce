@@ -60,6 +60,8 @@ describe('auto-dispatch recovery contracts', () => {
     expect(source).toContain('location.capturedAt < input.locationFreshAfter');
     expect(source).toContain('otherOpenOffer');
     expect(source).toContain('dispatchWaitingJobs');
+    expect(source).toContain('AUTO_DISPATCH_CANDIDATE_RECONCILER');
+    expect(source).toContain('expiresAt: { lt: offerCheckAt }');
     expect(source).toContain(
       'while (offered < offerLimit && scanned < scanLimit)',
     );
@@ -89,7 +91,9 @@ describe('auto-dispatch recovery contracts', () => {
     expect(rider).toContain('setImmediate(() =>');
     expect(rider).not.toContain('if (result.wakeWaitingJobs) await this.dispatchWaitingJobs()');
     expect(rider).toContain("data.status === 'OFFLINE' && activeJob");
-    expect(rider).toContain("data.status === 'ONLINE' && activeJob ? 'BUSY'");
+    expect(rider).toContain('preserveServerBusy');
+    expect(rider).toContain("existing?.status === 'BUSY'");
+    expect(rider).toContain('(activeJob || preserveServerBusy)');
     expect(rider).not.toContain('...(data.latitude &&');
     expect(rider).toContain('Stale Rider heartbeat cannot reactivate');
     expect(rider).toContain('pg_advisory_xact_lock');
