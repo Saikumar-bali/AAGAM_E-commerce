@@ -12,7 +12,7 @@ on:
       - "apps/admin-dashboard/src/app/(admin)/admin/dispatch/**"
       - "packages/database/prisma/schema.prisma"
       - "packages/database/prisma/migrations/**"
-      - ".github/scripts/pr130_native_heartbeat_fixes.py"
+      - ".github/scripts/pr130_detached_wakeup_test_fix.py"
       - ".github/workflows/auto-dispatch-recovery.yml"
   workflow_dispatch:
 
@@ -37,8 +37,8 @@ env:
   NOTIFICATION_WORKER_DISABLED: "true"
 
 jobs:
-  apply-native-heartbeat-fixes:
-    name: Apply native availability heartbeat fixes
+  apply-test-fixes:
+    name: Apply detached wakeup test fixes
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.pull_request.number == 130
     steps:
@@ -48,32 +48,22 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 5
 
-      - name: Apply and push grouped source fixes
+      - name: Apply and push grouped test fixes
         run: |
-          sed -i 's/if count != 1:/if count < 1:/' .github/scripts/pr130_native_heartbeat_fixes.py
-          python .github/scripts/pr130_native_heartbeat_fixes.py
+          python .github/scripts/pr130_detached_wakeup_test_fix.py
           git diff --check
           git config user.name "Saikumar Bali"
           git config user.email "178761198+Saikumar-bali@users.noreply.github.com"
           git add \
-            apps/mobile-partners/android/app/src/main/java/com/aagampartners/RiderOnlineService.kt \
-            apps/mobile-partners/android/app/src/main/java/com/aagampartners/RiderOnlineModule.kt \
-            apps/mobile-partners/android/app/src/main/AndroidManifest.xml \
-            apps/mobile-partners/src/services/RiderOnlineService.ts \
-            apps/mobile-partners/src/screens/rider/RiderDashboard.tsx \
-            apps/mobile-partners/src/riderOnlineAlarm.contract.spec.ts \
-            apps/api-gateway/src/riders/rider-status.dto.ts \
-            apps/api-gateway/src/riders/rider.controller.ts \
-            apps/api-gateway/src/riders/rider.service.ts \
             apps/api-gateway/src/auto-dispatch-recovery.e2e.spec.ts \
             apps/api-gateway/src/auto-dispatch-recovery.contract.spec.ts
-          git commit -m "complete native rider availability recovery"
+          git commit -m "fix detached rider wakeup tests"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
   recovery-e2e:
     name: Recovery E2E and builds
-    needs: apply-native-heartbeat-fixes
-    if: always() && needs.apply-native-heartbeat-fixes.result == 'success'
+    needs: apply-test-fixes
+    if: always() && needs.apply-test-fixes.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
