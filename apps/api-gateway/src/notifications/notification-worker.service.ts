@@ -29,9 +29,7 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
 
   onModuleInit() {
     try {
-      this.autoDispatch = this.moduleRef?.get(AutoDispatchService, {
-        strict: false,
-      });
+      this.autoDispatch = this.moduleRef?.get(AutoDispatchService, { strict: false });
     } catch (error) {
       this.autoDispatch = undefined;
       this.logger.warn(
