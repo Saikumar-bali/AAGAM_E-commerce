@@ -47,9 +47,18 @@ export class RiderService {
   }
 
   async updateStatus(id: string, data: AdminUpdateRiderStatusDto) {
+    // Resolve the immutable user identity before opening the serializable
+    // transaction so both administrator updates and Rider heartbeats acquire
+    // the same advisory lock before their first transactional read.
+    const identity = await prisma.riderProfile.findUnique({
+      where: { id },
+      select: { userId: true },
+    });
+    if (!identity) throw new NotFoundException('Rider profile not found');
+
     const result = await prisma.$transaction(
       async (tx) => {
-        await this.lockStatus(tx, `profile:${id}`);
+        await this.lockStatus(tx, identity.userId);
         const rider = await tx.riderProfile.findUnique({ where: { id } });
         if (!rider) throw new NotFoundException('Rider profile not found');
 
@@ -96,7 +105,7 @@ export class RiderService {
   async updateStatusForUser(userId: string, data: UpdateMyRiderStatusDto) {
     const result = await prisma.$transaction(
       async (tx) => {
-        await this.lockStatus(tx, `user:${userId}`);
+        await this.lockStatus(tx, userId);
         const existing = await tx.riderProfile.findUnique({ where: { userId } });
         const coordinates = this.coordinates(data);
 
@@ -273,9 +282,9 @@ export class RiderService {
     });
   }
 
-  private lockStatus(tx: DbClient, key: string) {
+  private lockStatus(tx: DbClient, riderUserId: string) {
     return tx.$queryRaw(Prisma.sql`
-      SELECT pg_advisory_xact_lock(hashtext(${`rider-status:${key}`}))::text AS "lock"
+      SELECT pg_advisory_xact_lock(hashtext(${`rider-status:user:${riderUserId}`}))::text AS "lock"
     `);
   }
 
