@@ -19,6 +19,8 @@ const nativeModule = NativeModules.AagamRiderOnline as
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let heartbeatGeneration = 0;
+let heartbeatController: AbortController | null = null;
 let heartbeatInFlight = false;
 
 export function riderOnlineSupported() {
@@ -43,32 +45,42 @@ function currentPosition() {
   });
 }
 
-async function sendAvailabilityHeartbeat() {
-  if (heartbeatInFlight) return;
+async function sendAvailabilityHeartbeat(generation: number) {
+  if (heartbeatInFlight || generation !== heartbeatGeneration) return;
   heartbeatInFlight = true;
   try {
     const location = await currentPosition();
-    await apiClient.patch('/riders/me/status', {
-      status: 'ONLINE',
-      ...location,
-    });
+    if (generation !== heartbeatGeneration) return;
+
+    const controller = new AbortController();
+    heartbeatController = controller;
+    await apiClient.patch(
+      '/riders/me/status',
+      { status: 'ONLINE', heartbeat: true, ...location },
+      { signal: controller.signal },
+    );
   } catch {
-    // Best effort. Workspace polling and FCM still deliver offers, while the
-    // backend excludes a Rider after the configured location freshness window.
+    // Best effort. The backend rejects a stale heartbeat after an explicit
+    // OFFLINE transition and excludes stale coordinates from dispatch.
   } finally {
+    if (generation === heartbeatGeneration) heartbeatController = null;
     heartbeatInFlight = false;
   }
 }
 
 function startHeartbeat() {
   if (heartbeatTimer) return;
-  void sendAvailabilityHeartbeat();
+  const generation = ++heartbeatGeneration;
+  void sendAvailabilityHeartbeat(generation);
   heartbeatTimer = setInterval(() => {
-    void sendAvailabilityHeartbeat();
+    void sendAvailabilityHeartbeat(generation);
   }, HEARTBEAT_INTERVAL_MS);
 }
 
 function stopHeartbeat() {
+  heartbeatGeneration += 1;
+  heartbeatController?.abort();
+  heartbeatController = null;
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   heartbeatTimer = null;
   heartbeatInFlight = false;

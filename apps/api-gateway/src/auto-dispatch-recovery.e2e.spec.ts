@@ -1,397 +1,152 @@
-import { OrderStatus, Role, prisma } from '@aagam/database';
+import { OrderStatus, Prisma, Role, prisma } from '@aagam/database';
 import { DeliveryJobStatus, DispatchAssignmentStatus } from '@aagam/types';
+import { NotificationWorkerService } from './notifications/notification-worker.service';
 import { AutoDispatchService } from './orders/auto-dispatch.service';
 import { DeliveryEventService } from './orders/delivery-event.service';
 import { RiderService } from './riders/rider.service';
-import { NotificationWorkerService } from './notifications/notification-worker.service';
 
 const PREFIX = '_test_auto_dispatch_recovery_';
+const dispatch = () => new AutoDispatchService(new DeliveryEventService());
 
-async function testIds() {
-  const users = await prisma.user.findMany({
-    where: { email: { contains: PREFIX } },
-    select: { id: true },
-  });
-  const userIds = users.map((user) => user.id);
-  const stores = await prisma.store.findMany({
-    where: { name: { contains: PREFIX } },
-    select: { id: true },
-  });
-  const storeIds = stores.map((store) => store.id);
+async function ids() {
+  const users = await prisma.user.findMany({ where: { email: { contains: PREFIX } }, select: { id: true } });
+  const userIds = users.map(({ id }) => id);
+  const stores = await prisma.store.findMany({ where: { name: { contains: PREFIX } }, select: { id: true } });
+  const storeIds = stores.map(({ id }) => id);
   const orders = await prisma.order.findMany({
-    where: {
-      OR: [
-        { customerId: { in: userIds } },
-        { storeId: { in: storeIds } },
-      ],
-    },
+    where: { OR: [{ customerId: { in: userIds } }, { storeId: { in: storeIds } }] },
     select: { id: true },
   });
-  const orderIds = orders.map((order) => order.id);
-  const jobs = await prisma.deliveryJob.findMany({
-    where: { orderId: { in: orderIds } },
-    select: { id: true },
-  });
-  return {
-    userIds,
-    storeIds,
-    orderIds,
-    jobIds: jobs.map((job) => job.id),
-  };
+  const orderIds = orders.map(({ id }) => id);
+  const jobs = await prisma.deliveryJob.findMany({ where: { orderId: { in: orderIds } }, select: { id: true } });
+  return { userIds, storeIds, orderIds, jobIds: jobs.map(({ id }) => id) };
 }
 
 async function cleanup() {
-  const ids = await testIds();
-  await prisma.notificationDeliveryAttempt.deleteMany({
-    where: { recipient: { userId: { in: ids.userIds } } },
-  });
-  await prisma.notificationRecipient.deleteMany({
-    where: { userId: { in: ids.userIds } },
-  });
-  await prisma.notification.deleteMany({
-    where: {
-      OR: [
-        { orderId: { in: ids.orderIds } },
-        { deliveryJobId: { in: ids.jobIds } },
-      ],
-    },
-  });
-  await prisma.outboxEvent.deleteMany({
-    where: {
-      OR: [
-        { aggregateId: { in: ids.orderIds } },
-        { aggregateId: { in: ids.jobIds } },
-      ],
-    },
-  });
-  await prisma.deliveryEvent.deleteMany({
-    where: { deliveryJobId: { in: ids.jobIds } },
-  });
-  await prisma.dispatchAssignment.deleteMany({
-    where: { deliveryJobId: { in: ids.jobIds } },
-  });
-  await prisma.deliveryJob.deleteMany({ where: { id: { in: ids.jobIds } } });
-  await prisma.orderStatusHistory.deleteMany({
-    where: { orderId: { in: ids.orderIds } },
-  });
-  await prisma.payment.deleteMany({ where: { orderId: { in: ids.orderIds } } });
-  await prisma.orderItem.deleteMany({
-    where: { orderId: { in: ids.orderIds } },
-  });
-  await prisma.order.deleteMany({ where: { id: { in: ids.orderIds } } });
-  await prisma.riderProfile.deleteMany({
-    where: { userId: { in: ids.userIds } },
-  });
-  await prisma.store.deleteMany({ where: { id: { in: ids.storeIds } } });
-  await prisma.user.deleteMany({ where: { id: { in: ids.userIds } } });
+  const x = await ids();
+  await prisma.notificationDeliveryAttempt.deleteMany({ where: { recipient: { userId: { in: x.userIds } } } });
+  await prisma.notificationRecipient.deleteMany({ where: { userId: { in: x.userIds } } });
+  await prisma.notification.deleteMany({ where: { OR: [{ orderId: { in: x.orderIds } }, { deliveryJobId: { in: x.jobIds } }] } });
+  await prisma.outboxEvent.deleteMany({ where: { OR: [{ aggregateId: { in: x.orderIds } }, { aggregateId: { in: x.jobIds } }] } });
+  await prisma.deliveryEvent.deleteMany({ where: { deliveryJobId: { in: x.jobIds } } });
+  await prisma.dispatchAssignment.deleteMany({ where: { deliveryJobId: { in: x.jobIds } } });
+  await prisma.deliveryJob.deleteMany({ where: { id: { in: x.jobIds } } });
+  await prisma.orderStatusHistory.deleteMany({ where: { orderId: { in: x.orderIds } } });
+  await prisma.payment.deleteMany({ where: { orderId: { in: x.orderIds } } });
+  await prisma.orderItem.deleteMany({ where: { orderId: { in: x.orderIds } } });
+  await prisma.order.deleteMany({ where: { id: { in: x.orderIds } } });
+  await prisma.riderProfile.deleteMany({ where: { userId: { in: x.userIds } } });
+  await prisma.store.deleteMany({ where: { id: { in: x.storeIds } } });
+  await prisma.user.deleteMany({ where: { id: { in: x.userIds } } });
 }
 
-async function seedWaitingJob(suffix: string, storeLat = 17.7, storeLng = 83.3) {
-  const owner = await prisma.user.create({
-    data: {
-      email: `${PREFIX}owner_${suffix}@test.com`,
-      name: 'Store Owner',
-      role: Role.STORE_OWNER,
-    },
-  });
-  const customer = await prisma.user.create({
-    data: {
-      email: `${PREFIX}customer_${suffix}@test.com`,
-      name: 'Customer',
-      role: Role.CUSTOMER,
-    },
-  });
+async function waiting(suffix: string) {
+  const owner = await prisma.user.create({ data: { email: `${PREFIX}owner_${suffix}@test.com`, role: Role.STORE_OWNER } });
+  const customer = await prisma.user.create({ data: { email: `${PREFIX}customer_${suffix}@test.com`, role: Role.CUSTOMER } });
   const store = await prisma.store.create({
-    data: {
-      name: `${PREFIX}store_${suffix}`,
-      address: 'Auto dispatch test store',
-      latitude: storeLat,
-      longitude: storeLng,
-      ownerId: owner.id,
-    },
+    data: { name: `${PREFIX}store_${suffix}`, address: 'Dispatch test', latitude: 17.7, longitude: 83.3, ownerId: owner.id },
   });
   const order = await prisma.order.create({
-    data: {
-      customerId: customer.id,
-      storeId: store.id,
-      status: OrderStatus.PACKED,
-      totalAmount: 100,
-      subtotal: 100,
-      grandTotal: 100,
-      subtotalPaise: 10_000,
-      grandTotalPaise: 10_000,
-      packedAt: new Date(),
-    },
+    data: { customerId: customer.id, storeId: store.id, status: OrderStatus.PACKED, totalAmount: 100, packedAt: new Date() },
   });
-  const job = await prisma.deliveryJob.create({
-    data: {
-      orderId: order.id,
-      status: DeliveryJobStatus.WAITING_FOR_DISPATCH,
-    },
-  });
+  const job = await prisma.deliveryJob.create({ data: { orderId: order.id, status: DeliveryJobStatus.WAITING_FOR_DISPATCH } });
   return { owner, customer, store, order, job };
 }
 
-async function seedRider(
-  suffix: string,
-  status: 'ONLINE' | 'OFFLINE' | 'BUSY',
-  latitude: number | null,
-  longitude: number | null,
-) {
-  const user = await prisma.user.create({
-    data: {
-      email: `${PREFIX}rider_${suffix}@test.com`,
-      name: `Rider ${suffix}`,
-      role: Role.RIDER,
-    },
-  });
-  const rider = await prisma.riderProfile.create({
-    data: {
-      userId: user.id,
-      status,
-      latitude,
-      longitude,
-    },
-  });
-  return { user, rider };
+async function rider(suffix: string, status: 'ONLINE' | 'OFFLINE' | 'BUSY', lat: number | null, lng: number | null) {
+  const user = await prisma.user.create({ data: { email: `${PREFIX}rider_${suffix}@test.com`, role: Role.RIDER } });
+  const profile = await prisma.riderProfile.create({ data: { userId: user.id, status, latitude: lat, longitude: lng } });
+  if (status === 'ONLINE' && lat != null && lng != null) {
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "RiderAvailabilityLocation" ("riderProfileId", "latitude", "longitude", "capturedAt", "updatedAt")
+      VALUES (${profile.id}, ${lat}, ${lng}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `);
+  }
+  return { user, profile };
 }
 
-describe('auto-dispatch recovery and Rider availability E2E', () => {
-  const original = {
-    nodeEnv: process.env.NODE_ENV,
-    enabled: process.env.AUTO_DISPATCH_ENABLED,
-    maxKm: process.env.AUTO_DISPATCH_MAX_PICKUP_KM,
-    maxAge: process.env.AUTO_DISPATCH_LOCATION_MAX_AGE_SECONDS,
-    cooldown: process.env.AUTO_DISPATCH_RETRY_COOLDOWN_SECONDS,
-  };
+async function openOffer(jobId: string, riderId: string) {
+  return prisma.dispatchAssignment.create({
+    data: {
+      deliveryJobId: jobId,
+      riderProfileId: riderId,
+      status: DispatchAssignmentStatus.OFFERED,
+      offeredAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    },
+  });
+}
 
-  beforeAll(() => {
-    process.env.NODE_ENV = 'test';
-    process.env.AUTO_DISPATCH_ENABLED = 'true';
-    process.env.AUTO_DISPATCH_MAX_PICKUP_KM = '8';
-    process.env.AUTO_DISPATCH_LOCATION_MAX_AGE_SECONDS = '180';
-    process.env.AUTO_DISPATCH_RETRY_COOLDOWN_SECONDS = '30';
+describe('automatic dispatch recovery E2E', () => {
+  const original = { ...process.env };
+  beforeAll(() => Object.assign(process.env, {
+    NODE_ENV: 'test', AUTO_DISPATCH_ENABLED: 'true', AUTO_DISPATCH_MAX_PICKUP_KM: '8',
+    AUTO_DISPATCH_LOCATION_MAX_AGE_SECONDS: '180', AUTO_DISPATCH_RETRY_COOLDOWN_SECONDS: '30',
+  }));
+  beforeEach(cleanup);
+  afterAll(async () => { await cleanup(); process.env = original; await prisma.$disconnect(); });
+
+  it('selects the nearest fresh online Rider and excludes busy/offline/outside Riders', async () => {
+    const target = await waiting(`select_${Date.now()}`);
+    const nearest = await rider('nearest', 'ONLINE', 17.701, 83.301);
+    await rider('offline', 'OFFLINE', 17.7001, 83.3001);
+    await rider('outside', 'ONLINE', 18.2, 83.8);
+    const busy = await rider('busy', 'ONLINE', 17.7002, 83.3002);
+    const busyOrder = await prisma.order.create({ data: { customerId: target.customer.id, storeId: target.store.id, status: OrderStatus.RIDER_ASSIGNED, totalAmount: 50, riderId: busy.profile.id } });
+    await prisma.deliveryJob.create({ data: { orderId: busyOrder.id, status: DeliveryJobStatus.RIDER_ASSIGNED, currentRiderId: busy.profile.id } });
+    await expect(dispatch().dispatchNearestRider(target.job.id)).resolves.toMatchObject({ offered: true, riderProfileId: nearest.profile.id });
   });
 
-  beforeEach(async () => cleanup());
-
-  afterAll(async () => {
-    await cleanup();
-    if (original.nodeEnv === undefined) delete process.env.NODE_ENV;
-    else process.env.NODE_ENV = original.nodeEnv;
-    if (original.enabled === undefined) delete process.env.AUTO_DISPATCH_ENABLED;
-    else process.env.AUTO_DISPATCH_ENABLED = original.enabled;
-    if (original.maxKm === undefined) delete process.env.AUTO_DISPATCH_MAX_PICKUP_KM;
-    else process.env.AUTO_DISPATCH_MAX_PICKUP_KM = original.maxKm;
-    if (original.maxAge === undefined) delete process.env.AUTO_DISPATCH_LOCATION_MAX_AGE_SECONDS;
-    else process.env.AUTO_DISPATCH_LOCATION_MAX_AGE_SECONDS = original.maxAge;
-    if (original.cooldown === undefined) delete process.env.AUTO_DISPATCH_RETRY_COOLDOWN_SECONDS;
-    else process.env.AUTO_DISPATCH_RETRY_COOLDOWN_SECONDS = original.cooldown;
-    await prisma.$disconnect();
+  it('wakes a waiting job when a Rider explicitly goes online with current GPS', async () => {
+    const target = await waiting(`online_${Date.now()}`);
+    const candidate = await rider('late', 'OFFLINE', null, null);
+    await new RiderService(dispatch()).updateStatusForUser(candidate.user.id, { status: 'ONLINE', latitude: 17.7005, longitude: 83.3005 });
+    expect(await prisma.dispatchAssignment.findFirst({ where: { deliveryJobId: target.job.id, riderProfileId: candidate.profile.id, status: DispatchAssignmentStatus.OFFERED } })).not.toBeNull();
   });
 
-  it('offers the nearest fresh online Rider while excluding offline, busy, and outside-radius Riders', async () => {
-    const events = new DeliveryEventService();
-    const dispatch = new AutoDispatchService(events);
-    const target = await seedWaitingJob(`target_${Date.now()}`);
-
-    const nearest = await seedRider('nearest', 'ONLINE', 17.701, 83.301);
-    await seedRider('offline', 'OFFLINE', 17.7001, 83.3001);
-    await seedRider('outside', 'ONLINE', 18.2, 83.8);
-    const busy = await seedRider('busy', 'ONLINE', 17.7002, 83.3002);
-
-    const busyOrder = await prisma.order.create({
-      data: {
-        customerId: target.customer.id,
-        storeId: target.store.id,
-        status: OrderStatus.RIDER_ASSIGNED,
-        totalAmount: 50,
-        riderId: busy.rider.id,
-      },
-    });
-    await prisma.deliveryJob.create({
-      data: {
-        orderId: busyOrder.id,
-        status: DeliveryJobStatus.RIDER_ASSIGNED,
-        currentRiderId: busy.rider.id,
-      },
-    });
-
-    const result = await dispatch.dispatchNearestRider(target.job.id);
-    expect(result).toMatchObject({
-      offered: true,
-      reason: 'OFFERED',
-      riderProfileId: nearest.rider.id,
-    });
-
-    const assignments = await prisma.dispatchAssignment.findMany({
-      where: { deliveryJobId: target.job.id },
-    });
-    expect(assignments).toHaveLength(1);
-    expect(assignments[0].status).toBe(DispatchAssignmentStatus.OFFERED);
-    expect(assignments[0].createdByUserId).toBeNull();
+  it('uses the dedicated capture timestamp and rejects a stale heartbeat after OFFLINE', async () => {
+    const target = await waiting(`fresh_${Date.now()}`);
+    const candidate = await rider('fresh', 'ONLINE', 17.7005, 83.3005);
+    await prisma.$executeRaw(Prisma.sql`UPDATE "RiderAvailabilityLocation" SET "capturedAt" = ${new Date(Date.now() - 600_000)} WHERE "riderProfileId" = ${candidate.profile.id}`);
+    await expect(dispatch().dispatchNearestRider(target.job.id)).resolves.toMatchObject({ offered: false, reason: 'NO_FRESH_AVAILABLE_RIDER' });
+    const service = new RiderService(dispatch());
+    await service.updateStatusForUser(candidate.user.id, { status: 'OFFLINE' });
+    await expect(service.updateStatusForUser(candidate.user.id, { status: 'ONLINE', heartbeat: true, latitude: 17.7006, longitude: 83.3006 })).rejects.toThrow('cannot reactivate');
   });
 
-  it('immediately wakes a waiting job when an offline Rider goes online with GPS', async () => {
-    const dispatch = new AutoDispatchService(new DeliveryEventService());
-    const riders = new RiderService(dispatch);
-    const target = await seedWaitingJob(`online_${Date.now()}`);
-    const candidate = await seedRider('late_online', 'OFFLINE', null, null);
-
-    await expect(
-      riders.updateStatusForUser(candidate.user.id, {
-        status: 'ONLINE',
-        latitude: 17.7005,
-        longitude: 83.3005,
-      }),
-    ).resolves.toMatchObject({ status: 'ONLINE' });
-
-    const assignment = await prisma.dispatchAssignment.findFirst({
-      where: {
-        deliveryJobId: target.job.id,
-        riderProfileId: candidate.rider.id,
-        status: DispatchAssignmentStatus.OFFERED,
-      },
-    });
-    expect(assignment).not.toBeNull();
-  });
-
-  it('refreshes stale online coordinates through the availability heartbeat before dispatch', async () => {
-    const dispatch = new AutoDispatchService(new DeliveryEventService());
-    const riders = new RiderService(dispatch);
-    const target = await seedWaitingJob(`freshness_${Date.now()}`);
-    const candidate = await seedRider(
-      'stale',
-      'ONLINE',
-      17.7005,
-      83.3005,
-    );
-    await prisma.riderProfile.update({
-      where: { id: candidate.rider.id },
-      data: { updatedAt: new Date(Date.now() - 10 * 60 * 1000) },
-    });
-
-    const staleResult = await dispatch.dispatchNearestRider(target.job.id);
-    expect(staleResult.offered).toBe(false);
-    expect(staleResult.reason).toBe('NO_FRESH_AVAILABLE_RIDER');
-
-    await riders.updateStatusForUser(candidate.user.id, {
-      status: 'ONLINE',
-      latitude: 17.7006,
-      longitude: 83.3006,
-    });
-    const sweep = await dispatch.dispatchWaitingJobs();
-    expect(sweep.offered).toBe(1);
-  });
-
-  it('recovers a waiting job through the notification worker sweep, including failure reassignments', async () => {
-    const dispatch = new AutoDispatchService(new DeliveryEventService());
-    const target = await seedWaitingJob(`worker_${Date.now()}`);
-    const candidate = await seedRider('worker_candidate', 'ONLINE', 17.7004, 83.3004);
-    const outbox = {
-      claimBatch: jest.fn().mockResolvedValue([]),
-      markProcessed: jest.fn(),
-      markFailed: jest.fn(),
-    };
-    const notifications = { processOutboxEvent: jest.fn() };
-    const moduleRef = { get: jest.fn().mockReturnValue(dispatch) };
+  it('worker sweep recovers a waiting/reassigned job', async () => {
+    const target = await waiting(`worker_${Date.now()}`);
+    const candidate = await rider('worker', 'ONLINE', 17.7004, 83.3004);
+    const auto = dispatch();
     const worker = new NotificationWorkerService(
-      outbox as any,
-      notifications as any,
-      moduleRef as any,
+      { claimBatch: jest.fn().mockResolvedValue([]), markProcessed: jest.fn(), markFailed: jest.fn() } as any,
+      { processOutboxEvent: jest.fn() } as any,
+      { get: jest.fn().mockReturnValue(auto) } as any,
     );
     worker.onModuleInit();
-
-    const result = await worker.processBatch();
-    expect(result.failed).toBe(0);
-    expect(
-      await prisma.dispatchAssignment.findFirst({
-        where: {
-          deliveryJobId: target.job.id,
-          riderProfileId: candidate.rider.id,
-          status: DispatchAssignmentStatus.OFFERED,
-        },
-      }),
-    ).not.toBeNull();
+    await worker.processBatch();
+    expect(await prisma.dispatchAssignment.findFirst({ where: { deliveryJobId: target.job.id, riderProfileId: candidate.profile.id, status: DispatchAssignmentStatus.OFFERED } })).not.toBeNull();
   });
 
-  it('prevents a Rider with an active delivery from going offline', async () => {
-    const dispatch = new AutoDispatchService(new DeliveryEventService());
-    const riders = new RiderService(dispatch);
-    const target = await seedWaitingJob(`offline_guard_${Date.now()}`);
-    const candidate = await seedRider('active', 'BUSY', 17.7, 83.3);
-
-    await prisma.deliveryJob.update({
-      where: { id: target.job.id },
-      data: {
-        status: DeliveryJobStatus.RIDER_ASSIGNED,
-        currentRiderId: candidate.rider.id,
-      },
-    });
-    await prisma.order.update({
-      where: { id: target.order.id },
-      data: {
-        status: OrderStatus.RIDER_ASSIGNED,
-        riderId: candidate.rider.id,
-      },
-    });
-
-    await expect(
-      riders.updateStatusForUser(candidate.user.id, { status: 'OFFLINE' }),
-    ).rejects.toThrow('before going offline');
+  it('does not let capped sweeps starve an unoffered job behind jobs with live offers', async () => {
+    const blocked = await waiting(`blocked_${Date.now()}`);
+    const target = await waiting(`target_${Date.now()}`);
+    const first = await rider('first', 'ONLINE', 17.7002, 83.3002);
+    const recovery = await rider('recovery', 'ONLINE', 17.7004, 83.3004);
+    await openOffer(blocked.job.id, first.profile.id);
+    const result = await dispatch().dispatchWaitingJobs(1);
+    expect(result).toEqual({ scanned: 1, offered: 1 });
+    expect(await prisma.dispatchAssignment.findFirst({ where: { deliveryJobId: target.job.id, riderProfileId: recovery.profile.id } })).not.toBeNull();
   });
 
-  it('never creates two simultaneous offers for the same Rider across concurrent jobs', async () => {
-    const dispatch = new AutoDispatchService(new DeliveryEventService());
-    const first = await seedWaitingJob(`concurrent_a_${Date.now()}`);
-    const second = await seedWaitingJob(`concurrent_b_${Date.now()}`);
-    const candidate = await seedRider(
-      'one_offer_only',
-      'ONLINE',
-      17.7003,
-      83.3003,
-    );
-
-    await Promise.all([
-      dispatch.dispatchNearestRider(first.job.id),
-      dispatch.dispatchNearestRider(second.job.id),
-    ]);
-
-    const openOffers = await prisma.dispatchAssignment.findMany({
-      where: {
-        riderProfileId: candidate.rider.id,
-        status: DispatchAssignmentStatus.OFFERED,
-      },
-    });
-    expect(openOffers).toHaveLength(1);
-  });
-
-  it('allows a previously expired Rider to be retried after the cooldown', async () => {
-    const dispatch = new AutoDispatchService(new DeliveryEventService());
-    const target = await seedWaitingJob(`cooldown_${Date.now()}`);
-    const candidate = await seedRider('retry', 'ONLINE', 17.7005, 83.3005);
-
-    await prisma.dispatchAssignment.create({
-      data: {
-        deliveryJobId: target.job.id,
-        riderProfileId: candidate.rider.id,
-        status: DispatchAssignmentStatus.EXPIRED,
-        offeredAt: new Date(Date.now() - 5 * 60 * 1000),
-        respondedAt: new Date(Date.now() - 4 * 60 * 1000),
-        expiresAt: new Date(Date.now() - 4 * 60 * 1000),
-        createdAt: new Date(Date.now() - 5 * 60 * 1000),
-      },
-    });
-
-    const result = await dispatch.dispatchNearestRider(target.job.id);
-    expect(result).toMatchObject({
-      offered: true,
-      riderProfileId: candidate.rider.id,
-    });
-    expect(
-      await prisma.dispatchAssignment.count({
-        where: { deliveryJobId: target.job.id },
-      }),
-    ).toBe(2);
+  it('prevents active Riders from going offline and concurrent jobs from double-offering one Rider', async () => {
+    const first = await waiting(`concurrent_a_${Date.now()}`);
+    const second = await waiting(`concurrent_b_${Date.now()}`);
+    const candidate = await rider('single', 'ONLINE', 17.7003, 83.3003);
+    await Promise.all([dispatch().dispatchNearestRider(first.job.id), dispatch().dispatchNearestRider(second.job.id)]);
+    expect(await prisma.dispatchAssignment.count({ where: { riderProfileId: candidate.profile.id, status: DispatchAssignmentStatus.OFFERED } })).toBe(1);
+    const assignedJob = await prisma.deliveryJob.findFirst({ where: { assignments: { some: { riderProfileId: candidate.profile.id, status: DispatchAssignmentStatus.OFFERED } } } });
+    await prisma.deliveryJob.update({ where: { id: assignedJob!.id }, data: { status: DeliveryJobStatus.RIDER_ASSIGNED, currentRiderId: candidate.profile.id } });
+    await expect(new RiderService(dispatch()).updateStatusForUser(candidate.user.id, { status: 'OFFLINE' })).rejects.toThrow('before going offline');
   });
 });

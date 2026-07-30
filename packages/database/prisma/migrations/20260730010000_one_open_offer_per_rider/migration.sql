@@ -1,6 +1,14 @@
 -- Prevent the same Rider from receiving multiple simultaneous delivery offers.
--- Keep the oldest live offer deterministic and cancel later duplicates before
--- adding the partial unique index.
+-- First reconcile already-expired rows so a live actionable offer always wins.
+UPDATE "DispatchAssignment"
+SET
+  "status" = 'EXPIRED'::"DispatchAssignmentStatus",
+  "respondedAt" = COALESCE("respondedAt", CURRENT_TIMESTAMP),
+  "updatedAt" = CURRENT_TIMESTAMP
+WHERE "status" = 'OFFERED'::"DispatchAssignmentStatus"
+  AND "expiresAt" IS NOT NULL
+  AND "expiresAt" <= CURRENT_TIMESTAMP;
+
 WITH ranked_offers AS (
   SELECT
     "id",

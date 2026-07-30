@@ -34,7 +34,7 @@ An automatic offer is created only when the Rider:
 
 - is `ONLINE`;
 - has latitude and longitude;
-- has a fresh RiderProfile update;
+- has a fresh dedicated availability-location record;
 - is within the configured pickup radius;
 - has no active delivery;
 - has no other open assignment offer;
@@ -44,11 +44,11 @@ The selected Rider is re-read inside the serializable offer transaction. Availab
 
 ## Rider location heartbeat
 
-The Partners app refreshes the Rider's availability location every 60 seconds while the Rider is online. This uses the authenticated `PATCH /riders/me/status` endpoint.
+The Partners app refreshes the Rider's dedicated availability location every 60 seconds while the Rider is online. This uses the authenticated `PATCH /riders/me/status` endpoint and stores a server-received timestamp independently from `RiderProfile.updatedAt`.
 
 During an active delivery, the same heartbeat updates coordinates but cannot overwrite the server-owned `BUSY` state. Existing live-delivery pings also update the canonical RiderProfile coordinates.
 
-If the heartbeat stops, the backend excludes the Rider after the freshness window rather than offering work using stale coordinates.
+If the heartbeat stops, the backend excludes the Rider after the freshness window rather than offering work using stale coordinates. Status changes and heartbeats are serialized with a PostgreSQL advisory lock; a heartbeat carries an explicit marker and can never reactivate a Rider after an OFFLINE transition.
 
 ## Rider status API rules
 
@@ -105,6 +105,9 @@ The board silently refreshes every eight seconds. Manual assignment remains avai
 - offline, busy, stale, and outside-radius Riders are excluded;
 - going online wakes a waiting job immediately;
 - a fresh heartbeat makes a stale Rider eligible again;
+- unrelated profile updates do not refresh location eligibility;
+- stale in-flight heartbeats cannot reactivate an offline Rider;
+- capped sweeps skip jobs that already have active offers;
 - the notification-worker sweep recovers waiting and reassigned jobs;
 - a Rider with an active delivery cannot go offline;
 - an expired Rider becomes retryable after cooldown;

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { prisma, Role } from '@aagam/database';
+import { Prisma, prisma, Role } from '@aagam/database';
 import {
   DeliveryEventType,
   DeliveryJobStatus,
@@ -95,6 +95,16 @@ export class AutoDispatchService {
       where: {
         status: DeliveryJobStatus.WAITING_FOR_DISPATCH,
         currentRiderId: null,
+        assignments: {
+          none: {
+            status: {
+              in: [
+                DispatchAssignmentStatus.OFFERED,
+                DispatchAssignmentStatus.ACCEPTED,
+              ],
+            },
+          },
+        },
       },
       select: { id: true },
       orderBy: { updatedAt: 'asc' },
@@ -159,28 +169,27 @@ export class AutoDispatchService {
       },
       select: { id: true, riderProfileId: true, expiresAt: true },
     });
-    if (expired.length > 0) {
-      await prisma.dispatchAssignment.updateMany({
+    for (const assignment of expired) {
+      const changed = await prisma.dispatchAssignment.updateMany({
         where: {
-          id: { in: expired.map((assignment) => assignment.id) },
+          id: assignment.id,
           status: DispatchAssignmentStatus.OFFERED,
           expiresAt: { lt: now },
         },
         data: { status: DispatchAssignmentStatus.EXPIRED, respondedAt: now },
       });
-      for (const assignment of expired) {
-        await this.events.record({
-          deliveryJobId,
-          assignmentId: assignment.id,
-          eventType: DeliveryEventType.ASSIGNMENT_EXPIRED,
-          actor: { id: null, role: Role.ADMIN },
-          metadata: {
-            source: 'AUTO_DISPATCH_RECONCILER',
-            riderProfileId: assignment.riderProfileId,
-            expiresAt: assignment.expiresAt?.toISOString() || null,
-          },
-        }).catch(() => undefined);
-      }
+      if (changed.count !== 1) continue;
+      await this.events.record({
+        deliveryJobId,
+        assignmentId: assignment.id,
+        eventType: DeliveryEventType.ASSIGNMENT_EXPIRED,
+        actor: { id: null, role: Role.ADMIN },
+        metadata: {
+          source: 'AUTO_DISPATCH_RECONCILER',
+          riderProfileId: assignment.riderProfileId,
+          expiresAt: assignment.expiresAt?.toISOString() || null,
+        },
+      }).catch(() => undefined);
     }
 
     const activeAssignment = await prisma.dispatchAssignment.findFirst({
@@ -219,18 +228,32 @@ export class AutoDispatchService {
       })
     ).map((assignment) => assignment.riderProfileId);
 
-    const candidates = await prisma.riderProfile.findMany({
-      where: {
-        status: 'ONLINE' as any,
-        latitude: { not: null },
-        longitude: { not: null },
-        updatedAt: { gte: locationFreshAfter },
-        ...(recentlyTriedRiderIds.length > 0
-          ? { id: { notIn: recentlyTriedRiderIds } }
-          : {}),
-      },
-      include: { user: { select: { id: true, name: true } } },
-    });
+    const recentRiderFilter = recentlyTriedRiderIds.length > 0
+      ? Prisma.sql`AND rider."id" NOT IN (${Prisma.join(recentlyTriedRiderIds)})`
+      : Prisma.empty;
+    const candidates = await prisma.$queryRaw<Array<{
+      id: string;
+      userId: string;
+      name: string | null;
+      latitude: number;
+      longitude: number;
+      capturedAt: Date;
+    }>>(Prisma.sql`
+      SELECT
+        rider."id",
+        rider."userId",
+        account."name",
+        location."latitude",
+        location."longitude",
+        location."capturedAt"
+      FROM "RiderProfile" AS rider
+      JOIN "User" AS account ON account."id" = rider."userId"
+      JOIN "RiderAvailabilityLocation" AS location
+        ON location."riderProfileId" = rider."id"
+      WHERE rider."status" = 'ONLINE'::"RiderStatus"
+        AND location."capturedAt" >= ${locationFreshAfter}
+        ${recentRiderFilter}
+    `);
 
     if (candidates.length === 0) {
       this.logger.log(
@@ -279,8 +302,8 @@ export class AutoDispatchService {
         distanceKm: calculateDistance(
           storeLat,
           storeLng,
-          rider.latitude!,
-          rider.longitude!,
+          rider.latitude,
+          rider.longitude,
         ),
       }))
       .filter((entry) => entry.distanceKm <= maxPickupKm)
@@ -314,7 +337,7 @@ export class AutoDispatchService {
 
       this.logger.log(
         `Auto-dispatch: offered job ${deliveryJobId} to ${
-          candidate.rider.user?.name || candidate.rider.id
+          candidate.rider.name || candidate.rider.id
         } (${outcome.distanceKm} km away)`,
       );
       return outcome;
@@ -366,22 +389,22 @@ export class AutoDispatchService {
 
         const rider = await tx.riderProfile.findUnique({
           where: { id: input.riderProfileId },
-          select: {
-            id: true,
-            userId: true,
-            status: true,
-            latitude: true,
-            longitude: true,
-            updatedAt: true,
-          },
+          select: { id: true, userId: true, status: true },
         });
-        if (
-          !rider ||
-          rider.status !== 'ONLINE' ||
-          !Number.isFinite(rider.latitude) ||
-          !Number.isFinite(rider.longitude) ||
-          rider.updatedAt < input.locationFreshAfter
-        ) {
+        if (!rider || rider.status !== 'ONLINE') return null;
+
+        const locations = await tx.$queryRaw<Array<{
+          latitude: number;
+          longitude: number;
+          capturedAt: Date;
+        }>>(Prisma.sql`
+          SELECT "latitude", "longitude", "capturedAt"
+          FROM "RiderAvailabilityLocation"
+          WHERE "riderProfileId" = ${rider.id}
+          FOR UPDATE
+        `);
+        const location = locations[0];
+        if (!location || location.capturedAt < input.locationFreshAfter) {
           return null;
         }
 
@@ -408,8 +431,8 @@ export class AutoDispatchService {
         const currentDistance = calculateDistance(
           input.expectedStoreLat,
           input.expectedStoreLng,
-          rider.latitude!,
-          rider.longitude!,
+          location.latitude,
+          location.longitude,
         );
         if (currentDistance > input.maxPickupKm) return null;
 

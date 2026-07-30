@@ -1,4 +1,4 @@
-import { IsIn, IsNumber, IsOptional, Max, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsNumber, IsOptional, Max, Min } from 'class-validator';
 
 export type RiderSelfStatus = 'ONLINE' | 'OFFLINE';
 export type RiderAdminStatus = RiderSelfStatus | 'BUSY';
@@ -20,6 +20,10 @@ class RiderCoordinatesDto {
 export class UpdateMyRiderStatusDto extends RiderCoordinatesDto {
   @IsIn(['ONLINE', 'OFFLINE'])
   status!: RiderSelfStatus;
+
+  @IsOptional()
+  @IsBoolean()
+  heartbeat?: boolean;
 }
 
 export class AdminUpdateRiderStatusDto extends RiderCoordinatesDto {
