@@ -45,6 +45,9 @@ async function storeCart(page: Page) {
 const subtotalRow = (page: Page) =>
   page.getByText('Subtotal', { exact: true }).locator('..');
 
+const customerNavigation = (page: Page) =>
+  page.getByRole('navigation', { name: 'Customer navigation' });
+
 test.describe.serial('Mobile commerce hardening E2E acceptance', () => {
   test.beforeAll(() => mkdirSync(PROOF_DIR, { recursive: true }));
 
@@ -72,7 +75,7 @@ test.describe.serial('Mobile commerce hardening E2E acceptance', () => {
     });
 
     await page.goto('/shop');
-    await expect(page.getByText('Premium shopping workspace')).toBeVisible();
+    await expect(customerNavigation(page)).toBeVisible();
     const cookie = (await context.cookies()).find((item) => item.name === 'access_token');
     expect(cookie?.httpOnly).toBe(true);
     expect(await page.evaluate(() => localStorage.getItem('access_token'))).toBeNull();
@@ -80,13 +83,13 @@ test.describe.serial('Mobile commerce hardening E2E acceptance', () => {
       ((window as typeof window & { __loaderTransitions?: number }).__loaderTransitions || 0));
     const baseline = await transitions();
 
-    await page.getByRole('link', { name: 'My Orders' }).click();
+    await customerNavigation(page).getByRole('link', { name: 'My Orders' }).click();
     await page.waitForURL('**/shop/orders');
-    await expect(page.getByText('Premium shopping workspace')).toBeVisible();
+    await expect(customerNavigation(page)).toBeVisible();
     await expect(page.getByText('Opening your workspace')).toBeHidden();
-    await page.getByRole('link', { name: 'Deals' }).click();
+    await customerNavigation(page).getByRole('link', { name: 'Deals' }).click();
     await page.waitForURL('**/shop/deals');
-    await expect(page.getByText('Premium shopping workspace')).toBeVisible();
+    await expect(customerNavigation(page)).toBeVisible();
     await expect(page.getByText('Opening your workspace')).toBeHidden();
     expect(await transitions()).toBe(baseline);
     await page.screenshot({ path: path.join(PROOF_DIR, 'mobile-hardening-01-cookie-navigation-stable.png'), fullPage: true });
