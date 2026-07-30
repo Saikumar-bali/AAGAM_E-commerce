@@ -61,7 +61,11 @@ export class RiderService {
           );
         }
         const becomesOnline = data.status === 'ONLINE' && rider.status !== 'ONLINE';
-        if (becomesOnline && !coordinates) {
+        const canReuseFreshAvailability =
+          becomesOnline && !coordinates && rider.status === 'BUSY'
+            ? await this.hasFreshAvailability(tx, rider.id)
+            : false;
+        if (becomesOnline && !coordinates && !canReuseFreshAvailability) {
           throw new BadRequestException(
             'Current latitude and longitude are required before setting the Rider online',
           );
@@ -219,6 +223,22 @@ export class RiderService {
     await prisma.riderProfile.delete({ where: { id } });
     await prisma.user.delete({ where: { id: rider.userId } });
     return { message: 'Rider deleted successfully' };
+  }
+
+  private async hasFreshAvailability(tx: DbClient, riderProfileId: string) {
+    const configured = Number(process.env.AUTO_DISPATCH_LOCATION_MAX_AGE_SECONDS);
+    const maxAgeSeconds = Number.isFinite(configured)
+      ? Math.max(30, Math.min(86_400, Math.floor(configured)))
+      : 180;
+    const availability = await tx.riderAvailabilityLocation.findUnique({
+      where: { riderProfileId },
+      select: { capturedAt: true },
+    });
+    return Boolean(
+      availability &&
+        availability.capturedAt >=
+          new Date(Date.now() - maxAgeSeconds * 1_000),
+    );
   }
 
   private coordinates(data: { latitude?: number; longitude?: number }) {

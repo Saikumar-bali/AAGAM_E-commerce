@@ -2,11 +2,14 @@ import { OrderStatus, Prisma, Role, prisma } from '@aagam/database';
 import { DeliveryEventType, DeliveryJobStatus, DispatchAssignmentStatus } from '@aagam/types';
 import { NotificationWorkerService } from './notifications/notification-worker.service';
 import { AutoDispatchService } from './orders/auto-dispatch.service';
+import { DispatchAssignmentService } from './orders/dispatch-assignment.service';
 import { DeliveryEventService } from './orders/delivery-event.service';
 import { RiderService } from './riders/rider.service';
 
 const PREFIX = '_test_auto_dispatch_recovery_';
 const dispatch = () => new AutoDispatchService(new DeliveryEventService());
+const manualDispatch = () =>
+  new DispatchAssignmentService({} as any, {} as any, new DeliveryEventService());
 
 async function ids() {
   const users = await prisma.user.findMany({ where: { email: { contains: PREFIX } }, select: { id: true } });
@@ -276,6 +279,9 @@ describe('automatic dispatch recovery E2E', () => {
       offered: false,
       reason: 'NO_FRESH_AVAILABLE_RIDER',
     });
+    await expect(
+      service.updateStatus(candidate.profile.id, { status: 'ONLINE' }),
+    ).resolves.toMatchObject({ status: 'ONLINE' });
   });
 
   it('reconciles a Rider expired offer before creating the next offer', async () => {
@@ -308,6 +314,45 @@ describe('automatic dispatch recovery E2E', () => {
         },
       }),
     ).resolves.toBe(1);
+    expect(
+      await prisma.deliveryEvent.findFirst({
+        where: {
+          deliveryJobId: previous.job.id,
+          assignmentId: expiredOffer.id,
+          eventType: DeliveryEventType.ASSIGNMENT_EXPIRED,
+        },
+      }),
+    ).not.toBeNull();
+  });
+
+  it('reconciles a Rider expired offer before manual dispatch creates another', async () => {
+    const previous = await waiting(`manual_expired_previous_${Date.now()}`);
+    const target = await waiting(`manual_expired_target_${Date.now()}`);
+    const candidate = await rider('manual_expired_candidate', 'ONLINE', 17.7003, 83.3003);
+    const expiredOffer = await prisma.dispatchAssignment.create({
+      data: {
+        deliveryJobId: previous.job.id,
+        riderProfileId: candidate.profile.id,
+        status: DispatchAssignmentStatus.OFFERED,
+        offeredAt: new Date(Date.now() - 61_000),
+        expiresAt: new Date(Date.now() - 1_000),
+      },
+    });
+
+    await expect(
+      manualDispatch().offer(
+        target.job.id,
+        candidate.user.id,
+        { id: target.owner.id, role: Role.ADMIN },
+      ),
+    ).resolves.toMatchObject({
+      deliveryJobId: target.job.id,
+      riderProfileId: candidate.profile.id,
+      status: DispatchAssignmentStatus.OFFERED,
+    });
+    await expect(
+      prisma.dispatchAssignment.findUnique({ where: { id: expiredOffer.id } }),
+    ).resolves.toMatchObject({ status: DispatchAssignmentStatus.EXPIRED });
     expect(
       await prisma.deliveryEvent.findFirst({
         where: {
