@@ -26,11 +26,11 @@ A `REASSIGN_RIDER` failure resolution returns the job to `WAITING_FOR_DISPATCH`.
 
 ### Rejected and expired offers
 
-Rejected offers continue to invoke immediate redispatch. Expired offers are reconciled by the notification worker, which then tries the next eligible Rider. A Rider who rejected or missed an offer becomes retryable after the configured cooldown.
+Rejected offers continue to invoke immediate redispatch. Expired offers are reconciled by the notification worker, which then tries the next eligible Rider. A Rider who rejected or missed an offer becomes retryable only after the configured cooldown measured from the latest assignment response or status transition, not from the original offer creation time.
 
-### Fair waiting-job sweeps
+### Fair and bounded waiting-job sweeps
 
-The reconciliation limit controls how many offers may be created, not how many waiting rows may be inspected. The sweep uses stable `(updatedAt, id)` pagination and continues past jobs that are currently ineligible, such as stores with unusable coordinates or jobs with no Rider inside the pickup radius. Later dispatchable jobs therefore cannot be permanently blocked by older ineligible rows.
+The reconciliation offer limit controls how many offers may be created, while a separate scan limit bounds how many waiting jobs can be inspected during one worker tick. The service retains a stable `(updatedAt, id)` cursor between sweeps, wraps safely at the end of the queue, and continues past currently ineligible jobs without repeatedly blocking later dispatchable work. This preserves queue fairness without allowing a large ineligible backlog to delay notification processing indefinitely.
 
 ## Candidate safety rules
 
@@ -55,6 +55,8 @@ The Partners app refreshes the Rider's dedicated availability location every 60 
 During an active delivery, the same heartbeat updates coordinates but cannot overwrite the server-owned `BUSY` state. Existing live-delivery pings also update the canonical RiderProfile coordinates.
 
 If the heartbeat stops, the backend excludes the Rider after the freshness window rather than offering work using stale coordinates. Status changes and heartbeats are serialized with a PostgreSQL advisory lock; a heartbeat carries an explicit marker and can never reactivate a Rider after an OFFLINE transition.
+
+Rider sign-out explicitly stops the foreground availability service before clearing authentication. This cancels the timer and active request so the signed-out device no longer requests precise GPS or attempts unauthenticated heartbeat calls.
 
 ## Rider status API rules
 
@@ -84,12 +86,13 @@ AUTO_DISPATCH_MAX_PICKUP_KM=8
 AUTO_DISPATCH_LOCATION_MAX_AGE_SECONDS=180
 AUTO_DISPATCH_RETRY_COOLDOWN_SECONDS=300
 AUTO_DISPATCH_RECONCILE_LIMIT=50
+AUTO_DISPATCH_RECONCILE_SCAN_LIMIT=500
 AUTO_DISPATCH_OFFER_EXPIRY_SECONDS=60
 NOTIFICATION_WORKER_DISABLED=false
 NOTIFICATION_WORKER_INTERVAL_MS=10000
 ```
 
-Defaults are applied when the optional numeric variables are absent. Test mode keeps auto-dispatch disabled unless `AUTO_DISPATCH_ENABLED=true` is explicitly set.
+Defaults are applied when the optional numeric variables are absent. The default scan limit is ten times the offer limit, constrained to a safe range. Test mode keeps auto-dispatch disabled unless `AUTO_DISPATCH_ENABLED=true` is explicitly set.
 
 ## Admin dispatch board
 
@@ -115,6 +118,8 @@ The board silently refreshes every eight seconds. Manual assignment remains avai
 - stale in-flight heartbeats cannot reactivate an offline Rider;
 - capped sweeps skip jobs that already have active offers;
 - capped sweeps page past ineligible jobs and reach later dispatchable jobs;
+- each sweep respects a scan bound and resumes from its persistent cursor;
+- retry cooldown starts when an assignment is answered or transitioned;
 - the notification-worker sweep recovers waiting and reassigned jobs;
 - a Rider with an active delivery cannot go offline;
 - an expired Rider becomes retryable after cooldown;
@@ -124,12 +129,12 @@ The board silently refreshes every eight seconds. Manual assignment remains avai
 
 - DTO validation;
 - zero-coordinate support;
-- radius and freshness configuration;
-- stable waiting-job pagination;
+- radius, freshness, cooldown, and scan-bound configuration;
+- stable waiting-job pagination and cursor rotation;
 - the Prisma availability-location model and relation;
 - transaction-time revalidation;
 - waiting-job worker recovery;
-- mobile heartbeat wiring;
+- mobile heartbeat wiring and sign-out cleanup;
 - admin open-offer presentation.
 
 The dedicated workflow also reruns the established dispatch, mobile delivery, pickup proof, OTP, COD, and delivery UI contracts, then builds the API, Partners app, and admin dashboard.
