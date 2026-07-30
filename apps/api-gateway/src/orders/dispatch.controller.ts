@@ -1,17 +1,19 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Get,
   GoneException,
   Headers,
+  NotFoundException,
   Param,
   Patch,
   Post,
   Req,
   UseGuards,
 } from "@nestjs/common";
-import { Role } from "@aagam/database";
+import { prisma, Role } from "@aagam/database";
 import {
   DeliveryJobStatus,
   DeliveryProofSchema,
@@ -23,6 +25,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { DeliveryOperationsService } from "./delivery-operations.service";
 import { ConfirmStoreHandoffDto } from "./delivery-operations.dto";
+import { ACTIVE_JOB_STATUSES } from "./delivery-job.service";
 import { DispatchService } from "./dispatch.service";
 
 @Controller("orders/dispatch")
@@ -45,6 +48,47 @@ export class DispatchController {
       });
     }
     return parsed.data as T;
+  }
+
+  private async assertReassignmentTargetAvailable(riderUserId: string) {
+    const rider = await prisma.riderProfile.findUnique({
+      where: { userId: riderUserId },
+      select: { id: true, status: true },
+    });
+    if (!rider) throw new NotFoundException("Rider profile not found");
+    if (rider.status !== "ONLINE") {
+      throw new ConflictException("Rider must be online and available");
+    }
+
+    const now = new Date();
+    const [activeJob, otherOpenOffer] = await Promise.all([
+      prisma.deliveryJob.findFirst({
+        where: {
+          currentRiderId: rider.id,
+          status: { in: ACTIVE_JOB_STATUSES as any },
+        },
+        select: { id: true },
+      }),
+      prisma.dispatchAssignment.findFirst({
+        where: {
+          riderProfileId: rider.id,
+          status: "OFFERED" as any,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        select: { id: true },
+      }),
+    ]);
+
+    if (activeJob) {
+      throw new ConflictException(
+        `Rider already has active delivery ${activeJob.id}`
+      );
+    }
+    if (otherOpenOffer) {
+      throw new ConflictException(
+        `Rider already has active offer ${otherOpenOffer.id}`
+      );
+    }
   }
 
   @Get("board")
@@ -190,7 +234,7 @@ export class DispatchController {
 
   @Post(":orderId/reassign")
   @Roles(Role.ADMIN)
-  reassign(
+  async reassign(
     @Param("orderId") orderId: string,
     @Body() body: unknown,
     @Req() req: any
@@ -199,6 +243,7 @@ export class DispatchController {
       OfferDispatchAssignmentSchema,
       body
     );
+    await this.assertReassignmentTargetAvailable(dto.riderUserId);
     return this.dispatch.reassignOrder(orderId, dto.riderUserId, req.user);
   }
 
