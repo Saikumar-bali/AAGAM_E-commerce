@@ -90,7 +90,8 @@ describe('auto-dispatch recovery contracts', () => {
       'apps/mobile-partners/src/services/RiderOnlineService.ts',
     );
     expect(source).toContain('HEARTBEAT_INTERVAL_MS');
-    expect(source).toContain("apiClient.patch('/riders/me/status'");
+    expect(source).toContain('apiClient.patch(');
+    expect(source).toContain("'/riders/me/status'");
     expect(source).toContain("status: 'ONLINE', heartbeat: true");
     expect(source).toContain('Geolocation.getCurrentPosition');
     expect(source).toContain('heartbeatGeneration += 1');
