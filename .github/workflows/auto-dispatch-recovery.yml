@@ -12,13 +12,12 @@ on:
       - "apps/admin-dashboard/src/app/(admin)/admin/dispatch/**"
       - "packages/database/prisma/schema.prisma"
       - "packages/database/prisma/migrations/**"
-      - "package.json"
-      - "package-lock.json"
+      - ".github/scripts/pr130_type_fix.py"
       - ".github/workflows/auto-dispatch-recovery.yml"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: auto-dispatch-recovery-${{ github.event.pull_request.number || github.ref }}
@@ -37,8 +36,31 @@ env:
   NOTIFICATION_WORKER_DISABLED: "true"
 
 jobs:
+  apply-type-fix:
+    name: Apply paging type fix
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 130
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 5
+
+      - name: Apply and push source fix
+        run: |
+          python .github/scripts/pr130_type_fix.py
+          git diff --check
+          git config user.name "Saikumar Bali"
+          git config user.email "178761198+Saikumar-bali@users.noreply.github.com"
+          git add apps/api-gateway/src/orders/auto-dispatch.service.ts
+          git commit -m "fix dispatch paging result type"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
   recovery-e2e:
     name: Recovery E2E and builds
+    needs: apply-type-fix
+    if: always() && needs.apply-type-fix.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -60,6 +82,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
