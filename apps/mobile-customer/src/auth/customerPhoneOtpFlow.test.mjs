@@ -190,7 +190,7 @@ test('customer login renders a production-ready profile and OTP flow', () => {
   assert.match(loginSource, /Complete your profile/);
   assert.match(loginSource, /Verify and create account/);
   assert.match(loginSource, /Change mobile number/);
-  assert.match(loginSource, /isNewCustomer\s*\?\s*profileNameRef\.current\s*:\s*otpInputRef\.current/);
+  assert.match(loginSource, /\(isNewCustomer\s*\?\s*profileNameRef\.current\s*:\s*otpInputRef\.current\)\?\.focus\(\)/);
   assert.match(loginSource, /We'll send a secure OTP to verify your mobile number\./);
   assert.doesNotMatch(loginSource, /New customers receive a signup OTP automatically/);
   assert.doesNotMatch(loginSource, /NEW CUSTOMER|EXISTING CUSTOMER/);
