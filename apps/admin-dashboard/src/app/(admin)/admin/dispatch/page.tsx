@@ -120,9 +120,22 @@ export default function AdminDispatchPage() {
     return () => clearInterval(timer);
   }, []);
 
+  const riderIdsWithOpenOffer = useMemo(
+    () =>
+      new Set(
+        board.openOffers
+          .map((offer) => offer.riderProfile?.id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    [board.openOffers],
+  );
+
   const availableRiders = useMemo(
-    () => board.riders.filter((rider) => rider.available),
-    [board.riders],
+    () =>
+      board.riders.filter(
+        (rider) => rider.available && !riderIdsWithOpenOffer.has(rider.id),
+      ),
+    [board.riders, riderIdsWithOpenOffer],
   );
 
   const openOfferByJob = useMemo(
@@ -136,7 +149,15 @@ export default function AdminDispatchPage() {
   const assignRider = async (order: Order) => {
     const riderUserId = selectedRiders[order.id];
     const deliveryJobId = order.deliveryJob?.id;
-    if (!riderUserId || !deliveryJobId || openOfferByJob.has(deliveryJobId)) {
+    const selectedRiderIsAvailable = availableRiders.some(
+      (rider) => rider.userId === riderUserId,
+    );
+    if (
+      !riderUserId ||
+      !selectedRiderIsAvailable ||
+      !deliveryJobId ||
+      openOfferByJob.has(deliveryJobId)
+    ) {
       return;
     }
 

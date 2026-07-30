@@ -24,6 +24,12 @@ describe('Rider online Android keep-alive contract', () => {
     expect(source).toContain('SERVER_MARKED_OFFLINE');
   });
 
+  it('requires background permission before native recovery can collect GPS', () => {
+    expect(source).toContain('Manifest.permission.ACCESS_BACKGROUND_LOCATION');
+    expect(source).toContain('Build.VERSION.SDK_INT < Build.VERSION_CODES.Q');
+    expect(source).toContain('BACKGROUND_LOCATION_PERMISSION_MISSING');
+  });
+
   it('rejects stale cached coordinates before sending availability heartbeats', () => {
     expect(source).toContain('AVAILABILITY_LOCATION_MAX_AGE_MS = 180_000L');
     expect(source).toContain('private fun isFreshLocation(location: Location)');

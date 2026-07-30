@@ -202,6 +202,15 @@ class RiderOnlineService : Service() {
       stopService("LOCATION_PERMISSION_MISSING")
       return
     }
+    val backgroundGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+      ActivityCompat.checkSelfPermission(
+        this,
+        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+      ) == PackageManager.PERMISSION_GRANTED
+    if (!backgroundGranted) {
+      stopService("BACKGROUND_LOCATION_PERMISSION_MISSING")
+      return
+    }
 
     val request = LocationRequest.Builder(
       Priority.PRIORITY_HIGH_ACCURACY,

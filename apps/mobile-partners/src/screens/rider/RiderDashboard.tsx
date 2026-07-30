@@ -433,16 +433,44 @@ export const RiderDashboard = () => {
 
   const requestLocationPermission = async () => {
     if (Platform.OS !== 'android') return true;
-    const result = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      {
-        title: 'Allow rider location',
-        message: 'AAGAM Partners uses your location only while you are online and fulfilling a delivery.',
-        buttonPositive: 'Allow',
-        buttonNegative: 'Not now',
-      },
-    );
-    return result === PermissionsAndroid.RESULTS.GRANTED;
+
+    const finePermission = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
+    const fineResult = await PermissionsAndroid.check(finePermission)
+      ? PermissionsAndroid.RESULTS.GRANTED
+      : await PermissionsAndroid.request(finePermission, {
+          title: 'Allow rider location',
+          message: 'AAGAM Partners uses precise location while you are online and fulfilling a delivery.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Not now',
+        });
+    if (fineResult !== PermissionsAndroid.RESULTS.GRANTED) return false;
+
+    if (Number(Platform.Version) < 29) return true;
+    const backgroundPermission = PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION;
+    if (await PermissionsAndroid.check(backgroundPermission)) return true;
+
+    const backgroundResult = await PermissionsAndroid.request(backgroundPermission, {
+      title: 'Allow background rider location',
+      message: 'Choose Allow all the time so Android can keep you eligible for delivery offers while the app is in the background.',
+      buttonPositive: 'Continue',
+      buttonNegative: 'Not now',
+    });
+    if (backgroundResult === PermissionsAndroid.RESULTS.GRANTED) return true;
+
+    if (Number(Platform.Version) >= 30) {
+      Alert.alert(
+        'Allow background location',
+        'Open App permissions → Location and choose Allow all the time. Then return and tap ONLINE again.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          {
+            text: 'Open settings',
+            onPress: () => Linking.openSettings().catch(() => undefined),
+          },
+        ],
+      );
+    }
+    return false;
   };
 
   const goOnline = async () => {
@@ -450,7 +478,8 @@ export const RiderDashboard = () => {
     try {
       const permitted = await requestLocationPermission();
       if (!permitted) {
-        Toast.show({ type: 'error', text1: 'Location permission required', text2: 'Allow precise location before going online.' });
+        setLocating(false);
+        Toast.show({ type: 'error', text1: 'Location permission required', text2: 'Allow precise and background location before going online.' });
         return;
       }
       Geolocation.getCurrentPosition(

@@ -119,7 +119,10 @@ describe('auto-dispatch recovery contracts', () => {
     expect(nativeService).toContain('/riders/me/heartbeat');
     expect(nativeService).toContain('EXTRA_AUTH_TOKEN');
     expect(nativeService).toContain('SERVER_MARKED_OFFLINE');
+    expect(nativeService).toContain('Manifest.permission.ACCESS_BACKGROUND_LOCATION');
+    expect(nativeService).toContain('BACKGROUND_LOCATION_PERMISSION_MISSING');
     expect(nativeModule).toContain('putExtra(RiderOnlineService.EXTRA_AUTH_TOKEN, authToken)');
+    expect(manifest).toContain('android.permission.ACCESS_BACKGROUND_LOCATION');
     expect(manifest).toContain('android:foregroundServiceType="location"');
   });
 
@@ -142,6 +145,9 @@ describe('auto-dispatch recovery contracts', () => {
     );
     expect(source).toContain('} else {');
     expect(source).toContain('RiderOnlineService.stop().catch');
+    expect(source).toContain('PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION');
+    expect(source).toContain('PermissionsAndroid.request(backgroundPermission');
+    expect(source).toContain('Linking.openSettings()');
   });
 
   it('stops the Rider availability heartbeat before signing out', () => {
@@ -163,5 +169,8 @@ describe('auto-dispatch recovery contracts', () => {
     expect(source).toContain('Automatic offer sent to');
     expect(source).toContain('Manual assignment is locked');
     expect(source).toContain('openOfferByJob.has(deliveryJobId)');
+    expect(source).toContain('riderIdsWithOpenOffer');
+    expect(source).toContain('!riderIdsWithOpenOffer.has(rider.id)');
+    expect(source).toContain('selectedRiderIsAvailable');
   });
 });
