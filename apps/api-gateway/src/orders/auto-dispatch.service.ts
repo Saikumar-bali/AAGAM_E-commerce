@@ -90,39 +90,69 @@ export class AutoDispatchService {
   async dispatchWaitingJobs(limitInput = this.reconcileLimit()) {
     if (!this.isEnabled()) return { scanned: 0, offered: 0 };
 
-    const limit = Math.max(1, Math.min(250, Math.floor(limitInput || this.reconcileLimit())));
-    const jobs = await prisma.deliveryJob.findMany({
-      where: {
-        status: DeliveryJobStatus.WAITING_FOR_DISPATCH,
-        currentRiderId: null,
-        assignments: {
-          none: {
-            status: {
-              in: [
-                DispatchAssignmentStatus.OFFERED,
-                DispatchAssignmentStatus.ACCEPTED,
-              ],
-            },
+    const offerLimit = Math.max(
+      1,
+      Math.min(250, Math.floor(limitInput || this.reconcileLimit())),
+    );
+    const pageSize = Math.max(25, offerLimit);
+    const baseWhere: Prisma.DeliveryJobWhereInput = {
+      status: DeliveryJobStatus.WAITING_FOR_DISPATCH,
+      currentRiderId: null,
+      assignments: {
+        none: {
+          status: {
+            in: [
+              DispatchAssignmentStatus.OFFERED,
+              DispatchAssignmentStatus.ACCEPTED,
+            ],
           },
         },
       },
-      select: { id: true },
-      orderBy: { updatedAt: 'asc' },
-      take: limit,
-    });
+    };
 
+    let scanned = 0;
     let offered = 0;
-    for (const job of jobs) {
-      const outcome = await this.dispatchNearestRider(job.id).catch((error) => {
-        this.logger.warn(
-          `Waiting-job dispatch failed for ${job.id}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        return null;
+    let after: { updatedAt: Date; id: string } | null = null;
+
+    while (offered < offerLimit) {
+      const jobs = await prisma.deliveryJob.findMany({
+        where: {
+          ...baseWhere,
+          ...(after
+            ? {
+                OR: [
+                  { updatedAt: { gt: after.updatedAt } },
+                  { updatedAt: after.updatedAt, id: { gt: after.id } },
+                ],
+              }
+            : {}),
+        },
+        select: { id: true, updatedAt: true },
+        orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
+        take: pageSize,
       });
-      if (outcome?.offered) offered += 1;
+      if (jobs.length === 0) break;
+
+      for (const job of jobs) {
+        scanned += 1;
+        const outcome = await this.dispatchNearestRider(job.id).catch((error) => {
+          this.logger.warn(
+            `Waiting-job dispatch failed for ${job.id}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return null;
+        });
+        if (outcome?.offered) {
+          offered += 1;
+          if (offered >= offerLimit) break;
+        }
+      }
+
+      const last = jobs[jobs.length - 1];
+      after = { updatedAt: last.updatedAt, id: last.id };
+      if (jobs.length < pageSize) break;
     }
 
-    return { scanned: jobs.length, offered };
+    return { scanned, offered };
   }
 
   async dispatchNearestRider(deliveryJobId: string): Promise<AutoDispatchOutcome> {

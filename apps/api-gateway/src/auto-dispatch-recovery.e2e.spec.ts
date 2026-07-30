@@ -139,6 +139,29 @@ describe('automatic dispatch recovery E2E', () => {
     expect(await prisma.dispatchAssignment.findFirst({ where: { deliveryJobId: target.job.id, riderProfileId: recovery.profile.id } })).not.toBeNull();
   });
 
+  it('pages past ineligible waiting jobs instead of starving a later dispatchable job', async () => {
+    const blocked = await waiting(`ineligible_${Date.now()}`);
+    const target = await waiting(`eligible_${Date.now()}`);
+    await prisma.store.update({
+      where: { id: blocked.store.id },
+      data: { latitude: 18.2, longitude: 83.8 },
+    });
+    const recovery = await rider('paged_recovery', 'ONLINE', 17.7004, 83.3004);
+
+    const result = await dispatch().dispatchWaitingJobs(1);
+
+    expect(result).toEqual({ scanned: 2, offered: 1 });
+    expect(
+      await prisma.dispatchAssignment.findFirst({
+        where: {
+          deliveryJobId: target.job.id,
+          riderProfileId: recovery.profile.id,
+          status: DispatchAssignmentStatus.OFFERED,
+        },
+      }),
+    ).not.toBeNull();
+  });
+
   it('prevents active Riders from going offline and concurrent jobs from double-offering one Rider', async () => {
     const first = await waiting(`concurrent_a_${Date.now()}`);
     const second = await waiting(`concurrent_b_${Date.now()}`);

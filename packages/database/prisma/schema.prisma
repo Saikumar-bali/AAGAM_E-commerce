@@ -197,6 +197,7 @@ model RiderProfile {
   longitude                Float?
   orders                   Order[]
   locationPings            RiderLocationPing[]
+  availabilityLocation     RiderAvailabilityLocation?
   deliveryJobs             DeliveryJob[]               @relation("DeliveryJobCurrentRider")
   dispatchAssignments      DispatchAssignment[]
   vehicleType              String?
@@ -223,6 +224,17 @@ model RiderProfile {
   codLedgers               CodLedger[]
   supportTickets           RiderSupportTicket[]
   updatedAt                DateTime                    @updatedAt
+}
+
+model RiderAvailabilityLocation {
+  riderProfileId String       @id
+  riderProfile   RiderProfile @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
+  latitude       Float
+  longitude      Float
+  capturedAt     DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([capturedAt])
 }
 
 enum OrderStatus {

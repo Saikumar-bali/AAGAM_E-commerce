@@ -55,9 +55,20 @@ describe('auto-dispatch recovery contracts', () => {
     expect(source).toContain('location.capturedAt < input.locationFreshAfter');
     expect(source).toContain('otherOpenOffer');
     expect(source).toContain('dispatchWaitingJobs');
+    expect(source).toContain('while (offered < offerLimit)');
+    expect(source).toContain('{ updatedAt: { gt: after.updatedAt } }');
+    expect(source).toContain("orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }]");
     expect(source).toContain('assignments: {');
     expect(source).toContain('none: {');
     expect(source).toContain("isolationLevel: 'Serializable'");
+  });
+
+  it('keeps the dedicated Rider availability table represented in the Prisma schema', () => {
+    const schema = read('packages/database/prisma/schema.prisma');
+    expect(schema).toContain('model RiderAvailabilityLocation');
+    expect(schema).toContain('availabilityLocation     RiderAvailabilityLocation?');
+    expect(schema).toContain('riderProfileId String       @id');
+    expect(schema).toContain('@@index([capturedAt])');
   });
 
   it('runs waiting-job recovery from both the notification worker and Rider online transition', () => {
