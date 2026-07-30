@@ -49,6 +49,11 @@ describe('auto-dispatch recovery contracts', () => {
     expect(source).toContain('AUTO_DISPATCH_MAX_PICKUP_KM');
     expect(source).toContain('AUTO_DISPATCH_LOCATION_MAX_AGE_SECONDS');
     expect(source).toContain('AUTO_DISPATCH_RETRY_COOLDOWN_SECONDS');
+    expect(source).toContain('AUTO_DISPATCH_RECONCILE_SCAN_LIMIT');
+    expect(source).toContain('waitingSweepCursor');
+    expect(source).toContain('scanned < scanLimit');
+    expect(source).toContain('updatedAt: { gte: retryCutoff }');
+    expect(source).not.toContain('createdAt: { gte: retryCutoff }');
     expect(source).toContain('RiderAvailabilityLocation');
     expect(source).toContain('location."capturedAt" >=');
     expect(source).toContain('entry.distanceKm <= maxPickupKm');
@@ -107,6 +112,17 @@ describe('auto-dispatch recovery contracts', () => {
     expect(source).toContain('Geolocation.getCurrentPosition');
     expect(source).toContain('heartbeatGeneration += 1');
     expect(source).toContain('heartbeatController?.abort()');
+  });
+
+  it('stops the Rider availability heartbeat before signing out', () => {
+    const source = read(
+      'apps/mobile-partners/src/screens/rider/RiderProfileScreen.tsx',
+    );
+    expect(source).toContain('await RiderOnlineService.stop()');
+    expect(source).toContain('await logout()');
+    expect(source.indexOf('await RiderOnlineService.stop()')).toBeLessThan(
+      source.indexOf('await logout()'),
+    );
   });
 
   it('shows active automatic offers and locks duplicate manual assignment in the admin board', () => {

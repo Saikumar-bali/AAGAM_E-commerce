@@ -2,10 +2,16 @@ import React from 'react';
 import { ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Bike, LogOut, Mail, Phone, ShieldCheck, User } from 'lucide-react-native';
 import { useAuthStore } from '@aagam/mobile-shared';
+import { RiderOnlineService } from '../../services/RiderOnlineService';
 
 export const RiderProfileScreen = () => {
   const { user, logout } = useAuthStore();
   const initial = (user?.name || user?.email || 'R').slice(0, 1).toUpperCase();
+
+  const handleLogout = async () => {
+    await RiderOnlineService.stop().catch(() => false);
+    await logout();
+  };
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.content}>
@@ -29,10 +35,10 @@ export const RiderProfileScreen = () => {
       </View>
 
       <Text style={styles.help}>
-        Availability and active delivery controls remain on the Dashboard tab. Signing out deactivates only this device's push subscription.
+        Availability and active delivery controls remain on the Dashboard tab. Signing out stops this device's Rider availability heartbeat and deactivates its push subscription.
       </Text>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={() => void logout()}>
+      <TouchableOpacity style={styles.logoutButton} onPress={() => void handleLogout()}>
         <LogOut size={19} color="#B91C1C" />
         <Text style={styles.logoutText}>Sign out</Text>
       </TouchableOpacity>

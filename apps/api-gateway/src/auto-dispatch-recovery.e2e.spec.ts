@@ -162,6 +162,66 @@ describe('automatic dispatch recovery E2E', () => {
     ).not.toBeNull();
   });
 
+  it('starts Rider retry cooldown when an offer is answered', async () => {
+    const target = await waiting(`cooldown_${Date.now()}`);
+    const nearest = await rider('cooldown_nearest', 'ONLINE', 17.7001, 83.3001);
+    const fallback = await rider('cooldown_fallback', 'ONLINE', 17.705, 83.305);
+    const old = new Date(Date.now() - 120_000);
+    const assignment = await prisma.dispatchAssignment.create({
+      data: {
+        deliveryJobId: target.job.id,
+        riderProfileId: nearest.profile.id,
+        status: DispatchAssignmentStatus.OFFERED,
+        offeredAt: old,
+        expiresAt: new Date(old.getTime() + 60_000),
+        createdAt: old,
+      },
+    });
+    await prisma.dispatchAssignment.update({
+      where: { id: assignment.id },
+      data: {
+        status: DispatchAssignmentStatus.EXPIRED,
+        respondedAt: new Date(),
+      },
+    });
+
+    await expect(dispatch().dispatchNearestRider(target.job.id)).resolves.toMatchObject({
+      offered: true,
+      riderProfileId: fallback.profile.id,
+    });
+  });
+
+  it('bounds each sweep and resumes from its persistent waiting-job cursor', async () => {
+    const previous = process.env.AUTO_DISPATCH_RECONCILE_SCAN_LIMIT;
+    process.env.AUTO_DISPATCH_RECONCILE_SCAN_LIMIT = '2';
+    try {
+      const firstBlocked = await waiting(`bounded_a_${Date.now()}`);
+      const secondBlocked = await waiting(`bounded_b_${Date.now()}`);
+      const target = await waiting(`bounded_target_${Date.now()}`);
+      await prisma.store.updateMany({
+        where: { id: { in: [firstBlocked.store.id, secondBlocked.store.id] } },
+        data: { latitude: 18.2, longitude: 83.8 },
+      });
+      const recovery = await rider('bounded_recovery', 'ONLINE', 17.7004, 83.3004);
+      const service = dispatch();
+
+      await expect(service.dispatchWaitingJobs(1)).resolves.toEqual({ scanned: 2, offered: 0 });
+      await expect(service.dispatchWaitingJobs(1)).resolves.toEqual({ scanned: 1, offered: 1 });
+      expect(
+        await prisma.dispatchAssignment.findFirst({
+          where: {
+            deliveryJobId: target.job.id,
+            riderProfileId: recovery.profile.id,
+            status: DispatchAssignmentStatus.OFFERED,
+          },
+        }),
+      ).not.toBeNull();
+    } finally {
+      if (previous === undefined) delete process.env.AUTO_DISPATCH_RECONCILE_SCAN_LIMIT;
+      else process.env.AUTO_DISPATCH_RECONCILE_SCAN_LIMIT = previous;
+    }
+  });
+
   it('prevents active Riders from going offline and concurrent jobs from double-offering one Rider', async () => {
     const first = await waiting(`concurrent_a_${Date.now()}`);
     const second = await waiting(`concurrent_b_${Date.now()}`);

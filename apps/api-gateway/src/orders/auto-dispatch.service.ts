@@ -50,6 +50,7 @@ export type AutoDispatchOutcome = {
 @Injectable()
 export class AutoDispatchService {
   private readonly logger = new Logger(AutoDispatchService.name);
+  private waitingSweepCursor: { updatedAt: Date; id: string } | null = null;
 
   constructor(private readonly events: DeliveryEventService) {}
 
@@ -87,6 +88,17 @@ export class AutoDispatchService {
     return Math.floor(this.numberEnv('AUTO_DISPATCH_RECONCILE_LIMIT', 50, 1, 250));
   }
 
+  private reconcileScanLimit(offerLimit: number) {
+    return Math.floor(
+      this.numberEnv(
+        'AUTO_DISPATCH_RECONCILE_SCAN_LIMIT',
+        Math.max(offerLimit, offerLimit * 10),
+        offerLimit,
+        5_000,
+      ),
+    );
+  }
+
   async dispatchWaitingJobs(limitInput = this.reconcileLimit()) {
     if (!this.isEnabled()) return { scanned: 0, offered: 0 };
 
@@ -94,7 +106,8 @@ export class AutoDispatchService {
       1,
       Math.min(250, Math.floor(limitInput || this.reconcileLimit())),
     );
-    const pageSize = Math.max(25, offerLimit);
+    const scanLimit = this.reconcileScanLimit(offerLimit);
+    const pageSize = Math.min(100, scanLimit);
     const baseWhere: Prisma.DeliveryJobWhereInput = {
       status: DeliveryJobStatus.WAITING_FOR_DISPATCH,
       currentRiderId: null,
@@ -110,47 +123,67 @@ export class AutoDispatchService {
       },
     };
 
+    const startingCursor = this.waitingSweepCursor;
+    const seenIds = new Set<string>();
+    let after = startingCursor;
+    let wrapped = false;
     let scanned = 0;
     let offered = 0;
-    let after: { updatedAt: Date; id: string } | null = null;
 
-    while (offered < offerLimit) {
+    sweep: while (offered < offerLimit && scanned < scanLimit) {
+      const take = Math.min(pageSize, scanLimit - scanned);
       const jobs: Array<{ id: string; updatedAt: Date }> =
         await prisma.deliveryJob.findMany({
-        where: {
-          ...baseWhere,
-          ...(after
-            ? {
-                OR: [
-                  { updatedAt: { gt: after.updatedAt } },
-                  { updatedAt: after.updatedAt, id: { gt: after.id } },
-                ],
-              }
-            : {}),
-        },
-        select: { id: true, updatedAt: true },
-        orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
-        take: pageSize,
-      });
-      if (jobs.length === 0) break;
+          where: {
+            ...baseWhere,
+            ...(after
+              ? {
+                  OR: [
+                    { updatedAt: { gt: after.updatedAt } },
+                    { updatedAt: after.updatedAt, id: { gt: after.id } },
+                  ],
+                }
+              : {}),
+          },
+          select: { id: true, updatedAt: true },
+          orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
+          take,
+        });
+
+      if (jobs.length === 0) {
+        if (!wrapped && startingCursor) {
+          after = null;
+          wrapped = true;
+          continue;
+        }
+        break;
+      }
 
       for (const job of jobs) {
+        if (seenIds.has(job.id)) break sweep;
+        seenIds.add(job.id);
         scanned += 1;
+        after = { updatedAt: job.updatedAt, id: job.id };
+        this.waitingSweepCursor = after;
+
         const outcome = await this.dispatchNearestRider(job.id).catch((error) => {
           this.logger.warn(
             `Waiting-job dispatch failed for ${job.id}: ${error instanceof Error ? error.message : String(error)}`,
           );
           return null;
         });
-        if (outcome?.offered) {
-          offered += 1;
-          if (offered >= offerLimit) break;
-        }
+        if (outcome?.offered) offered += 1;
+        if (offered >= offerLimit || scanned >= scanLimit) break sweep;
       }
 
-      const last = jobs[jobs.length - 1];
-      after = { updatedAt: last.updatedAt, id: last.id };
-      if (jobs.length < pageSize) break;
+      if (jobs.length < take) {
+        if (!wrapped && startingCursor) {
+          after = null;
+          wrapped = true;
+          continue;
+        }
+        break;
+      }
     }
 
     return { scanned, offered };
@@ -253,7 +286,7 @@ export class AutoDispatchService {
         where: {
           deliveryJobId,
           status: { in: RECENT_ATTEMPT_STATUSES as any },
-          createdAt: { gte: retryCutoff },
+          updatedAt: { gte: retryCutoff },
         },
         select: { riderProfileId: true },
       })
