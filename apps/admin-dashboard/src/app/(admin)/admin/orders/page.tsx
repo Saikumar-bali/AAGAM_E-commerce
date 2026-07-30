@@ -230,10 +230,21 @@ export default function AdminOrdersPage() {
 
   const fetchRiders = async () => {
     try {
-      const res = await apiClient.get('/riders');
-      setRiders(res.data);
+      const res = await apiClient.get('/orders/dispatch/board');
+      const boardRiders = Array.isArray(res.data?.riders) ? res.data.riders : [];
+      const openOfferRiderIds = new Set(
+        (Array.isArray(res.data?.openOffers) ? res.data.openOffers : [])
+          .map((offer: any) => offer.riderProfile?.id)
+          .filter((id: unknown): id is string => typeof id === 'string'),
+      );
+      setRiders(
+        boardRiders.filter(
+          (rider: any) => rider.available && !openOfferRiderIds.has(rider.id),
+        ),
+      );
     } catch (err) {
-      console.error('Failed to fetch riders', err);
+      console.error('Failed to fetch available riders', err);
+      setRiders([]);
     }
   };
 
@@ -489,7 +500,7 @@ export default function AdminOrdersPage() {
                 onChange={(e) => setReassignUserId(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="">Select a rider...</option>
+                <option value="">{riders.length === 0 ? 'No available riders' : 'Select a rider...'}</option>
                 {riders.map((rider: any) => (
                   <option key={rider.userId} value={rider.userId}>
                     {rider.user?.name || rider.email || rider.userId.slice(0, 8)} ({rider.status || 'OFFLINE'})
