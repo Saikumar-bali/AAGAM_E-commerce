@@ -16,6 +16,14 @@ describe('Rider online Android keep-alive contract', () => {
     expect(source).toContain('catch (_: SecurityException)');
   });
 
+  it('owns authenticated location heartbeats inside the native service', () => {
+    expect(source).toContain('FusedLocationProviderClient');
+    expect(source).toContain('LocationRequest.Builder(');
+    expect(source).toContain('/riders/me/heartbeat');
+    expect(source).toContain('START_STICKY');
+    expect(source).toContain('SERVER_MARKED_OFFLINE');
+  });
+
   it('starts the service with the API-appropriate Android method', () => {
     expect(source).toContain('context.startForegroundService(serviceIntent)');
     expect(source).toContain('context.startService(serviceIntent)');

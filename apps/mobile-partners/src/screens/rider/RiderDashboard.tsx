@@ -344,9 +344,11 @@ export const RiderDashboard = () => {
       // Ensure the foreground service matches the server-side status.
       if (online) {
         RiderOnlineService.start(user?.name || 'Rider').catch(() => undefined);
+      } else {
+        RiderOnlineService.stop().catch(() => undefined);
       }
     }
-  }, [workspace?.rider?.status]);
+  }, [workspace?.rider?.status, user?.name]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1_000);

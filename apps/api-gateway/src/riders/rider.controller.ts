@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import {
   AdminUpdateRiderStatusDto,
+  RiderHeartbeatDto,
   UpdateMyRiderStatusDto,
 } from './rider-status.dto';
 import { RiderService } from './rider.service';
@@ -45,6 +46,18 @@ export class RiderController {
     @Body() data: UpdateMyRiderStatusDto,
   ) {
     return this.riderService.updateStatusForUser(req.user.id, data);
+  }
+
+  @Post('me/heartbeat')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.RIDER)
+  async heartbeat(@Req() req: any, @Body() data: RiderHeartbeatDto) {
+    return this.riderService.updateStatusForUser(req.user.id, {
+      status: 'ONLINE',
+      heartbeat: true,
+      latitude: data.latitude,
+      longitude: data.longitude,
+    });
   }
 
   @Get(':id')

@@ -85,7 +85,9 @@ describe('auto-dispatch recovery contracts', () => {
     const rider = read('apps/api-gateway/src/riders/rider.service.ts');
     expect(worker).toContain('this.autoDispatch.dispatchWaitingJobs()');
     expect(worker).toContain('jobs returned to dispatch after a failure resolution');
-    expect(rider).toContain('await this.dispatchWaitingJobs()');
+    expect(rider).toContain('scheduleDispatchWaitingJobs()');
+    expect(rider).toContain('setImmediate(() =>');
+    expect(rider).not.toContain('if (result.wakeWaitingJobs) await this.dispatchWaitingJobs()');
     expect(rider).toContain("data.status === 'OFFLINE' && activeJob");
     expect(rider).toContain("data.status === 'ONLINE' && activeJob ? 'BUSY'");
     expect(rider).not.toContain('...(data.latitude &&');
@@ -103,17 +105,43 @@ describe('auto-dispatch recovery contracts', () => {
     expect(migration).toContain("SET\n  \"status\" = 'EXPIRED'");
   });
 
+  it('keeps Android Rider availability alive from the native foreground service', () => {
+    const nativeService = read(
+      'apps/mobile-partners/android/app/src/main/java/com/aagampartners/RiderOnlineService.kt',
+    );
+    const nativeModule = read(
+      'apps/mobile-partners/android/app/src/main/java/com/aagampartners/RiderOnlineModule.kt',
+    );
+    const manifest = read('apps/mobile-partners/android/app/src/main/AndroidManifest.xml');
+    expect(nativeService).toContain('FusedLocationProviderClient');
+    expect(nativeService).toContain('LocationRequest.Builder(');
+    expect(nativeService).toContain('START_STICKY');
+    expect(nativeService).toContain('/riders/me/heartbeat');
+    expect(nativeService).toContain('EXTRA_AUTH_TOKEN');
+    expect(nativeService).toContain('SERVER_MARKED_OFFLINE');
+    expect(nativeModule).toContain('putExtra(RiderOnlineService.EXTRA_AUTH_TOKEN, authToken)');
+    expect(manifest).toContain('android:foregroundServiceType="location"');
+  });
+
   it('keeps online Rider coordinates fresh through an authenticated mobile heartbeat', () => {
     const source = read(
       'apps/mobile-partners/src/services/RiderOnlineService.ts',
     );
     expect(source).toContain('HEARTBEAT_INTERVAL_MS');
-    expect(source).toContain('apiClient.patch(');
-    expect(source).toContain("'/riders/me/status'");
-    expect(source).toContain("status: 'ONLINE', heartbeat: true");
+    expect(source).toContain("apiClient.post('/riders/me/heartbeat'");
+    expect(source).toContain('nativeModule.start({ riderName, apiUrl, authToken })');
+    expect(source).toContain('useAuthStore.getState().token');
     expect(source).toContain('Geolocation.getCurrentPosition');
     expect(source).toContain('heartbeatGeneration += 1');
     expect(source).toContain('heartbeatController?.abort()');
+  });
+
+  it('stops native availability when refreshed workspace state is offline', () => {
+    const source = read(
+      'apps/mobile-partners/src/screens/rider/RiderDashboard.tsx',
+    );
+    expect(source).toContain('} else {
+        RiderOnlineService.stop()');
   });
 
   it('stops the Rider availability heartbeat before signing out', () => {

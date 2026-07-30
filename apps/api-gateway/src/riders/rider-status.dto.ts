@@ -3,6 +3,18 @@ import { IsBoolean, IsIn, IsNumber, IsOptional, Max, Min } from 'class-validator
 export type RiderSelfStatus = 'ONLINE' | 'OFFLINE';
 export type RiderAdminStatus = RiderSelfStatus | 'BUSY';
 
+export class RiderHeartbeatDto {
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude!: number;
+
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude!: number;
+}
+
 class RiderCoordinatesDto {
   @IsOptional()
   @IsNumber()

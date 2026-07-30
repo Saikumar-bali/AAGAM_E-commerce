@@ -1,22 +1,25 @@
 import Geolocation from 'react-native-geolocation-service';
 import { NativeModules, Platform } from 'react-native';
-import { apiClient } from '../api/client';
+import { apiClient, useAuthStore } from '@aagam/mobile-shared';
 
 type NativeOnlineModule = {
-  start: (options: { riderName: string }) => Promise<boolean>;
+  start: (options: {
+    riderName: string;
+    apiUrl: string;
+    authToken: string;
+  }) => Promise<boolean>;
   stop: () => Promise<boolean>;
   getStatus: () => Promise<{
     supported: boolean;
     active: boolean;
     riderName?: string | null;
+    lastSentAt?: string | null;
+    lastError?: string | null;
     batteryOptimisationExempt?: boolean;
   }>;
 };
 
-const nativeModule = NativeModules.AagamRiderOnline as
-  | NativeOnlineModule
-  | undefined;
-
+const nativeModule = NativeModules.AagamRiderOnline as NativeOnlineModule | undefined;
 const HEARTBEAT_INTERVAL_MS = 60_000;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let heartbeatGeneration = 0;
@@ -30,17 +33,12 @@ export function riderOnlineSupported() {
 function currentPosition() {
   return new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
     Geolocation.getCurrentPosition(
-      (position) =>
-        resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        }),
+      (position) => resolve({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      }),
       reject,
-      {
-        enableHighAccuracy: true,
-        timeout: 15_000,
-        maximumAge: 30_000,
-      },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 30_000 },
     );
   });
 }
@@ -51,24 +49,18 @@ async function sendAvailabilityHeartbeat(generation: number) {
   try {
     const location = await currentPosition();
     if (generation !== heartbeatGeneration) return;
-
     const controller = new AbortController();
     heartbeatController = controller;
-    await apiClient.patch(
-      '/riders/me/status',
-      { status: 'ONLINE', heartbeat: true, ...location },
-      { signal: controller.signal },
-    );
+    await apiClient.post('/riders/me/heartbeat', location, { signal: controller.signal });
   } catch {
-    // Best effort. The backend rejects a stale heartbeat after an explicit
-    // OFFLINE transition and excludes stale coordinates from dispatch.
+    // Non-Android fallback is best effort. Android owns this in the native FGS.
   } finally {
     if (generation === heartbeatGeneration) heartbeatController = null;
     heartbeatInFlight = false;
   }
 }
 
-function startHeartbeat() {
+function startHeartbeatFallback() {
   if (heartbeatTimer) return;
   const generation = ++heartbeatGeneration;
   void sendAvailabilityHeartbeat(generation);
@@ -77,7 +69,7 @@ function startHeartbeat() {
   }, HEARTBEAT_INTERVAL_MS);
 }
 
-function stopHeartbeat() {
+function stopHeartbeatFallback() {
   heartbeatGeneration += 1;
   heartbeatController?.abort();
   heartbeatController = null;
@@ -88,25 +80,28 @@ function stopHeartbeat() {
 
 export const RiderOnlineService = {
   async start(riderName: string) {
-    startHeartbeat();
-    if (!riderOnlineSupported() || !nativeModule) return false;
-    try {
-      return await nativeModule.start({ riderName });
-    } catch (error) {
-      stopHeartbeat();
-      throw error;
+    if (riderOnlineSupported() && nativeModule) {
+      stopHeartbeatFallback();
+      const authToken = useAuthStore.getState().token;
+      const apiUrl = String(apiClient.defaults.baseURL || '').replace(/\/+$/, '');
+      if (!authToken || !apiUrl) {
+        throw new Error('Rider availability requires an authenticated mobile session');
+      }
+      return nativeModule.start({ riderName, apiUrl, authToken });
     }
+    startHeartbeatFallback();
+    return false;
   },
 
   async stop() {
-    stopHeartbeat();
+    stopHeartbeatFallback();
     if (!riderOnlineSupported() || !nativeModule) return false;
     return nativeModule.stop();
   },
 
   async status() {
     if (!riderOnlineSupported() || !nativeModule) {
-      return { supported: false, active: false };
+      return { supported: false, active: Boolean(heartbeatTimer) };
     }
     return nativeModule.getStatus();
   },

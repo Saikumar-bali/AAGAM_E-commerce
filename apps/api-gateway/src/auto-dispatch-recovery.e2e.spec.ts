@@ -222,6 +222,25 @@ describe('automatic dispatch recovery E2E', () => {
     }
   });
 
+  it('returns the online status before the best-effort waiting-job sweep resolves', async () => {
+    const candidate = await rider('detached_wakeup', 'OFFLINE', null, null);
+    const neverResolves = new Promise(() => undefined);
+    const autoDispatch = {
+      dispatchWaitingJobs: jest.fn(() => neverResolves),
+    };
+    const service = new RiderService(autoDispatch as any);
+
+    await expect(
+      service.updateStatusForUser(candidate.user.id, {
+        status: 'ONLINE',
+        latitude: 17.7004,
+        longitude: 83.3004,
+      }),
+    ).resolves.toMatchObject({ status: 'ONLINE' });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(autoDispatch.dispatchWaitingJobs).toHaveBeenCalledTimes(1);
+  });
+
   it('prevents active Riders from going offline and concurrent jobs from double-offering one Rider', async () => {
     const first = await waiting(`concurrent_a_${Date.now()}`);
     const second = await waiting(`concurrent_b_${Date.now()}`);

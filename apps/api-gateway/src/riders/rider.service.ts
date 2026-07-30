@@ -85,7 +85,7 @@ export class RiderService {
       { isolationLevel: 'Serializable' as any },
     );
 
-    if (result.wakeWaitingJobs) await this.dispatchWaitingJobs();
+    if (result.wakeWaitingJobs) this.scheduleDispatchWaitingJobs();
     return result.updated;
   }
 
@@ -155,7 +155,7 @@ export class RiderService {
       { isolationLevel: 'Serializable' as any },
     );
 
-    if (result.wakeWaitingJobs) await this.dispatchWaitingJobs();
+    if (result.wakeWaitingJobs) this.scheduleDispatchWaitingJobs();
     return result.updated;
   }
 
@@ -279,6 +279,12 @@ export class RiderService {
       DELETE FROM "RiderAvailabilityLocation"
       WHERE "riderProfileId" = ${riderProfileId}
     `);
+  }
+
+  private scheduleDispatchWaitingJobs() {
+    setImmediate(() => {
+      void this.dispatchWaitingJobs();
+    });
   }
 
   private async dispatchWaitingJobs() {
