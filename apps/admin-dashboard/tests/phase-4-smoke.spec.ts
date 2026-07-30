@@ -172,8 +172,18 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
 
     const reassignBtn = page.locator('button:has-text("Reassign Rider")').first();
     await expect(reassignBtn).toBeVisible({ timeout: 5000 });
+    const boardResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes('/orders/dispatch/board') &&
+        response.status() === 200,
+      { timeout: 10000 },
+    );
     await reassignBtn.click();
-    await page.waitForTimeout(2000);
+    const boardResponse = await boardResponsePromise;
+    const boardPayload = await boardResponse.json();
+    expect(Array.isArray(boardPayload?.riders)).toBe(true);
+    expect(Array.isArray(boardPayload?.openOffers)).toBe(true);
 
     const raModalTitle = page.locator('h2:has-text("Reassign Rider")');
     await expect(raModalTitle).toBeVisible({ timeout: 5000 });
