@@ -65,15 +65,17 @@ export function normalizeOrderPricing(
     : {};
   const itemSubtotal = items.reduce((sum, item) => sum + normalizeOrderLine(item).lineTotal, 0);
 
-  // Historical orders store pricing snapshots in paise-only fields. Ignore stale zero
-  // totals when item lines contain a real amount, then fall back through all formats.
+  // Store fulfillment can mutate the persisted order totals after checkout (for
+  // example, following an item substitution). Prefer those current values over
+  // the immutable checkout snapshot, while retaining snapshot and item fallbacks
+  // for historical rows that do not have usable persisted totals.
   const subtotal = Math.max(
     0,
     firstPositive(
-      finiteNumber(snapshot.subtotal),
-      paiseToRupees(snapshot.subtotalPaise),
       finiteNumber(order?.subtotal),
       paiseToRupees(order?.subtotalPaise),
+      finiteNumber(snapshot.subtotal),
+      paiseToRupees(snapshot.subtotalPaise),
       itemSubtotal,
     ) ?? 0,
   );
@@ -81,39 +83,39 @@ export function normalizeOrderPricing(
   const deliveryFee = Math.max(
     0,
     firstDefined(
-      finiteNumber(snapshot.deliveryFee),
-      paiseToRupees(snapshot.deliveryFeePaise),
       finiteNumber(order?.deliveryFee),
       paiseToRupees(order?.deliveryFeePaise),
+      finiteNumber(snapshot.deliveryFee),
+      paiseToRupees(snapshot.deliveryFeePaise),
     ) ?? 0,
   );
   const discountAmount = Math.max(
     0,
     firstDefined(
-      finiteNumber(snapshot.discountAmount),
-      paiseToRupees(snapshot.discountPaise),
       finiteNumber(order?.discountAmount),
       paiseToRupees(order?.discountPaise),
+      finiteNumber(snapshot.discountAmount),
+      paiseToRupees(snapshot.discountPaise),
     ) ?? 0,
   );
   const taxAmount = Math.max(
     0,
     firstDefined(
-      finiteNumber(snapshot.taxAmount),
-      paiseToRupees(snapshot.taxPaise),
       finiteNumber(order?.taxAmount),
       paiseToRupees(order?.taxPaise),
+      finiteNumber(snapshot.taxAmount),
+      paiseToRupees(snapshot.taxPaise),
     ) ?? 0,
   );
   const calculatedGrandTotal = Math.max(0, subtotal + deliveryFee + taxAmount - discountAmount);
   const grandTotal = Math.max(
     0,
     firstPositive(
-      finiteNumber(snapshot.grandTotal),
-      paiseToRupees(snapshot.grandTotalPaise),
       finiteNumber(order?.grandTotal),
       paiseToRupees(order?.grandTotalPaise),
       finiteNumber(order?.totalAmount),
+      finiteNumber(snapshot.grandTotal),
+      paiseToRupees(snapshot.grandTotalPaise),
       calculatedGrandTotal,
     ) ?? 0,
   );
