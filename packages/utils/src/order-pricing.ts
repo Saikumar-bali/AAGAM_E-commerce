@@ -67,20 +67,42 @@ export function normalizeOrderPricing(
     ? order.itemsSnapshot
     : {};
   const itemSubtotal = items.reduce((sum, item) => sum + normalizeOrderLine(item).lineTotal, 0);
+  const currentSubtotalValues = [
+    finiteNumber(order?.subtotal),
+    paiseToRupees(order?.subtotalPaise),
+  ];
+  const currentBreakdownValues = [
+    ...currentSubtotalValues,
+    finiteNumber(order?.deliveryFee),
+    paiseToRupees(order?.deliveryFeePaise),
+    finiteNumber(order?.discountAmount),
+    paiseToRupees(order?.discountPaise),
+    finiteNumber(order?.taxAmount),
+    paiseToRupees(order?.taxPaise),
+  ];
+  const hasCurrentPricingEvidence = currentBreakdownValues.some((value) => value !== null && value !== 0)
+    || (Array.isArray(fulfillmentSnapshot.substitutions) && fulfillmentSnapshot.substitutions.length > 0);
 
   // Store fulfillment can mutate the persisted order totals after checkout (for
   // example, following an item substitution). Prefer those current values over
   // the immutable checkout snapshot, while retaining snapshot and item fallbacks
-  // for historical rows that do not have usable persisted totals.
+  // for historical rows that do not have usable persisted totals. A zero subtotal
+  // is authoritative when fulfillment metadata or another current pricing field
+  // proves the mutable pricing record was recalculated.
+  const positiveCurrentSubtotal = firstPositive(...currentSubtotalValues);
+  const hasAuthoritativeCurrentSubtotalZero = hasCurrentPricingEvidence
+    && currentSubtotalValues.some((value) => value === 0)
+    && positiveCurrentSubtotal === null;
   const subtotal = Math.max(
     0,
-    firstPositive(
-      finiteNumber(order?.subtotal),
-      paiseToRupees(order?.subtotalPaise),
-      finiteNumber(snapshot.subtotal),
-      paiseToRupees(snapshot.subtotalPaise),
-      itemSubtotal,
-    ) ?? 0,
+    positiveCurrentSubtotal
+      ?? (hasAuthoritativeCurrentSubtotalZero
+        ? 0
+        : firstPositive(
+            finiteNumber(snapshot.subtotal),
+            paiseToRupees(snapshot.subtotalPaise),
+            itemSubtotal,
+          ) ?? 0),
   );
 
   // Prisma-backed legacy rows may serialize newer money columns as zero even
@@ -121,18 +143,6 @@ export function normalizeOrderPricing(
     finiteNumber(order?.totalAmount),
   ];
   const positiveCurrentGrandTotal = firstPositive(...currentGrandTotalValues);
-  const currentBreakdownValues = [
-    finiteNumber(order?.subtotal),
-    paiseToRupees(order?.subtotalPaise),
-    finiteNumber(order?.deliveryFee),
-    paiseToRupees(order?.deliveryFeePaise),
-    finiteNumber(order?.discountAmount),
-    paiseToRupees(order?.discountPaise),
-    finiteNumber(order?.taxAmount),
-    paiseToRupees(order?.taxPaise),
-  ];
-  const hasCurrentPricingEvidence = currentBreakdownValues.some((value) => value !== null && value !== 0)
-    || (Array.isArray(fulfillmentSnapshot.substitutions) && fulfillmentSnapshot.substitutions.length > 0);
   const hasAuthoritativeCurrentZero = hasCurrentPricingEvidence
     && currentGrandTotalValues.some((value) => value === 0)
     && positiveCurrentGrandTotal === null;
