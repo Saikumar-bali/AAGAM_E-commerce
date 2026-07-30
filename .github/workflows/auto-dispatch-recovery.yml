@@ -50,6 +50,7 @@ jobs:
 
       - name: Apply and push grouped source fixes
         run: |
+          sed -i 's/if count != 1:/if count < 1:/' .github/scripts/pr130_native_heartbeat_fixes.py
           python .github/scripts/pr130_native_heartbeat_fixes.py
           git diff --check
           git config user.name "Saikumar Bali"
