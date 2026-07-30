@@ -64,7 +64,7 @@ class RiderOnlineService : Service() {
 
     private const val ALARM_REQUEST_CODE = 7701
     private const val ALARM_INTERVAL_MS = 15 * 60 * 1000L
-    private const val HEARTBEAT_INTERVAL_MS = 60_000L
+    private const val HEARTBEAT_INTERVAL_MS = 20_000L
     private const val AVAILABILITY_LOCATION_MAX_AGE_MS = 180_000L
 
     fun scheduleAlarm(context: Context) {
