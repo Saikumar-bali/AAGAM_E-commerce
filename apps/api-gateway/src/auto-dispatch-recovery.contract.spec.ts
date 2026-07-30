@@ -60,7 +60,9 @@ describe('auto-dispatch recovery contracts', () => {
     expect(source).toContain('location.capturedAt < input.locationFreshAfter');
     expect(source).toContain('otherOpenOffer');
     expect(source).toContain('dispatchWaitingJobs');
-    expect(source).toContain('while (offered < offerLimit)');
+    expect(source).toContain(
+      'while (offered < offerLimit && scanned < scanLimit)',
+    );
     expect(source).toContain('{ updatedAt: { gt: after.updatedAt } }');
     expect(source).toContain("orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }]");
     expect(source).toContain('assignments: {');
