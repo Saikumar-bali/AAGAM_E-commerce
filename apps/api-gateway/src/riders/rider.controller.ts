@@ -8,14 +8,18 @@ import {
   Post,
   Req,
   UseGuards,
-} from "@nestjs/common";
-import { RiderService } from "./rider.service";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { RolesGuard } from "../auth/guards/roles.guard";
-import { Roles } from "../auth/decorators/roles.decorator";
-import { Role } from "@aagam/database";
+} from '@nestjs/common';
+import { Role } from '@aagam/database';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import {
+  AdminUpdateRiderStatusDto,
+  UpdateMyRiderStatusDto,
+} from './rider-status.dto';
+import { RiderService } from './rider.service';
 
-@Controller("riders")
+@Controller('riders')
 export class RiderController {
   constructor(private readonly riderService: RiderService) {}
 
@@ -26,36 +30,36 @@ export class RiderController {
     return this.riderService.findAll();
   }
 
-  @Get("me")
+  @Get('me')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.RIDER)
   async findMe(@Req() req: any) {
     return this.riderService.findByUserId(req.user.id);
   }
 
-  @Patch("me/status")
+  @Patch('me/status')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.RIDER)
   async updateMyStatus(
     @Req() req: any,
-    @Body() data: { status: string; latitude?: number; longitude?: number }
+    @Body() data: UpdateMyRiderStatusDto,
   ) {
     return this.riderService.updateStatusForUser(req.user.id, data);
   }
 
-  @Get(":id")
+  @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  async findOne(@Param("id") id: string) {
+  async findOne(@Param('id') id: string) {
     return this.riderService.findOne(id);
   }
 
-  @Patch(":id/status")
+  @Patch(':id/status')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   async updateStatus(
-    @Param("id") id: string,
-    @Body() data: { status: string; latitude?: number; longitude?: number }
+    @Param('id') id: string,
+    @Body() data: AdminUpdateRiderStatusDto,
   ) {
     return this.riderService.updateStatus(id, data);
   }
@@ -63,14 +67,28 @@ export class RiderController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  async create(@Body() data: { email: string; name: string; phone: string; password?: string; vehicleType?: string; vehicleNumber?: string; emergencyContactName?: string; emergencyContactPhone?: string; latitude?: number; longitude?: number }) {
+  async create(
+    @Body()
+    data: {
+      email: string;
+      name: string;
+      phone: string;
+      password?: string;
+      vehicleType?: string;
+      vehicleNumber?: string;
+      emergencyContactName?: string;
+      emergencyContactPhone?: string;
+      latitude?: number;
+      longitude?: number;
+    },
+  ) {
     return this.riderService.create(data);
   }
 
-  @Delete(":id")
+  @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  async delete(@Param("id") id: string) {
+  async delete(@Param('id') id: string) {
     return this.riderService.delete(id);
   }
 }
