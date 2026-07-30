@@ -80,9 +80,13 @@ export function normalizeOrderPricing(
     ) ?? 0,
   );
 
+  // Prisma-backed legacy rows may serialize newer money columns as zero even
+  // though their checkout snapshot contains the authoritative historical value.
+  // Skip those stale zero defaults, then fall back to zero only when no source
+  // contains a positive fee, discount, or tax amount.
   const deliveryFee = Math.max(
     0,
-    firstDefined(
+    firstPositive(
       finiteNumber(order?.deliveryFee),
       paiseToRupees(order?.deliveryFeePaise),
       finiteNumber(snapshot.deliveryFee),
@@ -91,7 +95,7 @@ export function normalizeOrderPricing(
   );
   const discountAmount = Math.max(
     0,
-    firstDefined(
+    firstPositive(
       finiteNumber(order?.discountAmount),
       paiseToRupees(order?.discountPaise),
       finiteNumber(snapshot.discountAmount),
@@ -100,7 +104,7 @@ export function normalizeOrderPricing(
   );
   const taxAmount = Math.max(
     0,
-    firstDefined(
+    firstPositive(
       finiteNumber(order?.taxAmount),
       paiseToRupees(order?.taxPaise),
       finiteNumber(snapshot.taxAmount),
