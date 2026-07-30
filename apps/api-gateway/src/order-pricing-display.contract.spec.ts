@@ -54,7 +54,7 @@ describe('customer order pricing display', () => {
     });
   });
 
-  test('preserves an authoritative zero total after fulfillment repricing', () => {
+  test('preserves authoritative zero pricing after fulfillment repricing', () => {
     expect(normalizeOrderPricing({
       subtotal: 0,
       subtotalPaise: 0,
@@ -78,7 +78,7 @@ describe('customer order pricing display', () => {
         grandTotalPaise: 10000,
       },
     })).toEqual({
-      subtotal: 100,
+      subtotal: 0,
       deliveryFee: 10,
       discountAmount: 10,
       taxAmount: 0,
