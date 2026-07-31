@@ -22,6 +22,7 @@ async function createCampaign(
   token: string,
   placement: string,
   title: string,
+  status?: string,
 ) {
   const suffix = ts();
   const res = await request.post(`${API_BASE}/admin/promotions/campaigns`, {
@@ -31,7 +32,7 @@ async function createCampaign(
       title,
       subtitle: `Subtitle ${suffix}`,
       badgeText: 'PW Test',
-      status: 'ACTIVE',
+      ...(status ? { status } : {}),
       placements: [placement],
       targetType: 'DEALS',
       priority: 1000,
@@ -61,6 +62,24 @@ test.describe('Public promotions placement rendering', () => {
     for (const id of campaignIds) {
       await archiveCampaign(request, token, id);
     }
+  });
+
+  test('default campaign status publishes to the customer shop feed', async ({ page, request }) => {
+    const suffix = ts();
+    const title = `PW Default Publish ${suffix}`;
+    const campaign = await createCampaign(request, token, 'HOME_HERO', title);
+    campaignIds.push(campaign.id);
+
+    const publicFeed = await request.get(`${API_BASE}/promotions/active`);
+    expect(publicFeed.ok(), `Public promotion feed failed: ${await publicFeed.text()}`).toBeTruthy();
+    expect(JSON.stringify(await publicFeed.json())).toContain(title);
+
+    await page.goto('/shop');
+    await expect(page.getByText(title).first()).toBeVisible({ timeout: 15000 });
+    await page.screenshot({
+      path: path.join(PROOF_DIR, '00-default-publish-shop.png'),
+      fullPage: true,
+    });
   });
 
   test('login page renders LOGIN_SIDEBAR campaign', async ({ page, request }) => {
