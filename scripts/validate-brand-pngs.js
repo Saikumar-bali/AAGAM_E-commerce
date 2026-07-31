@@ -31,6 +31,11 @@ function isSupportedFormat(bitDepth, colorType) {
   return [2, 6].includes(colorType) && bitDepth === 8;
 }
 
+function bytesPerScanline(width, bitDepth, colorType) {
+  const channels = { 2: 3, 3: 1, 6: 4 }[colorType];
+  return Math.ceil((width * channels * bitDepth) / 8);
+}
+
 for (const file of files) {
   const png = readFileSync(file);
   if (!png.subarray(0, 8).equals(signature)) throw new Error(`${file}: invalid PNG signature`);
@@ -40,6 +45,11 @@ for (const file of files) {
   let height = 0;
   let bitDepth = 0;
   let colorType = -1;
+  let compressionMethod = -1;
+  let filterMethod = -1;
+  let interlaceMethod = -1;
+  let sawHeader = false;
+  let sawPalette = false;
   let sawIend = false;
   const idat = [];
 
@@ -58,24 +68,49 @@ for (const file of files) {
 
     const data = png.subarray(dataStart, dataEnd);
     if (type === 'IHDR') {
+      if (sawHeader || offset !== 8 || length !== 13) throw new Error(`${file}: invalid IHDR`);
+      sawHeader = true;
       width = data.readUInt32BE(0);
       height = data.readUInt32BE(4);
       bitDepth = data[8];
       colorType = data[9];
+      compressionMethod = data[10];
+      filterMethod = data[11];
+      interlaceMethod = data[12];
+    } else if (type === 'PLTE') {
+      sawPalette = length > 0 && length % 3 === 0;
     } else if (type === 'IDAT') {
       idat.push(data);
     } else if (type === 'IEND') {
+      if (length !== 0) throw new Error(`${file}: invalid IEND`);
       sawIend = true;
       if (crcOffset + 4 !== png.length) throw new Error(`${file}: trailing bytes after IEND`);
     }
     offset = crcOffset + 4;
   }
 
+  if (!sawHeader) throw new Error(`${file}: missing IHDR`);
   if (!sawIend) throw new Error(`${file}: missing IEND`);
+  if (idat.length === 0) throw new Error(`${file}: missing IDAT`);
   if (width !== 256 || height !== 256) throw new Error(`${file}: expected 256x256, got ${width}x${height}`);
   if (!isSupportedFormat(bitDepth, colorType)) {
     throw new Error(`${file}: unsupported PNG format bitDepth=${bitDepth} colorType=${colorType}`);
   }
-  inflateSync(Buffer.concat(idat));
+  if (compressionMethod !== 0 || filterMethod !== 0 || interlaceMethod !== 0) {
+    throw new Error(`${file}: unsupported PNG compression/filter/interlace method`);
+  }
+  if (colorType === 3 && !sawPalette) throw new Error(`${file}: indexed PNG is missing a valid palette`);
+
+  const rowBytes = bytesPerScanline(width, bitDepth, colorType);
+  const inflated = inflateSync(Buffer.concat(idat));
+  const expectedInflatedLength = height * (rowBytes + 1);
+  if (inflated.length !== expectedInflatedLength) {
+    throw new Error(`${file}: invalid inflated data length ${inflated.length}; expected ${expectedInflatedLength}`);
+  }
+  for (let row = 0; row < height; row += 1) {
+    const filterType = inflated[row * (rowBytes + 1)];
+    if (filterType > 4) throw new Error(`${file}: invalid filter byte ${filterType} on row ${row}`);
+  }
+
   console.log(`Valid Android PNG: ${file} (${width}x${height}, bitDepth=${bitDepth}, colorType=${colorType})`);
 }
