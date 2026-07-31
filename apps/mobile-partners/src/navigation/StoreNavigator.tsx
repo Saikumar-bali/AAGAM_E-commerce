@@ -15,16 +15,17 @@ const Stack = createNativeStackNavigator();
 const StoreTabs = () => (
   <Tab.Navigator
     screenOptions={{
-      tabBarActiveTintColor: '#0F172A',
-      tabBarInactiveTintColor: '#A8A29E',
+      tabBarActiveTintColor: '#0F766E',
+      tabBarInactiveTintColor: '#94A3B8',
       headerShown: false,
       tabBarHideOnKeyboard: true,
+      sceneStyle: { backgroundColor: '#F4F7FB' },
       tabBarStyle: {
         position: 'absolute',
         left: 12,
         right: 12,
         bottom: 12,
-        height: 74,
+        height: 76,
         paddingBottom: 14,
         paddingTop: 8,
         backgroundColor: '#FFFFFF',
@@ -36,20 +37,20 @@ const StoreTabs = () => (
         shadowOpacity: 0.14,
         shadowRadius: 24,
       },
-      tabBarItemStyle: { minWidth: 0 },
-      tabBarLabelStyle: { fontSize: 9, fontWeight: '900' },
+      tabBarItemStyle: { minWidth: 0, borderRadius: 18 },
+      tabBarLabelStyle: { fontSize: 9, fontWeight: '900', marginTop: 1 },
     }}
   >
-    <Tab.Screen name="Dashboard" component={StoreDashboard} options={{ tabBarButtonTestID: 'tab_dashboard', tabBarIcon: ({ color, size }) => <LayoutGrid size={size} color={color} /> }} />
-    <Tab.Screen name="Orders" component={StoreOrdersNavigator} options={{ tabBarButtonTestID: 'tab_orders', tabBarIcon: ({ color, size }) => <ShoppingBag size={size} color={color} /> }} />
-    <Tab.Screen name="Inventory" component={StoreInventoryScreen} options={{ tabBarButtonTestID: 'tab_inventory', tabBarIcon: ({ color, size }) => <Package size={size} color={color} /> }} />
-    <Tab.Screen name="Operations" component={StoreDeliveryOperationsScreen} options={{ tabBarButtonTestID: 'tab_operations', tabBarIcon: ({ color, size }) => <ClipboardCheck size={size} color={color} /> }} />
-    <Tab.Screen name="Settings" component={StoreSettingsScreen} options={{ tabBarButtonTestID: 'tab_settings', tabBarIcon: ({ color, size }) => <Settings size={size} color={color} /> }} />
+    <Tab.Screen name="Dashboard" component={StoreDashboard} options={{ tabBarButtonTestID: 'tab_dashboard', tabBarIcon: ({ color, size, focused }) => <LayoutGrid size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }} />
+    <Tab.Screen name="Orders" component={StoreOrdersNavigator} options={{ tabBarButtonTestID: 'tab_orders', tabBarIcon: ({ color, size, focused }) => <ShoppingBag size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }} />
+    <Tab.Screen name="Inventory" component={StoreInventoryScreen} options={{ tabBarButtonTestID: 'tab_inventory', tabBarIcon: ({ color, size, focused }) => <Package size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }} />
+    <Tab.Screen name="Operations" component={StoreDeliveryOperationsScreen} options={{ tabBarButtonTestID: 'tab_operations', tabBarIcon: ({ color, size, focused }) => <ClipboardCheck size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }} />
+    <Tab.Screen name="Settings" component={StoreSettingsScreen} options={{ tabBarButtonTestID: 'tab_settings', tabBarIcon: ({ color, size, focused }) => <Settings size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }} />
   </Tab.Navigator>
 );
 
 export const StoreNavigator = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F4F7FB' }, animation: 'slide_from_right' }}>
     <Stack.Screen name="StoreTabs" component={StoreTabs} />
     <Stack.Screen name="StorePickupVerification" component={StorePickupVerificationScreen} />
   </Stack.Navigator>
