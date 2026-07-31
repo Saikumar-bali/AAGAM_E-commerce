@@ -1,0 +1,30 @@
+name: Aagaam Production UX
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["agent/aagaam-production-ux-notifications"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aagaam-production-ux-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: UX and notification contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.3"
+
+      - name: Validate production UX contracts
+        run: node scripts/aagaam-production-ux.contract.test.js
