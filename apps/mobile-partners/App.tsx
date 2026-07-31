@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, NativeModules, StatusBar, StyleSheet, Text, View } from 'react-native';
 import messaging, { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -11,6 +11,7 @@ import { notificationService, PartnerNotificationInbox } from './src/api/notific
 
 const queryClient = new QueryClient();
 const NOTIFICATION_KEY = ['partner-notifications'] as const;
+const PartnerAlertTone = NativeModules.PartnerAlertTone as { play?: () => void; stop?: () => void } | undefined;
 
 function invalidateOperationalQueries(eventType?: string) {
   void queryClient.invalidateQueries({ queryKey: NOTIFICATION_KEY });
@@ -56,9 +57,10 @@ function PushLifecycle() {
     inboxBootstrapped.current = false;
 
     const showMessage = (title?: string, body?: string, eventType?: string) => {
+      PartnerAlertTone?.play?.();
       Toast.show({
         type: 'info',
-        text1: title || 'AAGAM operations update',
+        text1: title || 'Aagaam operations update',
         text2: body || 'Open the app for the latest operational update.',
         visibilityTime: 6000,
       });
@@ -92,7 +94,7 @@ function PushLifecycle() {
       }
     };
 
-    const deviceName = user.role === 'RIDER' ? 'AAGAM Rider' : 'AAGAM Store Partner';
+    const deviceName = user.role === 'RIDER' ? 'Aagaam Rider' : 'Aagaam Store Partner';
     void startMobilePushLifecycle(deviceName, (message) => {
       const eventType = String(message.data?.eventType || '');
       const recipientId = String(message.data?.recipientId || '');
@@ -140,6 +142,7 @@ function PushLifecycle() {
 
     return () => {
       disposed = true;
+      PartnerAlertTone?.stop?.();
       unsubscribePush();
       unsubscribeOpened();
       if (interval) clearInterval(interval);
@@ -184,7 +187,7 @@ function App() {
 }
 
 const styles = StyleSheet.create({
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC', gap: 12 },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F7FB', gap: 12 },
   loadingText: { color: '#64748B', fontSize: 13, fontWeight: '700' },
 });
 
