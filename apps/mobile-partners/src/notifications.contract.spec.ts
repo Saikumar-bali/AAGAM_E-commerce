@@ -9,7 +9,8 @@ describe('Partners notification delivery contracts', () => {
   it('creates the versioned high-priority Android channel used by Firebase partner pushes', () => {
     const application = read('../android/app/src/main/java/com/aagampartners/MainApplication.kt');
     const manifest = read('../android/app/src/main/AndroidManifest.xml');
-    expect(application).toContain('OPERATIONS_CHANNEL_ID = "aagaam_priority_operations_v2"');
+    expect(application).toContain('OPERATIONS_CHANNEL_ID = "aagam_priority_operations_v2"');
+    expect(application).toContain('"Aagaam priority operations"');
     expect(application).toContain('NotificationManager.IMPORTANCE_HIGH');
     expect(application).toContain('RingtoneManager.TYPE_ALARM');
     expect(application).toContain('AudioAttributes.USAGE_NOTIFICATION_EVENT');
@@ -17,7 +18,8 @@ describe('Partners notification delivery contracts', () => {
     expect(application).toContain('createOperationsNotificationChannel()');
     expect(application).toContain('add(PartnerAlertTonePackage())');
     expect(manifest).toContain('com.google.firebase.messaging.default_notification_channel_id');
-    expect(manifest).toContain('android:value="aagaam_priority_operations_v2"');
+    expect(manifest).toContain('android:value="aagam_priority_operations_v2"');
+    expect(manifest).not.toContain('android:value="aagaam_priority_operations_v2"');
   });
 
   it('plays the same distinctive alert while the partner app is in the foreground', () => {
