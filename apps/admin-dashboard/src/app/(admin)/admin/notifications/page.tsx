@@ -12,7 +12,7 @@ export default function AdminNotificationsPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('Service update');
-  const [body, setBody] = useState('AAGAM broadcast placeholder message');
+  const [body, setBody] = useState('AAGAAM broadcast placeholder message');
   const [message, setMessage] = useState('');
 
   const fetchInbox = async () => {
