@@ -14,12 +14,6 @@ replacements = {
         ),
         ("else router.push('/shop');", "else router.push(safeCustomerReturnPath(window.location.search));"),
     ],
-    'scripts/aagaam-customer-experience.contract.test.js': [
-        (
-            "excludes(webLogin, 'international number with country code', 'The web login must not advertise unsupported overlong or international input.');",
-            "excludes(webLogin, 'international number with country code', 'The web login must not advertise unsupported overlong or international input.');\ncontains(webLogin, \"requested === '/shop' || requested?.startsWith('/shop/')\", 'Customer authentication must allow only safe relative shop return paths.');\ncontains(webLogin, 'safeCustomerReturnPath(window.location.search)', 'All customer login methods must honor the safe return destination.');\nconst dashboardLayout = read('apps/admin-dashboard/src/components/DashboardLayout.tsx');\ncontains(dashboardLayout, 'returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}', 'Protected routes must preserve their destination through authentication.');",
-        ),
-    ],
     'scripts/aagam-production-ux.contract.test.js': [
         (
             "contains(map, 'maxZoom: 16', 'Tracking bounds must not zoom out farther than the intended delivery view.');",
