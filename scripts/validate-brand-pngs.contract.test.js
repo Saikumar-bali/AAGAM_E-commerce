@@ -37,59 +37,26 @@ function chunk(type, data = Buffer.alloc(0)) {
   return Buffer.concat([length, typeBuffer, data, crc]);
 }
 
-function header() {
+function header({ bitDepth = 4, colorType = 3 } = {}) {
   const data = Buffer.alloc(13);
   data.writeUInt32BE(256, 0);
   data.writeUInt32BE(256, 4);
-  data[8] = 4;
-  data[9] = 3;
+  data[8] = bitDepth;
+  data[9] = colorType;
   return data;
 }
 
-function fullScanlines() {
-  return Buffer.alloc(256 * (128 + 1));
-}
-
 const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-const palette = Buffer.from([0, 0, 0]);
+const palette = Buffer.alloc(48);
+const transparency = Buffer.alloc(16, 255);
+const indexedScanlines = () => Buffer.alloc(256 * 129);
 
-function indexedPng(parts) {
-  return Buffer.concat([signature, chunk('IHDR', header()), ...parts, chunk('IEND')]);
+function png(parts, options) {
+  return Buffer.concat([signature, chunk('IHDR', header(options)), ...parts, chunk('IEND')]);
 }
 
-function incompleteScanlinePng() {
-  return indexedPng([chunk('PLTE', palette), chunk('IDAT', deflateSync(Buffer.from([0])))]);
-}
-
-function paletteAfterIdatPng() {
-  return indexedPng([chunk('IDAT', deflateSync(fullScanlines())), chunk('PLTE', palette)]);
-}
-
-function invalidChunkTypePng() {
-  return indexedPng([
-    chunk('PLTE', palette),
-    chunk('1abc'),
-    chunk('IDAT', deflateSync(fullScanlines())),
-  ]);
-}
-
-function invalidReservedBitPng() {
-  return indexedPng([
-    chunk('PLTE', palette),
-    chunk('abca'),
-    chunk('IDAT', deflateSync(fullScanlines())),
-  ]);
-}
-
-function trailingZlibBytesPng() {
-  const compressed = Buffer.concat([deflateSync(fullScanlines()), Buffer.from([1, 2, 3])]);
-  return indexedPng([chunk('PLTE', palette), chunk('IDAT', compressed)]);
-}
-
-function outOfRangePaletteIndexPng() {
-  const scanlines = fullScanlines();
-  scanlines[1] = 0x10;
-  return indexedPng([chunk('PLTE', palette), chunk('IDAT', deflateSync(scanlines))]);
+function canonicalParts(compressed = deflateSync(indexedScanlines())) {
+  return [chunk('PLTE', palette), chunk('tRNS', transparency), chunk('IDAT', compressed)];
 }
 
 function expectRejected(file, bytes, expectedMessage) {
@@ -110,13 +77,46 @@ process.stdout.write(validResult.stdout);
 
 const tempDir = mkdtempSync(join(tmpdir(), 'aagam-png-contract-'));
 try {
-  expectRejected(join(tempDir, 'truncated-scanlines.png'), incompleteScanlinePng(), 'invalid inflated data length');
-  expectRejected(join(tempDir, 'palette-after-idat.png'), paletteAfterIdatPng(), 'indexed PNG requires PLTE before IDAT');
-  expectRejected(join(tempDir, 'invalid-chunk-type.png'), invalidChunkTypePng(), 'invalid PNG chunk type');
-  expectRejected(join(tempDir, 'invalid-reserved-bit.png'), invalidReservedBitPng(), 'invalid PNG chunk reserved bit');
-  expectRejected(join(tempDir, 'trailing-zlib-bytes.png'), trailingZlibBytesPng(), 'trailing bytes after the zlib image stream');
-  expectRejected(join(tempDir, 'palette-index-out-of-range.png'), outOfRangePaletteIndexPng(), 'palette index 1 exceeds 0');
-  console.log('Rejected malformed CRC-correct PNG structure and pixel streams.');
+  expectRejected(
+    join(tempDir, 'truncated-scanlines.png'),
+    png(canonicalParts(deflateSync(Buffer.from([0])))),
+    'invalid inflated data length',
+  );
+  expectRejected(
+    join(tempDir, 'palette-after-idat.png'),
+    png([chunk('IDAT', deflateSync(indexedScanlines())), chunk('PLTE', palette), chunk('tRNS', transparency)]),
+    'expected PLTE, found IDAT',
+  );
+  expectRejected(
+    join(tempDir, 'invalid-chunk-type.png'),
+    png([chunk('PLTE', palette), chunk('1abc'), chunk('tRNS', transparency), chunk('IDAT', deflateSync(indexedScanlines()))]),
+    'invalid PNG chunk type',
+  );
+  expectRejected(
+    join(tempDir, 'invalid-reserved-bit.png'),
+    png([chunk('PLTE', palette), chunk('abca'), chunk('tRNS', transparency), chunk('IDAT', deflateSync(indexedScanlines()))]),
+    'invalid PNG chunk reserved bit',
+  );
+  expectRejected(
+    join(tempDir, 'trailing-zlib-bytes.png'),
+    png(canonicalParts(Buffer.concat([deflateSync(indexedScanlines()), Buffer.from([1, 2, 3])]))),
+    'trailing bytes after the zlib image stream',
+  );
+  expectRejected(
+    join(tempDir, 'truecolor-format.png'),
+    png([
+      chunk('tRNS', Buffer.alloc(6)),
+      chunk('PLTE', palette),
+      chunk('IDAT', deflateSync(Buffer.alloc(256 * (256 * 3 + 1)))),
+    ], { bitDepth: 8, colorType: 2 }),
+    'expected canonical 256x256 4-bit indexed non-interlaced PNG',
+  );
+  expectRejected(
+    join(tempDir, 'missing-transparency.png'),
+    png([chunk('PLTE', palette), chunk('IDAT', deflateSync(indexedScanlines()))]),
+    'expected tRNS, found IDAT',
+  );
+  console.log('Rejected non-canonical and structurally malformed brand PNGs.');
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
 }
