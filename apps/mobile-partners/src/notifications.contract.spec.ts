@@ -15,8 +15,19 @@ describe('Partners notification delivery contracts', () => {
     expect(application).toContain('AudioAttributes.USAGE_NOTIFICATION_EVENT');
     expect(application).toContain('vibrationPattern = longArrayOf(0, 180, 100, 180, 100, 280)');
     expect(application).toContain('createOperationsNotificationChannel()');
+    expect(application).toContain('add(PartnerAlertTonePackage())');
     expect(manifest).toContain('com.google.firebase.messaging.default_notification_channel_id');
     expect(manifest).toContain('android:value="aagaam_priority_operations_v2"');
+  });
+
+  it('plays the same distinctive alert while the partner app is in the foreground', () => {
+    const app = read('../App.tsx');
+    const toneModule = read('../android/app/src/main/java/com/aagampartners/PartnerAlertToneModule.kt');
+    expect(app).toContain('PartnerAlertTone?.play?.()');
+    expect(app).toContain('PartnerAlertTone?.stop?.()');
+    expect(toneModule).toContain('RingtoneManager.TYPE_ALARM');
+    expect(toneModule).toContain('ringtone.play()');
+    expect(toneModule).toContain('4500');
   });
 
   it('keeps a durable inbox fallback when FCM registration or delivery is unavailable', () => {
