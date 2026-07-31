@@ -25,11 +25,9 @@ excludes(partnerReview, 'setError(', 'Partner review errors must not be rendered
 excludes(partnerReview, 'window.alert(', 'Partner document feedback must use modern toast UI.');
 
 const webPhoneGuard = read('apps/admin-dashboard/src/components/TenDigitPhoneGuard.tsx');
-contains(webPhoneGuard, 'input.maxLength = 13', 'Web login must allow a complete prefixed autofill value to reach normalization.');
-contains(webPhoneGuard, "digits.length === 11 && digits.startsWith('0')", 'Web login must normalize an exact Indian trunk prefix.');
-contains(webPhoneGuard, "digits.length === 12 && digits.startsWith('91')", 'Web login must normalize an exact Indian country prefix.');
-contains(webPhoneGuard, 'return digits;', 'Web login must preserve unsupported lengths so normal form validation rejects them.');
-excludes(webPhoneGuard, ".replace(/\\D/g, '').slice(0, 10)", 'Web login must not silently truncate an unsupported number into another account.');
+contains(webPhoneGuard, 'input.maxLength = 10', 'Web login must enforce the national ten-digit field at runtime.');
+contains(webPhoneGuard, ".replace(/\\D/g, '').slice(0, 10)", 'Web login must keep digits only and cap state-visible input at ten digits.');
+excludes(webPhoneGuard, 'input.maxLength = 13', 'The runtime guard must not override the field back to thirteen characters.');
 contains(webPhoneGuard, "target.inputMode === 'numeric'", 'The guard must continue recognizing the field after configuring numeric input mode.');
 contains(webPhoneGuard, "target.dataset.aagamPhoneGuard === 'true'", 'The configured login field must keep a stable internal identity.');
 
@@ -38,12 +36,9 @@ for (const path of [
   'apps/mobile-partners/src/screens/LoginScreen.tsx',
 ]) {
   const source = read(path);
-  contains(source, "const digits = value.replace(/\\D/g, '')", `${path} must sanitize phone input.`);
-  contains(source, "digits.length === 11 && digits.startsWith('0')", `${path} must normalize an exact Indian trunk prefix.`);
-  contains(source, "digits.length === 12 && digits.startsWith('91')", `${path} must normalize an exact Indian country prefix.`);
-  contains(source, 'return digits;', `${path} must preserve unsupported lengths so validation rejects them.`);
-  excludes(source, 'return nationalDigits.slice(0, 10)', `${path} must not silently truncate unsupported overlong values.`);
-  contains(source, 'maxLength={13}', `${path} must allow a complete +91 autofill value before normalization.`);
+  contains(source, ".replace(/\\D/g, '').slice(0, 10)", `${path} must sanitize and cap the national phone field.`);
+  contains(source, 'maxLength={10}', `${path} must reject an eleventh character at the native input boundary.`);
+  excludes(source, 'maxLength={13}', `${path} must not accept prefixed or overlong input in the national-number field.`);
   contains(source, 'phone.length !== 10', `${path} must keep the action disabled unless state has exactly ten digits.`);
   contains(source, 'nationalNumber.length !== 10', `${path} must reject non-ten-digit values before the API call.`);
   contains(source, "`+91${digitsOnly(value)}`", `${path} must format the national number only at the API boundary.`);
