@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { Alert, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { CheckCircle2, Clock3, Edit3, FileText, LogIn, RotateCcw, ShieldAlert } from 'lucide-react-native';
+import { CheckCircle2, Clock3, FileText, RotateCcw, ShieldAlert } from 'lucide-react-native';
 import {
   OnboardingShell,
   palette,
@@ -58,7 +58,7 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
   };
   const fixRequested = () => navigation.navigate(needsDocuments ? 'ApplicationDocuments' : profileRoute);
   const submitApplication = async () => {
-    try { await submit(); Alert.alert('Application submitted', 'AAGAM can now review your profile and documents.'); }
+    try { await submit(); Alert.alert('Application submitted', 'Aagaam can now review your profile and documents.'); }
     catch (error: any) { Alert.alert('Submission blocked', error.message); }
   };
   const activate = async () => {
@@ -96,16 +96,16 @@ export function PartnerApplicationStatusScreen({ navigation }: any) {
 
     {!contactVerified ? <Section title="Contact verification required"><PrimaryButton label="Return to verification" onPress={() => navigation.navigate('VerifyApplication')} /></Section> : null}
 
-    {application.status === 'ACTION_REQUIRED' ? <Section title="AAGAM needs changes" subtitle="Complete the requested items and resubmit."><View style={styles.warningRow}><ShieldAlert size={22} color={palette.amber} /><View style={{ flex: 1 }}><Text style={styles.warningText}>{latestChange?.message || 'AAGAM requested updates.'}</Text>{requestedFields.map((field) => <Text key={field} style={styles.fieldChip}>{field.replaceAll('_', ' ')}</Text>)}</View></View><PrimaryButton label={needsDocuments ? 'Replace requested documents' : 'Update requested information'} onPress={fixRequested} /></Section> : null}
+    {application.status === 'ACTION_REQUIRED' ? <Section title="Aagaam needs changes" subtitle="Complete the requested items and resubmit."><View style={styles.warningRow}><ShieldAlert size={22} color={palette.amber} /><View style={{ flex: 1 }}><Text style={styles.warningText}>{latestChange?.message || 'Aagaam requested updates.'}</Text>{requestedFields.map((field) => <Text key={field} style={styles.fieldChip}>{field.replaceAll('_', ' ')}</Text>)}</View></View><PrimaryButton label={needsDocuments ? 'Replace requested documents' : 'Update requested information'} onPress={fixRequested} /></Section> : null}
 
     {application.status === 'APPROVED' ? <Section
       title="Approved — operational access is ready"
-      subtitle={directPhoneLogin ? 'Use the verified application phone number and an OTP to sign in.' : application.linkedExistingUser ? 'Access was added to your existing AAGAM account.' : 'Complete the remaining account activation step.'}
-    ><View style={styles.successRow}><CheckCircle2 size={25} color={palette.green} /><Text style={styles.successText}>Document review and Partner approval are complete.</Text></View>{directPhoneLogin ? <PrimaryButton label="Sign in with phone OTP" onPress={signIn} /> : application.linkedExistingUser ? <PrimaryButton label="Sign in to AAGAM" onPress={signIn} /> : <PrimaryButton label="Create password and activate" onPress={activate} loading={isLoading} />}</Section> : null}
+      subtitle={directPhoneLogin ? 'Use the verified application phone number and an OTP to sign in.' : application.linkedExistingUser ? 'Access was added to your existing Aagaam account.' : 'Complete the remaining account activation step.'}
+    ><View style={styles.successRow}><CheckCircle2 size={25} color={palette.green} /><Text style={styles.successText}>Document review and Partner approval are complete.</Text></View>{directPhoneLogin ? <PrimaryButton label="Sign in with phone OTP" onPress={signIn} /> : application.linkedExistingUser ? <PrimaryButton label="Sign in to Aagaam" onPress={signIn} /> : <PrimaryButton label="Create password and activate" onPress={activate} loading={isLoading} />}</Section> : null}
 
-    {editable ? <Section title={['SUBMITTED', 'UNDER_REVIEW'].includes(application.status) ? 'Edit before approval' : 'Complete and submit'} subtitle={['SUBMITTED', 'UNDER_REVIEW'].includes(application.status) ? 'Editing reopens the application as Draft and requires resubmission.' : undefined}><PrimaryButton label="Edit profile details" onPress={editProfile} secondary /><PrimaryButton label="Review documents" onPress={() => navigation.navigate('ApplicationDocuments')} secondary />{['DRAFT', 'ACTION_REQUIRED'].includes(application.status) ? <PrimaryButton label={application.submissionVersion > 0 ? 'Resubmit corrected application' : 'Submit for AAGAM review'} onPress={submitApplication} loading={isLoading} disabled={requirements.completionPercent < 100} /> : null}{requirements.completionPercent < 100 ? <Text style={styles.blocked}>Upload every mandatory document before submission.</Text> : null}</Section> : null}
+    {editable ? <Section title={['SUBMITTED', 'UNDER_REVIEW'].includes(application.status) ? 'Edit before approval' : 'Complete and submit'} subtitle={['SUBMITTED', 'UNDER_REVIEW'].includes(application.status) ? 'Editing reopens the application as Draft and requires resubmission.' : undefined}><PrimaryButton label="Edit profile details" onPress={editProfile} secondary /><PrimaryButton label="Review documents" onPress={() => navigation.navigate('ApplicationDocuments')} secondary />{['DRAFT', 'ACTION_REQUIRED'].includes(application.status) ? <PrimaryButton label={application.submissionVersion > 0 ? 'Resubmit corrected application' : 'Submit for Aagaam review'} onPress={submitApplication} loading={isLoading} disabled={requirements.completionPercent < 100} /> : null}{requirements.completionPercent < 100 ? <Text style={styles.blocked}>Upload every mandatory document before submission.</Text> : null}</Section> : null}
 
-    {['SUBMITTED', 'UNDER_REVIEW'].includes(application.status) ? <Section title="Review in progress" subtitle="You may still edit before approval, but doing so reopens the application."><View style={styles.waitingRow}><Clock3 size={22} color="#0369A1" /><Text style={styles.waitingText}>{application.status === 'SUBMITTED' ? 'Application received and waiting for an AAGAM reviewer.' : 'AAGAM is checking the profile and documents.'}</Text></View><PrimaryButton label="Edit and reopen as Draft" onPress={editProfile} secondary /></Section> : null}
+    {['SUBMITTED', 'UNDER_REVIEW'].includes(application.status) ? <Section title="Review in progress" subtitle="You may still edit before approval, but doing so reopens the application."><View style={styles.waitingRow}><Clock3 size={22} color="#0369A1" /><Text style={styles.waitingText}>{application.status === 'SUBMITTED' ? 'Application received and waiting for an Aagaam reviewer.' : 'Aagaam is checking the profile and documents.'}</Text></View><PrimaryButton label="Edit and reopen as Draft" onPress={editProfile} secondary /></Section> : null}
 
     {application.status === 'REJECTED' ? <Section title="Application not approved"><Text style={styles.rejected}>Review the reason in the timeline and contact Partner Support before starting another application.</Text></Section> : null}
 

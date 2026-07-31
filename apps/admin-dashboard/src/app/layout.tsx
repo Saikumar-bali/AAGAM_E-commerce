@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ToastProvider } from "@/components/ToastProvider";
+import TenDigitPhoneGuard from "@/components/TenDigitPhoneGuard";
 
 export const metadata: Metadata = {
-  title: "Aagam Commerce OS",
-  description: "Enterprise quick-commerce storefront, operations, and rider tracking.",
+  title: "Aagaam Commerce",
+  description: "Professional quick-commerce shopping, store operations, and delivery tracking.",
 };
 
 export default function RootLayout({
@@ -13,7 +15,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <ToastProvider>
+          <TenDigitPhoneGuard />
+          {children}
+        </ToastProvider>
+      </body>
     </html>
   )
 }

@@ -27,13 +27,13 @@ const googleClientConfigured =
   typeof GOOGLE_WEB_CLIENT_ID === 'string' &&
   GOOGLE_WEB_CLIENT_ID.endsWith('.apps.googleusercontent.com');
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const phoneForApi = (value: string) => {
-  const compact = value.replace(/[\s().-]/g, '');
-  if (/^\d{10}$/.test(compact)) return `+91${compact}`;
-  if (/^91\d{10}$/.test(compact)) return `+${compact}`;
-  return compact;
+const digitsOnly = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  return digits;
 };
+const phoneForApi = (value: string) => `+91${digitsOnly(value)}`;
 
 export const LoginScreen = () => {
   const login = useAuthStore((state) => state.login);
@@ -87,12 +87,12 @@ export const LoginScreen = () => {
   };
 
   const applyChallenge = (
-    normalizedPhone: string,
+    nationalNumber: string,
     resolvedPurpose: CustomerPhoneOtpPurpose,
     isNewCustomer: boolean,
     maskedDestination: string,
   ) => {
-    setPhone(normalizedPhone);
+    setPhone(nationalNumber);
     setMasked(maskedDestination);
     setOtpPurpose(resolvedPurpose);
     setNewCustomer(isNewCustomer);
@@ -102,16 +102,17 @@ export const LoginScreen = () => {
   };
 
   const requestCode = async () => {
-    const normalized = phoneForApi(phone);
-    if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
-      notify.warning('Valid mobile required', 'Enter a 10-digit Indian mobile number or a valid E.164 number.');
+    const nationalNumber = digitsOnly(phone);
+    if (nationalNumber.length !== 10) {
+      notify.warning('Valid mobile required', 'Enter exactly 10 digits.');
       return;
     }
+    const normalized = phoneForApi(nationalNumber);
     await requestLock.run(async () => {
       setRequesting(true);
       try {
         const result = await discoverCustomerPhoneOtp(requestPhoneOtp, normalized);
-        applyChallenge(normalized, result.purpose, result.isNewCustomer, result.challenge.maskedDestination);
+        applyChallenge(nationalNumber, result.purpose, result.isNewCustomer, result.challenge.maskedDestination);
         notify.success('OTP sent', `Code sent to ${result.challenge.maskedDestination}.`);
       } catch (error) {
         notify.error('Could not send OTP', getUserSafeError(error, 'Please try again.'));
@@ -126,7 +127,7 @@ export const LoginScreen = () => {
     await requestLock.run(async () => {
       setRequesting(true);
       try {
-        const result = await resendCustomerPhoneOtp(requestPhoneOtp, phone, otpPurpose);
+        const result = await resendCustomerPhoneOtp(requestPhoneOtp, phoneForApi(phone), otpPurpose);
         setMasked(result.maskedDestination);
         setCode('');
         setCountdown(30);
@@ -146,7 +147,7 @@ export const LoginScreen = () => {
       setVerifying(true);
       try {
         await verifyPhoneOtp({
-          phoneE164: phone,
+          phoneE164: phoneForApi(phone),
           purpose: otpPurpose,
           code: candidate,
           ...(otpPurpose === 'SIGNUP'
@@ -155,7 +156,7 @@ export const LoginScreen = () => {
         });
         notify.success(
           otpPurpose === 'SIGNUP' ? 'Account created successfully' : 'Signed in successfully',
-          otpPurpose === 'SIGNUP' ? 'Welcome to Aagam.' : 'Welcome back to Aagam.',
+          otpPurpose === 'SIGNUP' ? 'Welcome to Aagaam.' : 'Welcome back to Aagaam.',
         );
       } catch (error) {
         setCode('');
@@ -197,7 +198,7 @@ export const LoginScreen = () => {
     setPasswordLoading(true);
     try {
       await login(identifier.trim(), password);
-      notify.success('Signed in successfully', 'Welcome back to Aagam.');
+      notify.success('Signed in successfully', 'Welcome back to Aagaam.');
     } catch (error) {
       notify.error('Login failed', getUserSafeError(error, 'Check your credentials and try again.'));
     } finally {
@@ -232,21 +233,24 @@ export const LoginScreen = () => {
 
   return (
     <View style={styles.container}>
+      <View style={styles.glowTeal} />
+      <View style={styles.glowAmber} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View style={styles.header}><AagamBrand /><Text style={styles.subtitle}>Fast, secure shopping access</Text></View>
+          <View style={styles.header}><AagamBrand caption="Shopping made effortless" /><Text style={styles.subtitle}>Fast access. Secure checkout. Live delivery updates.</Text></View>
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>{masked ? challengeTitle : 'Sign in to Aagam'}</Text>
-            <Text style={styles.cardSubtitle}>{masked ? 'Enter your details and the OTP sent to your mobile number.' : 'Enter your mobile number to continue securely.'}</Text>
+            <Text style={styles.cardTitle}>{masked ? challengeTitle : 'Welcome to Aagaam'}</Text>
+            <Text style={styles.cardSubtitle}>{masked ? 'Enter your details and the OTP sent to your mobile number.' : 'Use your 10-digit mobile number to continue.'}</Text>
             {!masked ? <View style={styles.tabs}>
               <TouchableOpacity onPress={() => setMode('PHONE')} style={[styles.tab, mode === 'PHONE' && styles.tabActive]}><Phone size={17} color={mode === 'PHONE' ? '#fff' : '#64748B'} /><Text style={[styles.tabText, mode === 'PHONE' && styles.tabTextActive]}>Phone OTP</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => setMode('PASSWORD')} style={[styles.tab, mode === 'PASSWORD' && styles.tabActive]}><Lock size={17} color={mode === 'PASSWORD' ? '#fff' : '#64748B'} /><Text style={[styles.tabText, mode === 'PASSWORD' && styles.tabTextActive]}>Password</Text></TouchableOpacity>
             </View> : null}
 
             {mode === 'PHONE' ? !masked ? <>
-              <View style={styles.infoPanel}><ShieldCheck size={18} color="#0F766E" /><Text style={styles.infoText}>We'll send a secure OTP to verify your mobile number.</Text></View>
-              <View style={styles.inputWrapper}><Phone size={19} color="#0F766E" /><TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="10-digit mobile number" keyboardType="phone-pad" autoComplete="tel" placeholderTextColor="#94A3B8" /></View>
-              <TouchableOpacity style={[styles.primary, requesting && styles.buttonDisabled]} onPress={requestCode} disabled={requesting}>{requesting ? <ActivityIndicator color="#fff" /> : <><Text style={styles.primaryText}>Continue with OTP</Text><ArrowRight size={19} color="#fff" /></>}</TouchableOpacity>
+              <View style={styles.infoPanel}><ShieldCheck size={18} color="#0F766E" /><Text style={styles.infoText}>A single-use OTP keeps your account protected.</Text></View>
+              <Text style={styles.label}>Mobile number</Text>
+              <View style={styles.inputWrapper}><View style={styles.countryCode}><Text style={styles.countryCodeText}>+91</Text></View><TextInput testID="customer_phone_input" style={styles.input} value={phone} onChangeText={(value) => setPhone(digitsOnly(value))} placeholder="10-digit mobile number" keyboardType="number-pad" autoComplete="tel" textContentType="telephoneNumber" maxLength={13} placeholderTextColor="#94A3B8" /></View>
+              <TouchableOpacity style={[styles.primary, (requesting || phone.length !== 10) && styles.buttonDisabled]} onPress={requestCode} disabled={requesting || phone.length !== 10}>{requesting ? <ActivityIndicator color="#fff" /> : <><Text style={styles.primaryText}>Continue with OTP</Text><ArrowRight size={19} color="#fff" /></>}</TouchableOpacity>
             </> : <>
               <Text style={styles.sent}>Code sent to {masked}</Text>
               {newCustomer ? <View style={styles.profilePanel}><Text style={styles.profileTitle}>Complete your profile</Text><Text style={styles.profileHelp}>Full name is required. Email is optional.</Text><View style={styles.inputWrapper}><User size={18} color="#0F766E" /><TextInput ref={profileNameRef} style={styles.input} value={profileName} onChangeText={setProfileName} placeholder="Full name" autoCapitalize="words" placeholderTextColor="#94A3B8" /></View><View style={styles.inputWrapper}><Mail size={18} color="#64748B" /><TextInput style={styles.input} value={profileEmail} onChangeText={setProfileEmail} placeholder="Email (optional)" keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#94A3B8" /></View></View> : null}
@@ -257,14 +261,14 @@ export const LoginScreen = () => {
               <TouchableOpacity disabled={countdown > 0 || requesting} onPress={() => void resendCode()}><Text style={[styles.link, (countdown > 0 || requesting) && styles.linkDisabled]}>{countdown > 0 ? `Resend in 00:${String(countdown).padStart(2, '0')}` : requesting ? 'Sending…' : 'Resend OTP'}</Text></TouchableOpacity>
               <TouchableOpacity disabled={phoneBusy} onPress={resetPhoneFlow}><Text style={styles.secondaryLink}>Change mobile number</Text></TouchableOpacity>
             </> : <>
-              <View style={styles.inputWrapper}><Mail size={19} color="#64748B" /><TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} placeholder="Phone number or email" autoCapitalize="none" placeholderTextColor="#94A3B8" /></View>
-              <View style={styles.inputWrapper}><Lock size={19} color="#64748B" /><TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry placeholderTextColor="#94A3B8" /></View>
+              <Text style={styles.label}>Phone number or email</Text><View style={styles.inputWrapper}><Mail size={19} color="#64748B" /><TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} placeholder="Phone number or email" autoCapitalize="none" placeholderTextColor="#94A3B8" /></View>
+              <Text style={styles.label}>Password</Text><View style={styles.inputWrapper}><Lock size={19} color="#64748B" /><TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry placeholderTextColor="#94A3B8" /></View>
               <TouchableOpacity style={[styles.primary, passwordLoading && styles.buttonDisabled]} onPress={passwordLogin} disabled={passwordLoading}>{passwordLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Continue</Text>}</TouchableOpacity>
             </>}
 
-            {!masked ? <><View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>or</Text><View style={styles.line} /></View><TouchableOpacity style={styles.google} onPress={handleGoogleLogin} disabled={googleLoading || !googleClientConfigured}>{googleLoading ? <ActivityIndicator /> : <><Chrome size={21} color="#1E293B" /><Text style={styles.googleText}>Continue with Google</Text></>}</TouchableOpacity></> : null}
+            {!masked ? <><View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>or</Text><View style={styles.line} /></View><TouchableOpacity style={[styles.google, !googleClientConfigured && styles.buttonDisabled]} onPress={handleGoogleLogin} disabled={googleLoading || !googleClientConfigured}>{googleLoading ? <ActivityIndicator /> : <><Chrome size={21} color="#1E293B" /><Text style={styles.googleText}>Continue with Google</Text></>}</TouchableOpacity></> : null}
           </View>
-          <View style={styles.secure}><ShieldCheck size={16} color="#15803D" /><Text style={styles.secureText}>OTP codes are single-use and expire after 10 minutes.</Text></View>
+          <View style={styles.secure}><ShieldCheck size={16} color="#15803D" /><Text style={styles.secureText}>OTP codes are single-use and expire automatically.</Text></View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -272,11 +276,49 @@ export const LoginScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F1F5F9' }, keyboardView: { flex: 1 }, content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 48, justifyContent: 'center' }, header: { alignItems: 'center', marginBottom: 22 }, subtitle: { marginTop: 12, color: '#64748B', fontWeight: '700' },
-  card: { backgroundColor: '#fff', borderRadius: 28, padding: 22, gap: 14, elevation: 4 }, cardTitle: { fontSize: 22, fontWeight: '900', color: '#0F172A', textAlign: 'center' }, cardSubtitle: { color: '#64748B', fontSize: 12, fontWeight: '700', lineHeight: 18, textAlign: 'center' },
-  tabs: { flexDirection: 'row', borderRadius: 14, backgroundColor: '#F1F5F9', padding: 4 }, tab: { flex: 1, height: 44, borderRadius: 11, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' }, tabActive: { backgroundColor: '#0F766E' }, tabText: { color: '#64748B', fontWeight: '900' }, tabTextActive: { color: '#fff' },
-  infoPanel: { flexDirection: 'row', gap: 9, borderRadius: 14, borderWidth: 1, borderColor: '#99F6E4', backgroundColor: '#F0FDFA', padding: 12 }, infoText: { flex: 1, color: '#115E59', fontSize: 12, fontWeight: '700', lineHeight: 18 }, inputWrapper: { flexDirection: 'row', alignItems: 'center', minHeight: 55, borderRadius: 15, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', paddingHorizontal: 14 }, input: { flex: 1, marginLeft: 9, color: '#0F172A', fontSize: 15 },
-  primary: { minHeight: 56, borderRadius: 16, backgroundColor: '#0F766E', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' }, buttonDisabled: { opacity: 0.55 }, primaryText: { color: '#fff', fontSize: 16, fontWeight: '900' }, sent: { textAlign: 'center', color: '#475569', fontWeight: '800' },
-  profilePanel: { gap: 9, padding: 13, borderRadius: 16, backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#99F6E4' }, profileTitle: { fontSize: 16, fontWeight: '900', color: '#134E4A' }, profileHelp: { color: '#0F766E', fontSize: 12, fontWeight: '700' }, otpLabel: { color: '#334155', fontSize: 12, fontWeight: '900', textAlign: 'center' }, otpRow: { flexDirection: 'row', gap: 6, justifyContent: 'space-between' }, otpCell: { flex: 1, height: 54, borderRadius: 13, borderWidth: 1.5, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }, otpActive: { borderColor: '#14B8A6', backgroundColor: '#F0FDFA' }, otpDigit: { fontSize: 22, fontWeight: '900', color: '#0F172A' }, hiddenOtpInput: { position: 'absolute', width: 1, height: 1, opacity: 0 },
-  link: { color: '#0F766E', textAlign: 'center', fontWeight: '900' }, linkDisabled: { color: '#94A3B8' }, secondaryLink: { color: '#64748B', textAlign: 'center', fontWeight: '800' }, divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 2 }, line: { flex: 1, height: 1, backgroundColor: '#E2E8F0' }, dividerText: { marginHorizontal: 12, color: '#94A3B8', fontWeight: '700' }, google: { height: 54, borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center' }, googleText: { fontWeight: '900', color: '#1E293B' }, secure: { marginTop: 16, flexDirection: 'row', gap: 7, justifyContent: 'center' }, secureText: { flexShrink: 1, color: '#15803D', fontSize: 11, fontWeight: '700' },
+  container: { flex: 1, backgroundColor: '#F4F7FB' },
+  glowTeal: { position: 'absolute', width: 280, height: 280, borderRadius: 999, backgroundColor: '#CCFBF1', top: -120, right: -110, opacity: 0.7 },
+  glowAmber: { position: 'absolute', width: 240, height: 240, borderRadius: 999, backgroundColor: '#FEF3C7', bottom: -130, left: -110, opacity: 0.65 },
+  keyboardView: { flex: 1 },
+  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 32, paddingBottom: 48, justifyContent: 'center' },
+  header: { alignItems: 'center', marginBottom: 22 },
+  subtitle: { marginTop: 12, color: '#64748B', fontWeight: '700', textAlign: 'center', lineHeight: 20 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 30, padding: 22, gap: 13, borderWidth: 1, borderColor: '#E7EEF5', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.11, shadowRadius: 25, elevation: 7 },
+  cardTitle: { fontSize: 24, fontWeight: '900', color: '#0F172A', letterSpacing: -0.7 },
+  cardSubtitle: { color: '#64748B', lineHeight: 20, marginBottom: 2 },
+  tabs: { flexDirection: 'row', padding: 4, borderRadius: 15, backgroundColor: '#EEF2F7', marginTop: 3 },
+  tab: { flex: 1, height: 44, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  tabActive: { backgroundColor: '#0F766E' },
+  tabText: { color: '#64748B', fontWeight: '900' },
+  tabTextActive: { color: '#FFFFFF' },
+  infoPanel: { flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 15, padding: 12, backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#99F6E4' },
+  infoText: { flex: 1, color: '#115E59', fontSize: 12, fontWeight: '700', lineHeight: 17 },
+  label: { color: '#334155', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 2 },
+  inputWrapper: { minHeight: 57, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 17, borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC', paddingHorizontal: 15 },
+  countryCode: { borderRightWidth: 1, borderRightColor: '#CBD5E1', paddingRight: 11 },
+  countryCodeText: { color: '#0F766E', fontWeight: '900' },
+  input: { flex: 1, color: '#0F172A', fontSize: 15, fontWeight: '700' },
+  primary: { minHeight: 58, borderRadius: 17, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9, shadowColor: '#0F766E', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 15, elevation: 4 },
+  primaryText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
+  buttonDisabled: { opacity: 0.5 },
+  sent: { color: '#475569', fontWeight: '800', textAlign: 'center' },
+  profilePanel: { backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#99F6E4', borderRadius: 19, padding: 14, gap: 11 },
+  profileTitle: { color: '#134E4A', fontWeight: '900', fontSize: 15 },
+  profileHelp: { color: '#0F766E', fontSize: 12, lineHeight: 17 },
+  otpLabel: { color: '#334155', fontSize: 12, fontWeight: '900', textAlign: 'center', marginTop: 2 },
+  otpRow: { flexDirection: 'row', gap: 6 },
+  otpCell: { flex: 1, height: 54, borderRadius: 13, borderWidth: 1.5, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
+  otpActive: { borderColor: '#14B8A6', backgroundColor: '#F0FDFA' },
+  otpDigit: { color: '#0F172A', fontSize: 22, fontWeight: '900' },
+  hiddenOtpInput: { position: 'absolute', height: 1, width: 1, opacity: 0 },
+  link: { color: '#0F766E', fontWeight: '900', textAlign: 'center' },
+  linkDisabled: { color: '#94A3B8' },
+  secondaryLink: { color: '#64748B', fontWeight: '800', textAlign: 'center' },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  line: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
+  dividerText: { color: '#94A3B8', fontWeight: '800' },
+  google: { minHeight: 55, borderRadius: 17, borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  googleText: { color: '#1E293B', fontWeight: '900' },
+  secure: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  secureText: { color: '#64748B', fontSize: 11, fontWeight: '700' },
 });

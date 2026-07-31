@@ -15,7 +15,7 @@ export const HomeScreen = ({ role }: { role: string }) => {
 
         <View style={styles.topRow}>
           <View>
-            <Text style={styles.eyebrow}>AAGAM OPERATIONS</Text>
+            <Text style={styles.eyebrow}>AAGAAM OPERATIONS</Text>
             <Text style={styles.title}>{role}</Text>
           </View>
           <TouchableOpacity style={styles.iconButton}>
@@ -29,7 +29,7 @@ export const HomeScreen = ({ role }: { role: string }) => {
           </View>
           <View style={styles.profileCopy}>
             <Text style={styles.welcome}>Welcome back</Text>
-            <Text style={styles.name}>{user?.name || user?.email || 'Aagam Partner'}</Text>
+            <Text style={styles.name}>{user?.name || user?.email || 'Aagaam Partner'}</Text>
           </View>
           <ShieldCheck size={24} color="#14B8A6" />
         </View>
@@ -48,7 +48,7 @@ export const HomeScreen = ({ role }: { role: string }) => {
           </View>
           <Text style={styles.panelTitle}>Workspace prepared</Text>
           <Text style={styles.panelText}>
-            This area is ready for your next operational screen. The design system is aligned with the AAGAM operations shell.
+            This area is ready for your next operational screen. The design system is aligned with the Aagaam operations shell.
           </Text>
           <TouchableOpacity style={styles.primaryAction} disabled>
             <Text style={styles.primaryActionText}>Admin mobile workspace</Text>

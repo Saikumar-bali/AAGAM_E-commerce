@@ -172,7 +172,7 @@ export class WebPushService implements OnModuleInit {
           body: payload.body,
           icon: 'ic_notification',
           sound: 'default',
-          channelId: 'high_priority_orders',
+          channelId: 'aagam_priority_operations_v2',
           tag: data.recipientId || data.notificationId || data.eventType || 'aagam-notification',
           visibility: 'public',
           defaultVibrateTimings: true,

@@ -6,14 +6,30 @@ function read(relativePath: string) {
 }
 
 describe('Partners notification delivery contracts', () => {
-  it('creates the Android channel used by Firebase order and rider pushes', () => {
+  it('creates the versioned high-priority Android channel used by Firebase partner pushes', () => {
     const application = read('../android/app/src/main/java/com/aagampartners/MainApplication.kt');
     const manifest = read('../android/app/src/main/AndroidManifest.xml');
-    expect(application).toContain('OPERATIONS_CHANNEL_ID = "high_priority_orders"');
+    expect(application).toContain('OPERATIONS_CHANNEL_ID = "aagam_priority_operations_v2"');
+    expect(application).toContain('"Aagaam priority operations"');
     expect(application).toContain('NotificationManager.IMPORTANCE_HIGH');
+    expect(application).toContain('RingtoneManager.TYPE_ALARM');
+    expect(application).toContain('AudioAttributes.USAGE_NOTIFICATION_EVENT');
+    expect(application).toContain('vibrationPattern = longArrayOf(0, 180, 100, 180, 100, 280)');
     expect(application).toContain('createOperationsNotificationChannel()');
+    expect(application).toContain('add(PartnerAlertTonePackage())');
     expect(manifest).toContain('com.google.firebase.messaging.default_notification_channel_id');
-    expect(manifest).toContain('android:value="high_priority_orders"');
+    expect(manifest).toContain('android:value="aagam_priority_operations_v2"');
+    expect(manifest).not.toContain('android:value="aagaam_priority_operations_v2"');
+  });
+
+  it('plays the same distinctive alert while the partner app is in the foreground', () => {
+    const app = read('../App.tsx');
+    const toneModule = read('../android/app/src/main/java/com/aagampartners/PartnerAlertToneModule.kt');
+    expect(app).toContain('PartnerAlertTone?.play?.()');
+    expect(app).toContain('PartnerAlertTone?.stop?.()');
+    expect(toneModule).toContain('RingtoneManager.TYPE_ALARM');
+    expect(toneModule).toContain('ringtone.play()');
+    expect(toneModule).toContain('4500');
   });
 
   it('keeps a durable inbox fallback when FCM registration or delivery is unavailable', () => {
