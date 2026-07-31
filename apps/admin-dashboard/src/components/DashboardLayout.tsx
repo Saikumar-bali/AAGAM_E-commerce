@@ -79,7 +79,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
       if (!active) return;
       cachedSession = null;
       setReady(false);
-      router.replace('/login');
+      router.replace(`/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`);
     });
     return () => { active = false; };
   }, [allowedRole, router]);

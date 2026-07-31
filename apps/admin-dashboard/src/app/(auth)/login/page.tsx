@@ -21,6 +21,11 @@ declare global {
 const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 10);
 const phoneForApi = (value: string) => `+91${digitsOnly(value)}`;
 
+function safeCustomerReturnPath(search: string) {
+  const requested = new URLSearchParams(search).get('returnTo');
+  return requested === '/shop' || requested?.startsWith('/shop/') ? requested : '/shop';
+}
+
 function resetSessionCache() {
   ['user_role', 'user_name', 'user_email', 'user_avatar', 'access_token'].forEach((key) => localStorage.removeItem(key));
 }
@@ -64,7 +69,7 @@ export default function LoginPage() {
     if (roles.includes('ADMIN')) router.push('/admin');
     else if (roles.includes('RIDER')) router.push('/rider');
     else if (roles.includes('STORE_OWNER')) router.push('/store');
-    else router.push('/shop');
+    else router.push(safeCustomerReturnPath(window.location.search));
   };
 
   useEffect(() => {

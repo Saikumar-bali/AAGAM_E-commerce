@@ -74,7 +74,9 @@ excludes(adminNotifications, 'AAGAM broadcast placeholder message', 'Controlled 
 const map = read('apps/admin-dashboard/src/components/CustomerTrackingMap.tsx');
 contains(map, 'const focusMarkers = riderMarker && deliveryMarker', 'Tracking map must focus on rider-to-customer movement.');
 contains(map, 'zoom: 16', 'Tracking map must use a close-range default zoom.');
-contains(map, 'maxZoom: 16', 'Tracking bounds must not zoom out farther than the intended delivery view.');
+contains(map, 'maxZoom: 16', 'Tracking bounds must not zoom in farther than the intended delivery view.');
+contains(map, 'minZoom: 8', 'Tracking bounds must be able to show serviceable multi-kilometre deliveries.');
+excludes(map, 'minZoom: 14', 'Tracking bounds must not hide a distant rider or destination.');
 
 const application = read('apps/mobile-partners/android/app/src/main/java/com/aagampartners/MainApplication.kt');
 const manifest = read('apps/mobile-partners/android/app/src/main/AndroidManifest.xml');
