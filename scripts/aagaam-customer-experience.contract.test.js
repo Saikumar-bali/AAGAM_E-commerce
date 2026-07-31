@@ -16,6 +16,11 @@ contains(webLogin, 'inputMode="numeric"', 'The web phone field must use a numeri
 contains(webLogin, 'autoComplete="tel-national"', 'The web phone field must request the national ten-digit value.');
 contains(webLogin, "if (!/^\\d{10}$/.test(phone))", 'OTP submission must be blocked unless React state contains exactly ten digits.');
 excludes(webLogin, 'international number with country code', 'The web login must not advertise unsupported overlong or international input.');
+contains(webLogin, "requested === '/shop' || requested?.startsWith('/shop/')", 'Customer authentication must allow only safe relative shop return paths.');
+contains(webLogin, 'safeCustomerReturnPath(window.location.search)', 'All customer login methods must honor the safe return destination.');
+
+const dashboardLayout = read('apps/admin-dashboard/src/components/DashboardLayout.tsx');
+contains(dashboardLayout, 'returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}', 'Protected routes must preserve their destination through authentication.');
 
 const webPhoneGuard = read('apps/admin-dashboard/src/components/TenDigitPhoneGuard.tsx');
 contains(webPhoneGuard, 'input.maxLength = 10', 'The runtime phone guard must enforce ten characters.');
@@ -39,7 +44,9 @@ const webSupportPath = 'apps/admin-dashboard/src/app/(shop)/shop/support/page.ts
 assert.ok(existsSync(resolve(root, webSupportPath)), 'A dedicated /shop/support page must be implemented.');
 const webSupport = read(webSupportPath);
 contains(webSupport, "apiClient.get('/orders/my')", 'Web support must load the signed-in customer orders.');
-contains(webSupport, 'apiClient.post(`/orders/post-delivery/${selectedOrderId}/support`', 'Web support must POST a real backend support ticket for the selected order.');
+contains(webSupport, 'apiClient.post(`/orders/post-delivery/${orderId}/support`', 'Web support must POST a real backend support ticket for the selected order.');
+contains(webSupport, 'historyRequestVersion', 'Web support must version ticket-history requests.');
+contains(webSupport, 'selectedOrderRef.current !== orderId', 'Web support must ignore history for a previously selected order.');
 contains(webSupport, 'Support ticket opened', 'Web support must confirm successful ticket creation.');
 contains(webSupport, 'Issue category', 'Web support must offer an issue category selector.');
 contains(webSupport, 'Describe what happened', 'Web support must collect useful issue details.');
@@ -67,17 +74,20 @@ const mobileSupportPath = 'apps/mobile-customer/src/screens/customer/CustomerSup
 assert.ok(existsSync(resolve(root, mobileSupportPath)), 'A dedicated mobile CustomerSupportScreen must be implemented.');
 const mobileSupport = read(mobileSupportPath);
 contains(mobileSupport, "apiClient.get('/orders/my')", 'Mobile support must load the customer order history.');
-contains(mobileSupport, 'apiClient.post(`/orders/post-delivery/${selectedOrderId}/support`', 'Mobile support must POST a real backend support ticket.');
+contains(mobileSupport, "queryKey: ['customer-support-orders', customerId]", 'Mobile support order caching must be scoped to the authenticated customer.');
+contains(mobileSupport, 'orders.some((order) => order.id === current)', 'Mobile support must discard a selection absent from refreshed orders.');
+contains(mobileSupport, 'historyRequestVersion', 'Mobile support must version ticket-history requests.');
+contains(mobileSupport, 'selectedOrderRef.current !== orderId', 'Mobile support must ignore history for a previously selected order.');
+contains(mobileSupport, 'isError', 'Mobile support must distinguish loading failures from an empty order history.');
+contains(mobileSupport, 'Could not load your orders', 'Mobile support must render an explicit order-loading failure state.');
+contains(mobileSupport, 'onPress={() => void refetch()}', 'Mobile support must offer an explicit retry action.');
+contains(mobileSupport, 'apiClient.post(`/orders/post-delivery/${orderId}/support`', 'Mobile support must POST a real backend support ticket.');
 contains(mobileSupport, 'Support ticket opened', 'Mobile support must confirm successful ticket creation.');
 contains(mobileSupport, 'Select an order', 'Mobile support must let the customer select the affected order.');
 contains(mobileSupport, 'Describe what happened', 'Mobile support must collect issue details.');
 
 const customerNavigator = read('apps/mobile-customer/src/navigation/CustomerNavigator.tsx');
-assert.match(
-  customerNavigator,
-  /<Stack\.Screen\s+name="Support"\s+component=\{CustomerSupportScreen\}/,
-  'The Support route must map directly to CustomerSupportScreen.',
-);
+assert.match(customerNavigator, /<Stack\.Screen\s+name="Support"\s+component=\{CustomerSupportScreen\}/, 'The Support route must map directly to CustomerSupportScreen.');
 
 for (const path of [
   'apps/admin-dashboard/src/components/customer/CustomerShell.tsx',
