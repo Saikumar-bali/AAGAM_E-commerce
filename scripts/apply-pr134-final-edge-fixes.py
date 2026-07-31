@@ -72,6 +72,11 @@ replace(
 contract = 'scripts/aagaam-customer-experience.contract.test.js'
 replace(
     contract,
+    "contains(webLogin, \"requested === '/shop' || requested?.startsWith('/shop/')\", 'Customer authentication must allow only safe relative shop return paths.');",
+    "const returnPathHelper = read('apps/admin-dashboard/src/lib/customer-return-path.ts');\ncontains(returnPathHelper, \"requested === '/shop' || requested?.startsWith('/shop/')\", 'Customer authentication must allow only safe relative shop return paths.');",
+)
+replace(
+    contract,
     "contains(webLogin, 'safeCustomerReturnPath(window.location.search)', 'All customer login methods must honor the safe return destination.');",
     "contains(webLogin, \"safeCustomerReturnPath(searchParams.get('returnTo'))\", 'All customer login methods must honor the safe return destination.');\ncontains(webLogin, \"customerAuthHref('/signup', customerReturnPath)\", 'The login create-account link must preserve the validated customer destination.');\nconst signup = read('apps/admin-dashboard/src/app/(auth)/signup/page.tsx');\ncontains(signup, \"safeCustomerReturnPath(searchParams.get('returnTo'))\", 'Customer signup must validate the requested return path.');\ncontains(signup, 'router.push(returnTo)', 'Successful signup must return the customer to the validated destination.');\ncontains(signup, \"customerAuthHref('/login', returnTo)\", 'Signup must preserve the destination when returning to login.');",
 )
