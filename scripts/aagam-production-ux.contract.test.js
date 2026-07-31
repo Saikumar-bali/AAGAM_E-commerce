@@ -36,9 +36,13 @@ for (const path of [
 ]) {
   const source = read(path);
   contains(source, "const digits = value.replace(/\\D/g, '')", `${path} must sanitize phone input.`);
-  contains(source, "digits.length >= 12 && digits.startsWith('91')", `${path} must strip an Indian country prefix before truncation.`);
-  contains(source, 'return nationalDigits.slice(0, 10)', `${path} must expose only ten national digits to app state.`);
+  contains(source, "digits.length === 11 && digits.startsWith('0')", `${path} must normalize an exact Indian trunk prefix.`);
+  contains(source, "digits.length === 12 && digits.startsWith('91')", `${path} must normalize an exact Indian country prefix.`);
+  contains(source, 'return digits;', `${path} must preserve unsupported lengths so validation rejects them.`);
+  excludes(source, 'return nationalDigits.slice(0, 10)', `${path} must not silently truncate unsupported overlong values.`);
   contains(source, 'maxLength={13}', `${path} must allow a complete +91 autofill value before normalization.`);
+  contains(source, 'phone.length !== 10', `${path} must keep the action disabled unless state has exactly ten digits.`);
+  contains(source, 'nationalNumber.length !== 10', `${path} must reject non-ten-digit values before the API call.`);
   contains(source, "`+91${digitsOnly(value)}`", `${path} must format the national number only at the API boundary.`);
 }
 
