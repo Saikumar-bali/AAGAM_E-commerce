@@ -1,0 +1,45 @@
+name: Apply Aagaam Visible Brand Fix on PR
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "scripts/apply-aagaam-visible-brand-fix.py"
+      - ".github/workflows/aagaam-visible-brand-apply-pr.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-aagaam-visible-brand-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'agent/aagaam-ui-support-account-fixes'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/aagaam-ui-support-account-fixes
+          fetch-depth: 0
+      - name: Apply exact controlled presentation replacements
+        run: python3 scripts/apply-aagaam-visible-brand-fix.py
+      - name: Validate contracts before push
+        run: |
+          node scripts/aagaam-customer-experience.contract.test.js
+          node scripts/aagam-production-ux.contract.test.js
+          node scripts/aagaam-visible-brand.contract.test.js
+          npx --yes node@22 --experimental-strip-types --test apps/mobile-customer/src/auth/customerPhoneOtpFlow.test.mjs
+      - name: Commit and push when changes exist
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No presentation replacements remain."
+            exit 0
+          fi
+          git config user.name "Saikumar Bali"
+          git config user.email "178761198+Saikumar-bali@users.noreply.github.com"
+          git add .
+          git commit -m "fix: complete visible Aagaam branding and support contracts"
+          git push origin HEAD:agent/aagaam-ui-support-account-fixes
