@@ -13,9 +13,18 @@ function isLoginPhoneInput(target: EventTarget | null): target is HTMLInputEleme
   return isPhoneField && (hint.includes('mobile') || hint.includes('phone'));
 }
 
+function normalizePhoneInput(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  return digits;
+}
+
 function configure(input: HTMLInputElement) {
   input.dataset.aagamPhoneGuard = 'true';
-  input.maxLength = 10;
+  // Keep enough room for +91 plus ten national digits so browser autofill reaches
+  // the normalizer before React receives the controlled value.
+  input.maxLength = 13;
   input.inputMode = 'numeric';
   input.pattern = '[0-9]{10}';
   input.autocomplete = 'tel-national';
@@ -33,7 +42,7 @@ export default function TenDigitPhoneGuard() {
     const sanitize = (event: Event) => {
       if (!isLoginPhoneInput(event.target)) return;
       configure(event.target);
-      const next = event.target.value.replace(/\D/g, '').slice(0, 10);
+      const next = normalizePhoneInput(event.target.value);
       if (event.target.value !== next) {
         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
         setter?.call(event.target, next);
@@ -53,3 +62,5 @@ export default function TenDigitPhoneGuard() {
 
   return null;
 }
+
+export { normalizePhoneInput };
