@@ -32,6 +32,7 @@ This checkpoint covers three reported regressions:
 - `apps/mobile-customer/src/screens/customer/ShopScreen.behavior.test.mjs`
 - `apps/mobile-customer/src/utils/shopSearch.ts`
 - `apps/mobile-customer/src/utils/shopSearch.test.mjs`
+- `apps/admin-dashboard/e2e/public-promotions.spec.ts`
 
 ## Required CLI-AI/device proof before merge
 
@@ -53,12 +54,13 @@ git diff --check
 
 ```bash
 npx playwright test --config=apps/admin-dashboard/playwright.config.ts \
-  --project=new-e2e apps/admin-dashboard/e2e/public-promotions.spec.ts
+  --project=chromium apps/admin-dashboard/e2e/public-promotions.spec.ts
 ```
 
 Record:
 
-- admin creates a campaign without changing the default status;
+- the admin creation request omits lifecycle status, exercising the publish-by-default path;
+- the customer `/shop` feed displays the resulting campaign;
 - selected placement is `HOME_HERO` or `HOME_TODAY_OFFERS`;
 - customer `/shop` displays the campaign title;
 - an expired campaign is not displayed;
@@ -67,7 +69,6 @@ Record:
 ### Customer Android proof
 
 ```bash
-npm run build --workspace=AagamCustomer
 cd apps/mobile-customer/android
 ./gradlew assembleRelease
 cd ../../..
@@ -99,7 +100,7 @@ Expected result: no fatal exception during category → All, and no new
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Promotion lifecycle/controller tests | PASS — 6/6 | `apps/api-gateway` Jest |
-| Customer mobile search/category contracts | PASS — 4/4 new tests | `ShopScreen.behavior.spec.ts`, `shopSearch.spec.ts` |
+| Customer mobile search/category contracts | PASS — 4/4 new tests | `ShopScreen.behavior.test.mjs`, `shopSearch.test.mjs` |
 | Customer mobile typecheck | PASS | `npm run typecheck --workspace=AagamCustomer` |
 | Customer mobile Jest suites | PASS — 4 suites, 8/8 | `npm run test --workspace=AagamCustomer -- --runInBand` |
 | API build | PASS | `npm run build --workspace=@aagam/api-gateway` |
@@ -107,7 +108,7 @@ Expected result: no fatal exception during category → All, and no new
 | Prisma schema validation | PASS with local dummy URL | `DATABASE_URL=... npx prisma validate` |
 | Category → All mobile device flow | Pending device run |  |
 | Customer Android release build | Pending device/CI run |  |
-| Customer web promotion flow | Pending Playwright run |  |
+| Customer web promotion/default-publish flow | Pending Playwright run | `public-promotions.spec.ts` |
 | Customer mobile lint | BLOCKED — no ESLint config in baseline package | `npm run lint --workspace=AagamCustomer` |
 | Direct admin TypeScript check | BLOCKED by baseline React/Lucide type mismatch | Next build type validation remains disabled in baseline config |
 | `git diff --check` | PASS | `git diff --check` |
