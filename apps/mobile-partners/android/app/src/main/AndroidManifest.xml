@@ -23,7 +23,7 @@
 
       <meta-data
         android:name="com.google.firebase.messaging.default_notification_channel_id"
-        android:value="aagaam_priority_operations_v2"
+        android:value="aagam_priority_operations_v2"
         tools:replace="android:value" />
       <meta-data
         android:name="com.google.firebase.messaging.default_notification_icon"
