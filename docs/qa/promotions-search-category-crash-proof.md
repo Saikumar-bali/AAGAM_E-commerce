@@ -43,6 +43,7 @@ numbers in logs, screenshots, artifacts, or this document.
 
 ```bash
 npm ci
+npm run build:api
 npx prisma validate --schema packages/database/prisma/schema.prisma
 npm test --workspace=@aagam/api-gateway -- --runInBand
 npm run typecheck --workspace=AagamCustomer
@@ -100,7 +101,7 @@ Expected result: no fatal exception during category → All, and no new
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Promotion lifecycle/controller tests | PASS — 6/6 | `apps/api-gateway` Jest |
-| Customer mobile search/category contracts | PASS — 4/4 new tests | `ShopScreen.behavior.test.mjs`, `shopSearch.test.mjs` |
+| Customer mobile search/category contracts | PASS — 4/4 new tests | `ShopScreen.behavior.spec.ts`, `shopSearch.spec.ts` |
 | Customer mobile typecheck | PASS | `npm run typecheck --workspace=AagamCustomer` |
 | Customer mobile Jest suites | PASS — 4 suites, 8/8 | `npm run test --workspace=AagamCustomer -- --runInBand` |
 | API build | PASS | `npm run build --workspace=@aagam/api-gateway` |
