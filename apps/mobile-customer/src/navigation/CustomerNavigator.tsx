@@ -17,6 +17,7 @@ import { OrderDetailScreen } from '../screens/customer/OrderDetailScreen';
 import { ReviewScreen } from '../screens/customer/ReviewScreen';
 import { NotificationsScreen } from '../screens/customer/NotificationsScreen';
 import { CustomerProfileScreen } from '../screens/customer/CustomerProfileScreen';
+import { CustomerSupportScreen } from '../screens/customer/CustomerSupportScreen';
 import { DealsScreen } from '../screens/customer/DealsScreen';
 import { useCartStore } from '../store/cartStore';
 import { getCartItemCount } from '../utils/customerCommerce';
@@ -137,6 +138,11 @@ export const CustomerNavigator = () => {
         name="Review"
         component={ReviewScreen}
         options={{ title: 'Review Order', headerShadowVisible: false }}
+      />
+      <Stack.Screen
+        name="Support"
+        component={CustomerSupportScreen}
+        options={{ title: 'Customer Support', headerShadowVisible: false }}
       />
     </Stack.Navigator>
   );
