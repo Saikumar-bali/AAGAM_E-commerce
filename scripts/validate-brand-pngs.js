@@ -26,6 +26,11 @@ function crc32(buffer) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
+function isSupportedFormat(bitDepth, colorType) {
+  if (colorType === 3) return [1, 2, 4, 8].includes(bitDepth);
+  return [2, 6].includes(colorType) && bitDepth === 8;
+}
+
 for (const file of files) {
   const png = readFileSync(file);
   if (!png.subarray(0, 8).equals(signature)) throw new Error(`${file}: invalid PNG signature`);
@@ -68,9 +73,9 @@ for (const file of files) {
 
   if (!sawIend) throw new Error(`${file}: missing IEND`);
   if (width !== 256 || height !== 256) throw new Error(`${file}: expected 256x256, got ${width}x${height}`);
-  if (bitDepth !== 8 || ![2, 3, 6].includes(colorType)) {
+  if (!isSupportedFormat(bitDepth, colorType)) {
     throw new Error(`${file}: unsupported PNG format bitDepth=${bitDepth} colorType=${colorType}`);
   }
   inflateSync(Buffer.concat(idat));
-  console.log(`Valid Android PNG: ${file} (${width}x${height})`);
+  console.log(`Valid Android PNG: ${file} (${width}x${height}, bitDepth=${bitDepth}, colorType=${colorType})`);
 }
