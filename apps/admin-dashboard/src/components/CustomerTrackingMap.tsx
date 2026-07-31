@@ -70,7 +70,7 @@ export default function CustomerTrackingMap({ markers }: CustomerTrackingMapProp
 
   return (
     <div className="h-[240px] w-full overflow-hidden rounded-2xl sm:h-[280px]">
-      <MapContainer {...({ center, zoom: 16, minZoom: 14, maxZoom: 18, zoomControl: false } as any)} style={{ height: '100%', width: '100%' }} scrollWheelZoom={false}>
+      <MapContainer {...({ center, zoom: 16, minZoom: 8, maxZoom: 18, zoomControl: false } as any)} style={{ height: '100%', width: '100%' }} scrollWheelZoom={false}>
         <TileLayer {...({ attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' } as any)} />
         <MapUpdater center={center} bounds={bounds} singlePoint={focusPoints.length === 1} />
         {routePoints.length === 2 ? <Polyline positions={routePoints} pathOptions={{ dashArray: '7 8', weight: 3, opacity: 0.7 }} /> : null}
