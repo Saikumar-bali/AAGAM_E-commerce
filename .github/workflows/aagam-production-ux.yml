@@ -33,6 +33,6 @@ jobs:
         shell: bash
         run: |
           echo '=== WEB AND REACT NATIVE SOURCE ==='
-          rg -n --glob '*.ts' --glob '*.tsx' 'AAGAM|Aagam' apps/admin-dashboard/src apps/mobile-customer/src apps/mobile-partners/src || true
+          grep -RInE --include='*.ts' --include='*.tsx' 'AAGAM|Aagam' apps/admin-dashboard/src apps/mobile-customer/src apps/mobile-partners/src || true
           echo '=== ANDROID PRESENTATION SOURCE ==='
-          rg -n 'AAGAM|Aagam' apps/mobile-customer/android/app/src/main apps/mobile-partners/android/app/src/main || true
+          grep -RInE 'AAGAM|Aagam' apps/mobile-customer/android/app/src/main apps/mobile-partners/android/app/src/main || true
