@@ -14,17 +14,12 @@ function isLoginPhoneInput(target: EventTarget | null): target is HTMLInputEleme
 }
 
 function normalizePhoneInput(value: string) {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
-  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
-  return digits;
+  return value.replace(/\D/g, '').slice(0, 10);
 }
 
 function configure(input: HTMLInputElement) {
   input.dataset.aagamPhoneGuard = 'true';
-  // Keep enough room for +91 plus ten national digits so browser autofill reaches
-  // the normalizer before React receives the controlled value.
-  input.maxLength = 13;
+  input.maxLength = 10;
   input.inputMode = 'numeric';
   input.pattern = '[0-9]{10}';
   input.autocomplete = 'tel-national';
