@@ -18,9 +18,7 @@ const files = [
 const crcTable = new Uint32Array(256);
 for (let value = 0; value < crcTable.length; value += 1) {
   let crc = value;
-  for (let bit = 0; bit < 8; bit += 1) {
-    crc = (crc & 1) !== 0 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
-  }
+  for (let bit = 0; bit < 8; bit += 1) crc = (crc & 1) !== 0 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
   crcTable[value] = crc >>> 0;
 }
 
@@ -39,43 +37,62 @@ function chunk(type, data = Buffer.alloc(0)) {
   return Buffer.concat([length, typeBuffer, data, crc]);
 }
 
-function truncatedIndexedPng() {
-  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(256, 0);
-  header.writeUInt32BE(256, 4);
-  header[8] = 4;
-  header[9] = 3;
-  const palette = Buffer.from([0, 0, 0]);
+function header() {
+  const data = Buffer.alloc(13);
+  data.writeUInt32BE(256, 0);
+  data.writeUInt32BE(256, 4);
+  data[8] = 4;
+  data[9] = 3;
+  return data;
+}
+
+const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const palette = Buffer.from([0, 0, 0]);
+
+function incompleteScanlinePng() {
   return Buffer.concat([
     signature,
-    chunk('IHDR', header),
+    chunk('IHDR', header()),
     chunk('PLTE', palette),
     chunk('IDAT', deflateSync(Buffer.from([0]))),
     chunk('IEND'),
   ]);
 }
 
-const result = spawnSync(process.execPath, [validator, ...files], {
-  cwd: root,
-  encoding: 'utf8',
-});
-if (result.status !== 0) {
-  process.stderr.write(result.stderr || result.stdout);
-  process.exit(result.status ?? 1);
+function paletteAfterIdatPng() {
+  const fullScanlines = Buffer.alloc(256 * (128 + 1));
+  return Buffer.concat([
+    signature,
+    chunk('IHDR', header()),
+    chunk('IDAT', deflateSync(fullScanlines)),
+    chunk('PLTE', palette),
+    chunk('IEND'),
+  ]);
 }
-process.stdout.write(result.stdout);
+
+function expectRejected(file, bytes, expectedMessage) {
+  writeFileSync(file, bytes);
+  const result = spawnSync(process.execPath, [validator, file], { encoding: 'utf8' });
+  if (result.status === 0 || !result.stderr.includes(expectedMessage)) {
+    process.stderr.write(`Validator accepted invalid PNG ${file}.\n${result.stderr}${result.stdout}`);
+    process.exit(1);
+  }
+}
+
+const validResult = spawnSync(process.execPath, [validator, ...files], { cwd: root, encoding: 'utf8' });
+if (validResult.status !== 0) {
+  process.stderr.write(validResult.stderr || validResult.stdout);
+  process.exit(validResult.status ?? 1);
+}
+process.stdout.write(validResult.stdout);
 
 const tempDir = mkdtempSync(join(tmpdir(), 'aagam-png-contract-'));
 try {
-  const invalidFile = join(tempDir, 'truncated-scanlines.png');
-  writeFileSync(invalidFile, truncatedIndexedPng());
-  const invalidResult = spawnSync(process.execPath, [validator, invalidFile], { encoding: 'utf8' });
-  if (invalidResult.status === 0 || !invalidResult.stderr.includes('invalid inflated data length')) {
-    process.stderr.write(`Validator accepted an incomplete scanline stream.\n${invalidResult.stderr}${invalidResult.stdout}`);
-    process.exit(1);
-  }
+  expectRejected(join(tempDir, 'truncated-scanlines.png'), incompleteScanlinePng(), 'invalid inflated data length');
   console.log('Rejected CRC-correct PNG with incomplete scanlines.');
+
+  expectRejected(join(tempDir, 'palette-after-idat.png'), paletteAfterIdatPng(), 'indexed PNG requires PLTE before IDAT');
+  console.log('Rejected indexed PNG with PLTE after IDAT.');
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
 }

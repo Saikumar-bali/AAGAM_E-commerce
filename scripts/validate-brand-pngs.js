@@ -48,8 +48,11 @@ for (const file of files) {
   let compressionMethod = -1;
   let filterMethod = -1;
   let interlaceMethod = -1;
+  let paletteEntries = 0;
   let sawHeader = false;
   let sawPalette = false;
+  let sawIdat = false;
+  let endedIdatSequence = false;
   let sawIend = false;
   const idat = [];
 
@@ -77,21 +80,37 @@ for (const file of files) {
       compressionMethod = data[10];
       filterMethod = data[11];
       interlaceMethod = data[12];
-    } else if (type === 'PLTE') {
-      sawPalette = length > 0 && length % 3 === 0;
-    } else if (type === 'IDAT') {
-      idat.push(data);
-    } else if (type === 'IEND') {
-      if (length !== 0) throw new Error(`${file}: invalid IEND`);
-      sawIend = true;
-      if (crcOffset + 4 !== png.length) throw new Error(`${file}: trailing bytes after IEND`);
+    } else {
+      if (!sawHeader) throw new Error(`${file}: ${type} appears before IHDR`);
+      if (sawIend) throw new Error(`${file}: chunk appears after IEND`);
+
+      if (type === 'PLTE') {
+        if (sawPalette) throw new Error(`${file}: duplicate PLTE`);
+        if (sawIdat) throw new Error(`${file}: PLTE must appear before IDAT`);
+        if (length === 0 || length % 3 !== 0 || length > 768) throw new Error(`${file}: invalid PLTE`);
+        sawPalette = true;
+        paletteEntries = length / 3;
+      } else if (type === 'IDAT') {
+        if (endedIdatSequence) throw new Error(`${file}: IDAT chunks must be consecutive`);
+        if (colorType === 3 && !sawPalette) throw new Error(`${file}: indexed PNG requires PLTE before IDAT`);
+        sawIdat = true;
+        idat.push(data);
+      } else if (type === 'IEND') {
+        if (length !== 0) throw new Error(`${file}: invalid IEND`);
+        sawIend = true;
+        if (crcOffset + 4 !== png.length) throw new Error(`${file}: trailing bytes after IEND`);
+      } else {
+        if (sawIdat) endedIdatSequence = true;
+        const isCritical = type.charCodeAt(0) >= 65 && type.charCodeAt(0) <= 90;
+        if (isCritical) throw new Error(`${file}: unsupported critical chunk ${type}`);
+      }
     }
     offset = crcOffset + 4;
   }
 
   if (!sawHeader) throw new Error(`${file}: missing IHDR`);
   if (!sawIend) throw new Error(`${file}: missing IEND`);
-  if (idat.length === 0) throw new Error(`${file}: missing IDAT`);
+  if (!sawIdat || idat.length === 0) throw new Error(`${file}: missing IDAT`);
   if (width !== 256 || height !== 256) throw new Error(`${file}: expected 256x256, got ${width}x${height}`);
   if (!isSupportedFormat(bitDepth, colorType)) {
     throw new Error(`${file}: unsupported PNG format bitDepth=${bitDepth} colorType=${colorType}`);
@@ -99,7 +118,10 @@ for (const file of files) {
   if (compressionMethod !== 0 || filterMethod !== 0 || interlaceMethod !== 0) {
     throw new Error(`${file}: unsupported PNG compression/filter/interlace method`);
   }
-  if (colorType === 3 && !sawPalette) throw new Error(`${file}: indexed PNG is missing a valid palette`);
+  if (colorType === 3) {
+    if (!sawPalette) throw new Error(`${file}: indexed PNG is missing a valid palette`);
+    if (paletteEntries > 2 ** bitDepth) throw new Error(`${file}: palette has too many entries for bit depth ${bitDepth}`);
+  }
 
   const rowBytes = bytesPerScanline(width, bitDepth, colorType);
   const inflated = inflateSync(Buffer.concat(idat));
