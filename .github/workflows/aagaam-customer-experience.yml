@@ -1,0 +1,28 @@
+name: Aagaam Customer Experience
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["agent/aagaam-ui-support-account-fixes"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aagaam-customer-experience-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Branding, phone, account and support contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.3"
+      - name: Validate customer experience contracts
+        run: |
+          node scripts/aagaam-customer-experience.contract.test.js
+          node scripts/aagaam-visible-brand.contract.test.js

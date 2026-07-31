@@ -14,7 +14,7 @@ export function buildApplicationProgress(
   const steps: ApplicationProgressStep[] = [
     { key: 'CONTACT', label: 'Contact verified', state: contactVerified ? 'COMPLETE' : 'CURRENT' },
     { key: 'APPLICATION', label: 'Application and documents', state: 'UPCOMING' },
-    { key: 'SUBMITTED', label: 'Submitted to AAGAM', state: 'UPCOMING' },
+    { key: 'SUBMITTED', label: 'Submitted to AAGAAM', state: 'UPCOMING' },
     { key: 'REVIEW', label: 'Admin review', state: 'UPCOMING' },
     { key: 'DECISION', label: 'Final decision', state: 'UPCOMING' },
   ];

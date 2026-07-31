@@ -247,7 +247,7 @@ export default function AdminStoresPage() {
       <div className="mb-8">
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="inline-flex rounded-full bg-teal-50 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-teal-700">Aagam Commerce Operations</p>
+            <p className="inline-flex rounded-full bg-teal-50 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-teal-700">Aagaam Commerce Operations</p>
             <h1 className="mt-3 text-2xl font-bold text-gray-900">Store Management</h1>
             <p className="text-gray-500">View and manage all stores in your network.</p>
           </div>

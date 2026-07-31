@@ -355,7 +355,7 @@ class RiderTrackingService : Service() {
     val suffix = orderId?.takeLast(8)?.uppercase() ?: "ACTIVE"
     return NotificationCompat.Builder(this, CHANNEL_ID)
       .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-      .setContentTitle("AAGAM delivery tracking active")
+      .setContentTitle("AAGAAM delivery tracking active")
       .setContentText("Tracking order #$suffix while delivery is in progress")
       .setOngoing(true)
       .setOnlyAlertOnce(true)

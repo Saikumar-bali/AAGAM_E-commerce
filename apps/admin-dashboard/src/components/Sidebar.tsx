@@ -284,7 +284,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-white">{profile.name || "Aagam Customer"}</p>
+                <p className="truncate text-sm font-bold text-white">{profile.name || "Aagaam Customer"}</p>
                 <p className="truncate text-[11px] font-medium text-slate-400">{profile.email || "Customer Portal"}</p>
               </div>
             </Link>

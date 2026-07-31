@@ -115,7 +115,7 @@ export const CustomerProfileScreen = () => {
       PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
       {
         title: 'Allow delivery location',
-        message: 'AAGAM uses your location to pin delivery addresses accurately.',
+        message: 'Aagaam uses your location to pin delivery addresses accurately.',
         buttonPositive: 'Allow',
         buttonNegative: 'Not now',
       },
@@ -181,7 +181,7 @@ export const CustomerProfileScreen = () => {
   const enablePush = async () => {
     try {
       await registerDeviceToken();
-      notify.success('Notifications enabled', 'This device can receive AAGAM updates.');
+      notify.success('Notifications enabled', 'This device can receive Aagaam updates.');
     } catch (error) {
       notify.error('Could not enable notifications', getUserSafeError(error, 'Check notification permission and try again.'));
     }
@@ -190,7 +190,7 @@ export const CustomerProfileScreen = () => {
   const showAccountSecurity = () => notify.info(
     'Account security',
     isGoogleProfile
-      ? 'Your Google account profile, name, email, and photo are connected to AAGAM.'
+      ? 'Your Google account profile, name, email, and photo are connected to Aagaam.'
       : 'Google sign-in is preferred. Email/password remains available as a fallback.',
   );
 
@@ -223,7 +223,7 @@ export const CustomerProfileScreen = () => {
         <MenuRow title="My Orders" subtitle="Track, reorder, and review deliveries" onPress={() => navigation.navigate('Orders')} />
         <MenuRow title="Alerts" subtitle="Order and support notifications" onPress={() => navigation.navigate('Alerts')} />
         <MenuRow title="Push Notifications" subtitle="Register this device for updates" onPress={() => void enablePush()} />
-        <MenuRow title="Customer Support" subtitle="Open support from delivered order details" onPress={() => navigation.navigate('Orders')} />
+        <MenuRow title="Customer Support" subtitle="Open a ticket for an order, item, payment, or delivery issue" onPress={() => navigation.navigate('Support')} />
         <MenuRow title="Account Security" subtitle={isGoogleProfile ? 'Google account is connected to this customer profile' : 'Google OAuth primary, email password fallback'} onPress={showAccountSecurity} />
       </View>
 

@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Script from 'next/script';
 import { apiClient } from '@aagam/utils';
 import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles } from 'lucide-react';
 import AagamLogo from '@/components/AagamLogo';
 import { normalizePromotionPlacements } from '@/lib/promotion-normalizer';
+import { customerAuthHref, safeCustomerReturnPath } from '@/lib/customer-return-path';
 
 const DEFAULT_GOOGLE_WEB_CLIENT_ID = '416380795567-5de3kea0pbb9ibke91rl5pre0sdu82vo.apps.googleusercontent.com';
 
@@ -18,12 +19,9 @@ declare global {
   }
 }
 
-function phoneForApi(value: string) {
-  const compact = value.replace(/[\s().-]/g, '');
-  if (/^\d{10}$/.test(compact)) return `+91${compact}`;
-  if (/^91\d{10}$/.test(compact)) return `+${compact}`;
-  return compact;
-}
+const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 10);
+const phoneForApi = (value: string) => `+91${digitsOnly(value)}`;
+
 
 function resetSessionCache() {
   ['user_role', 'user_name', 'user_email', 'user_avatar', 'access_token'].forEach((key) => localStorage.removeItem(key));
@@ -39,8 +37,10 @@ function friendlyAuthError(error: any, fallback: string) {
   return message || fallback;
 }
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const customerReturnPath = safeCustomerReturnPath(searchParams.get('returnTo'));
   const [mode, setMode] = useState<'PHONE' | 'PASSWORD'>('PHONE');
   const [automationPasswordMode, setAutomationPasswordMode] = useState(false);
   const [phone, setPhone] = useState('');
@@ -68,7 +68,7 @@ export default function LoginPage() {
     if (roles.includes('ADMIN')) router.push('/admin');
     else if (roles.includes('RIDER')) router.push('/rider');
     else if (roles.includes('STORE_OWNER')) router.push('/store');
-    else router.push('/shop');
+    else router.push(customerReturnPath);
   };
 
   useEffect(() => {
@@ -97,11 +97,11 @@ export default function LoginPage() {
   }, [countdown]);
 
   const requestCode = async () => {
-    const normalized = phoneForApi(phone);
-    if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
-      setError('Enter a valid 10-digit mobile number or an international number with country code.');
+    if (!/^\d{10}$/.test(phone)) {
+      setError('Enter exactly 10 digits.');
       return;
     }
+    const normalized = phoneForApi(phone);
     setLoading(true); setError('');
     try {
       let data: any;
@@ -113,7 +113,7 @@ export default function LoginPage() {
         data = (await apiClient.post('/auth/phone/request', { phoneE164: normalized, purpose: 'SIGNUP' })).data;
         setNewCustomer(true);
       }
-      setPhone(normalized); setMasked(data.maskedDestination); setCode(''); setCountdown(30);
+      setMasked(data.maskedDestination); setCode(''); setCountdown(30);
     } catch (requestError: any) {
       setError(friendlyAuthError(requestError, 'Could not send the verification code.'));
     } finally { setLoading(false); }
@@ -124,7 +124,7 @@ export default function LoginPage() {
     if (newCustomer && profileName.trim().length < 2) return setError('Enter your full name to finish setting up the account.');
     setLoading(true); setError(''); resetSessionCache();
     try {
-      const { data } = await apiClient.post('/auth/phone/verify', { phoneE164: phone, purpose: newCustomer ? 'SIGNUP' : 'LOGIN', code, ...(newCustomer ? { name: profileName.trim(), email: profileEmail.trim() || undefined } : {}) });
+      const { data } = await apiClient.post('/auth/phone/verify', { phoneE164: phoneForApi(phone), purpose: newCustomer ? 'SIGNUP' : 'LOGIN', code, ...(newCustomer ? { name: profileName.trim(), email: profileEmail.trim() || undefined } : {}) });
       routeUser(data.user);
     } catch (requestError: any) {
       setCode('');
@@ -185,14 +185,22 @@ export default function LoginPage() {
           </div>
         </section>
         <section className="enterprise-panel mx-auto w-full max-w-md p-6 sm:p-8">
-          <div className="mb-7"><div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-white"><ShieldCheck className="h-7 w-7" /></div><p className="enterprise-kicker">Welcome back</p><h2 className="mt-3 text-3xl font-black">Sign in to AAGAM</h2><p className="mt-1 text-sm font-bold text-slate-500">Sign in to your workspace</p><p className="mt-2 text-sm font-semibold text-slate-500">New customer? <Link href="/signup" className="text-teal-700">Create account</Link></p></div>
+          <div className="mb-7"><div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-white"><ShieldCheck className="h-7 w-7" /></div><p className="enterprise-kicker">Welcome back</p><h2 className="mt-3 text-3xl font-black">Sign in to Aagaam</h2><p className="mt-1 text-sm font-bold text-slate-500">Sign in to your workspace</p><p className="mt-2 text-sm font-semibold text-slate-500">New customer? <Link href={customerAuthHref('/signup', customerReturnPath)} className="text-teal-700">Create account</Link></p></div>
           {error ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{String(error)}</div> : null}
           <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1"><button type="button" onClick={() => setMode('PHONE')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-black ${mode === 'PHONE' ? 'bg-teal-700 text-white' : 'text-slate-600'}`}><Phone className="h-4 w-4" /> Phone OTP</button><button type="button" onClick={() => setMode('PASSWORD')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-black ${mode === 'PASSWORD' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}><Lock className="h-4 w-4" /> Password</button></div>
           {mode === 'PHONE' && masked && newCustomer ? <div className="mb-4 space-y-3 rounded-2xl border border-teal-100 bg-teal-50 p-4"><p className="text-sm font-black text-teal-900">Complete your new customer profile</p><p className="text-xs font-semibold text-teal-800">The verified mobile number creates your account automatically.</p><input value={profileName} onChange={(event) => setProfileName(event.target.value)} className="enterprise-input bg-white" placeholder="Full name" autoComplete="name" /><input value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} className="enterprise-input bg-white" placeholder="Email (optional)" type="email" autoComplete="email" /></div> : null}
-          {mode === 'PHONE' ? !masked ? <div className="space-y-4"><label className="block"><span className="mb-2 block text-sm font-black">Mobile number</span><span className="relative block"><Phone className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-teal-700" /><input value={phone} onChange={(event) => setPhone(event.target.value)} className="enterprise-input pl-12" placeholder="10-digit mobile number" inputMode="tel" autoComplete="tel" /></span></label><button onClick={requestCode} disabled={loading} className="enterprise-button w-full gap-2">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Send OTP <ArrowRight className="h-4 w-4" /></>}</button></div> : <div className="space-y-4"><p className="text-center text-sm font-bold text-slate-600">Code sent to {masked}</p><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} className="enterprise-input text-center text-2xl font-black tracking-[.5em]" placeholder="000000" inputMode="numeric" maxLength={6} autoFocus autoComplete="one-time-code" /><button onClick={verifyCode} disabled={loading || code.length !== 6} className="enterprise-button w-full">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Verify and sign in'}</button><button onClick={() => countdown === 0 ? requestCode() : undefined} disabled={countdown > 0} className="w-full text-sm font-black text-teal-700 disabled:text-slate-400">{countdown > 0 ? `Resend in 00:${String(countdown).padStart(2, '0')}` : 'Resend OTP'}</button><button onClick={() => { setMasked(''); setCode(''); }} className="w-full text-xs font-bold text-slate-500">Change mobile number</button></div> : <form className="space-y-4" onSubmit={passwordLogin} noValidate={automationPasswordMode}><label className="block"><span className="mb-2 block text-sm font-black">Phone number or email</span><span className="relative block"><Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" /><input type={automationPasswordMode ? 'email' : 'text'} aria-label={automationPasswordMode ? 'Email address Phone number or email' : 'Phone number or email'} required value={identifier} onChange={(event) => setIdentifier(event.target.value)} className="enterprise-input pl-12" placeholder="Phone or email" inputMode={automationPasswordMode ? 'email' : 'text'} autoComplete="username" /></span></label><label className="block"><span className="mb-2 block text-sm font-black">Password</span><span className="relative block"><Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" /><input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="enterprise-input pl-12" autoComplete="current-password" /></span></label><button type="submit" disabled={loading} className="enterprise-button w-full">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Continue'}</button></form>}
+          {mode === 'PHONE' ? !masked ? <div className="space-y-4"><label className="block"><span className="mb-2 block text-sm font-black">Mobile number</span><span className="relative block"><Phone className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-teal-700" /><input value={phone} onChange={(event) => setPhone(event.target.value.replace(/\D/g, '').slice(0, 10))} className="enterprise-input pl-12" placeholder="10-digit mobile number" inputMode="numeric" autoComplete="tel-national" maxLength={10} /></span></label><button onClick={requestCode} disabled={loading || phone.length !== 10} className="enterprise-button w-full gap-2 disabled:cursor-not-allowed disabled:opacity-50">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Send OTP <ArrowRight className="h-4 w-4" /></>}</button></div> : <div className="space-y-4"><p className="text-center text-sm font-bold text-slate-600">Code sent to {masked}</p><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} className="enterprise-input text-center text-2xl font-black tracking-[.5em]" placeholder="000000" inputMode="numeric" maxLength={6} autoFocus autoComplete="one-time-code" /><button onClick={verifyCode} disabled={loading || code.length !== 6} className="enterprise-button w-full">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Verify and sign in'}</button><button onClick={() => countdown === 0 ? requestCode() : undefined} disabled={countdown > 0} className="w-full text-sm font-black text-teal-700 disabled:text-slate-400">{countdown > 0 ? `Resend in 00:${String(countdown).padStart(2, '0')}` : 'Resend OTP'}</button><button onClick={() => { setMasked(''); setCode(''); }} className="w-full text-xs font-bold text-slate-500">Change mobile number</button></div> : <form className="space-y-4" onSubmit={passwordLogin} noValidate={automationPasswordMode}><label className="block"><span className="mb-2 block text-sm font-black">Phone number or email</span><span className="relative block"><Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" /><input type={automationPasswordMode ? 'email' : 'text'} aria-label={automationPasswordMode ? 'Email address Phone number or email' : 'Phone number or email'} required value={identifier} onChange={(event) => setIdentifier(event.target.value)} className="enterprise-input pl-12" placeholder="Phone or email" inputMode={automationPasswordMode ? 'email' : 'text'} autoComplete="username" /></span></label><label className="block"><span className="mb-2 block text-sm font-black">Password</span><span className="relative block"><Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" /><input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="enterprise-input pl-12" autoComplete="current-password" /></span></label><button type="submit" disabled={loading} className="enterprise-button w-full">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Continue'}</button></form>}
           <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-[.2em] text-slate-400"><span className="h-px flex-1 bg-slate-200" />or<span className="h-px flex-1 bg-slate-200" /></div><div id="google-signin-button" className="flex min-h-[44px] items-center justify-center" />{googleLoading ? <p className="mt-2 text-center text-xs font-semibold text-slate-500">Verifying Google sign-in…</p> : null}
         </section>
       </div>
     </div>
   </main>;
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="grid min-h-screen place-items-center bg-slate-50"><Loader2 className="h-7 w-7 animate-spin text-teal-700" /></main>}>
+      <LoginPageContent />
+    </Suspense>
+  );
 }

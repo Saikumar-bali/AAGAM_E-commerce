@@ -17,10 +17,10 @@ export const RiderProfileScreen = () => {
     <ScrollView style={styles.page} contentContainerStyle={styles.content}>
       <StatusBar barStyle="light-content" />
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>AAGAM PARTNERS</Text>
+        <Text style={styles.eyebrow}>AAGAAM PARTNERS</Text>
         <Text style={styles.title}>Rider profile</Text>
         <View style={styles.avatar}><Text style={styles.avatarText}>{initial}</Text></View>
-        <Text style={styles.name}>{user?.name || 'AAGAM Rider'}</Text>
+        <Text style={styles.name}>{user?.name || 'Aagaam Rider'}</Text>
         <View style={styles.roleBadge}>
           <Bike size={15} color="#0F766E" />
           <Text style={styles.roleText}>RIDER</Text>

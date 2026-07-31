@@ -87,7 +87,7 @@ export const CheckoutScreen = () => {
 
   const useCurrentLocation = async () => {
     if (Platform.OS === 'android') {
-      const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, { title: 'Allow delivery location', message: 'AAGAM uses precise location to place your delivery pin.', buttonPositive: 'Allow', buttonNegative: 'Not now' });
+      const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, { title: 'Allow delivery location', message: 'Aagaam uses precise location to place your delivery pin.', buttonPositive: 'Allow', buttonNegative: 'Not now' });
       if (result !== PermissionsAndroid.RESULTS.GRANTED) {
         notify.warning('Location permission needed', 'Allow precise location or tap the map to pin manually.');
         return;

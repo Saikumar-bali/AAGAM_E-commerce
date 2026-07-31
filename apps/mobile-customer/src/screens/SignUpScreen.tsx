@@ -106,7 +106,7 @@ export const SignUpScreen = () => {
           name: name.trim(),
           email: email.trim() || undefined,
         });
-        notify.success('Account created successfully', 'Welcome to AAGAM.');
+        notify.success('Account created successfully', 'Welcome to Aagaam.');
       } catch (error) {
         setCode('');
         notify.error('Code not verified', getUserSafeError(error, 'The OTP is wrong or expired. Request a new code and try again.'));
@@ -142,7 +142,7 @@ export const SignUpScreen = () => {
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.header}><TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}><ChevronLeft size={24} color="#1E293B" /></TouchableOpacity><Text style={styles.headerTitle}>Create account</Text></View>
         <View style={styles.content}>
-          <View style={styles.hero}><View style={styles.icon}><Phone size={28} color="#0F766E" /></View><Text style={styles.title}>Simple phone signup</Text><Text style={styles.subtitle}>Your verified mobile number becomes your primary AAGAM login. Email is optional.</Text></View>
+          <View style={styles.hero}><View style={styles.icon}><Phone size={28} color="#0F766E" /></View><Text style={styles.title}>Simple phone signup</Text><Text style={styles.subtitle}>Your verified mobile number becomes your primary Aagaam login. Email is optional.</Text></View>
           {!masked ? <View style={styles.card}>
             <Field icon={<User size={20} color="#64748B" />} value={name} onChangeText={setName} placeholder="Full name" autoCapitalize="words" />
             <Field icon={<Phone size={20} color="#0F766E" />} value={phone} onChangeText={setPhone} placeholder="10-digit mobile number" keyboardType="phone-pad" />

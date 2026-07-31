@@ -133,7 +133,7 @@ export async function enablePushNotifications(): Promise<PushSetupResult> {
   if (!foregroundHandlerRegistered) {
     foregroundHandlerRegistered = true;
     messaging.onMessage((payload: any) => {
-      const title = payload?.notification?.title || payload?.data?.title || 'AAGAM update';
+      const title = payload?.notification?.title || payload?.data?.title || 'AAGAAM update';
       const body = payload?.notification?.body || payload?.data?.body || 'You have a new notification.';
       const deepLink = payload?.data?.deepLink;
       const recipientId = payload?.data?.recipientId;

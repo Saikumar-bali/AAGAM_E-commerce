@@ -198,7 +198,7 @@ export const RiderPickupOperationsScreen = () => {
           <View style={styles.summaryCard}>
             <View style={styles.flex}>
               <Text style={styles.orderCode}>ORDER #{shortId(job.order?.id)}</Text>
-              <Text style={styles.storeName}>{job.order?.store?.name || 'AAGAM store'}</Text>
+              <Text style={styles.storeName}>{job.order?.store?.name || 'Aagaam store'}</Text>
               <Text style={styles.summaryText}>{checklist.length} lines · {totalUnits} units</Text>
             </View>
             <View style={[styles.badge, checklistVerified ? styles.badgeReady : styles.badgePending]}>

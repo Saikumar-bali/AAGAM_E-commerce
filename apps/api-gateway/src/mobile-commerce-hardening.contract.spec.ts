@@ -35,9 +35,12 @@ describe("Mobile commerce hardening contracts", () => {
     expect(checkout).toContain("CustomerLocationPicker");
   });
 
-  test("authenticated web shell is session-deduplicated and mounts web push", () => {
+  test("authenticated web shell is session-deduplicated and mounts unified web push", () => {
     const layout = read(
       "apps/admin-dashboard/src/components/DashboardLayout.tsx"
+    );
+    const pushManager = read(
+      "apps/admin-dashboard/src/components/PushNotificationManager.tsx"
     );
     const worker = read(
       "apps/admin-dashboard/public/firebase-messaging-sw.js"
@@ -45,7 +48,9 @@ describe("Mobile commerce hardening contracts", () => {
 
     expect(layout).toContain("let cachedSession");
     expect(layout).toContain("let sessionRequest");
-    expect(layout).toContain("<PushNotificationManager />");
+    expect(layout).toContain("<PushNotificationManager onOpen={openNotifications} compact />");
+    expect(pushManager).toContain("enablePushNotifications");
+    expect(pushManager).toContain("onOpen?.()");
     expect(worker).toContain("firebase-messaging-compat.js");
     expect(worker).toContain("firebaseNamespace.messaging");
     expect(worker).toContain("onBackgroundMessage");
@@ -60,7 +65,7 @@ describe("Mobile commerce hardening contracts", () => {
 
     expect(shared).toContain("provider: 'FCM_MOBILE'");
     expect(shared).toContain("POST_NOTIFICATIONS");
-    expect(customerApp).toContain("startMobilePushLifecycle('AAGAM Customer'");
+    expect(customerApp).toContain("startMobilePushLifecycle('Aagaam Customer'");
     expect(partnerApp).toContain("startMobilePushLifecycle(deviceName");
     expect(customerIndex).toContain("setupBackgroundMessageHandler");
     expect(partnerIndex).toContain("setupBackgroundMessageHandler");
