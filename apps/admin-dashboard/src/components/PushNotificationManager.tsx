@@ -10,7 +10,7 @@ type PushNotificationManagerProps = {
 };
 
 function toast(kind: 'success' | 'error' | 'info', title: string, message: string) {
-  window.dispatchEvent(new CustomEvent('aagaam:toast', { detail: { kind, title, message } }));
+  window.dispatchEvent(new CustomEvent('aagam:toast', { detail: { kind, title, message } }));
 }
 
 export default function PushNotificationManager({ onOpen, compact = false }: PushNotificationManagerProps) {
