@@ -16,9 +16,9 @@ function PushLifecycle() {
     if (!user) return;
     let disposed = false;
     let unsubscribe: () => void = () => undefined;
-    void startMobilePushLifecycle('AAGAM Customer', (message) => {
+    void startMobilePushLifecycle('Aagaam Customer', (message) => {
       notify.info(
-        message.notification?.title || message.data?.title || 'AAGAM update',
+        message.notification?.title || message.data?.title || 'Aagaam update',
         message.notification?.body || message.data?.body || 'Your order has an update.',
       );
     }).then((cleanup) => {
