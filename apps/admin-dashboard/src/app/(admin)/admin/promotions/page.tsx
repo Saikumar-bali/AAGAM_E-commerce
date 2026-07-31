@@ -553,7 +553,7 @@ export default function AdminPromotionsPage() {
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-teal-800"
           >
             <Plus className="h-4 w-4" />
-            New {tab === "campaigns" ? "campaign" : "coupon"}
+            {tab === "campaigns" ? "New & publish campaign" : "New coupon"}
           </button>
         </header>
         <div className="grid gap-4 sm:grid-cols-4">
@@ -875,8 +875,12 @@ export default function AdminPromotionsPage() {
 
       {campaignDialog && (
         <Modal
-          title={editingCampaignId ? "Edit campaign" : "Create campaign"}
-          subtitle="One campaign can be assigned to multiple customer placements."
+          title={editingCampaignId ? "Edit campaign" : "Create & publish campaign"}
+          subtitle={
+            editingCampaignId
+              ? "Update placements, creative, and schedule for this campaign."
+              : "New campaigns publish immediately by default. Choose Draft to stage creative before customers see it."
+          }
           onClose={() => setCampaignDialog(false)}
         >
           <form onSubmit={saveCampaign} className="space-y-5">
@@ -1204,7 +1208,7 @@ export default function AdminPromotionsPage() {
             </div>
             <Submit
               saving={saving}
-              label={editingCampaignId ? "Save campaign" : "Create campaign"}
+              label={editingCampaignId ? "Save campaign" : "Publish campaign"}
             />
           </form>
         </Modal>
