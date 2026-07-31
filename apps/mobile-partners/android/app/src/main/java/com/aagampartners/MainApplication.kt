@@ -63,6 +63,6 @@ class MainApplication : Application(), ReactApplication {
   }
 
   companion object {
-    const val OPERATIONS_CHANNEL_ID = "aagaam_priority_operations_v2"
+    const val OPERATIONS_CHANNEL_ID = "aagam_priority_operations_v2"
   }
 }
