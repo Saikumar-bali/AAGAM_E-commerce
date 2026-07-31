@@ -71,6 +71,7 @@ export const PromotionCarousel = ({ campaigns, onPress, compact = false }: Props
         contentContainerStyle={styles.list}
         renderItem={({ item }) => {
           const creative = item.mobileImageUrl || item.imageUrl;
+          const imageFirst = Boolean(creative);
           const content = (
             <>
               {creative ? <View style={styles.scrim} /> : null}
@@ -101,6 +102,7 @@ export const PromotionCarousel = ({ campaigns, onPress, compact = false }: Props
               activeOpacity={item.targetUrl ? 0.9 : 1}
               disabled={!item.targetUrl}
               onPress={() => onPress(item)}
+              accessibilityLabel={`${item.title}${item.subtitle ? `, ${item.subtitle}` : ''}`}
               style={[
                 styles.card,
                 compact ? styles.compactCard : styles.heroCard,
@@ -109,7 +111,7 @@ export const PromotionCarousel = ({ campaigns, onPress, compact = false }: Props
             >
               {creative ? (
                 <ImageBackground source={{ uri: creative }} resizeMode="cover" style={styles.image}>
-                  {content}
+                  {imageFirst ? null : content}
                 </ImageBackground>
               ) : content}
             </TouchableOpacity>

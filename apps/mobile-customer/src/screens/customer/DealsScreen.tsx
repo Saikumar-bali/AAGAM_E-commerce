@@ -57,7 +57,7 @@ export const DealsScreen = () => {
     const category = target.match(/[?&]category=([^&#]+)/);
     if (category) {
       return navigation.navigate('MainTabs', {
-        screen: 'Shop',
+        screen: 'Home',
         params: { categoryId: decodeURIComponent(category[1]) },
       });
     }

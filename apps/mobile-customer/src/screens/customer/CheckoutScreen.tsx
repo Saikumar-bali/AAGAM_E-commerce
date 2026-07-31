@@ -183,7 +183,7 @@ export const CheckoutScreen = () => {
   });
 
   if (items.length === 0) {
-    return <View style={styles.centered}><Text style={styles.emptyTitle}>Your cart is empty.</Text><Text style={styles.emptyText}>Add a few items before checking out.</Text><TouchableOpacity testID="checkout_browse_products" style={styles.browseButton} onPress={() => navigation.navigate('MainTabs', { screen: 'Shop' })}><Text style={styles.browseButtonText}>Browse products</Text></TouchableOpacity></View>;
+    return <View style={styles.centered}><Text style={styles.emptyTitle}>Your cart is empty.</Text><Text style={styles.emptyText}>Add a few items before checking out.</Text><TouchableOpacity testID="checkout_browse_products" style={styles.browseButton} onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}><Text style={styles.browseButtonText}>Browse products</Text></TouchableOpacity></View>;
   }
   if (loadingAddresses) return <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View>;
 

@@ -1,12 +1,13 @@
 import React from 'react';
+import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
-  Bell,
+  House,
+  Grid2X2,
   ClipboardList,
-  ShoppingBag,
   ShoppingCart,
-  User,
+  UserRound,
 } from 'lucide-react-native';
 import { ShopScreen } from '../screens/customer/ShopScreen';
 import { CartScreen } from '../screens/customer/CartScreen';
@@ -19,8 +20,10 @@ import { NotificationsScreen } from '../screens/customer/NotificationsScreen';
 import { CustomerProfileScreen } from '../screens/customer/CustomerProfileScreen';
 import { CustomerSupportScreen } from '../screens/customer/CustomerSupportScreen';
 import { DealsScreen } from '../screens/customer/DealsScreen';
+import { SavedAddressesScreen } from '../screens/customer/SavedAddressesScreen';
 import { useCartStore } from '../store/cartStore';
 import { getCartItemCount } from '../utils/customerCommerce';
+import { CustomerBottomNav, CustomerScreenWithNav } from '../components/CustomerBottomNav';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -29,38 +32,27 @@ const CustomerTabs = () => {
   const cartItemsCount = useCartStore((state) => getCartItemCount(state.items));
 
   return (
-    <Tab.Navigator
-      screenOptions={{
-        tabBarActiveTintColor: '#0F172A',
-        tabBarInactiveTintColor: '#A8A29E',
-        headerShown: false,
-        tabBarStyle: {
-          position: 'absolute',
-          left: 14,
-          right: 14,
-          bottom: 12,
-          height: 76,
-          paddingBottom: 12,
-          paddingTop: 8,
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 0,
-          borderRadius: 28,
-          elevation: 18,
-          shadowColor: '#0F172A',
-          shadowOffset: { width: 0, height: 12 },
-          shadowOpacity: 0.14,
-          shadowRadius: 24,
-        },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '900' },
-      }}
-    >
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator
+        screenOptions={{
+          tabBarActiveTintColor: '#0F766E',
+          tabBarInactiveTintColor: '#64748B',
+          headerShown: false,
+          tabBarStyle: { display: 'none' },
+        }}
+      >
       <Tab.Screen
-        name="Shop"
+        name="Home"
         component={ShopScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <ShoppingBag size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <House size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Categories"
+        component={ShopScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => <Grid2X2 size={size} color={color} />,
         }}
       />
       <Tab.Screen
@@ -71,12 +63,6 @@ const CustomerTabs = () => {
             <ShoppingCart size={size} color={color} />
           ),
           tabBarBadge: cartItemsCount > 0 ? cartItemsCount : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: '#F97316',
-            color: '#FFFFFF',
-            fontSize: 10,
-            fontWeight: '900',
-          },
         }}
       />
       <Tab.Screen
@@ -89,21 +75,26 @@ const CustomerTabs = () => {
         }}
       />
       <Tab.Screen
-        name="Alerts"
-        component={NotificationsScreen}
-        options={{
-          tabBarIcon: ({ color, size }) => <Bell size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen
         name="Profile"
         component={CustomerProfileScreen}
         options={{
-          tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <UserRound size={size} color={color} />,
         }}
       />
-    </Tab.Navigator>
+      </Tab.Navigator>
+      <CustomerBottomNav />
+    </View>
   );
+};
+
+const withBottomNav = (Component: React.ComponentType<any>, active: 'Home' | 'Categories' | 'Cart' | 'Orders' | 'Profile') => {
+  const Screen = (props: any) => (
+    <CustomerScreenWithNav active={active}>
+      <Component {...props} />
+    </CustomerScreenWithNav>
+  );
+  Screen.displayName = `CustomerScreenWithNav(${Component.displayName || Component.name || 'Screen'})`;
+  return Screen;
 };
 
 export const CustomerNavigator = () => {
@@ -116,33 +107,43 @@ export const CustomerNavigator = () => {
       />
       <Stack.Screen
         name="Checkout"
-        component={CheckoutScreen}
-        options={{ title: 'Checkout', headerShadowVisible: false }}
+        component={withBottomNav(CheckoutScreen, 'Cart')}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Deals"
-        component={DealsScreen}
-        options={{ title: 'Deals & Offers', headerShadowVisible: false }}
+        component={withBottomNav(DealsScreen, 'Home')}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="ProductDetail"
-        component={ProductDetailScreen}
-        options={{ title: 'Product Details', headerShadowVisible: false }}
+        component={withBottomNav(ProductDetailScreen, 'Home')}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="OrderDetail"
-        component={OrderDetailScreen}
-        options={{ title: 'Order Details', headerShadowVisible: false }}
+        component={withBottomNav(OrderDetailScreen, 'Orders')}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Review"
-        component={ReviewScreen}
-        options={{ title: 'Review Order', headerShadowVisible: false }}
+        component={withBottomNav(ReviewScreen, 'Orders')}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Support"
-        component={CustomerSupportScreen}
-        options={{ title: 'Customer Support', headerShadowVisible: false }}
+        component={withBottomNav(CustomerSupportScreen, 'Profile')}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Alerts"
+        component={withBottomNav(NotificationsScreen, 'Home')}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="SavedAddresses"
+        component={withBottomNav(SavedAddressesScreen, 'Profile')}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

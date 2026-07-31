@@ -16,6 +16,20 @@ import {
 import Geolocation from 'react-native-geolocation-service';
 import { useNavigation } from '@react-navigation/native';
 import {
+  Bell,
+  BriefcaseBusiness,
+  ChevronRight,
+  ClipboardList,
+  Headphones,
+  MapPin,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  Smartphone,
+  ShoppingCart,
+  Trash2,
+} from 'lucide-react-native';
+import {
   LeafletMap,
   apiClient,
   registerDeviceToken,
@@ -23,6 +37,7 @@ import {
 } from '@aagam/mobile-shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { getUserSafeError, notify } from '../../ui/notify';
+import { AagamBrand } from '../../components/AagamBrand';
 
 const emptyDraft = {
   label: 'Home',
@@ -203,6 +218,9 @@ export const CustomerProfileScreen = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.topHeader}><AagamBrand compact /><View style={styles.headerActions}><TouchableOpacity style={styles.topIcon} onPress={() => navigation.navigate('Alerts')} accessibilityLabel="Open notifications"><Bell size={21} color="#0F766E" /></TouchableOpacity><TouchableOpacity style={styles.topCart} onPress={() => navigation.navigate('Cart')} accessibilityLabel="Open cart"><ShoppingCart size={22} color="#115E59" /></TouchableOpacity></View></View>
+      <Text style={styles.profileHeading}>My Profile</Text>
+      <Text style={styles.profileSubtitle}>Manage your account and preferences</Text>
       <View style={styles.heroCard}>
         <TouchableOpacity style={styles.headerLogout} onPress={confirmLogout}><Text style={styles.headerLogoutText}>↪</Text></TouchableOpacity>
         {avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <View style={styles.avatar}><Text style={styles.avatarText}>{profileInitial}</Text></View>}
@@ -214,34 +232,35 @@ export const CustomerProfileScreen = () => {
       </View>
 
       <View style={styles.statsRow}>
-        <View style={styles.statCard}><Text style={styles.statValue}>{orders.length}</Text><Text style={styles.statLabel}>Orders</Text></View>
-        <View style={styles.statCard}><Text style={styles.statValue}>{activeOrders}</Text><Text style={styles.statLabel}>Active</Text></View>
-        <View style={styles.statCard}><Text style={styles.statValue}>{notifications?.unreadCount || 0}</Text><Text style={styles.statLabel}>Alerts</Text></View>
+        <View style={styles.statCard}><View style={styles.statIcon}><ShoppingCart size={20} color="#0F766E" /></View><View><Text style={styles.statValue}>{orders.length}</Text><Text style={styles.statLabel}>Orders</Text></View></View>
+        <View style={styles.statCard}><View style={styles.statIcon}><ClipboardList size={20} color="#0F766E" /></View><View><Text style={styles.statValue}>{activeOrders}</Text><Text style={styles.statLabel}>Active</Text></View></View>
+        <View style={styles.statCard}><View style={styles.statIcon}><Bell size={20} color="#0F766E" /></View><View><Text style={styles.statValue}>{notifications?.unreadCount || 0}</Text><Text style={styles.statLabel}>Alerts</Text></View></View>
       </View>
 
       <View style={styles.menuCard}>
-        <MenuRow title="My Orders" subtitle="Track, reorder, and review deliveries" onPress={() => navigation.navigate('Orders')} />
-        <MenuRow title="Alerts" subtitle="Order and support notifications" onPress={() => navigation.navigate('Alerts')} />
-        <MenuRow title="Push Notifications" subtitle="Register this device for updates" onPress={() => void enablePush()} />
-        <MenuRow title="Customer Support" subtitle="Open a ticket for an order, item, payment, or delivery issue" onPress={() => navigation.navigate('Support')} />
-        <MenuRow title="Account Security" subtitle={isGoogleProfile ? 'Google account is connected to this customer profile' : 'Google OAuth primary, email password fallback'} onPress={showAccountSecurity} />
+        <MenuRow icon={ClipboardList} title="My Orders" subtitle="Track, reorder, and review deliveries" onPress={() => navigation.navigate('Orders')} />
+        <MenuRow icon={Bell} title="Alerts" subtitle="Order and support notifications" onPress={() => navigation.navigate('Alerts')} />
+        <MenuRow icon={Smartphone} title="Push Notifications" subtitle="Register this device for updates" onPress={() => void enablePush()} />
+        <MenuRow icon={Headphones} title="Customer Support" subtitle="Open a ticket for an order, item, payment, or delivery issue" onPress={() => navigation.navigate('Support')} />
+        <MenuRow icon={ShieldCheck} title="Account Security" subtitle={isGoogleProfile ? 'Google account is connected to this customer profile' : 'Google OAuth primary, email password fallback'} onPress={showAccountSecurity} />
       </View>
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Saved Addresses</Text>
-        <TouchableOpacity style={styles.linkButton} onPress={() => setShowForm((value) => !value)}><Text style={styles.linkButtonText}>{showForm ? 'Close' : 'Add New'}</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.linkButton} onPress={() => setShowForm((value) => !value)}><Plus size={16} color="#0F766E" /><Text style={styles.linkButtonText}>{showForm ? 'Close' : 'Add New'}</Text></TouchableOpacity>
       </View>
 
-      {isLoading ? <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View> : addresses.length === 0 ? <View style={styles.emptyCard}><Text style={styles.emptyTitle}>No saved address</Text><Text style={styles.emptyText}>Add a delivery address before checkout.</Text></View> : addresses.map((address: any) => (
+      {isLoading ? <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View> : addresses.length === 0 ? <TouchableOpacity style={styles.emptyCard} onPress={() => setShowForm(true)}><View style={styles.emptyAddressIcon}><MapPinIcon /></View><View style={styles.emptyAddressCopy}><Text style={styles.emptyTitle}>No saved address yet</Text><Text style={styles.emptyText}>Add a delivery address before checkout for faster order delivery.</Text></View><ChevronRight size={20} color="#64748B" /></TouchableOpacity> : addresses.slice(0, 2).map((address: any) => (
         <View key={address.id} style={styles.addressCard}>
-          <View style={styles.addressTop}><Text style={styles.addressLabel}>{address.label || 'Address'} {address.isDefault ? '• Default' : ''}</Text>{!address.isDefault ? <TouchableOpacity onPress={() => setDefaultMutation.mutate(address.id)}><Text style={styles.smallAction}>Make default</Text></TouchableOpacity> : null}</View>
+          <View style={styles.addressTop}><View style={styles.addressLabelRow}><BriefcaseBusiness size={18} color="#0F766E" /><Text style={styles.addressLabel}>{address.label || 'Address'} {address.isDefault ? '• Default' : ''}</Text></View>{!address.isDefault ? <TouchableOpacity onPress={() => setDefaultMutation.mutate(address.id)}><Text style={styles.smallAction}>Make default</Text></TouchableOpacity> : null}</View>
           <Text style={styles.addressName}>{address.recipientName}</Text>
           <Text style={styles.addressText}>{address.phoneE164}</Text>
           <Text style={styles.addressText}>{address.line1}{address.line2 ? `, ${address.line2}` : ''}</Text>
           <Text style={styles.addressText}>{address.city}, {address.state} - {address.pincode}</Text>
-          <TouchableOpacity style={styles.deleteLink} onPress={() => confirmDeleteAddress(address)}><Text style={styles.deleteText}>Delete address</Text></TouchableOpacity>
+          <View style={styles.addressActions}><TouchableOpacity style={styles.addressAction} onPress={() => navigation.navigate('SavedAddresses')}><Pencil size={15} color="#0F766E" /><Text style={styles.smallAction}>Edit</Text></TouchableOpacity><TouchableOpacity style={styles.addressAction} onPress={() => confirmDeleteAddress(address)}><Trash2 size={15} color="#DC2626" /><Text style={styles.deleteText}>Delete</Text></TouchableOpacity><TouchableOpacity style={styles.deliverHere} onPress={() => setDefaultMutation.mutate(address.id)}><Text style={styles.deliverHereText}>{address.isDefault ? 'Deliver here' : 'Deliver Here'}</Text></TouchableOpacity></View>
         </View>
       ))}
+      {addresses.length > 0 ? <TouchableOpacity style={styles.viewAddresses} onPress={() => navigation.navigate('SavedAddresses')}><Text style={styles.viewAddressesText}>View all saved addresses</Text><ChevronRight size={17} color="#0F766E" /></TouchableOpacity> : null}
 
       {showForm ? <View style={styles.formCard}>
         <Text style={styles.formTitle}>Add Address</Text>
@@ -260,19 +279,24 @@ export const CustomerProfileScreen = () => {
   );
 };
 
-function MenuRow({ title, subtitle, onPress }: { title: string; subtitle: string; onPress: () => void }) {
-  return <TouchableOpacity style={styles.menuRow} onPress={onPress}><View style={{ flex: 1 }}><Text style={styles.menuTitle}>{title}</Text><Text style={styles.menuSubtitle}>{subtitle}</Text></View><Text style={styles.chevron}>›</Text></TouchableOpacity>;
+function MenuRow({ icon: Icon, title, subtitle, onPress }: { icon: React.ComponentType<{ size?: number; color?: string }>; title: string; subtitle: string; onPress: () => void }) {
+  return <TouchableOpacity style={styles.menuRow} onPress={onPress}><View style={styles.menuIcon}><Icon size={21} color="#0F766E" /></View><View style={{ flex: 1 }}><Text style={styles.menuTitle}>{title}</Text><Text style={styles.menuSubtitle}>{subtitle}</Text></View><ChevronRight size={22} color="#64748B" /></TouchableOpacity>;
+}
+
+function MapPinIcon() {
+  return <MapPin size={30} color="#0F766E" />;
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' }, content: { padding: 16, paddingBottom: 170 }, centered: { paddingVertical: 24 }, disabled: { opacity: 0.55 },
+  topHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 17 }, headerActions: { flexDirection: 'row', alignItems: 'center', gap: 9 }, topIcon: { width: 46, height: 46, borderRadius: 16, borderWidth: 1, borderColor: '#DDE7EA', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }, topCart: { width: 48, height: 48, borderRadius: 17, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, profileHeading: { color: '#0F172A', fontSize: 28, fontWeight: '900', letterSpacing: -0.7 }, profileSubtitle: { marginTop: 3, marginBottom: 17, color: '#64748B', fontSize: 14, fontWeight: '600' },
   heroCard: { position: 'relative', flexDirection: 'row', gap: 14, alignItems: 'center', borderRadius: 26, backgroundColor: '#0F766E', padding: 20 }, headerLogout: { position: 'absolute', right: 14, top: 14, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#CCFBF1', zIndex: 2 }, headerLogoutText: { color: '#115E59', fontSize: 22, fontWeight: '900' },
   avatar: { width: 64, height: 64, borderRadius: 22, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF' }, avatarImage: { width: 64, height: 64, borderRadius: 22, backgroundColor: '#CCFBF1', borderWidth: 2, borderColor: '#FFFFFF' }, avatarText: { color: '#115E59', fontSize: 26, fontWeight: '900' }, profileCopy: { flex: 1, paddingRight: 42 }, name: { fontSize: 24, fontWeight: '900', color: '#FFFFFF' }, email: { marginTop: 6, color: '#CCFBF1', fontWeight: '700' }, accountBadge: { alignSelf: 'flex-start', marginTop: 9, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.16)', paddingHorizontal: 10, paddingVertical: 5 }, accountBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
-  statsRow: { flexDirection: 'row', gap: 10, marginTop: 14 }, statCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: '#E2E8F0' }, statValue: { fontSize: 22, fontWeight: '900', color: '#0F172A' }, statLabel: { marginTop: 4, color: '#64748B', fontSize: 12, fontWeight: '800' },
-  menuCard: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 22, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' }, menuRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }, menuTitle: { color: '#0F172A', fontWeight: '900', fontSize: 15 }, menuSubtitle: { marginTop: 4, color: '#64748B', fontWeight: '700', fontSize: 12 }, chevron: { fontSize: 28, color: '#94A3B8', fontWeight: '300' },
-  sectionHeader: { marginTop: 22, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, sectionTitle: { fontSize: 20, fontWeight: '900', color: '#0F172A' }, linkButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: '#CCFBF1' }, linkButtonText: { color: '#115E59', fontWeight: '900' },
-  emptyCard: { marginTop: 12, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', padding: 16 }, emptyTitle: { color: '#0F172A', fontWeight: '900' }, emptyText: { marginTop: 4, color: '#64748B' },
-  addressCard: { marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', padding: 16 }, addressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }, addressLabel: { fontSize: 12, fontWeight: '900', color: '#0F766E', textTransform: 'uppercase', flex: 1 }, smallAction: { color: '#0F766E', fontWeight: '900', fontSize: 12 }, addressName: { marginTop: 6, fontSize: 16, fontWeight: '900', color: '#0F172A' }, addressText: { marginTop: 4, color: '#475569' }, deleteLink: { marginTop: 10, alignSelf: 'flex-start' }, deleteText: { color: '#DC2626', fontWeight: '900', fontSize: 12 },
+  statsRow: { flexDirection: 'row', gap: 9, marginTop: 14 }, statCard: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 10, borderWidth: 1, borderColor: '#E2E8F0' }, statIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#E6FFFA', alignItems: 'center', justifyContent: 'center' }, statValue: { fontSize: 21, fontWeight: '900', color: '#0F172A' }, statLabel: { marginTop: 2, color: '#64748B', fontSize: 11, fontWeight: '800' },
+  menuCard: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 22, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' }, menuRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 11, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }, menuIcon: { width: 40, height: 40, borderRadius: 15, backgroundColor: '#E6FFFA', alignItems: 'center', justifyContent: 'center' }, menuTitle: { color: '#0F172A', fontWeight: '900', fontSize: 15 }, menuSubtitle: { marginTop: 4, color: '#64748B', fontWeight: '700', fontSize: 12 }, chevron: { fontSize: 28, color: '#94A3B8', fontWeight: '300' },
+  sectionHeader: { marginTop: 22, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, sectionTitle: { fontSize: 20, fontWeight: '900', color: '#0F172A' }, linkButton: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: '#CCFBF1' }, linkButtonText: { color: '#115E59', fontWeight: '900' },
+  emptyCard: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#99F6E4', backgroundColor: '#FFFFFF', padding: 14 }, emptyAddressIcon: { width: 62, height: 62, borderRadius: 22, backgroundColor: '#E6FFFA', alignItems: 'center', justifyContent: 'center' }, emptyAddressCopy: { flex: 1 }, emptyTitle: { color: '#0F172A', fontWeight: '900' }, emptyText: { marginTop: 4, color: '#64748B', lineHeight: 18 },
+  addressCard: { marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', padding: 14 }, addressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }, addressLabelRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7 }, addressLabel: { fontSize: 12, fontWeight: '900', color: '#0F766E', textTransform: 'uppercase' }, smallAction: { color: '#0F766E', fontWeight: '900', fontSize: 12 }, addressName: { marginTop: 7, fontSize: 16, fontWeight: '900', color: '#0F172A' }, addressText: { marginTop: 4, color: '#475569' }, deleteLink: { marginTop: 10, alignSelf: 'flex-start' }, deleteText: { color: '#DC2626', fontWeight: '900', fontSize: 12 }, addressActions: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 10 }, addressAction: { flexDirection: 'row', alignItems: 'center', gap: 4 }, deliverHere: { flex: 1, alignItems: 'center', borderRadius: 999, backgroundColor: '#0F766E', paddingVertical: 9 }, deliverHereText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' }, viewAddresses: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 }, viewAddressesText: { color: '#0F766E', fontWeight: '900', fontSize: 12 },
   formCard: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' }, formTitle: { fontSize: 18, fontWeight: '900', color: '#0F172A', marginBottom: 12 }, locationPanel: { borderRadius: 18, backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#CCFBF1', padding: 10, marginBottom: 12 }, locationButton: { alignItems: 'center', borderRadius: 14, backgroundColor: '#0F766E', paddingVertical: 12, marginBottom: 10 }, locationButtonText: { color: '#FFFFFF', fontWeight: '900' }, locationHelp: { marginTop: 8, color: '#115E59', fontWeight: '700', fontSize: 12, textAlign: 'center' },
   input: { borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, color: '#0F172A', marginBottom: 10 }, switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 12 }, switchText: { color: '#0F172A', fontWeight: '700' }, saveButton: { backgroundColor: '#0F766E', borderRadius: 16, paddingVertical: 15, alignItems: 'center' }, saveButtonText: { color: '#FFFFFF', fontWeight: '900' },
 });

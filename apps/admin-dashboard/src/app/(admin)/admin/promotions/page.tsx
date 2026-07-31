@@ -151,7 +151,7 @@ const campaignDefaults = (): CampaignForm => ({
   endsAt: "",
   priority: "0",
   firstOrderOnly: false,
-  placements: ["HOME_TODAY_OFFERS"],
+  placements: ["HOME_HERO"],
 });
 const couponDefaults = (): CouponForm => ({
   code: "",
@@ -380,6 +380,15 @@ export default function AdminPromotionsPage() {
     try {
       if (!campaignForm.placements.length)
         throw new globalThis.Error("Select at least one placement.");
+      if (
+        campaignForm.placements.includes("HOME_HERO") &&
+        !campaignForm.imageUrl &&
+        !campaignForm.mobileImageUrl
+      ) {
+        throw new globalThis.Error(
+          "Upload the finished hero banner before publishing it to Home Hero.",
+        );
+      }
       const startsAt = isoDate(campaignForm.startsAt);
       const endsAt = isoDate(campaignForm.endsAt);
       const isPublishing =
@@ -413,7 +422,7 @@ export default function AdminPromotionsPage() {
         );
       else await apiClient.post("/admin/promotions/campaigns", payload);
       setCampaignDialog(false);
-      setMessage(editingCampaignId ? "Campaign updated." : "Campaign created.");
+      setMessage(editingCampaignId ? "Campaign updated." : "Hero campaign published.");
       await load();
     } catch (requestError: any) {
       setError(
@@ -553,7 +562,7 @@ export default function AdminPromotionsPage() {
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-teal-800"
           >
             <Plus className="h-4 w-4" />
-            {tab === "campaigns" ? "New & publish campaign" : "New coupon"}
+            New {tab === "campaigns" ? "hero campaign" : "coupon"}
           </button>
         </header>
         <div className="grid gap-4 sm:grid-cols-4">
@@ -628,7 +637,7 @@ export default function AdminPromotionsPage() {
         ) : tab === "campaigns" ? (
           <div className="grid gap-4 xl:grid-cols-2">
             {campaigns.length === 0 ? (
-              <Empty text="No campaigns yet. Create one in Draft, preview its targeting, then publish it." />
+              <Empty text="No campaigns yet. Upload a finished hero banner and publish it from this portal." />
             ) : (
               campaigns.map((campaign) => (
                 <article
@@ -875,12 +884,8 @@ export default function AdminPromotionsPage() {
 
       {campaignDialog && (
         <Modal
-          title={editingCampaignId ? "Edit campaign" : "Create & publish campaign"}
-          subtitle={
-            editingCampaignId
-              ? "Update placements, creative, and schedule for this campaign."
-              : "New campaigns publish immediately by default. Choose Draft to stage creative before customers see it."
-          }
+          title={editingCampaignId ? "Edit hero campaign" : "Create hero campaign"}
+          subtitle="Upload the final creative, choose Home Hero, and the customer app will load it from the live campaign feed."
           onClose={() => setCampaignDialog(false)}
         >
           <form onSubmit={saveCampaign} className="space-y-5">
@@ -1084,10 +1089,15 @@ export default function AdminPromotionsPage() {
               </div>
             </section>
             <section className="rounded-2xl border border-slate-200 p-4">
-              <h3 className="text-sm font-black text-slate-950">Creative</h3>
+              <h3 className="text-sm font-black text-slate-950">Hero creative</h3>
+              <div className="mt-3 rounded-2xl bg-teal-50 p-4 text-xs font-semibold leading-5 text-teal-900">
+                <p className="font-black uppercase tracking-[0.16em]">Reference banner recipe</p>
+                <p className="mt-2">Upload your completed banner artwork. Use a wide 16:9 desktop image and a portrait-safe mobile image when available. The customer app uses the mobile image on phones, keeps the banner tappable, and follows the selected destination below.</p>
+                <p className="mt-2 font-black">Required for Home Hero: image + HOME HERO placement + future/active schedule.</p>
+              </div>
               <div className="mt-3 grid gap-4 md:grid-cols-2">
                 <UploadField
-                  label="Desktop / default image"
+                  label="Final hero banner · desktop / web"
                   url={campaignForm.imageUrl}
                   uploading={uploading}
                   onUpload={(event) => uploadCampaignImage(event)}
@@ -1096,7 +1106,7 @@ export default function AdminPromotionsPage() {
                   }
                 />
                 <UploadField
-                  label="Optional mobile image"
+                  label="Final hero banner · mobile app"
                   url={campaignForm.mobileImageUrl}
                   uploading={uploading}
                   onUpload={(event) => uploadCampaignImage(event, true)}
@@ -1140,6 +1150,10 @@ export default function AdminPromotionsPage() {
                     }
                   />
                 </Field>
+              </div>
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Customer preview</p>
+                <CampaignPreview form={campaignForm} />
               </div>
             </section>
             <div className="grid gap-4 md:grid-cols-3">
@@ -1208,7 +1222,7 @@ export default function AdminPromotionsPage() {
             </div>
             <Submit
               saving={saving}
-              label={editingCampaignId ? "Save campaign" : "Publish campaign"}
+              label={editingCampaignId ? "Save hero campaign" : "Publish hero campaign"}
             />
           </form>
         </Modal>
@@ -1527,6 +1541,37 @@ export default function AdminPromotionsPage() {
         </Modal>
       )}
     </DashboardLayout>
+  );
+}
+
+function CampaignPreview({ form }: { form: CampaignForm }) {
+  const image = form.mobileImageUrl || form.imageUrl;
+  return (
+    <div
+      className="relative mt-3 min-h-40 overflow-hidden rounded-2xl"
+      style={{ backgroundColor: form.backgroundColor, color: form.textColor }}
+    >
+      {image ? (
+        <img
+          src={image}
+          alt="Hero campaign preview"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : (
+        <div className="relative flex min-h-40 flex-col justify-center p-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-75">
+            {form.badgeText || "Aagaam hero"}
+          </p>
+          <p className="mt-2 text-xl font-black">{form.title || "Your hero title"}</p>
+          <p className="mt-1 text-xs font-semibold opacity-80">
+            {form.subtitle || "Your supporting message"}
+          </p>
+        </div>
+      )}
+      <span className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1 text-[10px] font-black text-slate-950">
+        {image ? "Image-first creative" : "Text creative"}
+      </span>
+    </div>
   );
 }
 
