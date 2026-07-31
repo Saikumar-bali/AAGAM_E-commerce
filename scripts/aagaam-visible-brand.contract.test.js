@@ -1,38 +1,68 @@
-const { readFileSync } = require('node:fs');
-const { resolve } = require('node:path');
+const { readFileSync, readdirSync, statSync } = require('node:fs');
+const { extname, relative, resolve } = require('node:path');
 const assert = require('node:assert/strict');
 
 const root = resolve(__dirname, '..');
 const read = (path) => readFileSync(resolve(root, path), 'utf8');
-const forbidden = {
-  'apps/admin-dashboard/src/lib/pushNotifications.ts': ["'AAGAM update'"],
-  'apps/admin-dashboard/src/app/(admin)/admin/stores/page.tsx': ['Aagam Commerce Operations'],
-  'apps/admin-dashboard/src/app/page.tsx': ['Aagam combines customer storefront', 'Aagam Command', "'Aagam offer'", '© 2026 Aagam Commerce OS', 'Deliver with Aagam', 'href="/login">Customer support'],
-  'apps/admin-dashboard/src/app/(shop)/shop/orders/[id]/page.tsx': ['ordering with Aagam.'],
-  'apps/admin-dashboard/src/app/(shop)/shop/delivery-code/[deliveryJobId]/page.tsx': ['AAGAM staff should never ask'],
-  'apps/admin-dashboard/src/components/Sidebar.tsx': ['"Aagam Customer"'],
-  'apps/mobile-customer/src/ui/CustomerToast.tsx': ["text1 || 'AAGAM'"],
-  'apps/mobile-customer/src/screens/customer/CheckoutScreen.tsx': ['AAGAM uses precise location'],
-  'apps/mobile-customer/src/components/promotions/PromotionCarousel.tsx': ['Published offers from Aagam'],
-  'apps/mobile-partners/src/onboarding/applicationReviewProgress.ts': ['Submitted to AAGAM'],
-  'apps/mobile-partners/src/screens/PartnerVerificationScreen.tsx': ['AAGAM never asks you'],
-  'apps/mobile-partners/src/screens/PartnerActivationScreen.tsx': ['AAGAM Admin cannot view'],
-  'apps/mobile-partners/src/screens/StoreApplicationScreen.tsx': ['AAGAM uses this one-time location', 'Join AAGAM as a Store'],
-  'apps/mobile-partners/src/screens/PartnerDocumentsScreen.tsx': ['ready for AAGAM review'],
-  'apps/mobile-partners/src/screens/RiderApplicationScreen.tsx': ['AAGAM uses your location', 'Become an AAGAM Rider', 'Contact AAGAM operations.'],
-  'apps/mobile-partners/src/screens/rider/RiderDashboard.tsx': ["'AAGAM store'", "startMobilePushLifecycle('AAGAM Partners')", 'AAGAM Partners uses precise location', 'AAGAM PARTNERS'],
-  'apps/mobile-partners/src/screens/rider/RiderDeliveryOperationsScreen.tsx': ['“AAGAM delivery tracking active”', "'AAGAM Store'"],
-  'apps/mobile-partners/src/screens/rider/RiderProfileScreen.tsx': ['AAGAM PARTNERS', "'AAGAM Rider'"],
-  'apps/mobile-partners/src/screens/rider/RiderPickupOperationsScreen.tsx': ["'AAGAM store'"],
-  'apps/mobile-partners/src/screens/PartnerApplicationStartScreen.tsx': ['primary AAGAM login'],
-  'apps/mobile-partners/android/app/src/main/java/com/aagampartners/RiderTrackingService.kt': ['setContentTitle("AAGAM delivery tracking active")'],
-  'apps/mobile-partners/android/app/src/main/java/com/aagampartners/RiderOnlineService.kt': ['setContentTitle("AAGAM — You are online")'],
-};
-for (const [path, values] of Object.entries(forbidden)) {
-  const source = read(path);
-  for (const value of values) assert.ok(!source.includes(value), `${path} still exposes legacy visible branding: ${value}`);
+const sourceRoots = [
+  'apps/admin-dashboard/src',
+  'apps/mobile-customer/src',
+  'apps/mobile-partners/src',
+  'apps/mobile-customer/android/app/src/main',
+  'apps/mobile-partners/android/app/src/main',
+];
+const sourceExtensions = new Set(['.ts', '.tsx', '.kt', '.java', '.xml']);
+const legacyBrand = /\b(?:AAGAM|Aagam)\b/g;
+
+// Technical identifiers such as AagamLogo, AagamBrand, AagamCustomer,
+// AagamPartners and native-module names are not standalone words, so the
+// boundary-aware scan ignores them automatically. This is the only remaining
+// intentional standalone legacy value: an existing Android media folder path.
+const standaloneAllowlist = new Map([
+  [
+    'apps/mobile-partners/android/app/src/main/java/com/aagampartners/PartnerDocumentPickerModule.kt',
+    ['Pictures/AAGAM Partners'],
+  ],
+]);
+
+function walk(directory) {
+  return readdirSync(directory).flatMap((entry) => {
+    const absolute = resolve(directory, entry);
+    return statSync(absolute).isDirectory() ? walk(absolute) : [absolute];
+  });
 }
-assert.ok(read('apps/admin-dashboard/src/app/page.tsx').includes('href="/shop/support">Customer support'), 'The public Customer support link must open the implemented support workspace.');
-assert.ok(read('apps/mobile-partners/android/app/src/main/java/com/aagampartners/PartnerDocumentPickerModule.kt').includes('Pictures/AAGAM Partners'), 'The existing internal Android media path must remain unchanged.');
-assert.ok(read('apps/mobile-partners/android/app/src/main/AndroidManifest.xml').includes('aagam_priority_operations_v2'), 'The internal notification channel ID must remain unchanged.');
+
+const violations = [];
+for (const sourceRoot of sourceRoots) {
+  for (const absolute of walk(resolve(root, sourceRoot))) {
+    if (!sourceExtensions.has(extname(absolute))) continue;
+    const repositoryPath = relative(root, absolute).replaceAll('\\', '/');
+    const allowedFragments = standaloneAllowlist.get(repositoryPath) || [];
+    readFileSync(absolute, 'utf8').split(/\r?\n/).forEach((line, index) => {
+      legacyBrand.lastIndex = 0;
+      if (!legacyBrand.test(line)) return;
+      const allowed = allowedFragments.some((fragment) => line.includes(fragment));
+      if (!allowed) violations.push(`${repositoryPath}:${index + 1}: ${line.trim()}`);
+    });
+  }
+}
+
+assert.deepEqual(
+  violations,
+  [],
+  `Controlled presentation source contains legacy standalone branding:\n${violations.join('\n')}`,
+);
+assert.ok(
+  read('apps/admin-dashboard/src/app/page.tsx').includes('href="/login?returnTo=%2Fshop%2Fsupport">Customer support'),
+  'The public Customer support link must preserve the support destination through authentication.',
+);
+assert.ok(
+  read('apps/mobile-partners/android/app/src/main/java/com/aagampartners/PartnerDocumentPickerModule.kt').includes('Pictures/AAGAM Partners'),
+  'The existing internal Android media path must remain unchanged.',
+);
+assert.ok(
+  read('apps/mobile-partners/android/app/src/main/AndroidManifest.xml').includes('aagam_priority_operations_v2'),
+  'The internal notification channel ID must remain unchanged.',
+);
+
 console.log('Aagaam visible brand contracts passed.');
