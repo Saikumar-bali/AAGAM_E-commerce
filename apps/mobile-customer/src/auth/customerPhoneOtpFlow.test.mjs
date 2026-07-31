@@ -194,8 +194,10 @@ test('customer login renders a production-ready profile and ten-digit OTP flow',
   assert.match(loginSource, /\(isNewCustomer\s*\?\s*profileNameRef\.current\s*:\s*otpInputRef\.current\)\?\.focus\(\)/);
   assert.match(loginSource, /Use your 10-digit mobile number to continue\./);
   assert.match(loginSource, /A single-use OTP keeps your account protected\./);
-  assert.match(loginSource, /replace\(\/\\D\/g, ''\)\.slice\(0, 10\)/);
-  assert.match(loginSource, /maxLength=\{10\}/);
+  assert.match(loginSource, /const digits = value\.replace\(\/\\D\/g, ''\)/);
+  assert.match(loginSource, /digits\.length >= 12 && digits\.startsWith\('91'\)/);
+  assert.match(loginSource, /return nationalDigits\.slice\(0, 10\)/);
+  assert.match(loginSource, /maxLength=\{13\}/);
   assert.match(loginSource, /`\+91\$\{digitsOnly\(value\)\}`/);
   assert.doesNotMatch(loginSource, /New customers receive a signup OTP automatically/);
   assert.doesNotMatch(loginSource, /NEW CUSTOMER|EXISTING CUSTOMER/);
