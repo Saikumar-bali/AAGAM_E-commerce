@@ -25,8 +25,11 @@ excludes(partnerReview, 'setError(', 'Partner review errors must not be rendered
 excludes(partnerReview, 'window.alert(', 'Partner document feedback must use modern toast UI.');
 
 const webPhoneGuard = read('apps/admin-dashboard/src/components/TenDigitPhoneGuard.tsx');
-contains(webPhoneGuard, 'input.maxLength = 10', 'Web login must enforce a ten-digit phone field.');
-contains(webPhoneGuard, ".replace(/\\D/g, '').slice(0, 10)", 'Web login must discard non-digits and excess digits.');
+contains(webPhoneGuard, 'input.maxLength = 13', 'Web login must allow a complete prefixed autofill value to reach normalization.');
+contains(webPhoneGuard, "digits.length === 11 && digits.startsWith('0')", 'Web login must normalize an exact Indian trunk prefix.');
+contains(webPhoneGuard, "digits.length === 12 && digits.startsWith('91')", 'Web login must normalize an exact Indian country prefix.');
+contains(webPhoneGuard, 'return digits;', 'Web login must preserve unsupported lengths so normal form validation rejects them.');
+excludes(webPhoneGuard, ".replace(/\\D/g, '').slice(0, 10)", 'Web login must not silently truncate an unsupported number into another account.');
 contains(webPhoneGuard, "target.inputMode === 'numeric'", 'The guard must continue recognizing the field after configuring numeric input mode.');
 contains(webPhoneGuard, "target.dataset.aagamPhoneGuard === 'true'", 'The configured login field must keep a stable internal identity.');
 
@@ -46,11 +49,19 @@ for (const path of [
   contains(source, "`+91${digitsOnly(value)}`", `${path} must format the national number only at the API boundary.`);
 }
 
+const pushManager = read('apps/admin-dashboard/src/components/PushNotificationManager.tsx');
+contains(pushManager, 'else onOpen?.()', 'The durable notification inbox must open even when push permission is declined or setup fails.');
+contains(pushManager, 'Enable notifications and open inbox', 'The notification control must describe both actions accurately.');
+
 const dashboardLayout = read('apps/admin-dashboard/src/components/DashboardLayout.tsx');
 contains(dashboardLayout, '<AagamLogo', 'Responsive admin header must include the shared logo.');
 contains(dashboardLayout, '<PushNotificationManager onOpen={openNotifications} compact />', 'Admin header must expose one unified notification control.');
 excludes(dashboardLayout, '<Bell ', 'Admin header must not render a duplicate standalone bell.');
 contains(dashboardLayout, 'md:hidden', 'Admin search must have a compact mobile trigger.');
+
+const rootLayout = read('apps/admin-dashboard/src/app/layout.tsx');
+excludes(rootLayout, 'AagamBrandMigration', 'Branding must not mutate arbitrary DOM text or user/server data globally.');
+contains(rootLayout, 'title: "Aagaam Commerce"', 'Controlled metadata must use Aagaam directly.');
 
 const adminHome = read('apps/admin-dashboard/src/app/(admin)/admin/page.tsx');
 for (const href of ['/admin/stores', '/admin/riders', '/admin/orders', '/admin/analytics']) {
@@ -92,6 +103,16 @@ contains(partnerApp, 'PartnerAlertTone?.stop?.()', 'The alert tone must stop dur
 const welcome = read('apps/mobile-partners/src/screens/PartnerWelcomeScreen.tsx');
 contains(welcome, 'Grow with Aagaam', 'Partner onboarding must use the new production brand copy.');
 excludes(welcome, 'Alert.alert(', 'Partner onboarding must avoid debug-style native alert dialogs.');
+
+const customerSignup = read('apps/mobile-customer/src/screens/SignUpScreen.tsx');
+contains(customerSignup, 'Welcome to Aagaam.', 'Customer signup confirmation must use the visible Aagaam brand.');
+contains(customerSignup, 'primary Aagaam login', 'Customer signup guidance must use the visible Aagaam brand.');
+excludes(customerSignup, 'Welcome to AAGAM.', 'Customer signup must not expose the legacy brand.');
+
+const partnerStatus = read('apps/mobile-partners/src/screens/PartnerApplicationStatusScreen.tsx');
+contains(partnerStatus, 'Aagaam needs changes', 'Partner application status must use the visible Aagaam brand.');
+contains(partnerStatus, 'Submit for Aagaam review', 'Partner application submission must use the visible Aagaam brand.');
+excludes(partnerStatus, 'AAGAM', 'Partner application status must not expose legacy presentation copy.');
 
 for (const path of [
   'apps/admin-dashboard/src/components/AagamLogo.tsx',
