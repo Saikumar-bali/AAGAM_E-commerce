@@ -52,6 +52,7 @@ export default function PushNotificationManager({ onOpen, compact = false }: Pus
     }
     const activated = await activate(false);
     if (activated) window.setTimeout(() => onOpen?.(), 350);
+    else onOpen?.();
   };
 
   return (
@@ -59,8 +60,8 @@ export default function PushNotificationManager({ onOpen, compact = false }: Pus
       type="button"
       onClick={() => void handleClick()}
       disabled={loading}
-      title={supported && !enabled ? 'Enable notifications' : 'Open notifications'}
-      aria-label={supported && !enabled ? 'Enable notifications' : 'Open notifications'}
+      title={supported && !enabled ? 'Enable notifications and open inbox' : 'Open notifications'}
+      aria-label={supported && !enabled ? 'Enable notifications and open inbox' : 'Open notifications'}
       className={`relative flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-300 hover:text-teal-700 disabled:opacity-60 ${compact ? 'h-10 w-10' : 'h-12 w-12'}`}
     >
       {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : enabled ? <Bell className="h-5 w-5" /> : <BellRing className="h-5 w-5" />}
