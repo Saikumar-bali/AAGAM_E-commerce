@@ -110,11 +110,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 </div>
                 <button type="button" onClick={() => remove(item.id)} aria-label="Dismiss notification" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"><X className="h-4 w-4" /></button>
               </div>
-              <div className="mt-3 h-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full origin-left animate-[toast-progress_linear_forwards] bg-current opacity-25" style={{ animationDuration: `${item.duration}ms` }} /></div>
+              <div className="mt-3 h-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full origin-left bg-current opacity-25" style={{ animation: `aagaam-toast-progress ${item.duration}ms linear forwards` }} /></div>
             </div>
           );
         })}
       </div>
+      <style jsx global>{`@keyframes aagaam-toast-progress { from { transform: scaleX(1); } to { transform: scaleX(0); } }`}</style>
     </ToastContext.Provider>
   );
 }
