@@ -29,8 +29,9 @@ const googleClientConfigured =
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const digitsOnly = (value: string) => {
   const digits = value.replace(/\D/g, '');
-  const nationalDigits = digits.length >= 12 && digits.startsWith('91') ? digits.slice(2) : digits;
-  return nationalDigits.slice(0, 10);
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  return digits;
 };
 const phoneForApi = (value: string) => `+91${digitsOnly(value)}`;
 
