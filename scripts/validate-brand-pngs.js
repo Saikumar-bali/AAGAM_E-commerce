@@ -8,14 +8,20 @@ if (files.length === 0) {
 }
 
 const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const crcTable = new Uint32Array(256);
+
+for (let value = 0; value < crcTable.length; value += 1) {
+  let crc = value;
+  for (let bit = 0; bit < 8; bit += 1) {
+    crc = (crc & 1) !== 0 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+  }
+  crcTable[value] = crc >>> 0;
+}
 
 function crc32(buffer) {
   let crc = 0xffffffff;
   for (const byte of buffer) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
-    }
+    crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
