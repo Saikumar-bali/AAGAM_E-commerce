@@ -1,0 +1,1 @@
+The Android release failure in run 30555877779 was caused by malformed PNG byte streams, not signing, Gradle, or Google configuration. Keep this validator in the required Build job and the APK jobs.
