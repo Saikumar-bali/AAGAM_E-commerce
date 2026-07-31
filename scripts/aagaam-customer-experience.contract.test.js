@@ -1,0 +1,87 @@
+const { existsSync, readFileSync } = require('node:fs');
+const { resolve } = require('node:path');
+const assert = require('node:assert/strict');
+
+const root = resolve(__dirname, '..');
+const read = (path) => readFileSync(resolve(root, path), 'utf8');
+const contains = (source, expected, message) => assert.ok(source.includes(expected), `${message}\nMissing: ${expected}`);
+const excludes = (source, expected, message) => assert.ok(!source.includes(expected), `${message}\nUnexpected: ${expected}`);
+
+const webLogin = read('apps/admin-dashboard/src/app/(auth)/login/page.tsx');
+contains(webLogin, 'Sign in to Aagaam', 'The web login heading must use the double-A presentation brand.');
+excludes(webLogin, 'Sign in to AAGAM', 'The legacy uppercase login heading must not remain visible.');
+contains(webLogin, ".replace(/\\D/g, '').slice(0, 10)", 'The React phone state must sanitize and cap input to ten digits.');
+contains(webLogin, 'maxLength={10}', 'The web phone field must reject an eleventh character at the DOM level.');
+contains(webLogin, 'inputMode="numeric"', 'The web phone field must use a numeric keyboard.');
+contains(webLogin, 'autoComplete="tel-national"', 'The web phone field must request the national ten-digit value.');
+contains(webLogin, "if (!/^\\d{10}$/.test(phone))", 'OTP submission must be blocked unless React state contains exactly ten digits.');
+excludes(webLogin, 'international number with country code', 'The web login must not advertise unsupported overlong or international input.');
+
+const customerShell = read('apps/admin-dashboard/src/components/customer/CustomerShell.tsx');
+contains(customerShell, 'aria-label="Aagaam shop home"', 'The customer header accessible label must use Aagaam.');
+contains(customerShell, 'alt="Aagaam"', 'The customer header logo alt text must use Aagaam.');
+contains(customerShell, '>Aagaam</span>', 'The visible customer header wordmark must use Aagaam.');
+excludes(customerShell, '>Aagam</span>', 'The visible single-A customer wordmark must be removed.');
+
+const account = read('apps/admin-dashboard/src/app/(shop)/shop/account/page.tsx');
+contains(account, "href: '/shop/support'", 'The account quick links must include a real Customer Support destination.');
+contains(account, 'Customer Support', 'The account page must expose customer support clearly.');
+excludes(account, 'overflow-hidden rounded-3xl', 'The account hero must not clip the overlapping avatar and profile content.');
+excludes(account, '-mt-12', 'The account page must not use the clipped negative-margin profile layout shown in production.');
+contains(account, 'max-w-4xl', 'The account page must use a responsive professional workspace width.');
+
+const webSupportPath = 'apps/admin-dashboard/src/app/(shop)/shop/support/page.tsx';
+assert.ok(existsSync(resolve(root, webSupportPath)), 'A dedicated /shop/support page must be implemented.');
+const webSupport = read(webSupportPath);
+contains(webSupport, "apiClient.get('/orders/my')", 'Web support must load the signed-in customer orders.');
+contains(webSupport, '/orders/post-delivery/${selectedOrderId}/support', 'Web support must create a real backend support ticket for the selected order.');
+contains(webSupport, 'Support ticket opened', 'Web support must confirm successful ticket creation.');
+contains(webSupport, 'Issue category', 'Web support must offer an issue category selector.');
+contains(webSupport, 'Describe what happened', 'Web support must collect useful issue details.');
+
+for (const path of [
+  'apps/mobile-customer/src/screens/LoginScreen.tsx',
+  'apps/mobile-partners/src/screens/LoginScreen.tsx',
+]) {
+  const source = read(path);
+  contains(source, ".replace(/\\D/g, '').slice(0, 10)", `${path} must keep only ten numeric characters in state.`);
+  contains(source, 'maxLength={10}', `${path} must reject an eleventh character at the native input level.`);
+  excludes(source, 'maxLength={13}', `${path} must not allow prefixed or overlong values in the national-number field.`);
+  contains(source, 'phone.length !== 10', `${path} must keep OTP submission disabled unless ten digits are present.`);
+}
+
+const customerProfile = read('apps/mobile-customer/src/screens/customer/CustomerProfileScreen.tsx');
+contains(customerProfile, "navigation.navigate('Support')", 'The Customer Support row must open a dedicated support screen.');
+excludes(customerProfile, 'title="Customer Support" subtitle="Open support from delivered order details" onPress={() => navigation.navigate(\'Orders\')}', 'Customer Support must not redirect back to Orders.');
+contains(customerProfile, 'Aagaam uses your location', 'Visible customer mobile permission copy must use Aagaam.');
+contains(customerProfile, 'Aagaam updates', 'Visible customer mobile notification copy must use Aagaam.');
+excludes(customerProfile, "'AAGAM uses your location", 'Legacy customer mobile location branding must be removed.');
+excludes(customerProfile, 'receive AAGAM updates', 'Legacy customer mobile notification branding must be removed.');
+
+const mobileSupportPath = 'apps/mobile-customer/src/screens/customer/CustomerSupportScreen.tsx';
+assert.ok(existsSync(resolve(root, mobileSupportPath)), 'A dedicated mobile CustomerSupportScreen must be implemented.');
+const mobileSupport = read(mobileSupportPath);
+contains(mobileSupport, "apiClient.get('/orders/my')", 'Mobile support must load the customer order history.');
+contains(mobileSupport, '/orders/post-delivery/${selectedOrderId}/support', 'Mobile support must create a real backend support ticket.');
+contains(mobileSupport, 'Support ticket opened', 'Mobile support must confirm successful ticket creation.');
+contains(mobileSupport, 'Select an order', 'Mobile support must let the customer select the affected order.');
+contains(mobileSupport, 'Describe what happened', 'Mobile support must collect issue details.');
+
+const customerNavigator = read('apps/mobile-customer/src/navigation/CustomerNavigator.tsx');
+contains(customerNavigator, "name=\"Support\"", 'The mobile customer navigator must register the support screen.');
+contains(customerNavigator, 'CustomerSupportScreen', 'The support screen must be imported and wired into navigation.');
+
+for (const path of [
+  'apps/admin-dashboard/src/components/customer/CustomerShell.tsx',
+  'apps/admin-dashboard/src/app/(auth)/login/page.tsx',
+  'apps/admin-dashboard/src/app/(shop)/shop/account/page.tsx',
+  'apps/admin-dashboard/src/app/(shop)/shop/support/page.tsx',
+  'apps/mobile-customer/src/screens/customer/CustomerProfileScreen.tsx',
+  'apps/mobile-customer/src/screens/customer/CustomerSupportScreen.tsx',
+]) {
+  const source = read(path);
+  assert.doesNotMatch(source, /(['"`])[^\n]*\bAAGAM\b[^\n]*\1/, `${path} still contains a visible uppercase single-A brand literal.`);
+  assert.doesNotMatch(source, /(['"`])[^\n]*\bAagam\b[^\n]*\1/, `${path} still contains a visible title-case single-A brand literal.`);
+}
+
+console.log('Aagaam customer experience contracts passed.');
