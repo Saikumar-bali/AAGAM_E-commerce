@@ -54,6 +54,11 @@ git diff --check
 ### Admin/customer web proof
 
 ```bash
+npm run start:prod --workspace=@aagam/api-gateway > /tmp/aagam-api-gateway.log 2>&1 &
+API_PID=$!
+trap 'kill "$API_PID" 2>/dev/null || true' EXIT
+curl --fail --retry 30 --retry-delay 2 --retry-connrefused http://localhost:3005/health >/dev/null
+
 npx playwright test --config=apps/admin-dashboard/playwright.config.ts \
   --project=chromium apps/admin-dashboard/e2e/public-promotions.spec.ts
 ```
