@@ -65,7 +65,7 @@ describe("Mobile commerce hardening contracts", () => {
 
     expect(shared).toContain("provider: 'FCM_MOBILE'");
     expect(shared).toContain("POST_NOTIFICATIONS");
-    expect(customerApp).toContain("startMobilePushLifecycle('AAGAM Customer'");
+    expect(customerApp).toContain("startMobilePushLifecycle('Aagaam Customer'");
     expect(partnerApp).toContain("startMobilePushLifecycle(deviceName");
     expect(customerIndex).toContain("setupBackgroundMessageHandler");
     expect(partnerIndex).toContain("setupBackgroundMessageHandler");
