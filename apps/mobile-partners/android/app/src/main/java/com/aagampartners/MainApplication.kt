@@ -3,6 +3,7 @@ package com.aagampartners
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.graphics.Color
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
@@ -34,20 +35,26 @@ class MainApplication : Application(), ReactApplication {
   private fun createOperationsNotificationChannel() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
 
-    val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+    // A versioned channel is intentional: Android channel sound settings are immutable
+    // after creation, so existing installations receive the new partner alert profile.
+    val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
     val audioAttributes = AudioAttributes.Builder()
-      .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+      .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+      .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
       .build()
     val channel = NotificationChannel(
       OPERATIONS_CHANNEL_ID,
-      "Orders and delivery offers",
+      "Aagaam priority operations",
       NotificationManager.IMPORTANCE_HIGH,
     ).apply {
-      description = "New customer orders, rider offers, pickup updates and delivery exceptions"
+      description = "New orders, rider offers, pickup updates and delivery exceptions"
       enableVibration(true)
-      vibrationPattern = longArrayOf(0, 250, 150, 250)
+      vibrationPattern = longArrayOf(0, 180, 100, 180, 100, 280)
+      enableLights(true)
+      lightColor = Color.rgb(13, 148, 136)
       setSound(soundUri, audioAttributes)
       setShowBadge(true)
+      lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
     }
 
     val manager = getSystemService(NotificationManager::class.java)
@@ -55,6 +62,6 @@ class MainApplication : Application(), ReactApplication {
   }
 
   companion object {
-    const val OPERATIONS_CHANNEL_ID = "high_priority_orders"
+    const val OPERATIONS_CHANNEL_ID = "aagaam_priority_operations_v2"
   }
 }
