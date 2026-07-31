@@ -35,8 +35,10 @@ for (const path of [
   'apps/mobile-partners/src/screens/LoginScreen.tsx',
 ]) {
   const source = read(path);
-  contains(source, ".replace(/\\D/g, '').slice(0, 10)", `${path} must sanitize phone input.`);
-  contains(source, 'maxLength={10}', `${path} must cap mobile input at ten digits.`);
+  contains(source, "const digits = value.replace(/\\D/g, '')", `${path} must sanitize phone input.`);
+  contains(source, "digits.length >= 12 && digits.startsWith('91')", `${path} must strip an Indian country prefix before truncation.`);
+  contains(source, 'return nationalDigits.slice(0, 10)', `${path} must expose only ten national digits to app state.`);
+  contains(source, 'maxLength={13}', `${path} must allow a complete +91 autofill value before normalization.`);
   contains(source, "`+91${digitsOnly(value)}`", `${path} must format the national number only at the API boundary.`);
 }
 
@@ -55,6 +57,10 @@ const account = read('apps/admin-dashboard/src/app/(shop)/shop/account/page.tsx'
 excludes(account, 'profile.role', 'Customer account must not expose an unnecessary role label.');
 contains(account, 'Account status', 'Customer account should show useful account status instead.');
 
+const adminNotifications = read('apps/admin-dashboard/src/app/(admin)/admin/notifications/page.tsx');
+contains(adminNotifications, 'AAGAAM broadcast placeholder message', 'Controlled admin form values must display the Aagaam brand.');
+excludes(adminNotifications, 'AAGAM broadcast placeholder message', 'Controlled admin form values must not expose legacy branding.');
+
 const map = read('apps/admin-dashboard/src/components/CustomerTrackingMap.tsx');
 contains(map, 'const focusMarkers = riderMarker && deliveryMarker', 'Tracking map must focus on rider-to-customer movement.');
 contains(map, 'zoom: 16', 'Tracking map must use a close-range default zoom.');
@@ -62,6 +68,7 @@ contains(map, 'maxZoom: 16', 'Tracking bounds must not zoom out farther than the
 
 const application = read('apps/mobile-partners/android/app/src/main/java/com/aagampartners/MainApplication.kt');
 const manifest = read('apps/mobile-partners/android/app/src/main/AndroidManifest.xml');
+const pushSender = read('apps/api-gateway/src/notifications/web-push.service.ts');
 const foregroundTone = read('apps/mobile-partners/android/app/src/main/java/com/aagampartners/PartnerAlertToneModule.kt');
 const partnerApp = read('apps/mobile-partners/App.tsx');
 contains(application, 'OPERATIONS_CHANNEL_ID = "aagam_priority_operations_v2"', 'Partner alerts must retain the internal AAGAM namespace.');
@@ -72,6 +79,8 @@ contains(application, 'NotificationManager.IMPORTANCE_HIGH', 'Partner alerts mus
 contains(application, 'add(PartnerAlertTonePackage())', 'The foreground tone module must be registered with React Native.');
 contains(manifest, 'android:value="aagam_priority_operations_v2"', 'Firebase must use the internal AAGAM partner alert channel id.');
 excludes(manifest, 'android:value="aagaam_priority_operations_v2"', 'Firebase identifiers must not be renamed for display branding.');
+contains(pushSender, "channelId: 'aagam_priority_operations_v2'", 'Background FCM pushes must target the versioned partner alert channel.');
+excludes(pushSender, "channelId: 'high_priority_orders'", 'Background FCM pushes must not bypass the new sound profile.');
 contains(foregroundTone, 'ringtone.play()', 'Foreground notifications must play the partner alert tone.');
 contains(partnerApp, 'PartnerAlertTone?.play?.()', 'Foreground FCM and inbox alerts must invoke the native tone.');
 contains(partnerApp, 'PartnerAlertTone?.stop?.()', 'The alert tone must stop during lifecycle cleanup.');
