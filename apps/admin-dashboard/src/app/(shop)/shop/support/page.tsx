@@ -61,6 +61,7 @@ export default function CustomerSupportPage() {
   const [message, setMessage] = useState('');
   const [requestedRefund, setRequestedRefund] = useState(false);
   const [loadingOrders, setLoadingOrders] = useState(true);
+  const [ordersError, setOrdersError] = useState('');
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -74,6 +75,7 @@ export default function CustomerSupportPage() {
 
   const loadOrders = useCallback(async () => {
     setLoadingOrders(true);
+    setOrdersError('');
     try {
       const response = await apiClient.get('/orders/my');
       const items = Array.isArray(response.data) ? response.data : [];
@@ -83,8 +85,9 @@ export default function CustomerSupportPage() {
         selectedOrderRef.current = next;
         return next;
       });
-    } catch {
-      // Global API interceptor shows the backend message.
+    } catch (requestError: any) {
+      const raw = requestError?.response?.data?.message ?? requestError?.message;
+      setOrdersError(Array.isArray(raw) ? raw.join(', ') : typeof raw === 'string' && raw.trim() ? raw : 'Check your connection and try again.');
     } finally {
       setLoadingOrders(false);
     }
@@ -149,7 +152,7 @@ export default function CustomerSupportPage() {
       setMessage('');
       setRequestedRefund(false);
       toast.success('The Aagaam support team can now review your request.', 'Support ticket opened');
-      await loadTicketHistory(orderId);
+      if (selectedOrderRef.current === orderId) await loadTicketHistory(orderId);
     } catch {
       // Global API interceptor shows conflicts and backend validation as a toast.
     } finally {
@@ -175,6 +178,8 @@ export default function CustomerSupportPage() {
 
         {loadingOrders ? (
           <div className="grid min-h-64 place-items-center rounded-3xl border border-slate-200 bg-white"><div className="text-center"><Loader2 className="mx-auto h-7 w-7 animate-spin text-teal-600" /><p className="mt-3 text-sm font-bold text-slate-500">Loading your orders…</p></div></div>
+        ) : ordersError ? (
+          <section className="rounded-3xl border border-red-200 bg-white p-8 text-center shadow-sm"><AlertCircle className="mx-auto h-10 w-10 text-red-500" /><h2 className="mt-4 text-xl font-black text-slate-950">Could not load your orders</h2><p className="mx-auto mt-2 max-w-lg text-sm font-semibold leading-6 text-slate-500">{ordersError}</p><button type="button" onClick={() => void loadOrders()} className="enterprise-button mx-auto mt-5 gap-2"><RefreshCw className="h-4 w-4" />Try again</button></section>
         ) : orders.length === 0 ? (
           <section className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm"><Package className="mx-auto h-10 w-10 text-slate-300" /><h2 className="mt-4 text-xl font-black text-slate-950">No orders available for support</h2><p className="mx-auto mt-2 max-w-lg text-sm font-semibold leading-6 text-slate-500">Customer tickets are linked to an order so the support team can see the right store, payment and delivery context.</p></section>
         ) : (

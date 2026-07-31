@@ -165,7 +165,7 @@ export const CustomerSupportScreen = () => {
       setMessage('');
       setRequestedRefund(false);
       notify.success('Support ticket opened', 'The Aagaam support team can now review your request.');
-      await loadTicketHistory(orderId);
+      if (selectedOrderRef.current === orderId) await loadTicketHistory(orderId);
     } catch (requestError) {
       notify.error('Could not open support ticket', getUserSafeError(requestError, 'Please try again.'));
     } finally {

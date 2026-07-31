@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Script from 'next/script';
 import { apiClient } from '@aagam/utils';
 import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, Phone, ShieldCheck, Sparkles } from 'lucide-react';
 import AagamLogo from '@/components/AagamLogo';
 import { normalizePromotionPlacements } from '@/lib/promotion-normalizer';
+import { customerAuthHref, safeCustomerReturnPath } from '@/lib/customer-return-path';
 
 const DEFAULT_GOOGLE_WEB_CLIENT_ID = '416380795567-5de3kea0pbb9ibke91rl5pre0sdu82vo.apps.googleusercontent.com';
 
@@ -21,10 +22,6 @@ declare global {
 const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 10);
 const phoneForApi = (value: string) => `+91${digitsOnly(value)}`;
 
-function safeCustomerReturnPath(search: string) {
-  const requested = new URLSearchParams(search).get('returnTo');
-  return requested === '/shop' || requested?.startsWith('/shop/') ? requested : '/shop';
-}
 
 function resetSessionCache() {
   ['user_role', 'user_name', 'user_email', 'user_avatar', 'access_token'].forEach((key) => localStorage.removeItem(key));
@@ -42,6 +39,8 @@ function friendlyAuthError(error: any, fallback: string) {
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const customerReturnPath = safeCustomerReturnPath(searchParams.get('returnTo'));
   const [mode, setMode] = useState<'PHONE' | 'PASSWORD'>('PHONE');
   const [automationPasswordMode, setAutomationPasswordMode] = useState(false);
   const [phone, setPhone] = useState('');
@@ -69,7 +68,7 @@ export default function LoginPage() {
     if (roles.includes('ADMIN')) router.push('/admin');
     else if (roles.includes('RIDER')) router.push('/rider');
     else if (roles.includes('STORE_OWNER')) router.push('/store');
-    else router.push(safeCustomerReturnPath(window.location.search));
+    else router.push(customerReturnPath);
   };
 
   useEffect(() => {
@@ -186,7 +185,7 @@ export default function LoginPage() {
           </div>
         </section>
         <section className="enterprise-panel mx-auto w-full max-w-md p-6 sm:p-8">
-          <div className="mb-7"><div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-white"><ShieldCheck className="h-7 w-7" /></div><p className="enterprise-kicker">Welcome back</p><h2 className="mt-3 text-3xl font-black">Sign in to Aagaam</h2><p className="mt-1 text-sm font-bold text-slate-500">Sign in to your workspace</p><p className="mt-2 text-sm font-semibold text-slate-500">New customer? <Link href="/signup" className="text-teal-700">Create account</Link></p></div>
+          <div className="mb-7"><div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-white"><ShieldCheck className="h-7 w-7" /></div><p className="enterprise-kicker">Welcome back</p><h2 className="mt-3 text-3xl font-black">Sign in to Aagaam</h2><p className="mt-1 text-sm font-bold text-slate-500">Sign in to your workspace</p><p className="mt-2 text-sm font-semibold text-slate-500">New customer? <Link href={customerAuthHref('/signup', customerReturnPath)} className="text-teal-700">Create account</Link></p></div>
           {error ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{String(error)}</div> : null}
           <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1"><button type="button" onClick={() => setMode('PHONE')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-black ${mode === 'PHONE' ? 'bg-teal-700 text-white' : 'text-slate-600'}`}><Phone className="h-4 w-4" /> Phone OTP</button><button type="button" onClick={() => setMode('PASSWORD')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-black ${mode === 'PASSWORD' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}><Lock className="h-4 w-4" /> Password</button></div>
           {mode === 'PHONE' && masked && newCustomer ? <div className="mb-4 space-y-3 rounded-2xl border border-teal-100 bg-teal-50 p-4"><p className="text-sm font-black text-teal-900">Complete your new customer profile</p><p className="text-xs font-semibold text-teal-800">The verified mobile number creates your account automatically.</p><input value={profileName} onChange={(event) => setProfileName(event.target.value)} className="enterprise-input bg-white" placeholder="Full name" autoComplete="name" /><input value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} className="enterprise-input bg-white" placeholder="Email (optional)" type="email" autoComplete="email" /></div> : null}

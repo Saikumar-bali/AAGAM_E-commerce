@@ -16,8 +16,14 @@ contains(webLogin, 'inputMode="numeric"', 'The web phone field must use a numeri
 contains(webLogin, 'autoComplete="tel-national"', 'The web phone field must request the national ten-digit value.');
 contains(webLogin, "if (!/^\\d{10}$/.test(phone))", 'OTP submission must be blocked unless React state contains exactly ten digits.');
 excludes(webLogin, 'international number with country code', 'The web login must not advertise unsupported overlong or international input.');
-contains(webLogin, "requested === '/shop' || requested?.startsWith('/shop/')", 'Customer authentication must allow only safe relative shop return paths.');
-contains(webLogin, 'safeCustomerReturnPath(window.location.search)', 'All customer login methods must honor the safe return destination.');
+const returnPathHelper = read('apps/admin-dashboard/src/lib/customer-return-path.ts');
+contains(returnPathHelper, "requested === '/shop' || requested?.startsWith('/shop/')", 'Customer authentication must allow only safe relative shop return paths.');
+contains(webLogin, "safeCustomerReturnPath(searchParams.get('returnTo'))", 'All customer login methods must honor the safe return destination.');
+contains(webLogin, "customerAuthHref('/signup', customerReturnPath)", 'The login create-account link must preserve the validated customer destination.');
+const signup = read('apps/admin-dashboard/src/app/(auth)/signup/page.tsx');
+contains(signup, "safeCustomerReturnPath(searchParams.get('returnTo'))", 'Customer signup must validate the requested return path.');
+contains(signup, 'router.push(returnTo)', 'Successful signup must return the customer to the validated destination.');
+contains(signup, "customerAuthHref('/login', returnTo)", 'Signup must preserve the destination when returning to login.');
 
 const dashboardLayout = read('apps/admin-dashboard/src/components/DashboardLayout.tsx');
 contains(dashboardLayout, 'returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}', 'Protected routes must preserve their destination through authentication.');
@@ -46,6 +52,10 @@ const webSupport = read(webSupportPath);
 contains(webSupport, "apiClient.get('/orders/my')", 'Web support must load the signed-in customer orders.');
 contains(webSupport, 'apiClient.post(`/orders/post-delivery/${orderId}/support`', 'Web support must POST a real backend support ticket for the selected order.');
 contains(webSupport, 'historyRequestVersion', 'Web support must version ticket-history requests.');
+contains(webSupport, "const [ordersError, setOrdersError] = useState('')", 'Web support must track order-loading failures separately.');
+contains(webSupport, 'Could not load your orders', 'Web support must render a distinct loading-error state.');
+contains(webSupport, 'onClick={() => void loadOrders()}', 'Web support must offer an explicit retry action.');
+contains(webSupport, 'if (selectedOrderRef.current === orderId) await loadTicketHistory(orderId)', 'Web support must not refresh history for an order that is no longer active.');
 contains(webSupport, 'selectedOrderRef.current !== orderId', 'Web support must ignore history for a previously selected order.');
 contains(webSupport, 'Support ticket opened', 'Web support must confirm successful ticket creation.');
 contains(webSupport, 'Issue category', 'Web support must offer an issue category selector.');
@@ -77,6 +87,7 @@ contains(mobileSupport, "apiClient.get('/orders/my')", 'Mobile support must load
 contains(mobileSupport, "queryKey: ['customer-support-orders', customerId]", 'Mobile support order caching must be scoped to the authenticated customer.');
 contains(mobileSupport, 'orders.some((order) => order.id === current)', 'Mobile support must discard a selection absent from refreshed orders.');
 contains(mobileSupport, 'historyRequestVersion', 'Mobile support must version ticket-history requests.');
+contains(mobileSupport, 'if (selectedOrderRef.current === orderId) await loadTicketHistory(orderId)', 'Mobile support must not refresh history for an order that is no longer active.');
 contains(mobileSupport, 'selectedOrderRef.current !== orderId', 'Mobile support must ignore history for a previously selected order.');
 contains(mobileSupport, 'isError', 'Mobile support must distinguish loading failures from an empty order history.');
 contains(mobileSupport, 'Could not load your orders', 'Mobile support must render an explicit order-loading failure state.');
