@@ -13,6 +13,11 @@ import { useCartStore } from '../store/cartStore';
 import { getCartItemCount } from '../utils/customerCommerce';
 
 type TabName = 'Home' | 'Categories' | 'Cart' | 'Orders' | 'Profile';
+type CustomerBottomNavProps = {
+  active?: TabName;
+  navigation?: any;
+  state?: { index: number; routes: Array<{ name: string }> };
+};
 
 const tabs: Array<{ name: TabName; label: string; icon: typeof House }> = [
   { name: 'Home', label: 'Home', icon: House },
@@ -22,23 +27,29 @@ const tabs: Array<{ name: TabName; label: string; icon: typeof House }> = [
   { name: 'Profile', label: 'Profile', icon: UserRound },
 ];
 
-export const CustomerBottomNav = ({ active }: { active?: TabName }) => {
-  const navigation = useNavigation<any>();
+export const CustomerBottomNav = ({ active, navigation: providedNavigation, state }: CustomerBottomNavProps) => {
+  const hookNavigation = useNavigation<any>();
+  const navigation = providedNavigation || hookNavigation;
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const cartCount = useCartStore((state) => getCartItemCount(state.items));
-  const currentRoute = route.name as TabName;
+  const currentRoute = (state?.routes?.[state.index]?.name || route.name) as TabName;
   const activeTab = active || (tabs.some((tab) => tab.name === currentRoute) ? currentRoute : undefined);
 
   const routeNames = useMemo(() => {
+    if (state?.routes?.length) return state.routes.map((item) => item.name);
     try {
       return navigation.getState?.()?.routeNames || [];
     } catch {
       return [];
     }
-  }, [navigation]);
+  }, [navigation, state]);
 
   const goTo = (name: TabName) => {
+    if (state?.routes?.length) {
+      navigation.navigate(name);
+      return;
+    }
     if (routeNames.includes('MainTabs')) {
       navigation.navigate('MainTabs', { screen: name });
       return;

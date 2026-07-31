@@ -1,5 +1,4 @@
 import React from 'react';
-import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
@@ -32,15 +31,15 @@ const CustomerTabs = () => {
   const cartItemsCount = useCartStore((state) => getCartItemCount(state.items));
 
   return (
-    <View style={{ flex: 1 }}>
-      <Tab.Navigator
-        screenOptions={{
-          tabBarActiveTintColor: '#0F766E',
-          tabBarInactiveTintColor: '#64748B',
-          headerShown: false,
-          tabBarStyle: { display: 'none' },
-        }}
-      >
+    <Tab.Navigator
+      tabBar={(props) => <CustomerBottomNav navigation={props.navigation} state={props.state} />}
+      screenOptions={{
+        tabBarActiveTintColor: '#0F766E',
+        tabBarInactiveTintColor: '#64748B',
+        headerShown: false,
+        tabBarStyle: { display: 'none' },
+      }}
+    >
       <Tab.Screen
         name="Home"
         component={ShopScreen}
@@ -81,9 +80,7 @@ const CustomerTabs = () => {
           tabBarIcon: ({ color, size }) => <UserRound size={size} color={color} />,
         }}
       />
-      </Tab.Navigator>
-      <CustomerBottomNav />
-    </View>
+    </Tab.Navigator>
   );
 };
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   StyleSheet,
   Text,
@@ -8,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   BriefcaseBusiness,
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react-native';
 import { apiClient } from '@aagam/mobile-shared';
 import { getUserSafeError, notify } from '../../ui/notify';
+import { CUSTOMER_ADDRESSES_QUERY_KEY } from '../../utils/addressQueries';
 
 const iconFor = (label?: string) => {
   if (label?.toLowerCase() === 'work') return BriefcaseBusiness;
@@ -32,8 +34,9 @@ const iconFor = (label?: string) => {
 
 export const SavedAddressesScreen = () => {
   const navigation = useNavigation<any>();
+  const queryClient = useQueryClient();
   const { data: addresses = [], isLoading, refetch } = useQuery({
-    queryKey: ['saved-addresses'],
+    queryKey: CUSTOMER_ADDRESSES_QUERY_KEY,
     queryFn: async () => {
       const response = await apiClient.get('/customer/addresses');
       return Array.isArray(response.data) ? response.data : [];
@@ -42,7 +45,7 @@ export const SavedAddressesScreen = () => {
   const setDefault = useMutation({
     mutationFn: async (id: string) => apiClient.patch(`/customer/addresses/${id}`, { isDefault: true }),
     onSuccess: async () => {
-      await refetch();
+      await queryClient.invalidateQueries({ queryKey: CUSTOMER_ADDRESSES_QUERY_KEY });
       notify.success('Delivery address updated', 'New orders will use this address.');
     },
     onError: (error: unknown) => notify.error('Could not update address', getUserSafeError(error, 'Please try again.')),
@@ -50,11 +53,24 @@ export const SavedAddressesScreen = () => {
   const remove = useMutation({
     mutationFn: async (id: string) => apiClient.delete(`/customer/addresses/${id}`),
     onSuccess: async () => {
-      await refetch();
+      await queryClient.invalidateQueries({ queryKey: CUSTOMER_ADDRESSES_QUERY_KEY });
       notify.success('Address removed');
     },
     onError: (error: unknown) => notify.error('Could not remove address', getUserSafeError(error, 'Please try again.')),
   });
+
+  const openProfileForm = (address?: any) => navigation.navigate('MainTabs', {
+    screen: 'Profile',
+    params: { openAddressForm: true, address: address ? { ...address } : undefined },
+  });
+  const confirmDelete = (address: any) => Alert.alert(
+    'Delete address?',
+    `Remove ${address.label || 'this address'} from your profile?`,
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => remove.mutate(address.id) },
+    ],
+  );
 
   return (
     <View style={styles.container}>
@@ -66,7 +82,7 @@ export const SavedAddressesScreen = () => {
           <Text style={styles.title}>Saved Addresses</Text>
           <Text style={styles.subtitle}>Manage your delivery addresses</Text>
         </View>
-        <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('Profile')} accessibilityLabel="Add a new address">
+        <TouchableOpacity style={styles.addButton} onPress={() => openProfileForm()} accessibilityLabel="Add a new address">
           <Plus size={24} color="#0F766E" />
         </TouchableOpacity>
       </View>
@@ -95,7 +111,7 @@ export const SavedAddressesScreen = () => {
               <View style={styles.emptyIcon}><MapPin size={30} color="#0F766E" /></View>
               <Text style={styles.emptyTitle}>No saved address yet</Text>
               <Text style={styles.emptyText}>Add a delivery address before checkout for faster order delivery.</Text>
-              <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('Profile')}>
+              <TouchableOpacity style={styles.primaryButton} onPress={() => openProfileForm()}>
                 <Plus size={18} color="#FFFFFF" />
                 <Text style={styles.primaryButtonText}>Add New Address</Text>
               </TouchableOpacity>
@@ -119,10 +135,10 @@ export const SavedAddressesScreen = () => {
                   <TouchableOpacity accessibilityLabel={`More options for ${item.label || 'address'}`}><MoreVertical size={21} color="#64748B" /></TouchableOpacity>
                 </View>
                 <View style={styles.actions}>
-                  <TouchableOpacity style={styles.action} onPress={() => navigation.navigate('Profile')}>
+                  <TouchableOpacity style={styles.action} onPress={() => openProfileForm(item)}>
                     <Pencil size={17} color="#0F766E" /><Text style={styles.actionText}>Edit</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.action} onPress={() => remove.mutate(item.id)} disabled={remove.isPending}>
+                  <TouchableOpacity style={styles.action} onPress={() => confirmDelete(item)} disabled={remove.isPending}>
                     <Trash2 size={17} color="#DC2626" /><Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.deliverButton, item.isDefault && styles.deliverButtonActive]} onPress={() => setDefault.mutate(item.id)} disabled={item.isDefault || setDefault.isPending}>

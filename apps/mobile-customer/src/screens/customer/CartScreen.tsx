@@ -6,13 +6,14 @@ import { ArrowLeft, ArrowRight, Clock3, MapPin, Minus, Plus, Tag, Trash2 } from 
 import { getProductImage } from '@aagam/utils';
 import { apiClient } from '@aagam/mobile-shared';
 import { useCartStore } from '../../store/cartStore';
-import { getCartItemCount } from '../../utils/customerCommerce';
+import { getCartItemCount, getProductMrp } from '../../utils/customerCommerce';
+import { CUSTOMER_ADDRESSES_QUERY_KEY } from '../../utils/addressQueries';
 
 export const CartScreen = () => {
   const navigation = useNavigation<any>();
   const { items, removeItem, updateQuantity, total, clearCart } = useCartStore();
   const { data: addresses = [] } = useQuery({
-    queryKey: ['cart-addresses'],
+    queryKey: CUSTOMER_ADDRESSES_QUERY_KEY,
     queryFn: async () => {
       const response = await apiClient.get('/customer/addresses');
       return Array.isArray(response.data) ? response.data : [];
@@ -21,7 +22,7 @@ export const CartScreen = () => {
   const defaultAddress = addresses.find((address: any) => address.isDefault) || addresses[0];
   const itemCount = getCartItemCount(items);
   const savings = useMemo(() => items.reduce((sum, item) => {
-    const mrp = Number(item.product.mrp || item.product.originalPrice || item.product.price || 0);
+    const mrp = getProductMrp(item.product);
     const price = Number(item.product.price || 0);
     return sum + Math.max(0, mrp - price) * item.quantity;
   }, 0), [items]);

@@ -29,15 +29,24 @@ import { useCartStore } from '../../store/cartStore';
 import { PromotionCarousel } from '../../components/promotions/PromotionCarousel';
 import { AagamBrand } from '../../components/AagamBrand';
 import { normalizePromotionPlacements, type PromotionCampaign } from '../../promotions/types';
-import { getCartItemCount, getProductCartQuantity, groupProductsByCategory } from '../../utils/customerCommerce';
+import { getCartItemCount, getProductCartQuantity, getProductMrp, groupProductsByCategory } from '../../utils/customerCommerce';
 import { normalizeShopSearch, SHOP_SEARCH_DEBOUNCE_MS } from '../../utils/shopSearch';
+import { CUSTOMER_ADDRESSES_QUERY_KEY } from '../../utils/addressQueries';
 
 const unavailable = (product: any) => product.availability?.inStock === false;
+type ProductSort = 'newest' | 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc';
+const sortLabels: Record<ProductSort, string> = {
+  newest: 'Newest',
+  price_asc: 'Price: low',
+  price_desc: 'Price: high',
+  name_asc: 'Name: A–Z',
+  name_desc: 'Name: Z–A',
+};
 
 const ProductCard = ({ product, compact, quantity, onOpen, onAdd }: any) => {
   const inStock = !unavailable(product);
   const sellingPrice = Number(product.price || 0);
-  const mrp = Number(product.mrp || product.originalPrice || sellingPrice);
+  const mrp = getProductMrp(product);
   const discount = mrp > sellingPrice ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0;
   return (
     <TouchableOpacity
@@ -55,7 +64,7 @@ const ProductCard = ({ product, compact, quantity, onOpen, onAdd }: any) => {
       <View style={styles.cardBody}>
         <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
         <Text style={styles.measure}>{product.unit || product.quantityLabel || 'Fresh everyday essential'}</Text>
-        <View style={styles.ratingPill}><Text style={styles.ratingText}>★ {Number(product.rating || 4.5).toFixed(1)}</Text></View>
+        {Number.isFinite(Number(product.rating)) && Number(product.rating) > 0 ? <View style={styles.ratingPill}><Text style={styles.ratingText}>★ {Number(product.rating).toFixed(1)}{Number(product.reviewCount) > 0 ? ` · ${Number(product.reviewCount)} reviews` : ''}</Text></View> : null}
         <View style={styles.cardFooter}>
           <View>
             <View style={styles.priceRow}><Text style={styles.price}>₹{sellingPrice}</Text>{discount > 0 ? <Text style={styles.mrp}>₹{mrp}</Text> : null}</View>
@@ -79,6 +88,7 @@ export const ShopScreen = () => {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [sort, setSort] = useState<ProductSort>('newest');
   const isCategoriesTab = route.name === 'Categories';
 
   useEffect(() => {
@@ -97,9 +107,9 @@ export const ShopScreen = () => {
     },
   });
   const productsQuery = useQuery({
-    queryKey: ['products', debouncedQuery, categoryId],
+    queryKey: ['products', debouncedQuery, categoryId, sort],
     queryFn: async () => {
-      const response = await apiClient.get('/products', { params: { search: debouncedQuery || undefined, categoryId: categoryId || undefined } });
+      const response = await apiClient.get('/products', { params: { search: debouncedQuery || undefined, categoryId: categoryId || undefined, sort } });
       const rows = Array.isArray(response.data) ? response.data : response.data?.items || [];
       return [...rows].sort((left, right) => Number(unavailable(left)) - Number(unavailable(right)));
     },
@@ -110,7 +120,7 @@ export const ShopScreen = () => {
     queryFn: async () => normalizePromotionPlacements((await apiClient.get('/promotions/active')).data),
   });
   const addressesQuery = useQuery({
-    queryKey: ['shop-default-address'],
+    queryKey: CUSTOMER_ADDRESSES_QUERY_KEY,
     queryFn: async () => {
       const response = await apiClient.get('/customer/addresses');
       return Array.isArray(response.data) ? response.data : [];
@@ -130,7 +140,11 @@ export const ShopScreen = () => {
     return fromProducts;
   }, [products]);
   const defaultAddress = addressesQuery.data?.find((address: any) => address.isDefault) || addressesQuery.data?.[0];
-  const homeMode = route.name === 'Home' && !debouncedQuery && !categoryId;
+  const homeMode = route.name === 'Home' && !debouncedQuery && !categoryId && sort === 'newest';
+  const cycleSort = () => {
+    const values: ProductSort[] = ['newest', 'price_asc', 'price_desc', 'name_asc', 'name_desc'];
+    setSort(values[(values.indexOf(sort) + 1) % values.length]);
+  };
   const cartCount = getCartItemCount(items);
   const openPromotion = (campaign: PromotionCampaign) => {
     const target = campaign.targetUrl || '';
@@ -185,7 +199,7 @@ export const ShopScreen = () => {
         </>
       )}
       {categoryRail}
-      <View style={styles.catalogTitleRow}><View><Text style={styles.title}>{homeMode ? 'Shop by category' : isCategoriesTab ? 'All products' : 'Shop products'}</Text>{!homeMode ? <Text style={styles.catalogSubtitle}>{products.length} products available near you</Text> : null}</View>{!homeMode ? <TouchableOpacity style={styles.sortButton}><Text style={styles.sortText}>Sort</Text><ChevronDown size={15} color="#0F766E" /></TouchableOpacity> : null}</View>
+      <View style={styles.catalogTitleRow}><View><Text style={styles.title}>{homeMode ? 'Shop by category' : isCategoriesTab ? 'All products' : 'Shop products'}</Text>{!homeMode ? <Text style={styles.catalogSubtitle}>{products.length} products available near you</Text> : null}</View>{!homeMode ? <TouchableOpacity style={styles.sortButton} onPress={cycleSort} accessibilityLabel={`Sort products by ${sortLabels[sort]}`}><Text style={styles.sortText}>{sortLabels[sort]}</Text><ChevronDown size={15} color="#0F766E" /></TouchableOpacity> : null}</View>
     </View>
   );
 

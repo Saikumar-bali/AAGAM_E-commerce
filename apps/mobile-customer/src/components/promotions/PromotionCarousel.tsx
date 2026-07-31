@@ -71,7 +71,7 @@ export const PromotionCarousel = ({ campaigns, onPress, compact = false }: Props
         contentContainerStyle={styles.list}
         renderItem={({ item }) => {
           const creative = item.mobileImageUrl || item.imageUrl;
-          const imageFirst = Boolean(creative);
+          const imageFirst = Boolean(creative) && !compact;
           const content = (
             <>
               {creative ? <View style={styles.scrim} /> : null}

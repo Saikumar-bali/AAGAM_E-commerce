@@ -70,6 +70,14 @@ export function getCartTotal(items: CartLine[]): number {
   );
 }
 
+export function getProductMrp(product: any): number {
+  const mrpPaise = Number(product?.mrpPaise);
+  if (Number.isFinite(mrpPaise) && mrpPaise > 0) return mrpPaise / 100;
+  const legacyMrp = Number(product?.mrp ?? product?.originalPrice);
+  if (Number.isFinite(legacyMrp) && legacyMrp > 0) return legacyMrp;
+  return Number(product?.price) || 0;
+}
+
 export function groupProductsByCategory<T extends ProductLike>(
   categories: CategoryLike[],
   products: T[],

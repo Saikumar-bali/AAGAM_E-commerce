@@ -145,7 +145,7 @@ export const DealsScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  content: { padding: 16, paddingBottom: 42 },
+  content: { padding: 16, paddingBottom: 150 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
   eyebrow: { color: '#0F766E', fontSize: 11, fontWeight: '900', letterSpacing: 1.8 },
   heading: { marginTop: 7, color: '#0F172A', fontSize: 30, fontWeight: '900', letterSpacing: -0.8 },

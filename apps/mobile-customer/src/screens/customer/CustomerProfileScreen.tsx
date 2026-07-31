@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import {
   Bell,
   BriefcaseBusiness,
@@ -35,9 +35,10 @@ import {
   registerDeviceToken,
   useAuthStore,
 } from '@aagam/mobile-shared';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getUserSafeError, notify } from '../../ui/notify';
 import { AagamBrand } from '../../components/AagamBrand';
+import { CUSTOMER_ADDRESSES_QUERY_KEY } from '../../utils/addressQueries';
 
 const emptyDraft = {
   label: 'Home',
@@ -57,11 +58,42 @@ const emptyDraft = {
   isDefault: false,
 };
 
+const draftFromAddress = (address: any) => ({
+  ...emptyDraft,
+  label: String(address?.label || emptyDraft.label),
+  recipientName: String(address?.recipientName || ''),
+  phoneE164: String(address?.phoneE164 || ''),
+  alternatePhoneE164: String(address?.alternatePhoneE164 || ''),
+  line1: String(address?.line1 || ''),
+  line2: String(address?.line2 || ''),
+  landmark: String(address?.landmark || ''),
+  city: String(address?.city || ''),
+  state: String(address?.state || ''),
+  pincode: String(address?.pincode || ''),
+  country: String(address?.country || 'IN'),
+  latitude: address?.latitude == null ? '' : String(address.latitude),
+  longitude: address?.longitude == null ? '' : String(address.longitude),
+  instructions: String(address?.instructions || ''),
+  isDefault: Boolean(address?.isDefault),
+});
+
 export const CustomerProfileScreen = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const queryClient = useQueryClient();
   const { user, logout } = useAuthStore();
   const [showForm, setShowForm] = useState(false);
   const [draft, setDraft] = useState(emptyDraft);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!route.params?.openAddressForm) return;
+    const address = route.params.address;
+    setEditingAddressId(address?.id || null);
+    setDraft(address ? draftFromAddress(address) : emptyDraft);
+    setShowForm(true);
+    navigation.setParams({ openAddressForm: undefined, address: undefined });
+  }, [navigation, route.params?.openAddressForm, route.params?.address?.id]);
 
   const { data: profile } = useQuery<any>({
     queryKey: ['customer-profile'],
@@ -74,9 +106,8 @@ export const CustomerProfileScreen = () => {
   const {
     data: addresses = [],
     isLoading,
-    refetch,
   } = useQuery({
-    queryKey: ['profile-addresses'],
+    queryKey: CUSTOMER_ADDRESSES_QUERY_KEY,
     queryFn: async () => (await apiClient.get('/customer/addresses')).data || [],
   });
   const { data: orders = [] } = useQuery({
@@ -94,23 +125,29 @@ export const CustomerProfileScreen = () => {
   );
 
   const saveAddressMutation = useMutation({
-    mutationFn: async () => apiClient.post('/customer/addresses', {
-      ...draft,
-      latitude: Number(draft.latitude),
-      longitude: Number(draft.longitude),
-    }),
+    mutationFn: async () => {
+      const payload = {
+        ...draft,
+        latitude: Number(draft.latitude),
+        longitude: Number(draft.longitude),
+      };
+      return editingAddressId
+        ? apiClient.patch(`/customer/addresses/${editingAddressId}`, payload)
+        : apiClient.post('/customer/addresses', payload);
+    },
     onSuccess: async () => {
       setDraft(emptyDraft);
       setShowForm(false);
-      await refetch();
-      notify.success('Address saved', 'Your delivery address is ready to use.');
+      setEditingAddressId(null);
+      await queryClient.invalidateQueries({ queryKey: CUSTOMER_ADDRESSES_QUERY_KEY });
+      notify.success(editingAddressId ? 'Address updated' : 'Address saved', 'Your delivery address is ready to use.');
     },
     onError: (error: unknown) => notify.error('Could not save address', getUserSafeError(error, 'Please check the form.')),
   });
   const deleteAddressMutation = useMutation({
     mutationFn: async (id: string) => apiClient.delete(`/customer/addresses/${id}`),
     onSuccess: async () => {
-      await refetch();
+      await queryClient.invalidateQueries({ queryKey: CUSTOMER_ADDRESSES_QUERY_KEY });
       notify.success('Address removed');
     },
     onError: (error: unknown) => notify.error('Could not remove address', getUserSafeError(error, 'Please try again.')),
@@ -118,7 +155,7 @@ export const CustomerProfileScreen = () => {
   const setDefaultMutation = useMutation({
     mutationFn: async (id: string) => apiClient.patch(`/customer/addresses/${id}`, { isDefault: true }),
     onSuccess: async () => {
-      await refetch();
+      await queryClient.invalidateQueries({ queryKey: CUSTOMER_ADDRESSES_QUERY_KEY });
       notify.success('Default address updated');
     },
     onError: (error: unknown) => notify.error('Could not update address', getUserSafeError(error, 'Please try again.')),
@@ -184,6 +221,12 @@ export const CustomerProfileScreen = () => {
     ],
   );
 
+  const editAddress = (address: any) => {
+    setEditingAddressId(address.id);
+    setDraft(draftFromAddress(address));
+    setShowForm(true);
+  };
+
   const confirmLogout = () => Alert.alert(
     'Sign out?',
     'You will need to sign in again to continue shopping.',
@@ -247,7 +290,7 @@ export const CustomerProfileScreen = () => {
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Saved Addresses</Text>
-        <TouchableOpacity style={styles.linkButton} onPress={() => setShowForm((value) => !value)}><Plus size={16} color="#0F766E" /><Text style={styles.linkButtonText}>{showForm ? 'Close' : 'Add New'}</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.linkButton} onPress={() => { if (showForm) { setEditingAddressId(null); setDraft(emptyDraft); } setShowForm((value) => !value); }}><Plus size={16} color="#0F766E" /><Text style={styles.linkButtonText}>{showForm ? 'Close' : 'Add New'}</Text></TouchableOpacity>
       </View>
 
       {isLoading ? <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View> : addresses.length === 0 ? <TouchableOpacity style={styles.emptyCard} onPress={() => setShowForm(true)}><View style={styles.emptyAddressIcon}><MapPinIcon /></View><View style={styles.emptyAddressCopy}><Text style={styles.emptyTitle}>No saved address yet</Text><Text style={styles.emptyText}>Add a delivery address before checkout for faster order delivery.</Text></View><ChevronRight size={20} color="#64748B" /></TouchableOpacity> : addresses.slice(0, 2).map((address: any) => (
@@ -257,13 +300,13 @@ export const CustomerProfileScreen = () => {
           <Text style={styles.addressText}>{address.phoneE164}</Text>
           <Text style={styles.addressText}>{address.line1}{address.line2 ? `, ${address.line2}` : ''}</Text>
           <Text style={styles.addressText}>{address.city}, {address.state} - {address.pincode}</Text>
-          <View style={styles.addressActions}><TouchableOpacity style={styles.addressAction} onPress={() => navigation.navigate('SavedAddresses')}><Pencil size={15} color="#0F766E" /><Text style={styles.smallAction}>Edit</Text></TouchableOpacity><TouchableOpacity style={styles.addressAction} onPress={() => confirmDeleteAddress(address)}><Trash2 size={15} color="#DC2626" /><Text style={styles.deleteText}>Delete</Text></TouchableOpacity><TouchableOpacity style={styles.deliverHere} onPress={() => setDefaultMutation.mutate(address.id)}><Text style={styles.deliverHereText}>{address.isDefault ? 'Deliver here' : 'Deliver Here'}</Text></TouchableOpacity></View>
+          <View style={styles.addressActions}><TouchableOpacity style={styles.addressAction} onPress={() => editAddress(address)}><Pencil size={15} color="#0F766E" /><Text style={styles.smallAction}>Edit</Text></TouchableOpacity><TouchableOpacity style={styles.addressAction} onPress={() => confirmDeleteAddress(address)}><Trash2 size={15} color="#DC2626" /><Text style={styles.deleteText}>Delete</Text></TouchableOpacity><TouchableOpacity style={styles.deliverHere} onPress={() => setDefaultMutation.mutate(address.id)}><Text style={styles.deliverHereText}>{address.isDefault ? 'Deliver here' : 'Deliver Here'}</Text></TouchableOpacity></View>
         </View>
       ))}
       {addresses.length > 0 ? <TouchableOpacity style={styles.viewAddresses} onPress={() => navigation.navigate('SavedAddresses')}><Text style={styles.viewAddressesText}>View all saved addresses</Text><ChevronRight size={17} color="#0F766E" /></TouchableOpacity> : null}
 
       {showForm ? <View style={styles.formCard}>
-        <Text style={styles.formTitle}>Add Address</Text>
+        <Text style={styles.formTitle}>{editingAddressId ? 'Edit Address' : 'Add Address'}</Text>
         <View style={styles.locationPanel}>
           <TouchableOpacity style={styles.locationButton} onPress={() => void useCurrentLocation()}><Text style={styles.locationButtonText}>Use current location</Text></TouchableOpacity>
           <LeafletMap latitude={pinnedLatitude} longitude={pinnedLongitude} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude)} />
@@ -273,7 +316,7 @@ export const CustomerProfileScreen = () => {
           ['label', 'Label'], ['recipientName', 'Recipient Name'], ['phoneE164', 'Phone'], ['alternatePhoneE164', 'Alternate Phone'], ['line1', 'Address Line 1'], ['line2', 'Address Line 2'], ['landmark', 'Landmark'], ['city', 'City'], ['state', 'State'], ['pincode', 'Pincode'], ['instructions', 'Instructions'], ['latitude', 'Latitude'], ['longitude', 'Longitude'],
         ].map(([key, label]) => <TextInput key={key} value={(draft as any)[key]} onChangeText={(value) => setDraft((previous) => ({ ...previous, [key]: value }))} placeholder={label} placeholderTextColor="#94A3B8" style={styles.input} />)}
         <View style={styles.switchRow}><Text style={styles.switchText}>Set as default</Text><Switch value={draft.isDefault} onValueChange={(value) => setDraft((previous) => ({ ...previous, isDefault: value }))} /></View>
-        <TouchableOpacity disabled={saveAddressMutation.isPending} style={[styles.saveButton, saveAddressMutation.isPending && styles.disabled]} onPress={() => saveAddressMutation.mutate()}><Text style={styles.saveButtonText}>{saveAddressMutation.isPending ? 'Saving...' : 'Save Address'}</Text></TouchableOpacity>
+        <TouchableOpacity disabled={saveAddressMutation.isPending} style={[styles.saveButton, saveAddressMutation.isPending && styles.disabled]} onPress={() => saveAddressMutation.mutate()}><Text style={styles.saveButtonText}>{saveAddressMutation.isPending ? 'Saving...' : editingAddressId ? 'Update Address' : 'Save Address'}</Text></TouchableOpacity>
       </View> : null}
     </ScrollView>
   );

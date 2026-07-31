@@ -66,7 +66,7 @@ export const ReviewScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  content: { padding: 16, paddingBottom: 32 },
+  content: { padding: 16, paddingBottom: 150 },
   title: { fontSize: 30, fontWeight: '900', color: '#0F172A' },
   subtitle: { marginTop: 4, color: '#64748B', fontWeight: '700' },
   card: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 22, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },

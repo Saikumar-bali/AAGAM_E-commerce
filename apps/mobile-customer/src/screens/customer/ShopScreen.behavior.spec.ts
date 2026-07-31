@@ -9,8 +9,9 @@ describe('ShopScreen search and category lifecycle', () => {
     expect(source).toMatch(
       /setTimeout\(\(\) => setDebouncedQuery\(normalizeShopSearch\(query\)\), SHOP_SEARCH_DEBOUNCE_MS\)/,
     );
-    expect(source).toMatch(/queryKey: \['products', debouncedQuery, categoryId\]/);
+    expect(source).toMatch(/queryKey: \['products', debouncedQuery, categoryId, sort\]/);
     expect(source).toMatch(/search: debouncedQuery \|\| undefined/);
+    expect(source).toMatch(/sort/);
   });
 
   test('category and All remount safely while search and scrolling header stay intact', () => {
@@ -19,5 +20,6 @@ describe('ShopScreen search and category lifecycle', () => {
     expect(source).toMatch(/<View style=\{styles\.searchContent\}>\{searchInput\}<\/View>/);
     expect(source).toMatch(/ListHeaderComponent=\{header\}/);
     expect(source).toMatch(/placeholderData: \(previousData\) => previousData/);
+    expect(source).toMatch(/onPress=\{cycleSort\}/);
   });
 });
