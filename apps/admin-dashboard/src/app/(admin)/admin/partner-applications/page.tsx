@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
+import { useToast } from '@/components/ToastProvider';
 import { apiClient } from '@aagam/utils';
 import {
   BadgeCheck,
@@ -53,13 +54,12 @@ const badge = (status: string) => {
 };
 
 export default function PartnerApplicationsAdminPage() {
+  const toast = useToast();
   const [applications, setApplications] = useState<PartnerApplication[]>([]);
   const [detail, setDetail] = useState<ApplicationDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState('');
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
   const [visibility, setVisibility] = useState<'active' | 'deleted' | 'all'>('active');
   const [documentNotes, setDocumentNotes] = useState<Record<string, string>>({});
@@ -74,14 +74,13 @@ export default function PartnerApplicationsAdminPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
     try {
       const params = new URLSearchParams({ limit: '100', visibility });
       if (search.trim()) params.set('search', search.trim());
       const response = await apiClient.get(`/admin/partner-onboarding/applications?${params.toString()}`);
       setApplications(Array.isArray(response.data?.items) ? response.data.items : []);
-    } catch (requestError: any) {
-      setError(requestError?.response?.data?.message || 'Partner applications could not be loaded.');
+    } catch {
+      // Global API interceptor displays the exact server message as a toast.
     } finally {
       setLoading(false);
     }
@@ -93,7 +92,7 @@ export default function PartnerApplicationsAdminPage() {
   }, [load]);
 
   const openApplication = async (application: PartnerApplication) => {
-    setDetailLoading(true); setError(''); setNotice('');
+    setDetailLoading(true);
     try {
       const response = await apiClient.get(`/admin/partner-onboarding/applications/${application.id}`);
       setDetail(response.data);
@@ -103,10 +102,13 @@ export default function PartnerApplicationsAdminPage() {
         latitude: application.applicantPayload?.latitude == null ? '' : String(application.applicantPayload.latitude),
         longitude: application.applicantPayload?.longitude == null ? '' : String(application.applicantPayload.longitude),
       });
-      setContactReason(''); setDeleteReason('');
-    } catch (requestError: any) {
-      setError(requestError?.response?.data?.message || 'Application details could not be loaded.');
-    } finally { setDetailLoading(false); }
+      setContactReason('');
+      setDeleteReason('');
+    } catch {
+      // Global API interceptor displays the exact server message as a toast.
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   const refreshDetail = async () => {
@@ -117,15 +119,17 @@ export default function PartnerApplicationsAdminPage() {
   };
 
   const action = async (key: string, success: string, work: () => Promise<any>) => {
-    setActionLoading(key); setError(''); setNotice('');
+    setActionLoading(key);
     try {
       await work();
-      setNotice(success);
+      toast.success(success, 'Partner review updated');
       await refreshDetail();
-    } catch (requestError: any) {
-      const raw = requestError?.response?.data?.message;
-      setError(Array.isArray(raw) ? raw.join(', ') : typeof raw === 'object' ? raw.message || JSON.stringify(raw) : raw || 'Review action failed.');
-    } finally { setActionLoading(''); }
+    } catch {
+      // Global API interceptor displays exact backend conflicts, including HTTP 409,
+      // above the open review dialog instead of rendering an inline page banner.
+    } finally {
+      setActionLoading('');
+    }
   };
 
   const documentUrl = async (document: PartnerDocument, download = false) => {
@@ -134,9 +138,14 @@ export default function PartnerApplicationsAdminPage() {
     try {
       const response = await apiClient.get(`/admin/partner-onboarding/applications/${detail.application.id}/documents/${document.id}/${suffix}`);
       const url = String(response.data?.url || '');
-      if (!url || url.startsWith('test://')) return window.alert(`Private QA document reference: ${url || 'unavailable'}`);
+      if (!url || url.startsWith('test://')) {
+        toast.info(`Private QA document reference: ${url || 'unavailable'}`, 'Document reference');
+        return;
+      }
       window.open(url, '_blank', 'noopener,noreferrer');
-    } catch (requestError: any) { setError(requestError?.response?.data?.message || 'Document access failed.'); }
+    } catch {
+      // Global API interceptor displays the exact server message as a toast.
+    }
   };
 
   const counts = useMemo(() => ({
@@ -154,8 +163,6 @@ export default function PartnerApplicationsAdminPage() {
           <button onClick={() => void load()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black"><RefreshCw className="h-4 w-4" /> Refresh queue</button>
         </header>
         <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[['Waiting review', counts.submitted], ['Under review', counts.review], ['Applicant action', counts.action], ['Approved', counts.approved]].map(([title, value]) => <div key={String(title)} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase text-slate-400">{title}</p><p className="mt-2 text-3xl font-black">{value}</p></div>)}</div>
-        {error ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{String(error)}</div> : null}
-        {notice ? <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{notice}</div> : null}
         <div className="grid gap-5 xl:grid-cols-[minmax(350px,.82fr)_minmax(620px,1.55fr)]">
           <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
             <div className="border-b border-slate-100 p-4"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search phone, name, email or application" className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm font-semibold" /></div><div className="mt-3 flex gap-2">{(['active', 'deleted', 'all'] as const).map((item) => <button key={item} onClick={() => setVisibility(item)} className={`rounded-lg px-3 py-2 text-[10px] font-black uppercase ${visibility === item ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{item}</button>)}</div></div>
