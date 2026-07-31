@@ -147,7 +147,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
                 <div className="min-w-0 lg:hidden"><AagamLogo href={homeForRole(allowedRole)} compact label={allowedRole === 'ADMIN' ? 'Commerce operations' : 'Partner operations'} /></div>
                 <div className="hidden min-w-0 lg:block">
                   <p className="enterprise-kicker">Aagaam Commerce</p>
-                  <h2 className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950">{titleByRole[allowedRole as Exclude<DashboardLayoutProps['allowedRole'], 'CUSTOMER'>]}</h2>
+                  <p className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950">{titleByRole[allowedRole as Exclude<DashboardLayoutProps['allowedRole'], 'CUSTOMER'>]}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button onClick={() => setSearchOpen(true)} aria-label="Open global search" className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:border-teal-300 hover:text-teal-700 sm:h-12 sm:w-12 md:hidden"><Search className="h-5 w-5" /></button>
