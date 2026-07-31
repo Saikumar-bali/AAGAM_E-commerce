@@ -11,6 +11,12 @@ const toast = read('apps/admin-dashboard/src/components/ToastProvider.tsx');
 contains(toast, 'apiClient.interceptors.response.use', 'Web API failures must be surfaced globally.');
 contains(toast, 'z-[200]', 'Toast feedback must render above review dialogs.');
 contains(toast, "status === 409", 'Conflict responses must receive a useful title.');
+contains(toast, 'shouldSkipGlobalErrorToast', 'Expected API branches must be able to avoid misleading global feedback.');
+contains(toast, 'config?.skipGlobalToast === true', 'Callers must have a generic global-toast opt-out.');
+contains(toast, "status === 404", 'The expected missing LOGIN identity response must be recognized.');
+contains(toast, "payload?.purpose === 'LOGIN'", 'Only the LOGIN-to-SIGNUP fallback lookup may suppress its 404 toast.');
+contains(toast, "window.addEventListener('aagam:toast'", 'Internal web events must retain the existing AAGAM namespace.');
+excludes(toast, "window.addEventListener('aagaam:toast'", 'The Aagaam spelling change must remain presentation-only.');
 
 const partnerReview = read('apps/admin-dashboard/src/app/(admin)/admin/partner-applications/page.tsx');
 contains(partnerReview, 'const toast = useToast()', 'Partner review actions must use toast feedback.');
@@ -21,6 +27,8 @@ excludes(partnerReview, 'window.alert(', 'Partner document feedback must use mod
 const webPhoneGuard = read('apps/admin-dashboard/src/components/TenDigitPhoneGuard.tsx');
 contains(webPhoneGuard, 'input.maxLength = 10', 'Web login must enforce a ten-digit phone field.');
 contains(webPhoneGuard, ".replace(/\\D/g, '').slice(0, 10)", 'Web login must discard non-digits and excess digits.');
+contains(webPhoneGuard, "target.inputMode === 'numeric'", 'The guard must continue recognizing the field after configuring numeric input mode.');
+contains(webPhoneGuard, "target.dataset.aagamPhoneGuard === 'true'", 'The configured login field must keep a stable internal identity.');
 
 for (const path of [
   'apps/mobile-customer/src/screens/LoginScreen.tsx',
@@ -56,11 +64,14 @@ const application = read('apps/mobile-partners/android/app/src/main/java/com/aag
 const manifest = read('apps/mobile-partners/android/app/src/main/AndroidManifest.xml');
 const foregroundTone = read('apps/mobile-partners/android/app/src/main/java/com/aagampartners/PartnerAlertToneModule.kt');
 const partnerApp = read('apps/mobile-partners/App.tsx');
-contains(application, 'OPERATIONS_CHANNEL_ID = "aagaam_priority_operations_v2"', 'Partner alerts must use a versioned channel.');
+contains(application, 'OPERATIONS_CHANNEL_ID = "aagam_priority_operations_v2"', 'Partner alerts must retain the internal AAGAM namespace.');
+contains(application, '"Aagaam priority operations"', 'The visible Android channel name must use the Aagaam brand.');
+excludes(application, 'OPERATIONS_CHANNEL_ID = "aagaam_priority_operations_v2"', 'The UI rename must not migrate internal channel identifiers.');
 contains(application, 'RingtoneManager.TYPE_ALARM', 'Partner alerts must use a distinctive audible tone.');
 contains(application, 'NotificationManager.IMPORTANCE_HIGH', 'Partner alerts must remain high priority.');
 contains(application, 'add(PartnerAlertTonePackage())', 'The foreground tone module must be registered with React Native.');
-contains(manifest, 'android:value="aagaam_priority_operations_v2"', 'Firebase must use the Aagaam partner alert channel.');
+contains(manifest, 'android:value="aagam_priority_operations_v2"', 'Firebase must use the internal AAGAM partner alert channel id.');
+excludes(manifest, 'android:value="aagaam_priority_operations_v2"', 'Firebase identifiers must not be renamed for display branding.');
 contains(foregroundTone, 'ringtone.play()', 'Foreground notifications must play the partner alert tone.');
 contains(partnerApp, 'PartnerAlertTone?.play?.()', 'Foreground FCM and inbox alerts must invoke the native tone.');
 contains(partnerApp, 'PartnerAlertTone?.stop?.()', 'The alert tone must stop during lifecycle cleanup.');
