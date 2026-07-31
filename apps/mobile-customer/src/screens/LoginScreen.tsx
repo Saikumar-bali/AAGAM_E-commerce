@@ -27,12 +27,7 @@ const googleClientConfigured =
   typeof GOOGLE_WEB_CLIENT_ID === 'string' &&
   GOOGLE_WEB_CLIENT_ID.endsWith('.apps.googleusercontent.com');
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const digitsOnly = (value: string) => {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
-  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
-  return digits;
-};
+const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 10);
 const phoneForApi = (value: string) => `+91${digitsOnly(value)}`;
 
 export const LoginScreen = () => {
@@ -249,7 +244,7 @@ export const LoginScreen = () => {
             {mode === 'PHONE' ? !masked ? <>
               <View style={styles.infoPanel}><ShieldCheck size={18} color="#0F766E" /><Text style={styles.infoText}>A single-use OTP keeps your account protected.</Text></View>
               <Text style={styles.label}>Mobile number</Text>
-              <View style={styles.inputWrapper}><View style={styles.countryCode}><Text style={styles.countryCodeText}>+91</Text></View><TextInput testID="customer_phone_input" style={styles.input} value={phone} onChangeText={(value) => setPhone(digitsOnly(value))} placeholder="10-digit mobile number" keyboardType="number-pad" autoComplete="tel" textContentType="telephoneNumber" maxLength={13} placeholderTextColor="#94A3B8" /></View>
+              <View style={styles.inputWrapper}><View style={styles.countryCode}><Text style={styles.countryCodeText}>+91</Text></View><TextInput testID="customer_phone_input" style={styles.input} value={phone} onChangeText={(value) => setPhone(digitsOnly(value))} placeholder="10-digit mobile number" keyboardType="number-pad" autoComplete="tel-national" textContentType="telephoneNumber" maxLength={10} placeholderTextColor="#94A3B8" /></View>
               <TouchableOpacity style={[styles.primary, (requesting || phone.length !== 10) && styles.buttonDisabled]} onPress={requestCode} disabled={requesting || phone.length !== 10}>{requesting ? <ActivityIndicator color="#fff" /> : <><Text style={styles.primaryText}>Continue with OTP</Text><ArrowRight size={19} color="#fff" /></>}</TouchableOpacity>
             </> : <>
               <Text style={styles.sent}>Code sent to {masked}</Text>
