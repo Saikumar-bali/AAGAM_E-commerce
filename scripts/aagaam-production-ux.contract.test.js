@@ -54,10 +54,16 @@ contains(map, 'maxZoom: 16', 'Tracking bounds must not zoom out farther than the
 
 const application = read('apps/mobile-partners/android/app/src/main/java/com/aagampartners/MainApplication.kt');
 const manifest = read('apps/mobile-partners/android/app/src/main/AndroidManifest.xml');
+const foregroundTone = read('apps/mobile-partners/android/app/src/main/java/com/aagampartners/PartnerAlertToneModule.kt');
+const partnerApp = read('apps/mobile-partners/App.tsx');
 contains(application, 'OPERATIONS_CHANNEL_ID = "aagaam_priority_operations_v2"', 'Partner alerts must use a versioned channel.');
 contains(application, 'RingtoneManager.TYPE_ALARM', 'Partner alerts must use a distinctive audible tone.');
 contains(application, 'NotificationManager.IMPORTANCE_HIGH', 'Partner alerts must remain high priority.');
+contains(application, 'add(PartnerAlertTonePackage())', 'The foreground tone module must be registered with React Native.');
 contains(manifest, 'android:value="aagaam_priority_operations_v2"', 'Firebase must use the Aagaam partner alert channel.');
+contains(foregroundTone, 'ringtone.play()', 'Foreground notifications must play the partner alert tone.');
+contains(partnerApp, 'PartnerAlertTone?.play?.()', 'Foreground FCM and inbox alerts must invoke the native tone.');
+contains(partnerApp, 'PartnerAlertTone?.stop?.()', 'The alert tone must stop during lifecycle cleanup.');
 
 const welcome = read('apps/mobile-partners/src/screens/PartnerWelcomeScreen.tsx');
 contains(welcome, 'Grow with Aagaam', 'Partner onboarding must use the new production brand copy.');
