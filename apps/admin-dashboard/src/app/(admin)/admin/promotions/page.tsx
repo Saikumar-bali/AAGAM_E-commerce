@@ -144,7 +144,9 @@ const campaignDefaults = (): CampaignForm => ({
   productId: "",
   categoryId: "",
   couponId: "",
-  status: "DRAFT",
+  // Creating a campaign is a publish action. Admins can still explicitly
+  // choose Draft when they want to stage creative before customers see it.
+  status: "ACTIVE",
   startsAt: "",
   endsAt: "",
   priority: "0",
@@ -378,6 +380,15 @@ export default function AdminPromotionsPage() {
     try {
       if (!campaignForm.placements.length)
         throw new globalThis.Error("Select at least one placement.");
+      const startsAt = isoDate(campaignForm.startsAt);
+      const endsAt = isoDate(campaignForm.endsAt);
+      const isPublishing =
+        campaignForm.status === "ACTIVE" || campaignForm.status === "SCHEDULED";
+      if (isPublishing && endsAt && new Date(endsAt).getTime() <= Date.now()) {
+        throw new globalThis.Error(
+          "A published campaign must have an end time in the future. Update the end time or save it as Draft.",
+        );
+      }
       const payload = {
         ...campaignForm,
         internalName: campaignForm.internalName.trim(),
@@ -391,8 +402,8 @@ export default function AdminPromotionsPage() {
         productId: campaignForm.productId || null,
         categoryId: campaignForm.categoryId || null,
         couponId: campaignForm.couponId || null,
-        startsAt: isoDate(campaignForm.startsAt),
-        endsAt: isoDate(campaignForm.endsAt),
+        startsAt,
+        endsAt,
         priority: Number(campaignForm.priority || 0),
       };
       if (editingCampaignId)
@@ -695,8 +706,8 @@ export default function AdminPromotionsPage() {
                         <Edit3 className="h-3.5 w-3.5" />
                         Edit
                       </button>
-                      {campaign.status === "ACTIVE" ||
-                      campaign.status === "SCHEDULED" ? (
+                      {campaign.effectiveStatus === "ACTIVE" ||
+                      campaign.effectiveStatus === "SCHEDULED" ? (
                         <button
                           onClick={() => setCampaignStatus(campaign, "PAUSED")}
                           className="grid h-9 w-9 place-items-center rounded-xl bg-amber-50 text-amber-700"
@@ -706,17 +717,28 @@ export default function AdminPromotionsPage() {
                         </button>
                       ) : (
                         <button
-                          onClick={() =>
+                          onClick={() => {
+                            if (campaign.effectiveStatus === "EXPIRED") {
+                              openCampaign(campaign);
+                              setError(
+                                "Update the campaign end time before republishing it to customers.",
+                              );
+                              return;
+                            }
                             setCampaignStatus(
                               campaign,
                               campaign.startsAt &&
                                 new Date(campaign.startsAt) > new Date()
                                 ? "SCHEDULED"
-                                : "ACTIVE"
-                            )
-                          }
+                                : "ACTIVE",
+                            );
+                          }}
                           className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700"
-                          title="Publish"
+                          title={
+                            campaign.effectiveStatus === "EXPIRED"
+                              ? "Edit schedule to republish"
+                              : "Publish"
+                          }
                         >
                           <Play className="h-4 w-4" />
                         </button>
