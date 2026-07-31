@@ -29,9 +29,9 @@ This checkpoint covers three reported regressions:
 - `apps/api-gateway/src/promotions/promotions.service.ts`
 - `apps/admin-dashboard/src/app/(admin)/admin/promotions/page.tsx`
 - `apps/mobile-customer/src/screens/customer/ShopScreen.tsx`
-- `apps/mobile-customer/src/screens/customer/ShopScreen.behavior.test.mjs`
+- `apps/mobile-customer/src/screens/customer/ShopScreen.behavior.spec.ts`
 - `apps/mobile-customer/src/utils/shopSearch.ts`
-- `apps/mobile-customer/src/utils/shopSearch.test.mjs`
+- `apps/mobile-customer/src/utils/shopSearch.spec.ts`
 - `apps/admin-dashboard/e2e/public-promotions.spec.ts`
 
 ## Required CLI-AI/device proof before merge
