@@ -34,6 +34,31 @@ function errorTitle(status?: number) {
   return 'Request failed';
 }
 
+function requestPayload(config: any) {
+  const data = config?.data;
+  if (!data || typeof data !== 'string') return data;
+  try {
+    return JSON.parse(data);
+  } catch {
+    return data;
+  }
+}
+
+function shouldSkipGlobalErrorToast(error: any) {
+  const config = error?.config;
+  if (config?.skipGlobalToast === true) return true;
+
+  const status = error?.response?.status;
+  const requestPath = String(config?.url || '').split('?')[0];
+  const payload = requestPayload(config);
+
+  // A missing LOGIN identity is an expected branch in the customer OTP flow:
+  // the caller immediately retries the same number with purpose SIGNUP.
+  return status === 404
+    && requestPath.endsWith('/auth/phone/request')
+    && payload?.purpose === 'LOGIN';
+}
+
 const visual = {
   success: { icon: CheckCircle2, shell: 'border-emerald-200 bg-white', iconBox: 'bg-emerald-50 text-emerald-700', title: 'text-emerald-950' },
   error: { icon: XCircle, shell: 'border-red-200 bg-white', iconBox: 'bg-red-50 text-red-700', title: 'text-red-950' },
@@ -80,16 +105,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         return response;
       },
       (error) => {
-        const status = error?.response?.status;
-        show({ kind: status === 422 || status === 400 ? 'warning' : 'error', title: errorTitle(status), message: extractMessage(error) });
+        if (!shouldSkipGlobalErrorToast(error)) {
+          const status = error?.response?.status;
+          show({ kind: status === 422 || status === 400 ? 'warning' : 'error', title: errorTitle(status), message: extractMessage(error) });
+        }
         return Promise.reject(error);
       },
     );
     const eventHandler = (event: Event) => show((event as CustomEvent<ToastInput>).detail);
-    window.addEventListener('aagaam:toast', eventHandler);
+    window.addEventListener('aagam:toast', eventHandler);
     return () => {
       apiClient.interceptors.response.eject(responseInterceptor);
-      window.removeEventListener('aagaam:toast', eventHandler);
+      window.removeEventListener('aagam:toast', eventHandler);
     };
   }, [show]);
 
@@ -110,12 +137,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 </div>
                 <button type="button" onClick={() => remove(item.id)} aria-label="Dismiss notification" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"><X className="h-4 w-4" /></button>
               </div>
-              <div className="mt-3 h-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full origin-left bg-current opacity-25" style={{ animation: `aagaam-toast-progress ${item.duration}ms linear forwards` }} /></div>
+              <div className="mt-3 h-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full origin-left bg-current opacity-25" style={{ animation: `aagam-toast-progress ${item.duration}ms linear forwards` }} /></div>
             </div>
           );
         })}
       </div>
-      <style jsx global>{`@keyframes aagaam-toast-progress { from { transform: scaleX(1); } to { transform: scaleX(0); } }`}</style>
+      <style jsx global>{`@keyframes aagam-toast-progress { from { transform: scaleX(1); } to { transform: scaleX(0); } }`}</style>
     </ToastContext.Provider>
   );
 }
@@ -126,4 +153,4 @@ export function useToast() {
   return value;
 }
 
-export { extractMessage as getToastErrorMessage };
+export { extractMessage as getToastErrorMessage, shouldSkipGlobalErrorToast };
