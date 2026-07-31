@@ -13,8 +13,10 @@ describe('ShopScreen search and category lifecycle', () => {
     expect(source).toMatch(/search: debouncedQuery \|\| undefined/);
   });
 
-  test('category and All use separate FlatList identities', () => {
+  test('category and All use separate FlatList identities without remounting search', () => {
     expect(source).toMatch(/<FlatList key="home-categories"/);
     expect(source).toMatch(/<FlatList key="product-grid"[^>]*numColumns=\{2\}/);
+    expect(source).toMatch(/<View style=\{styles\.headerContent\}>\{header\}<\/View>/);
+    expect(source).not.toMatch(/ListHeaderComponent=\{header\}/);
   });
 });
