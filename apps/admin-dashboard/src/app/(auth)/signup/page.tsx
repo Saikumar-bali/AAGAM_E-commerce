@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient } from '@aagam/utils';
@@ -10,7 +10,7 @@ import { customerAuthHref, safeCustomerReturnPath } from '@/lib/customer-return-
 const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 10);
 const phoneForApi = (value: string) => `+91${digitsOnly(value)}`;
 
-export default function SignupPage() {
+function SignupPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnTo = safeCustomerReturnPath(searchParams.get('returnTo'));
@@ -96,4 +96,12 @@ export default function SignupPage() {
       </section>
     </div>
   </main>;
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<main className="grid min-h-screen place-items-center bg-slate-50"><Loader2 className="h-7 w-7 animate-spin text-teal-700" /></main>}>
+      <SignupPageContent />
+    </Suspense>
+  );
 }

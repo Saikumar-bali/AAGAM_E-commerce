@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Script from 'next/script';
@@ -37,7 +37,7 @@ function friendlyAuthError(error: any, fallback: string) {
   return message || fallback;
 }
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerReturnPath = safeCustomerReturnPath(searchParams.get('returnTo'));
@@ -195,4 +195,12 @@ export default function LoginPage() {
       </div>
     </div>
   </main>;
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="grid min-h-screen place-items-center bg-slate-50"><Loader2 className="h-7 w-7 animate-spin text-teal-700" /></main>}>
+      <LoginPageContent />
+    </Suspense>
+  );
 }

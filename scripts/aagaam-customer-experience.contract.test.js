@@ -20,10 +20,12 @@ const returnPathHelper = read('apps/admin-dashboard/src/lib/customer-return-path
 contains(returnPathHelper, "requested === '/shop' || requested?.startsWith('/shop/')", 'Customer authentication must allow only safe relative shop return paths.');
 contains(webLogin, "safeCustomerReturnPath(searchParams.get('returnTo'))", 'All customer login methods must honor the safe return destination.');
 contains(webLogin, "customerAuthHref('/signup', customerReturnPath)", 'The login create-account link must preserve the validated customer destination.');
+contains(webLogin, '<LoginPageContent />', 'The login search-parameter client content must be wrapped in Suspense.');
 const signup = read('apps/admin-dashboard/src/app/(auth)/signup/page.tsx');
 contains(signup, "safeCustomerReturnPath(searchParams.get('returnTo'))", 'Customer signup must validate the requested return path.');
 contains(signup, 'router.push(returnTo)', 'Successful signup must return the customer to the validated destination.');
 contains(signup, "customerAuthHref('/login', returnTo)", 'Signup must preserve the destination when returning to login.');
+contains(signup, '<SignupPageContent />', 'The signup search-parameter client content must be wrapped in Suspense.');
 
 const dashboardLayout = read('apps/admin-dashboard/src/components/DashboardLayout.tsx');
 contains(dashboardLayout, 'returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}', 'Protected routes must preserve their destination through authentication.');
