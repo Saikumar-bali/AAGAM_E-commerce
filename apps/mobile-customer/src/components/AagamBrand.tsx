@@ -6,10 +6,10 @@ export function AagamBrand({ caption = 'fresh, quality and trust', inverse = fal
   return (
     <View style={styles.row}>
       <View style={[styles.markWrap, { width: size, height: size, borderRadius: compact ? 14 : 19 }]}>
-        <Image source={require('../assets/aagam-mark.png')} resizeMode="contain" style={styles.mark} accessibilityLabel="Aagam" />
+        <Image source={require('../assets/aagam-mark.png')} resizeMode="contain" style={styles.mark} accessibilityLabel="Aagaam" />
       </View>
       <View style={styles.copy}>
-        <Text style={[styles.name, compact && styles.nameCompact, inverse && styles.inverse]}>Aagam</Text>
+        <Text style={[styles.name, compact && styles.nameCompact, inverse && styles.inverse]}>Aagaam</Text>
         <Text style={[styles.caption, inverse && styles.captionInverse]} numberOfLines={1}>{caption}</Text>
       </View>
     </View>
