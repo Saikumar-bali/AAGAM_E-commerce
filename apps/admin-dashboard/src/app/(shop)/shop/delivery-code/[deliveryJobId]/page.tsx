@@ -40,7 +40,7 @@ export default function CustomerDeliveryCodePage() {
         <CustomerDeliveryOtpCard deliveryJobId={deliveryJobId} active={Boolean(deliveryJobId)} />
 
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold leading-6 text-amber-900">
-          The code is short-lived and tied only to this delivery job. AAGAM staff should never ask for it over a phone call or chat before handoff.
+          The code is short-lived and tied only to this delivery job. AAGAAM staff should never ask for it over a phone call or chat before handoff.
         </section>
       </div>
     </DashboardLayout>

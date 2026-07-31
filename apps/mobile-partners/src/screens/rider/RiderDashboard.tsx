@@ -130,7 +130,7 @@ function OfferCard({
         </View>
       </View>
 
-      <Text style={styles.offerStore}>{order.store?.name || 'AAGAM store'}</Text>
+      <Text style={styles.offerStore}>{order.store?.name || 'Aagaam store'}</Text>
       <Text style={styles.offerAddress}>{order.store?.address || 'Pickup location available after acceptance'}</Text>
       <View style={styles.offerMetaRow}>
         <Text style={styles.offerMeta}>{order.items?.length || 0} item(s)</Text>
@@ -225,7 +225,7 @@ function CurrentDelivery({
         <View style={styles.locationIcon}><Store size={19} color="#0F766E" /></View>
         <View style={styles.locationContent}>
           <Text style={styles.locationLabel}>PICKUP</Text>
-          <Text style={styles.locationName}>{order.store?.name || 'AAGAM store'}</Text>
+          <Text style={styles.locationName}>{order.store?.name || 'Aagaam store'}</Text>
           <Text style={styles.locationAddress}>{order.store?.address || 'Store address unavailable'}</Text>
           <TouchableOpacity testID="rider_dashboard_navigate_store_button" onPress={() => openPoint(order.store?.latitude, order.store?.longitude, 'Store')}>
             <Text style={styles.linkText}>Navigate to store →</Text>
@@ -362,7 +362,7 @@ export const RiderDashboard = () => {
     let unsubscribeOpened: (() => void) | undefined;
     let alive = true;
 
-    startMobilePushLifecycle('AAGAM Partners').then((unsubscribe) => {
+    startMobilePushLifecycle('Aagaam Partners').then((unsubscribe) => {
       if (alive) unsubscribeTokenRefresh = unsubscribe;
       else unsubscribe();
     }).catch(() => undefined);
@@ -438,7 +438,7 @@ export const RiderDashboard = () => {
       ? PermissionsAndroid.RESULTS.GRANTED
       : await PermissionsAndroid.request(finePermission, {
           title: 'Allow rider location',
-          message: 'AAGAM Partners uses precise location while you are online and fulfilling a delivery.',
+          message: 'Aagaam Partners uses precise location while you are online and fulfilling a delivery.',
           buttonPositive: 'Allow',
           buttonNegative: 'Not now',
         });
@@ -571,7 +571,7 @@ export const RiderDashboard = () => {
   const confirmAccept = (offer: RiderAssignmentOffer) => {
     Alert.alert(
       'Accept delivery offer?',
-      `Pickup from ${offer.deliveryJob.order.store?.name || 'AAGAM store'}.`,
+      `Pickup from ${offer.deliveryJob.order.store?.name || 'Aagaam store'}.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Accept', onPress: () => acceptMutation.mutate(offer.id) },
@@ -612,7 +612,7 @@ export const RiderDashboard = () => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.header}>
         <View>
-          <Text style={styles.eyebrow}>AAGAM PARTNERS</Text>
+          <Text style={styles.eyebrow}>AAGAAM PARTNERS</Text>
           <Text style={styles.heading}>{user?.name || 'Rider workspace'}</Text>
           <Text style={styles.subheading}>Addressed offers and one active delivery</Text>
         </View>

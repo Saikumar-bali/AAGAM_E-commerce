@@ -39,7 +39,7 @@ export function PartnerActivationScreen({ navigation }: any) {
   return (
     <OnboardingShell
       title="Activate your partner account"
-      subtitle="Create the permanent password yourself. AAGAM Admin cannot view, recover, or reuse this password."
+      subtitle="Create the permanent password yourself. AAGAAM Admin cannot view, recover, or reuse this password."
       onBack={() => navigation.goBack()}
     >
       <Section title="Secure password" subtitle="Use a unique password that is not shared with store staff or delivery coordinators.">

@@ -302,7 +302,7 @@ export function PartnerVerificationScreen({ navigation }: any) {
       </TouchableOpacity>
       <View style={styles.secureNote}>
         <CheckCircle2 size={16} color={palette.green} />
-        <Text style={styles.secureNoteText}>AAGAM never asks you to share this code with another person.</Text>
+        <Text style={styles.secureNoteText}>AAGAAM never asks you to share this code with another person.</Text>
       </View>
     </OnboardingShell>
   );

@@ -129,7 +129,7 @@ export function PartnerDocumentsScreen({ navigation }: any) {
       setSelectedFile(null);
       setDocumentNumber('');
       setExpiresAt('');
-      Alert.alert('Upload complete', `${title(type)} is ready for AAGAM review.`);
+      Alert.alert('Upload complete', `${title(type)} is ready for Aagaam review.`);
     } catch (error: any) {
       Alert.alert('Upload failed', error.message || 'Check your network and try again.');
     }

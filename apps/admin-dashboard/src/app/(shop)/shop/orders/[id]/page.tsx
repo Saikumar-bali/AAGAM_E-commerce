@@ -28,7 +28,7 @@ const statusSteps = [{ key: 'CONFIRMED', label: 'Confirmed' }, { key: 'PICKING',
 const statusRank: Record<string, number> = { PENDING: 0, PAYMENT_PENDING: 0, CONFIRMED: 1, PICKING: 2, PACKED: 3, RIDER_ASSIGNED: 4, OUT_FOR_DELIVERY: 5, DELIVERED: 6, CANCELLED: -1, PAYMENT_FAILED: -1 };
 
 function customerMessage(status: string, trackingState: string, etaStale: boolean) {
-  if (status === 'DELIVERED') return 'Delivered successfully. Thanks for ordering with Aagam.';
+  if (status === 'DELIVERED') return 'Delivered successfully. Thanks for ordering with Aagaam.';
   if (status === 'CANCELLED') return 'This order was cancelled.';
   if (status === 'PACKED') return 'Your order is packed and waiting for rider pickup.';
   if (status === 'RIDER_ASSIGNED') return trackingState === 'ASSIGNED_NO_LOCATION' ? 'Rider assigned. Live location will appear after pickup starts.' : 'Rider assigned and moving towards pickup.';

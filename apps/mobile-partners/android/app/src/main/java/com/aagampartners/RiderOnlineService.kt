@@ -363,7 +363,7 @@ class RiderOnlineService : Service() {
     val riderName = preferences().getString(KEY_RIDER_NAME, "Rider") ?: "Rider"
     return NotificationCompat.Builder(this, CHANNEL_ID)
       .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-      .setContentTitle("AAGAM — You are online")
+      .setContentTitle("AAGAAM — You are online")
       .setContentText("Ready to receive delivery offers • $riderName")
       .setOngoing(true)
       .setOnlyAlertOnce(true)

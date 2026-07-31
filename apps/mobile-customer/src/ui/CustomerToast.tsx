@@ -30,7 +30,7 @@ const ToastCard = ({ type, text1, text2 }: ToastCardProps) => {
     >
       <View style={[styles.dot, { backgroundColor: palette.accent }]} />
       <View style={styles.copy}>
-        <Text style={[styles.title, { color: palette.title }]}>{text1 || 'AAGAM'}</Text>
+        <Text style={[styles.title, { color: palette.title }]}>{text1 || 'AAGAAM'}</Text>
         {text2 ? <Text style={styles.message}>{text2}</Text> : null}
       </View>
     </View>

@@ -33,6 +33,7 @@ type Ticket = {
     category?: string;
     message?: string;
     priority?: string;
+    createdAt?: string;
   };
 };
 

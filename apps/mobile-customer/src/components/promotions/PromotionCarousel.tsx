@@ -45,7 +45,7 @@ export const PromotionCarousel = ({ campaigns, onPress, compact = false }: Props
       <View style={styles.emptyHero}>
         <BadgePercent size={26} color="#0F766E" />
         <Text style={styles.emptyTitle}>Fresh essentials, delivered quickly</Text>
-        <Text style={styles.emptyText}>Published offers from Aagam will appear here.</Text>
+        <Text style={styles.emptyText}>Published offers from Aagaam will appear here.</Text>
       </View>
     );
   }

@@ -63,7 +63,7 @@ export function StoreApplicationScreen({ navigation }: any) {
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         {
           title: 'Allow Store pickup location',
-          message: 'AAGAM uses this one-time location to pin the exact Rider pickup entrance and autofill the Store address.',
+          message: 'Aagaam uses this one-time location to pin the exact Rider pickup entrance and autofill the Store address.',
           buttonPositive: 'Allow',
           buttonNegative: 'Not now',
         },
@@ -132,7 +132,7 @@ export function StoreApplicationScreen({ navigation }: any) {
     } catch (error: any) { Toast.show({ type: 'error', text1: 'Check this step', text2: error.message || 'Complete the required information.' }); }
   };
 
-  return <OnboardingShell title="Join AAGAM as a Store" subtitle={`Step ${step + 1} of 4 · ${STEP_TITLES[step]}`} onBack={() => step > 0 ? setStep((value) => value - 1) : navigation.goBack()}>
+  return <OnboardingShell title="Join Aagaam as a Store" subtitle={`Step ${step + 1} of 4 · ${STEP_TITLES[step]}`} onBack={() => step > 0 ? setStep((value) => value - 1) : navigation.goBack()}>
     <ProgressBar value={(step + 1) * 25} />
     {step === 0 ? <Section title="Business identity" subtitle="Use the name customers will recognise."><View style={styles.icon}><Store size={22} color={palette.teal} /></View><FormField label="Legal business name" value={form.legalName} onChangeText={(value) => set('legalName', value)} placeholder="Registered name" /><FormField label="Store display name" value={form.displayName} onChangeText={(value) => set('displayName', value)} placeholder="Name shown to customers" /><Text style={styles.label}>Business type</Text><Choices values={BUSINESS_TYPES} selected={form.businessType} onChange={(value: string) => set('businessType', value)} /><Text style={styles.label}>What do you sell?</Text><Choices values={CATEGORIES} selected={form.categories} multiple onChange={(value: string[]) => set('categories', value)} /></Section> : null}
     {step === 1 ? <Section title="Store location" subtitle="Use the exact entrance where Riders collect orders."><FormField label="Store address" value={form.storeAddress} onChangeText={(value) => set('storeAddress', value)} placeholder="Building, street and area" multiline /><FormField label="Pincode" value={form.pincode} onChangeText={(value) => set('pincode', value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" placeholder="6-digit pincode" /><FormField label="City" value={form.city} onChangeText={(value) => set('city', value)} placeholder="City" /><FormField label="State" value={form.state} onChangeText={(value) => set('state', value)} placeholder="State" /><TouchableOpacity testID="onboarding_gps_capture_button" style={styles.locationButton} onPress={useLocation}><MapPin size={18} color={palette.teal} /><Text style={styles.locationText}>{form.latitude ? 'Update pickup location' : 'Use current pickup location'}</Text></TouchableOpacity></Section> : null}

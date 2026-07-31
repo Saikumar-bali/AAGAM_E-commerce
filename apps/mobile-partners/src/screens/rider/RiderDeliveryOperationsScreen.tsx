@@ -230,7 +230,7 @@ export const RiderDeliveryOperationsScreen = () => {
       <View style={styles.infoCard}>
         <MapPin size={18} color="#0F766E" />
         <Text style={styles.infoText}>
-          During an active trip, Android keeps the ongoing “AAGAM delivery tracking active” notification visible through the foreground service.
+          During an active trip, Android keeps the ongoing “AAGAAM delivery tracking active” notification visible through the foreground service.
         </Text>
       </View>
 
@@ -253,7 +253,7 @@ export const RiderDeliveryOperationsScreen = () => {
               <Text style={styles.cardEyebrow}>ORDER #{shortId(order?.id)}</Text>
               <Text style={styles.cardTitle}>{readable(summary.job.status)}</Text>
               <Text style={styles.cardText}>
-                {order?.store?.name || 'AAGAM Store'} · {order?.customer?.name || 'Customer'}
+                {order?.store?.name || 'Aagaam Store'} · {order?.customer?.name || 'Customer'}
               </Text>
             </View>
             <View style={styles.amountBox}>

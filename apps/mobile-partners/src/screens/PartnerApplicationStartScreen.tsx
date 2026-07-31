@@ -87,7 +87,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
   return (
     <OnboardingShell
       title={type === 'RIDER' ? 'Start Rider application' : 'Start Store application'}
-      subtitle="Your verified mobile number protects the application and becomes your primary AAGAM login after approval."
+      subtitle="Your verified mobile number protects the application and becomes your primary Aagaam login after approval."
       onBack={() => navigation.goBack()}
     >
       <Section title="Applicant identity" subtitle="Use details that match your submitted documents.">
