@@ -17,6 +17,11 @@ contains(webLogin, 'autoComplete="tel-national"', 'The web phone field must requ
 contains(webLogin, "if (!/^\\d{10}$/.test(phone))", 'OTP submission must be blocked unless React state contains exactly ten digits.');
 excludes(webLogin, 'international number with country code', 'The web login must not advertise unsupported overlong or international input.');
 
+const webPhoneGuard = read('apps/admin-dashboard/src/components/TenDigitPhoneGuard.tsx');
+contains(webPhoneGuard, 'input.maxLength = 10', 'The runtime phone guard must enforce ten characters.');
+contains(webPhoneGuard, ".replace(/\\D/g, '').slice(0, 10)", 'The runtime phone guard must sanitize and cap the actual browser value.');
+excludes(webPhoneGuard, 'input.maxLength = 13', 'The runtime phone guard must not override the JSX field back to thirteen characters.');
+
 const customerShell = read('apps/admin-dashboard/src/components/customer/CustomerShell.tsx');
 contains(customerShell, 'aria-label="Aagaam shop home"', 'The customer header accessible label must use Aagaam.');
 contains(customerShell, 'alt="Aagaam"', 'The customer header logo alt text must use Aagaam.');
@@ -34,7 +39,7 @@ const webSupportPath = 'apps/admin-dashboard/src/app/(shop)/shop/support/page.ts
 assert.ok(existsSync(resolve(root, webSupportPath)), 'A dedicated /shop/support page must be implemented.');
 const webSupport = read(webSupportPath);
 contains(webSupport, "apiClient.get('/orders/my')", 'Web support must load the signed-in customer orders.');
-contains(webSupport, '/orders/post-delivery/${selectedOrderId}/support', 'Web support must create a real backend support ticket for the selected order.');
+contains(webSupport, 'apiClient.post(`/orders/post-delivery/${selectedOrderId}/support`', 'Web support must POST a real backend support ticket for the selected order.');
 contains(webSupport, 'Support ticket opened', 'Web support must confirm successful ticket creation.');
 contains(webSupport, 'Issue category', 'Web support must offer an issue category selector.');
 contains(webSupport, 'Describe what happened', 'Web support must collect useful issue details.');
@@ -62,14 +67,17 @@ const mobileSupportPath = 'apps/mobile-customer/src/screens/customer/CustomerSup
 assert.ok(existsSync(resolve(root, mobileSupportPath)), 'A dedicated mobile CustomerSupportScreen must be implemented.');
 const mobileSupport = read(mobileSupportPath);
 contains(mobileSupport, "apiClient.get('/orders/my')", 'Mobile support must load the customer order history.');
-contains(mobileSupport, '/orders/post-delivery/${selectedOrderId}/support', 'Mobile support must create a real backend support ticket.');
+contains(mobileSupport, 'apiClient.post(`/orders/post-delivery/${selectedOrderId}/support`', 'Mobile support must POST a real backend support ticket.');
 contains(mobileSupport, 'Support ticket opened', 'Mobile support must confirm successful ticket creation.');
 contains(mobileSupport, 'Select an order', 'Mobile support must let the customer select the affected order.');
 contains(mobileSupport, 'Describe what happened', 'Mobile support must collect issue details.');
 
 const customerNavigator = read('apps/mobile-customer/src/navigation/CustomerNavigator.tsx');
-contains(customerNavigator, "name=\"Support\"", 'The mobile customer navigator must register the support screen.');
-contains(customerNavigator, 'CustomerSupportScreen', 'The support screen must be imported and wired into navigation.');
+assert.match(
+  customerNavigator,
+  /<Stack\.Screen\s+name="Support"\s+component=\{CustomerSupportScreen\}/,
+  'The Support route must map directly to CustomerSupportScreen.',
+);
 
 for (const path of [
   'apps/admin-dashboard/src/components/customer/CustomerShell.tsx',
