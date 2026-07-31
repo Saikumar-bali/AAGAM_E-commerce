@@ -17,6 +17,7 @@ import {
   prisma,
 } from "@aagam/database";
 import { UpsertCouponDto, UpsertPromotionCampaignDto } from "./promotions.dto";
+import { resolveCampaignStatus } from "./promotion-scheduling";
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 type PricingLine = {
@@ -155,8 +156,26 @@ export class PromotionsService {
     if (status === PromotionStatus.PAUSED) return "PAUSED";
     if (status === PromotionStatus.DRAFT) return "DRAFT";
     if (startsAt && startsAt.getTime() > now) return "SCHEDULED";
-    if (endsAt && endsAt.getTime() < now) return "EXPIRED";
+    if (endsAt && endsAt.getTime() <= now) return "EXPIRED";
     return "ACTIVE";
+  }
+
+  private assertPublishableSchedule(
+    status: PromotionStatus,
+    endsAt?: string | Date | null,
+  ) {
+    if (
+      (status === PromotionStatus.ACTIVE ||
+        status === PromotionStatus.SCHEDULED) &&
+      endsAt
+    ) {
+      const end = this.date(endsAt);
+      if (end && end.getTime() <= Date.now()) {
+        throw new BadRequestException(
+          "Published campaigns must have an end time in the future",
+        );
+      }
+    }
   }
 
   private publicCampaign(campaign: any) {
@@ -265,7 +284,8 @@ export class PromotionsService {
     const targetType = dto.targetType ?? PromotionTargetType.DEALS;
     this.validateSchedule(dto.startsAt, dto.endsAt);
     await this.validateCampaignTarget({ ...dto, targetType });
-    const status = dto.status ?? PromotionStatus.DRAFT;
+    const status = resolveCampaignStatus(dto.status, dto.startsAt);
+    this.assertPublishableSchedule(status, dto.endsAt);
     const now = new Date();
     return prisma.promotionCampaign.create({
       data: {
@@ -334,7 +354,24 @@ export class PromotionsService {
       dto.endsAt ?? current.endsAt
     );
     await this.validateCampaignTarget(merged);
-    const status = dto.status ?? current.status;
+    const requestedStatus = dto.status ?? current.status;
+    const status =
+      dto.status !== undefined || dto.startsAt !== undefined
+        ? resolveCampaignStatus(
+            requestedStatus,
+            dto.startsAt !== undefined ? dto.startsAt : current.startsAt,
+          )
+        : current.status;
+    if (
+      dto.status !== undefined ||
+      dto.startsAt !== undefined ||
+      dto.endsAt !== undefined
+    ) {
+      this.assertPublishableSchedule(
+        status,
+        dto.endsAt !== undefined ? dto.endsAt : current.endsAt,
+      );
+    }
     return prisma.$transaction(async (tx) => {
       if (dto.placements) {
         if (!dto.placements.length)

@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
 const adminEmail = process.env.ADMIN_EMAIL || process.env.CI_ADMIN_EMAIL || 'admin@aagam.com';
 const adminPassword = process.env.ADMIN_PASSWORD || process.env.CI_ADMIN_PASSWORD || 'admin@2026!';
-const PROOF_DIR = path.resolve(__dirname, '../../../docs/qa/public-promotions-store-inventory');
+const PROOF_DIR = path.resolve(__dirname, '../../../docs/qa/promotions-search-category-crash');
 
 const ts = () => Date.now().toString(36);
 
@@ -22,6 +22,8 @@ async function createCampaign(
   token: string,
   placement: string,
   title: string,
+  status?: string,
+  endsAt?: string,
 ) {
   const suffix = ts();
   const res = await request.post(`${API_BASE}/admin/promotions/campaigns`, {
@@ -31,7 +33,8 @@ async function createCampaign(
       title,
       subtitle: `Subtitle ${suffix}`,
       badgeText: 'PW Test',
-      status: 'ACTIVE',
+      ...(status ? { status } : {}),
+      ...(endsAt ? { endsAt } : {}),
       placements: [placement],
       targetType: 'DEALS',
       priority: 1000,
@@ -61,6 +64,43 @@ test.describe('Public promotions placement rendering', () => {
     for (const id of campaignIds) {
       await archiveCampaign(request, token, id);
     }
+  });
+
+  test('default campaign status publishes to the customer shop feed', async ({ page, request }) => {
+    const suffix = ts();
+    const title = `PW Default Publish ${suffix}`;
+    const campaign = await createCampaign(request, token, 'HOME_HERO', title);
+    campaignIds.push(campaign.id);
+
+    const publicFeed = await request.get(`${API_BASE}/promotions/active`);
+    expect(publicFeed.ok(), `Public promotion feed failed: ${await publicFeed.text()}`).toBeTruthy();
+    expect(JSON.stringify(await publicFeed.json())).toContain(title);
+
+    await page.goto('/shop');
+    await expect(page.getByText(title).first()).toBeVisible({ timeout: 15000 });
+    await page.screenshot({
+      path: path.join(PROOF_DIR, '00-default-publish-shop.png'),
+      fullPage: true,
+    });
+  });
+
+  test('expired campaigns are excluded from the customer feed', async ({ request }) => {
+    const suffix = ts();
+    const title = `PW Expiring Campaign ${suffix}`;
+    const campaign = await createCampaign(
+      request,
+      token,
+      'HOME_HERO',
+      title,
+      'ACTIVE',
+      new Date(Date.now() + 1500).toISOString(),
+    );
+    campaignIds.push(campaign.id);
+
+    await new Promise((resolve) => setTimeout(resolve, 2200));
+    const publicFeed = await request.get(`${API_BASE}/promotions/active`);
+    expect(publicFeed.ok(), `Public promotion feed failed: ${await publicFeed.text()}`).toBeTruthy();
+    expect(JSON.stringify(await publicFeed.json())).not.toContain(title);
   });
 
   test('login page renders LOGIN_SIDEBAR campaign', async ({ page, request }) => {
