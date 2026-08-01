@@ -11,6 +11,11 @@ import { PromotionsService } from '../promotions/promotions.service';
 const logger = new Logger('CheckoutService');
 
 const haversineKm = calculateDistance;
+export const FREE_DELIVERY_MINIMUM_PAISE = 19900;
+
+export function applyFreeDeliveryThreshold(deliveryFee: number, subtotalPaise: number): number {
+  return subtotalPaise >= FREE_DELIVERY_MINIMUM_PAISE ? 0 : deliveryFee;
+}
 
 type CartItem = { productId: string; quantity: number };
 
@@ -252,6 +257,7 @@ export class CheckoutService {
 
     const subtotal = items.reduce((sum, it) => sum + it.lineTotal, 0);
     const subtotalPaise = items.reduce((sum, it) => sum + it.lineTotalPaise, 0);
+    deliveryFee = applyFreeDeliveryThreshold(deliveryFee, subtotalPaise);
     const deliveryFeePaise = Math.round(deliveryFee * 100);
     const promotionPricing = storeId && this.promotionsService
       ? await this.promotionsService.calculateDiscount({

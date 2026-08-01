@@ -60,6 +60,10 @@ export default function BillDetailsCard({
       </div>
 
       <div className="p-5">
+        <div className={`mb-4 rounded-xl border px-3 py-3 ${subtotal >= 199 ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+          <p className={`text-xs font-black ${subtotal >= 199 ? 'text-emerald-800' : 'text-amber-900'}`}>{subtotal >= 199 ? 'Free delivery unlocked' : `Add ${formatINR(199 - subtotal)} for free delivery`}</p>
+          <p className="mt-1 text-[11px] font-semibold text-slate-600">Free delivery on orders of ₹199 or more.</p>
+        </div>
         {storeName && (
           <div className="flex items-center gap-2 rounded-xl bg-teal-50 border border-teal-100 px-3 py-2 mb-4">
             <span className="text-xs font-bold text-teal-800">

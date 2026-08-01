@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useAuthStore } from '@aagam/mobile-shared';
-import { ArrowRight, Chrome, Eye, Lock, Mail, Phone, ShieldCheck, User } from 'lucide-react-native';
+import { ArrowRight, Eye, Lock, Mail, Phone, ShieldCheck, User } from 'lucide-react-native';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { GOOGLE_WEB_CLIENT_ID } from '@env';
 import type { CustomerPhoneOtpPurpose } from '../auth/customerPhoneOtpFlow';
@@ -21,6 +21,7 @@ import {
   resendCustomerPhoneOtp,
 } from '../auth/customerPhoneOtpFlow';
 import { AagamBrand } from '../components/AagamBrand';
+import { GoogleG } from '../components/GoogleG';
 import { getUserSafeError, notify } from '../ui/notify';
 
 const googleClientConfigured =
@@ -263,7 +264,7 @@ export const LoginScreen = () => {
               <TouchableOpacity style={[styles.primary, passwordLoading && styles.buttonDisabled]} onPress={passwordLogin} disabled={passwordLoading}>{passwordLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Continue</Text>}</TouchableOpacity>
             </>}
 
-            {!masked ? <><View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>or</Text><View style={styles.line} /></View><TouchableOpacity style={[styles.google, !googleClientConfigured && styles.buttonDisabled]} onPress={handleGoogleLogin} disabled={googleLoading || !googleClientConfigured}>{googleLoading ? <ActivityIndicator /> : <><Chrome size={21} color="#1E293B" /><Text style={styles.googleText}>Continue with Google</Text></>}</TouchableOpacity></> : null}
+            {!masked ? <><View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>or</Text><View style={styles.line} /></View><TouchableOpacity style={[styles.google, !googleClientConfigured && styles.buttonDisabled]} onPress={handleGoogleLogin} disabled={googleLoading || !googleClientConfigured}>{googleLoading ? <ActivityIndicator /> : <><GoogleG size={22} /><Text style={styles.googleText}>Continue with Google</Text></>}</TouchableOpacity></> : null}
           </View>
           <View style={styles.secure}><ShieldCheck size={19} color="#0F766E" /><Text style={styles.secureText}>Your data is secure and protected with industry-standard encryption.</Text></View>
         </ScrollView>

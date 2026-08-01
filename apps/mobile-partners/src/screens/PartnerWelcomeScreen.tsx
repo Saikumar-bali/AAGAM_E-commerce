@@ -35,8 +35,8 @@ export function PartnerWelcomeScreen({ navigation }: any) {
 
   return (
     <OnboardingShell
-      title="Grow with Aagaam"
-      subtitle="Choose a partner path, submit verified details, and start operating after approval."
+      title="Partner with Aagaam"
+      subtitle="Choose how you want to work with us. We’ll guide you through a short, secure application."
     >
       {applicationId && response ? (
         <TouchableOpacity style={styles.continueCard} onPress={continueExisting} activeOpacity={0.84}>
@@ -57,17 +57,17 @@ export function PartnerWelcomeScreen({ navigation }: any) {
         </TouchableOpacity>
       ) : null}
 
-      <Text style={styles.eyebrow}>Choose your workspace</Text>
+      <Text style={styles.eyebrow}>I want to join as</Text>
       <View style={styles.cards}>
         <TouchableOpacity style={[styles.roleCard, styles.riderCard]} onPress={() => startApplication('RIDER')} activeOpacity={0.84}>
           <View style={[styles.icon, styles.riderIcon]}><Bike size={28} color="#0F766E" /></View>
-          <View style={styles.roleCopy}><Text style={styles.roleTitle}>Delivery Partner</Text><Text style={styles.roleText}>Accept deliveries, manage availability and track earnings.</Text></View>
+          <View style={styles.roleCopy}><Text style={styles.roleTitle}>Delivery partner</Text><Text style={styles.roleText}>Deliver orders on your schedule and track earnings.</Text></View>
           <ChevronRight size={20} color="#0F766E" />
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.roleCard, styles.storeCard]} onPress={() => startApplication('STORE')} activeOpacity={0.84}>
           <View style={[styles.icon, styles.storeIcon]}><Store size={28} color="#B45309" /></View>
-          <View style={styles.roleCopy}><Text style={styles.roleTitle}>Store Partner</Text><Text style={styles.roleText}>Manage products, orders, fulfilment and settlements.</Text></View>
+          <View style={styles.roleCopy}><Text style={styles.roleTitle}>Store partner</Text><Text style={styles.roleText}>Sell products and manage incoming Aagaam orders.</Text></View>
           <ChevronRight size={20} color="#B45309" />
         </TouchableOpacity>
       </View>

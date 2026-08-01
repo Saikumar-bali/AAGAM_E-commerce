@@ -26,7 +26,7 @@ export function OnboardingShell({ title, subtitle, children, onBack, right, refr
       <ScrollView style={styles.safe} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
         <View style={styles.topRow}>{onBack ? <TouchableOpacity onPress={onBack} style={styles.backButton}><ChevronLeft size={20} color={palette.ink} /></TouchableOpacity> : <View style={styles.backPlaceholder} />}{right || <View />}</View>
         <View style={styles.hero}>
-          <View style={styles.brandRow}><AagamBrand compact /></View>
+          <View style={styles.brandRow}><AagamBrand compact caption="Partners" /></View>
           <Text style={styles.title}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
@@ -68,11 +68,11 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 44 },
   backButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 },
   backPlaceholder: { width: 42, height: 42 },
-  hero: { marginTop: 10, borderRadius: 30, padding: 22, backgroundColor: 'rgba(255,255,255,0.88)', borderWidth: 1, borderColor: '#FFFFFF', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.09, shadowRadius: 25, elevation: 5 },
-  brandRow: { marginBottom: 22 },
-  title: { color: palette.ink, fontSize: 31, lineHeight: 37, fontWeight: '900', letterSpacing: -1.1 },
+  hero: { marginTop: 8, borderRadius: 26, padding: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E7EEF5', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.07, shadowRadius: 20, elevation: 3 },
+  brandRow: { marginBottom: 16 },
+  title: { color: palette.ink, fontSize: 28, lineHeight: 34, fontWeight: '900', letterSpacing: -0.8 },
   subtitle: { color: palette.muted, fontSize: 14, lineHeight: 22, marginTop: 9, fontWeight: '600' },
-  body: { marginTop: 20, gap: 15 },
+  body: { marginTop: 16, gap: 13 },
   fieldWrap: { gap: 7 },
   label: { color: '#334155', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.6 },
   input: { minHeight: 55, borderRadius: 17, borderWidth: 1.5, borderColor: palette.line, backgroundColor: '#FFFFFF', paddingHorizontal: 16, color: palette.ink, fontSize: 15, fontWeight: '700' },
