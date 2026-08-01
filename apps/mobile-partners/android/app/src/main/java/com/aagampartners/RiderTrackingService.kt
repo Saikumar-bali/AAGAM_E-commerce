@@ -196,7 +196,6 @@ class RiderTrackingService : Service() {
       .put("heading", if (location.hasBearing()) location.bearing.toDouble() else JSONObject.NULL)
       .put("source", "ANDROID_FOREGROUND_SERVICE")
       .put("clientPingId", "$sessionId-$nextSequence")
-      .put("sequence", nextSequence)
       .put("capturedAt", Instant.ofEpochMilli(location.time).toString())
 
     val queue = readQueue()
