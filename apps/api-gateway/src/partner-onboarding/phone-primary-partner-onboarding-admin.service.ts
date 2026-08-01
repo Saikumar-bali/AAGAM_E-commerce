@@ -192,6 +192,7 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
               "emailVerified" = "emailVerified" OR $5,
               "accountStatus" = CASE WHEN $6 THEN 'ACTIVE'::"PartnerAccountStatus" ELSE "accountStatus" END,
               "mustChangePassword" = CASE WHEN $6 THEN false ELSE "mustChangePassword" END,
+              "role" = $7::"Role",
               "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = $1`,
             userId,
             dto.operationalName?.trim() || application.applicantName,
@@ -199,6 +200,7 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
             application.phoneVerifiedAt,
             Boolean(requestedEmail && application.emailVerifiedAt),
             directPhoneLogin,
+            targetRole,
           );
         }
         await grantUserRole(

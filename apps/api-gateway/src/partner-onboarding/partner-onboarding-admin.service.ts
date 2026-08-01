@@ -418,6 +418,7 @@ export class PartnerOnboardingAdminService {
               name: existingUser.name || dto.operationalName?.trim() || application.applicantName,
               emailVerified: existingUser.emailVerified || Boolean(application.emailVerifiedAt),
               phone: existingUser.phone || application.phoneE164 || undefined,
+              role: targetRole,
             },
           });
         }
