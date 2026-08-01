@@ -20,7 +20,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Tag, Trash2, Edit } from 'lucide-react';
 
-type Category = { id: string; name: string; sortOrder?: number };
+type Category = { id: string; name: string; imageUrl?: string | null; sortOrder?: number };
 
 interface SortableCategoriesProps {
   categories: Category[];
@@ -72,7 +72,7 @@ function SortableCategory({
       >
         <GripVertical className="h-5 w-5" />
       </button>
-      <Tag className="h-4 w-4 text-teal-600" />
+      {category.imageUrl ? <img src={category.imageUrl} alt="" className="h-10 w-10 rounded-xl border border-gray-100 object-cover" /> : <span className="grid h-10 w-10 place-items-center rounded-xl bg-teal-50"><Tag className="h-4 w-4 text-teal-600" /></span>}
       <span className="flex-1 text-sm font-bold text-gray-900">{category.name}</span>
       <span className="text-xs font-semibold text-gray-500">{productCount} products</span>
       <button

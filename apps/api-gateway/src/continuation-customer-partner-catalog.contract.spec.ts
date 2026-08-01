@@ -44,6 +44,59 @@ describe('customer, Partner onboarding and catalog continuation contracts', () =
     expect(admin).toContain('<SortableCategories');
   });
 
+  test('category artwork is persisted, returned, uploaded, and rendered dynamically', () => {
+    const schema = read('packages/database/prisma/schema.prisma');
+    const migration = read('packages/database/prisma/migrations/20260801090000_category_images/migration.sql');
+    const controller = read('apps/api-gateway/src/products/product.controller.ts');
+    const service = read('apps/api-gateway/src/products/product.service.ts');
+    const admin = read('apps/admin-dashboard/src/app/(admin)/admin/products/page.tsx');
+    const sortable = read('apps/admin-dashboard/src/components/SortableCategories.tsx');
+    const mobile = read('apps/mobile-customer/src/screens/customer/ShopScreen.tsx');
+    expect(schema).toMatch(/model Category[\s\S]*imageUrl\s+String\?/);
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "imageUrl" TEXT');
+    expect(controller).toContain('data?.imageUrl');
+    expect(service).toContain('cleanCategoryImageUrl');
+    expect(service).toContain('imageUrl: cleanImageUrl');
+    expect(admin).toContain('handleCategoryImageUpload');
+    expect(admin).toContain("/upload/image");
+    expect(admin).toContain('imageUrl: categoryImageUrl.trim() || null');
+    expect(sortable).toContain('category.imageUrl');
+    expect(mobile).toContain("'/products/categories'");
+    expect(mobile).toContain(')?.imageUrl');
+    expect(mobile).toContain('ALL_CATEGORY_IMAGE');
+  });
+
+  test('customer catalog and address controls do not advertise inert or stale states', () => {
+    const shop = read('apps/mobile-customer/src/screens/customer/ShopScreen.tsx');
+    const detail = read('apps/mobile-customer/src/screens/customer/ProductDetailScreen.tsx');
+    const profile = read('apps/mobile-customer/src/screens/customer/CustomerProfileScreen.tsx');
+    const cart = read('apps/mobile-customer/src/screens/customer/CartScreen.tsx');
+    const customerService = read('apps/api-gateway/src/customer/customer.service.ts');
+    const addressDto = read('apps/api-gateway/src/customer/dto/update-address.dto.ts');
+    const savedAddresses = read('apps/mobile-customer/src/screens/customer/SavedAddressesScreen.tsx');
+    const addresses = read('apps/mobile-customer/src/screens/customer/SavedAddressesScreen.tsx');
+    const promotions = read('apps/admin-dashboard/src/app/(admin)/admin/promotions/page.tsx');
+    expect(shop).toContain('addressId: defaultAddressId || undefined');
+    expect(detail).toContain("queryKey: ['product', productId, defaultAddressId]");
+    expect(detail).toContain('includeAvailability: Boolean(defaultAddressId)');
+    expect(detail).toContain('addressId: defaultAddressId || undefined');
+    expect(detail).toContain('addressQueryReady && !addressesQuery.isError');
+    expect(shop).toContain('productsQuery.error && products.length === 0');
+    expect(shop).toContain('lastSuccessfulCatalog');
+    expect(shop).toContain('catalogReady');
+    expect(shop).toContain('availableProductCount');
+    expect(detail).toContain('{productQuantity}</Text>');
+    expect(profile).toContain('alternatePhoneE164: alternatePhoneE164.trim() || null');
+    expect(addressDto).toContain('alternatePhoneE164?: string | null');
+    expect(customerService).toContain('dto.alternatePhoneE164 === null');
+    expect(cart).toContain('subtotalBeforeSavings');
+    expect(cart).toContain('Availability checked at checkout');
+    expect(savedAddresses).toContain('isError && addresses.length === 0');
+    expect(addresses).toContain('accessibilityRole="image"');
+    expect(addresses).not.toContain('accessibilityLabel={`More options');
+    expect(promotions).toContain('Hero campaign draft saved.');
+  });
+
   test('mobile checkout creates and selects a pinned address inline', () => {
     const checkout = read('apps/mobile-customer/src/screens/customer/CheckoutScreen.tsx');
     expect(checkout).toContain('Add delivery address');

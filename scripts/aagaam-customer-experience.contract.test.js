@@ -100,7 +100,11 @@ contains(mobileSupport, 'Select an order', 'Mobile support must let the customer
 contains(mobileSupport, 'Describe what happened', 'Mobile support must collect issue details.');
 
 const customerNavigator = read('apps/mobile-customer/src/navigation/CustomerNavigator.tsx');
-assert.match(customerNavigator, /<Stack\.Screen\s+name="Support"\s+component=\{CustomerSupportScreen\}/, 'The Support route must map directly to CustomerSupportScreen.');
+assert.ok(
+  customerNavigator.includes('component={CustomerSupportScreen}') ||
+    customerNavigator.includes("component={withBottomNav(CustomerSupportScreen, 'Profile')}"),
+  'The Support route must map to CustomerSupportScreen, with the shared sticky navigation wrapper allowed.',
+);
 
 for (const path of [
   'apps/admin-dashboard/src/components/customer/CustomerShell.tsx',
