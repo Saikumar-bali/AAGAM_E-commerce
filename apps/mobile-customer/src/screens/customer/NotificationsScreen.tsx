@@ -2,16 +2,18 @@ import React from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@aagam/mobile-shared';
+import { useNavigation } from '@react-navigation/native';
 
 type NotificationItem = { id: string; sourceHistoryId: string; orderId: string; title: string; body: string; createdAt: string; readAt?: string | null };
 
 export const NotificationsScreen = () => {
   const queryClient = useQueryClient();
+  const navigation = useNavigation<any>();
   const { data, isLoading, refetch, isRefetching } = useQuery({ queryKey: ['customer-notifications'], queryFn: async () => (await apiClient.get('/notifications/inbox')).data || { items: [], unreadCount: 0 } });
   const markRead = useMutation({ mutationFn: async (sourceHistoryId: string) => apiClient.patch(`/notifications/${sourceHistoryId}/read`), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['customer-notifications'] }) });
   if (isLoading) return <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View>;
   const items: NotificationItem[] = data?.items || [];
-  return <View style={styles.container}><View style={styles.header}><Text style={styles.kicker}>Communication center</Text><Text style={styles.title}>Alerts</Text><Text style={styles.subtitle}>{data?.unreadCount || 0} unread update{data?.unreadCount === 1 ? '' : 's'}</Text></View><FlatList data={items} keyExtractor={(item) => item.id} contentContainerStyle={styles.list} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />} ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>No alerts yet</Text><Text style={styles.emptyText}>Order updates, support replies, and delivery alerts will appear here.</Text></View>} renderItem={({ item }) => <View style={[styles.card, item.readAt && styles.cardRead]}><Text style={styles.cardTitle}>{item.title}</Text><Text style={styles.cardBody}>{item.body}</Text><Text style={styles.cardMeta}>#{item.orderId?.slice(-8)?.toUpperCase()} · {new Date(item.createdAt).toLocaleString()}</Text>{!item.readAt ? <TouchableOpacity style={styles.readButton} onPress={() => markRead.mutate(item.sourceHistoryId)} disabled={markRead.isPending}><Text style={styles.readButtonText}>Mark read</Text></TouchableOpacity> : <Text style={styles.readMeta}>Read</Text>}</View>} /></View>;
+  return <View style={styles.container}><View style={styles.header}><Text style={styles.kicker}>Communication center</Text><Text style={styles.title}>Alerts</Text><Text style={styles.subtitle}>{data?.unreadCount || 0} unread update{data?.unreadCount === 1 ? '' : 's'}</Text></View><FlatList data={items} keyExtractor={(item) => item.id} contentContainerStyle={styles.list} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />} ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>No alerts yet</Text><Text style={styles.emptyText}>Order updates, support replies, and delivery alerts will appear here.</Text></View>} renderItem={({ item }) => <TouchableOpacity style={[styles.card, item.readAt && styles.cardRead]} activeOpacity={0.7} onPress={() => { if (!item.readAt) void markRead.mutate(item.sourceHistoryId); if (item.orderId) navigation.navigate('OrderDetail', { orderId: item.orderId }); }}><Text style={styles.cardTitle}>{item.title}</Text><Text style={styles.cardBody}>{item.body}</Text><Text style={styles.cardMeta}>#{item.orderId?.slice(-8)?.toUpperCase()} · {new Date(item.createdAt).toLocaleString()}</Text>{!item.readAt ? <View style={styles.unreadDot} /> : null}</TouchableOpacity>} /></View>;
 };
 
 const styles = StyleSheet.create({
@@ -27,9 +29,7 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: '900', color: '#0F172A' },
   cardBody: { marginTop: 6, color: '#475569', fontWeight: '700', lineHeight: 20 },
   cardMeta: { marginTop: 10, color: '#94A3B8', fontSize: 12, fontWeight: '800' },
-  readButton: { marginTop: 12, alignSelf: 'flex-start', backgroundColor: '#0F766E', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
-  readButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
-  readMeta: { marginTop: 12, color: '#64748B', fontWeight: '800', fontSize: 12 },
+  unreadDot: { marginTop: 10, alignSelf: 'flex-start', width: 8, height: 8, borderRadius: 4, backgroundColor: '#0F766E' },
   empty: { paddingTop: 80, alignItems: 'center' },
   emptyTitle: { fontSize: 20, color: '#0F172A', fontWeight: '900' },
   emptyText: { marginTop: 8, color: '#64748B', textAlign: 'center', paddingHorizontal: 24 },

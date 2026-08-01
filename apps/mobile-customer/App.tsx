@@ -6,6 +6,7 @@ import { checkForAppUpdate, startMobilePushLifecycle, useAuthStore } from '@aaga
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { CustomerToast } from './src/ui/CustomerToast';
 import { notify } from './src/ui/notify';
+import { navigate } from './src/navigation/navigationRef';
 
 const queryClient = new QueryClient();
 
@@ -17,10 +18,16 @@ function PushLifecycle() {
     let disposed = false;
     let unsubscribe: () => void = () => undefined;
     void startMobilePushLifecycle('Aagaam Customer', (message) => {
-      notify.info(
-        message.notification?.title || message.data?.title || 'Aagaam update',
-        message.notification?.body || message.data?.body || 'Your order has an update.',
-      );
+      const title = message.notification?.title || message.data?.title || 'Aagaam update';
+      const body = message.notification?.body || message.data?.body || 'Your order has an update.';
+      notify.info(title, body);
+
+      const orderId = message.data?.orderId;
+      if (orderId) {
+        setTimeout(() => {
+          navigate('OrderDetail', { orderId });
+        }, 500);
+      }
     }).then((cleanup) => {
       if (disposed) cleanup();
       else unsubscribe = cleanup;
