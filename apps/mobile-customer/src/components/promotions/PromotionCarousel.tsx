@@ -132,7 +132,7 @@ export const PromotionCarousel = ({ campaigns, onPress, compact = false }: Props
 const styles = StyleSheet.create({
   list: { gap: 12 },
   card: { overflow: 'hidden', borderRadius: 24 },
-  heroCard: { minHeight: 230 },
+  heroCard: { height: 190 },
   compactCard: { minHeight: 176 },
   image: { flex: 1, minHeight: '100%' },
   scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(2, 6, 23, 0.52)' },

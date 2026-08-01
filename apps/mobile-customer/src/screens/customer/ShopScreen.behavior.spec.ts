@@ -20,7 +20,8 @@ describe('ShopScreen search and category lifecycle', () => {
   test('category and All remount safely while search and scrolling header stay intact', () => {
     expect(source).toMatch(/<FlatList key="home-categories"/);
     expect(source).toMatch(/<FlatList key="product-grid"[^>]*numColumns=\{2\}/);
-    expect(source).toMatch(/<View style=\{styles\.searchContent\}>\{searchInput\}<\/View>/);
+    expect(source).toMatch(/<PromotionCarousel campaigns=\{promotionsQuery\.data\?\.HOME_HERO\} onPress=\{openPromotion\} \/>\s*\{searchInput\}/);
+    expect(source).toMatch(/\{isCategoriesTab \? searchInput : null\}/);
     expect(source).toMatch(/ListHeaderComponent=\{header\}/);
     expect(source).toMatch(/placeholderData: \(previousData\) => previousData/);
     expect(source).toMatch(/const \[lastSuccessfulCatalog, setLastSuccessfulCatalog\]/);
