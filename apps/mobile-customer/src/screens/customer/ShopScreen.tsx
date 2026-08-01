@@ -38,7 +38,7 @@ import { normalizeShopSearch, SHOP_SEARCH_DEBOUNCE_MS } from '../../utils/shopSe
 import { CUSTOMER_ADDRESSES_QUERY_KEY } from '../../utils/addressQueries';
 
 const unavailable = (product: any) => product.availability?.inStock === false;
-const ALL_CATEGORY_IMAGE = require('../../assets/aagam-mark.png');
+const ALL_CATEGORY_IMAGE = require('../../assets/aagam-logo-full.png');
 const COLLECTION_BACKGROUNDS = ['#E7F7F3', '#F1F8D8', '#FFF3D2', '#FFF0E6', '#E8F4FF'];
 type ProductSort = 'newest' | 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc';
 const sortLabels: Record<ProductSort, string> = {

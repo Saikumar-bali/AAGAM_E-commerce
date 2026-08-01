@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useAuthStore } from '@aagam/mobile-shared';
-import { ArrowRight, Chrome, Lock, Mail, Phone, ShieldCheck, User } from 'lucide-react-native';
+import { ArrowRight, Chrome, Eye, Lock, Mail, Phone, ShieldCheck, User } from 'lucide-react-native';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { GOOGLE_WEB_CLIENT_ID } from '@env';
 import type { CustomerPhoneOtpPurpose } from '../auth/customerPhoneOtpFlow';
@@ -39,7 +39,7 @@ export const LoginScreen = () => {
   const profileNameRef = useRef<TextInput>(null);
   const requestLock = useRef(createAsyncRequestLock()).current;
   const verificationLock = useRef(createAsyncRequestLock()).current;
-  const [mode, setMode] = useState<'PHONE' | 'PASSWORD'>('PHONE');
+  const [mode, setMode] = useState<'PHONE' | 'PASSWORD'>('PASSWORD');
   const [phone, setPhone] = useState('');
   const [masked, setMasked] = useState('');
   const [code, setCode] = useState('');
@@ -50,6 +50,7 @@ export const LoginScreen = () => {
   const [countdown, setCountdown] = useState(0);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -232,10 +233,10 @@ export const LoginScreen = () => {
       <View style={styles.glowAmber} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View style={styles.header}><AagamBrand caption="Shopping made effortless" /><Text style={styles.subtitle}>Fast access. Secure checkout. Live delivery updates.</Text></View>
+          <View style={styles.header}><AagamBrand /><Text style={styles.brandName}>Aagaam</Text><Text style={styles.brandCaption}>SHOPPING MADE EFFORTLESS</Text><Text style={styles.subtitle}>Fast access. Secure checkout. Live delivery updates.</Text></View>
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{masked ? challengeTitle : 'Welcome to Aagaam'}</Text>
-            <Text style={styles.cardSubtitle}>{masked ? 'Enter your details and the OTP sent to your mobile number.' : 'Use your 10-digit mobile number to continue.'}</Text>
+            <Text style={styles.cardSubtitle}>{masked ? 'Enter your details and the OTP sent to your mobile number.' : 'Use your phone number or email to continue.'}</Text>
             {!masked ? <View style={styles.tabs}>
               <TouchableOpacity onPress={() => setMode('PHONE')} style={[styles.tab, mode === 'PHONE' && styles.tabActive]}><Phone size={17} color={mode === 'PHONE' ? '#fff' : '#64748B'} /><Text style={[styles.tabText, mode === 'PHONE' && styles.tabTextActive]}>Phone OTP</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => setMode('PASSWORD')} style={[styles.tab, mode === 'PASSWORD' && styles.tabActive]}><Lock size={17} color={mode === 'PASSWORD' ? '#fff' : '#64748B'} /><Text style={[styles.tabText, mode === 'PASSWORD' && styles.tabTextActive]}>Password</Text></TouchableOpacity>
@@ -257,13 +258,14 @@ export const LoginScreen = () => {
               <TouchableOpacity disabled={phoneBusy} onPress={resetPhoneFlow}><Text style={styles.secondaryLink}>Change mobile number</Text></TouchableOpacity>
             </> : <>
               <Text style={styles.label}>Phone number or email</Text><View style={styles.inputWrapper}><Mail size={19} color="#64748B" /><TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} placeholder="Phone number or email" autoCapitalize="none" placeholderTextColor="#94A3B8" /></View>
-              <Text style={styles.label}>Password</Text><View style={styles.inputWrapper}><Lock size={19} color="#64748B" /><TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry placeholderTextColor="#94A3B8" /></View>
+              <Text style={styles.label}>Password</Text><View style={styles.inputWrapper}><Lock size={19} color="#64748B" /><TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry={!showPassword} placeholderTextColor="#94A3B8" /><TouchableOpacity onPress={() => setShowPassword((value) => !value)} accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}><Eye size={21} color="#64748B" /></TouchableOpacity></View>
+              <TouchableOpacity accessibilityLabel="Forgot password"><Text style={styles.forgot}>Forgot password?</Text></TouchableOpacity>
               <TouchableOpacity style={[styles.primary, passwordLoading && styles.buttonDisabled]} onPress={passwordLogin} disabled={passwordLoading}>{passwordLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Continue</Text>}</TouchableOpacity>
             </>}
 
             {!masked ? <><View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>or</Text><View style={styles.line} /></View><TouchableOpacity style={[styles.google, !googleClientConfigured && styles.buttonDisabled]} onPress={handleGoogleLogin} disabled={googleLoading || !googleClientConfigured}>{googleLoading ? <ActivityIndicator /> : <><Chrome size={21} color="#1E293B" /><Text style={styles.googleText}>Continue with Google</Text></>}</TouchableOpacity></> : null}
           </View>
-          <View style={styles.secure}><ShieldCheck size={16} color="#15803D" /><Text style={styles.secureText}>OTP codes are single-use and expire automatically.</Text></View>
+          <View style={styles.secure}><ShieldCheck size={19} color="#0F766E" /><Text style={styles.secureText}>Your data is secure and protected with industry-standard encryption.</Text></View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -275,9 +277,11 @@ const styles = StyleSheet.create({
   glowTeal: { position: 'absolute', width: 280, height: 280, borderRadius: 999, backgroundColor: '#CCFBF1', top: -120, right: -110, opacity: 0.7 },
   glowAmber: { position: 'absolute', width: 240, height: 240, borderRadius: 999, backgroundColor: '#FEF3C7', bottom: -130, left: -110, opacity: 0.65 },
   keyboardView: { flex: 1 },
-  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 32, paddingBottom: 48, justifyContent: 'center' },
+  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 34, paddingBottom: 42, justifyContent: 'center' },
   header: { alignItems: 'center', marginBottom: 22 },
-  subtitle: { marginTop: 12, color: '#64748B', fontWeight: '700', textAlign: 'center', lineHeight: 20 },
+  brandName: { marginTop: 9, color: '#0F172A', fontSize: 32, fontWeight: '900', letterSpacing: -1 },
+  brandCaption: { marginTop: 1, color: '#0F766E', fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
+  subtitle: { marginTop: 18, color: '#64748B', fontWeight: '700', textAlign: 'center', lineHeight: 20 },
   card: { backgroundColor: '#FFFFFF', borderRadius: 30, padding: 22, gap: 13, borderWidth: 1, borderColor: '#E7EEF5', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.11, shadowRadius: 25, elevation: 7 },
   cardTitle: { fontSize: 24, fontWeight: '900', color: '#0F172A', letterSpacing: -0.7 },
   cardSubtitle: { color: '#64748B', lineHeight: 20, marginBottom: 2 },
@@ -293,6 +297,7 @@ const styles = StyleSheet.create({
   countryCode: { borderRightWidth: 1, borderRightColor: '#CBD5E1', paddingRight: 11 },
   countryCodeText: { color: '#0F766E', fontWeight: '900' },
   input: { flex: 1, color: '#0F172A', fontSize: 15, fontWeight: '700' },
+  forgot: { marginTop: -5, textAlign: 'right', color: '#0F766E', fontSize: 13, fontWeight: '900' },
   primary: { minHeight: 58, borderRadius: 17, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9, shadowColor: '#0F766E', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 15, elevation: 4 },
   primaryText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
   buttonDisabled: { opacity: 0.5 },
