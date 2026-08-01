@@ -132,7 +132,14 @@ export const ShopScreen = () => {
   });
 
   const categories = categoriesQuery.data || [];
-  const products = productsQuery.data || [];
+  const [lastSuccessfulProducts, setLastSuccessfulProducts] = React.useState<any[]>([]);
+  React.useEffect(() => {
+    if (Array.isArray(productsQuery.data)) setLastSuccessfulProducts(productsQuery.data);
+  }, [productsQuery.data]);
+  const products = Array.isArray(productsQuery.data) ? productsQuery.data : lastSuccessfulProducts;
+  const availableProductCount = defaultAddressId
+    ? products.filter((product: any) => product.availability?.inStock === true).length
+    : products.length;
   const sections = useMemo(() => groupProductsByCategory(categories, products), [categories, products]);
   const categoryPills = useMemo(() => [{ id: '', name: 'All' }, ...categories], [categories]);
   const categoryImages = useMemo(() => {
@@ -202,7 +209,7 @@ export const ShopScreen = () => {
         </>
       )}
       {categoryRail}
-      <View style={styles.catalogTitleRow}><View><Text style={styles.title}>{homeMode ? 'Shop by category' : isCategoriesTab ? 'All products' : 'Shop products'}</Text>{!homeMode ? <Text style={styles.catalogSubtitle}>{defaultAddressId ? `${products.length} products available near you` : `${products.length} products in catalogue`}</Text> : null}{productsQuery.error && products.length > 0 ? <Text style={styles.inlineError}>Showing saved results · refresh failed</Text> : null}</View>{!homeMode ? <TouchableOpacity style={styles.sortButton} onPress={cycleSort} accessibilityLabel={`Sort products by ${sortLabels[sort]}`}><Text style={styles.sortText}>{sortLabels[sort]}</Text><ChevronDown size={15} color="#0F766E" /></TouchableOpacity> : null}</View>
+      <View style={styles.catalogTitleRow}><View><Text style={styles.title}>{homeMode ? 'Shop by category' : isCategoriesTab ? 'All products' : 'Shop products'}</Text>{!homeMode ? <Text style={styles.catalogSubtitle}>{defaultAddressId ? `${availableProductCount} products available near you` : `${products.length} products in catalogue`}</Text> : null}{productsQuery.error && products.length > 0 ? <Text style={styles.inlineError}>Showing saved results · refresh failed</Text> : null}</View>{!homeMode ? <TouchableOpacity style={styles.sortButton} onPress={cycleSort} accessibilityLabel={`Sort products by ${sortLabels[sort]}`}><Text style={styles.sortText}>{sortLabels[sort]}</Text><ChevronDown size={15} color="#0F766E" /></TouchableOpacity> : null}</View>
     </View>
   );
 

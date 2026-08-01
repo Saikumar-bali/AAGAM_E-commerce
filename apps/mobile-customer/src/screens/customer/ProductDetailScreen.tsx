@@ -25,6 +25,7 @@ import { getProductImage } from '@aagam/utils';
 import { apiClient } from '@aagam/mobile-shared';
 import { useCartStore } from '../../store/cartStore';
 import { getCartItemCount, getCartTotal, getProductCartQuantity, getProductMrp, normalizeProductImages } from '../../utils/customerCommerce';
+import { CUSTOMER_ADDRESSES_QUERY_KEY } from '../../utils/addressQueries';
 
 export const ProductDetailScreen = () => {
   const route = useRoute<RouteProp<Record<string, { productId: string }>, string>>();
@@ -36,15 +37,22 @@ export const ProductDetailScreen = () => {
   const productId = route.params?.productId;
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
+  const { data: addresses = [] } = useQuery({
+    queryKey: CUSTOMER_ADDRESSES_QUERY_KEY,
+    queryFn: async () => (await apiClient.get('/customer/addresses')).data || [],
+  });
+  const defaultAddress = addresses.find((address: any) => address.isDefault) || addresses[0];
+  const defaultAddressId = defaultAddress?.id || '';
+
   const { data: product, isLoading, error } = useQuery({
-    queryKey: ['product', productId],
-    queryFn: async () => (await apiClient.get(`/products/${productId}`, { params: { includeAvailability: true } })).data,
+    queryKey: ['product', productId, defaultAddressId],
+    queryFn: async () => (await apiClient.get(`/products/${productId}`, { params: { addressId: defaultAddressId || undefined, includeAvailability: Boolean(defaultAddressId) } })).data,
     enabled: Boolean(productId),
   });
   const { data: related = [] } = useQuery({
-    queryKey: ['related-products', product?.categoryId || product?.category?.id, productId],
+    queryKey: ['related-products', product?.categoryId || product?.category?.id, productId, defaultAddressId],
     queryFn: async () => {
-      const response = await apiClient.get('/products', { params: { categoryId: product?.categoryId || product?.category?.id, pageSize: 8, includeAvailability: true } });
+      const response = await apiClient.get('/products', { params: { categoryId: product?.categoryId || product?.category?.id, pageSize: 8, addressId: defaultAddressId || undefined, includeAvailability: Boolean(defaultAddressId) } });
       const rows = Array.isArray(response.data) ? response.data : response.data?.items || [];
       return rows.filter((item: any) => item.id !== productId).slice(0, 6);
     },

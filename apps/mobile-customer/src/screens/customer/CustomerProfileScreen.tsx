@@ -126,8 +126,10 @@ export const CustomerProfileScreen = () => {
 
   const saveAddressMutation = useMutation({
     mutationFn: async () => {
+      const { alternatePhoneE164, ...draftWithoutAlternatePhone } = draft;
       const payload = {
-        ...draft,
+        ...draftWithoutAlternatePhone,
+        ...(alternatePhoneE164.trim() ? { alternatePhoneE164: alternatePhoneE164.trim() } : {}),
         latitude: Number(draft.latitude),
         longitude: Number(draft.longitude),
       };

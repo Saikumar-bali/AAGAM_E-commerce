@@ -12,6 +12,8 @@ describe('ShopScreen search and category lifecycle', () => {
     expect(source).toMatch(/queryKey: \['products', debouncedQuery, categoryId, sort, defaultAddressId\]/);
     expect(source).toMatch(/search: debouncedQuery \|\| undefined/);
     expect(source).toMatch(/addressId: defaultAddressId \|\| undefined/);
+    expect(source).toMatch(/const availableProductCount = defaultAddressId/);
+    expect(source).toMatch(/product\.availability\?\.inStock === true/);
     expect(source).toMatch(/sort/);
   });
 
@@ -21,6 +23,8 @@ describe('ShopScreen search and category lifecycle', () => {
     expect(source).toMatch(/<View style=\{styles\.searchContent\}>\{searchInput\}<\/View>/);
     expect(source).toMatch(/ListHeaderComponent=\{header\}/);
     expect(source).toMatch(/placeholderData: \(previousData\) => previousData/);
+    expect(source).toMatch(/const \[lastSuccessfulProducts, setLastSuccessfulProducts\]/);
+    expect(source).toMatch(/Array\.isArray\(productsQuery\.data\) \? productsQuery\.data : lastSuccessfulProducts/);
     expect(source).toMatch(/onPress=\{cycleSort\}/);
   });
 });

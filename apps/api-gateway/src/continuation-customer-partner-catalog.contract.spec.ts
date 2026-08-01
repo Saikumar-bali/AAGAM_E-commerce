@@ -69,11 +69,20 @@ describe('customer, Partner onboarding and catalog continuation contracts', () =
   test('customer catalog and address controls do not advertise inert or stale states', () => {
     const shop = read('apps/mobile-customer/src/screens/customer/ShopScreen.tsx');
     const detail = read('apps/mobile-customer/src/screens/customer/ProductDetailScreen.tsx');
+    const profile = read('apps/mobile-customer/src/screens/customer/CustomerProfileScreen.tsx');
+    const cart = read('apps/mobile-customer/src/screens/customer/CartScreen.tsx');
     const addresses = read('apps/mobile-customer/src/screens/customer/SavedAddressesScreen.tsx');
     const promotions = read('apps/admin-dashboard/src/app/(admin)/admin/promotions/page.tsx');
     expect(shop).toContain('addressId: defaultAddressId || undefined');
+    expect(detail).toContain("queryKey: ['product', productId, defaultAddressId]");
+    expect(detail).toContain('includeAvailability: Boolean(defaultAddressId)');
+    expect(detail).toContain('addressId: defaultAddressId || undefined');
     expect(shop).toContain('productsQuery.error && products.length === 0');
+    expect(shop).toContain('lastSuccessfulProducts');
+    expect(shop).toContain('availableProductCount');
     expect(detail).toContain('{productQuantity}</Text>');
+    expect(profile).toContain('alternatePhoneE164.trim() ? { alternatePhoneE164: alternatePhoneE164.trim() } : {}');
+    expect(cart).toContain('subtotalBeforeSavings');
     expect(addresses).toContain('accessibilityRole="image"');
     expect(addresses).not.toContain('accessibilityLabel={`More options');
     expect(promotions).toContain('Hero campaign draft saved.');
