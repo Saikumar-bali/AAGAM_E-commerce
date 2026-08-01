@@ -1,8 +1,8 @@
 import React from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 
-export function AagamBrand({ compact = false }: { caption?: string; inverse?: boolean; compact?: boolean }) {
-  const size = compact ? 58 : 112;
+export function AagamBrand({ compact = false, size: requestedSize }: { caption?: string; inverse?: boolean; compact?: boolean; size?: number }) {
+  const size = requestedSize ?? (compact ? 58 : 112);
   return (
     <View style={[styles.wrap, { width: size, height: size, borderRadius: compact ? 17 : 30 }]}>
       <Image

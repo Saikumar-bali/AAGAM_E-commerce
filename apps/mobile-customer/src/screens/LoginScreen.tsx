@@ -233,7 +233,7 @@ export const LoginScreen = () => {
       <View style={styles.glowAmber} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View style={styles.header}><AagamBrand /><Text style={styles.brandName}>Aagaam</Text><Text style={styles.brandCaption}>SHOPPING MADE EFFORTLESS</Text><Text style={styles.subtitle}>Fast access. Secure checkout. Live delivery updates.</Text></View>
+          <View style={styles.header}><View style={styles.brandLockup}><AagamBrand compact size={86} /><View><Text style={styles.brandName}>Aagaam</Text><Text style={styles.brandCaption}>SHOPPING MADE EFFORTLESS</Text></View></View><Text style={styles.subtitle}>Fast access. Secure checkout. Live delivery updates.</Text></View>
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{masked ? challengeTitle : 'Welcome to Aagaam'}</Text>
             <Text style={styles.cardSubtitle}>{masked ? 'Enter your details and the OTP sent to your mobile number.' : 'Use your phone number or email to continue.'}</Text>
@@ -279,9 +279,10 @@ const styles = StyleSheet.create({
   keyboardView: { flex: 1 },
   content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 34, paddingBottom: 42, justifyContent: 'center' },
   header: { alignItems: 'center', marginBottom: 22 },
-  brandName: { marginTop: 9, color: '#0F172A', fontSize: 32, fontWeight: '900', letterSpacing: -1 },
+  brandLockup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 17 },
+  brandName: { color: '#0F172A', fontSize: 34, lineHeight: 38, fontWeight: '900', letterSpacing: -1.2 },
   brandCaption: { marginTop: 1, color: '#0F766E', fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
-  subtitle: { marginTop: 18, color: '#64748B', fontWeight: '700', textAlign: 'center', lineHeight: 20 },
+  subtitle: { marginTop: 24, color: '#64748B', fontWeight: '700', textAlign: 'center', lineHeight: 20 },
   card: { backgroundColor: '#FFFFFF', borderRadius: 30, padding: 22, gap: 13, borderWidth: 1, borderColor: '#E7EEF5', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.11, shadowRadius: 25, elevation: 7 },
   cardTitle: { fontSize: 24, fontWeight: '900', color: '#0F172A', letterSpacing: -0.7 },
   cardSubtitle: { color: '#64748B', lineHeight: 20, marginBottom: 2 },
