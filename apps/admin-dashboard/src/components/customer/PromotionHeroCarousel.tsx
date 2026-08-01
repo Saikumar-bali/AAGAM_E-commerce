@@ -55,10 +55,10 @@ export default function PromotionHeroCarousel({
   return (
     <section
       data-testid="promotion-hero"
-      className="group relative min-h-[290px] overflow-hidden rounded-3xl px-6 py-8 shadow-sm md:min-h-[330px] md:px-10 md:py-10"
+      className="group relative min-h-[330px] overflow-hidden rounded-[2rem] border border-white/20 px-6 py-9 shadow-[0_24px_70px_-28px_rgba(15,23,42,0.55)] md:min-h-[390px] md:px-12 md:py-12"
       style={{
         backgroundColor: campaign.backgroundColor,
-        color: campaign.textColor,
+        color: "#FFFFFF",
       }}
     >
       {(campaign.imageUrl || campaign.mobileImageUrl) && (
@@ -73,35 +73,35 @@ export default function PromotionHeroCarousel({
           <img
             src={campaign.imageUrl || campaign.mobileImageUrl || ""}
             alt=""
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover object-center transition duration-700 group-hover:scale-[1.015]"
           />
         </picture>
       )}
-      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/35 to-transparent" />
-      <div className="relative z-10 flex min-h-[225px] max-w-2xl flex-col justify-center">
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,18,35,0.98)_0%,rgba(3,28,39,0.88)_35%,rgba(3,28,39,0.28)_64%,rgba(3,18,35,0.04)_100%)]" />
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/25 via-transparent to-white/5" />
+      <div className="relative z-10 flex min-h-[258px] max-w-[560px] flex-col justify-center md:min-h-[294px]">
         {campaign.badgeText && (
-          <span className="w-fit rounded-full border border-white/25 bg-black/20 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] backdrop-blur">
+          <span className="w-fit rounded-full border border-teal-200/35 bg-teal-300/10 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-teal-100 backdrop-blur-md">
             {campaign.badgeText}
           </span>
         )}
-        <h1 className="mt-4 text-3xl font-black leading-tight tracking-tight md:text-5xl">
+        <h1 className="mt-5 max-w-[540px] text-[2.15rem] font-black leading-[1.04] tracking-[-0.045em] text-white drop-shadow-sm md:text-[3.4rem]">
           {campaign.title}
         </h1>
         {campaign.subtitle && (
-          <p className="mt-3 max-w-xl text-base font-bold opacity-90 md:text-lg">
+          <p className="mt-4 max-w-lg text-sm font-semibold leading-6 text-slate-100 md:text-lg md:leading-7">
             {campaign.subtitle}
           </p>
         )}
         {campaign.description && (
-          <p className="mt-2 max-w-xl text-sm font-semibold opacity-75">
+          <p className="mt-2 max-w-lg text-xs font-medium leading-5 text-slate-300 md:text-sm">
             {campaign.description}
           </p>
         )}
         {campaign.targetUrl && (
           <button
             onClick={go}
-            className="mt-6 inline-flex w-fit items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black text-slate-950 shadow-lg transition-transform hover:-translate-y-0.5"
-            style={{ backgroundColor: campaign.accentColor }}
+            className="mt-7 inline-flex w-fit items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-xl shadow-slate-950/20 transition-all hover:-translate-y-0.5 hover:bg-teal-50"
           >
             {campaign.ctaLabel} <ArrowRight className="h-4 w-4" />
           </button>

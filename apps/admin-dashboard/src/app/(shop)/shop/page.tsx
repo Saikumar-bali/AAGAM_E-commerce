@@ -210,9 +210,9 @@ export default function ShopPage() {
           </section>
 
           <section>
-            <div className="mb-3 flex items-center gap-2">
-              <span className="text-lg">📂</span>
-              <h2 className="text-sm font-black uppercase tracking-wider text-slate-950">Categories</h2>
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div><p className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-700">Shop by department</p><h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Categories</h2></div>
+              <p className="hidden text-xs font-semibold text-slate-500 sm:block">Fresh picks from every aisle</p>
             </div>
             <CategoryRail categories={categories} selectedId={selectedCategoryId} onSelect={setSelectedCategoryId} />
           </section>
