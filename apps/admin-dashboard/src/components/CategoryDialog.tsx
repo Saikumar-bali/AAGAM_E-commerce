@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import SortableCategories from '@/components/SortableCategories';
 import { X, Tag } from 'lucide-react';
 
-type Category = { id: string; name: string; sortOrder?: number };
+type Category = { id: string; name: string; imageUrl?: string | null; sortOrder?: number };
 
 interface CategoryDialogProps {
   categories: Category[];

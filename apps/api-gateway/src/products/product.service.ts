@@ -29,6 +29,15 @@ function cleanCategoryName(name: string) {
   return String(name || '').trim().replace(/\s+/g, ' ');
 }
 
+function cleanCategoryImageUrl(imageUrl?: string | null) {
+  const value = String(imageUrl || '').trim();
+  if (!value) return null;
+  if (value.length > 2048 || !/^https?:\/\//i.test(value)) {
+    throw new BadRequestException('Category image must be a valid public HTTP(S) URL.');
+  }
+  return value;
+}
+
 function cleanStringList(value?: unknown): string[] {
   const rows = Array.isArray(value) ? value : String(value || '').split(/[\n,]+/);
   return Array.from(new Set(rows.map((item) => String(item || '').trim()).filter(Boolean)));
@@ -213,7 +222,7 @@ export class ProductService {
   }
 
   async getCategories() {
-    const cacheKey = 'all_categories';
+    const cacheKey = 'all_categories:v2';
     const cachedCategories = await this.cacheManager.get(cacheKey);
     if (cachedCategories) return cachedCategories;
     const categories = await prisma.category.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
@@ -221,13 +230,14 @@ export class ProductService {
     return categories;
   }
 
-  async createCategory(name: string) {
+  async createCategory(name: string, imageUrl?: string | null) {
     const cleanName = cleanCategoryName(name);
     if (cleanName.length < 2) throw new BadRequestException('Category name must be at least 2 characters.');
+    const cleanImageUrl = cleanCategoryImageUrl(imageUrl);
     try {
       const lastCategory = await prisma.category.aggregate({ _max: { sortOrder: true } });
-      const category = await prisma.category.create({ data: { name: cleanName, sortOrder: (lastCategory._max.sortOrder || 0) + 1 } });
-      await this.cacheManager.del('all_categories');
+      const category = await prisma.category.create({ data: { name: cleanName, imageUrl: cleanImageUrl, sortOrder: (lastCategory._max.sortOrder || 0) + 1 } });
+      await this.cacheManager.del('all_categories:v2');
       await this.clearProductCache();
       return category;
     } catch (error: any) {
@@ -238,13 +248,14 @@ export class ProductService {
     }
   }
 
-  async updateCategory(id: string, name: string) {
+  async updateCategory(id: string, name: string, imageUrl?: string | null) {
     const cleanName = cleanCategoryName(name);
     if (cleanName.length < 2) throw new BadRequestException('Category name must be at least 2 characters.');
+    const cleanImageUrl = imageUrl === undefined ? undefined : cleanCategoryImageUrl(imageUrl);
     const existing = await prisma.category.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Category not found');
-    const updated = await prisma.category.update({ where: { id }, data: { name: cleanName } });
-    await this.cacheManager.del('all_categories');
+    const updated = await prisma.category.update({ where: { id }, data: { name: cleanName, ...(cleanImageUrl !== undefined ? { imageUrl: cleanImageUrl } : {}) } });
+    await this.cacheManager.del('all_categories:v2');
     await this.clearProductCache();
     return updated;
   }
@@ -254,7 +265,7 @@ export class ProductService {
     if (!existing) throw new NotFoundException('Category not found');
     if (existing._count.products > 0) throw new BadRequestException('Move or delete products in this category before deleting it.');
     const deleted = await prisma.category.delete({ where: { id } });
-    await this.cacheManager.del('all_categories');
+    await this.cacheManager.del('all_categories:v2');
     await this.clearProductCache();
     return deleted;
   }
@@ -265,7 +276,7 @@ export class ProductService {
     const count = await prisma.category.count({ where: { id: { in: uniqueIds } } });
     if (count !== uniqueIds.length) throw new BadRequestException('One or more categories do not exist.');
     await prisma.$transaction(uniqueIds.map((id, index) => prisma.category.update({ where: { id }, data: { sortOrder: index + 1 } })) as any);
-    await this.cacheManager.del('all_categories');
+    await this.cacheManager.del('all_categories:v2');
     await this.clearProductCache();
     return this.getCategories();
   }

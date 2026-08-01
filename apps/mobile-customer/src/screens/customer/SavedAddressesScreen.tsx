@@ -132,7 +132,7 @@ export const SavedAddressesScreen = () => {
                     <Text style={styles.addressText}>{item.city}, {item.state} {item.pincode}</Text>
                     <View style={styles.phoneRow}><Phone size={15} color="#64748B" /><Text style={styles.phoneText}>{item.phoneE164}</Text></View>
                   </View>
-                  <TouchableOpacity accessibilityLabel={`More options for ${item.label || 'address'}`}><MoreVertical size={21} color="#64748B" /></TouchableOpacity>
+                  <View accessibilityLabel={`Address actions for ${item.label || 'address'}`} accessibilityRole="image"><MoreVertical size={21} color="#64748B" /></View>
                 </View>
                 <View style={styles.actions}>
                   <TouchableOpacity style={styles.action} onPress={() => openProfileForm(item)}>

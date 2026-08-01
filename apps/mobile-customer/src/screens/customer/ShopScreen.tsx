@@ -34,6 +34,7 @@ import { normalizeShopSearch, SHOP_SEARCH_DEBOUNCE_MS } from '../../utils/shopSe
 import { CUSTOMER_ADDRESSES_QUERY_KEY } from '../../utils/addressQueries';
 
 const unavailable = (product: any) => product.availability?.inStock === false;
+const ALL_CATEGORY_IMAGE = require('../../assets/aagam-mark.png');
 type ProductSort = 'newest' | 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc';
 const sortLabels: Record<ProductSort, string> = {
   newest: 'Newest',
@@ -106,25 +107,28 @@ export const ShopScreen = () => {
       return Array.isArray(response.data) ? response.data : [];
     },
   });
-  const productsQuery = useQuery({
-    queryKey: ['products', debouncedQuery, categoryId, sort],
-    queryFn: async () => {
-      const response = await apiClient.get('/products', { params: { search: debouncedQuery || undefined, categoryId: categoryId || undefined, sort } });
-      const rows = Array.isArray(response.data) ? response.data : response.data?.items || [];
-      return [...rows].sort((left, right) => Number(unavailable(left)) - Number(unavailable(right)));
-    },
-    placeholderData: (previousData) => previousData,
-  });
-  const promotionsQuery = useQuery({
-    queryKey: ['promotions', 'active'],
-    queryFn: async () => normalizePromotionPlacements((await apiClient.get('/promotions/active')).data),
-  });
   const addressesQuery = useQuery({
     queryKey: CUSTOMER_ADDRESSES_QUERY_KEY,
     queryFn: async () => {
       const response = await apiClient.get('/customer/addresses');
       return Array.isArray(response.data) ? response.data : [];
     },
+  });
+  const defaultAddress = addressesQuery.data?.find((address: any) => address.isDefault) || addressesQuery.data?.[0];
+  const defaultAddressId = defaultAddress?.id || '';
+  const productsQuery = useQuery({
+    queryKey: ['products', debouncedQuery, categoryId, sort, defaultAddressId],
+    queryFn: async () => {
+      const response = await apiClient.get('/products', { params: { search: debouncedQuery || undefined, categoryId: categoryId || undefined, sort, addressId: defaultAddressId || undefined, includeAvailability: Boolean(defaultAddressId) } });
+      const rows = Array.isArray(response.data) ? response.data : response.data?.items || [];
+      const visibleRows = defaultAddressId ? rows.filter((row: any) => row.availability?.isVisible !== false) : rows;
+      return [...visibleRows].sort((left, right) => Number(unavailable(left)) - Number(unavailable(right)));
+    },
+    placeholderData: (previousData) => previousData,
+  });
+  const promotionsQuery = useQuery({
+    queryKey: ['promotions', 'active'],
+    queryFn: async () => normalizePromotionPlacements((await apiClient.get('/promotions/active')).data),
   });
 
   const categories = categoriesQuery.data || [];
@@ -139,7 +143,6 @@ export const ShopScreen = () => {
     });
     return fromProducts;
   }, [products]);
-  const defaultAddress = addressesQuery.data?.find((address: any) => address.isDefault) || addressesQuery.data?.[0];
   const homeMode = route.name === 'Home' && !debouncedQuery && !categoryId && sort === 'newest';
   const cycleSort = () => {
     const values: ProductSort[] = ['newest', 'price_asc', 'price_desc', 'name_asc', 'name_desc'];
@@ -165,11 +168,11 @@ export const ShopScreen = () => {
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.categoryRail}
       renderItem={({ item }) => {
-        const image = item.id ? categories.find((category: any) => category.id === item.id)?.imageUrl || categoryImages.get(item.id) : undefined;
+        const image = item.id ? categories.find((category: any) => category.id === item.id)?.imageUrl || categoryImages.get(item.id) : ALL_CATEGORY_IMAGE;
         return (
           <TouchableOpacity style={[styles.categoryTile, categoryId === item.id && styles.categoryTileActive]} onPress={() => setCategoryId(item.id)}>
             <View style={[styles.categoryImageWrap, categoryId === item.id && styles.categoryImageWrapActive]}>
-              {image ? <Image source={{ uri: image }} style={styles.categoryImage} resizeMode="contain" /> : <Grid2X2 size={26} color={categoryId === item.id ? '#FFFFFF' : '#0F766E'} />}
+              {typeof image === 'number' ? <Image source={image} style={styles.categoryImage} resizeMode="contain" /> : image ? <Image source={{ uri: image }} style={styles.categoryImage} resizeMode="contain" /> : <Grid2X2 size={26} color={categoryId === item.id ? '#FFFFFF' : '#0F766E'} />}
             </View>
             <Text style={[styles.categoryText, categoryId === item.id && styles.categoryTextActive]} numberOfLines={2}>{item.name}</Text>
           </TouchableOpacity>
@@ -199,12 +202,12 @@ export const ShopScreen = () => {
         </>
       )}
       {categoryRail}
-      <View style={styles.catalogTitleRow}><View><Text style={styles.title}>{homeMode ? 'Shop by category' : isCategoriesTab ? 'All products' : 'Shop products'}</Text>{!homeMode ? <Text style={styles.catalogSubtitle}>{products.length} products available near you</Text> : null}</View>{!homeMode ? <TouchableOpacity style={styles.sortButton} onPress={cycleSort} accessibilityLabel={`Sort products by ${sortLabels[sort]}`}><Text style={styles.sortText}>{sortLabels[sort]}</Text><ChevronDown size={15} color="#0F766E" /></TouchableOpacity> : null}</View>
+      <View style={styles.catalogTitleRow}><View><Text style={styles.title}>{homeMode ? 'Shop by category' : isCategoriesTab ? 'All products' : 'Shop products'}</Text>{!homeMode ? <Text style={styles.catalogSubtitle}>{defaultAddressId ? `${products.length} products available near you` : `${products.length} products in catalogue`}</Text> : null}{productsQuery.error && products.length > 0 ? <Text style={styles.inlineError}>Showing saved results · refresh failed</Text> : null}</View>{!homeMode ? <TouchableOpacity style={styles.sortButton} onPress={cycleSort} accessibilityLabel={`Sort products by ${sortLabels[sort]}`}><Text style={styles.sortText}>{sortLabels[sort]}</Text><ChevronDown size={15} color="#0F766E" /></TouchableOpacity> : null}</View>
     </View>
   );
 
   if (productsQuery.isLoading) return <View style={styles.screen}><View style={styles.searchContent}>{searchInput}</View><View style={styles.center}><ActivityIndicator size="large" color="#0F766E" /></View></View>;
-  if (productsQuery.error) return <View style={styles.screen}><View style={styles.searchContent}>{searchInput}</View><View style={styles.center}><Text style={styles.error}>Failed to load products.</Text><TouchableOpacity style={styles.retry} onPress={() => productsQuery.refetch()}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View></View>;
+  if (productsQuery.error && products.length === 0) return <View style={styles.screen}><View style={styles.searchContent}>{searchInput}</View><View style={styles.center}><Text style={styles.error}>Failed to load products.</Text><TouchableOpacity style={styles.retry} onPress={() => productsQuery.refetch()}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View></View>;
   if (homeMode) {
     return <View style={styles.screen}><View style={styles.searchContent}>{searchInput}</View><FlatList key="home-categories" style={styles.list} data={sections} keyExtractor={(section) => section.category.id} ListHeaderComponent={header} contentContainerStyle={styles.content} refreshing={productsQuery.isRefetching || promotionsQuery.isRefetching} onRefresh={refresh} renderItem={({ item: section }) => <View style={styles.section}><View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>{section.category.name}</Text><Text style={styles.sectionSubtitle}>Popular picks in {section.category.name}</Text></View><TouchableOpacity style={styles.viewAll} onPress={() => setCategoryId(section.category.id)}><Text style={styles.link}>View all</Text><ArrowRight size={14} color="#0F766E" /></TouchableOpacity></View><FlatList horizontal data={section.products.slice(0, 8)} keyExtractor={(product) => product.id} showsHorizontalScrollIndicator={false} renderItem={({ item }) => <ProductCard product={item} compact quantity={getProductCartQuantity(items, item.id)} onOpen={() => navigation.navigate('ProductDetail', { productId: item.id })} onAdd={() => addItem(item)} />} /></View>} ListEmptyComponent={<View style={styles.empty}><Text style={styles.sectionTitle}>No category products yet</Text></View>} /></View>;
   }
@@ -216,6 +219,6 @@ const styles = StyleSheet.create({
   brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 }, headerActions: { flexDirection: 'row', alignItems: 'center', gap: 9 }, iconButton: { width: 46, height: 46, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DDE7EA', alignItems: 'center', justifyContent: 'center' }, cartButton: { position: 'relative', width: 48, height: 48, borderRadius: 17, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, cartBadge: { position: 'absolute', right: -4, top: -4, minWidth: 21, height: 21, borderRadius: 11, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }, cartBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
   locationCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDFA', borderRadius: 20, padding: 12, gap: 10, marginBottom: 15 }, locationIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' }, locationCopy: { flex: 1 }, greeting: { color: '#0F172A', fontSize: 12, fontWeight: '700' }, delivering: { marginTop: 4, color: '#475569', fontSize: 12, fontWeight: '700' }, deliveringStrong: { color: '#0F766E', fontWeight: '900' },
   catalogHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 12 }, backButton: { width: 48, height: 48, borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }, catalogTitle: { flex: 1, color: '#0F172A', fontSize: 25, fontWeight: '900' },
-  offerBlock: { marginTop: 18 }, headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }, headingCopy: { flexDirection: 'row', alignItems: 'center', gap: 7 }, smallHeading: { color: '#0F172A', fontWeight: '900', textTransform: 'uppercase' }, linkRow: { flexDirection: 'row', alignItems: 'center', gap: 3 }, link: { color: '#0F766E', fontWeight: '900', fontSize: 12 }, searchWrap: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 54, paddingHorizontal: 15, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF' }, search: { flex: 1, color: '#0F172A', fontSize: 14, fontWeight: '600', paddingVertical: 0 }, categoryRail: { paddingVertical: 14, gap: 10 }, categoryTile: { width: 83, alignItems: 'center', gap: 6 }, categoryTileActive: { transform: [{ scale: 1.02 }] }, categoryImageWrap: { width: 66, height: 66, borderRadius: 22, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }, categoryImageWrapActive: { borderColor: '#0F766E', backgroundColor: '#0F766E' }, categoryImage: { width: 54, height: 54 }, categoryText: { color: '#334155', fontSize: 11, lineHeight: 14, fontWeight: '800', textAlign: 'center' }, categoryTextActive: { color: '#0F766E' }, catalogTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }, title: { color: '#0F172A', fontSize: 21, fontWeight: '900' }, catalogSubtitle: { marginTop: 3, color: '#64748B', fontSize: 12, fontWeight: '700' }, sortButton: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: '#E6FFFA', paddingHorizontal: 12, paddingVertical: 8 }, sortText: { color: '#0F766E', fontSize: 12, fontWeight: '900' },
+  offerBlock: { marginTop: 18 }, headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }, headingCopy: { flexDirection: 'row', alignItems: 'center', gap: 7 }, smallHeading: { color: '#0F172A', fontWeight: '900', textTransform: 'uppercase' }, linkRow: { flexDirection: 'row', alignItems: 'center', gap: 3 }, link: { color: '#0F766E', fontWeight: '900', fontSize: 12 }, searchWrap: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 54, paddingHorizontal: 15, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF' }, search: { flex: 1, color: '#0F172A', fontSize: 14, fontWeight: '600', paddingVertical: 0 }, categoryRail: { paddingVertical: 14, gap: 10 }, categoryTile: { width: 83, alignItems: 'center', gap: 6 }, categoryTileActive: { transform: [{ scale: 1.02 }] }, categoryImageWrap: { width: 66, height: 66, borderRadius: 22, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }, categoryImageWrapActive: { borderColor: '#0F766E', backgroundColor: '#0F766E' }, categoryImage: { width: 54, height: 54 }, categoryText: { color: '#334155', fontSize: 11, lineHeight: 14, fontWeight: '800', textAlign: 'center' }, categoryTextActive: { color: '#0F766E' }, catalogTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }, title: { color: '#0F172A', fontSize: 21, fontWeight: '900' }, catalogSubtitle: { marginTop: 3, color: '#64748B', fontSize: 12, fontWeight: '700' }, inlineError: { marginTop: 3, color: '#B45309', fontSize: 11, fontWeight: '800' }, sortButton: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: '#E6FFFA', paddingHorizontal: 12, paddingVertical: 8 }, sortText: { color: '#0F766E', fontSize: 12, fontWeight: '900' },
   section: { marginBottom: 24 }, sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 }, sectionTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900' }, sectionSubtitle: { marginTop: 3, color: '#64748B', fontSize: 12, fontWeight: '600' }, viewAll: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: '#E6FFFA', paddingHorizontal: 11, paddingVertical: 8 }, columns: { gap: 12 }, card: { flex: 1, marginBottom: 14, borderRadius: 20, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' }, cardCompact: { flex: 0, width: 168, marginRight: 12 }, disabled: { opacity: 0.62 }, imageWrap: { position: 'relative', height: 132, backgroundColor: '#FFFFFF' }, productImage: { width: '100%', height: '100%' }, discount: { position: 'absolute', left: 8, top: 8, overflow: 'hidden', borderRadius: 9, backgroundColor: '#0F766E', color: '#FFFFFF', paddingHorizontal: 7, paddingVertical: 5, fontSize: 10, fontWeight: '900' }, inCart: { position: 'absolute', right: 8, top: 8, borderRadius: 999, backgroundColor: '#E6FFFA', paddingHorizontal: 7, paddingVertical: 5 }, inCartText: { color: '#0F766E', fontSize: 9, fontWeight: '900' }, cardBody: { padding: 11 }, productName: { minHeight: 38, color: '#0F172A', fontSize: 14, lineHeight: 19, fontWeight: '900' }, measure: { marginTop: 3, color: '#64748B', fontSize: 11, fontWeight: '700' }, ratingPill: { alignSelf: 'flex-start', marginTop: 7, borderRadius: 7, backgroundColor: '#E6FFFA', paddingHorizontal: 7, paddingVertical: 3 }, ratingText: { color: '#115E59', fontSize: 10, fontWeight: '900' }, cardFooter: { marginTop: 10, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6 }, priceRow: { flexDirection: 'row', alignItems: 'center', gap: 7 }, price: { color: '#0F172A', fontSize: 16, fontWeight: '900' }, mrp: { color: '#94A3B8', fontSize: 11, textDecorationLine: 'line-through', fontWeight: '700' }, stock: { marginTop: 3, color: '#0F766E', fontSize: 10, fontWeight: '800' }, out: { marginTop: 3, color: '#DC2626', fontSize: 10, fontWeight: '800' }, add: { width: 39, height: 39, borderRadius: 20, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' }, addDisabled: { backgroundColor: '#94A3B8' }, retry: { marginTop: 12, borderRadius: 999, backgroundColor: '#0F766E', paddingHorizontal: 16, paddingVertical: 10 }, retryText: { color: '#FFFFFF', fontWeight: '900' }, error: { color: '#B91C1C', fontWeight: '800' }, empty: { alignItems: 'center', paddingVertical: 50 },
 });

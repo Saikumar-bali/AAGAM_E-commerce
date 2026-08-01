@@ -9,8 +9,9 @@ describe('ShopScreen search and category lifecycle', () => {
     expect(source).toMatch(
       /setTimeout\(\(\) => setDebouncedQuery\(normalizeShopSearch\(query\)\), SHOP_SEARCH_DEBOUNCE_MS\)/,
     );
-    expect(source).toMatch(/queryKey: \['products', debouncedQuery, categoryId, sort\]/);
+    expect(source).toMatch(/queryKey: \['products', debouncedQuery, categoryId, sort, defaultAddressId\]/);
     expect(source).toMatch(/search: debouncedQuery \|\| undefined/);
+    expect(source).toMatch(/addressId: defaultAddressId \|\| undefined/);
     expect(source).toMatch(/sort/);
   });
 

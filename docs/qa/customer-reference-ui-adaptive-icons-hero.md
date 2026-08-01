@@ -1,4 +1,4 @@
-# Customer reference UI, adaptive icons, and hero campaign proof
+# Customer reference UI, dynamic category artwork, adaptive icons, and hero campaign proof
 
 ## Scope
 
@@ -13,6 +13,18 @@ The bottom navigation is shared by the main tabs and the stack screens that cust
 5. Profile — live profile, order/alert counts, account actions, and saved-address entry point.
 
 Product details, checkout, alerts, support, deals, order detail, and saved addresses retain the same navigation bar through the shared stack wrapper. No screen adds hardcoded product, order, address, or promotion records.
+
+## Dynamic category artwork
+
+Category artwork is now a first-class catalog field rather than a mobile-only fallback:
+
+- `Category.imageUrl` is nullable and added by the Prisma migration `20260801090000_category_images`.
+- `GET /products/categories` returns the stored artwork URL.
+- Admin category create/update accepts only `name` and `imageUrl`; image URLs must be public HTTP(S) URLs.
+- Admin uploads use the existing `/upload/image` storage flow and validate JPEG, PNG, or WebP under 3MB.
+- The customer app renders the uploaded category artwork. The **All** tile uses the bundled Aagaam mark, and is not a database category.
+
+To configure this after the PR is merged, open **Catalog → Product Catalog → Manage Categories**, upload one square image per category, save, and drag categories into the required order. Product images, prices/MRP, active visibility, and store inventory remain configured from the existing Product Catalog and Store Inventory controls.
 
 ## Icon fix
 
@@ -40,6 +52,8 @@ From the admin portal:
 
 The customer app reads `/promotions/active`, filters the server-approved `HOME_HERO` placement, uses the mobile creative when present, and keeps the banner click destination from the campaign record. If the hero does not appear, verify placement, status, schedule, image URL, and the public campaign response before changing mobile code.
 
+Draft saves are explicitly reported as drafts, scheduled campaigns as scheduled, and active campaigns as published. A draft may be saved without a hero image so the Admin can finish it later; an active or scheduled Home Hero still requires finished artwork.
+
 ## Required proof for the PR
 
 - Customer typecheck and Jest suites.
@@ -59,7 +73,9 @@ The customer app reads `/promotions/active`, filters the server-approved `HOME_H
 - `git diff --check` — passed.
 - Android debug builds — not runnable in this checkout because neither Android app includes a `gradlew` wrapper; the PR workflow remains the authoritative APK check.
 - Customer and partner lint — blocked by the existing lack of an ESLint configuration in those app packages.
-- API integration tests — require the repository’s configured `DATABASE_URL`; no database credentials were added or logged.
+- API category contract — passed (6 tests, including category artwork persistence/upload/rendering contract).
+- Prisma validation — passed with a non-secret local dummy `DATABASE_URL`; no database credentials were added or logged.
+- API integration tests — still require the repository’s configured `DATABASE_URL`; no database credentials were added or logged.
 
 ## Known limitation
 

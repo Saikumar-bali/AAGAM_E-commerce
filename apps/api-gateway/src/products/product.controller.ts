@@ -25,8 +25,8 @@ export class ProductController {
   @Post('categories')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  async createCategory(@Body('name') name: string) {
-    return this.productService.createCategory(name);
+  async createCategory(@Body() data: { name?: string; imageUrl?: string | null }) {
+    return this.productService.createCategory(data?.name || '', data?.imageUrl);
   }
 
   @Patch('categories/reorder')
@@ -39,8 +39,8 @@ export class ProductController {
   @Patch('categories/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  async updateCategory(@Param('id') id: string, @Body('name') name: string) {
-    return this.productService.updateCategory(id, name);
+  async updateCategory(@Param('id') id: string, @Body() data: { name?: string; imageUrl?: string | null }) {
+    return this.productService.updateCategory(id, data?.name || '', data?.imageUrl);
   }
 
   @Delete('categories/:id')

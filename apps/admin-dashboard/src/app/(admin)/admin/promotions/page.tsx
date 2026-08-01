@@ -423,7 +423,18 @@ export default function AdminPromotionsPage() {
         );
       else await apiClient.post("/admin/promotions/campaigns", payload);
       setCampaignDialog(false);
-      setMessage(editingCampaignId ? "Campaign updated." : "Hero campaign published.");
+      const campaignStatus = campaignForm.status;
+      setMessage(
+        editingCampaignId
+          ? campaignStatus === "DRAFT"
+            ? "Campaign draft saved."
+            : "Campaign updated."
+          : campaignStatus === "DRAFT"
+            ? "Hero campaign draft saved."
+            : campaignStatus === "SCHEDULED"
+              ? "Hero campaign scheduled."
+              : "Hero campaign published."
+      );
       await load();
     } catch (requestError: any) {
       setError(
