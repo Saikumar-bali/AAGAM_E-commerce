@@ -20,7 +20,7 @@ export class UpdateAddressDto {
   @IsOptional()
   @IsString()
   @Matches(/^(\+?[1-9]\d{7,14}|\d{10})$/)
-  alternatePhoneE164?: string;
+  alternatePhoneE164?: string | null;
 
   @IsOptional()
   @IsString()

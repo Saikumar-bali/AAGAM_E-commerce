@@ -44,17 +44,18 @@ const sortLabels: Record<ProductSort, string> = {
   name_desc: 'Name: Z–A',
 };
 
-const ProductCard = ({ product, compact, quantity, onOpen, onAdd }: any) => {
+const ProductCard = ({ product, compact, quantity, onOpen, onAdd, catalogReady = true }: any) => {
   const inStock = !unavailable(product);
+  const canUseProduct = catalogReady && inStock;
   const sellingPrice = Number(product.price || 0);
   const mrp = getProductMrp(product);
   const discount = mrp > sellingPrice ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0;
   return (
     <TouchableOpacity
       testID="shop_product_card"
-      style={[styles.card, compact && styles.cardCompact, !inStock && styles.disabled]}
-      disabled={!inStock}
-      onPress={onOpen}
+      style={[styles.card, compact && styles.cardCompact, !canUseProduct && styles.disabled]}
+      disabled={!canUseProduct}
+      onPress={canUseProduct ? onOpen : undefined}
       activeOpacity={0.92}
     >
       <View style={styles.imageWrap}>
@@ -69,9 +70,9 @@ const ProductCard = ({ product, compact, quantity, onOpen, onAdd }: any) => {
         <View style={styles.cardFooter}>
           <View>
             <View style={styles.priceRow}><Text style={styles.price}>₹{sellingPrice}</Text>{discount > 0 ? <Text style={styles.mrp}>₹{mrp}</Text> : null}</View>
-            <Text style={inStock ? styles.stock : styles.out}>{inStock ? 'In stock' : 'Unavailable'}</Text>
+            <Text style={canUseProduct ? styles.stock : styles.out}>{!catalogReady ? 'Availability updating' : inStock ? 'In stock' : 'Unavailable'}</Text>
           </View>
-          <TouchableOpacity testID="shop_product_add_button" accessibilityLabel={`Add ${product.name} to cart`} style={[styles.add, !inStock && styles.addDisabled]} disabled={!inStock} onPress={(event) => { event.stopPropagation(); onAdd(); }}>
+          <TouchableOpacity testID="shop_product_add_button" accessibilityLabel={`Add ${product.name} to cart`} style={[styles.add, !canUseProduct && styles.addDisabled]} disabled={!canUseProduct} onPress={(event) => { event.stopPropagation(); onAdd(); }}>
             <Plus size={21} color="#FFFFFF" strokeWidth={2.8} />
           </TouchableOpacity>
         </View>
@@ -132,13 +133,17 @@ export const ShopScreen = () => {
   });
 
   const categories = categoriesQuery.data || [];
-  const [lastSuccessfulProducts, setLastSuccessfulProducts] = React.useState<any[]>([]);
+  const [lastSuccessfulCatalog, setLastSuccessfulCatalog] = React.useState<{ addressId: string; rows: any[] } | null>(null);
   React.useEffect(() => {
-    if (Array.isArray(productsQuery.data)) setLastSuccessfulProducts(productsQuery.data);
-  }, [productsQuery.data]);
-  const products = Array.isArray(productsQuery.data) ? productsQuery.data : lastSuccessfulProducts;
+    if (Array.isArray(productsQuery.data) && !productsQuery.isFetching && !productsQuery.error) {
+      setLastSuccessfulCatalog({ addressId: defaultAddressId, rows: productsQuery.data });
+    }
+  }, [defaultAddressId, productsQuery.data, productsQuery.error, productsQuery.isFetching]);
+  const currentCatalog = Array.isArray(productsQuery.data) && !productsQuery.isFetching && !productsQuery.error ? productsQuery.data : null;
+  const products = currentCatalog || lastSuccessfulCatalog?.rows || [];
+  const catalogReady = !defaultAddressId || Boolean(currentCatalog && lastSuccessfulCatalog?.addressId === defaultAddressId);
   const availableProductCount = defaultAddressId
-    ? products.filter((product: any) => product.availability?.inStock === true).length
+    ? catalogReady ? products.filter((product: any) => product.availability?.inStock === true).length : 0
     : products.length;
   const sections = useMemo(() => groupProductsByCategory(categories, products), [categories, products]);
   const categoryPills = useMemo(() => [{ id: '', name: 'All' }, ...categories], [categories]);
@@ -209,16 +214,16 @@ export const ShopScreen = () => {
         </>
       )}
       {categoryRail}
-      <View style={styles.catalogTitleRow}><View><Text style={styles.title}>{homeMode ? 'Shop by category' : isCategoriesTab ? 'All products' : 'Shop products'}</Text>{!homeMode ? <Text style={styles.catalogSubtitle}>{defaultAddressId ? `${availableProductCount} products available near you` : `${products.length} products in catalogue`}</Text> : null}{productsQuery.error && products.length > 0 ? <Text style={styles.inlineError}>Showing saved results · refresh failed</Text> : null}</View>{!homeMode ? <TouchableOpacity style={styles.sortButton} onPress={cycleSort} accessibilityLabel={`Sort products by ${sortLabels[sort]}`}><Text style={styles.sortText}>{sortLabels[sort]}</Text><ChevronDown size={15} color="#0F766E" /></TouchableOpacity> : null}</View>
+      <View style={styles.catalogTitleRow}><View><Text style={styles.title}>{homeMode ? 'Shop by category' : isCategoriesTab ? 'All products' : 'Shop products'}</Text>{!homeMode ? <Text style={styles.catalogSubtitle}>{defaultAddressId ? catalogReady ? `${availableProductCount} products available near you` : 'Availability updating for this address' : `${products.length} products in catalogue`}</Text> : null}{productsQuery.error && products.length > 0 ? <Text style={styles.inlineError}>Showing saved results · refresh failed</Text> : null}</View>{!homeMode ? <TouchableOpacity style={styles.sortButton} onPress={cycleSort} accessibilityLabel={`Sort products by ${sortLabels[sort]}`}><Text style={styles.sortText}>{sortLabels[sort]}</Text><ChevronDown size={15} color="#0F766E" /></TouchableOpacity> : null}</View>
     </View>
   );
 
   if (productsQuery.isLoading) return <View style={styles.screen}><View style={styles.searchContent}>{searchInput}</View><View style={styles.center}><ActivityIndicator size="large" color="#0F766E" /></View></View>;
   if (productsQuery.error && products.length === 0) return <View style={styles.screen}><View style={styles.searchContent}>{searchInput}</View><View style={styles.center}><Text style={styles.error}>Failed to load products.</Text><TouchableOpacity style={styles.retry} onPress={() => productsQuery.refetch()}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View></View>;
   if (homeMode) {
-    return <View style={styles.screen}><View style={styles.searchContent}>{searchInput}</View><FlatList key="home-categories" style={styles.list} data={sections} keyExtractor={(section) => section.category.id} ListHeaderComponent={header} contentContainerStyle={styles.content} refreshing={productsQuery.isRefetching || promotionsQuery.isRefetching} onRefresh={refresh} renderItem={({ item: section }) => <View style={styles.section}><View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>{section.category.name}</Text><Text style={styles.sectionSubtitle}>Popular picks in {section.category.name}</Text></View><TouchableOpacity style={styles.viewAll} onPress={() => setCategoryId(section.category.id)}><Text style={styles.link}>View all</Text><ArrowRight size={14} color="#0F766E" /></TouchableOpacity></View><FlatList horizontal data={section.products.slice(0, 8)} keyExtractor={(product) => product.id} showsHorizontalScrollIndicator={false} renderItem={({ item }) => <ProductCard product={item} compact quantity={getProductCartQuantity(items, item.id)} onOpen={() => navigation.navigate('ProductDetail', { productId: item.id })} onAdd={() => addItem(item)} />} /></View>} ListEmptyComponent={<View style={styles.empty}><Text style={styles.sectionTitle}>No category products yet</Text></View>} /></View>;
+    return <View style={styles.screen}><View style={styles.searchContent}>{searchInput}</View><FlatList key="home-categories" style={styles.list} data={sections} keyExtractor={(section) => section.category.id} ListHeaderComponent={header} contentContainerStyle={styles.content} refreshing={productsQuery.isRefetching || promotionsQuery.isRefetching} onRefresh={refresh} renderItem={({ item: section }) => <View style={styles.section}><View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>{section.category.name}</Text><Text style={styles.sectionSubtitle}>Popular picks in {section.category.name}</Text></View><TouchableOpacity style={styles.viewAll} onPress={() => setCategoryId(section.category.id)}><Text style={styles.link}>View all</Text><ArrowRight size={14} color="#0F766E" /></TouchableOpacity></View><FlatList horizontal data={section.products.slice(0, 8)} keyExtractor={(product) => product.id} showsHorizontalScrollIndicator={false} renderItem={({ item }) => <ProductCard product={item} compact catalogReady={catalogReady} quantity={getProductCartQuantity(items, item.id)} onOpen={() => navigation.navigate('ProductDetail', { productId: item.id })} onAdd={() => addItem(item)} />} /></View>} ListEmptyComponent={<View style={styles.empty}><Text style={styles.sectionTitle}>No category products yet</Text></View>} /></View>;
   }
-  return <View style={styles.screen}><View style={styles.searchContent}>{searchInput}</View><FlatList key="product-grid" style={styles.list} data={products} numColumns={2} columnWrapperStyle={styles.columns} keyExtractor={(item) => item.id} ListHeaderComponent={header} contentContainerStyle={styles.content} refreshing={productsQuery.isRefetching || promotionsQuery.isRefetching} onRefresh={refresh} renderItem={({ item }) => <ProductCard product={item} quantity={getProductCartQuantity(items, item.id)} onOpen={() => navigation.navigate('ProductDetail', { productId: item.id })} onAdd={() => addItem(item)} />} ListEmptyComponent={<View style={styles.empty}><Text style={styles.sectionTitle}>No products found</Text><Text style={styles.sectionSubtitle}>Try another category or search term.</Text></View>} /></View>;
+  return <View style={styles.screen}><View style={styles.searchContent}>{searchInput}</View><FlatList key="product-grid" style={styles.list} data={products} numColumns={2} columnWrapperStyle={styles.columns} keyExtractor={(item) => item.id} ListHeaderComponent={header} contentContainerStyle={styles.content} refreshing={productsQuery.isRefetching || promotionsQuery.isRefetching} onRefresh={refresh} renderItem={({ item }) => <ProductCard product={item} catalogReady={catalogReady} quantity={getProductCartQuantity(items, item.id)} onOpen={() => navigation.navigate('ProductDetail', { productId: item.id })} onAdd={() => addItem(item)} />} ListEmptyComponent={<View style={styles.empty}><Text style={styles.sectionTitle}>No products found</Text><Text style={styles.sectionSubtitle}>Try another category or search term.</Text></View>} /></View>;
 };
 
 const styles = StyleSheet.create({

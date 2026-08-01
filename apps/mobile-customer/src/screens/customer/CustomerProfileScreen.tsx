@@ -129,7 +129,11 @@ export const CustomerProfileScreen = () => {
       const { alternatePhoneE164, ...draftWithoutAlternatePhone } = draft;
       const payload = {
         ...draftWithoutAlternatePhone,
-        ...(alternatePhoneE164.trim() ? { alternatePhoneE164: alternatePhoneE164.trim() } : {}),
+        ...(editingAddressId
+          ? { alternatePhoneE164: alternatePhoneE164.trim() || null }
+          : alternatePhoneE164.trim()
+            ? { alternatePhoneE164: alternatePhoneE164.trim() }
+            : {}),
         latitude: Number(draft.latitude),
         longitude: Number(draft.longitude),
       };

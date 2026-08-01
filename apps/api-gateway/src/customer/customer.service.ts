@@ -78,7 +78,7 @@ export class CustomerService {
     const phoneE164 = dto.phoneE164 ? normalizePhoneE164(dto.phoneE164) : undefined;
     const alternatePhoneE164 = dto.alternatePhoneE164
       ? normalizePhoneE164(dto.alternatePhoneE164)
-      : dto.alternatePhoneE164 === ''
+      : dto.alternatePhoneE164 === '' || dto.alternatePhoneE164 === null
         ? null
         : undefined;
 

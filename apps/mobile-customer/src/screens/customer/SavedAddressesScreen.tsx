@@ -35,7 +35,7 @@ const iconFor = (label?: string) => {
 export const SavedAddressesScreen = () => {
   const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
-  const { data: addresses = [], isLoading, refetch } = useQuery({
+  const { data: addresses = [], isLoading, isError, refetch } = useQuery({
     queryKey: CUSTOMER_ADDRESSES_QUERY_KEY,
     queryFn: async () => {
       const response = await apiClient.get('/customer/addresses');
@@ -99,13 +99,22 @@ export const SavedAddressesScreen = () => {
         </View>
       ) : null}
 
-      {isLoading ? <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View> : (
+      {isLoading && addresses.length === 0 ? <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View> : isError && addresses.length === 0 ? (
+        <View style={styles.errorState}>
+          <Text style={styles.errorTitle}>Unable to load saved addresses</Text>
+          <Text style={styles.errorText}>Your saved addresses were not changed. Try again when you have a connection.</Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => void refetch()}>
+            <Text style={styles.primaryButtonText}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
         <FlatList
           data={addresses}
           keyExtractor={(item: any) => item.id}
           contentContainerStyle={styles.list}
           refreshing={false}
           onRefresh={() => void refetch()}
+          ListHeaderComponent={isError ? <View style={styles.errorBanner}><Text style={styles.errorBannerText}>Could not refresh addresses. Showing the last saved results.</Text><TouchableOpacity onPress={() => void refetch()}><Text style={styles.errorRetry}>Retry</Text></TouchableOpacity></View> : null}
           ListEmptyComponent={(
             <View style={styles.empty}>
               <View style={styles.emptyIcon}><MapPin size={30} color="#0F766E" /></View>
@@ -169,5 +178,5 @@ const styles = StyleSheet.create({
   addressCard: { marginBottom: 14, borderRadius: 24, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' },
   addressBody: { flexDirection: 'row', alignItems: 'flex-start', padding: 16, gap: 12 }, addressIcon: { width: 58, height: 58, borderRadius: 18, backgroundColor: '#E6FFFA', alignItems: 'center', justifyContent: 'center' }, addressCopy: { flex: 1 }, addressTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 }, addressTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900' }, defaultBadge: { color: '#0F766E', backgroundColor: '#E6FFFA', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, fontSize: 10, fontWeight: '900' }, addressText: { marginTop: 5, color: '#64748B', fontSize: 13, lineHeight: 19, fontWeight: '600' }, phoneRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }, phoneText: { color: '#475569', fontWeight: '700', fontSize: 12 },
   actions: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingHorizontal: 12, paddingVertical: 10, gap: 10 }, action: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 38 }, actionText: { color: '#0F766E', fontWeight: '900' }, deleteText: { color: '#DC2626' }, deliverButton: { minWidth: 126, alignItems: 'center', borderRadius: 999, borderWidth: 1.5, borderColor: '#0F766E', paddingHorizontal: 14, paddingVertical: 10 }, deliverButtonActive: { backgroundColor: '#0F766E' }, deliverText: { color: '#0F766E', fontWeight: '900' }, deliverTextActive: { color: '#FFFFFF' },
-  empty: { marginTop: 18, alignItems: 'center', borderRadius: 24, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#99F6E4', backgroundColor: '#FFFFFF', padding: 28 }, emptyIcon: { width: 68, height: 68, borderRadius: 22, backgroundColor: '#E6FFFA', alignItems: 'center', justifyContent: 'center' }, emptyTitle: { marginTop: 14, color: '#0F172A', fontSize: 18, fontWeight: '900' }, emptyText: { marginTop: 6, color: '#64748B', lineHeight: 20, textAlign: 'center', fontWeight: '600' }, primaryButton: { marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 15, backgroundColor: '#0F766E', paddingHorizontal: 17, paddingVertical: 12 }, primaryButtonText: { color: '#FFFFFF', fontWeight: '900' },
+  empty: { marginTop: 18, alignItems: 'center', borderRadius: 24, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#99F6E4', backgroundColor: '#FFFFFF', padding: 28 }, emptyIcon: { width: 68, height: 68, borderRadius: 22, backgroundColor: '#E6FFFA', alignItems: 'center', justifyContent: 'center' }, emptyTitle: { marginTop: 14, color: '#0F172A', fontSize: 18, fontWeight: '900' }, emptyText: { marginTop: 6, color: '#64748B', lineHeight: 20, textAlign: 'center', fontWeight: '600' }, errorState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }, errorTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', textAlign: 'center' }, errorText: { marginTop: 8, color: '#64748B', lineHeight: 20, textAlign: 'center', fontWeight: '600' }, errorBanner: { marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, backgroundColor: '#FFF7ED', padding: 12 }, errorBannerText: { flex: 1, color: '#9A3412', fontSize: 12, fontWeight: '700' }, errorRetry: { color: '#9A3412', fontSize: 12, fontWeight: '900' }, primaryButton: { marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 15, backgroundColor: '#0F766E', paddingHorizontal: 17, paddingVertical: 12 }, primaryButtonText: { color: '#FFFFFF', fontWeight: '900' },
 });

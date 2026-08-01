@@ -23,8 +23,9 @@ describe('ShopScreen search and category lifecycle', () => {
     expect(source).toMatch(/<View style=\{styles\.searchContent\}>\{searchInput\}<\/View>/);
     expect(source).toMatch(/ListHeaderComponent=\{header\}/);
     expect(source).toMatch(/placeholderData: \(previousData\) => previousData/);
-    expect(source).toMatch(/const \[lastSuccessfulProducts, setLastSuccessfulProducts\]/);
-    expect(source).toMatch(/Array\.isArray\(productsQuery\.data\) \? productsQuery\.data : lastSuccessfulProducts/);
+    expect(source).toMatch(/const \[lastSuccessfulCatalog, setLastSuccessfulCatalog\]/);
+    expect(source).toMatch(/lastSuccessfulCatalog\?\.rows/);
+    expect(source).toMatch(/lastSuccessfulCatalog\?\.addressId === defaultAddressId/);
     expect(source).toMatch(/onPress=\{cycleSort\}/);
   });
 });

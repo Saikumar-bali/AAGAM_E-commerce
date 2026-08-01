@@ -37,17 +37,19 @@ export const ProductDetailScreen = () => {
   const productId = route.params?.productId;
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
-  const { data: addresses = [] } = useQuery({
+  const addressesQuery = useQuery({
     queryKey: CUSTOMER_ADDRESSES_QUERY_KEY,
     queryFn: async () => (await apiClient.get('/customer/addresses')).data || [],
   });
+  const addresses = addressesQuery.data || [];
   const defaultAddress = addresses.find((address: any) => address.isDefault) || addresses[0];
   const defaultAddressId = defaultAddress?.id || '';
+  const addressQueryReady = addressesQuery.isFetched;
 
   const { data: product, isLoading, error } = useQuery({
     queryKey: ['product', productId, defaultAddressId],
     queryFn: async () => (await apiClient.get(`/products/${productId}`, { params: { addressId: defaultAddressId || undefined, includeAvailability: Boolean(defaultAddressId) } })).data,
-    enabled: Boolean(productId),
+    enabled: Boolean(productId) && addressQueryReady && !addressesQuery.isError,
   });
   const { data: related = [] } = useQuery({
     queryKey: ['related-products', product?.categoryId || product?.category?.id, productId, defaultAddressId],
@@ -56,7 +58,7 @@ export const ProductDetailScreen = () => {
       const rows = Array.isArray(response.data) ? response.data : response.data?.items || [];
       return rows.filter((item: any) => item.id !== productId).slice(0, 6);
     },
-    enabled: Boolean(product?.categoryId || product?.category?.id),
+    enabled: Boolean(product?.categoryId || product?.category?.id) && addressQueryReady && !addressesQuery.isError,
   });
 
   const fallbackImage = product ? getProductImage(product) : '';
@@ -65,7 +67,8 @@ export const ProductDetailScreen = () => {
   const totalItemCount = getCartItemCount(items);
   const cartTotal = getCartTotal(items);
 
-  if (isLoading) return <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View>;
+  if (addressesQuery.isLoading || isLoading) return <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View>;
+  if (addressesQuery.isError) return <View style={styles.centered}><Text style={styles.errorText}>Unable to load delivery availability.</Text><TouchableOpacity onPress={() => void addressesQuery.refetch()}><Text style={styles.backText}>Try again</Text></TouchableOpacity></View>;
   if (error || !product) return <View style={styles.centered}><Text style={styles.errorText}>Unable to load product details.</Text><TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.backText}>Go back</Text></TouchableOpacity></View>;
 
   const inStock = product.availability?.inStock ?? true;
