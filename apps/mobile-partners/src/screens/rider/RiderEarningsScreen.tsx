@@ -130,7 +130,7 @@ const StatusScreen = ({
 export const RiderEarningsScreen = () => {
   const query = useQuery<RiderWorkspace>({
     queryKey: HISTORY_QUERY_KEY,
-    queryFn: () => riderService.getWorkspace({ historyFrom: earningsHistoryFrom() }),
+    queryFn: () => riderService.getWorkspaceSince(earningsHistoryFrom()),
   });
   const summary = useMemo(
     () => summarize(query.data?.assignmentHistory || []),
