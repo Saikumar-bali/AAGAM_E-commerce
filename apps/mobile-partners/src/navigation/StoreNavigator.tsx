@@ -91,6 +91,11 @@ const StoreTabs = () => (
         tabBarIcon: ({ color, size, focused }) => <Ellipsis size={focused ? size + 3 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
       }}
     />
+    <Tab.Screen
+      name="StorePickupVerification"
+      component={StorePickupVerificationEntryScreen}
+      options={{ tabBarButton: () => null }}
+    />
   </Tab.Navigator>
 );
 
