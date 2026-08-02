@@ -51,6 +51,8 @@ export type RiderDeliveryJob = {
   version?: number;
   createdAt?: string;
   updatedAt?: string;
+  completedAt?: string | null;
+  riderPayoutAmount?: number | null;
   order: RiderOrder;
 };
 
@@ -64,6 +66,8 @@ export type RiderAssignmentOffer = {
   rejectionReason?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  payoutAmount?: number | null;
+  riderPayoutAmount?: number | null;
   deliveryJob: RiderDeliveryJob;
 };
 
