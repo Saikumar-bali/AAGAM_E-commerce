@@ -93,6 +93,7 @@ type TrackingDependencies = {
 
 const QUEUE_KEY = 'aagam:rider:location-queue:v1';
 const NATIVE_STATUS_POLL_MS = 5_000;
+const NATIVE_STARTUP_RETRY_MS = 1_000;
 
 function defaultId() {
   return `ping-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
@@ -109,6 +110,7 @@ export class RiderTrackingManager {
   private queue: QueuedLocationPing[] = [];
   private flushing = false;
   private pollingNativeStatus = false;
+  private nativeStartupPending = false;
   private listeners = new Set<(snapshot: TrackingSnapshot) => void>();
   private snapshot: TrackingSnapshot = {
     active: false,
@@ -198,6 +200,10 @@ export class RiderTrackingManager {
     await this.flushQueue();
 
     if (this.nativeManaged) {
+      // The Android service persists active state from onStartCommand, which can
+      // complete just after start() resolves. Keep the session active for one
+      // retry so a startup read cannot strand the native service.
+      this.nativeStartupPending = true;
       this.startNativeStatusPolling();
       await this.pollNativeStatus();
       return;
@@ -265,6 +271,7 @@ export class RiderTrackingManager {
     }
 
     this.nativeManaged = false;
+    this.nativeStartupPending = false;
     this.nativeStatusReader = this.dependencies.getNativeStatus || null;
     this.setSnapshot({
       active: false,
@@ -338,12 +345,14 @@ export class RiderTrackingManager {
     this.pollingNativeStatus = true;
     try {
       const status = await this.nativeStatusReader();
+      const startupPending = this.nativeStartupPending && status.active === false;
+      this.nativeStartupPending = false;
       const nativeLocation = typeof status.latitude === 'number'
         && typeof status.longitude === 'number'
         ? { latitude: status.latitude, longitude: status.longitude }
         : this.snapshot.lastLocation;
       this.setSnapshot({
-        active: status.active !== false,
+        active: status.active !== false || startupPending,
         orderId: status.orderId ?? this.snapshot.orderId,
         deliveryJobId: status.deliveryJobId ?? this.snapshot.deliveryJobId,
         status: status.deliveryStatus ?? this.snapshot.status,
@@ -355,8 +364,11 @@ export class RiderTrackingManager {
         mode: 'NATIVE_FOREGROUND_SERVICE',
         stopReason: status.stopReason || null,
       });
-      if (status.active === false) {
+      if (status.active === false && !startupPending) {
         this.stopNativeStatusPolling();
+      }
+      if (startupPending) {
+        setTimeout(() => void this.pollNativeStatus(), NATIVE_STARTUP_RETRY_MS);
       }
     } catch (error: any) {
       this.setSnapshot({
