@@ -92,8 +92,10 @@ function summarize(history: RiderAssignmentOffer[], now = new Date()) {
       && inThisWeek(assignment),
   );
   const cancelled = history.filter(
-    (assignment) => ['CANCELLED', 'REJECTED'].includes(assignment.status)
-      && inThisWeek(assignment),
+    (assignment) => (
+      ['CANCELLED', 'REJECTED'].includes(assignment.status)
+      || (assignment.status === 'ACCEPTED' && assignment.deliveryJob.status === 'CANCELLED')
+    ) && inThisWeek(assignment),
   );
   const dailyCounts = WEEK_LABELS.map(() => 0);
   completed.forEach((assignment) => {
