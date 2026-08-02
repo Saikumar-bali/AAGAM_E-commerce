@@ -1,120 +1,280 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Banknote,
+  Bike,
+  ChevronRight,
+  CircleHelp,
+  CircleUserRound,
+  Info,
+  LockKeyhole,
+  LogOut,
+  Settings,
+  ShieldCheck,
+  Star,
+} from 'lucide-react-native';
 import React from 'react';
-import { Alert, Linking, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Banknote, Bike, ChevronRight, CircleHelp, LogOut, Mail, Phone, Settings, ShieldCheck, Star, User } from 'lucide-react-native';
+import {
+  Alert,
+  Image,
+  Linking,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import Toast from 'react-native-toast-message';
 import { useAuthStore } from '@aagam/mobile-shared';
+import { riderService } from '../../api/riderService';
 import { RiderOnlineService } from '../../services/RiderOnlineService';
+
+const WORKSPACE_KEY = ['rider', 'delivery-workspace'] as const;
+
+function firstText(...values: unknown[]) {
+  const value = values.find((item) => typeof item === 'string' && item.trim());
+  return typeof value === 'string' ? value : null;
+}
+
+function errorMessage(error: any) {
+  const value = error?.response?.data?.message;
+  if (Array.isArray(value)) return value.join(', ');
+  return value || error?.message || 'The action could not be completed.';
+}
 
 export const RiderProfileScreen = () => {
   const { user, logout } = useAuthStore();
-  const initial = (user?.name || user?.email || 'R').slice(0, 1).toUpperCase();
+  const queryClient = useQueryClient();
+  const profileQuery = useQuery({
+    queryKey: ['rider', 'profile', user?.id],
+    queryFn: () => riderService.getProfile(String(user?.id)),
+    enabled: Boolean(user?.id),
+    retry: 1,
+  });
+  const workspaceQuery = useQuery({
+    queryKey: WORKSPACE_KEY,
+    queryFn: riderService.getWorkspace,
+    refetchInterval: 15_000,
+  });
+  const profile: any = profileQuery.data || {};
+  const rider: any = profile.rider || profile;
+  const vehicle: any = rider.vehicle || profile.vehicle || rider.vehicleDetails || {};
+  const isOnline = Boolean(workspaceQuery.data?.rider && workspaceQuery.data.rider.status !== 'OFFLINE');
+  const displayName = firstText(user?.name, rider.name, rider.user?.name) || 'Aagaam Rider';
+  const phone = firstText((user as any)?.phone, rider.phone, rider.user?.phone) || 'Phone not available';
+  const initial = displayName.slice(0, 1).toUpperCase();
+  const imageUri = firstText(
+    rider.profileImageUrl,
+    rider.photoUrl,
+    rider.avatarUrl,
+    rider.user?.profileImageUrl,
+    (user as any)?.profileImageUrl,
+  );
+  const rating = typeof rider.rating === 'number' ? rider.rating : null;
+  const ratingCount = Number(rider.ratingCount || rider.ratingsCount || 0);
+  const verified = Boolean(rider.isVerified || rider.verifiedAt || rider.status === 'APPROVED');
+  const vehicleName = firstText(vehicle.model, vehicle.name, vehicle.vehicleModel, rider.vehicleModel) || 'Vehicle not added';
+  const registration = firstText(vehicle.registrationNumber, vehicle.number, rider.vehicleNumber) || 'Registration unavailable';
+  const vehicleColor = firstText(vehicle.color, rider.vehicleColor);
+
+  const availabilityMutation = useMutation({
+    mutationFn: async () => {
+      if (isOnline) {
+        await RiderOnlineService.stop().catch(() => false);
+        return riderService.updateMyStatus('OFFLINE');
+      }
+      const result = await riderService.updateMyStatus('ONLINE');
+      await RiderOnlineService.start(displayName);
+      return result;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
+      Toast.show({
+        type: 'success',
+        text1: isOnline ? 'Availability paused' : 'You are online',
+        text2: isOnline ? 'You will not receive new jobs.' : 'You can now receive rider jobs.',
+      });
+    },
+    onError: (error: any) => Toast.show({
+      type: 'error',
+      text1: 'Could not update availability',
+      text2: errorMessage(error),
+    }),
+  });
 
   const handleMenuPress = async (label: string) => {
-    if (label === 'Help & support') {
+    if (label === 'Help & Support') {
       try {
-        await Linking.openURL('mailto:support@aagam.com?subject=Partner%20support');
+        await Linking.openURL('mailto:support@aagam.com?subject=Aagaam%20Partner%20Support');
       } catch {
-        Alert.alert('Help & support', 'Email support@aagam.com for assistance.');
+        Alert.alert(label, 'Email support@aagam.com for assistance.');
       }
       return;
     }
-    if (label === 'Rate the app') {
+    if (label === 'Rate the App') {
       try {
         await Linking.openURL('https://play.google.com/store/apps/details?id=com.aagampartners');
       } catch {
-        Alert.alert('Rate the app', 'The app store is not available on this device.');
+        Alert.alert(label, 'The app store is not available on this device.');
       }
       return;
     }
-    const message = label === 'Bank & payout details'
-      ? 'Payout details will appear here when the dispatch payout service is enabled.'
-      : label === 'Permissions & safety'
-        ? 'Location and delivery permissions are managed by the active delivery workflow.'
-        : 'Account changes are managed by Aagaam operations. Contact Help & support for assistance.';
-    Alert.alert(label, message);
+    if (label === 'About AAGAAM Partners') {
+      Alert.alert(label, 'AAGAAM Partners helps riders manage delivery jobs, tracking, proof of delivery, earnings and support.');
+      return;
+    }
+    const copy: Record<string, string> = {
+      'Account Information': `Name: ${displayName}\nPhone: ${phone}\nEmail: ${user?.email || 'Not available'}`,
+      'Bank & Payout Details': 'Payout account information is managed securely by Aagaam operations.',
+      Permissions: 'Location, notification and delivery permissions are managed by Android and the active rider workflow.',
+    };
+    Alert.alert(label, copy[label] || 'This section is managed by Aagaam operations.');
   };
 
   const handleLogout = async () => {
-    await RiderOnlineService.stop().catch(() => false);
-    await logout();
+    Alert.alert('Logout?', 'You will stop receiving rider jobs on this device.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: () => void (async () => {
+          await RiderOnlineService.stop().catch(() => false);
+          await logout();
+        })(),
+      },
+    ]);
   };
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.content}>
-      <StatusBar barStyle="light-content" />
-      <View style={styles.hero}>
-        <Text style={styles.eyebrow}>AAGAAM PARTNERS</Text>
-        <Text style={styles.title}>Rider profile</Text>
-        <View style={styles.avatar}><Text style={styles.avatarText}>{initial}</Text></View>
-        <Text style={styles.name}>{user?.name || 'Aagaam Rider'}</Text>
-        <View style={styles.roleBadge}>
-          <Bike size={15} color="#0F766E" />
-          <Text style={styles.roleText}>RIDER</Text>
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <View style={styles.hero}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Profile</Text>
+            <TouchableOpacity
+              accessibilityLabel="Profile settings"
+              style={styles.settingsButton}
+              onPress={() => Alert.alert('Settings', 'Profile settings are managed through the options below.')}
+            >
+              <Settings size={32} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.card}>
-        <InfoRow icon={Mail} label="Email" value={user?.email || 'Not available'} />
-        <InfoRow icon={Phone} label="Phone" value={(user as any)?.phone || 'Not available'} />
-        <InfoRow icon={ShieldCheck} label="Account" value="Authenticated partner account" />
-        <InfoRow icon={User} label="User ID" value={user?.id || 'Not available'} last />
-      </View>
+        <View style={styles.profileCard}>
+          {imageUri ? (
+            <Image source={{ uri: imageUri }} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.avatarFallback}><Text style={styles.avatarText}>{initial}</Text></View>
+          )}
+          <View style={styles.profileCopy}>
+            <View style={styles.nameRow}>
+              <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
+              {verified ? (
+                <View style={styles.verifiedBadge}><ShieldCheck size={15} color="#FFFFFF" /></View>
+              ) : null}
+            </View>
+            <Text style={styles.phone}>{phone}</Text>
+            <View style={styles.ratingRow}>
+              <Star size={21} color="#FFB400" fill="#FFB400" />
+              <Text style={styles.ratingText}>
+                {rating == null ? 'Not rated yet' : `${rating.toFixed(1)} (${ratingCount} ratings)`}
+              </Text>
+            </View>
+          </View>
+        </View>
 
-      <View style={styles.menuCard}>
-        <MenuRow icon={Banknote} label="Bank & payout details" onPress={() => void handleMenuPress('Bank & payout details')} />
-        <MenuRow icon={ShieldCheck} label="Permissions & safety" onPress={() => void handleMenuPress('Permissions & safety')} />
-        <MenuRow icon={CircleHelp} label="Help & support" onPress={() => void handleMenuPress('Help & support')} />
-        <MenuRow icon={Star} label="Rate the app" onPress={() => void handleMenuPress('Rate the app')} />
-        <MenuRow icon={Settings} label="Account settings" last onPress={() => void handleMenuPress('Account settings')} />
-      </View>
+        <View style={styles.availabilityCard}>
+          <Text style={styles.availabilityTitle}>Availability</Text>
+          <Text style={[styles.availabilityValue, !isOnline && styles.offlineText]}>{isOnline ? 'Online' : 'Offline'}</Text>
+          <Switch
+            testID="rider_profile_availability_switch"
+            disabled={availabilityMutation.isPending}
+            value={isOnline}
+            onValueChange={() => availabilityMutation.mutate()}
+            trackColor={{ false: '#CDD3D0', true: '#08A56B' }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
 
-      <Text style={styles.help}>
-        Availability and active delivery controls remain on the Dashboard tab. Signing out stops this device's Rider availability heartbeat and deactivates its push subscription.
-      </Text>
+        <TouchableOpacity style={styles.vehicleCard} onPress={() => handleMenuPress('Vehicle Details')}>
+          <Text style={styles.vehicleHeading}>Vehicle Details</Text>
+          <View style={styles.vehicleRow}>
+            <View style={styles.vehicleIcon}><Bike size={43} color="#15212D" /></View>
+            <View style={styles.vehicleCopy}>
+              <Text style={styles.vehicleName}>{vehicleName}</Text>
+              <Text style={styles.vehicleMeta}>
+                {registration}{vehicleColor ? `  •  ${vehicleColor}` : ''}
+              </Text>
+            </View>
+            <ChevronRight size={28} color="#4A5156" />
+          </View>
+        </TouchableOpacity>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={() => void handleLogout()}>
-        <LogOut size={19} color="#B91C1C" />
-        <Text style={styles.logoutText}>Sign out</Text>
-      </TouchableOpacity>
-      <View style={styles.bottomSpace} />
-    </ScrollView>
+        <View style={styles.menuCard}>
+          <MenuRow icon={CircleUserRound} label="Account Information" onPress={() => void handleMenuPress('Account Information')} />
+          <MenuRow icon={Banknote} label="Bank & Payout Details" onPress={() => void handleMenuPress('Bank & Payout Details')} />
+          <MenuRow icon={LockKeyhole} label="Permissions" onPress={() => void handleMenuPress('Permissions')} />
+          <MenuRow icon={CircleHelp} label="Help & Support" onPress={() => void handleMenuPress('Help & Support')} />
+          <MenuRow icon={Star} label="Rate the App" onPress={() => void handleMenuPress('Rate the App')} />
+          <MenuRow icon={Info} label="About AAGAAM Partners" last onPress={() => void handleMenuPress('About AAGAAM Partners')} />
+        </View>
+
+        <TouchableOpacity testID="rider_profile_logout_button" style={styles.logoutCard} onPress={() => void handleLogout()}>
+          <LogOut size={23} color="#E21822" />
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
   );
 };
 
-const InfoRow = ({ icon: Icon, label, value, last = false }: { icon: any; label: string; value: string; last?: boolean }) => (
-  <View style={[styles.row, !last && styles.rowBorder]}>
-    <View style={styles.rowIcon}><Icon size={18} color="#0F766E" /></View>
-    <View style={styles.rowCopy}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue} numberOfLines={2}>{value}</Text>
-    </View>
-  </View>
-);
-const MenuRow = ({ icon: Icon, label, last = false, onPress }: { icon: any; label: string; last?: boolean; onPress: () => void }) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={[styles.menuRow, !last && styles.rowBorder]}><View style={styles.menuIcon}><Icon size={18} color="#007A5C" /></View><Text style={styles.menuLabel}>{label}</Text><ChevronRight size={18} color="#94A3B8" /></TouchableOpacity>;
+function MenuRow({ icon: Icon, label, last = false, onPress }: any) {
+  return (
+    <TouchableOpacity style={[styles.menuRow, !last && styles.menuRowBorder]} onPress={onPress}>
+      <Icon size={23} color="#3F4850" />
+      <Text style={styles.menuLabel}>{label}</Text>
+      <ChevronRight size={25} color="#4A5156" />
+    </TouchableOpacity>
+  );
+}
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#F4F7F5' },
-  content: { paddingBottom: 120 },
-  hero: { backgroundColor: '#007A5C', paddingTop: 58, paddingBottom: 30, paddingHorizontal: 24, alignItems: 'center', borderBottomLeftRadius: 34, borderBottomRightRadius: 34 },
-  eyebrow: { color: '#A7F3D0', fontSize: 11, fontWeight: '900', letterSpacing: 1.3 },
-  title: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', marginTop: 5 },
-  avatar: { width: 82, height: 82, borderRadius: 28, backgroundColor: '#14B8A6', alignItems: 'center', justifyContent: 'center', marginTop: 24 },
-  avatarText: { color: '#FFFFFF', fontSize: 34, fontWeight: '900' },
-  name: { color: '#FFFFFF', fontSize: 21, fontWeight: '900', marginTop: 14 },
-  roleBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: '#CCFBF1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
-  roleText: { color: '#0F766E', fontSize: 11, fontWeight: '900', letterSpacing: 0.8 },
-  card: { margin: 20, backgroundColor: '#FFFFFF', borderRadius: 26, paddingHorizontal: 18, borderWidth: 1, borderColor: '#E7E5E4' },
-  menuCard: { marginHorizontal: 20, marginBottom: 20, backgroundColor: '#FFFFFF', borderRadius: 24, paddingHorizontal: 16, borderWidth: 1, borderColor: '#E1E9E5' },
-  menuRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center' },
-  menuIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center' },
-  menuLabel: { flex: 1, marginLeft: 12, color: '#1F332D', fontSize: 13, fontWeight: '800' },
-  row: { flexDirection: 'row', alignItems: 'center', minHeight: 76 },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  rowIcon: { width: 42, height: 42, borderRadius: 15, backgroundColor: '#F0FDFA', alignItems: 'center', justifyContent: 'center' },
-  rowCopy: { flex: 1, marginLeft: 13 },
-  rowLabel: { color: '#78716C', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-  rowValue: { color: '#0F172A', fontSize: 14, fontWeight: '800', marginTop: 4 },
-  help: { marginHorizontal: 24, color: '#57534E', fontSize: 13, lineHeight: 20 },
-  logoutButton: { marginHorizontal: 20, marginTop: 20, height: 56, borderRadius: 18, backgroundColor: '#FEE2E2', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
-  logoutText: { color: '#B91C1C', fontSize: 15, fontWeight: '900' },
-  bottomSpace: { height: 24 },
+  screen: { flex: 1, backgroundColor: '#F7F8F7' },
+  scroll: { flex: 1 },
+  content: { paddingBottom: 112 },
+  hero: { height: 235, backgroundColor: '#067B5C', paddingTop: 56, paddingHorizontal: 18 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { color: '#FFFFFF', fontSize: 31, fontWeight: '900' },
+  settingsButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  profileCard: { marginHorizontal: 14, marginTop: -101, minHeight: 153, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E4E3', padding: 14, flexDirection: 'row', alignItems: 'center', elevation: 4 },
+  avatarImage: { width: 112, height: 112, borderRadius: 56, backgroundColor: '#E8EFEC' },
+  avatarFallback: { width: 112, height: 112, borderRadius: 56, backgroundColor: '#078D63', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#FFFFFF', fontSize: 42, fontWeight: '900' },
+  profileCopy: { flex: 1, marginLeft: 18 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  name: { color: '#111111', fontSize: 22, fontWeight: '900', flexShrink: 1 },
+  verifiedBadge: { width: 25, height: 25, borderRadius: 13, backgroundColor: '#0AA66A', alignItems: 'center', justifyContent: 'center' },
+  phone: { color: '#545C62', fontSize: 16, marginTop: 7 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
+  ratingText: { color: '#4A5156', fontSize: 14, fontWeight: '600' },
+  availabilityCard: { height: 72, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E4E3', marginHorizontal: 14, marginTop: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', elevation: 2 },
+  availabilityTitle: { flex: 1, color: '#1A1D1F', fontSize: 17, fontWeight: '800' },
+  availabilityValue: { color: '#08A15B', fontSize: 15, fontWeight: '800', marginRight: 10 },
+  offlineText: { color: '#7A827E' },
+  vehicleCard: { borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E4E3', marginHorizontal: 14, marginTop: 12, padding: 16, elevation: 2 },
+  vehicleHeading: { color: '#111111', fontSize: 16, fontWeight: '800' },
+  vehicleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14 },
+  vehicleIcon: { width: 72, alignItems: 'center' },
+  vehicleCopy: { flex: 1 },
+  vehicleName: { color: '#111111', fontSize: 17, fontWeight: '900' },
+  vehicleMeta: { color: '#555D63', fontSize: 14, marginTop: 5 },
+  menuCard: { borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E4E3', marginHorizontal: 14, marginTop: 12, paddingHorizontal: 14, elevation: 2 },
+  menuRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  menuRowBorder: { borderBottomWidth: 1, borderBottomColor: '#E8EAE9' },
+  menuLabel: { flex: 1, color: '#171A1C', fontSize: 15, fontWeight: '600' },
+  logoutCard: { height: 66, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E4E3', marginHorizontal: 14, marginTop: 12, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 13, elevation: 2 },
+  logoutText: { color: '#E21822', fontSize: 17, fontWeight: '800' },
 });
