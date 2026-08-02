@@ -59,6 +59,34 @@ export class OrderService {
     });
   }
 
+  private async cancelAssociatedDeliveryJob(orderId: string, tx: any) {
+    const deliveryJob = await tx.deliveryJob.findUnique({
+      where: { orderId },
+    });
+
+    if (!deliveryJob || ['DELIVERED', 'RETURNED_TO_STORE', 'CANCELLED'].includes(deliveryJob.status)) {
+      return;
+    }
+
+    const respondedAt = new Date();
+
+    await tx.deliveryJob.update({
+      where: { id: deliveryJob.id },
+      data: {
+        status: 'CANCELLED',
+        currentRiderId: null,
+      },
+    });
+
+    await tx.dispatchAssignment.updateMany({
+      where: {
+        deliveryJobId: deliveryJob.id,
+        status: { in: ['CREATED', 'OFFERED'] },
+      },
+      data: { status: 'CANCELLED', respondedAt },
+    });
+  }
+
   private statusNote(nextStatus: OrderStatus, actorRole?: Role) {
     if (actorRole === Role.RIDER) {
       if (nextStatus === OrderStatus.PICKING) return 'Rider reached store and started pickup.';
@@ -857,6 +885,8 @@ export class OrderService {
         data: { status: OrderStatus.CANCELLED, cancelledAt: new Date() },
       });
 
+      await this.cancelAssociatedDeliveryJob(order.id, tx);
+
       await this.recordStatusHistory(
         {
           orderId: order.id,
@@ -936,6 +966,8 @@ export class OrderService {
         where: { id: orderId },
         data: { status: OrderStatus.CANCELLED, cancelledAt: new Date() },
       });
+
+      await this.cancelAssociatedDeliveryJob(orderId, tx);
 
       await this.recordStatusHistory({
         orderId,
