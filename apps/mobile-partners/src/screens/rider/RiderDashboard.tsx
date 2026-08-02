@@ -337,6 +337,7 @@ export const RiderDashboard = () => {
       sendPing: riderService.sendLocationPing,
       startSession: riderService.startTracking,
       stopSession: riderService.stopTracking,
+      getNativeStatus: riderService.getNativeTrackingStatus,
     });
   }
   const trackingManager = trackingManagerRef.current;
