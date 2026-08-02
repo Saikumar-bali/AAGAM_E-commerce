@@ -1,0 +1,281 @@
+name: Repair PR 167 CI regressions
+
+on:
+  push:
+    branches:
+      - agent/resolve-146-166
+    paths:
+      - .github/workflows/agent-ci-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/resolve-146-166
+          fetch-depth: 2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.3
+          cache: npm
+
+      - name: Apply focused repairs
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              if old not in text:
+                  raise SystemExit(f"Missing expected source for {label}")
+              return text.replace(old, new, 1)
+
+          dashboard_path = Path('apps/mobile-partners/src/screens/rider/RiderDashboard.tsx')
+          dashboard = dashboard_path.read_text()
+          dashboard = replace_once(
+              dashboard,
+              "import React, { useEffect, useMemo, useState } from 'react';",
+              "import React, { useEffect, useMemo, useRef, useState } from 'react';",
+              'RiderDashboard React import',
+          )
+          dashboard = replace_once(
+              dashboard,
+              "  ActivityIndicator,\n  Alert,\n  RefreshControl,",
+              "  ActivityIndicator,\n  Alert,\n  Linking,\n  PermissionsAndroid,\n  Platform,\n  RefreshControl,",
+              'RiderDashboard Android permission imports',
+          )
+          dashboard = replace_once(
+              dashboard,
+              "import { riderService } from '../../api/riderService';",
+              "import { riderService } from '../../api/riderService';\nimport { RiderOnlineService } from '../../services/RiderOnlineService';",
+              'RiderDashboard online service import',
+          )
+          dashboard = replace_once(
+              dashboard,
+              "  const [statusBusy, setStatusBusy] = useState(false);",
+              "  const [statusBusy, setStatusBusy] = useState(false);\n  const statusBusyRef = useRef(false);\n  const [onlinePermissionMissing, setOnlinePermissionMissing] = useState(false);",
+              'RiderDashboard availability state',
+          )
+          insertion_marker = "  const unreadCount = Number(inboxQuery.data?.unreadCount || 0);\n\n  const refresh = async () => {"
+          permission_block = """  const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
+
+  const requestLocationPermission = async () => {
+    if (Platform.OS !== 'android') return true;
+    const finePermission = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
+    const fineResult = await PermissionsAndroid.check(finePermission)
+      ? PermissionsAndroid.RESULTS.GRANTED
+      : await PermissionsAndroid.request(finePermission, {
+          title: 'Allow rider location',
+          message: 'Aagaam Partners uses precise location while you are online and fulfilling a delivery.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Not now',
+        });
+    if (fineResult !== PermissionsAndroid.RESULTS.GRANTED) return false;
+    if (Number(Platform.Version) < 29) return true;
+
+    const backgroundPermission = PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION;
+    if (await PermissionsAndroid.check(backgroundPermission)) return true;
+    const backgroundResult = await PermissionsAndroid.request(backgroundPermission, {
+      title: 'Allow background rider location',
+      message: 'Choose Allow all the time so Android can keep you eligible for delivery offers while the app is in the background.',
+      buttonPositive: 'Continue',
+      buttonNegative: 'Not now',
+    });
+    if (backgroundResult === PermissionsAndroid.RESULTS.GRANTED) return true;
+
+    if (Number(Platform.Version) >= 30) {
+      Alert.alert(
+        'Allow background location',
+        'Open App permissions → Location and choose Allow all the time. Then return and grant location again.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open settings', onPress: () => Linking.openSettings().catch(() => undefined) },
+        ],
+      );
+    }
+    return false;
+  };
+
+  const grantOnlinePermission = async () => {
+    if (statusBusyRef.current) return false;
+    statusBusyRef.current = true;
+    setStatusBusy(true);
+    try {
+      const permitted = await requestLocationPermission();
+      if (!permitted) {
+        setOnlinePermissionMissing(true);
+        await RiderOnlineService.stop().catch(() => undefined);
+        Toast.show({
+          type: 'error',
+          text1: 'Background location required',
+          text2: 'Grant “Allow all the time” to remain eligible while the app is in the background.',
+        });
+        return false;
+      }
+      await RiderOnlineService.start(user?.name || 'Rider');
+      setOnlinePermissionMissing(false);
+      return true;
+    } catch (error: any) {
+      setOnlinePermissionMissing(true);
+      await RiderOnlineService.stop().catch(() => undefined);
+      Toast.show({ type: 'error', text1: 'Online recovery unavailable', text2: error?.message || 'Could not start background Rider availability.' });
+      return false;
+    } finally {
+      statusBusyRef.current = false;
+      setStatusBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!workspace?.rider?.status) return;
+    if (workspace.rider.status === 'OFFLINE') {
+      setOnlinePermissionMissing(false);
+      RiderOnlineService.stop().catch(() => undefined);
+      return;
+    }
+    let cancelled = false;
+    const restoreOnlineAvailability = async () => {
+      const started = await grantOnlinePermission();
+      if (!cancelled && !started) setOnlinePermissionMissing(true);
+    };
+    void restoreOnlineAvailability();
+    return () => { cancelled = true; };
+  }, [workspace?.rider?.status, user?.name]);
+
+  const refresh = async () => {"""
+          dashboard = replace_once(dashboard, insertion_marker, permission_block, 'RiderDashboard permission lifecycle')
+
+          change_pattern = re.compile(r"  const changeAvailability = async \(online: boolean\) => \{.*?\n  \};\n\n  const acceptMutation", re.S)
+          change_replacement = """  const changeAvailability = async (online: boolean) => {
+    if (statusBusyRef.current) return;
+    statusBusyRef.current = true;
+    setStatusBusy(true);
+    try {
+      if (online) {
+        const permitted = await requestLocationPermission();
+        if (!permitted) {
+          setOnlinePermissionMissing(true);
+          Toast.show({ type: 'error', text1: 'Location permission required', text2: 'Allow precise and background location before going online.' });
+          return;
+        }
+        const location = await optionalCurrentLocation();
+        await riderService.updateMyStatus('ONLINE', location || undefined);
+        try {
+          await RiderOnlineService.start(user?.name || 'Rider');
+        } catch (serviceError) {
+          await riderService.updateMyStatus('OFFLINE').catch(() => undefined);
+          await RiderOnlineService.stop().catch(() => undefined);
+          throw serviceError;
+        }
+        setOnlinePermissionMissing(false);
+      } else {
+        await riderService.updateMyStatus('OFFLINE');
+        await RiderOnlineService.stop();
+        setOnlinePermissionMissing(false);
+      }
+      await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
+      Toast.show({
+        type: 'success',
+        text1: online ? 'You are online' : 'You are offline',
+        text2: online
+          ? 'New offers can now arrive. Location remains active while you are online.'
+          : 'New delivery offers and the location heartbeat are paused.',
+      });
+    } catch (error: any) {
+      Toast.show({ type: 'error', text1: 'Availability update failed', text2: errorMessage(error) });
+    } finally {
+      statusBusyRef.current = false;
+      setStatusBusy(false);
+    }
+  };
+
+  const onlineToggleAction = onlinePermissionMissing ? grantOnlinePermission : () => changeAvailability(!isOnline);
+
+  const acceptMutation"""
+          dashboard, count = change_pattern.subn(change_replacement, dashboard, count=1)
+          if count != 1:
+              raise SystemExit('Could not replace RiderDashboard availability mutation')
+
+          old_control = "{statusBusy ? <ActivityIndicator color=\"#0F766E\" /> : <Switch testID=\"rider_availability_switch\" value={isOnline} disabled={statusBusy || riderStatus === 'BUSY'} onValueChange={(value) => void changeAvailability(value)} trackColor={{ false: '#CBD5E1', true: '#86EFAC' }} thumbColor={isOnline ? '#0F766E' : '#FFFFFF'} />}"
+          new_control = "{statusBusy ? <ActivityIndicator color=\"#0F766E\" /> : onlinePermissionMissing ? <TouchableOpacity testID=\"rider_grant_location\" onPress={() => void onlineToggleAction()} style={{ borderRadius: 11, backgroundColor: '#0F766E', paddingHorizontal: 10, paddingVertical: 9 }}><Text style={{ color: '#FFFFFF', fontSize: 8, fontWeight: '900' }}>{'GRANT LOCATION'}</Text></TouchableOpacity> : <Switch testID=\"rider_availability_switch\" value={isOnline} disabled={riderStatus === 'BUSY'} onValueChange={(value) => void changeAvailability(value)} trackColor={{ false: '#CBD5E1', true: '#86EFAC' }} thumbColor={isOnline ? '#0F766E' : '#FFFFFF'} />}"
+          dashboard = replace_once(dashboard, old_control, new_control, 'RiderDashboard availability control')
+          dashboard_path.write_text(dashboard)
+
+          profile_path = Path('apps/mobile-partners/src/screens/rider/RiderProfileScreen.tsx')
+          profile = profile_path.read_text()
+          profile = replace_once(
+              profile,
+              "} from '../../api/riderService';",
+              "} from '../../api/riderService';\nimport { RiderOnlineService } from '../../services/RiderOnlineService';",
+              'RiderProfile online service import',
+          )
+          profile = replace_once(
+              profile,
+              "  const loading = profileQuery.isLoading || availabilityQuery.isLoading;\n\n  return (",
+              "  const loading = profileQuery.isLoading || availabilityQuery.isLoading;\n\n  const signOutRider = async () => {\n    try {\n      await RiderOnlineService.stop();\n    } finally {\n      await logout();\n    }\n  };\n\n  return (",
+              'RiderProfile logout lifecycle',
+          )
+          profile = replace_once(
+              profile,
+              "onPress: () => void logout()",
+              "onPress: () => void signOutRider()",
+              'RiderProfile logout action',
+          )
+          profile_path.write_text(profile)
+
+          readiness_test_path = Path('apps/api-gateway/src/order-delivery-mobile-ui.contract.spec.ts')
+          readiness_test = readiness_test_path.read_text()
+          readiness_test = replace_once(
+              readiness_test,
+              "    expect(mobileService).toContain('return fallbackPickupReadiness(deliveryJobId)');",
+              "    expect(mobileService).toContain('|| fallbackPickupReadiness(deliveryJobId)');\n    expect(mobileService).not.toContain('.catch(() => fallbackPickupReadiness');",
+              'pickup readiness error contract',
+          )
+          readiness_test_path.write_text(readiness_test)
+
+          customer_test_path = Path('apps/mobile-customer/src/auth/customerPhoneOtpFlow.test.mjs')
+          customer_test = customer_test_path.read_text()
+          customer_test = replace_once(
+              customer_test,
+              "  assert.match(loginSource, /Use your 10-digit mobile number to continue\\./);",
+              "  assert.match(loginSource, /Use your phone number or email to continue\\./);",
+              'customer login copy contract',
+          )
+          customer_test_path.write_text(customer_test)
+
+          Path('.github/workflows/agent-ci-repair.yml').unlink()
+          PY
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate Prisma client
+        run: npx prisma generate --schema packages/database/prisma/schema.prisma
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_ci_repair
+
+      - name: Typecheck Partners
+        run: npm run typecheck --workspace=AagamPartners
+
+      - name: Run focused contracts
+        run: |
+          node --experimental-strip-types --test apps/mobile-customer/src/auth/customerPhoneOtpFlow.test.mjs
+          npx jest --config apps/api-gateway/jest.config.js --runInBand --runTestsByPath apps/api-gateway/src/auto-dispatch-recovery.contract.spec.ts apps/api-gateway/src/order-delivery-mobile-ui.contract.spec.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_ci_repair
+
+      - name: Commit repairs
+        run: |
+          git config user.name "ChatGPT Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix rider availability lifecycle and CI contracts"
+          git push origin HEAD:agent/resolve-146-166
