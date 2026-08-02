@@ -74,6 +74,12 @@ function paise(value: unknown) {
   return `₹${(Number(value || 0) / 100).toFixed(2)}`;
 }
 
+function minuteLabel(value: number) {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
 function defaultSchedule(): ScheduleDraft[] {
   return DAYS.map((_day, dayOfWeek) => ({
     dayOfWeek,
@@ -125,25 +131,25 @@ export const RiderProfileScreen = () => {
 
   useEffect(() => {
     const entries = Array.isArray(availability.schedule) ? availability.schedule : [];
-    if (!entries.length) return;
-    setSchedule(DAYS.map((_day, dayOfWeek) => {
-      const row = entries.find((entry: any) => Number(entry.dayOfWeek) === dayOfWeek);
-      return row
-        ? {
-            dayOfWeek,
-            startMinute: Number(row.startMinute),
-            endMinute: Number(row.endMinute),
-            isAvailable: Boolean(row.isAvailable),
-            enabled: Boolean(row.isAvailable),
-          }
-        : {
-            dayOfWeek,
-            startMinute: 540,
-            endMinute: 1080,
-            isAvailable: true,
-            enabled: false,
-          };
+    if (!entries.length) {
+      setSchedule(defaultSchedule());
+      return;
+    }
+
+    const hydrated: ScheduleDraft[] = entries.map((row: any) => ({
+      dayOfWeek: Number(row.dayOfWeek),
+      startMinute: Number(row.startMinute),
+      endMinute: Number(row.endMinute),
+      isAvailable: Boolean(row.isAvailable),
+      enabled: Boolean(row.isAvailable),
     }));
+    const presentDays = new Set(hydrated.map((entry) => entry.dayOfWeek));
+    const missingDays = defaultSchedule().filter((entry) => !presentDays.has(entry.dayOfWeek));
+    setSchedule(
+      [...hydrated, ...missingDays].sort(
+        (left, right) => left.dayOfWeek - right.dayOfWeek || left.startMinute - right.startMinute,
+      ),
+    );
   }, [availabilityQuery.data]);
 
   const refresh = async () => {
@@ -178,9 +184,10 @@ export const RiderProfileScreen = () => {
 
   const scheduleMutation = useMutation({
     mutationFn: () => riderService.updateAvailabilitySchedule(
-      schedule
-        .filter((entry) => entry.enabled)
-        .map(({ enabled: _enabled, ...entry }) => entry),
+      schedule.map(({ enabled, ...entry }) => ({
+        ...entry,
+        isAvailable: enabled,
+      })),
     ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: AVAILABILITY_KEY });
@@ -356,14 +363,14 @@ export const RiderProfileScreen = () => {
           <>
             <Card icon={<CalendarDays size={21} color="#0F766E" />} title="Weekly availability">
               {schedule.map((entry, index) => (
-                <View key={entry.dayOfWeek} style={styles.row}>
+                <View key={`${entry.dayOfWeek}-${entry.startMinute}-${entry.endMinute}-${index}`} style={styles.row}>
                   <Switch
                     value={entry.enabled}
                     onValueChange={(enabled) => setSchedule((current) => current.map((item, currentIndex) => currentIndex === index ? { ...item, enabled, isAvailable: enabled } : item))}
                   />
                   <View style={styles.flex}>
                     <Text style={styles.rowTitle}>{DAYS[entry.dayOfWeek]}</Text>
-                    <Text style={styles.rowText}>{entry.enabled ? '09:00 – 18:00' : 'Unavailable'}</Text>
+                    <Text style={styles.rowText}>{entry.enabled ? `${minuteLabel(entry.startMinute)} – ${minuteLabel(entry.endMinute)}` : 'Unavailable'}</Text>
                   </View>
                 </View>
               ))}

@@ -153,6 +153,8 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
   useEffect(() => {
     let alive = true;
     let unsubscribePushLifecycle: (() => void) | undefined;
+    let unsubscribeForeground: (() => void) | undefined;
+    let unsubscribeOpened: (() => void) | undefined;
     void startMobilePushLifecycle('Aagaam Partners').then((unsubscribe) => {
       if (alive) unsubscribePushLifecycle = unsubscribe;
       else unsubscribe();
@@ -166,22 +168,26 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
       if (message?.data?.deliveryJobId || message?.data?.orderId) navigation?.navigate?.('Operations');
       else navigation?.navigate?.('Alerts');
     };
-    const unsubscribeForeground = messaging().onMessage(async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY }),
-        queryClient.invalidateQueries({ queryKey: PARTNER_NOTIFICATION_QUERY_KEY }),
-      ]);
-      Toast.show({ type: 'info', text1: 'New rider update', text2: 'Your job queue has been refreshed.' });
-    });
-    const unsubscribeOpened = messaging().onNotificationOpenedApp(openNotification);
-    void messaging().getInitialNotification().then((message) => {
-      if (message) openNotification(message);
-    });
+    try {
+      unsubscribeForeground = messaging().onMessage(async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY }),
+          queryClient.invalidateQueries({ queryKey: PARTNER_NOTIFICATION_QUERY_KEY }),
+        ]);
+        Toast.show({ type: 'info', text1: 'New rider update', text2: 'Your job queue has been refreshed.' });
+      });
+      unsubscribeOpened = messaging().onNotificationOpenedApp(openNotification);
+      void messaging().getInitialNotification().then((message) => {
+        if (message) openNotification(message);
+      }).catch(() => undefined);
+    } catch (_error) {
+      // Firebase is optional in local builds without google-services.json.
+    }
     return () => {
       alive = false;
       unsubscribePushLifecycle?.();
-      unsubscribeForeground();
-      unsubscribeOpened();
+      unsubscribeForeground?.();
+      unsubscribeOpened?.();
     };
   }, [navigation, queryClient]);
 

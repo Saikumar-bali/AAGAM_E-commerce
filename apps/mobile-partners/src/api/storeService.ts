@@ -62,7 +62,7 @@ export const storeService = {
   },
 
   getPendingOrderCount: async (): Promise<{ count: number }> => {
-    const r = await apiClient.get('/store-owner/store-orders/summary/pending-count');
+    const r = await apiClient.get('/store-owner/orders/summary/pending-count');
     return r.data;
   },
 

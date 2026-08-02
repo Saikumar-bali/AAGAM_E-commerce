@@ -293,6 +293,14 @@ export const RiderDeliveryFlowScreen = () => {
   };
 
   if (workspaceQuery.isLoading) return <Loading label="Loading active delivery…" />;
+  if (workspaceQuery.isError) {
+    return (
+      <WorkspaceError
+        error={workspaceQuery.error}
+        onRetry={() => void workspaceQuery.refetch()}
+      />
+    );
+  }
   if (!activeJob) return <Empty onRefresh={() => void refresh()} />;
 
   const step = progressIndex(activeJob.status);
@@ -542,6 +550,19 @@ function PrimaryButton({
 
 function Loading({ label }: { label: string }) {
   return <View style={styles.loading}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.hint}>{label}</Text></View>;
+}
+
+function WorkspaceError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  return (
+    <View style={styles.loading}>
+      <AlertTriangle size={48} color="#B91C1C" />
+      <Text style={styles.emptyTitle}>Delivery workspace unavailable</Text>
+      <Text style={styles.hint}>{errorMessage(error)}</Text>
+      <TouchableOpacity style={styles.secondaryButton} onPress={onRetry}>
+        <RefreshCw size={18} color="#0F766E" /><Text style={styles.secondaryText}>Retry workspace</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 function Empty({ onRefresh }: { onRefresh: () => void }) {
