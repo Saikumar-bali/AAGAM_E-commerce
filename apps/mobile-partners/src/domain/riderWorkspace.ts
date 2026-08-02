@@ -24,6 +24,7 @@ export type DispatchAssignmentStatus =
 export type RiderOrder = {
   id: string;
   status?: string;
+  deliveredAt?: string | null;
   grandTotal?: number;
   deliveryLat?: number | null;
   deliveryLng?: number | null;
