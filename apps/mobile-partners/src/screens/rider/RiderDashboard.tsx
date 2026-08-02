@@ -60,6 +60,7 @@ import { RiderRouteMap } from '../../components/rider/RiderRouteMap';
 setupBackgroundMessageHandler();
 
 const WORKSPACE_KEY = ['rider', 'delivery-workspace'] as const;
+const EARNINGS_KEY = ['rider', 'earnings'] as const;
 
 function formatAddress(snapshot?: Record<string, any> | null) {
   if (!snapshot) return 'Delivery address unavailable';
@@ -200,7 +201,7 @@ function CurrentDelivery({
   const next = nextActionForStatus(job.status);
   const customerName = order.customer?.name || order.addressSnapshot?.recipientName || 'Customer';
   const customerPhone = order.customer?.phone || order.addressSnapshot?.phoneE164 || null;
-  const navigatingToStore = ['ASSIGNED', 'ACCEPTED', 'RIDER_EN_ROUTE_TO_STORE', 'RIDER_AT_STORE'].includes(job.status);
+  const navigatingToStore = ['RIDER_ASSIGNED', 'RIDER_EN_ROUTE_TO_STORE', 'RIDER_AT_STORE'].includes(job.status);
   const routeDestination = navigatingToStore
     ? { latitude: order.store?.latitude, longitude: order.store?.longitude }
     : { latitude: order.deliveryLat, longitude: order.deliveryLng };
@@ -380,7 +381,7 @@ export const RiderDashboard = () => {
     }).catch(() => undefined);
 
     const refreshWorkspace = () => {
-      void queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
+      void Promise.all([queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY }), queryClient.invalidateQueries({ queryKey: EARNINGS_KEY })]);
     };
     try {
       unsubscribeForeground = messaging().onMessage(async () => refreshWorkspace());
@@ -420,7 +421,7 @@ export const RiderDashboard = () => {
   const acceptMutation = useMutation({
     mutationFn: riderService.acceptOffer,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
+      await Promise.all([queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY }), queryClient.invalidateQueries({ queryKey: EARNINGS_KEY })]);
       Toast.show({ type: 'success', text1: 'Offer accepted', text2: 'This delivery is now assigned to you.' });
     },
     onError: (error: any) => Toast.show({ type: 'error', text1: 'Could not accept offer', text2: error?.response?.data?.message || error?.message || 'The offer may have expired.' }),
@@ -429,7 +430,7 @@ export const RiderDashboard = () => {
   const rejectMutation = useMutation({
     mutationFn: ({ assignmentId, reason }: { assignmentId: string; reason?: string }) =>
       riderService.rejectOffer(assignmentId, reason),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY }),
+    onSuccess: () => Promise.all([queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY }), queryClient.invalidateQueries({ queryKey: EARNINGS_KEY })]),
     onError: (error: any) => Toast.show({ type: 'error', text1: 'Could not reject offer', text2: error?.response?.data?.message || error?.message || 'Please refresh and try again.' }),
   });
 
@@ -437,7 +438,7 @@ export const RiderDashboard = () => {
     mutationFn: ({ jobId, action }: { jobId: string; action: RiderJobAction }) =>
       riderService.transitionJob(jobId, action, action === 'DELIVERED' ? { proofType: 'RIDER_CONFIRMATION' } : undefined),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
+      await Promise.all([queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY }), queryClient.invalidateQueries({ queryKey: EARNINGS_KEY })]);
     },
     onError: (error: any) => Toast.show({ type: 'error', text1: 'Delivery update failed', text2: error?.response?.data?.message || error?.message || 'The delivery state changed. Refresh and try again.' }),
   });
@@ -548,7 +549,7 @@ export const RiderDashboard = () => {
           setIsOnline(true);
           // Start the foreground service so Android keeps the app alive while online.
           RiderOnlineService.start(user?.name || 'Rider').catch(() => undefined);
-          await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
+          await Promise.all([queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY }), queryClient.invalidateQueries({ queryKey: EARNINGS_KEY })]);
           setLocating(false);
         },
         (error) => {
@@ -574,7 +575,7 @@ export const RiderDashboard = () => {
       await trackingManager.stop('RIDER_OFFLINE');
       // Stop the foreground service — no longer need to stay alive.
       RiderOnlineService.stop().catch(() => undefined);
-      await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
+      await Promise.all([queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY }), queryClient.invalidateQueries({ queryKey: EARNINGS_KEY })]);
     } catch (error: any) {
       Toast.show({ type: 'error', text1: 'Could not go offline', text2: error?.response?.data?.message || error?.message || 'Please try again.' });
     }
