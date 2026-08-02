@@ -1,5 +1,5 @@
 export { apiClient } from './api/client';
-export { useAuthStore } from './store/authStore';
+export { useAuthStore, registerMobileSessionCleanup } from './store/authStore';
 export { useSocket } from './hooks/useSocket';
 export { useLocation } from './hooks/useLocation';
 export {
