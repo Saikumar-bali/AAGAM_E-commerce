@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Banknote, Bike, ChevronRight, CircleHelp, LogOut, Mail, Phone, Settings, ShieldCheck, Star, User } from 'lucide-react-native';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { RiderOnlineService } from '../../services/RiderOnlineService';
@@ -7,6 +7,31 @@ import { RiderOnlineService } from '../../services/RiderOnlineService';
 export const RiderProfileScreen = () => {
   const { user, logout } = useAuthStore();
   const initial = (user?.name || user?.email || 'R').slice(0, 1).toUpperCase();
+
+  const handleMenuPress = async (label: string) => {
+    if (label === 'Help & support') {
+      try {
+        await Linking.openURL('mailto:support@aagam.com?subject=Partner%20support');
+      } catch {
+        Alert.alert('Help & support', 'Email support@aagam.com for assistance.');
+      }
+      return;
+    }
+    if (label === 'Rate the app') {
+      try {
+        await Linking.openURL('https://play.google.com/store/apps/details?id=com.aagampartners');
+      } catch {
+        Alert.alert('Rate the app', 'The app store is not available on this device.');
+      }
+      return;
+    }
+    const message = label === 'Bank & payout details'
+      ? 'Payout details will appear here when the dispatch payout service is enabled.'
+      : label === 'Permissions & safety'
+        ? 'Location and delivery permissions are managed by the active delivery workflow.'
+        : 'Account changes are managed by Aagaam operations. Contact Help & support for assistance.';
+    Alert.alert(label, message);
+  };
 
   const handleLogout = async () => {
     await RiderOnlineService.stop().catch(() => false);
@@ -35,11 +60,11 @@ export const RiderProfileScreen = () => {
       </View>
 
       <View style={styles.menuCard}>
-        <MenuRow icon={Banknote} label="Bank & payout details" />
-        <MenuRow icon={ShieldCheck} label="Permissions & safety" />
-        <MenuRow icon={CircleHelp} label="Help & support" />
-        <MenuRow icon={Star} label="Rate the app" />
-        <MenuRow icon={Settings} label="Account settings" last />
+        <MenuRow icon={Banknote} label="Bank & payout details" onPress={() => void handleMenuPress('Bank & payout details')} />
+        <MenuRow icon={ShieldCheck} label="Permissions & safety" onPress={() => void handleMenuPress('Permissions & safety')} />
+        <MenuRow icon={CircleHelp} label="Help & support" onPress={() => void handleMenuPress('Help & support')} />
+        <MenuRow icon={Star} label="Rate the app" onPress={() => void handleMenuPress('Rate the app')} />
+        <MenuRow icon={Settings} label="Account settings" last onPress={() => void handleMenuPress('Account settings')} />
       </View>
 
       <Text style={styles.help}>
@@ -64,7 +89,7 @@ const InfoRow = ({ icon: Icon, label, value, last = false }: { icon: any; label:
     </View>
   </View>
 );
-const MenuRow = ({ icon: Icon, label, last = false }: { icon: any; label: string; last?: boolean }) => <TouchableOpacity style={[styles.menuRow, !last && styles.rowBorder]}><View style={styles.menuIcon}><Icon size={18} color="#007A5C" /></View><Text style={styles.menuLabel}>{label}</Text><ChevronRight size={18} color="#94A3B8" /></TouchableOpacity>;
+const MenuRow = ({ icon: Icon, label, last = false, onPress }: { icon: any; label: string; last?: boolean; onPress: () => void }) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={[styles.menuRow, !last && styles.rowBorder]}><View style={styles.menuIcon}><Icon size={18} color="#007A5C" /></View><Text style={styles.menuLabel}>{label}</Text><ChevronRight size={18} color="#94A3B8" /></TouchableOpacity>;
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F4F7F5' },
