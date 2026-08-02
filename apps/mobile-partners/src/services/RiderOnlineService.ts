@@ -113,4 +113,6 @@ export const RiderOnlineService = {
 
 // Shared logout runs this before it clears the bearer token, preventing the
 // Android foreground service from continuing to post heartbeats after sign-out.
-registerMobileSessionCleanup(() => RiderOnlineService.stop());
+registerMobileSessionCleanup(async () => {
+  await RiderOnlineService.stop();
+});
