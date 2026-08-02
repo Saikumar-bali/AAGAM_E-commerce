@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -37,6 +37,12 @@ const rupees = (value: number) => '₹' + value.toLocaleString('en-IN', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+
+function nextWeekDelay(weekStart: string) {
+  const nextWeek = new Date(weekStart);
+  nextWeek.setDate(nextWeek.getDate() + 7);
+  return Math.max(1_000, nextWeek.getTime() - Date.now() + 1_000);
+}
 
 function startOfWeek(value: Date) {
   const result = new Date(value);
@@ -129,13 +135,20 @@ const StatusScreen = ({
 );
 
 export const RiderEarningsScreen = () => {
+  const [weekStart, setWeekStart] = useState(() => earningsHistoryFrom());
+
+  useEffect(() => {
+    const rollover = setTimeout(() => setWeekStart(earningsHistoryFrom()), nextWeekDelay(weekStart));
+    return () => clearTimeout(rollover);
+  }, [weekStart]);
+
   const query = useQuery<RiderWorkspace>({
-    queryKey: HISTORY_QUERY_KEY,
-    queryFn: () => riderService.getWorkspaceSince(earningsHistoryFrom()),
+    queryKey: [...HISTORY_QUERY_KEY, weekStart],
+    queryFn: () => riderService.getWorkspaceSince(weekStart),
   });
   const summary = useMemo(
     () => summarize(query.data?.assignmentHistory || []),
-    [query.data?.assignmentHistory],
+    [query.data?.assignmentHistory, weekStart],
   );
 
   if (query.isLoading && !query.data) {
