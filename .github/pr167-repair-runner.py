@@ -14,6 +14,26 @@ replacements = [
         '''marker = "  const totalPages = Math.max(1, Number(ordersQuery.data?.totalPages || 1));"''',
         'Store Orders total-pages response anchor',
     ),
+    (
+        '''const roles = new Set<string>((req.user?.roles || []).map(String));''',
+        '''const roles = new Set<Role>([req.user.role, ...(req.user.roles || [])]);''',
+        'Store order badge role set',
+    ),
+    (
+        '''const stores = await this.prisma.store.findMany({''',
+        '''const stores = await prisma.store.findMany({''',
+        'Store order badge Prisma store query',
+    ),
+    (
+        '''where: this.isAdmin(roles)''',
+        '''where: roles.has(Role.ADMIN)''',
+        'Store order badge admin check',
+    ),
+    (
+        '''const count = await this.prisma.order.count({''',
+        '''const count = await prisma.order.count({''',
+        'Store order badge Prisma order count',
+    ),
 ]
 
 for old, new, label in replacements:
