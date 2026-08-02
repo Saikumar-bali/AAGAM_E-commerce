@@ -232,7 +232,7 @@ function OfferCard({
           </Text>
         </View>
       </View>
-      <Text style={styles.offerStore}>{order.store?.name || 'AAGAM store'}</Text>
+      <Text style={styles.offerStore}>{order.store?.name || 'Aagaam store'}</Text>
       <Text style={styles.offerAddress}>{order.store?.address || 'Pickup location available after acceptance'}</Text>
       <View style={styles.offerMetaRow}>
         <Text style={styles.offerMeta}>{order.items?.length || 0} item(s)</Text>
@@ -337,7 +337,7 @@ function CurrentDelivery({
         <View style={styles.locationIcon}><Store size={19} color="#07966D" /></View>
         <View style={styles.locationContent}>
           <Text style={styles.locationLabel}>PICKUP</Text>
-          <Text style={styles.locationName}>{order.store?.name || 'AAGAM store'}</Text>
+          <Text style={styles.locationName}>{order.store?.name || 'Aagaam store'}</Text>
           <Text style={styles.locationAddress}>{order.store?.address || 'Store address unavailable'}</Text>
           <TouchableOpacity testID="rider_dashboard_navigate_store_button" onPress={() => openPoint(order.store?.latitude, order.store?.longitude, 'Store')}>
             <Text style={styles.linkText}>Navigate to store →</Text>
@@ -499,7 +499,7 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
     let unsubscribeOpened: (() => void) | undefined;
     let alive = true;
 
-    startMobilePushLifecycle('AAGAM Partners').then((unsubscribe) => {
+    startMobilePushLifecycle('Aagaam Partners').then((unsubscribe) => {
       if (alive) unsubscribeTokenRefresh = unsubscribe;
       else unsubscribe();
     }).catch(() => undefined);
@@ -589,7 +589,7 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
       ? PermissionsAndroid.RESULTS.GRANTED
       : await PermissionsAndroid.request(finePermission, {
           title: 'Allow rider location',
-          message: 'AAGAM Partners uses precise location while you are online and fulfilling a delivery.',
+          message: 'Aagaam Partners uses precise location while you are online and fulfilling a delivery.',
           buttonPositive: 'Allow',
           buttonNegative: 'Not now',
         });
@@ -723,7 +723,7 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
   };
 
   const confirmAccept = (offer: RiderAssignmentOffer) => {
-    Alert.alert('Accept delivery offer?', `Pickup from ${offer.deliveryJob.order.store?.name || 'AAGAM store'}.`, [
+    Alert.alert('Accept delivery offer?', `Pickup from ${offer.deliveryJob.order.store?.name || 'Aagaam store'}.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Accept', onPress: () => acceptMutation.mutate(offer.id) },
     ]);
