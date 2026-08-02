@@ -1,33 +1,39 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  AlertTriangle,
+  ArrowLeft,
+  Check,
   CheckCircle2,
-  ClipboardCheck,
-  KeyRound,
-  PackageCheck,
+  Package,
+  Phone,
   RefreshCw,
-  ShieldCheck,
-  User,
+  RotateCw,
+  Star,
+  UserRound,
 } from 'lucide-react-native';
 import { deliveryOperationsService } from '../../api/deliveryOperationsService';
 import { pickupOperationsService } from '../../api/pickupOperationsService';
 import {
-  normalizeParcelCount,
-  pickupReadinessLabel,
-  pruneIssuedPickupPins,
-} from '../../domain/pickupOperations';
+  buildStorePickupReceipt,
+  formatStoreMoney,
+  orderCustomerName,
+  orderPaymentMethod,
+  pickupParcelCount,
+  riderProfile,
+  shortStoreOrderId,
+} from '../../domain/storeReferenceUi';
 
 const QUEUE_KEY = ['store', 'pickup-verification'] as const;
 
@@ -43,325 +49,314 @@ function errorMessage(error: any) {
   return value || error?.message || 'The pickup operation could not be completed.';
 }
 
-function shortId(value?: string | null) {
-  return value ? value.slice(-8).toUpperCase() : 'UNKNOWN';
+function pickupTime(job: any) {
+  const value = job?.arrivedAt || job?.updatedAt || job?.createdAt;
+  return value
+    ? new Date(value).toLocaleString('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    })
+    : 'Time unavailable';
 }
 
-function minutesUntil(value: string) {
-  return Math.max(0, Math.ceil((new Date(value).getTime() - Date.now()) / 60_000));
-}
-
-export const StorePickupVerificationScreen = () => {
+export const StorePickupVerificationScreen = ({ navigation, route }: { navigation?: any; route?: any }) => {
+  const deliveryJobId = String(route?.params?.deliveryJobId || '');
   const queryClient = useQueryClient();
-  const [busy, setBusy] = useState<string | null>(null);
-  const [parcelCounts, setParcelCounts] = useState<Record<string, string>>({});
-  const [issuedPins, setIssuedPins] = useState<Record<string, IssuedPin>>({});
+  const [busy, setBusy] = useState<'PIN' | 'HANDOFF' | null>(null);
+  const [issuedPin, setIssuedPin] = useState<IssuedPin | null>(null);
 
-  const queueQuery = useQuery({
-    queryKey: QUEUE_KEY,
+  const jobQuery = useQuery({
+    queryKey: [...QUEUE_KEY, deliveryJobId],
     queryFn: async () => {
       const queue = await deliveryOperationsService.getQueue();
-      const jobs = queue.filter((job: any) => job.status === 'RIDER_AT_STORE');
-      return Promise.all(
-        jobs.map(async (job: any) => ({
-          ...job,
-          pickupReadiness: await pickupOperationsService.getReadiness(job.id),
-        })),
-      );
+      const job = queue.find((entry: any) => entry.id === deliveryJobId)
+        || queue.find((entry: any) => entry.status === 'RIDER_AT_STORE')
+        || null;
+      if (!job) return null;
+      return {
+        ...job,
+        pickupReadiness: await pickupOperationsService.getReadiness(job.id),
+      };
     },
+    enabled: Boolean(deliveryJobId),
     refetchInterval: 8_000,
     retry: 1,
   });
 
-  const jobs = queueQuery.data || [];
-
-  useEffect(() => {
-    setIssuedPins((current) => pruneIssuedPickupPins(current, jobs));
-  }, [jobs]);
+  const job = jobQuery.data;
+  const order = job?.order || {};
+  const rider = riderProfile(job);
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const parcelCount = pickupParcelCount(job);
+  const ready = Boolean(job?.pickupReadiness?.ready);
+  const payment = orderPaymentMethod(order);
+  const total = Number(order?.grandTotal ?? order?.totalAmount);
+  const totalUnits = useMemo(
+    () => items.reduce((sum: number, item: any) => sum + Number(item?.quantity || 0), 0),
+    [items],
+  );
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: QUEUE_KEY });
-    await queueQuery.refetch();
+    await jobQuery.refetch();
   };
 
-  const perform = async (
-    key: string,
-    task: () => Promise<any>,
-    title: string,
-    body: string,
-  ) => {
-    if (busy) return null;
-    setBusy(key);
+  const issuePin = async () => {
+    if (!job) return;
+    if (!ready) {
+      Alert.alert('Rider checklist pending', 'The rider must verify every packed item before a pickup PIN can be issued.');
+      return;
+    }
+    setBusy('PIN');
     try {
-      const result = await task();
-      await refresh();
-      Alert.alert(title, body);
-      return result;
+      const result = await deliveryOperationsService.issuePickupChallenge(job.id, {
+        method: 'STORE_PICKUP_PIN',
+        parcelCount,
+      });
+      setIssuedPin({
+        code: String(result.code || ''),
+        expiresAt: String(result.expiresAt || ''),
+        parcelCount: Number(result.parcelCount || parcelCount),
+      });
     } catch (error: any) {
-      Alert.alert('Operation failed', errorMessage(error));
-      return null;
+      Alert.alert('Could not issue rider PIN', errorMessage(error));
     } finally {
       setBusy(null);
     }
   };
 
-  const parcelCount = (jobId: string) => normalizeParcelCount(parcelCounts[jobId] || '1');
-
-  const issuePin = async (job: any) => {
-    if (!job.pickupReadiness?.ready) {
-      Alert.alert(
-        'Rider checklist pending',
-        'The rider must verify every item quantity before a pickup PIN can be issued.',
-      );
+  const confirmHandoff = () => {
+    if (!job) return;
+    if (!ready) {
+      Alert.alert('Rider checklist pending', 'Confirm handoff only after the rider verifies all packed items.');
       return;
     }
-    const result = await perform(
-      `pin:${job.id}`,
-      () => deliveryOperationsService.issuePickupChallenge(job.id, {
-        method: 'STORE_PICKUP_PIN',
-        parcelCount: parcelCount(job.id),
-      }),
-      'Pickup PIN issued',
-      'Show this six-digit PIN only to the assigned rider at the store.',
-    );
-    if (result) {
-      setIssuedPins((current) => ({
-        ...current,
-        [job.id]: {
-          code: result.code,
-          expiresAt: result.expiresAt,
-          parcelCount: result.parcelCount,
-        },
-      }));
-    }
-  };
-
-  const confirmHandoff = (job: any) => {
-    if (!job.pickupReadiness?.ready) {
-      Alert.alert(
-        'Rider checklist pending',
-        'The rider must verify every item quantity before direct handoff can be confirmed.',
-      );
-      return;
-    }
-    const count = parcelCount(job.id);
     Alert.alert(
       'Confirm physical handoff?',
-      `Confirm that ${count} parcel(s) were handed to the assigned rider.`,
+      `Confirm that ${parcelCount} parcel${parcelCount === 1 ? '' : 's'} were handed to ${rider.name}.`,
       [
         { text: 'Back', style: 'cancel' },
         {
-          text: 'Confirm handoff',
-          onPress: () => void perform(
-            `handoff:${job.id}`,
-            () => deliveryOperationsService.confirmStoreHandoff(job.id, { parcelCount: count }),
-            'Pickup confirmed',
-            'The rider can now start customer delivery.',
-          ),
+          text: 'Confirm Handoff',
+          onPress: async () => {
+            setBusy('HANDOFF');
+            try {
+              await deliveryOperationsService.confirmStoreHandoff(job.id, { parcelCount });
+              const receipt = buildStorePickupReceipt(job, parcelCount);
+              await refresh();
+              navigation?.replace?.('StorePickupSuccess', { receipt });
+            } catch (error: any) {
+              Alert.alert('Handoff failed', errorMessage(error));
+            } finally {
+              setBusy(null);
+            }
+          },
         },
       ],
     );
   };
 
+  const callRider = async () => {
+    if (!rider.phone) {
+      Alert.alert('Rider phone unavailable', 'The assigned rider did not provide a callable number.');
+      return;
+    }
+    try {
+      await Linking.openURL(`tel:${rider.phone}`);
+    } catch {
+      Alert.alert('Could not open phone app', rider.phone);
+    }
+  };
+
   return (
-    <ScrollView
-      style={styles.page}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={queueQuery.isRefetching} onRefresh={() => void refresh()} />}
-    >
-      <View style={styles.hero}>
-        <View style={styles.flex}>
-          <Text style={styles.eyebrow}>STORE PICKUP</Text>
-          <Text style={styles.title}>Rider handoff</Text>
-          <Text style={styles.subtitle}>Release parcels only after the rider verifies every item.</Text>
-        </View>
-        <TouchableOpacity testID="store_pickup_refresh" style={styles.refreshButton} onPress={() => void refresh()}>
-          <RefreshCw size={20} color="#FFFFFF" />
+    <View style={styles.screen}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.headerIcon} onPress={() => navigation?.goBack?.()}>
+          <ArrowLeft size={31} color="#151922" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Store Pickup Verification</Text>
+        <TouchableOpacity style={styles.headerIcon} onPress={() => void refresh()}>
+          <RefreshCw size={22} color="#59616B" />
         </TouchableOpacity>
       </View>
 
-      {queueQuery.isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#0F766E" />
-          <Text style={styles.muted}>Loading rider arrivals…</Text>
-        </View>
-      ) : queueQuery.error ? (
-        <View style={styles.errorCard}>
-          <AlertTriangle size={36} color="#B91C1C" />
-          <Text style={styles.errorTitle}>Pickup queue unavailable</Text>
-          <Text style={styles.errorText}>{errorMessage(queueQuery.error)}</Text>
-        </View>
-      ) : jobs.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <PackageCheck size={48} color="#94A3B8" />
-          <Text style={styles.emptyTitle}>No riders waiting</Text>
-          <Text style={styles.emptyText}>An order appears here after its assigned rider marks arrival.</Text>
-        </View>
-      ) : (
-        jobs.map((job: any) => {
-          const order = job.order || {};
-          const readiness = job.pickupReadiness;
-          const ready = Boolean(readiness?.ready);
-          const problem = readiness?.task?.status === 'PROBLEM_REPORTED';
-          const rider = job.currentRider?.user || {};
-          const items = order.items || [];
-          const pin = issuedPins[job.id];
-
-          return (
-            <View key={job.id} style={styles.jobCard}>
-              <View style={styles.jobHeader}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={jobQuery.isRefetching} onRefresh={() => void refresh()} tintColor="#078B4D" />}
+      >
+        {jobQuery.isLoading ? (
+          <View style={styles.stateCard}><ActivityIndicator size="large" color="#078B4D" /><Text style={styles.stateText}>Loading pickup verification…</Text></View>
+        ) : jobQuery.isError ? (
+          <View style={styles.stateCard}><Text style={styles.stateTitle}>Pickup verification unavailable</Text><Text style={styles.stateText}>{errorMessage(jobQuery.error)}</Text></View>
+        ) : !job ? (
+          <View style={styles.stateCard}><Package size={45} color="#A8B0B7" /><Text style={styles.stateTitle}>Rider is no longer waiting</Text><Text style={styles.stateText}>The pickup may already be completed or reassigned.</Text></View>
+        ) : (
+          <>
+            <View style={styles.riderCard}>
+              <View style={styles.riderTopRow}>
+                <View style={styles.riderAvatar}><UserRound size={42} color="#078B4D" fill="#078B4D" /></View>
+                <View style={styles.riderCopy}>
+                  <Text style={styles.riderName}>{rider.name}</Text>
+                  <Text style={styles.riderPhone}>{rider.phone || 'Phone unavailable'}</Text>
+                </View>
+                {rider.rating != null ? (
+                  <View style={styles.rating}><Star size={20} color="#FFB300" fill="#FFB300" /><Text style={styles.ratingText}>{rider.rating.toFixed(1)}</Text></View>
+                ) : null}
+              </View>
+              <Text style={styles.metaLabel}>Arrived at</Text>
+              <Text style={styles.metaValue}>{pickupTime(job)}</Text>
+              <View style={styles.vehicleCallRow}>
                 <View style={styles.flex}>
-                  <Text style={styles.orderCode}>ORDER #{shortId(order.id)}</Text>
-                  <Text style={styles.jobTitle}>Rider at store</Text>
-                  <Text style={styles.storeMeta}>{order.store?.name || 'Store pickup'}</Text>
+                  <Text style={styles.metaLabel}>Vehicle</Text>
+                  <Text style={styles.metaValue}>{rider.vehicleNumber || 'Vehicle unavailable'}</Text>
                 </View>
-                <View style={styles.riderBadge}>
-                  <User size={14} color="#0F766E" />
-                  <Text style={styles.riderName}>{rider.name || 'Assigned rider'}</Text>
-                </View>
+                <TouchableOpacity style={styles.callButton} onPress={() => void callRider()}>
+                  <Phone size={27} color="#078B4D" />
+                </TouchableOpacity>
               </View>
-
-              <View style={[
-                styles.readinessCard,
-                ready ? styles.readinessReady : problem ? styles.readinessProblem : styles.readinessWaiting,
-              ]}>
-                {ready ? (
-                  <CheckCircle2 size={20} color="#15803D" />
-                ) : problem ? (
-                  <AlertTriangle size={20} color="#B91C1C" />
-                ) : (
-                  <ClipboardCheck size={20} color="#B45309" />
-                )}
-                <View style={styles.flex}>
-                  <Text style={styles.readinessTitle}>{pickupReadinessLabel(readiness?.task?.status)}</Text>
-                  {readiness?.task?.problemNote ? (
-                    <Text style={styles.problemNote}>{readiness.task.problemType}: {readiness.task.problemNote}</Text>
-                  ) : (
-                    <Text style={styles.readinessCopy}>
-                      {ready ? 'Pickup proof controls are unlocked.' : 'Ask the rider to verify the checklist in Operations.'}
-                    </Text>
-                  )}
-                </View>
-              </View>
-
-              <View style={styles.itemsBox}>
-                <Text style={styles.itemsHeading}>PACKED ITEMS ({items.length})</Text>
-                {items.map((item: any) => (
-                  <Text key={item.id} style={styles.itemLine}>{item.product?.name || 'Item'} × {item.quantity}</Text>
-                ))}
-              </View>
-
-              <View style={styles.parcelRow}>
-                <View style={styles.flex}>
-                  <Text style={styles.fieldLabel}>PARCEL COUNT</Text>
-                  <Text style={styles.fieldHelp}>The rider must enter the same count.</Text>
-                </View>
-                <TextInput
-                  testID={`store_pickup_parcel_count_${job.id}`}
-                  value={parcelCounts[job.id] || ''}
-                  onChangeText={(value) => setParcelCounts((current) => ({
-                    ...current,
-                    [job.id]: value.replace(/\D/g, '').slice(0, 3),
-                  }))}
-                  placeholder="1"
-                  keyboardType="number-pad"
-                  placeholderTextColor="#94A3B8"
-                  style={styles.parcelInput}
-                />
-              </View>
-
-              {pin && ready ? (
-                <View style={styles.pinCard}>
-                  <KeyRound size={22} color="#B45309" />
-                  <View style={styles.flex}>
-                    <Text style={styles.pinLabel}>PICKUP PIN</Text>
-                    <Text selectable style={styles.pinCode}>{pin.code}</Text>
-                    <Text style={styles.pinMeta}>{pin.parcelCount} parcel(s) · expires in {minutesUntil(pin.expiresAt)} min</Text>
-                  </View>
-                </View>
-              ) : null}
-
-              <TouchableOpacity
-                testID={`store_pickup_issue_pin_${job.id}`}
-                style={[styles.primaryButton, (!ready || busy) && styles.disabled]}
-                disabled={!ready || Boolean(busy)}
-                onPress={() => void issuePin(job)}
-              >
-                {busy === `pin:${job.id}` ? <ActivityIndicator color="#FFFFFF" /> : <KeyRound size={18} color="#FFFFFF" />}
-                <Text style={styles.buttonText}>Issue six-digit rider PIN</Text>
-              </TouchableOpacity>
-
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>OR</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <TouchableOpacity
-                testID={`store_pickup_confirm_handoff_${job.id}`}
-                style={[styles.confirmButton, (!ready || busy) && styles.disabled]}
-                disabled={!ready || Boolean(busy)}
-                onPress={() => confirmHandoff(job)}
-              >
-                {busy === `handoff:${job.id}` ? <ActivityIndicator color="#FFFFFF" /> : <ShieldCheck size={18} color="#FFFFFF" />}
-                <Text style={styles.buttonText}>Confirm physical handoff</Text>
-              </TouchableOpacity>
             </View>
-          );
-        })
-      )}
-      <View style={{ height: 110 }} />
-    </ScrollView>
+
+            <View style={styles.orderCard}>
+              <InfoRow label="Order ID" value={`#ORD-${shortStoreOrderId(order.id || job.orderId)}`} />
+              <InfoRow label="Customer" value={orderCustomerName(order)} />
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Payment</Text>
+                <View style={[styles.paymentPill, payment === 'COD' ? styles.codPill : styles.prepaidPill]}>
+                  <Text style={[styles.paymentText, payment === 'COD' ? styles.codText : styles.prepaidText]}>{payment}</Text>
+                </View>
+              </View>
+              <InfoRow label="Total" value={formatStoreMoney(total)} />
+            </View>
+
+            <View style={styles.checklistCard}>
+              <Text style={styles.checklistTitle}>Packed Items Checklist</Text>
+              {items.map((item: any, index: number) => (
+                <View key={item.id || index} style={[styles.itemRow, index < items.length - 1 && styles.itemBorder]}>
+                  <View style={styles.checkBox}><Check size={18} color="#FFFFFF" strokeWidth={3} /></View>
+                  <Text style={styles.itemName} numberOfLines={1}>{item.product?.name || 'Product'}</Text>
+                  <Text style={styles.itemQuantity}>{Number(item.quantity || 0)}</Text>
+                </View>
+              ))}
+              {!items.length ? <Text style={styles.emptyItems}>No packed item lines were returned for this order.</Text> : null}
+              <View style={styles.parcelSummary}>
+                <Text style={styles.parcelLabel}>Total Parcels</Text>
+                <Text style={styles.parcelCount}>{parcelCount}</Text>
+                <Package size={39} color="#5C6972" />
+              </View>
+              <View style={[styles.readinessBanner, ready ? styles.readyBanner : styles.waitingBanner]}>
+                <CheckCircle2 size={19} color={ready ? '#16833A' : '#B56A12'} />
+                <Text style={[styles.readinessText, { color: ready ? '#16833A' : '#B56A12' }]}>
+                  {ready ? `Rider verified ${totalUnits} packed unit${totalUnits === 1 ? '' : 's'}` : 'Waiting for rider checklist verification'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.pinArea}>
+              <Text style={styles.pinTitle}>Issue 6-Digit Rider PIN</Text>
+              <Text style={styles.pinSubtitle}>Share this PIN with the rider for verification</Text>
+              {issuedPin ? (
+                <View style={styles.pinRow}>
+                  {issuedPin.code.slice(0, 6).split('').map((digit, index) => (
+                    <View key={`${digit}-${index}`} style={styles.pinBox}><Text style={styles.pinDigit}>{digit}</Text></View>
+                  ))}
+                  <TouchableOpacity style={styles.regenerateButton} disabled={busy === 'PIN'} onPress={() => void issuePin()}>
+                    {busy === 'PIN' ? <ActivityIndicator color="#078B4D" /> : <RotateCw size={29} color="#078B4D" />}
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={[styles.issuePinButton, (!ready || busy) && styles.disabled]} disabled={!ready || Boolean(busy)} onPress={() => void issuePin()}>
+                  {busy === 'PIN' ? <ActivityIndicator color="#078B4D" /> : <Text style={styles.issuePinText}>Generate Rider PIN</Text>}
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity
+              testID="store_pickup_confirm_handoff"
+              style={[styles.confirmButton, (!ready || busy) && styles.disabled]}
+              disabled={!ready || Boolean(busy)}
+              onPress={confirmHandoff}
+            >
+              {busy === 'HANDOFF' ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.confirmText}>Confirm Handoff</Text>}
+            </TouchableOpacity>
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#F5F3EE' },
-  content: { paddingBottom: 20 },
+  screen: { flex: 1, backgroundColor: '#FAFBFA' },
   flex: { flex: 1 },
-  hero: { backgroundColor: '#0F172A', paddingTop: 56, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, flexDirection: 'row', alignItems: 'center' },
-  eyebrow: { color: '#5EEAD4', fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
-  title: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', marginTop: 5 },
-  subtitle: { color: '#CBD5E1', fontSize: 12, marginTop: 5 },
-  refreshButton: { width: 44, height: 44, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
-  center: { minHeight: 280, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  muted: { color: '#64748B' },
-  emptyCard: { margin: 20, minHeight: 250, borderRadius: 26, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E7E5E4', alignItems: 'center', justifyContent: 'center', padding: 28 },
-  emptyTitle: { marginTop: 14, color: '#0F172A', fontSize: 19, fontWeight: '900' },
-  emptyText: { marginTop: 7, color: '#64748B', textAlign: 'center' },
-  errorCard: { margin: 20, borderRadius: 24, borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FEF2F2', padding: 24, alignItems: 'center' },
-  errorTitle: { color: '#991B1B', fontSize: 18, fontWeight: '900', marginTop: 10 },
-  errorText: { color: '#B91C1C', textAlign: 'center', marginTop: 7 },
-  jobCard: { marginHorizontal: 18, marginTop: 16, borderRadius: 26, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E7E5E4', padding: 18 },
-  jobHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  orderCode: { color: '#0F766E', fontSize: 10, fontWeight: '900' },
-  jobTitle: { color: '#0F172A', fontSize: 19, fontWeight: '900', marginTop: 5 },
-  storeMeta: { color: '#64748B', fontSize: 11, marginTop: 4 },
-  riderBadge: { maxWidth: 150, borderRadius: 999, backgroundColor: '#F0FDFA', paddingHorizontal: 10, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  riderName: { color: '#0F766E', fontSize: 10, fontWeight: '900', flexShrink: 1 },
-  readinessCard: { marginTop: 14, borderRadius: 17, borderWidth: 1, padding: 13, flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
-  readinessReady: { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' },
-  readinessWaiting: { borderColor: '#FDE68A', backgroundColor: '#FFFBEB' },
-  readinessProblem: { borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
-  readinessTitle: { color: '#0F172A', fontSize: 13, fontWeight: '900' },
-  readinessCopy: { marginTop: 3, color: '#64748B', fontSize: 10, fontWeight: '700' },
-  problemNote: { marginTop: 4, color: '#B91C1C', fontSize: 10, fontWeight: '700' },
-  itemsBox: { marginTop: 14, borderRadius: 16, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', padding: 13 },
-  itemsHeading: { color: '#0F766E', fontSize: 10, fontWeight: '900', marginBottom: 8 },
-  itemLine: { color: '#334155', fontSize: 12, fontWeight: '700', marginTop: 4 },
-  parcelRow: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  fieldLabel: { color: '#475569', fontSize: 10, fontWeight: '900' },
-  fieldHelp: { color: '#94A3B8', fontSize: 9, marginTop: 3 },
-  parcelInput: { width: 76, height: 48, borderRadius: 14, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', color: '#0F172A', textAlign: 'center', fontWeight: '900' },
-  pinCard: { marginTop: 14, borderRadius: 17, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  pinLabel: { color: '#B45309', fontSize: 9, fontWeight: '900' },
-  pinCode: { marginTop: 5, color: '#0F172A', fontSize: 28, letterSpacing: 4, fontWeight: '900' },
-  pinMeta: { marginTop: 5, color: '#92400E', fontSize: 10, fontWeight: '700' },
-  primaryButton: { minHeight: 50, borderRadius: 15, backgroundColor: '#0F766E', marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  confirmButton: { minHeight: 50, borderRadius: 15, backgroundColor: '#0F172A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  buttonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
-  disabled: { opacity: 0.42 },
-  divider: { marginVertical: 13, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
-  dividerText: { color: '#94A3B8', fontSize: 9, fontWeight: '900' },
+  header: { height: 114, paddingTop: 50, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF' },
+  headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, color: '#151922', fontSize: 22, fontWeight: '900', textAlign: 'center' },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 17, paddingBottom: 44 },
+  riderCard: { borderRadius: 18, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 17 },
+  riderTopRow: { flexDirection: 'row', alignItems: 'center' },
+  riderAvatar: { width: 65, height: 65, borderRadius: 33, backgroundColor: '#E9F9EE', alignItems: 'center', justifyContent: 'center' },
+  riderCopy: { flex: 1, marginLeft: 13 },
+  riderName: { color: '#151922', fontSize: 19, fontWeight: '900' },
+  riderPhone: { color: '#5F6872', fontSize: 15, marginTop: 5 },
+  rating: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  ratingText: { color: '#151922', fontSize: 17, fontWeight: '900' },
+  metaLabel: { color: '#626B74', fontSize: 14, marginTop: 15 },
+  metaValue: { color: '#151922', fontSize: 16, fontWeight: '800', marginTop: 5 },
+  vehicleCallRow: { flexDirection: 'row', alignItems: 'center' },
+  callButton: { width: 58, height: 58, borderRadius: 29, borderWidth: 1, borderColor: '#D9DDDB', alignItems: 'center', justifyContent: 'center' },
+  orderCard: { borderRadius: 17, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 10, marginTop: 13 },
+  infoRow: { minHeight: 51, flexDirection: 'row', alignItems: 'center' },
+  infoLabel: { flex: 1, color: '#65707A', fontSize: 15 },
+  infoValue: { color: '#151922', fontSize: 15, fontWeight: '900' },
+  paymentPill: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  prepaidPill: { backgroundColor: '#EAF9EE' },
+  codPill: { backgroundColor: '#FFF1E5' },
+  paymentText: { fontSize: 12, fontWeight: '900' },
+  prepaidText: { color: '#087C35' },
+  codText: { color: '#BE5B09' },
+  checklistCard: { borderRadius: 17, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 16, marginTop: 13 },
+  checklistTitle: { color: '#087B4E', fontSize: 17, fontWeight: '900', marginBottom: 8 },
+  itemRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center' },
+  itemBorder: { borderBottomWidth: 1, borderBottomColor: '#E8EAE9' },
+  checkBox: { width: 28, height: 28, borderRadius: 5, backgroundColor: '#0A9A50', alignItems: 'center', justifyContent: 'center' },
+  itemName: { flex: 1, color: '#151922', fontSize: 15, marginLeft: 12 },
+  itemQuantity: { color: '#151922', fontSize: 16, fontWeight: '900' },
+  emptyItems: { color: '#777F86', fontSize: 13, paddingVertical: 18 },
+  parcelSummary: { minHeight: 68, borderTopWidth: 1, borderTopColor: '#E7E9E8', flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  parcelLabel: { color: '#087B4E', fontSize: 17, fontWeight: '900' },
+  parcelCount: { flex: 1, color: '#151922', fontSize: 28, fontWeight: '900', marginLeft: 22 },
+  readinessBanner: { borderRadius: 10, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  readyBanner: { backgroundColor: '#EAF9EE' },
+  waitingBanner: { backgroundColor: '#FFF5E7' },
+  readinessText: { flex: 1, fontSize: 12, fontWeight: '800' },
+  pinArea: { alignItems: 'center', marginTop: 22 },
+  pinTitle: { color: '#151922', fontSize: 18, fontWeight: '900' },
+  pinSubtitle: { color: '#626B74', fontSize: 13, marginTop: 6, textAlign: 'center' },
+  pinRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 15 },
+  pinBox: { width: 45, height: 55, borderRadius: 9, borderWidth: 1, borderColor: '#CCD2CF', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  pinDigit: { color: '#087B4E', fontSize: 25, fontWeight: '900' },
+  regenerateButton: { width: 45, height: 55, alignItems: 'center', justifyContent: 'center' },
+  issuePinButton: { height: 52, minWidth: 210, borderRadius: 10, borderWidth: 1, borderColor: '#078B4D', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginTop: 15 },
+  issuePinText: { color: '#078B4D', fontSize: 15, fontWeight: '900' },
+  confirmButton: { height: 62, borderRadius: 13, backgroundColor: '#078B4D', alignItems: 'center', justifyContent: 'center', marginTop: 24 },
+  confirmText: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
+  disabled: { opacity: 0.45 },
+  stateCard: { minHeight: 440, alignItems: 'center', justifyContent: 'center', padding: 28 },
+  stateTitle: { color: '#171A1D', fontSize: 18, fontWeight: '900', marginTop: 12, textAlign: 'center' },
+  stateText: { color: '#6D747B', fontSize: 13, marginTop: 7, textAlign: 'center', lineHeight: 20 },
 });

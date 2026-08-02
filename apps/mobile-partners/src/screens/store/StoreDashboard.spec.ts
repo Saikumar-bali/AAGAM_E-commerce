@@ -23,9 +23,11 @@ describe('StoreDashboard contracts', () => {
     await expect(storeService.getStoreDashboardSummaries()).resolves.toEqual(stores);
   });
 
-  it('navigates to the nested OrderQueue with selected store context', () => {
+  it('opens the nested order queue with selected store context', () => {
     const source = fs.readFileSync(path.join(__dirname, 'StoreDashboard.tsx'), 'utf8');
-    expect(source).toContain("navigate?.('Orders', { screen: 'OrderQueue', params: { storeId: store.id } })");
+    expect(source).toContain("navigation?.navigate?.('Orders'");
+    expect(source).toContain("screen: 'OrderQueue'");
+    expect(source).toContain('storeId: store.id');
     expect(source).not.toContain("navigate?.('StoreOrders')");
   });
 
@@ -36,10 +38,12 @@ describe('StoreDashboard contracts', () => {
     expect(source).toContain("navigate?.('Notifications')");
   });
 
-  it('renders API-provided order, inventory and revenue totals', () => {
+  it('renders API-provided order, inventory and revenue totals in reference cards', () => {
     const source = fs.readFileSync(path.join(__dirname, 'StoreDashboard.tsx'), 'utf8');
     expect(source).toContain('store.orderCount');
     expect(source).toContain('store.inventoryCount');
     expect(source).toContain('store.totalRevenue');
+    expect(source).toContain('Assigned Stores');
+    expect(source).toContain('Have a great day ahead!');
   });
 });
