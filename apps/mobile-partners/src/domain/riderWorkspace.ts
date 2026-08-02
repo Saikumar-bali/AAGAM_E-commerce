@@ -24,6 +24,7 @@ export type DispatchAssignmentStatus =
 export type RiderOrder = {
   id: string;
   status?: string;
+  deliveredAt?: string | null;
   grandTotal?: number;
   deliveryLat?: number | null;
   deliveryLng?: number | null;
@@ -51,6 +52,8 @@ export type RiderDeliveryJob = {
   version?: number;
   createdAt?: string;
   updatedAt?: string;
+  completedAt?: string | null;
+  riderPayoutAmount?: number | null;
   order: RiderOrder;
 };
 
@@ -64,6 +67,8 @@ export type RiderAssignmentOffer = {
   rejectionReason?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  payoutAmount?: number | null;
+  riderPayoutAmount?: number | null;
   deliveryJob: RiderDeliveryJob;
 };
 

@@ -10,6 +10,8 @@ export type NativeTrackingStatus = {
   lastSentAt?: string | null;
   lastAccuracy?: number | null;
   queuedCount: number;
+  latitude?: number | null;
+  longitude?: number | null;
   error?: string | null;
   stopReason?: string | null;
   sequence?: number;

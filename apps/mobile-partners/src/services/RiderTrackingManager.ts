@@ -37,6 +37,11 @@ export type QueuedLocationPing = RiderLocationPayload & {
 
 export type TrackingMode = 'NATIVE_FOREGROUND_SERVICE' | 'JAVASCRIPT_WATCHER' | null;
 
+export type TrackingCoordinate = {
+  latitude: number;
+  longitude: number;
+};
+
 export type TrackingSnapshot = {
   active: boolean;
   orderId: string | null;
@@ -45,6 +50,7 @@ export type TrackingSnapshot = {
   lastSentAt: string | null;
   lastAccuracy: number | null;
   queuedCount: number;
+  lastLocation?: TrackingCoordinate | null;
   error: string | null;
   mode?: TrackingMode;
   stopReason?: string | null;
@@ -59,6 +65,8 @@ export type NativeTrackingStatus = {
   lastSentAt?: string | null;
   lastAccuracy?: number | null;
   queuedCount?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   error?: string | null;
   stopReason?: string | null;
 };
@@ -85,6 +93,7 @@ type TrackingDependencies = {
 
 const QUEUE_KEY = 'aagam:rider:location-queue:v1';
 const NATIVE_STATUS_POLL_MS = 5_000;
+const NATIVE_STARTUP_RETRY_MS = 1_000;
 
 function defaultId() {
   return `ping-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
@@ -101,6 +110,7 @@ export class RiderTrackingManager {
   private queue: QueuedLocationPing[] = [];
   private flushing = false;
   private pollingNativeStatus = false;
+  private nativeStartupPending = false;
   private listeners = new Set<(snapshot: TrackingSnapshot) => void>();
   private snapshot: TrackingSnapshot = {
     active: false,
@@ -110,6 +120,7 @@ export class RiderTrackingManager {
     lastSentAt: null,
     lastAccuracy: null,
     queuedCount: 0,
+    lastLocation: null,
     error: null,
     mode: null,
     stopReason: null,
@@ -179,6 +190,7 @@ export class RiderTrackingManager {
       status: input.status,
       error: null,
       queuedCount: this.queue.length,
+      lastLocation: null,
       mode: this.nativeManaged ? 'NATIVE_FOREGROUND_SERVICE' : 'JAVASCRIPT_WATCHER',
       stopReason: null,
     });
@@ -188,6 +200,10 @@ export class RiderTrackingManager {
     await this.flushQueue();
 
     if (this.nativeManaged) {
+      // The Android service persists active state from onStartCommand, which can
+      // complete just after start() resolves. Keep the session active for one
+      // retry so a startup read cannot strand the native service.
+      this.nativeStartupPending = true;
       this.startNativeStatusPolling();
       await this.pollNativeStatus();
       return;
@@ -255,6 +271,7 @@ export class RiderTrackingManager {
     }
 
     this.nativeManaged = false;
+    this.nativeStartupPending = false;
     this.nativeStatusReader = this.dependencies.getNativeStatus || null;
     this.setSnapshot({
       active: false,
@@ -262,6 +279,7 @@ export class RiderTrackingManager {
       deliveryJobId: null,
       status: null,
       error: null,
+      lastLocation: null,
       mode: null,
       stopReason: reason,
     });
@@ -327,20 +345,32 @@ export class RiderTrackingManager {
     this.pollingNativeStatus = true;
     try {
       const status = await this.nativeStatusReader();
+      const startupPending = this.nativeStartupPending && status.active === false;
+      if (this.nativeStartupPending && status.active !== false) {
+        this.nativeStartupPending = false;
+      }
+      const nativeLocation = typeof status.latitude === 'number'
+        && typeof status.longitude === 'number'
+        ? { latitude: status.latitude, longitude: status.longitude }
+        : this.snapshot.lastLocation;
       this.setSnapshot({
-        active: status.active !== false,
+        active: status.active !== false || startupPending,
         orderId: status.orderId ?? this.snapshot.orderId,
         deliveryJobId: status.deliveryJobId ?? this.snapshot.deliveryJobId,
         status: status.deliveryStatus ?? this.snapshot.status,
         lastSentAt: status.lastSentAt ?? this.snapshot.lastSentAt,
         lastAccuracy: status.lastAccuracy ?? this.snapshot.lastAccuracy,
         queuedCount: Number(status.queuedCount || 0),
+        lastLocation: nativeLocation,
         error: status.error || null,
         mode: 'NATIVE_FOREGROUND_SERVICE',
         stopReason: status.stopReason || null,
       });
-      if (status.active === false) {
+      if (status.active === false && !startupPending) {
         this.stopNativeStatusPolling();
+      }
+      if (startupPending) {
+        setTimeout(() => void this.pollNativeStatus(), NATIVE_STARTUP_RETRY_MS);
       }
     } catch (error: any) {
       this.setSnapshot({
@@ -357,6 +387,11 @@ export class RiderTrackingManager {
     if (this.nativeManaged || !this.snapshot.active || !orderId || !status) return;
 
     const now = this.now();
+    const latestLocation: TrackingCoordinate = {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+    };
+    this.setSnapshot({ lastLocation: latestLocation });
     if (this.lastCaptureAt > 0 && now - this.lastCaptureAt < trackingIntervalForStatus(status)) return;
     this.lastCaptureAt = now;
     this.sequence += 1;

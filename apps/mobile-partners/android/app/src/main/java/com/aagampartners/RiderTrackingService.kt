@@ -53,6 +53,8 @@ class RiderTrackingService : Service() {
     const val KEY_QUEUE = "queue"
     const val KEY_LAST_SENT_AT = "lastSentAt"
     const val KEY_LAST_ACCURACY = "lastAccuracy"
+    const val KEY_LAST_LATITUDE = "lastLatitude"
+    const val KEY_LAST_LONGITUDE = "lastLongitude"
     const val KEY_LAST_ERROR = "lastError"
     const val KEY_STOP_REASON = "stopReason"
 
@@ -124,6 +126,13 @@ class RiderTrackingService : Service() {
       prefs.getString(KEY_SESSION_ID, null) ?: UUID.randomUUID().toString()
     } else {
       UUID.randomUUID().toString()
+    }
+
+    if (existingOrderId != orderId) {
+      prefs.edit()
+        .remove(KEY_LAST_LATITUDE)
+        .remove(KEY_LAST_LONGITUDE)
+        .apply()
     }
 
     prefs.edit()
@@ -208,6 +217,8 @@ class RiderTrackingService : Service() {
       .putLong(KEY_SEQUENCE, nextSequence)
       .putString(KEY_QUEUE, bounded.toString())
       .putFloat(KEY_LAST_ACCURACY, if (location.hasAccuracy()) location.accuracy else -1f)
+      .putString(KEY_LAST_LATITUDE, location.latitude.toString())
+      .putString(KEY_LAST_LONGITUDE, location.longitude.toString())
       .apply()
     flushQueue()
   }

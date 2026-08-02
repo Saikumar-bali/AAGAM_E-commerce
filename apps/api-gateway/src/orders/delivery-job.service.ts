@@ -346,7 +346,7 @@ export class DeliveryJobService {
     };
   }
 
-  async getRiderWorkspace(riderUserId: string) {
+  async getRiderWorkspace(riderUserId: string, historyFrom?: Date) {
     const rider = await prisma.riderProfile.findUnique({
       where: { userId: riderUserId },
       include: {
@@ -386,12 +386,50 @@ export class DeliveryJobService {
         orderBy: { updatedAt: "desc" },
       }),
       prisma.dispatchAssignment.findMany({
-        where: { riderProfileId: rider.id },
+        where: {
+          riderProfileId: rider.id,
+          ...(historyFrom
+            ? {
+                OR: [
+                  {
+                    status: DispatchAssignmentStatus.ACCEPTED,
+                    deliveryJob: {
+                      is: {
+                        status: DeliveryJobStatus.DELIVERED,
+                        OR: [
+                          { updatedAt: { gte: historyFrom } },
+                          { order: { is: { deliveredAt: { gte: historyFrom } } } },
+                        ],
+                      },
+                    },
+                  },
+                  {
+                    status: DispatchAssignmentStatus.ACCEPTED,
+                    deliveryJob: {
+                      is: {
+                        status: DeliveryJobStatus.CANCELLED,
+                        updatedAt: { gte: historyFrom },
+                      },
+                    },
+                  },
+                  {
+                    status: {
+                      in: [
+                        DispatchAssignmentStatus.CANCELLED,
+                        DispatchAssignmentStatus.REJECTED,
+                      ],
+                    },
+                    respondedAt: { gte: historyFrom },
+                  },
+                ],
+              }
+            : {}),
+        },
         include: {
           deliveryJob: { include: { order: { include: { store: true } } } },
         },
         orderBy: { createdAt: "desc" },
-        take: 20,
+        ...(historyFrom ? {} : { take: 20 }),
       }),
     ]);
 

@@ -71,6 +71,15 @@ export const riderService = {
     return workspace;
   },
 
+  getWorkspaceSince: async (historyFrom: string): Promise<RiderWorkspace> => {
+    const response = await apiClient.get('/orders/dispatch/rider/workspace', {
+      params: { historyFrom },
+    });
+    const workspace = normalizeRiderWorkspace(response.data);
+    await cacheRiderStatus(workspace.rider?.status);
+    return workspace;
+  },
+
   acceptOffer: async (assignmentId: string) => {
     const response = await apiClient.patch(`/orders/dispatch/assignments/${encodeURIComponent(assignmentId)}/accept`);
     return response.data;

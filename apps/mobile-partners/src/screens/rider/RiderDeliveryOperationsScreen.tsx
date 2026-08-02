@@ -38,6 +38,7 @@ import { normalizeRiderWorkspace } from '../../domain/riderWorkspace';
 
 const WORKSPACE_KEY = ['rider', 'delivery-workspace'] as const;
 const SUMMARY_KEY = ['rider', 'delivery-operations'] as const;
+const EARNINGS_KEY = ['rider', 'earnings'] as const;
 
 type PodLocation = {
   latitude: number;
@@ -119,8 +120,11 @@ export const RiderDeliveryOperationsScreen = () => {
     setBusy(key);
     try {
       await task();
-      await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
-      await queryClient.invalidateQueries({ queryKey: SUMMARY_KEY });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY }),
+        queryClient.invalidateQueries({ queryKey: SUMMARY_KEY }),
+        queryClient.invalidateQueries({ queryKey: EARNINGS_KEY }),
+      ]);
       Toast.show({ type: 'success', text1: successTitle, text2: successMessage });
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Operation failed', text2: errorMessage(error) });

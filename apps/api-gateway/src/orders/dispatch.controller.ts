@@ -9,6 +9,7 @@ import {
   NotFoundException,
   Param,
   Patch,
+  Query,
   Post,
   Req,
   UseGuards,
@@ -284,8 +285,19 @@ export class DispatchController {
 
   @Get("rider/workspace")
   @Roles(Role.RIDER)
-  riderWorkspace(@Req() req: any) {
-    return this.dispatch.getRiderWorkspace(req.user.id);
+  riderWorkspace(@Req() req: any, @Query("historyFrom") historyFrom?: string) {
+    let since: Date | undefined;
+    if (historyFrom) {
+      since = new Date(historyFrom);
+      if (!Number.isFinite(since.getTime())) {
+        throw new BadRequestException("historyFrom must be a valid ISO date");
+      }
+      const earliestAllowed = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+      if (since < earliestAllowed) {
+        throw new BadRequestException("historyFrom must be within the current earnings window");
+      }
+    }
+    return this.dispatch.getRiderWorkspace(req.user.id, since);
   }
 
   @Post("jobs/:deliveryJobId/offers")

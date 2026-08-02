@@ -2,10 +2,10 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { RiderDashboard } from '../screens/rider/RiderDashboard';
 import { RiderOperationsRouterScreen } from '../screens/rider/RiderOperationsRouterScreen';
-import { RiderHistoryScreen } from '../screens/rider/RiderHistoryScreen';
+import { RiderEarningsScreen } from '../screens/rider/RiderEarningsScreen';
 import { RiderProfileScreen } from '../screens/rider/RiderProfileScreen';
 import { PartnerNotificationsScreen } from '../screens/PartnerNotificationsScreen';
-import { Bell, ClipboardCheck, History, LayoutGrid, User } from 'lucide-react-native';
+import { Bell, BriefcaseBusiness, Home, User, WalletCards } from 'lucide-react-native';
 
 const Tab = createBottomTabNavigator();
 
@@ -20,15 +20,12 @@ export const RiderNavigator = () => {
         sceneStyle: { backgroundColor: '#F4F7FB' },
         tabBarStyle: {
           position: 'absolute',
-          left: 14,
-          right: 14,
-          bottom: 14,
-          height: 76,
-          paddingBottom: 14,
-          paddingTop: 8,
+          height: 72,
+          paddingBottom: 10,
+          paddingTop: 7,
           backgroundColor: '#FFFFFF',
-          borderTopWidth: 0,
-          borderRadius: 28,
+          borderTopWidth: 1,
+          borderTopColor: '#E6ECE9',
           elevation: 18,
           shadowColor: '#0F172A',
           shadowOffset: { width: 0, height: 12 },
@@ -42,12 +39,12 @@ export const RiderNavigator = () => {
       <Tab.Screen
         name="Dashboard"
         component={RiderDashboard}
-        options={{ tabBarButtonTestID: 'tab_dashboard', tabBarIcon: ({ color, size, focused }) => <LayoutGrid size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }}
+        options={{ title: 'Home', tabBarButtonTestID: 'tab_dashboard', tabBarIcon: ({ color, size, focused }) => <Home size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }}
       />
       <Tab.Screen
         name="Operations"
         component={RiderOperationsRouterScreen}
-        options={{ tabBarButtonTestID: 'tab_deliveries', tabBarIcon: ({ color, size, focused }) => <ClipboardCheck size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }}
+        options={{ title: 'Jobs', tabBarButtonTestID: 'tab_deliveries', tabBarIcon: ({ color, size, focused }) => <BriefcaseBusiness size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }}
       />
       <Tab.Screen
         name="Alerts"
@@ -55,9 +52,9 @@ export const RiderNavigator = () => {
         options={{ tabBarButtonTestID: 'tab_alerts', tabBarIcon: ({ color, size, focused }) => <Bell size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }}
       />
       <Tab.Screen
-        name="History"
-        component={RiderHistoryScreen}
-        options={{ tabBarButtonTestID: 'tab_history', tabBarIcon: ({ color, size, focused }) => <History size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }}
+        name="Earnings"
+        component={RiderEarningsScreen}
+        options={{ tabBarButtonTestID: 'tab_earnings', tabBarIcon: ({ color, size, focused }) => <WalletCards size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }}
       />
       <Tab.Screen
         name="Profile"

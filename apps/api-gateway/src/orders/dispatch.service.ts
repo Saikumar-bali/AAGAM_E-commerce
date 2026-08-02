@@ -80,8 +80,8 @@ export class DispatchService {
     return this.jobs.getBoard(actor);
   }
 
-  getRiderWorkspace(riderUserId: string) {
-    return this.jobs.getRiderWorkspace(riderUserId);
+  getRiderWorkspace(riderUserId: string, historyFrom?: Date) {
+    return this.jobs.getRiderWorkspace(riderUserId, historyFrom);
   }
 
   offerAssignment(

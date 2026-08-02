@@ -84,6 +84,15 @@ class RiderTrackingModule(
         putString("lastSentAt", prefs.getString(RiderTrackingService.KEY_LAST_SENT_AT, null))
         val accuracy = prefs.getFloat(RiderTrackingService.KEY_LAST_ACCURACY, -1f)
         if (accuracy >= 0f) putDouble("lastAccuracy", accuracy.toDouble()) else putNull("lastAccuracy")
+        val latitude = prefs.getString(RiderTrackingService.KEY_LAST_LATITUDE, null)?.toDoubleOrNull()
+        val longitude = prefs.getString(RiderTrackingService.KEY_LAST_LONGITUDE, null)?.toDoubleOrNull()
+        if (latitude != null && longitude != null) {
+          putDouble("latitude", latitude)
+          putDouble("longitude", longitude)
+        } else {
+          putNull("latitude")
+          putNull("longitude")
+        }
         putInt("queuedCount", queuedCount)
         putString("error", prefs.getString(RiderTrackingService.KEY_LAST_ERROR, null))
         putString("stopReason", prefs.getString(RiderTrackingService.KEY_STOP_REASON, null))
