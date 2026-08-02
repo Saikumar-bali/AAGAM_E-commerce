@@ -60,13 +60,14 @@ export type ReturnInspectionLine = {
   note?: string;
 };
 
-/**
- * Keep a mutation retry on the same logical idempotency key. Using a timestamp
- * here made every retry look like a brand-new operation to the API, which could
- * duplicate COD/POD and return mutations after a timeout.
- */
+/** Replays of one mutation keep one logical key. */
 function operationKey(prefix: string, jobId: string) {
   return `${prefix}:${jobId}`;
+}
+
+/** Each explicit OTP issue action is a new logical operation. */
+function otpIssueKey(jobId: string) {
+  return `mobile-otp:${jobId}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function headers(idempotencyKey: string) {
@@ -86,7 +87,7 @@ export const deliveryOperationsService = {
     return Array.isArray(response.data) ? response.data : [];
   },
 
-  issueOtp: async (deliveryJobId: string, idempotencyKey = operationKey('mobile-otp', deliveryJobId)) => {
+  issueOtp: async (deliveryJobId: string, idempotencyKey = otpIssueKey(deliveryJobId)) => {
     const response = await apiClient.post(
       `/orders/delivery-operations/jobs/${encodeURIComponent(deliveryJobId)}/otp/issue`,
       {},
