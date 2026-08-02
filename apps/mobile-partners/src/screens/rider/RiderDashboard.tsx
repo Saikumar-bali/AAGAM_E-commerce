@@ -232,6 +232,7 @@ function CurrentDelivery({
         destination={hasRouteDestination ? routeDestination as { latitude: number; longitude: number } : null}
         destinationLabel={navigatingToStore ? order.store?.name || 'Pickup store' : customerName}
         active={tracking.active}
+        riderLocation={tracking.lastLocation}
       />
 
       <View style={styles.locationBlock}>
@@ -324,6 +325,7 @@ export const RiderDashboard = () => {
     lastSentAt: null,
     lastAccuracy: null,
     queuedCount: 0,
+    lastLocation: null,
     error: null,
   });
 
