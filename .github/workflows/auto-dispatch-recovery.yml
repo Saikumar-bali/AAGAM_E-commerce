@@ -1,5 +1,4 @@
 name: Auto Dispatch Recovery
-# PR 167 deterministic remediation attempt 4
 
 on:
   pull_request:
@@ -19,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: auto-dispatch-recovery-${{ github.event.pull_request.number || github.ref }}
@@ -39,16 +38,8 @@ env:
   NOTIFICATION_WORKER_DISABLED: "true"
 
 jobs:
-  repair-pr167:
-    name: Repair PR 167
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 167
-    uses: ./.github/workflows/agent-ci-repair.yml
-    permissions:
-      contents: write
-
   recovery-e2e:
     name: Recovery E2E and builds
-    if: github.event_name != 'pull_request' || github.event.pull_request.number != 167
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
