@@ -256,6 +256,7 @@ export const useAuthStore = create<AuthState>((set) => ({
             await invalidateMobileSession();
             set({ user: null, token: null, isLoading: false });
           } else {
+            // Keep the local session for network errors and other transient validation failures.
             set({ user: stored.user, token: stored.token, isLoading: false });
           }
         }
