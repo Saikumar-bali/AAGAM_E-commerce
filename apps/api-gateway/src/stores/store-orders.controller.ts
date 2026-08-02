@@ -42,6 +42,26 @@ export class StoreOrdersController {
     }
   }
 
+  @Get('summary/pending-count')
+  async getPendingOrderCount(@Req() req: any) {
+    const roles = new Set<Role>([req.user.role, ...(req.user.roles || [])]);
+    const stores = await prisma.store.findMany({
+      where: roles.has(Role.ADMIN)
+        ? { deletedAt: null }
+        : { ownerId: req.user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!stores.length) return { count: 0 };
+
+    const count = await prisma.order.count({
+      where: {
+        storeId: { in: stores.map((store) => store.id) },
+        status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_PENDING] },
+      },
+    });
+    return { count };
+  }
+
   @Get(':storeId')
   async list(
     @Param('storeId') storeId: string,

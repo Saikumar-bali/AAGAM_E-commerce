@@ -146,12 +146,15 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
     enabled: Boolean(activeStoreId),
     refetchInterval: 15_000,
     retry: 1,
-    placeholderData: (previous) => previous,
   });
 
   const orders = Array.isArray(ordersQuery.data?.items) ? ordersQuery.data.items : [];
   const total = Number(ordersQuery.data?.total || 0);
   const totalPages = Math.max(1, Number(ordersQuery.data?.totalPages || 1));
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
   const counts = useMemo(() => Object.fromEntries(
     TABS.map((tab) => [
       tab.key,
@@ -307,7 +310,7 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
         ) : null}
         ListFooterComponent={(
           <>
-            {totalPages > 1 ? (
+            {totalPages > 1 || page > 1 ? (
               <View style={styles.pagination}>
                 <TouchableOpacity
                   testID="store_orders_previous_page"

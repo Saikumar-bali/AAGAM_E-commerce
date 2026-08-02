@@ -76,7 +76,7 @@ describe("Mobile commerce hardening contracts", () => {
       "apps/mobile-partners/android/app/src/main/java/com/aagampartners/RiderTrackingService.kt"
     );
     const podScreen = read(
-      "apps/mobile-partners/src/screens/rider/RiderDeliveryOperationsScreen.tsx"
+      "apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx"
     );
     const podApi = read(
       "apps/mobile-partners/src/api/deliveryOperationsService.ts"

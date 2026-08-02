@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import messaging from '@react-native-firebase/messaging';
-import { useAuthStore } from '@aagam/mobile-shared';
+import { startMobilePushLifecycle, useAuthStore } from '@aagam/mobile-shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bell,
@@ -20,6 +20,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
+  PermissionsAndroid,
+  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -65,6 +68,44 @@ function optionalCurrentLocation() {
   });
 }
 
+async function requestRiderLocationPermission() {
+  if (Platform.OS !== 'android') return true;
+
+  const finePermission = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
+  const fineResult = await PermissionsAndroid.check(finePermission)
+    ? PermissionsAndroid.RESULTS.GRANTED
+    : await PermissionsAndroid.request(finePermission, {
+        title: 'Allow rider location',
+        message: 'Aagaam Partners uses precise location while you are online and fulfilling deliveries.',
+        buttonPositive: 'Allow',
+        buttonNegative: 'Not now',
+      });
+  if (fineResult !== PermissionsAndroid.RESULTS.GRANTED) return false;
+  if (Number(Platform.Version) < 29) return true;
+
+  const backgroundPermission = PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION;
+  if (await PermissionsAndroid.check(backgroundPermission)) return true;
+  const backgroundResult = await PermissionsAndroid.request(backgroundPermission, {
+    title: 'Allow background rider location',
+    message: 'Choose Allow all the time so dispatch can keep your availability fresh in the background.',
+    buttonPositive: 'Continue',
+    buttonNegative: 'Not now',
+  });
+  if (backgroundResult === PermissionsAndroid.RESULTS.GRANTED) return true;
+
+  if (Number(Platform.Version) >= 30) {
+    Alert.alert(
+      'Allow background location',
+      'Open App permissions → Location and choose Allow all the time, then return and tap Grant location.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Open settings', onPress: () => Linking.openSettings().catch(() => undefined) },
+      ],
+    );
+  }
+  return false;
+}
+
 function shortId(value?: string | null) {
   return value ? value.slice(-8).toUpperCase() : 'UNKNOWN';
 }
@@ -73,6 +114,8 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   const [statusBusy, setStatusBusy] = useState(false);
+  const statusBusyRef = useRef(false);
+  const [onlinePermissionMissing, setOnlinePermissionMissing] = useState(false);
   const [offerBusy, setOfferBusy] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const trackingManagerRef = useRef<RiderTrackingManager | null>(null);
@@ -108,6 +151,13 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
   }, []);
 
   useEffect(() => {
+    let alive = true;
+    let unsubscribePushLifecycle: (() => void) | undefined;
+    void startMobilePushLifecycle('Aagaam Partners').then((unsubscribe) => {
+      if (alive) unsubscribePushLifecycle = unsubscribe;
+      else unsubscribe();
+    }).catch(() => undefined);
+
     const openNotification = (message: any) => {
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY }),
@@ -128,6 +178,8 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
       if (message) openNotification(message);
     });
     return () => {
+      alive = false;
+      unsubscribePushLifecycle?.();
       unsubscribeForeground();
       unsubscribeOpened();
     };
@@ -164,18 +216,55 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
     });
   }, [activeJob?.id, activeJob?.status, trackingManager]);
 
+  const grantOnlinePermission = async () => {
+    if (statusBusyRef.current) return false;
+    statusBusyRef.current = true;
+    setStatusBusy(true);
+    try {
+      const permitted = await requestRiderLocationPermission();
+      if (!permitted) {
+        setOnlinePermissionMissing(true);
+        await RiderOnlineService.stop().catch(() => undefined);
+        Toast.show({
+          type: 'error',
+          text1: 'Background location required',
+          text2: 'Grant “Allow all the time” to stay eligible for delivery offers.',
+        });
+        return false;
+      }
+      await RiderOnlineService.start(user?.name || 'Rider');
+      setOnlinePermissionMissing(false);
+      return true;
+    } catch (error: any) {
+      setOnlinePermissionMissing(true);
+      await RiderOnlineService.stop().catch(() => undefined);
+      Toast.show({
+        type: 'error',
+        text1: 'Online recovery unavailable',
+        text2: error?.message || 'Could not start background rider availability.',
+      });
+      return false;
+    } finally {
+      statusBusyRef.current = false;
+      setStatusBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (riderStatus === 'OFFLINE') {
+      setOnlinePermissionMissing(false);
       void RiderOnlineService.stop().catch(() => undefined);
       return;
     }
-    void RiderOnlineService.start(user?.name || 'Rider').catch((error: any) => {
-      Toast.show({
-        type: 'error',
-        text1: 'Background availability unavailable',
-        text2: error?.message || 'Could not keep the rider heartbeat active.',
-      });
-    });
+    let cancelled = false;
+    const restoreOnlineAvailability = async () => {
+      const started = await grantOnlinePermission();
+      if (!cancelled && !started) setOnlinePermissionMissing(true);
+    };
+    void restoreOnlineAvailability();
+    return () => {
+      cancelled = true;
+    };
   }, [riderStatus, user?.name]);
 
   const refresh = async () => {
@@ -183,7 +272,7 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
   };
 
   const changeAvailability = async (online: boolean) => {
-    if (statusBusy) return;
+    if (statusBusyRef.current) return;
     if (!online && activeJob) {
       Toast.show({
         type: 'error',
@@ -193,14 +282,29 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
       return;
     }
 
+    statusBusyRef.current = true;
     setStatusBusy(true);
     try {
       if (online) {
+        const permitted = await requestRiderLocationPermission();
+        if (!permitted) {
+          setOnlinePermissionMissing(true);
+          await RiderOnlineService.stop().catch(() => undefined);
+          Toast.show({
+            type: 'error',
+            text1: 'Background location required',
+            text2: 'Grant “Allow all the time” before going online.',
+          });
+          return;
+        }
         const location = await optionalCurrentLocation();
-        await riderService.updateMyStatus('ONLINE', location || undefined);
+        if (!location) throw new Error('Enable precise GPS and try again.');
+        await riderService.updateMyStatus('ONLINE', location);
         try {
           await RiderOnlineService.start(user?.name || 'Rider');
+          setOnlinePermissionMissing(false);
         } catch (serviceError) {
+          await RiderOnlineService.stop().catch(() => undefined);
           await riderService.updateMyStatus('OFFLINE').catch(() => undefined);
           throw serviceError;
         }
@@ -208,6 +312,7 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
         await trackingManager.stop('RIDER_OFFLINE');
         await RiderOnlineService.stop().catch(() => undefined);
         await riderService.updateMyStatus('OFFLINE');
+        setOnlinePermissionMissing(false);
       }
 
       await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
@@ -221,9 +326,12 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
     } catch (error: any) {
       Toast.show({ type: 'error', text1: 'Availability update failed', text2: errorMessage(error) });
     } finally {
+      statusBusyRef.current = false;
       setStatusBusy(false);
     }
   };
+
+  const onlineToggleAction = onlinePermissionMissing ? grantOnlinePermission : () => changeAvailability(!isOnline);
 
   const acceptMutation = useMutation({
     mutationFn: (assignmentId: string) => riderService.acceptOffer(assignmentId),
@@ -279,6 +387,10 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
             </View>
             {statusBusy ? (
               <ActivityIndicator color="#0F766E" />
+            ) : onlinePermissionMissing ? (
+              <TouchableOpacity style={styles.permissionButton} onPress={() => void onlineToggleAction()}>
+                <Text style={styles.permissionButtonText}>{'GRANT LOCATION'}</Text>
+              </TouchableOpacity>
             ) : (
               <Switch
                 testID="rider_availability_switch"
@@ -399,6 +511,8 @@ const styles = StyleSheet.create({
   offlineIcon: { backgroundColor: '#FEE2E2' },
   availabilityTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900' },
   availabilityText: { color: '#64748B', fontSize: 10, marginTop: 3 },
+  permissionButton: { minHeight: 36, borderRadius: 11, backgroundColor: '#0F766E', paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+  permissionButtonText: { color: '#FFFFFF', fontSize: 8, fontWeight: '900' },
   loading: { minHeight: 260, alignItems: 'center', justifyContent: 'center', gap: 10 },
   muted: { color: '#64748B', fontSize: 11, textAlign: 'center', marginTop: 5 },
   errorCard: { margin: 18, borderRadius: 18, borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FEF2F2', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },

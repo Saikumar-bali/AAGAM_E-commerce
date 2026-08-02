@@ -20,7 +20,8 @@ export const setAuthToken = (token: string | null) => {
 };
 
 apiClient.interceptors.request.use((config) => {
-  if (authStoreToken) {
+  const existingAuthorization = config.headers?.Authorization || config.headers?.authorization;
+  if (authStoreToken && !existingAuthorization) {
     config.headers.Authorization = `Bearer ${authStoreToken}`;
   }
   return config;
@@ -45,7 +46,11 @@ apiClient.interceptors.response.use(
     // A rejected login/OTP request is not an expired authenticated session.
     // For authenticated 401s, clear the in-memory token immediately and run a
     // single durable logout even when several requests fail at the same time.
-    if (status === 401 && authStoreToken && !isPublicAuthRequest(requestUrl)) {
+    const requestAuthorization = error?.config?.headers?.Authorization || error?.config?.headers?.authorization;
+    const bearerSessionFailed = typeof requestAuthorization === 'string'
+      && requestAuthorization === `Bearer ${authStoreToken}`;
+
+    if (status === 401 && authStoreToken && bearerSessionFailed && !isPublicAuthRequest(requestUrl)) {
       authStoreToken = null;
       if (!unauthorizedLogout) {
         unauthorizedLogout = import('../store/authStore')

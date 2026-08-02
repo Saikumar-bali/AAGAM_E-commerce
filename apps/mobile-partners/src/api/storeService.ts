@@ -61,6 +61,11 @@ export const storeService = {
     return r.data;
   },
 
+  getPendingOrderCount: async (): Promise<{ count: number }> => {
+    const r = await apiClient.get('/store-owner/store-orders/summary/pending-count');
+    return r.data;
+  },
+
   createStore: async (data: { name: string; address: string; phone: string }) => {
     const r = await apiClient.post('/stores', data);
     return r.data;

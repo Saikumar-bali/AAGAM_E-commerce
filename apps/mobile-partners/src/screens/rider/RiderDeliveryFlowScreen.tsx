@@ -57,7 +57,7 @@ function errorMessage(error: any) {
   return value || error?.message || 'The delivery operation could not be completed.';
 }
 
-function optionalLocation() {
+function capturePodLocation() {
   return new Promise<{ latitude: number; longitude: number; accuracyMetres?: number } | null>((resolve) => {
     Geolocation.getCurrentPosition(
       (position) => resolve({
@@ -132,9 +132,10 @@ export const RiderDeliveryFlowScreen = () => {
   const nextAction = activeJob ? nextActionForStatus(activeJob.status) : null;
   const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
   const expectedCod = Number(summary?.cod?.expectedAmountPaise || 0);
+  const returningToStore = activeJob?.status === 'RETURNING_TO_STORE';
   const headingToStore = Boolean(
     activeJob
-    && ['RIDER_ASSIGNED', 'RIDER_EN_ROUTE_TO_STORE'].includes(activeJob.status),
+    && (returningToStore || ['RIDER_ASSIGNED', 'RIDER_EN_ROUTE_TO_STORE'].includes(activeJob.status)),
   );
   const customerName = activeJob?.order.customer?.name
     || activeJob?.order.addressSnapshot?.recipientName
@@ -142,7 +143,7 @@ export const RiderDeliveryFlowScreen = () => {
   const customerPhone = activeJob?.order.customer?.phone
     || activeJob?.order.addressSnapshot?.phoneE164
     || null;
-  const storePhone = (activeJob?.order.store as any)?.phone || null;
+  const storePhone = (activeJob?.order.store as any)?.owner?.phone || null;
   const destinationName = headingToStore
     ? activeJob?.order.store?.name || 'Pickup store'
     : customerName;
@@ -247,7 +248,7 @@ export const RiderDeliveryFlowScreen = () => {
           onPress: () => void perform(
             'complete',
             async () => {
-              const location = await optionalLocation();
+              const location = await capturePodLocation();
               await deliveryOperationsService.completeDelivery(activeJob.id, {
                 otpCode,
                 proofType: 'CUSTOMER_OTP_PIN',
@@ -269,6 +270,10 @@ export const RiderDeliveryFlowScreen = () => {
 
   const recordFailure = () => {
     if (!activeJob) return;
+    if (failureReason === 'OTHER' && failureNote.trim().length < 3) {
+      Toast.show({ type: 'error', text1: 'Failure details required', text2: 'Add a brief note when selecting Other.' });
+      return;
+    }
     Alert.alert('Record delivery failure?', 'This starts the exception and return workflow.', [
       { text: 'Back', style: 'cancel' },
       {
@@ -343,7 +348,7 @@ export const RiderDeliveryFlowScreen = () => {
               : <Text style={styles.avatarText}>{destinationName.slice(0, 1).toUpperCase()}</Text>}
           </View>
           <View style={styles.flex}>
-            <Text style={styles.destinationLabel}>{headingToStore ? 'PICKUP STORE' : 'DELIVER TO'}</Text>
+            <Text style={styles.destinationLabel}>{returningToStore ? 'RETURN STORE' : headingToStore ? 'PICKUP STORE' : 'DELIVER TO'}</Text>
             <Text style={styles.destinationName}>{destinationName}</Text>
             <Text style={styles.address}>{destinationAddress}</Text>
             <Text style={styles.orderCode}>Order #{shortId(activeJob.order.id)}</Text>
@@ -358,6 +363,13 @@ export const RiderDeliveryFlowScreen = () => {
             <Phone size={22} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
+
+        {policy.waitingForStoreReturn ? (
+          <View style={styles.locationNote}>
+            <Store size={18} color="#0F766E" />
+            <Text style={styles.locationNoteText}>Return this parcel to the owning store shown above. Store verification will complete the return.</Text>
+          </View>
+        ) : null}
 
         {summaryQuery.isError ? (
           <View style={styles.errorCard}>

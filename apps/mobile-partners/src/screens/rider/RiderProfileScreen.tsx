@@ -30,6 +30,7 @@ import Toast from 'react-native-toast-message';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { PartnerDocumentPicker, PartnerPickedDocument } from '../../native/PartnerDocumentPicker';
 import { riderService } from '../../api/riderService';
+import { RiderOnlineService } from '../../services/RiderOnlineService';
 import type {
   RiderAvailabilityEntry,
   RiderDocumentInput,
@@ -133,7 +134,7 @@ export const RiderProfileScreen = () => {
             startMinute: Number(row.startMinute),
             endMinute: Number(row.endMinute),
             isAvailable: Boolean(row.isAvailable),
-            enabled: true,
+            enabled: Boolean(row.isAvailable),
           }
         : {
             dayOfWeek,
@@ -158,12 +159,13 @@ export const RiderProfileScreen = () => {
 
   const profileMutation = useMutation({
     mutationFn: () => riderService.updateProfile({
-      vehicleType,
-      vehicleNumber,
-      emergencyContactName: emergencyName,
-      emergencyContactPhone: emergencyPhone,
-      bankAccountNumber: bankAccount,
-      bankIfsc,
+      ...(vehicleType.trim() ? { vehicleType: vehicleType.trim() } : {}),
+      ...(vehicleNumber.trim() ? { vehicleNumber: vehicleNumber.trim().toUpperCase() } : {}),
+      ...(emergencyName.trim() ? { emergencyContactName: emergencyName.trim() } : {}),
+      ...(emergencyPhone.trim() ? { emergencyContactPhone: emergencyPhone.trim() } : {}),
+      ...(bankAccount.trim() || bankIfsc.trim()
+        ? { bankAccountNumber: bankAccount.trim(), bankIfsc: bankIfsc.trim().toUpperCase() }
+        : {}),
     }),
     onSuccess: async () => {
       setBankAccount('');
@@ -261,6 +263,14 @@ export const RiderProfileScreen = () => {
     .slice(0, 2)
     .toUpperCase(), [profile.user?.name, user?.name]);
 
+  const signOutRider = async () => {
+    try {
+      await RiderOnlineService.stop();
+    } finally {
+      await logout();
+    }
+  };
+
   const profileLoading = profileQuery.isLoading || availabilityQuery.isLoading;
   const financialLoading = codQuery.isLoading || performanceQuery.isLoading || earningsQuery.isLoading;
   const financialError = codQuery.error || performanceQuery.error || earningsQuery.error;
@@ -349,7 +359,7 @@ export const RiderProfileScreen = () => {
                 <View key={entry.dayOfWeek} style={styles.row}>
                   <Switch
                     value={entry.enabled}
-                    onValueChange={(enabled) => setSchedule((current) => current.map((item, currentIndex) => currentIndex === index ? { ...item, enabled } : item))}
+                    onValueChange={(enabled) => setSchedule((current) => current.map((item, currentIndex) => currentIndex === index ? { ...item, enabled, isAvailable: enabled } : item))}
                   />
                   <View style={styles.flex}>
                     <Text style={styles.rowTitle}>{DAYS[entry.dayOfWeek]}</Text>
@@ -440,7 +450,7 @@ export const RiderProfileScreen = () => {
           style={styles.logoutButton}
           onPress={() => Alert.alert('Sign out of rider app?', 'Background rider services will be stopped before your session is cleared.', [
             { text: 'Stay signed in', style: 'cancel' },
-            { text: 'Sign out', style: 'destructive', onPress: () => void logout() },
+            { text: 'Sign out', style: 'destructive', onPress: () => void signOutRider() },
           ])}
         >
           <LogOut size={18} color="#B91C1C" /><Text style={styles.logoutText}>Sign out</Text>

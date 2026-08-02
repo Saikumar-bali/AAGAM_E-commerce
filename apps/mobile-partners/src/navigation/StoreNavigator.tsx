@@ -26,14 +26,8 @@ const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 async function pendingStoreOrders() {
-  const stores = await storeService.getMyStores();
-  if (!Array.isArray(stores) || stores.length === 0) return 0;
-  const pages = await Promise.all(stores.map((store: any) => storeService.getStoreOrders(store.id, {
-    page: 1,
-    pageSize: 1,
-    status: ['PENDING', 'PAYMENT_PENDING'],
-  })));
-  return pages.reduce((sum, page) => sum + Number(page.total || 0), 0);
+  const result = await storeService.getPendingOrderCount();
+  return Number(result?.count || 0);
 }
 
 function tabBadge(count: number) {
