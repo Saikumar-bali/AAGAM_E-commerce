@@ -25,6 +25,7 @@ export type StoreOwnerProfilePayload = {
 export type StoreOrderStatus =
   | 'PENDING'
   | 'PAYMENT_PENDING'
+  | 'PAYMENT_FAILED'
   | 'CONFIRMED'
   | 'PICKING'
   | 'PACKED'
