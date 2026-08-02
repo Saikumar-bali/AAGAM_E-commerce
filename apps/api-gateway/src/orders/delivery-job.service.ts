@@ -388,7 +388,22 @@ export class DeliveryJobService {
       prisma.dispatchAssignment.findMany({
         where: {
           riderProfileId: rider.id,
-          ...(historyFrom ? { createdAt: { gte: historyFrom } } : {}),
+          ...(historyFrom
+            ? {
+                OR: [
+                  { createdAt: { gte: historyFrom } },
+                  {
+                    status: DispatchAssignmentStatus.ACCEPTED,
+                    deliveryJob: {
+                      is: {
+                        status: DeliveryJobStatus.DELIVERED,
+                        order: { is: { deliveredAt: { gte: historyFrom } } },
+                      },
+                    },
+                  },
+                ],
+              }
+            : {}),
         },
         include: {
           deliveryJob: { include: { order: { include: { store: true } } } },
