@@ -80,6 +80,7 @@ const StoreTabs = () => {
     />
     <Tab.Screen name="Settings" component={StoreSettingsScreen} options={{ tabBarButtonTestID: 'tab_settings', tabBarIcon: ({ color, size, focused }) => <Settings size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.8 : 2} /> }} />
   </Tab.Navigator>
+  );
 };
 
 export const StoreNavigator = () => (
