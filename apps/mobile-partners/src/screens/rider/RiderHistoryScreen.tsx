@@ -1,271 +1,267 @@
-import React, { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
-  Linking,
+  ArrowLeft,
+  CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  SlidersHorizontal,
+} from 'lucide-react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
-import {
-  CheckCircle2,
-  Clock3,
-  MapPin,
-  Navigation,
-  Package,
-  Store,
-  XCircle,
-} from 'lucide-react-native';
 import { riderService } from '../../api/riderService';
 import {
-  RiderAssignmentOffer,
-  deliveryStatusLabel,
-} from '../../domain/riderWorkspace';
+  RiderJobListItem,
+  historyItems,
+  shortPartnerOrderId,
+  startOfLocalWeek,
+} from '../../domain/riderReferenceUi';
 
-const formatAddressText = (snapshot?: Record<string, any> | null) => {
-  if (!snapshot || typeof snapshot !== 'object') return 'Address not available';
-  const line = [snapshot.line1, snapshot.line2].filter(Boolean).join(', ');
-  const locality = [snapshot.landmark, snapshot.city, snapshot.pincode]
-    .filter(Boolean)
-    .join(', ');
-  return [line, locality].filter(Boolean).join(' • ') || 'Address not available';
-};
+const HISTORY_KEY = ['rider', 'assignment-history'] as const;
+type HistoryFilter = 'ALL' | 'COMPLETED' | 'CANCELLED' | 'RETURNED';
 
-const assignmentLabel = (assignment: RiderAssignmentOffer) => {
-  if (assignment.status === 'ACCEPTED' && assignment.deliveryJob.status === 'DELIVERED') {
-    return 'Completed';
-  }
-  return assignment.status
-    .replace(/_/g, ' ')
-    .toLowerCase()
-    .replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
-};
+function historyFrom() {
+  const value = new Date();
+  value.setHours(0, 0, 0, 0);
+  value.setDate(value.getDate() - 60);
+  return value.toISOString();
+}
 
-const assignmentTone = (assignment: RiderAssignmentOffer) => {
-  if (assignment.status === 'ACCEPTED' && assignment.deliveryJob.status === 'DELIVERED') {
-    return { backgroundColor: '#DCFCE7', color: '#166534' };
-  }
-  if (assignment.status === 'ACCEPTED') {
-    return { backgroundColor: '#DBEAFE', color: '#1D4ED8' };
-  }
-  if (assignment.status === 'REJECTED' || assignment.status === 'CANCELLED') {
-    return { backgroundColor: '#FEE2E2', color: '#991B1B' };
-  }
-  if (assignment.status === 'EXPIRED') {
-    return { backgroundColor: '#FEF3C7', color: '#92400E' };
-  }
-  return { backgroundColor: '#F1F5F9', color: '#475569' };
-};
+function filterMatches(item: RiderJobListItem, filter: HistoryFilter) {
+  if (filter === 'ALL') return true;
+  return item.status === filter;
+}
 
-const statusIcon = (assignment: RiderAssignmentOffer) => {
-  if (assignment.status === 'ACCEPTED') {
-    return <CheckCircle2 size={16} color="#166534" />;
-  }
-  if (assignment.status === 'REJECTED' || assignment.status === 'CANCELLED') {
-    return <XCircle size={16} color="#991B1B" />;
-  }
-  return <Clock3 size={16} color="#92400E" />;
-};
+function statusVisual(status: RiderJobListItem['status']) {
+  if (status === 'COMPLETED') return { label: 'Completed', color: '#148A35', background: '#E8F8E8' };
+  if (status === 'RETURNED') return { label: 'Returned', color: '#EB7908', background: '#FFF1E4' };
+  if (status === 'CANCELLED') return { label: 'Cancelled', color: '#D51D25', background: '#FFE8E9' };
+  if (status === 'IN_PROGRESS') return { label: 'In Progress', color: '#226BD5', background: '#EAF3FF' };
+  return { label: 'Assigned', color: '#148A35', background: '#E8F8E8' };
+}
 
-export const RiderHistoryScreen = () => {
-  const workspaceQuery = useQuery({
-    queryKey: ['rider', 'assignment-history'],
-    queryFn: riderService.getWorkspace,
+function formatDateTime(value: string | null) {
+  if (!value) return 'Time unavailable';
+  return new Date(value).toLocaleString('en-IN', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   });
+}
 
-  const assignments = useMemo(
-    () => (workspaceQuery.data?.assignmentHistory || []).filter(
-      (assignment) => !['CREATED', 'OFFERED'].includes(assignment.status),
-    ),
-    [workspaceQuery.data?.assignmentHistory],
+function money(value: number | null) {
+  return value == null
+    ? '—'
+    : `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function dateRangeLabel() {
+  const end = new Date();
+  const start = startOfLocalWeek(end);
+  return `${start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+}
+
+export const RiderHistoryScreen = ({ onBack }: { onBack?: () => void }) => {
+  const [filter, setFilter] = useState<HistoryFilter>('ALL');
+  const workspaceQuery = useQuery({
+    queryKey: [...HISTORY_KEY, historyFrom()],
+    queryFn: () => riderService.getWorkspaceSince(historyFrom()),
+  });
+  const allItems = useMemo(() => historyItems(workspaceQuery.data), [workspaceQuery.data]);
+  const filteredItems = useMemo(
+    () => allItems.filter((item) => filterMatches(item, filter)),
+    [allItems, filter],
   );
-
-  const openRoute = (assignment: RiderAssignmentOffer) => {
-    const order = assignment.deliveryJob.order;
-    if (typeof order.deliveryLat !== 'number' || typeof order.deliveryLng !== 'number') {
-      return;
-    }
-    const destination = `${order.deliveryLat},${order.deliveryLng}`;
-    const hasStoreCoords = typeof order.store?.latitude === 'number'
-      && typeof order.store?.longitude === 'number';
-    const routeUrl = hasStoreCoords
-      ? `https://www.google.com/maps/dir/?api=1&origin=${order.store?.latitude},${order.store?.longitude}&destination=${destination}&travelmode=driving`
-      : `https://www.google.com/maps/search/?api=1&query=${destination}`;
-    void Linking.openURL(routeUrl);
-  };
+  const counts = useMemo(() => ({
+    completed: allItems.filter((item) => item.status === 'COMPLETED').length,
+    cancelled: allItems.filter((item) => item.status === 'CANCELLED').length,
+    returned: allItems.filter((item) => item.status === 'RETURNED').length,
+  }), [allItems]);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={workspaceQuery.isRefetching}
-          onRefresh={() => { void workspaceQuery.refetch(); }}
-          tintColor="#0F766E"
-        />
-      }
-    >
-      <Text style={styles.eyebrow}>RIDER OPERATIONS</Text>
-      <Text style={styles.title}>Assignment History</Text>
-      <Text style={styles.subtitle}>
-        Accepted, completed, rejected, expired, and cancelled delivery offers.
-      </Text>
-
-      {workspaceQuery.isLoading ? (
-        <Text style={styles.loading}>Loading assignment history…</Text>
-      ) : null}
-
-      {workspaceQuery.error ? (
-        <View style={styles.errorCard}>
-          <Text style={styles.errorTitle}>Could not load history</Text>
-          <Text style={styles.errorText}>
-            {(workspaceQuery.error as any)?.response?.data?.message
-              || (workspaceQuery.error as Error)?.message
-              || 'Pull down to try again.'}
-          </Text>
-        </View>
-      ) : null}
-
-      {assignments.map((assignment) => {
-        const order = assignment.deliveryJob.order;
-        const tone = assignmentTone(assignment);
-        const eventTime = assignment.respondedAt
-          || assignment.offeredAt
-          || assignment.createdAt
-          || assignment.deliveryJob.updatedAt;
-
-        return (
-          <View testID="rider_history_card" key={assignment.id} style={styles.card}>
-            <View style={styles.headerRow}>
-              <View style={styles.orderHeading}>
-                <Package size={17} color="#0F766E" />
-                <Text style={styles.orderId}>#{order.id.slice(-8).toUpperCase()}</Text>
-              </View>
-              <View style={[styles.statusPill, { backgroundColor: tone.backgroundColor }]}>
-                {statusIcon(assignment)}
-                <Text style={[styles.statusText, { color: tone.color }]}>
-                  {assignmentLabel(assignment)}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.jobStatusRow}>
-              <Text style={styles.jobStatusLabel}>Delivery state</Text>
-              <Text style={styles.jobStatusValue}>
-                {deliveryStatusLabel(assignment.deliveryJob.status)}
-              </Text>
-            </View>
-
-            <View style={styles.section}>
-              <View style={styles.sectionIcon}>
-                <Store size={17} color="#0F766E" />
-              </View>
-              <View style={styles.sectionBody}>
-                <Text style={styles.label}>Pickup</Text>
-                <Text style={styles.value}>{order.store?.name || 'Store'}</Text>
-                <Text style={styles.sub}>
-                  {order.store?.address || 'Store address not available'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <View style={styles.sectionIcon}>
-                <MapPin size={17} color="#0F766E" />
-              </View>
-              <View style={styles.sectionBody}>
-                <Text style={styles.label}>Destination</Text>
-                <Text style={styles.value}>
-                  {order.addressSnapshot?.recipientName || 'Customer'}
-                </Text>
-                <Text style={styles.sub}>{formatAddressText(order.addressSnapshot)}</Text>
-              </View>
-            </View>
-
-            {assignment.rejectionReason ? (
-              <View style={styles.reasonCard}>
-                <Text style={styles.reasonLabel}>Reason</Text>
-                <Text style={styles.reasonText}>
-                  {assignment.rejectionReason.replace(/_/g, ' ')}
-                </Text>
-              </View>
-            ) : null}
-
-            <View style={styles.footerRow}>
-              <View style={styles.timeRow}>
-                <Clock3 size={14} color="#64748B" />
-                <Text style={styles.timeText}>
-                  {eventTime ? new Date(eventTime).toLocaleString('en-IN') : 'Time unavailable'}
-                </Text>
-              </View>
-              {typeof order.deliveryLat === 'number'
-                && typeof order.deliveryLng === 'number' ? (
-                  <TouchableOpacity
-                    testID="rider_history_route_button"
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open route for order ${order.id}`}
-                    style={styles.routeButton}
-                    onPress={() => openRoute(assignment)}
-                  >
-                    <Navigation size={15} color="#FFFFFF" />
-                    <Text style={styles.routeButtonText}>Route</Text>
-                  </TouchableOpacity>
-                ) : null}
-            </View>
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        refreshControl={(
+          <RefreshControl
+            refreshing={workspaceQuery.isRefetching}
+            onRefresh={() => void workspaceQuery.refetch()}
+            tintColor="#FFFFFF"
+          />
+        )}
+      >
+        <View style={styles.hero}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity accessibilityLabel="Back to jobs" style={styles.headerIcon} onPress={onBack}>
+              <ArrowLeft size={31} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.title}>Delivery History</Text>
+            <View style={styles.headerIcon}><SlidersHorizontal size={29} color="#FFFFFF" /></View>
           </View>
-        );
-      })}
 
-      {!workspaceQuery.isLoading && !workspaceQuery.error && assignments.length === 0 ? (
-        <View style={styles.empty}>
-          <MapPin size={32} color="#94A3B8" />
-          <Text style={styles.emptyTitle}>No assignment history yet</Text>
-          <Text style={styles.emptyText}>
-            Answered and completed delivery offers will appear here.
-          </Text>
+          <View style={styles.filters}>
+            <HistoryFilterButton label="All" active={filter === 'ALL'} onPress={() => setFilter('ALL')} />
+            <HistoryFilterButton label="Completed" active={filter === 'COMPLETED'} onPress={() => setFilter('COMPLETED')} />
+            <HistoryFilterButton label="Cancelled" active={filter === 'CANCELLED'} onPress={() => setFilter('CANCELLED')} />
+            <HistoryFilterButton label="Returned" active={filter === 'RETURNED'} onPress={() => setFilter('RETURNED')} />
+          </View>
+
+          <View style={styles.rangeCard}>
+            <CalendarDays size={22} color="#596168" />
+            <Text style={styles.rangeText}>{dateRangeLabel()}</Text>
+            <ChevronDown size={24} color="#596168" />
+          </View>
         </View>
-      ) : null}
-    </ScrollView>
+
+        <View style={styles.summaryCard}>
+          <Summary value={counts.completed} label="Completed" color="#0D8B2E" />
+          <View style={styles.summaryDivider} />
+          <Summary value={counts.cancelled} label="Cancelled" color="#D51D25" />
+          <View style={styles.summaryDivider} />
+          <Summary value={counts.returned} label="Returned" color="#EB7908" />
+        </View>
+
+        <View style={styles.listArea}>
+          {workspaceQuery.isLoading ? (
+            <View style={styles.stateCard}>
+              <ActivityIndicator size="large" color="#078D63" />
+              <Text style={styles.stateText}>Loading delivery history…</Text>
+            </View>
+          ) : workspaceQuery.isError ? (
+            <View style={styles.stateCard}>
+              <Text style={styles.stateTitle}>History unavailable</Text>
+              <Text style={styles.stateText}>{(workspaceQuery.error as Error)?.message || 'Pull down to try again.'}</Text>
+            </View>
+          ) : filteredItems.length === 0 ? (
+            <View style={styles.stateCard}>
+              <Text style={styles.stateTitle}>No deliveries in this view</Text>
+              <Text style={styles.stateText}>Completed, cancelled and returned jobs will appear here.</Text>
+            </View>
+          ) : (
+            filteredItems.map((item) => <HistoryCard key={item.key} item={item} />)
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
+function HistoryFilterButton({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.filterButton, active && styles.filterButtonActive]}
+      onPress={onPress}
+    >
+      <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function Summary({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <View style={styles.summaryItem}>
+      <Text style={[styles.summaryValue, { color }]}>{value}</Text>
+      <Text style={styles.summaryLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function HistoryCard({ item }: { item: RiderJobListItem }) {
+  const visual = statusVisual(item.status);
+  return (
+    <View testID="rider_history_card" style={styles.historyCard}>
+      <View style={styles.cardTopRow}>
+        <Text style={styles.cardDate}>{formatDateTime(item.time)}</Text>
+        <Text style={styles.cardOrder}>#J-{shortPartnerOrderId(item.orderId)}</Text>
+        <View style={[styles.statusPill, { backgroundColor: visual.background }]}>
+          <Text style={[styles.statusText, { color: visual.color }]}>{visual.label}</Text>
+        </View>
+      </View>
+
+      <View style={styles.cardBody}>
+        <View style={styles.routeTimeline}>
+          <View style={[styles.routeDot, { borderColor: visual.color }]}><View style={[styles.routeDotInner, { backgroundColor: visual.color }]} /></View>
+          <View style={styles.routeLine} />
+          <View style={[styles.routeDot, { borderColor: visual.color }]}><View style={[styles.routeDotInner, { backgroundColor: visual.color }]} /></View>
+        </View>
+        <View style={styles.routeCopy}>
+          <View>
+            <Text style={styles.routeLabel}>Pickup</Text>
+            <Text style={styles.routeName}>{item.pickupName}</Text>
+            <Text style={styles.routeAddress}>{item.pickupAddress}</Text>
+          </View>
+          <View>
+            <Text style={styles.routeLabel}>Delivery</Text>
+            <Text style={styles.routeName}>{item.deliveryAddress}</Text>
+          </View>
+        </View>
+        <View style={styles.cardRight}>
+          <ChevronRight size={25} color="#4E555A" />
+          <Text style={styles.payout}>{money(item.payout)}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  content: { paddingTop: 54, paddingHorizontal: 16, paddingBottom: 112, gap: 12 },
-  eyebrow: { color: '#0F766E', fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
-  title: { fontSize: 25, fontWeight: '900', color: '#0F172A' },
-  subtitle: { color: '#64748B', marginTop: -5, marginBottom: 6, lineHeight: 20 },
-  loading: { color: '#475569', fontWeight: '700', paddingVertical: 18 },
-  errorCard: { borderRadius: 18, borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FEF2F2', padding: 16 },
-  errorTitle: { color: '#991B1B', fontWeight: '900' },
-  errorText: { marginTop: 4, color: '#B91C1C', lineHeight: 19 },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 22, borderColor: '#E2E8F0', borderWidth: 1, padding: 16, gap: 13 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  orderHeading: { flexDirection: 'row', alignItems: 'center', gap: 7, flex: 1 },
-  orderId: { fontWeight: '900', color: '#0F172A' },
-  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 },
-  statusText: { fontSize: 10, fontWeight: '900' },
-  jobStatusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderRadius: 12, backgroundColor: '#F8FAFC', paddingHorizontal: 12, paddingVertical: 9 },
-  jobStatusLabel: { color: '#64748B', fontSize: 11, fontWeight: '700' },
-  jobStatusValue: { color: '#0F172A', fontSize: 11, fontWeight: '900' },
-  section: { flexDirection: 'row', gap: 10 },
-  sectionIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#F0FDFA', alignItems: 'center', justifyContent: 'center' },
-  sectionBody: { flex: 1, gap: 2 },
-  label: { fontSize: 9, fontWeight: '900', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.8 },
-  value: { fontSize: 14, fontWeight: '900', color: '#0F172A' },
-  sub: { fontSize: 12, color: '#475569', lineHeight: 18 },
-  reasonCard: { borderRadius: 12, backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical: 9 },
-  reasonLabel: { color: '#9A3412', fontSize: 9, fontWeight: '900', textTransform: 'uppercase' },
-  reasonText: { marginTop: 2, color: '#C2410C', fontSize: 12, fontWeight: '700' },
-  footerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 },
-  timeText: { color: '#64748B', fontSize: 10, fontWeight: '700' },
-  routeButton: { borderRadius: 11, backgroundColor: '#0F172A', paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  routeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 11 },
-  empty: { marginTop: 28, borderRadius: 22, borderWidth: 1, borderStyle: 'dashed', borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', padding: 32, alignItems: 'center' },
-  emptyTitle: { marginTop: 10, color: '#0F172A', fontSize: 16, fontWeight: '900' },
-  emptyText: { marginTop: 4, color: '#64748B', textAlign: 'center', lineHeight: 19 },
+  screen: { flex: 1, backgroundColor: '#F7F8F7' },
+  scroll: { flex: 1 },
+  content: { paddingBottom: 112 },
+  hero: { backgroundColor: '#067B5C', paddingTop: 50, paddingHorizontal: 14, paddingBottom: 68 },
+  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  title: { flex: 1, color: '#FFFFFF', fontSize: 22, fontWeight: '900', marginLeft: 8 },
+  filters: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  filterButton: { flex: 1, height: 44, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.32)', alignItems: 'center', justifyContent: 'center' },
+  filterButtonActive: { backgroundColor: '#FFFFFF', borderColor: '#FFFFFF' },
+  filterText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  filterTextActive: { color: '#087150' },
+  rangeCard: { height: 60, borderRadius: 15, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, marginTop: 14 },
+  rangeText: { flex: 1, color: '#555D63', fontSize: 14, fontWeight: '600' },
+  summaryCard: { marginHorizontal: 14, marginTop: -49, height: 91, borderRadius: 17, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', elevation: 4, borderWidth: 1, borderColor: '#E0E3E2' },
+  summaryItem: { flex: 1, alignItems: 'center' },
+  summaryValue: { fontSize: 28, fontWeight: '900' },
+  summaryLabel: { color: '#4A5055', fontSize: 13, marginTop: 4 },
+  summaryDivider: { width: 1, height: 52, backgroundColor: '#E2E4E3' },
+  listArea: { paddingHorizontal: 14, paddingTop: 12 },
+  historyCard: { borderRadius: 17, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E4E3', padding: 14, marginBottom: 11, elevation: 2 },
+  cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardDate: { color: '#343A3E', fontSize: 12, flex: 1 },
+  cardOrder: { color: '#171A1C', fontSize: 13, fontWeight: '900' },
+  statusPill: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+  statusText: { fontSize: 11, fontWeight: '900' },
+  cardBody: { flexDirection: 'row', marginTop: 13, minHeight: 94 },
+  routeTimeline: { width: 34, alignItems: 'center', paddingVertical: 3 },
+  routeDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  routeDotInner: { width: 7, height: 7, borderRadius: 4 },
+  routeLine: { width: 1, flex: 1, borderLeftWidth: 1, borderColor: '#B7C1BC', borderStyle: 'dashed' },
+  routeCopy: { flex: 1, justifyContent: 'space-between' },
+  routeLabel: { color: '#0A913B', fontSize: 11, fontWeight: '800' },
+  routeName: { color: '#171A1C', fontSize: 14, fontWeight: '700', marginTop: 2 },
+  routeAddress: { color: '#555D63', fontSize: 11, marginTop: 1 },
+  cardRight: { width: 70, alignItems: 'flex-end', justifyContent: 'space-between' },
+  payout: { color: '#111111', fontSize: 14, fontWeight: '900' },
+  stateCard: { minHeight: 250, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  stateTitle: { color: '#111827', fontSize: 18, fontWeight: '900' },
+  stateText: { color: '#6B7470', textAlign: 'center', marginTop: 7 },
 });

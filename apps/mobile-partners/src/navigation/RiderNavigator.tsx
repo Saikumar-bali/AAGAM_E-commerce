@@ -1,7 +1,13 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, ClipboardList, Clock3, House, UserRound } from 'lucide-react-native';
+import {
+  BarChart3,
+  Bell,
+  BriefcaseBusiness,
+  House,
+  UserRound,
+} from 'lucide-react-native';
 import { notificationService } from '../api/notificationService';
 import { PARTNER_NOTIFICATION_QUERY_KEY, PartnerNotificationsScreen } from '../screens/PartnerNotificationsScreen';
 import { RiderDashboard } from '../screens/rider/RiderDashboard';
@@ -23,26 +29,26 @@ export const RiderNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#06996D',
-        tabBarInactiveTintColor: '#5F6773',
+        tabBarActiveTintColor: '#087B5B',
+        tabBarInactiveTintColor: '#4F565D',
         headerShown: false,
         tabBarHideOnKeyboard: true,
         sceneStyle: { backgroundColor: '#FFFFFF' },
         tabBarStyle: {
           position: 'absolute',
-          height: 76,
-          paddingBottom: 10,
+          height: 78,
+          paddingBottom: 9,
           paddingTop: 8,
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
-          borderTopColor: '#EEF0F2',
-          elevation: 20,
+          borderTopColor: '#E6E9E7',
+          elevation: 22,
           shadowColor: '#111827',
-          shadowOffset: { width: 0, height: -4 },
+          shadowOffset: { width: 0, height: -3 },
           shadowOpacity: 0.08,
-          shadowRadius: 12,
+          shadowRadius: 10,
         },
-        tabBarItemStyle: { borderRadius: 16 },
+        tabBarItemStyle: { borderRadius: 15 },
         tabBarLabelStyle: { fontSize: 10, fontWeight: '700', marginTop: 2 },
       }}
     >
@@ -50,7 +56,7 @@ export const RiderNavigator = () => {
         name="Dashboard"
         component={RiderDashboard}
         options={{
-          title: 'Dashboard',
+          title: 'Home',
           tabBarButtonTestID: 'tab_dashboard',
           tabBarIcon: ({ color, size, focused }) => (
             <House size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.5 : 2} />
@@ -61,10 +67,10 @@ export const RiderNavigator = () => {
         name="Operations"
         component={RiderOperationsRouterScreen}
         options={{
-          title: 'Operations',
+          title: 'Jobs',
           tabBarButtonTestID: 'tab_deliveries',
           tabBarIcon: ({ color, size, focused }) => (
-            <ClipboardList size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.5 : 2} />
+            <BriefcaseBusiness size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.5 : 2} />
           ),
         }}
       />
@@ -76,16 +82,16 @@ export const RiderNavigator = () => {
           tabBarButtonTestID: 'tab_alerts',
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
           tabBarBadgeStyle: {
-            backgroundColor: '#EF2424',
+            backgroundColor: '#EF1D25',
             color: '#FFFFFF',
             fontSize: 10,
             fontWeight: '900',
-            minWidth: 19,
-            height: 19,
-            lineHeight: 19,
+            minWidth: 20,
+            height: 20,
+            lineHeight: 20,
           },
           tabBarIcon: ({ color, size, focused }) => (
-            <Bell size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.5 : 2} />
+            <Bell size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.5 : 2} />
           ),
         }}
       />
@@ -93,10 +99,10 @@ export const RiderNavigator = () => {
         name="History"
         component={RiderEarningsScreen}
         options={{
-          title: 'History',
+          title: 'Earnings',
           tabBarButtonTestID: 'tab_earnings',
           tabBarIcon: ({ color, size, focused }) => (
-            <Clock3 size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.5 : 2} />
+            <BarChart3 size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.5 : 2} />
           ),
         }}
       />
@@ -107,7 +113,7 @@ export const RiderNavigator = () => {
           title: 'Profile',
           tabBarButtonTestID: 'tab_profile',
           tabBarIcon: ({ color, size, focused }) => (
-            <UserRound size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.5 : 2} />
+            <UserRound size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.5 : 2} />
           ),
         }}
       />

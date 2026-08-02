@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -10,18 +11,25 @@ import {
 } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
-import { ArrowLeft, Bell, CheckCheck, ChevronRight, RefreshCw } from 'lucide-react-native';
+import {
+  Bell,
+  Box,
+  ChartNoAxesCombined,
+  Clock3,
+  Gift,
+  UserRound,
+  Wrench,
+} from 'lucide-react-native';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { notificationService, PartnerNotification } from '../api/notificationService';
+import {
+  isNotificationUpdate,
+  notificationSection,
+} from '../domain/riderReferenceUi';
 
 export const PARTNER_NOTIFICATION_QUERY_KEY = ['partner-notifications'] as const;
 
-function eventLabel(value: string) {
-  return String(value || 'UPDATE')
-    .replaceAll('_', ' ')
-    .toLowerCase()
-    .replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
-}
+type AlertFilter = 'ALL' | 'UNREAD' | 'UPDATES';
 
 function errorMessage(error: any) {
   const message = error?.response?.data?.message;
@@ -29,9 +37,33 @@ function errorMessage(error: any) {
   return message || error?.message || 'Could not load notifications.';
 }
 
+function notificationVisual(item: PartnerNotification) {
+  const type = String(item.type || item.metadata?.eventType || '').toUpperCase();
+  if (type.includes('DELAY')) return { Icon: Clock3, color: '#F97316', background: '#FFF1E7' };
+  if (type.includes('CUSTOMER') || type.includes('ADDRESS')) return { Icon: UserRound, color: '#2879F3', background: '#EAF3FF' };
+  if (type.includes('DEMAND') || type.includes('SURGE')) return { Icon: ChartNoAxesCombined, color: '#7C3AED', background: '#F2ECFF' };
+  if (type.includes('INCENTIVE') || type.includes('BONUS')) return { Icon: Gift, color: '#28A32B', background: '#EAF8E8' };
+  if (type.includes('MAINTENANCE') || type.includes('SYSTEM')) return { Icon: Wrench, color: '#59636F', background: '#EEF1F4' };
+  return { Icon: Box, color: '#078D63', background: '#E9F9EC' };
+}
+
+function formatAlertTime(value: string) {
+  return new Date(value).toLocaleTimeString('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function sectionTitle(section: 'TODAY' | 'YESTERDAY' | 'OLDER') {
+  if (section === 'TODAY') return 'Today';
+  if (section === 'YESTERDAY') return 'Yesterday';
+  return 'Earlier';
+}
+
 export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any }) => {
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
+  const [filter, setFilter] = useState<AlertFilter>('ALL');
   const inboxQuery = useQuery({
     queryKey: PARTNER_NOTIFICATION_QUERY_KEY,
     queryFn: () => notificationService.getInbox(100),
@@ -60,8 +92,12 @@ export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any })
         return;
       }
     }
-    if (user?.role === 'RIDER' && (eventType === 'ASSIGNMENT_OFFERED' || eventType.startsWith('ASSIGNMENT_') || eventType.startsWith('DELIVERY_'))) {
-      rootNavigation?.navigate?.('RiderTabs', { screen: 'Dashboard' });
+    if (user?.role === 'RIDER' && (
+      eventType === 'ASSIGNMENT_OFFERED'
+      || eventType.startsWith('ASSIGNMENT_')
+      || eventType.startsWith('DELIVERY_')
+    )) {
+      rootNavigation?.navigate?.('RiderTabs', { screen: 'Operations' });
     }
   };
 
@@ -75,108 +111,246 @@ export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any })
       await queryClient.invalidateQueries({ queryKey: PARTNER_NOTIFICATION_QUERY_KEY });
       openRoleWorkspace(item);
     },
-    onError: (error: any) => Toast.show({ type: 'error', text1: 'Could not open notification', text2: errorMessage(error) }),
+    onError: (error: any) => Toast.show({
+      type: 'error',
+      text1: 'Could not open notification',
+      text2: errorMessage(error),
+    }),
   });
 
-  const recentCount = useMemo(() => items.filter((item) => Date.now() - new Date(item.createdAt).getTime() < 24 * 60 * 60 * 1000).length, [items]);
-  const canGoBack = Boolean(navigation?.canGoBack?.());
+  const filteredItems = useMemo(() => items.filter((item) => {
+    if (filter === 'UNREAD') return !item.readAt;
+    if (filter === 'UPDATES') return isNotificationUpdate(item);
+    return true;
+  }), [filter, items]);
+
+  const groupedItems = useMemo(() => {
+    const groups: Record<'TODAY' | 'YESTERDAY' | 'OLDER', PartnerNotification[]> = {
+      TODAY: [],
+      YESTERDAY: [],
+      OLDER: [],
+    };
+    filteredItems.forEach((item) => groups[notificationSection(item.createdAt)].push(item));
+    return groups;
+  }, [filteredItems]);
 
   return (
     <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
       <View style={styles.header}>
-        {canGoBack ? (
-          <TouchableOpacity testID="partner_notifications_back" style={styles.backButton} onPress={() => navigation?.goBack?.()}>
-            <ArrowLeft size={21} color="#FFFFFF" />
-          </TouchableOpacity>
-        ) : <View style={styles.backSpacer} />}
-        <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>{user?.role === 'RIDER' ? 'RIDER ALERTS' : 'STORE ALERTS'}</Text>
-          <Text style={styles.title}>Notifications</Text>
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.title}>Alerts</Text>
+          <Bell size={34} color="#FFFFFF" strokeWidth={2} />
         </View>
-        <TouchableOpacity style={styles.refreshButton} onPress={() => void inboxQuery.refetch()}><RefreshCw size={20} color="#FFFFFF" /></TouchableOpacity>
+        <View style={styles.filters}>
+          <FilterButton
+            active={filter === 'ALL'}
+            label="All"
+            count={items.length}
+            onPress={() => setFilter('ALL')}
+          />
+          <FilterButton
+            active={filter === 'UNREAD'}
+            label="Unread"
+            count={unreadCount}
+            onPress={() => setFilter('UNREAD')}
+          />
+          <FilterButton
+            active={filter === 'UPDATES'}
+            label="Updates"
+            onPress={() => setFilter('UPDATES')}
+          />
+        </View>
       </View>
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={inboxQuery.isRefetching} onRefresh={() => void inboxQuery.refetch()} />}
+        refreshControl={(
+          <RefreshControl
+            refreshing={inboxQuery.isRefetching}
+            onRefresh={() => void inboxQuery.refetch()}
+            tintColor="#078D63"
+          />
+        )}
       >
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}><Text style={styles.summaryLabel}>Unread</Text><Text style={styles.summaryValue}>{unreadCount}</Text></View>
-          <View style={styles.summaryCard}><Text style={styles.summaryLabel}>Last 24 hours</Text><Text style={styles.summaryValue}>{recentCount}</Text></View>
-        </View>
-
         {inboxQuery.isLoading ? (
-          <View style={styles.centerState}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.centerText}>Loading alerts…</Text></View>
+          <View style={styles.stateCard}>
+            <ActivityIndicator size="large" color="#078D63" />
+            <Text style={styles.stateText}>Loading alerts…</Text>
+          </View>
         ) : inboxQuery.isError ? (
-          <View style={styles.emptyCard}><Bell size={42} color="#B91C1C" /><Text style={styles.emptyTitle}>Notifications unavailable</Text><Text style={styles.emptyText}>{errorMessage(inboxQuery.error)}</Text></View>
-        ) : !items.length ? (
-          <View style={styles.emptyCard}><Bell size={48} color="#CBD5E1" /><Text style={styles.emptyTitle}>No notifications yet</Text><Text style={styles.emptyText}>{user?.role === 'RIDER' ? 'Addressed delivery offers and rider updates will appear here.' : 'New customer orders and rider handoff updates will appear here.'}</Text></View>
+          <View style={styles.stateCard}>
+            <Bell size={42} color="#DC2626" />
+            <Text style={styles.stateTitle}>Alerts unavailable</Text>
+            <Text style={styles.stateText}>{errorMessage(inboxQuery.error)}</Text>
+          </View>
+        ) : filteredItems.length === 0 ? (
+          <View style={styles.stateCard}>
+            <Bell size={45} color="#AAB2BC" />
+            <Text style={styles.stateTitle}>No alerts in this view</Text>
+            <Text style={styles.stateText}>New jobs and rider updates will appear here.</Text>
+          </View>
         ) : (
-          items.map((item) => (
-            <TouchableOpacity
-              testID={`partner_notification_${item.id}`}
-              key={item.id}
-              style={[styles.notificationCard, !item.readAt && styles.unreadCard]}
-              activeOpacity={0.75}
-              onPress={() => markReadMutation.mutate(item)}
-            >
-              <View style={styles.notificationTop}>
-                <View style={[styles.bellBox, !item.readAt && styles.bellUnread]}><Bell size={19} color={item.readAt ? '#64748B' : '#FFFFFF'} /></View>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.typeRow}>
-                    <Text style={styles.typeText}>{eventLabel(item.type)}</Text>
-                    {!item.readAt ? <View style={styles.unreadDot} /> : null}
-                  </View>
-                  <Text style={styles.notificationTitle}>{item.title}</Text>
-                  <Text style={styles.notificationBody}>{item.body}</Text>
-                </View>
-                <ChevronRight size={18} color="#64748B" />
+          (['TODAY', 'YESTERDAY', 'OLDER'] as const).map((section) => (
+            groupedItems[section].length ? (
+              <View key={section} style={styles.section}>
+                <Text style={styles.sectionTitle}>{sectionTitle(section)}</Text>
+                {groupedItems[section].map((item) => (
+                  <AlertCard
+                    key={item.id}
+                    item={item}
+                    busy={markReadMutation.isPending}
+                    onPress={() => markReadMutation.mutate(item)}
+                  />
+                ))}
               </View>
-              <View style={styles.notificationFooter}>
-                <Text style={styles.notificationTime}>{new Date(item.createdAt).toLocaleString('en-IN')}</Text>
-                {!item.readAt ? <View style={styles.readAction}><CheckCheck size={13} color="#0F766E" /><Text style={styles.readActionText}>Open & mark read</Text></View> : null}
-              </View>
-            </TouchableOpacity>
+            ) : null
           ))
         )}
-        <View style={{ height: 30 }} />
       </ScrollView>
     </View>
   );
 };
 
+function FilterButton({
+  active,
+  label,
+  count,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  count?: number;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      style={[styles.filterButton, active && styles.filterButtonActive]}
+      onPress={onPress}
+    >
+      <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
+      {typeof count === 'number' ? (
+        <View style={styles.filterCount}>
+          <Text style={styles.filterCountText}>{count}</Text>
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
+function AlertCard({
+  item,
+  busy,
+  onPress,
+}: {
+  item: PartnerNotification;
+  busy: boolean;
+  onPress: () => void;
+}) {
+  const visual = notificationVisual(item);
+  const Icon = visual.Icon;
+  return (
+    <TouchableOpacity
+      testID={`partner_notification_${item.id}`}
+      activeOpacity={0.78}
+      disabled={busy}
+      style={styles.alertCard}
+      onPress={onPress}
+    >
+      <View style={[styles.alertIcon, { backgroundColor: visual.background }]}>
+        <Icon size={30} color={visual.color} strokeWidth={2.2} />
+      </View>
+      <View style={styles.alertCopy}>
+        <Text style={styles.alertTitle} numberOfLines={1}>{item.title}</Text>
+        <Text style={styles.alertBody} numberOfLines={2}>{item.body}</Text>
+      </View>
+      <View style={styles.alertMeta}>
+        <Text style={styles.alertTime}>{formatAlertTime(item.createdAt)}</Text>
+        {!item.readAt ? <View style={styles.unreadDot} /> : null}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { backgroundColor: '#007A5C', paddingTop: 52, paddingBottom: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomLeftRadius: 26, borderBottomRightRadius: 26 },
-  backButton: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
-  backSpacer: { width: 42, height: 42 },
-  refreshButton: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
-  eyebrow: { color: '#5EEAD4', fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
-  title: { color: '#FFFFFF', fontSize: 23, fontWeight: '900', marginTop: 3 },
+  screen: { flex: 1, backgroundColor: '#F8F9F8' },
+  header: {
+    backgroundColor: '#067B5C',
+    paddingTop: 54,
+    paddingHorizontal: 18,
+    paddingBottom: 18,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  title: { color: '#FFFFFF', fontSize: 31, fontWeight: '800' },
+  filters: { flexDirection: 'row', gap: 9, marginTop: 22 },
+  filterButton: {
+    flex: 1,
+    height: 50,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.36)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  filterButtonActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+    elevation: 3,
+  },
+  filterText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  filterTextActive: { color: '#086D51' },
+  filterCount: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    paddingHorizontal: 7,
+    backgroundColor: '#98E95D',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterCountText: { color: '#076440', fontSize: 14, fontWeight: '900' },
   scroll: { flex: 1 },
-  content: { padding: 16 },
-  summaryRow: { flexDirection: 'row', gap: 12, marginBottom: 15 },
-  summaryCard: { flex: 1, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16 },
-  summaryLabel: { color: '#64748B', fontSize: 10, fontWeight: '900', textTransform: 'uppercase' },
-  summaryValue: { color: '#0F172A', fontSize: 26, fontWeight: '900', marginTop: 6 },
-  centerState: { minHeight: 320, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  centerText: { color: '#64748B', fontWeight: '700' },
-  emptyCard: { minHeight: 320, borderRadius: 24, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', padding: 28 },
-  emptyTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', marginTop: 12 },
-  emptyText: { color: '#64748B', textAlign: 'center', lineHeight: 20, marginTop: 6 },
-  notificationCard: { borderRadius: 21, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', padding: 15, marginBottom: 11 },
-  unreadCard: { borderColor: '#99F6E4', backgroundColor: '#F0FDFA' },
-  notificationTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
-  bellBox: { width: 41, height: 41, borderRadius: 13, backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' },
-  bellUnread: { backgroundColor: '#0F766E' },
-  typeRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  typeText: { color: '#0F766E', fontSize: 9, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8 },
-  unreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#EF4444' },
-  notificationTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900', marginTop: 5 },
-  notificationBody: { color: '#475569', fontSize: 12, lineHeight: 18, marginTop: 4, fontWeight: '600' },
-  notificationFooter: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  notificationTime: { color: '#94A3B8', fontSize: 9, flex: 1 },
-  readAction: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  readActionText: { color: '#0F766E', fontSize: 9, fontWeight: '900' },
+  content: { paddingHorizontal: 17, paddingTop: 14, paddingBottom: 116 },
+  section: { marginBottom: 13 },
+  sectionTitle: { color: '#111111', fontSize: 17, fontWeight: '800', marginVertical: 10 },
+  alertCard: {
+    minHeight: 91,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E1E4E3',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 11,
+    marginBottom: 9,
+    shadowColor: '#1D2C27',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 7,
+    elevation: 2,
+  },
+  alertIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertCopy: { flex: 1, paddingHorizontal: 13 },
+  alertTitle: { color: '#080808', fontSize: 16, fontWeight: '900' },
+  alertBody: { color: '#555C64', fontSize: 13, lineHeight: 19, marginTop: 3 },
+  alertMeta: { alignItems: 'flex-end', justifyContent: 'space-between', alignSelf: 'stretch', paddingVertical: 4 },
+  alertTime: { color: '#5C636B', fontSize: 12 },
+  unreadDot: { width: 13, height: 13, borderRadius: 7, backgroundColor: '#2DB72E' },
+  stateCard: { minHeight: 330, alignItems: 'center', justifyContent: 'center', padding: 28 },
+  stateTitle: { color: '#111827', fontSize: 18, fontWeight: '900', marginTop: 12 },
+  stateText: { color: '#69717B', textAlign: 'center', marginTop: 7, lineHeight: 20 },
 });
