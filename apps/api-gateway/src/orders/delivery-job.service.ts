@@ -404,6 +404,15 @@ export class DeliveryJobService {
                     },
                   },
                   {
+                    status: DispatchAssignmentStatus.ACCEPTED,
+                    deliveryJob: {
+                      is: {
+                        status: DeliveryJobStatus.CANCELLED,
+                        updatedAt: { gte: historyFrom },
+                      },
+                    },
+                  },
+                  {
                     status: {
                       in: [
                         DispatchAssignmentStatus.CANCELLED,
