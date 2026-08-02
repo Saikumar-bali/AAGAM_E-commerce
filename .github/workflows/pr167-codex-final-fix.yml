@@ -26,7 +26,7 @@ jobs:
           cache: npm
 
       - name: Apply final Codex fixes
-        run: python .github/pr167-codex-final-fix.py
+        run: python .github/pr167-codex-final-runner.py
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -60,7 +60,7 @@ jobs:
       - name: Commit verified final fixes
         shell: bash
         run: |
-          rm .github/pr167-codex-final-fix.py .github/workflows/pr167-codex-final-fix.yml
+          rm .github/pr167-codex-final-fix.py .github/pr167-codex-final-runner.py .github/workflows/pr167-codex-final-fix.yml
           git diff --check
           git config user.name "PR 167 Final Remediation"
           git config user.email "actions@users.noreply.github.com"
