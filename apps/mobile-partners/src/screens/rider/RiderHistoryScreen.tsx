@@ -30,6 +30,7 @@ type HistoryFilter = 'ALL' | 'COMPLETED' | 'CANCELLED' | 'RETURNED';
 
 function historyFrom() {
   const value = new Date();
+  value.setHours(0, 0, 0, 0);
   value.setDate(value.getDate() - 60);
   return value.toISOString();
 }
