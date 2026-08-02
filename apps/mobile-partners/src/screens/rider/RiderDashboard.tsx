@@ -201,7 +201,7 @@ function CurrentDelivery({
   const next = nextActionForStatus(job.status);
   const customerName = order.customer?.name || order.addressSnapshot?.recipientName || 'Customer';
   const customerPhone = order.customer?.phone || order.addressSnapshot?.phoneE164 || null;
-  const navigatingToStore = ['RIDER_ASSIGNED', 'RIDER_EN_ROUTE_TO_STORE', 'RIDER_AT_STORE'].includes(job.status);
+  const navigatingToStore = ['RIDER_ASSIGNED', 'RIDER_EN_ROUTE_TO_STORE', 'RIDER_AT_STORE', 'RETURNING_TO_STORE'].includes(job.status);
   const routeDestination = navigatingToStore
     ? { latitude: order.store?.latitude, longitude: order.store?.longitude }
     : { latitude: order.deliveryLat, longitude: order.deliveryLng };
