@@ -15,4 +15,5 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribu
 L.marker(destination).addTo(map).bindPopup(${JSON.stringify(escapeForHtml(label))});
 let riderMarker=null; let routeLine=null;
 window.setRiderLocation=function(lat,lng){const point=[lat,lng];if(!riderMarker){riderMarker=L.marker(point,{icon:L.divIcon({className:'',html:'<div class="rider-dot"></div>',iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map).bindPopup('You are here');}else riderMarker.setLatLng(point);if(routeLine)routeLine.setLatLngs([point,destination]);else routeLine=L.polyline([point,destination],{color:'#008c68',weight:5,opacity:.85,dashArray:'10 8'}).addTo(map);map.fitBounds(L.latLngBounds([point,destination]),{padding:[32,32],maxZoom:16});};
+window.clearRiderLocation=function(){if(riderMarker){map.removeLayer(riderMarker);riderMarker=null;}if(routeLine){map.removeLayer(routeLine);routeLine=null;}};
 </script></body></html>`;
