@@ -1,4 +1,4 @@
-name: Repair PR 167 CI regressions
+name: Complete PR 167 remediation
 
 on:
   push:
@@ -13,245 +13,525 @@ permissions:
 jobs:
   repair:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_pr167_repair
+      NODE_ENV: test
     steps:
-      - name: Checkout repair branch
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
           ref: agent/resolve-146-166
           fetch-depth: 2
 
-      - name: Set up Node.js
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 22.22.3
           cache: npm
 
-      - name: Apply focused repairs
+      - name: Apply complete remediation
         shell: bash
         run: |
           python <<'PY'
           from pathlib import Path
           import re
 
-          def replace_once(text: str, old: str, new: str, label: str) -> str:
-              if old not in text:
-                  raise SystemExit(f"Missing expected source for {label}")
-              return text.replace(old, new, 1)
+          def read(path: str) -> str:
+              return Path(path).read_text(encoding="utf-8")
 
-          dashboard_path = Path('apps/mobile-partners/src/screens/rider/RiderDashboard.tsx')
-          dashboard = dashboard_path.read_text()
-          dashboard = replace_once(
+          def write(path: str, text: str) -> None:
+              Path(path).write_text(text, encoding="utf-8")
+
+          def replace_once(path: str, old: str, new: str, label: str) -> None:
+              text = read(path)
+              if old not in text:
+                  raise SystemExit(f"{label}: expected source pattern not found in {path}")
+              write(path, text.replace(old, new, 1))
+
+          dashboard = "apps/mobile-partners/src/screens/rider/RiderDashboard.tsx"
+          replace_once(
               dashboard,
-              "import React, { useEffect, useMemo, useState } from 'react';",
-              "import React, { useEffect, useMemo, useRef, useState } from 'react';",
-              'RiderDashboard React import',
+              "import { useAuthStore } from '@aagam/mobile-shared';",
+              "import { startMobilePushLifecycle, useAuthStore } from '@aagam/mobile-shared';",
+              "dashboard push lifecycle import",
           )
-          dashboard = replace_once(
+          replace_once(
               dashboard,
-              "  ActivityIndicator,\n  Alert,\n  RefreshControl,",
-              "  ActivityIndicator,\n  Alert,\n  Linking,\n  PermissionsAndroid,\n  Platform,\n  RefreshControl,",
-              'RiderDashboard Android permission imports',
+              "  Alert,\n  RefreshControl,",
+              "  Alert,\n  Linking,\n  PermissionsAndroid,\n  Platform,\n  RefreshControl,",
+              "dashboard Android permission imports",
           )
-          dashboard = replace_once(
+          replace_once(
               dashboard,
+              "function shortId(value?: string | null) {",
+              """async function requestRiderLocationPermission() {
+            if (Platform.OS !== 'android') return true;
+
+            const finePermission = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
+            const fineGranted = await PermissionsAndroid.check(finePermission)
+              || await PermissionsAndroid.request(finePermission, {
+                title: 'Allow rider location',
+                message: 'Aagaam Partners uses precise location while you are online and fulfilling deliveries.',
+                buttonPositive: 'Allow',
+                buttonNegative: 'Not now',
+              }) === PermissionsAndroid.RESULTS.GRANTED;
+            if (!fineGranted) return false;
+            if (Number(Platform.Version) < 29) return true;
+
+            const backgroundPermission = PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION;
+            if (await PermissionsAndroid.check(backgroundPermission)) return true;
+            const backgroundResult = await PermissionsAndroid.request(backgroundPermission, {
+              title: 'Allow background rider location',
+              message: 'Choose Allow all the time so dispatch can keep your availability fresh in the background.',
+              buttonPositive: 'Continue',
+              buttonNegative: 'Not now',
+            });
+            if (backgroundResult === PermissionsAndroid.RESULTS.GRANTED) return true;
+
+            if (Number(Platform.Version) >= 30) {
+              Alert.alert(
+                'Allow background location',
+                'Open App permissions → Location and choose Allow all the time, then return and tap Grant location.',
+                [
+                  { text: 'Not now', style: 'cancel' },
+                  { text: 'Open settings', onPress: () => Linking.openSettings().catch(() => undefined) },
+                ],
+              );
+            }
+            return false;
+          }
+
+          function shortId(value?: string | null) {""",
+              "dashboard permission helper",
+          )
+          replace_once(
+              dashboard,
+              "  const [statusBusy, setStatusBusy] = useState(false);\n  const [offerBusy",
+              "  const [statusBusy, setStatusBusy] = useState(false);\n  const statusBusyRef = useRef(false);\n  const [onlinePermissionMissing, setOnlinePermissionMissing] = useState(false);\n  const [offerBusy",
+              "dashboard availability state",
+          )
+          replace_once(
+              dashboard,
+              """  useEffect(() => {
+            const openNotification = (message: any) => {""",
+              """  useEffect(() => {
+            let alive = true;
+            let unsubscribePushLifecycle: (() => void) | undefined;
+            void startMobilePushLifecycle('Aagaam Partners').then((unsubscribe) => {
+              if (alive) unsubscribePushLifecycle = unsubscribe;
+              else unsubscribe();
+            }).catch(() => undefined);
+
+            const openNotification = (message: any) => {""",
+              "dashboard start push lifecycle",
+          )
+          replace_once(
+              dashboard,
+              """        return () => {
+              unsubscribeForeground();
+              unsubscribeOpened();
+            };""",
+              """        return () => {
+              alive = false;
+              unsubscribePushLifecycle?.();
+              unsubscribeForeground();
+              unsubscribeOpened();
+            };""",
+              "dashboard cleanup push lifecycle",
+          )
+
+          text = read(dashboard)
+          effect_start = """  useEffect(() => {
+            if (riderStatus === 'OFFLINE') {
+              void RiderOnlineService.stop().catch(() => undefined);
+              return;
+            }
+            void RiderOnlineService.start(user?.name || 'Rider').catch((error: any) => {
+              Toast.show({
+                type: 'error',
+                text1: 'Background availability unavailable',
+                text2: error?.message || 'Could not keep the rider heartbeat active.',
+              });
+            });
+          }, [riderStatus, user?.name]);
+
+          const refresh = async () => {"""
+          effect_replacement = """  const grantOnlinePermission = async () => {
+            if (statusBusyRef.current) return false;
+            statusBusyRef.current = true;
+            setStatusBusy(true);
+            try {
+              const permitted = await requestRiderLocationPermission();
+              if (!permitted) {
+                setOnlinePermissionMissing(true);
+                await RiderOnlineService.stop().catch(() => undefined);
+                Toast.show({
+                  type: 'error',
+                  text1: 'Background location required',
+                  text2: 'Grant “Allow all the time” to stay eligible for delivery offers.',
+                });
+                return false;
+              }
+              await RiderOnlineService.start(user?.name || 'Rider');
+              setOnlinePermissionMissing(false);
+              return true;
+            } catch (error: any) {
+              setOnlinePermissionMissing(true);
+              await RiderOnlineService.stop().catch(() => undefined);
+              Toast.show({
+                type: 'error',
+                text1: 'Online recovery unavailable',
+                text2: error?.message || 'Could not start background rider availability.',
+              });
+              return false;
+            } finally {
+              statusBusyRef.current = false;
+              setStatusBusy(false);
+            }
+          };
+
+          useEffect(() => {
+            if (riderStatus === 'OFFLINE') {
+              setOnlinePermissionMissing(false);
+              void RiderOnlineService.stop().catch(() => undefined);
+              return;
+            }
+            let cancelled = false;
+            const restoreOnlineAvailability = async () => {
+              const started = await grantOnlinePermission();
+              if (!cancelled && !started) setOnlinePermissionMissing(true);
+            };
+            void restoreOnlineAvailability();
+            return () => {
+              cancelled = true;
+            };
+          }, [riderStatus, user?.name]);
+
+          const refresh = async () => {"""
+          if effect_start not in text:
+              raise SystemExit("dashboard online service effect pattern not found")
+          text = text.replace(effect_start, effect_replacement, 1)
+
+          start = text.index("  const changeAvailability = async (online: boolean) => {")
+          end = text.index("\n\n  const acceptMutation", start)
+          replacement = """  const changeAvailability = async (online: boolean) => {
+            if (statusBusyRef.current) return;
+            if (!online && activeJob) {
+              Toast.show({
+                type: 'error',
+                text1: 'Active delivery',
+                text2: 'Complete or return the current delivery before going offline.',
+              });
+              return;
+            }
+
+            statusBusyRef.current = true;
+            setStatusBusy(true);
+            try {
+              if (online) {
+                const permitted = await requestRiderLocationPermission();
+                if (!permitted) {
+                  setOnlinePermissionMissing(true);
+                  await RiderOnlineService.stop().catch(() => undefined);
+                  Toast.show({
+                    type: 'error',
+                    text1: 'Background location required',
+                    text2: 'Grant “Allow all the time” before going online.',
+                  });
+                  return;
+                }
+                const location = await optionalCurrentLocation();
+                if (!location) throw new Error('Enable precise GPS and try again.');
+                await riderService.updateMyStatus('ONLINE', location);
+                try {
+                  await RiderOnlineService.start(user?.name || 'Rider');
+                  setOnlinePermissionMissing(false);
+                } catch (serviceError) {
+                  await RiderOnlineService.stop().catch(() => undefined);
+                  await riderService.updateMyStatus('OFFLINE').catch(() => undefined);
+                  throw serviceError;
+                }
+              } else {
+                await trackingManager.stop('RIDER_OFFLINE');
+                await RiderOnlineService.stop().catch(() => undefined);
+                await riderService.updateMyStatus('OFFLINE');
+                setOnlinePermissionMissing(false);
+              }
+
+              await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
+              Toast.show({
+                type: 'success',
+                text1: online ? 'You are online' : 'You are offline',
+                text2: online
+                  ? 'Background heartbeat is active and dispatch can send offers.'
+                  : 'New delivery offers and location heartbeats are paused.',
+              });
+            } catch (error: any) {
+              Toast.show({ type: 'error', text1: 'Availability update failed', text2: errorMessage(error) });
+            } finally {
+              statusBusyRef.current = false;
+              setStatusBusy(false);
+            }
+          };
+
+          const onlineToggleAction = onlinePermissionMissing
+            ? grantOnlinePermission
+            : () => changeAvailability(!isOnline);"""
+          text = text[:start] + replacement + text[end:]
+          write(dashboard, text)
+
+          replace_once(
+              dashboard,
+              """            {statusBusy ? (
+                  <ActivityIndicator color="#0F766E" />
+                ) : (
+                  <Switch""",
+              """            {statusBusy ? (
+                  <ActivityIndicator color="#0F766E" />
+                ) : onlinePermissionMissing ? (
+                  <TouchableOpacity
+                    style={styles.permissionButton}
+                    onPress={() => void onlineToggleAction()}
+                  >
+                    <Text style={styles.permissionButtonText}>{'GRANT LOCATION'}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Switch""",
+              "dashboard permission recovery UI",
+          )
+          replace_once(
+              dashboard,
+              "  availabilityText: { color: '#64748B', fontSize: 10, marginTop: 3 },",
+              """  availabilityText: { color: '#64748B', fontSize: 10, marginTop: 3 },
+            permissionButton: { minHeight: 36, borderRadius: 11, backgroundColor: '#0F766E', paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+            permissionButtonText: { color: '#FFFFFF', fontSize: 8, fontWeight: '900' },""",
+              "dashboard permission button styles",
+          )
+
+          profile = "apps/mobile-partners/src/screens/rider/RiderProfileScreen.tsx"
+          replace_once(
+              profile,
               "import { riderService } from '../../api/riderService';",
               "import { riderService } from '../../api/riderService';\nimport { RiderOnlineService } from '../../services/RiderOnlineService';",
-              'RiderDashboard online service import',
+              "profile online service import",
           )
-          dashboard = replace_once(
-              dashboard,
-              "  const [statusBusy, setStatusBusy] = useState(false);",
-              "  const [statusBusy, setStatusBusy] = useState(false);\n  const statusBusyRef = useRef(false);\n  const [onlinePermissionMissing, setOnlinePermissionMissing] = useState(false);",
-              'RiderDashboard availability state',
-          )
-          insertion_marker = "  const unreadCount = Number(inboxQuery.data?.unreadCount || 0);\n\n  const refresh = async () => {"
-          permission_block = """  const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
-
-  const requestLocationPermission = async () => {
-    if (Platform.OS !== 'android') return true;
-    const finePermission = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
-    const fineResult = await PermissionsAndroid.check(finePermission)
-      ? PermissionsAndroid.RESULTS.GRANTED
-      : await PermissionsAndroid.request(finePermission, {
-          title: 'Allow rider location',
-          message: 'Aagaam Partners uses precise location while you are online and fulfilling a delivery.',
-          buttonPositive: 'Allow',
-          buttonNegative: 'Not now',
-        });
-    if (fineResult !== PermissionsAndroid.RESULTS.GRANTED) return false;
-    if (Number(Platform.Version) < 29) return true;
-
-    const backgroundPermission = PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION;
-    if (await PermissionsAndroid.check(backgroundPermission)) return true;
-    const backgroundResult = await PermissionsAndroid.request(backgroundPermission, {
-      title: 'Allow background rider location',
-      message: 'Choose Allow all the time so Android can keep you eligible for delivery offers while the app is in the background.',
-      buttonPositive: 'Continue',
-      buttonNegative: 'Not now',
-    });
-    if (backgroundResult === PermissionsAndroid.RESULTS.GRANTED) return true;
-
-    if (Number(Platform.Version) >= 30) {
-      Alert.alert(
-        'Allow background location',
-        'Open App permissions → Location and choose Allow all the time. Then return and grant location again.',
-        [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Open settings', onPress: () => Linking.openSettings().catch(() => undefined) },
-        ],
-      );
-    }
-    return false;
-  };
-
-  const grantOnlinePermission = async () => {
-    if (statusBusyRef.current) return false;
-    statusBusyRef.current = true;
-    setStatusBusy(true);
-    try {
-      const permitted = await requestLocationPermission();
-      if (!permitted) {
-        setOnlinePermissionMissing(true);
-        await RiderOnlineService.stop().catch(() => undefined);
-        Toast.show({
-          type: 'error',
-          text1: 'Background location required',
-          text2: 'Grant “Allow all the time” to remain eligible while the app is in the background.',
-        });
-        return false;
-      }
-      await RiderOnlineService.start(user?.name || 'Rider');
-      setOnlinePermissionMissing(false);
-      return true;
-    } catch (error: any) {
-      setOnlinePermissionMissing(true);
-      await RiderOnlineService.stop().catch(() => undefined);
-      Toast.show({ type: 'error', text1: 'Online recovery unavailable', text2: error?.message || 'Could not start background Rider availability.' });
-      return false;
-    } finally {
-      statusBusyRef.current = false;
-      setStatusBusy(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!workspace?.rider?.status) return;
-    if (workspace.rider.status === 'OFFLINE') {
-      setOnlinePermissionMissing(false);
-      RiderOnlineService.stop().catch(() => undefined);
-      return;
-    }
-    let cancelled = false;
-    const restoreOnlineAvailability = async () => {
-      const started = await grantOnlinePermission();
-      if (!cancelled && !started) setOnlinePermissionMissing(true);
-    };
-    void restoreOnlineAvailability();
-    return () => { cancelled = true; };
-  }, [workspace?.rider?.status, user?.name]);
-
-  const refresh = async () => {"""
-          dashboard = replace_once(dashboard, insertion_marker, permission_block, 'RiderDashboard permission lifecycle')
-
-          change_pattern = re.compile(r"  const changeAvailability = async \(online: boolean\) => \{.*?\n  \};\n\n  const acceptMutation", re.S)
-          change_replacement = """  const changeAvailability = async (online: boolean) => {
-    if (statusBusyRef.current) return;
-    statusBusyRef.current = true;
-    setStatusBusy(true);
-    try {
-      if (online) {
-        const permitted = await requestLocationPermission();
-        if (!permitted) {
-          setOnlinePermissionMissing(true);
-          Toast.show({ type: 'error', text1: 'Location permission required', text2: 'Allow precise and background location before going online.' });
-          return;
-        }
-        const location = await optionalCurrentLocation();
-        await riderService.updateMyStatus('ONLINE', location || undefined);
-        try {
-          await RiderOnlineService.start(user?.name || 'Rider');
-        } catch (serviceError) {
-          await riderService.updateMyStatus('OFFLINE').catch(() => undefined);
-          await RiderOnlineService.stop().catch(() => undefined);
-          throw serviceError;
-        }
-        setOnlinePermissionMissing(false);
-      } else {
-        await riderService.updateMyStatus('OFFLINE');
-        await RiderOnlineService.stop();
-        setOnlinePermissionMissing(false);
-      }
-      await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
-      Toast.show({
-        type: 'success',
-        text1: online ? 'You are online' : 'You are offline',
-        text2: online
-          ? 'New offers can now arrive. Location remains active while you are online.'
-          : 'New delivery offers and the location heartbeat are paused.',
-      });
-    } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Availability update failed', text2: errorMessage(error) });
-    } finally {
-      statusBusyRef.current = false;
-      setStatusBusy(false);
-    }
-  };
-
-  const onlineToggleAction = onlinePermissionMissing ? grantOnlinePermission : () => changeAvailability(!isOnline);
-
-  const acceptMutation"""
-          dashboard, count = change_pattern.subn(change_replacement, dashboard, count=1)
-          if count != 1:
-              raise SystemExit('Could not replace RiderDashboard availability mutation')
-
-          old_control = "{statusBusy ? <ActivityIndicator color=\"#0F766E\" /> : <Switch testID=\"rider_availability_switch\" value={isOnline} disabled={statusBusy || riderStatus === 'BUSY'} onValueChange={(value) => void changeAvailability(value)} trackColor={{ false: '#CBD5E1', true: '#86EFAC' }} thumbColor={isOnline ? '#0F766E' : '#FFFFFF'} />}"
-          new_control = "{statusBusy ? <ActivityIndicator color=\"#0F766E\" /> : onlinePermissionMissing ? <TouchableOpacity testID=\"rider_grant_location\" onPress={() => void onlineToggleAction()} style={{ borderRadius: 11, backgroundColor: '#0F766E', paddingHorizontal: 10, paddingVertical: 9 }}><Text style={{ color: '#FFFFFF', fontSize: 8, fontWeight: '900' }}>{'GRANT LOCATION'}</Text></TouchableOpacity> : <Switch testID=\"rider_availability_switch\" value={isOnline} disabled={riderStatus === 'BUSY'} onValueChange={(value) => void changeAvailability(value)} trackColor={{ false: '#CBD5E1', true: '#86EFAC' }} thumbColor={isOnline ? '#0F766E' : '#FFFFFF'} />}"
-          dashboard = replace_once(dashboard, old_control, new_control, 'RiderDashboard availability control')
-          dashboard_path.write_text(dashboard)
-
-          profile_path = Path('apps/mobile-partners/src/screens/rider/RiderProfileScreen.tsx')
-          profile = profile_path.read_text()
-          profile = replace_once(
+          replace_once(
               profile,
-              "} from '../../api/riderService';",
-              "} from '../../api/riderService';\nimport { RiderOnlineService } from '../../services/RiderOnlineService';",
-              'RiderProfile online service import',
+              "                isAvailable: Boolean(row.isAvailable),\n                enabled: true,",
+              "                isAvailable: Boolean(row.isAvailable),\n                enabled: Boolean(row.isAvailable),",
+              "profile schedule hydration",
           )
-          profile = replace_once(
+          replace_once(
               profile,
-              "  const loading = profileQuery.isLoading || availabilityQuery.isLoading;\n\n  return (",
-              "  const loading = profileQuery.isLoading || availabilityQuery.isLoading;\n\n  const signOutRider = async () => {\n    try {\n      await RiderOnlineService.stop();\n    } finally {\n      await logout();\n    }\n  };\n\n  return (",
-              'RiderProfile logout lifecycle',
+              "onValueChange={(enabled) => setSchedule((current) => current.map((item, currentIndex) => currentIndex === index ? { ...item, enabled } : item))}",
+              "onValueChange={(enabled) => setSchedule((current) => current.map((item, currentIndex) => currentIndex === index ? { ...item, enabled, isAvailable: enabled } : item))}",
+              "profile schedule toggle payload",
           )
-          profile = replace_once(
+          replace_once(
               profile,
-              "onPress: () => void logout()",
-              "onPress: () => void signOutRider()",
-              'RiderProfile logout action',
-          )
-          profile_path.write_text(profile)
+              "  const profileLoading = profileQuery.isLoading || availabilityQuery.isLoading;",
+              """  const signOutRider = async () => {
+            try {
+              await RiderOnlineService.stop();
+            } finally {
+              await logout();
+            }
+          };
 
-          readiness_test_path = Path('apps/api-gateway/src/order-delivery-mobile-ui.contract.spec.ts')
-          readiness_test = readiness_test_path.read_text()
-          readiness_test = replace_once(
-              readiness_test,
-              "    expect(mobileService).toContain('return fallbackPickupReadiness(deliveryJobId)');",
-              "    expect(mobileService).toContain('|| fallbackPickupReadiness(deliveryJobId)');\n    expect(mobileService).not.toContain('.catch(() => fallbackPickupReadiness');",
-              'pickup readiness error contract',
+          const profileLoading = profileQuery.isLoading || availabilityQuery.isLoading;""",
+              "profile sign-out lifecycle",
           )
-          readiness_test_path.write_text(readiness_test)
-
-          customer_test_path = Path('apps/mobile-customer/src/auth/customerPhoneOtpFlow.test.mjs')
-          customer_test = customer_test_path.read_text()
-          customer_test = replace_once(
-              customer_test,
-              "  assert.match(loginSource, /Use your 10-digit mobile number to continue\\./);",
-              "  assert.match(loginSource, /Use your phone number or email to continue\\./);",
-              'customer login copy contract',
+          replace_once(
+              profile,
+              "{ text: 'Sign out', style: 'destructive', onPress: () => void logout() },",
+              "{ text: 'Sign out', style: 'destructive', onPress: () => void signOutRider() },",
+              "profile sign-out callback",
           )
-          customer_test_path.write_text(customer_test)
 
-          Path('.github/workflows/agent-ci-repair.yml').unlink()
+          delivery = "apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx"
+          replace_once(
+              delivery,
+              "  const storePhone = activeJob?.order.store?.phone || null;",
+              "  const storePhone = activeJob?.order.store?.owner?.phone || null;",
+              "delivery store contact",
+          )
+          replace_once(
+              delivery,
+              "  const headingToStore = ['ASSIGNED', 'RIDER_ARRIVING_STORE', 'RIDER_AT_STORE', 'PICKUP_VERIFIED'].includes(activeJob?.status || '');",
+              "  const returningToStore = activeJob?.status === 'RETURNING_TO_STORE';\n  const headingToStore = returningToStore || ['ASSIGNED', 'RIDER_ARRIVING_STORE', 'RIDER_AT_STORE', 'PICKUP_VERIFIED'].includes(activeJob?.status || '');",
+              "delivery return routing",
+          )
+          replace_once(
+              delivery,
+              "  const recordFailure = () => {\n    Alert.alert(",
+              """  const recordFailure = () => {
+            if (failureReason === 'OTHER' && failureNote.trim().length < 3) {
+              Toast.show({
+                type: 'error',
+                text1: 'Failure details required',
+                text2: 'Add a brief note when selecting Other.',
+              });
+              return;
+            }
+            Alert.alert(""",
+              "delivery OTHER note validation",
+          )
+          replace_once(
+              delivery,
+              "            <Text style={styles.destinationLabel}>{headingToStore ? 'PICKUP STORE' : 'DELIVER TO'}</Text>",
+              "            <Text style={styles.destinationLabel}>{returningToStore ? 'RETURN STORE' : headingToStore ? 'PICKUP STORE' : 'DELIVER TO'}</Text>",
+              "delivery destination label",
+          )
+          replace_once(
+              delivery,
+              "        {summaryQuery.isError ? (",
+              """        {policy.waitingForStoreReturn ? (
+                  <View style={styles.locationNote}>
+                    <Store size={18} color="#0F766E" />
+                    <Text style={styles.locationNoteText}>Return this parcel to the owning store shown above. Store verification will complete the return.</Text>
+                  </View>
+                ) : null}
+
+                {summaryQuery.isError ? (""",
+              "delivery return instruction",
+          )
+
+          client = "packages/mobile-shared/src/api/client.ts"
+          replace_once(
+              client,
+              "  if (authStoreToken) {\n    config.headers.Authorization = `Bearer ${authStoreToken}`;\n  }",
+              """  const existingAuthorization =
+            config.headers?.Authorization || config.headers?.authorization;
+          if (authStoreToken && !existingAuthorization) {
+            config.headers.Authorization = `Bearer ${authStoreToken}`;
+          }""",
+              "auth interceptor preserve explicit auth",
+          )
+          replace_once(
+              client,
+              "    if (status === 401 && authStoreToken && !isPublicAuthRequest(requestUrl)) {",
+              """    const requestAuthorization =
+              error?.config?.headers?.Authorization || error?.config?.headers?.authorization;
+            const bearerSessionFailed = typeof requestAuthorization === 'string'
+              && requestAuthorization === `Bearer ${authStoreToken}`;
+
+            if (status === 401 && authStoreToken && bearerSessionFailed && !isPublicAuthRequest(requestUrl)) {""",
+              "auth interceptor bearer-only logout",
+          )
+
+          orders_screen = "apps/mobile-partners/src/screens/store/StoreOrdersScreen.tsx"
+          text = read(orders_screen)
+          text = re.sub(r"\n\s*placeholderData:\s*\(previousData\)\s*=>\s*previousData,", "", text, count=1)
+          if "placeholderData:" in text:
+              raise SystemExit("store orders placeholderData removal was incomplete")
+          marker = "  const totalPages = Math.max(1, Number(data?.meta?.totalPages || 1));"
+          if marker not in text:
+              raise SystemExit("store orders totalPages marker not found")
+          text = text.replace(
+              marker,
+              marker + "\n\n  useEffect(() => {\n    if (page > totalPages) setPage(totalPages);\n  }, [page, totalPages]);",
+              1,
+          )
+          if "{totalPages > 1 ?" not in text:
+              raise SystemExit("store orders pagination condition not found")
+          text = text.replace("{totalPages > 1 ?", "{totalPages > 1 || page > 1 ?", 1)
+          write(orders_screen, text)
+
+          store_service = "apps/mobile-partners/src/api/storeService.ts"
+          replace_once(
+              store_service,
+              "  getStoreDashboardSummaries: async () => {\n    const r = await apiClient.get('/store-owner/stores');\n    return r.data;\n  },\n\n  createStore:",
+              """  getStoreDashboardSummaries: async () => {
+            const r = await apiClient.get('/store-owner/stores');
+            return r.data;
+          },
+
+          getPendingOrderCount: async (): Promise<{ count: number }> => {
+            const r = await apiClient.get('/store-owner/store-orders/summary/pending-count');
+            return r.data;
+          },
+
+          createStore:""",
+              "store lightweight pending count client",
+          )
+
+          store_nav = "apps/mobile-partners/src/navigation/StoreNavigator.tsx"
+          text = read(store_nav)
+          match = re.search(
+              r"async function pendingStoreOrders\(\)\s*\{.*?\n\}",
+              text,
+              flags=re.S,
+          )
+          if not match:
+              raise SystemExit("store navigator pendingStoreOrders function not found")
+          replacement = """async function pendingStoreOrders() {
+            const result = await storeService.getPendingOrderCount();
+            return Number(result?.count || 0);
+          }"""
+          text = text[:match.start()] + replacement + text[match.end():]
+          write(store_nav, text)
+
+          controller = "apps/api-gateway/src/stores/store-orders.controller.ts"
+          pending_route = """  @Get('summary/pending-count')
+            async getPendingOrderCount(@Req() req: any) {
+              const roles = new Set<string>((req.user?.roles || []).map(String));
+              const stores = await this.prisma.store.findMany({
+                where: this.isAdmin(roles)
+                  ? { deletedAt: null }
+                  : { ownerId: req.user.id, deletedAt: null },
+                select: { id: true },
+              });
+              if (!stores.length) return { count: 0 };
+
+              const count = await this.prisma.order.count({
+                where: {
+                  storeId: { in: stores.map((store) => store.id) },
+                  status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_PENDING] },
+                },
+              });
+              return { count };
+            }
+
+          """
+          replace_once(
+              controller,
+              "  @Get(':storeId')",
+              pending_route + "  @Get(':storeId')",
+              "store pending count endpoint",
+          )
+
+          candidates = []
+          for path in Path("apps/api-gateway/src").rglob("*.ts"):
+              source = path.read_text(encoding="utf-8")
+              if (
+                  "pendingOffers" in source
+                  and "activeJob" in source
+                  and "ownerId: true" in source
+                  and "latitude: true" in source
+                  and "longitude: true" in source
+              ):
+                  candidates.append(path)
+          if not candidates:
+              raise SystemExit("rider workspace store projection file not found")
+          projection = candidates[0]
+          source = projection.read_text(encoding="utf-8")
+          source = source.replace(
+              "ownerId: true,",
+              "ownerId: true,\n                owner: { select: { phone: true } },",
+              1,
+          )
+          projection.write_text(source, encoding="utf-8")
+          print(f"Added store owner contact to {projection}")
+
+          hardening = "apps/api-gateway/src/mobile-commerce-hardening.contract.spec.ts"
+          replace_once(
+              hardening,
+              "apps/mobile-partners/src/screens/rider/RiderDeliveryOperationsScreen.tsx",
+              "apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx",
+              "canonical POD contract target",
+          )
+
+          print("PR #167 remediation patches applied.")
           PY
 
       - name: Install dependencies
@@ -259,23 +539,31 @@ jobs:
 
       - name: Generate Prisma client
         run: npx prisma generate --schema packages/database/prisma/schema.prisma
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_ci_repair
 
-      - name: Typecheck Partners
-        run: npm run typecheck --workspace=AagamPartners
+      - name: Typecheck Partners app
+        run: npx tsc --project apps/mobile-partners/tsconfig.json --noEmit
 
-      - name: Run focused contracts
+      - name: Build API
+        run: npm run build --workspace @aagam/api-gateway
+
+      - name: Run affected contracts
+        run: >
+          npx jest --config apps/api-gateway/jest.config.js --runInBand --runTestsByPath
+          apps/api-gateway/src/auto-dispatch-recovery.contract.spec.ts
+          apps/api-gateway/src/mobile-commerce-hardening.contract.spec.ts
+          apps/api-gateway/src/order-delivery-mobile-ui.contract.spec.ts
+          apps/api-gateway/src/partner-operations-stabilization.contract.spec.ts
+
+      - name: Run Partners tests
+        run: npm test --workspace AagamPartners -- --runInBand
+
+      - name: Commit verified remediation
+        shell: bash
         run: |
-          node --experimental-strip-types --test apps/mobile-customer/src/auth/customerPhoneOtpFlow.test.mjs
-          npx jest --config apps/api-gateway/jest.config.js --runInBand --runTestsByPath apps/api-gateway/src/auto-dispatch-recovery.contract.spec.ts apps/api-gateway/src/order-delivery-mobile-ui.contract.spec.ts
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_ci_repair
-
-      - name: Commit repairs
-        run: |
-          git config user.name "ChatGPT Agent"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/agent-ci-repair.yml
+          git diff --check
+          git config user.name "PR 167 Remediation"
+          git config user.email "actions@users.noreply.github.com"
           git add -A
-          git commit -m "Fix rider availability lifecycle and CI contracts"
+          git commit -m "Fix PR 167 review blockers and CI regressions"
           git push origin HEAD:agent/resolve-146-166
