@@ -33,9 +33,12 @@ describe('StoreOrdersScreen contracts', () => {
     expect(source).toContain('totalUnits');
   });
 
-  it('opens the dedicated fulfillment details stack instead of Returns and COD', () => {
+  it('opens the dedicated fulfillment details stack with the selected order context', () => {
     const source = fs.readFileSync(path.join(__dirname, 'StoreOrdersScreen.tsx'), 'utf8');
-    expect(source).toContain("navigate?.('OrderDetails', { orderId: order.id, storeId: activeStoreId })");
+    expect(source).toContain("navigation?.navigate?.('OrderDetails'");
+    expect(source).toContain('orderId: item.id');
+    expect(source).toContain('storeId: activeStoreId');
+    expect(source).toContain('order: item');
     expect(source).not.toContain("navigate?.('Operations'");
     expect(source).not.toContain("navigate?.('StoreDeliveryOps'");
   });
