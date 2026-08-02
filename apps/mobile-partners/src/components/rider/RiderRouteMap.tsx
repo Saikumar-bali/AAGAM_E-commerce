@@ -72,11 +72,18 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true }: 
           domStorageEnabled={false}
           scrollEnabled={false}
           overScrollMode="never"
-          onLoadEnd={() => Geolocation.getCurrentPosition(
-            ({ coords }) => webView.current?.injectJavaScript(`window.setRiderLocation(${coords.latitude},${coords.longitude});true;`),
-            () => undefined,
-            { enableHighAccuracy: true, timeout: 8_000, maximumAge: 10_000 },
-          )}
+          onLoadEnd={() => {
+            if (!active) return;
+            Geolocation.getCurrentPosition(
+              ({ coords }) => {
+                setHasFix(true);
+                setLocationError(null);
+                webView.current?.injectJavaScript(`window.setRiderLocation(${coords.latitude},${coords.longitude});true;`);
+              },
+              (error) => setLocationError(error.message || 'Waiting for your GPS location.'),
+              { enableHighAccuracy: true, timeout: 8_000, maximumAge: 10_000 },
+            );
+          }} 
         />
       </View>
       <View style={styles.footer}>
