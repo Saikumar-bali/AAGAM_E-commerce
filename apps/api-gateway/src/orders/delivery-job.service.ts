@@ -401,6 +401,15 @@ export class DeliveryJobService {
                       },
                     },
                   },
+                  {
+                    status: {
+                      in: [
+                        DispatchAssignmentStatus.CANCELLED,
+                        DispatchAssignmentStatus.REJECTED,
+                      ],
+                    },
+                    respondedAt: { gte: historyFrom },
+                  },
                 ],
               }
             : {}),
@@ -409,7 +418,7 @@ export class DeliveryJobService {
           deliveryJob: { include: { order: { include: { store: true } } } },
         },
         orderBy: { createdAt: "desc" },
-        ...(historyFrom ? {} : { take: 20 }),
+        take: historyFrom ? 100 : 20,
       }),
     ]);
 
