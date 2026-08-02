@@ -41,27 +41,54 @@ const TABS: Array<{ key: StoreOrderTab; label: string; statuses: StoreOrderStatu
   { key: 'READY', label: 'Ready', statuses: ['PACKED'] },
   { key: 'PICKUP', label: 'Pickup', statuses: ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'] },
   { key: 'DELIVERED', label: 'Delivered', statuses: ['DELIVERED'] },
+  { key: 'ISSUES', label: 'Issues', statuses: ['PAYMENT_FAILED', 'CANCELLED'] },
 ];
 
 function orderTone(status?: string | null) {
-  if (status === 'PENDING' || status === 'PAYMENT_PENDING') return { label: 'New', color: '#0D7E41', backgroundColor: '#EAF9EE' };
-  if (status === 'CONFIRMED' || status === 'PICKING') return { label: 'Preparing', color: '#0B7182', backgroundColor: '#E7F7FA' };
-  if (status === 'PACKED') return { label: 'Ready', color: '#CB6F0C', backgroundColor: '#FFF2E5' };
-  if (status === 'RIDER_ASSIGNED' || status === 'OUT_FOR_DELIVERY') return { label: 'Pickup', color: '#3266C7', backgroundColor: '#EAF1FF' };
-  if (status === 'DELIVERED') return { label: 'Delivered', color: '#148A35', backgroundColor: '#E8F8E8' };
-  return { label: String(status || 'Order').replaceAll('_', ' '), color: '#5E6670', backgroundColor: '#EEF1F4' };
+  if (status === 'PENDING' || status === 'PAYMENT_PENDING') {
+    return { label: 'New', color: '#0D7E41', backgroundColor: '#EAF9EE' };
+  }
+  if (status === 'PAYMENT_FAILED') {
+    return { label: 'Payment failed', color: '#B45309', backgroundColor: '#FFF7E6' };
+  }
+  if (status === 'CANCELLED') {
+    return { label: 'Cancelled', color: '#B91C1C', backgroundColor: '#FEE2E2' };
+  }
+  if (status === 'CONFIRMED' || status === 'PICKING') {
+    return { label: 'Preparing', color: '#0B7182', backgroundColor: '#E7F7FA' };
+  }
+  if (status === 'PACKED') {
+    return { label: 'Ready', color: '#CB6F0C', backgroundColor: '#FFF2E5' };
+  }
+  if (status === 'RIDER_ASSIGNED' || status === 'OUT_FOR_DELIVERY') {
+    return { label: 'Pickup', color: '#3266C7', backgroundColor: '#EAF1FF' };
+  }
+  if (status === 'DELIVERED') {
+    return { label: 'Delivered', color: '#148A35', backgroundColor: '#E8F8E8' };
+  }
+  return {
+    label: String(status || 'Order').replaceAll('_', ' '),
+    color: '#5E6670',
+    backgroundColor: '#EEF1F4',
+  };
 }
 
 function createdTime(value?: string | null) {
   if (!value) return 'Recently';
-  return new Date(value).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  return new Date(value).toLocaleTimeString('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function groupedCount(
   statusCounts: Partial<Record<StoreOrderStatus, number>> | undefined,
   statuses: StoreOrderStatus[],
 ) {
-  return statuses.reduce((total, status) => total + Number(statusCounts?.[status] || 0), 0);
+  return statuses.reduce(
+    (total, status) => total + Number(statusCounts?.[status] || 0),
+    0,
+  );
 }
 
 export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; route?: any }) => {
@@ -126,7 +153,10 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
   const total = Number(ordersQuery.data?.total || 0);
   const totalPages = Math.max(1, Number(ordersQuery.data?.totalPages || 1));
   const counts = useMemo(() => Object.fromEntries(
-    TABS.map((tab) => [tab.key, groupedCount(ordersQuery.data?.statusCounts, tab.statuses)]),
+    TABS.map((tab) => [
+      tab.key,
+      groupedCount(ordersQuery.data?.statusCounts, tab.statuses),
+    ]),
   ) as Record<StoreOrderTab, number>, [ordersQuery.data?.statusCounts]);
   const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
 
@@ -148,11 +178,19 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.header}>
-        <TouchableOpacity accessibilityLabel="Open dashboard" style={styles.headerIcon} onPress={() => navigation?.getParent?.()?.navigate?.('Dashboard')}>
+        <TouchableOpacity
+          accessibilityLabel="Open dashboard"
+          style={styles.headerIcon}
+          onPress={() => navigation?.getParent?.()?.navigate?.('Dashboard')}
+        >
           <Menu size={30} color="#425B65" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Orders</Text>
-        <TouchableOpacity accessibilityLabel="Open notifications" style={styles.headerIcon} onPress={openNotifications}>
+        <TouchableOpacity
+          accessibilityLabel="Open notifications"
+          style={styles.headerIcon}
+          onPress={openNotifications}
+        >
           <Bell size={29} color="#425B65" />
           {unreadCount > 0 ? (
             <View style={styles.notificationBadge}>
@@ -162,11 +200,21 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
         </TouchableOpacity>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabsScroll}
+        contentContainerStyle={styles.tabs}
+      >
         {TABS.map((tab) => {
           const selected = tab.key === activeTab;
           return (
-            <TouchableOpacity key={tab.key} style={[styles.tab, selected && styles.tabActive]} onPress={() => setActiveTab(tab.key)}>
+            <TouchableOpacity
+              key={tab.key}
+              testID={`store_orders_tab_${tab.key.toLowerCase()}`}
+              style={[styles.tab, selected && styles.tabActive]}
+              onPress={() => setActiveTab(tab.key)}
+            >
               <Text style={[styles.tabText, selected && styles.tabTextActive]}>{tab.label}</Text>
               <View style={[styles.tabCount, selected && styles.tabCountActive]}>
                 <Text style={[styles.tabCountText, selected && styles.tabCountTextActive]}>{counts[tab.key]}</Text>
@@ -190,22 +238,42 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
           />
         )}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={storesQuery.isFetching || ordersQuery.isFetching} onRefresh={() => void refresh()} tintColor="#078B61" />}
+        refreshControl={(
+          <RefreshControl
+            refreshing={storesQuery.isFetching || ordersQuery.isFetching}
+            onRefresh={() => void refresh()}
+            tintColor="#078B61"
+          />
+        )}
         ListHeaderComponent={(
           <>
             {stores.length > 1 ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storeRail}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.storeRail}
+              >
                 {stores.map((store: any) => {
                   const selected = store.id === activeStoreId;
                   return (
-                    <TouchableOpacity key={store.id} style={[styles.storeChip, selected && styles.storeChipActive]} onPress={() => setSelectedStoreId(store.id)}>
+                    <TouchableOpacity
+                      key={store.id}
+                      style={[styles.storeChip, selected && styles.storeChipActive]}
+                      onPress={() => setSelectedStoreId(store.id)}
+                    >
                       <Store size={15} color={selected ? '#FFFFFF' : '#087B5A'} />
-                      <Text style={[styles.storeChipText, selected && styles.storeChipTextActive]} numberOfLines={1}>{store.name || 'Store'}</Text>
+                      <Text
+                        style={[styles.storeChipText, selected && styles.storeChipTextActive]}
+                        numberOfLines={1}
+                      >
+                        {store.name || 'Store'}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
               </ScrollView>
             ) : null}
+
             <View style={styles.searchBox}>
               <Search size={19} color="#6B747B" />
               <TextInput
@@ -218,21 +286,24 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
                 returnKeyType="search"
               />
             </View>
+
             {loading ? (
-              <View style={styles.stateCard}><ActivityIndicator size="large" color="#078B61" /><Text style={styles.stateText}>Loading orders…</Text></View>
+              <StateCard loading title="Loading orders…" text="Fetching the selected store queue." />
             ) : hasError ? (
-              <View style={styles.stateCard}><Text style={styles.stateTitle}>Orders unavailable</Text><Text style={styles.stateText}>Pull down to retry the selected store.</Text></View>
+              <StateCard title="Orders unavailable" text="Pull down to retry the selected store." />
             ) : stores.length === 0 ? (
-              <View style={styles.stateCard}><Store size={42} color="#A8B0B7" /><Text style={styles.stateTitle}>No assigned stores</Text><Text style={styles.stateText}>Ask an administrator to assign this account to a store.</Text></View>
+              <StateCard title="No assigned stores" text="Ask an administrator to assign this account to a store." icon={<Store size={42} color="#A8B0B7" />} />
             ) : null}
           </>
         )}
         ListEmptyComponent={!loading && !hasError && stores.length > 0 ? (
-          <View style={styles.stateCard}>
-            <Box size={44} color="#A8B0B7" />
-            <Text style={styles.stateTitle}>No {TABS.find((tab) => tab.key === activeTab)?.label.toLowerCase()} orders</Text>
-            <Text style={styles.stateText}>Try another status or search term.</Text>
-          </View>
+          <StateCard
+            title={`No ${TABS.find((tab) => tab.key === activeTab)?.label.toLowerCase()} orders`}
+            text={activeTab === 'ISSUES'
+              ? 'Cancelled and payment-failed orders will appear here.'
+              : 'Try another status or search term.'}
+            icon={<Box size={44} color="#A8B0B7" />}
+          />
         ) : null}
         ListFooterComponent={(
           <>
@@ -244,7 +315,8 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
                   style={[styles.pageButton, page <= 1 && styles.disabled]}
                   onPress={() => setPage((current) => Math.max(1, current - 1))}
                 >
-                  <ChevronLeft size={17} color="#087B5A" /><Text style={styles.pageButtonText}>Previous</Text>
+                  <ChevronLeft size={17} color="#087B5A" />
+                  <Text style={styles.pageButtonText}>Previous</Text>
                 </TouchableOpacity>
                 <Text style={styles.pageLabel}>Page {page} of {totalPages} · {total} orders</Text>
                 <TouchableOpacity
@@ -253,7 +325,8 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
                   style={[styles.pageButton, page >= totalPages && styles.disabled]}
                   onPress={() => setPage((current) => Math.min(totalPages, current + 1))}
                 >
-                  <Text style={styles.pageButtonText}>Next</Text><ChevronRight size={17} color="#087B5A" />
+                  <Text style={styles.pageButtonText}>Next</Text>
+                  <ChevronRight size={17} color="#087B5A" />
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -265,16 +338,44 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
   );
 };
 
+function StateCard({
+  title,
+  text,
+  loading = false,
+  icon,
+}: {
+  title: string;
+  text: string;
+  loading?: boolean;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <View style={styles.stateCard}>
+      {loading ? <ActivityIndicator size="large" color="#078B61" /> : icon}
+      <Text style={styles.stateTitle}>{title}</Text>
+      <Text style={styles.stateText}>{text}</Text>
+    </View>
+  );
+}
+
 function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
   const tone = orderTone(order.status);
   const phone = orderCustomerPhone(order);
   const total = order?.grandTotal ?? order?.totalAmount;
   const payment = orderPaymentMethod(order);
   const items = Array.isArray(order?.items) ? order.items : [];
-  const totalUnits = items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
+  const totalUnits = items.reduce(
+    (sum: number, item: any) => sum + Number(item.quantity || 0),
+    0,
+  );
 
   return (
-    <TouchableOpacity testID={`store_order_card_${order.id}`} activeOpacity={0.76} style={styles.orderCard} onPress={onPress}>
+    <TouchableOpacity
+      testID={`store_order_card_${order.id}`}
+      activeOpacity={0.76}
+      style={styles.orderCard}
+      onPress={onPress}
+    >
       <View style={styles.orderTop}>
         <Text style={styles.orderId}>#ORD-{shortStoreOrderId(order.id)}</Text>
         <View style={[styles.statusPill, { backgroundColor: tone.backgroundColor }]}>
@@ -284,6 +385,7 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
       </View>
       <Text style={styles.customerName}>{orderCustomerName(order)}</Text>
       <Text style={styles.customerPhone}>{phone || 'Contact unavailable'}</Text>
+
       {items.length ? (
         <View style={styles.itemsPreview}>
           {items.slice(0, 3).map((item: any, index: number) => (
@@ -295,6 +397,7 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
           {items.length > 3 ? <Text style={styles.moreItems}>+{items.length - 3} more</Text> : null}
         </View>
       ) : null}
+
       <View style={styles.orderMetaRow}>
         <Text style={styles.orderTotal}>{formatStoreMoney(total)}</Text>
         <Text style={styles.itemCount}>{totalUnits} Item{totalUnits === 1 ? '' : 's'}</Text>
@@ -317,7 +420,7 @@ const styles = StyleSheet.create({
   notificationBadge: { position: 'absolute', right: 1, top: 1, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#F02525', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
   tabsScroll: { maxHeight: 69, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E3E5E4' },
-  tabs: { paddingHorizontal: 18, gap: 23, alignItems: 'stretch' },
+  tabs: { paddingHorizontal: 18, gap: 20, alignItems: 'stretch' },
   tab: { minWidth: 76, height: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderBottomWidth: 4, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: '#0C904A' },
   tabText: { color: '#5C626B', fontSize: 13, fontWeight: '700' },
