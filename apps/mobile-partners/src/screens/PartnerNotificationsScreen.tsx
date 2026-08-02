@@ -97,7 +97,7 @@ export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any })
       || eventType.startsWith('ASSIGNMENT_')
       || eventType.startsWith('DELIVERY_')
     )) {
-      rootNavigation?.navigate?.('RiderTabs', { screen: 'Jobs' });
+      rootNavigation?.navigate?.('RiderTabs', { screen: 'Operations' });
     }
   };
 
