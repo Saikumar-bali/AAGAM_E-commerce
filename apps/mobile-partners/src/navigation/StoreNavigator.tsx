@@ -94,7 +94,10 @@ const StoreTabs = () => (
     <Tab.Screen
       name="StorePickupVerification"
       component={StorePickupVerificationEntryScreen}
-      options={{ tabBarButton: () => null }}
+      options={{
+        tabBarButton: () => null,
+        tabBarStyle: { display: 'none' },
+      }}
     />
   </Tab.Navigator>
 );
