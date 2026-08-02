@@ -4,6 +4,7 @@ export type StorePickupTab = 'WAITING' | 'EN_ROUTE' | 'OTHER';
 export type StorePickupReceipt = {
   deliveryJobId: string;
   orderId: string;
+  storeId: string | null;
   riderName: string;
   riderPhone: string | null;
   riderRating: number | null;
@@ -115,6 +116,7 @@ export function buildStorePickupReceipt(job: any, parcelCount: number, pickupTim
   return {
     deliveryJobId: String(job?.id || ''),
     orderId: String(job?.order?.id || job?.orderId || ''),
+    storeId: job?.order?.store?.id ? String(job.order.store.id) : null,
     riderName: rider.name,
     riderPhone: rider.phone,
     riderRating: rider.rating,
