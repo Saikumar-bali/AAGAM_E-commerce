@@ -1,4 +1,4 @@
-export type StoreOrderTab = 'NEW' | 'PREPARING' | 'READY' | 'PICKUP' | 'DELIVERED';
+export type StoreOrderTab = 'NEW' | 'PREPARING' | 'READY' | 'PICKUP' | 'DELIVERED' | 'ISSUES';
 export type StorePickupTab = 'WAITING' | 'EN_ROUTE' | 'OTHER';
 
 export type StorePickupReceipt = {
@@ -68,6 +68,7 @@ export function orderStatusTab(status?: string | null): StoreOrderTab | null {
   if (status === 'PACKED') return 'READY';
   if (status === 'RIDER_ASSIGNED' || status === 'OUT_FOR_DELIVERY') return 'PICKUP';
   if (status === 'DELIVERED') return 'DELIVERED';
+  if (status === 'PAYMENT_FAILED' || status === 'CANCELLED') return 'ISSUES';
   return null;
 }
 
@@ -78,6 +79,7 @@ export function summarizeStoreOrders(orders: any[]) {
     READY: 0,
     PICKUP: 0,
     DELIVERED: 0,
+    ISSUES: 0,
   };
   orders.forEach((order) => {
     const tab = orderStatusTab(order?.status);
