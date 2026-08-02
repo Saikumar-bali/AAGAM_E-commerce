@@ -346,7 +346,9 @@ export class RiderTrackingManager {
     try {
       const status = await this.nativeStatusReader();
       const startupPending = this.nativeStartupPending && status.active === false;
-      this.nativeStartupPending = false;
+      if (this.nativeStartupPending && status.active !== false) {
+        this.nativeStartupPending = false;
+      }
       const nativeLocation = typeof status.latitude === 'number'
         && typeof status.longitude === 'number'
         ? { latitude: status.latitude, longitude: status.longitude }
