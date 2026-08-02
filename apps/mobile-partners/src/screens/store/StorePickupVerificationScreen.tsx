@@ -135,7 +135,7 @@ export const StorePickupVerificationScreen = ({ navigation, route }: { navigatio
       return;
     }
     Alert.alert(
-      'Confirm parcel handoff?',
+      'Confirm physical handoff?',
       `Confirm that ${parcelCount} parcel${parcelCount === 1 ? '' : 's'} were handed to ${rider.name}.`,
       [
         { text: 'Back', style: 'cancel' },
