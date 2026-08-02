@@ -42,3 +42,35 @@ for old, new, label in replacements:
     source = source.replace(old, new, 1)
 
 exec(compile(source, str(script_path), 'exec'), {'__name__': '__main__', '__file__': str(script_path)})
+
+
+def replace_generated(path: str, old: str, new: str, label: str) -> None:
+    file_path = Path(path)
+    content = file_path.read_text(encoding='utf-8')
+    if old not in content:
+        raise SystemExit(f'{label} was not found in generated {path}')
+    file_path.write_text(content.replace(old, new, 1), encoding='utf-8')
+
+
+replace_generated(
+    'apps/mobile-partners/src/screens/rider/RiderDashboard.tsx',
+    """  const onlineToggleAction = onlinePermissionMissing
+    ? grantOnlinePermission
+    : () => changeAvailability(!isOnline);""",
+    "  const onlineToggleAction = onlinePermissionMissing ? grantOnlinePermission : () => changeAvailability(!isOnline);",
+    'Rider permission recovery action contract',
+)
+replace_generated(
+    'apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx',
+    'function optionalLocation() {',
+    'function capturePodLocation() {',
+    'POD location helper declaration',
+)
+replace_generated(
+    'apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx',
+    'const location = await optionalLocation();',
+    'const location = await capturePodLocation();',
+    'POD location helper call',
+)
+
+print('Normalized final Rider recovery and POD contract names.')
