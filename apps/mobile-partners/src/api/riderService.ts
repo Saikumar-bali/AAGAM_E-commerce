@@ -64,8 +64,10 @@ export async function hydrateCachedRiderWorkspace(queryClient: { setQueryData: (
 }
 
 export const riderService = {
-  getWorkspace: async (): Promise<RiderWorkspace> => {
-    const response = await apiClient.get('/orders/dispatch/rider/workspace');
+  getWorkspace: async (options?: { historyFrom?: string }): Promise<RiderWorkspace> => {
+    const response = await apiClient.get('/orders/dispatch/rider/workspace', {
+      params: options?.historyFrom ? { historyFrom: options.historyFrom } : undefined,
+    });
     const workspace = normalizeRiderWorkspace(response.data);
     await cacheRiderStatus(workspace.rider?.status);
     return workspace;
