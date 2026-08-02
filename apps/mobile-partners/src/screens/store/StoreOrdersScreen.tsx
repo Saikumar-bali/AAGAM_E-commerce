@@ -26,7 +26,6 @@ import {
   orderCustomerPhone,
   orderPaymentMethod,
   orderStatusTab,
-  orderUnitCount,
   shortStoreOrderId,
   summarizeStoreOrders,
 } from '../../domain/storeReferenceUi';
@@ -209,10 +208,7 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
             <OrderCard
               key={order.id}
               order={order}
-              onPress={() => navigation?.navigate?.('OrderDetails', {
-                orderId: order.id,
-                storeId: activeStoreId,
-              })}
+              onPress={() => navigation?.navigate?.('OrderDetails', { orderId: order.id, storeId: activeStoreId })}
             />
           ))
         )}
@@ -226,7 +222,12 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
   const phone = orderCustomerPhone(order);
   const total = order?.grandTotal ?? order?.totalAmount;
   const payment = orderPaymentMethod(order);
-  const units = orderUnitCount(order);
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const totalUnits = items.reduce(
+    (sum: number, item: any) => sum + Number(item.quantity || 0),
+    0,
+  );
+
   return (
     <TouchableOpacity
       testID={`store_order_card_${order.id}`}
@@ -243,9 +244,22 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
       </View>
       <Text style={styles.customerName}>{orderCustomerName(order)}</Text>
       <Text style={styles.customerPhone}>{phone || 'Contact unavailable'}</Text>
+
+      {items.length ? (
+        <View style={styles.itemsPreview}>
+          {items.slice(0, 3).map((item: any, index: number) => (
+            <View key={item.id || index} style={styles.previewRow}>
+              <Text style={styles.previewName} numberOfLines={1}>{item.product?.name || 'Product'}</Text>
+              <Text style={styles.previewQuantity}>×{Number(item.quantity || 0)}</Text>
+            </View>
+          ))}
+          {items.length > 3 ? <Text style={styles.moreItems}>+{items.length - 3} more</Text> : null}
+        </View>
+      ) : null}
+
       <View style={styles.orderMetaRow}>
         <Text style={styles.orderTotal}>{formatStoreMoney(total)}</Text>
-        <Text style={styles.itemCount}>{units} Item{units === 1 ? '' : 's'}</Text>
+        <Text style={styles.itemCount}>{totalUnits} Item{totalUnits === 1 ? '' : 's'}</Text>
       </View>
       <View style={styles.paymentRow}>
         <Text style={styles.paymentLabel}>Payment</Text>
@@ -289,9 +303,14 @@ const styles = StyleSheet.create({
   orderTime: { color: '#5D6570', fontSize: 13 },
   customerName: { color: '#11131A', fontSize: 17, fontWeight: '900', marginTop: 13 },
   customerPhone: { color: '#5D6570', fontSize: 15, marginTop: 4 },
-  orderMetaRow: { marginTop: 20, flexDirection: 'row', alignItems: 'center' },
-  orderTotal: { flex: 1, color: '#11131A', fontSize: 21, fontWeight: '900' },
-  itemCount: { color: '#59616B', fontSize: 14, marginRight: 150 },
+  itemsPreview: { borderRadius: 11, backgroundColor: '#F7F9F8', paddingHorizontal: 11, paddingVertical: 7, marginTop: 13 },
+  previewRow: { minHeight: 27, flexDirection: 'row', alignItems: 'center' },
+  previewName: { flex: 1, color: '#4B535C', fontSize: 11, fontWeight: '700' },
+  previewQuantity: { color: '#161A1D', fontSize: 11, fontWeight: '900', marginLeft: 10 },
+  moreItems: { color: '#078B4D', fontSize: 10, fontWeight: '900', marginTop: 3 },
+  orderMetaRow: { marginTop: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  orderTotal: { color: '#11131A', fontSize: 21, fontWeight: '900' },
+  itemCount: { color: '#59616B', fontSize: 14 },
   paymentRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center' },
   paymentLabel: { color: '#626A74', fontSize: 14, marginRight: 18 },
   paymentPill: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
