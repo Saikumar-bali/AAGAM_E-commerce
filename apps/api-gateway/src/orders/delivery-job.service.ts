@@ -391,13 +391,15 @@ export class DeliveryJobService {
           ...(historyFrom
             ? {
                 OR: [
-                  { createdAt: { gte: historyFrom } },
                   {
                     status: DispatchAssignmentStatus.ACCEPTED,
                     deliveryJob: {
                       is: {
                         status: DeliveryJobStatus.DELIVERED,
-                        order: { is: { deliveredAt: { gte: historyFrom } } },
+                        OR: [
+                          { updatedAt: { gte: historyFrom } },
+                          { order: { is: { deliveredAt: { gte: historyFrom } } } },
+                        ],
                       },
                     },
                   },
@@ -418,7 +420,7 @@ export class DeliveryJobService {
           deliveryJob: { include: { order: { include: { store: true } } } },
         },
         orderBy: { createdAt: "desc" },
-        take: historyFrom ? 100 : 20,
+        ...(historyFrom ? {} : { take: 20 }),
       }),
     ]);
 
