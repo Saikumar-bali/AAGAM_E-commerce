@@ -81,31 +81,47 @@ describe('rider cache hydration', () => {
 });
 
 describe('riderService.acceptOffer', () => {
-  it('calls PATCH accept endpoint with the assignment id', async () => {
+  it('calls PATCH accept endpoint with a deterministic idempotency key', async () => {
     patch.mockResolvedValueOnce({ data: { ok: true } });
     const result = await riderService.acceptOffer('assignment-42');
-    expect(patch).toHaveBeenCalledWith('/orders/dispatch/assignments/assignment-42/accept');
+    expect(patch).toHaveBeenCalledWith(
+      '/orders/dispatch/assignments/assignment-42/accept',
+      {},
+      { headers: { 'Idempotency-Key': 'mobile-assignment-accept:assignment-42' } },
+    );
     expect(result).toEqual({ ok: true });
   });
 
-  it('encodes special characters in the assignment id', async () => {
+  it('encodes special characters in the path while retaining a stable idempotency key', async () => {
     patch.mockResolvedValueOnce({ data: { ok: true } });
     await riderService.acceptOffer('a/b=c');
-    expect(patch).toHaveBeenCalledWith('/orders/dispatch/assignments/a%2Fb%3Dc/accept');
+    expect(patch).toHaveBeenCalledWith(
+      '/orders/dispatch/assignments/a%2Fb%3Dc/accept',
+      {},
+      { headers: { 'Idempotency-Key': 'mobile-assignment-accept:a/b=c' } },
+    );
   });
 });
 
 describe('riderService.rejectOffer', () => {
-  it('calls PATCH reject endpoint without a reason by default', async () => {
+  it('calls PATCH reject endpoint without a reason and with an idempotency key', async () => {
     patch.mockResolvedValueOnce({ data: { ok: true } });
     await riderService.rejectOffer('assignment-99');
-    expect(patch).toHaveBeenCalledWith('/orders/dispatch/assignments/assignment-99/reject', {});
+    expect(patch).toHaveBeenCalledWith(
+      '/orders/dispatch/assignments/assignment-99/reject',
+      {},
+      { headers: { 'Idempotency-Key': 'mobile-assignment-reject:assignment-99' } },
+    );
   });
 
-  it('includes the reason when provided', async () => {
+  it('includes the reason and deterministic idempotency key when provided', async () => {
     patch.mockResolvedValueOnce({ data: { ok: true } });
     await riderService.rejectOffer('assignment-99', 'too far');
-    expect(patch).toHaveBeenCalledWith('/orders/dispatch/assignments/assignment-99/reject', { reason: 'too far' });
+    expect(patch).toHaveBeenCalledWith(
+      '/orders/dispatch/assignments/assignment-99/reject',
+      { reason: 'too far' },
+      { headers: { 'Idempotency-Key': 'mobile-assignment-reject:assignment-99' } },
+    );
   });
 });
 
@@ -177,10 +193,10 @@ describe('riderService.sendLocationPing', () => {
 });
 
 describe('riderService.getProfile', () => {
-  it('fetches rider profile by user id', async () => {
+  it('fetches the authenticated rider self-service profile', async () => {
     get.mockResolvedValueOnce({ data: { id: 'u1', name: 'Test' } });
-    const result = await riderService.getProfile('u1');
-    expect(get).toHaveBeenCalledWith('/riders/u1');
+    const result = await riderService.getProfile();
+    expect(get).toHaveBeenCalledWith('/riders/portal/profile');
     expect(result).toEqual({ id: 'u1', name: 'Test' });
   });
 });
