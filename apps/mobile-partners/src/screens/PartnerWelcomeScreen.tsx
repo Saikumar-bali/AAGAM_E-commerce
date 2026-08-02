@@ -35,7 +35,7 @@ export function PartnerWelcomeScreen({ navigation }: any) {
 
   return (
     <OnboardingShell
-      title="Partner with Aagaam"
+      title="Grow with Aagaam"
       subtitle="Choose how you want to work with us. We’ll guide you through a short, secure application."
     >
       {applicationId && response ? (
