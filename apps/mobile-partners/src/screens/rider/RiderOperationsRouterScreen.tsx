@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { riderService } from '../../api/riderService';
-import { RiderDeliveryOperationsScreen } from './RiderDeliveryOperationsScreen';
+import { RiderDeliveryFlowCoordinator } from './RiderDeliveryFlowCoordinator';
 import { RiderPickupOperationsScreen } from './RiderPickupOperationsScreen';
 import { RiderHistoryScreen } from './RiderHistoryScreen';
 
@@ -22,7 +22,7 @@ export const RiderOperationsRouterScreen = () => {
 
   const ActiveScreen = workspaceQuery.data?.activeJob?.status === 'RIDER_AT_STORE'
     ? RiderPickupOperationsScreen
-    : RiderDeliveryOperationsScreen;
+    : RiderDeliveryFlowCoordinator;
   return <View style={styles.page}>
     <View style={styles.switcher}>
       <TouchableOpacity testID="rider_jobs_active" onPress={() => setView('ACTIVE')} style={[styles.switchButton, view === 'ACTIVE' && styles.switchActive]}><Text style={[styles.switchText, view === 'ACTIVE' && styles.switchTextActive]}>Today's jobs</Text></TouchableOpacity>
