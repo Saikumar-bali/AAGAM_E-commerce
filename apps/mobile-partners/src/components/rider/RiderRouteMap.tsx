@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Geolocation from 'react-native-geolocation-service';
 import { ExternalLink, LocateFixed, Navigation } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
 import { buildRiderMapHtml, MapCoordinate } from './riderRouteMapHtml';
@@ -15,6 +14,7 @@ export type RiderRouteMapProps = {
   destination?: Coordinate | null;
   destinationLabel: string;
   active?: boolean;
+  riderLocation?: Coordinate | null;
 };
 
 const validCoordinate = (point?: Coordinate | null): point is Coordinate => Boolean(
@@ -25,7 +25,7 @@ const validCoordinate = (point?: Coordinate | null): point is Coordinate => Bool
   && Math.abs(point.longitude) <= 180,
 );
 
-export const RiderRouteMap = ({ destination, destinationLabel, active = true }: RiderRouteMapProps) => {
+export const RiderRouteMap = ({ destination, destinationLabel, active = true, riderLocation }: RiderRouteMapProps) => {
   const webView = useRef<any>(null);
   const [hasFix, setHasFix] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -35,18 +35,11 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true }: 
   );
 
   useEffect(() => {
-    if (!active || !html) return;
-    const watchId = Geolocation.watchPosition(
-      ({ coords }) => {
-        setHasFix(true);
-        setLocationError(null);
-        webView.current?.injectJavaScript(`window.setRiderLocation(${coords.latitude},${coords.longitude});true;`);
-      },
-      (error) => setLocationError(error.message || 'Waiting for your GPS location.'),
-      { enableHighAccuracy: true, distanceFilter: 10, interval: 8_000, fastestInterval: 5_000 },
-    );
-    return () => Geolocation.clearWatch(watchId);
-  }, [active, html]);
+    if (!active || !validCoordinate(riderLocation)) return;
+    setHasFix(true);
+    setLocationError(null);
+    webView.current?.injectJavaScript(`window.setRiderLocation(${riderLocation.latitude},${riderLocation.longitude});true;`);
+  }, [active, riderLocation?.latitude, riderLocation?.longitude]);
 
   if (!html || !destination) {
     return <View style={styles.unavailable}><LocateFixed size={20} color="#64748B" /><Text style={styles.unavailableText}>Map appears when destination coordinates are available.</Text></View>;
@@ -73,17 +66,11 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true }: 
           scrollEnabled={false}
           overScrollMode="never"
           onLoadEnd={() => {
-            if (!active) return;
-            Geolocation.getCurrentPosition(
-              ({ coords }) => {
-                setHasFix(true);
-                setLocationError(null);
-                webView.current?.injectJavaScript(`window.setRiderLocation(${coords.latitude},${coords.longitude});true;`);
-              },
-              (error) => setLocationError(error.message || 'Waiting for your GPS location.'),
-              { enableHighAccuracy: true, timeout: 8_000, maximumAge: 10_000 },
-            );
-          }} 
+            if (!active || !validCoordinate(riderLocation)) return;
+            setHasFix(true);
+            setLocationError(null);
+            webView.current?.injectJavaScript(`window.setRiderLocation(${riderLocation.latitude},${riderLocation.longitude});true;`);
+          }}
         />
       </View>
       <View style={styles.footer}>
