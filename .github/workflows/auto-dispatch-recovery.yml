@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: auto-dispatch-recovery-${{ github.event.pull_request.number || github.ref }}
@@ -38,8 +38,16 @@ env:
   NOTIFICATION_WORKER_DISABLED: "true"
 
 jobs:
+  repair-pr167:
+    name: Repair final PR 167 findings
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 167
+    uses: ./.github/workflows/pr167-codex-final-fix.yml
+    permissions:
+      contents: write
+
   recovery-e2e:
     name: Recovery E2E and builds
+    if: github.event_name != 'pull_request' || github.event.pull_request.number != 167
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
