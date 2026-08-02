@@ -52,12 +52,18 @@ function startOfWeek(value: Date) {
 }
 
 function assignmentTime(assignment: RiderAssignmentOffer) {
-  const value = assignment.deliveryJob.order.deliveredAt
-    || assignment.deliveryJob.completedAt
-    || assignment.deliveryJob.updatedAt
-    || assignment.respondedAt
-    || assignment.offeredAt
-    || assignment.createdAt;
+  const isResponse = ['CANCELLED', 'REJECTED'].includes(assignment.status);
+  const value = isResponse
+    ? assignment.respondedAt
+      || assignment.updatedAt
+      || assignment.deliveryJob.updatedAt
+      || assignment.createdAt
+    : assignment.deliveryJob.order.deliveredAt
+      || assignment.deliveryJob.completedAt
+      || assignment.deliveryJob.updatedAt
+      || assignment.respondedAt
+      || assignment.offeredAt
+      || assignment.createdAt;
   if (!value) return null;
   const timestamp = new Date(value).getTime();
   return Number.isFinite(timestamp) ? timestamp : null;
