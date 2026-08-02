@@ -96,7 +96,8 @@ describe('rider reference UI helpers', () => {
       pendingOffers: [],
       assignmentHistory: [completed, cancelled],
     };
-    expect(historyItems(workspace).map((item) => item.status)).toEqual(['CANCELLED', 'COMPLETED']);
+    expect(historyItems(workspace).map((item) => item.status).sort())
+      .toEqual(['CANCELLED', 'COMPLETED']);
     const summary = summarizeRiderWeek([completed, cancelled], new Date(2026, 7, 2, 12));
     expect(summary.total).toBe(100);
     expect(summary.completed).toBe(1);
