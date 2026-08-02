@@ -292,6 +292,10 @@ export class DispatchController {
       if (!Number.isFinite(since.getTime())) {
         throw new BadRequestException("historyFrom must be a valid ISO date");
       }
+      const earliestAllowed = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+      if (since < earliestAllowed) {
+        throw new BadRequestException("historyFrom must be within the current earnings window");
+      }
     }
     return this.dispatch.getRiderWorkspace(req.user.id, since);
   }
