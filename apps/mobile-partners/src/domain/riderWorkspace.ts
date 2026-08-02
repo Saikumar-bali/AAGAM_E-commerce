@@ -21,6 +21,18 @@ export type DispatchAssignmentStatus =
   | 'CANCELLED'
   | 'REASSIGNED';
 
+export type RiderAddressSnapshot = {
+  recipientName?: string | null;
+  phoneE164?: string | null;
+  line1?: string | null;
+  line2?: string | null;
+  landmark?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  [key: string]: unknown;
+};
+
 export type RiderOrder = {
   id: string;
   status?: string;
@@ -28,7 +40,7 @@ export type RiderOrder = {
   grandTotal?: number;
   deliveryLat?: number | null;
   deliveryLng?: number | null;
-  addressSnapshot?: Record<string, any> | null;
+  addressSnapshot?: RiderAddressSnapshot | null;
   customer?: { id?: string; name?: string | null; phone?: string | null } | null;
   store?: {
     id?: string;
