@@ -55,6 +55,7 @@ import {
   setupBackgroundMessageHandler,
   startMobilePushLifecycle,
 } from '../../utils/notifications';
+import { RiderRouteMap } from '../../components/rider/RiderRouteMap';
 
 setupBackgroundMessageHandler();
 
@@ -199,6 +200,11 @@ function CurrentDelivery({
   const next = nextActionForStatus(job.status);
   const customerName = order.customer?.name || order.addressSnapshot?.recipientName || 'Customer';
   const customerPhone = order.customer?.phone || order.addressSnapshot?.phoneE164 || null;
+  const navigatingToStore = ['ASSIGNED', 'ACCEPTED', 'RIDER_EN_ROUTE_TO_STORE', 'RIDER_AT_STORE'].includes(job.status);
+  const routeDestination = navigatingToStore
+    ? { latitude: order.store?.latitude, longitude: order.store?.longitude }
+    : { latitude: order.deliveryLat, longitude: order.deliveryLng };
+  const hasRouteDestination = typeof routeDestination.latitude === 'number' && typeof routeDestination.longitude === 'number';
 
   const openPoint = (latitude?: number | null, longitude?: number | null, label = 'Location') => {
     if (typeof latitude !== 'number' || typeof longitude !== 'number') {
@@ -220,6 +226,12 @@ function CurrentDelivery({
         </View>
         <StatusChip status={job.status} />
       </View>
+
+      <RiderRouteMap
+        destination={hasRouteDestination ? routeDestination as { latitude: number; longitude: number } : null}
+        destinationLabel={navigatingToStore ? order.store?.name || 'Pickup store' : customerName}
+        active={tracking.active}
+      />
 
       <View style={styles.locationBlock}>
         <View style={styles.locationIcon}><Store size={19} color="#0F766E" /></View>
@@ -694,10 +706,10 @@ export const RiderDashboard = () => {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { backgroundColor: '#FFFFFF', paddingTop: 54, paddingHorizontal: 20, paddingBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  eyebrow: { color: '#0F766E', fontSize: 10, fontWeight: '900', letterSpacing: 1.6 },
-  heading: { marginTop: 3, color: '#0F172A', fontSize: 22, fontWeight: '900' },
-  subheading: { marginTop: 3, color: '#64748B', fontSize: 12, fontWeight: '600' },
+  header: { backgroundColor: '#007A5C', paddingTop: 54, paddingHorizontal: 20, paddingBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
+  eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '900', letterSpacing: 1.6 },
+  heading: { marginTop: 3, color: '#FFFFFF', fontSize: 22, fontWeight: '900' },
+  subheading: { marginTop: 3, color: '#D1FAE5', fontSize: 12, fontWeight: '600' },
   onlineToggle: { minWidth: 104, height: 44, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   online: { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' },
   offline: { backgroundColor: '#F1F5F9', borderColor: '#CBD5E1' },

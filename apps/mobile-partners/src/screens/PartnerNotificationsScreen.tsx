@@ -148,7 +148,7 @@ export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any })
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { backgroundColor: '#0F172A', paddingTop: 52, paddingBottom: 18, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { backgroundColor: '#007A5C', paddingTop: 52, paddingBottom: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomLeftRadius: 26, borderBottomRightRadius: 26 },
   backButton: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
   backSpacer: { width: 42, height: 42 },
   refreshButton: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
