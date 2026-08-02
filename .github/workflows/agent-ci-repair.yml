@@ -1,6 +1,7 @@
 name: Complete PR 167 remediation
 
 on:
+  workflow_call:
   push:
     branches:
       - agent/resolve-146-166
