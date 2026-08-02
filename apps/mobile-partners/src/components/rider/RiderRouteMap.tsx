@@ -35,7 +35,12 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
   );
 
   useEffect(() => {
-    if (!active || !validCoordinate(riderLocation)) return;
+    if (!active || !validCoordinate(riderLocation)) {
+      setHasFix(false);
+      setLocationError(null);
+      webView.current?.injectJavaScript('if(window.clearRiderLocation){window.clearRiderLocation();}true;');
+      return;
+    }
     setHasFix(true);
     setLocationError(null);
     webView.current?.injectJavaScript(`window.setRiderLocation(${riderLocation.latitude},${riderLocation.longitude});true;`);
@@ -66,7 +71,12 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
           scrollEnabled={false}
           overScrollMode="never"
           onLoadEnd={() => {
-            if (!active || !validCoordinate(riderLocation)) return;
+            if (!active || !validCoordinate(riderLocation)) {
+              setHasFix(false);
+              setLocationError(null);
+              webView.current?.injectJavaScript('if(window.clearRiderLocation){window.clearRiderLocation();}true;');
+              return;
+            }
             setHasFix(true);
             setLocationError(null);
             webView.current?.injectJavaScript(`window.setRiderLocation(${riderLocation.latitude},${riderLocation.longitude});true;`);
