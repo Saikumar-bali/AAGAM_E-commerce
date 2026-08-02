@@ -649,9 +649,14 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
   useEffect(() => {
     if (!workspace?.rider?.status || workspace.rider.status === 'OFFLINE') return;
     let cancelled = false;
-    void grantOnlinePermission().then((started) => {
-      if (!cancelled && !started) setOnlinePermissionMissing(true);
-    });
+
+    const restoreOnlineAvailability = async () => {
+      const started = await grantOnlinePermission();
+      if (cancelled || started) return;
+      setOnlinePermissionMissing(true);
+    };
+
+    void restoreOnlineAvailability();
     return () => {
       cancelled = true;
     };
@@ -721,6 +726,8 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
     if (value) await goOnline();
     else await goOffline();
   };
+
+  const onlineToggleAction = onlinePermissionMissing ? grantOnlinePermission : isOnline ? goOffline : goOnline;
 
   const confirmAccept = (offer: RiderAssignmentOffer) => {
     Alert.alert('Accept delivery offer?', `Pickup from ${offer.deliveryJob.order.store?.name || 'Aagaam store'}.`, [
@@ -808,12 +815,18 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
               {onlinePermissionMissing ? <Text style={styles.permissionHint}>Background location permission required</Text> : null}
             </View>
             <View style={styles.switchGroup}>
-              {locating ? <ActivityIndicator size="small" color="#07966D" /> : <Text style={[styles.switchLabel, !isOnline && styles.switchLabelOffline]}>{isOnline ? 'ONLINE' : 'OFFLINE'}</Text>}
+              {locating ? (
+                <ActivityIndicator size="small" color="#07966D" />
+              ) : (
+                <Text style={[styles.switchLabel, !isOnline && styles.switchLabelOffline]}>
+                  {onlinePermissionMissing ? 'GRANT LOCATION' : isOnline ? 'ONLINE' : 'OFFLINE'}
+                </Text>
+              )}
               <Switch
                 testID="rider_dashboard_online_toggle"
                 value={isOnline}
                 disabled={locating}
-                onValueChange={(value) => void toggleOnline(value)}
+                onValueChange={() => void onlineToggleAction()}
                 trackColor={{ false: '#D5D9DE', true: '#0DA66B' }}
                 thumbColor="#FFFFFF"
                 ios_backgroundColor="#D5D9DE"
