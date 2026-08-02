@@ -26,6 +26,13 @@ import {
 const HISTORY_QUERY_KEY = ['rider', 'earnings'] as const;
 const WEEK_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
+function earningsHistoryFrom() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - date.getDay());
+  return date.toISOString();
+}
+
 const rupees = (value: number) => '₹' + value.toLocaleString('en-IN', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -123,7 +130,7 @@ const StatusScreen = ({
 export const RiderEarningsScreen = () => {
   const query = useQuery<RiderWorkspace>({
     queryKey: HISTORY_QUERY_KEY,
-    queryFn: riderService.getWorkspace,
+    queryFn: () => riderService.getWorkspace({ historyFrom: earningsHistoryFrom() }),
   });
   const summary = useMemo(
     () => summarize(query.data?.assignmentHistory || []),
