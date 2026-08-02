@@ -1,6 +1,10 @@
 import Geolocation from 'react-native-geolocation-service';
 import { NativeModules, Platform } from 'react-native';
-import { apiClient, useAuthStore } from '@aagam/mobile-shared';
+import {
+  apiClient,
+  registerMobileSessionCleanup,
+  useAuthStore,
+} from '@aagam/mobile-shared';
 
 type NativeOnlineModule = {
   start: (options: {
@@ -106,3 +110,7 @@ export const RiderOnlineService = {
     return nativeModule.getStatus();
   },
 };
+
+// Shared logout runs this before it clears the bearer token, preventing the
+// Android foreground service from continuing to post heartbeats after sign-out.
+registerMobileSessionCleanup(() => RiderOnlineService.stop());
