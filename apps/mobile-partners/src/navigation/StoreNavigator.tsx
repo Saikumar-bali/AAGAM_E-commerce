@@ -14,7 +14,7 @@ import { StoreInventoryScreen } from '../screens/store/StoreInventoryScreen';
 import { StoreOrdersNavigator } from './StoreOrdersNavigator';
 import { StoreSettingsScreen } from '../screens/store/StoreSettingsScreen';
 import { StorePickupAlertsScreen } from '../screens/store/StorePickupAlertsScreen';
-import { StorePickupVerificationScreen } from '../screens/store/StorePickupVerificationScreen';
+import { StorePickupVerificationEntryScreen } from '../screens/store/StorePickupVerificationEntryScreen';
 import { StorePickupSuccessScreen } from '../screens/store/StorePickupSuccessScreen';
 
 const Tab = createBottomTabNavigator();
@@ -97,7 +97,7 @@ const StoreTabs = () => (
 export const StoreNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FAFBFA' }, animation: 'slide_from_right' }}>
     <Stack.Screen name="StoreTabs" component={StoreTabs} />
-    <Stack.Screen name="StorePickupVerification" component={StorePickupVerificationScreen} />
+    <Stack.Screen name="StorePickupVerification" component={StorePickupVerificationEntryScreen} />
     <Stack.Screen name="StorePickupSuccess" component={StorePickupSuccessScreen} />
     <Stack.Screen name="StoreReturnsCod" component={StoreDeliveryOperationsScreen} />
   </Stack.Navigator>
