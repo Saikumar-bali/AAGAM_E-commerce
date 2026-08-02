@@ -60,8 +60,13 @@ export type ReturnInspectionLine = {
   note?: string;
 };
 
+/**
+ * Keep a mutation retry on the same logical idempotency key. Using a timestamp
+ * here made every retry look like a brand-new operation to the API, which could
+ * duplicate COD/POD and return mutations after a timeout.
+ */
 function operationKey(prefix: string, jobId: string) {
-  return `${prefix}:${jobId}:${Date.now()}`;
+  return `${prefix}:${jobId}`;
 }
 
 function headers(idempotencyKey: string) {

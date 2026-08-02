@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -13,10 +15,14 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Bell,
   Box,
+  ChevronLeft,
+  ChevronRight,
   Menu,
+  Search,
   Store,
 } from 'lucide-react-native';
 import { storeService } from '../../api/storeService';
+import type { StoreOrderStatus } from '../../api/storeService';
 import { notificationService } from '../../api/notificationService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 import {
@@ -25,17 +31,16 @@ import {
   orderCustomerName,
   orderCustomerPhone,
   orderPaymentMethod,
-  orderStatusTab,
   shortStoreOrderId,
-  summarizeStoreOrders,
 } from '../../domain/storeReferenceUi';
 
-const TABS: Array<{ key: StoreOrderTab; label: string }> = [
-  { key: 'NEW', label: 'New' },
-  { key: 'PREPARING', label: 'Preparing' },
-  { key: 'READY', label: 'Ready' },
-  { key: 'PICKUP', label: 'Pickup' },
-  { key: 'DELIVERED', label: 'Delivered' },
+const PAGE_SIZE = 15;
+const TABS: Array<{ key: StoreOrderTab; label: string; statuses: StoreOrderStatus[] }> = [
+  { key: 'NEW', label: 'New', statuses: ['PENDING', 'PAYMENT_PENDING'] },
+  { key: 'PREPARING', label: 'Preparing', statuses: ['CONFIRMED', 'PICKING'] },
+  { key: 'READY', label: 'Ready', statuses: ['PACKED'] },
+  { key: 'PICKUP', label: 'Pickup', statuses: ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'] },
+  { key: 'DELIVERED', label: 'Delivered', statuses: ['DELIVERED'] },
 ];
 
 function orderTone(status?: string | null) {
@@ -52,10 +57,20 @@ function createdTime(value?: string | null) {
   return new Date(value).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
 }
 
+function groupedCount(
+  statusCounts: Partial<Record<StoreOrderStatus, number>> | undefined,
+  statuses: StoreOrderStatus[],
+) {
+  return statuses.reduce((total, status) => total + Number(statusCounts?.[status] || 0), 0);
+}
+
 export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; route?: any }) => {
   const requestedStoreId = route?.params?.storeId as string | undefined;
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(requestedStoreId || null);
   const [activeTab, setActiveTab] = useState<StoreOrderTab>('NEW');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
 
   const storesQuery = useQuery({
     queryKey: ['partner-stores'],
@@ -71,6 +86,11 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
   const stores = Array.isArray(storesQuery.data) ? storesQuery.data : [];
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     if (requestedStoreId && stores.some((store: any) => store.id === requestedStoreId)) {
       setSelectedStoreId(requestedStoreId);
       return;
@@ -82,26 +102,32 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
     ));
   }, [requestedStoreId, stores]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [selectedStoreId, activeTab, debouncedSearch]);
+
   const activeStoreId = selectedStoreId || stores[0]?.id || null;
+  const activeStatuses = TABS.find((tab) => tab.key === activeTab)?.statuses || [];
   const ordersQuery = useQuery({
-    queryKey: ['partner-store-orders', activeStoreId],
-    queryFn: () => storeService.getStoreOrders(activeStoreId as string),
+    queryKey: ['partner-store-orders', activeStoreId, activeTab, page, debouncedSearch],
+    queryFn: () => storeService.getStoreOrders(activeStoreId as string, {
+      page,
+      pageSize: PAGE_SIZE,
+      search: debouncedSearch,
+      status: activeStatuses,
+    }),
     enabled: Boolean(activeStoreId),
     refetchInterval: 15_000,
     retry: 1,
+    placeholderData: (previous) => previous,
   });
 
-  const orders = useMemo(() => {
-    const value: any = ordersQuery.data;
-    if (Array.isArray(value)) return value;
-    if (Array.isArray(value?.orders)) return value.orders;
-    return [];
-  }, [ordersQuery.data]);
-  const counts = useMemo(() => summarizeStoreOrders(orders), [orders]);
-  const visibleOrders = useMemo(
-    () => orders.filter((order: any) => orderStatusTab(order?.status) === activeTab),
-    [activeTab, orders],
-  );
+  const orders = Array.isArray(ordersQuery.data?.items) ? ordersQuery.data.items : [];
+  const total = Number(ordersQuery.data?.total || 0);
+  const totalPages = Math.max(1, Number(ordersQuery.data?.totalPages || 1));
+  const counts = useMemo(() => Object.fromEntries(
+    TABS.map((tab) => [tab.key, groupedCount(ordersQuery.data?.statusCounts, tab.statuses)]),
+  ) as Record<StoreOrderTab, number>, [ordersQuery.data?.statusCounts]);
   const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
 
   const refresh = async () => {
@@ -114,6 +140,9 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
     const root = tabs?.getParent?.() || tabs || navigation;
     root?.navigate?.('Notifications');
   };
+
+  const loading = storesQuery.isLoading || ordersQuery.isLoading;
+  const hasError = storesQuery.isError || ordersQuery.isError;
 
   return (
     <View style={styles.screen}>
@@ -133,12 +162,7 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabsScroll}
-        contentContainerStyle={styles.tabs}
-      >
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs}>
         {TABS.map((tab) => {
           const selected = tab.key === activeTab;
           return (
@@ -152,67 +176,91 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
         })}
       </ScrollView>
 
-      <ScrollView
-        style={styles.listScroll}
-        contentContainerStyle={styles.content}
-        refreshControl={(
-          <RefreshControl
-            refreshing={storesQuery.isFetching || ordersQuery.isFetching}
-            onRefresh={() => void refresh()}
-            tintColor="#078B61"
+      <FlatList
+        data={orders}
+        keyExtractor={(order: any) => String(order.id)}
+        renderItem={({ item }) => (
+          <OrderCard
+            order={item}
+            onPress={() => navigation?.navigate?.('OrderDetails', {
+              orderId: item.id,
+              storeId: activeStoreId,
+              order: item,
+            })}
           />
         )}
-      >
-        {stores.length > 1 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storeRail}>
-            {stores.map((store: any) => {
-              const selected = store.id === activeStoreId;
-              return (
-                <TouchableOpacity
-                  key={store.id}
-                  style={[styles.storeChip, selected && styles.storeChipActive]}
-                  onPress={() => setSelectedStoreId(store.id)}
-                >
-                  <Store size={15} color={selected ? '#FFFFFF' : '#087B5A'} />
-                  <Text style={[styles.storeChipText, selected && styles.storeChipTextActive]} numberOfLines={1}>{store.name || 'Store'}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        ) : null}
-
-        {storesQuery.isLoading || ordersQuery.isLoading ? (
-          <View style={styles.stateCard}>
-            <ActivityIndicator size="large" color="#078B61" />
-            <Text style={styles.stateText}>Loading orders…</Text>
-          </View>
-        ) : storesQuery.isError || ordersQuery.isError ? (
-          <View style={styles.stateCard}>
-            <Text style={styles.stateTitle}>Orders unavailable</Text>
-            <Text style={styles.stateText}>Pull down to retry the selected store.</Text>
-          </View>
-        ) : stores.length === 0 ? (
-          <View style={styles.stateCard}>
-            <Store size={42} color="#A8B0B7" />
-            <Text style={styles.stateTitle}>No assigned stores</Text>
-            <Text style={styles.stateText}>Ask an administrator to assign this account to a store.</Text>
-          </View>
-        ) : visibleOrders.length === 0 ? (
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={storesQuery.isFetching || ordersQuery.isFetching} onRefresh={() => void refresh()} tintColor="#078B61" />}
+        ListHeaderComponent={(
+          <>
+            {stores.length > 1 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storeRail}>
+                {stores.map((store: any) => {
+                  const selected = store.id === activeStoreId;
+                  return (
+                    <TouchableOpacity key={store.id} style={[styles.storeChip, selected && styles.storeChipActive]} onPress={() => setSelectedStoreId(store.id)}>
+                      <Store size={15} color={selected ? '#FFFFFF' : '#087B5A'} />
+                      <Text style={[styles.storeChipText, selected && styles.storeChipTextActive]} numberOfLines={1}>{store.name || 'Store'}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
+            <View style={styles.searchBox}>
+              <Search size={19} color="#6B747B" />
+              <TextInput
+                testID="store_orders_search"
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search order, customer, phone or email"
+                placeholderTextColor="#9AA1A8"
+                style={styles.searchInput}
+                returnKeyType="search"
+              />
+            </View>
+            {loading ? (
+              <View style={styles.stateCard}><ActivityIndicator size="large" color="#078B61" /><Text style={styles.stateText}>Loading orders…</Text></View>
+            ) : hasError ? (
+              <View style={styles.stateCard}><Text style={styles.stateTitle}>Orders unavailable</Text><Text style={styles.stateText}>Pull down to retry the selected store.</Text></View>
+            ) : stores.length === 0 ? (
+              <View style={styles.stateCard}><Store size={42} color="#A8B0B7" /><Text style={styles.stateTitle}>No assigned stores</Text><Text style={styles.stateText}>Ask an administrator to assign this account to a store.</Text></View>
+            ) : null}
+          </>
+        )}
+        ListEmptyComponent={!loading && !hasError && stores.length > 0 ? (
           <View style={styles.stateCard}>
             <Box size={44} color="#A8B0B7" />
             <Text style={styles.stateTitle}>No {TABS.find((tab) => tab.key === activeTab)?.label.toLowerCase()} orders</Text>
-            <Text style={styles.stateText}>Orders will appear here automatically when their status changes.</Text>
+            <Text style={styles.stateText}>Try another status or search term.</Text>
           </View>
-        ) : (
-          visibleOrders.map((order: any) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              onPress={() => navigation?.navigate?.('OrderDetails', { orderId: order.id, storeId: activeStoreId })}
-            />
-          ))
+        ) : null}
+        ListFooterComponent={(
+          <>
+            {totalPages > 1 ? (
+              <View style={styles.pagination}>
+                <TouchableOpacity
+                  testID="store_orders_previous_page"
+                  disabled={page <= 1 || ordersQuery.isFetching}
+                  style={[styles.pageButton, page <= 1 && styles.disabled]}
+                  onPress={() => setPage((current) => Math.max(1, current - 1))}
+                >
+                  <ChevronLeft size={17} color="#087B5A" /><Text style={styles.pageButtonText}>Previous</Text>
+                </TouchableOpacity>
+                <Text style={styles.pageLabel}>Page {page} of {totalPages} · {total} orders</Text>
+                <TouchableOpacity
+                  testID="store_orders_next_page"
+                  disabled={page >= totalPages || ordersQuery.isFetching}
+                  style={[styles.pageButton, page >= totalPages && styles.disabled]}
+                  onPress={() => setPage((current) => Math.min(totalPages, current + 1))}
+                >
+                  <Text style={styles.pageButtonText}>Next</Text><ChevronRight size={17} color="#087B5A" />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            <View style={{ height: 90 }} />
+          </>
         )}
-      </ScrollView>
+      />
     </View>
   );
 };
@@ -223,18 +271,10 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
   const total = order?.grandTotal ?? order?.totalAmount;
   const payment = orderPaymentMethod(order);
   const items = Array.isArray(order?.items) ? order.items : [];
-  const totalUnits = items.reduce(
-    (sum: number, item: any) => sum + Number(item.quantity || 0),
-    0,
-  );
+  const totalUnits = items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
 
   return (
-    <TouchableOpacity
-      testID={`store_order_card_${order.id}`}
-      activeOpacity={0.76}
-      style={styles.orderCard}
-      onPress={onPress}
-    >
+    <TouchableOpacity testID={`store_order_card_${order.id}`} activeOpacity={0.76} style={styles.orderCard} onPress={onPress}>
       <View style={styles.orderTop}>
         <Text style={styles.orderId}>#ORD-{shortStoreOrderId(order.id)}</Text>
         <View style={[styles.statusPill, { backgroundColor: tone.backgroundColor }]}>
@@ -244,7 +284,6 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
       </View>
       <Text style={styles.customerName}>{orderCustomerName(order)}</Text>
       <Text style={styles.customerPhone}>{phone || 'Contact unavailable'}</Text>
-
       {items.length ? (
         <View style={styles.itemsPreview}>
           {items.slice(0, 3).map((item: any, index: number) => (
@@ -256,7 +295,6 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
           {items.length > 3 ? <Text style={styles.moreItems}>+{items.length - 3} more</Text> : null}
         </View>
       ) : null}
-
       <View style={styles.orderMetaRow}>
         <Text style={styles.orderTotal}>{formatStoreMoney(total)}</Text>
         <Text style={styles.itemCount}>{totalUnits} Item{totalUnits === 1 ? '' : 's'}</Text>
@@ -288,13 +326,14 @@ const styles = StyleSheet.create({
   tabCountActive: { backgroundColor: '#1B934A' },
   tabCountText: { color: '#3F474F', fontSize: 12, fontWeight: '900' },
   tabCountTextActive: { color: '#FFFFFF' },
-  listScroll: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 112 },
-  storeRail: { gap: 8, paddingBottom: 6 },
+  content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20 },
+  storeRail: { gap: 8, paddingBottom: 8 },
   storeChip: { maxWidth: 190, height: 39, borderRadius: 13, borderWidth: 1, borderColor: '#CFE4DB', backgroundColor: '#FFFFFF', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 7 },
   storeChipActive: { backgroundColor: '#087B5A', borderColor: '#087B5A' },
   storeChipText: { color: '#087B5A', fontSize: 11, fontWeight: '800', flexShrink: 1 },
   storeChipTextActive: { color: '#FFFFFF' },
+  searchBox: { height: 48, borderRadius: 14, borderWidth: 1, borderColor: '#D9DEDC', backgroundColor: '#FFFFFF', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 6, marginBottom: 2 },
+  searchInput: { flex: 1, color: '#11131A', fontSize: 13, fontWeight: '700' },
   orderCard: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E4E3', padding: 17, marginTop: 13, shadowColor: '#1C2923', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   orderTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   orderId: { flex: 1, color: '#11131A', fontSize: 19, fontWeight: '900' },
@@ -319,7 +358,12 @@ const styles = StyleSheet.create({
   paymentText: { fontSize: 12, fontWeight: '900' },
   prepaidText: { color: '#087C35' },
   codText: { color: '#B85907' },
-  stateCard: { minHeight: 330, alignItems: 'center', justifyContent: 'center', padding: 28 },
+  stateCard: { minHeight: 250, alignItems: 'center', justifyContent: 'center', padding: 28 },
   stateTitle: { color: '#171A1D', fontSize: 18, fontWeight: '900', marginTop: 12, textAlign: 'center' },
   stateText: { color: '#6D747B', fontSize: 13, marginTop: 7, textAlign: 'center', lineHeight: 20 },
+  pagination: { marginTop: 18, borderRadius: 16, borderWidth: 1, borderColor: '#E2E4E3', backgroundColor: '#FFFFFF', padding: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  pageButton: { minHeight: 39, borderRadius: 11, backgroundColor: '#EAF9F1', paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 3 },
+  pageButtonText: { color: '#087B5A', fontSize: 10, fontWeight: '900' },
+  pageLabel: { color: '#5D6570', fontSize: 9, fontWeight: '800', textAlign: 'center' },
+  disabled: { opacity: 0.38 },
 });

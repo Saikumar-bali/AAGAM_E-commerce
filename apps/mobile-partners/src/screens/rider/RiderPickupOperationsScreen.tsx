@@ -154,6 +154,7 @@ export const RiderPickupOperationsScreen = () => {
   });
 
   const busy = verifyChecklist.isPending || verifyPin.isPending || reportProblem.isPending;
+  const pickupPinValid = /^\d{6}$/.test(pickupPin);
   const totalUnits = useMemo(
     () => checklist.reduce((sum: number, item: any) => sum + Number(item.expectedQuantity || 0), 0),
     [checklist],
@@ -306,8 +307,9 @@ export const RiderPickupOperationsScreen = () => {
               />
               <TouchableOpacity
                 testID="rider_pickup_verify_pin"
-                style={[styles.primaryButton, busy && styles.disabled]}
-                disabled={busy}
+                accessibilityState={{ disabled: !pickupPinValid || busy }}
+                style={[styles.primaryButton, (!pickupPinValid || busy) && styles.disabled]}
+                disabled={!pickupPinValid || busy}
                 onPress={() => verifyPin.mutate()}
               >
                 {verifyPin.isPending ? <ActivityIndicator color="#FFFFFF" /> : <KeyRound size={18} color="#FFFFFF" />}

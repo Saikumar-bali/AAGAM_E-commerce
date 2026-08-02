@@ -13,6 +13,7 @@ export const apiClient = axios.create({
 });
 
 let authStoreToken: string | null = null;
+let unauthorizedLogout: Promise<void> | null = null;
 
 export const setAuthToken = (token: string | null) => {
   authStoreToken = token;
@@ -24,3 +25,39 @@ apiClient.interceptors.request.use((config) => {
   }
   return config;
 });
+
+const isPublicAuthRequest = (url?: string) => Boolean(
+  url && [
+    '/auth/mobile/login',
+    '/auth/mobile/phone/verify',
+    '/auth/mobile/google',
+    '/auth/phone/request',
+    '/auth/signup',
+  ].some((path) => url.includes(path)),
+);
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const status = error?.response?.status;
+    const requestUrl = error?.config?.url as string | undefined;
+
+    // A rejected login/OTP request is not an expired authenticated session.
+    // For authenticated 401s, clear the in-memory token immediately and run a
+    // single durable logout even when several requests fail at the same time.
+    if (status === 401 && authStoreToken && !isPublicAuthRequest(requestUrl)) {
+      authStoreToken = null;
+      if (!unauthorizedLogout) {
+        unauthorizedLogout = import('../store/authStore')
+          .then(({ useAuthStore }) => useAuthStore.getState().logout())
+          .catch(() => undefined)
+          .finally(() => {
+            unauthorizedLogout = null;
+          });
+      }
+      await unauthorizedLogout;
+    }
+
+    return Promise.reject(error);
+  },
+);

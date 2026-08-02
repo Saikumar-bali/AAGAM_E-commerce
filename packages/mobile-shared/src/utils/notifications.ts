@@ -18,6 +18,8 @@ type FirebaseMessaging = {
 
 const SUBSCRIPTION_ID_KEY = 'aagam:push:subscription-id';
 const PUSH_TOKEN_KEY = 'aagam:push:token';
+const PUSH_SYNCED_AT_KEY = 'aagam:push:synced-at';
+const PUSH_SERVER_REVERIFY_MS = 24 * 60 * 60 * 1000;
 
 function getMessaging(): FirebaseMessaging | null {
   try {
@@ -101,7 +103,10 @@ async function persistSubscription(token: string, deviceName?: string) {
 
   const subscriptionId = response.data?.id || response.data?.subscriptionId;
   if (subscriptionId) await AsyncStorage.setItem(SUBSCRIPTION_ID_KEY, String(subscriptionId));
-  await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+  await AsyncStorage.multiSet([
+    [PUSH_TOKEN_KEY, token],
+    [PUSH_SYNCED_AT_KEY, String(Date.now())],
+  ]);
   return response.data;
 }
 
@@ -116,8 +121,21 @@ export async function registerDeviceToken(deviceName?: string) {
 
 export async function registerRefreshedToken(token: string, deviceName?: string) {
   if (!token) return;
-  const previousToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
-  if (previousToken === token) return;
+  const [[, previousToken], [, syncedAt], [, subscriptionId]] = await AsyncStorage.multiGet([
+    PUSH_TOKEN_KEY,
+    PUSH_SYNCED_AT_KEY,
+    SUBSCRIPTION_ID_KEY,
+  ]);
+  const lastSync = Number(syncedAt || 0);
+  const serverRegistrationIsFresh = Boolean(
+    subscriptionId
+    && Number.isFinite(lastSync)
+    && Date.now() - lastSync < PUSH_SERVER_REVERIFY_MS,
+  );
+
+  // FCM may return the same token after the server subscription was pruned or
+  // disabled. Re-upsert it periodically instead of trusting local equality forever.
+  if (previousToken === token && serverRegistrationIsFresh) return;
   await persistSubscription(token, deviceName);
 }
 
@@ -154,7 +172,7 @@ export async function disableCurrentMobilePushSubscription() {
       await apiClient.delete(`/notifications/push/subscriptions/${encodeURIComponent(subscriptionId)}`);
     }
   } finally {
-    await AsyncStorage.multiRemove([SUBSCRIPTION_ID_KEY, PUSH_TOKEN_KEY]);
+    await AsyncStorage.multiRemove([SUBSCRIPTION_ID_KEY, PUSH_TOKEN_KEY, PUSH_SYNCED_AT_KEY]);
   }
 }
 

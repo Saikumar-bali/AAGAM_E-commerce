@@ -33,6 +33,22 @@ export type StoreOrderStatus =
   | 'DELIVERED'
   | 'CANCELLED';
 
+export type StoreOrderQuery = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: StoreOrderStatus | StoreOrderStatus[];
+};
+
+export type StoreOrderPage = {
+  items: any[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  statusCounts?: Partial<Record<StoreOrderStatus, number>>;
+};
+
 export const storeService = {
   getMyStores: async () => {
     const r = await apiClient.get('/stores/my-stores');
@@ -54,8 +70,23 @@ export const storeService = {
     return r.data;
   },
 
-  getStoreOrders: async (storeId: string) => {
-    const r = await apiClient.get(`/stores/${storeId}/orders`);
+  getStoreOrders: async (storeId: string, query: StoreOrderQuery = {}): Promise<StoreOrderPage> => {
+    const status = Array.isArray(query.status) ? query.status.join(',') : query.status;
+    const r = await apiClient.get(`/store-owner/orders/${encodeURIComponent(storeId)}`, {
+      params: {
+        page: query.page || 1,
+        pageSize: query.pageSize || 20,
+        search: query.search?.trim() || undefined,
+        status: status || undefined,
+      },
+    });
+    return r.data;
+  },
+
+  getStoreOrder: async (storeId: string, orderId: string) => {
+    const r = await apiClient.get(
+      `/store-owner/orders/${encodeURIComponent(storeId)}/${encodeURIComponent(orderId)}`,
+    );
     return r.data;
   },
 

@@ -92,14 +92,11 @@ export const pickupOperationsService = {
   getReadinessQueue: async (): Promise<PickupReadiness[]> => getReadinessQueueOnce(),
 
   getReadiness: async (deliveryJobId: string): Promise<PickupReadiness> => {
-    try {
-      const queue = await getReadinessQueueOnce();
-      return queue.find((entry) => entry.deliveryJobId === deliveryJobId)
-        || fallbackPickupReadiness(deliveryJobId);
-    } catch {
-      // The operational queue is still useful even when readiness refresh is
-      // temporarily unavailable. Keep controls locked and retry on the next poll.
-      return fallbackPickupReadiness(deliveryJobId);
-    }
+    // Do not convert transport/server failures into a truthful-looking
+    // "not ready" response. Consumers can now show their existing error state
+    // and retry control instead of permanently locking pickup with no reason.
+    const queue = await getReadinessQueueOnce();
+    return queue.find((entry) => entry.deliveryJobId === deliveryJobId)
+      || fallbackPickupReadiness(deliveryJobId);
   },
 };
