@@ -23,7 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { deliveryOperationsService } from '../../api/deliveryOperationsService';
+import { deliveryOperationsService, STORE_DELIVERY_OPERATIONS_QUERY_KEY } from '../../api/deliveryOperationsService';
 import { buildInspectionLines, operationCompleted } from '../../domain/deliveryOperations';
 
 type QuantityState = Record<string, Record<string, {
@@ -32,7 +32,7 @@ type QuantityState = Record<string, Record<string, {
   missing: string;
 }>>;
 
-const QUEUE_KEY = ['store', 'delivery-operations'] as const;
+const QUEUE_KEY = STORE_DELIVERY_OPERATIONS_QUERY_KEY;
 
 function errorMessage(error: any) {
   const message = error?.response?.data?.message;

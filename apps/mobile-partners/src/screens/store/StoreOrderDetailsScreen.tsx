@@ -22,12 +22,14 @@ import {
   ImageOff,
   MapPin,
   Package,
+  PackageCheck,
   Phone,
   RefreshCw,
   ShoppingBag,
   User,
   XCircle,
 } from 'lucide-react-native';
+import { deliveryOperationsService, STORE_DELIVERY_OPERATIONS_QUERY_KEY } from '../../api/deliveryOperationsService';
 import { storeService, StoreOrderStatus } from '../../api/storeService';
 
 const EDITABLE_ITEM_STATUSES = new Set(['PENDING', 'PAYMENT_PENDING', 'CONFIRMED', 'PICKING']);
@@ -39,6 +41,7 @@ const STATUS_LABELS: Record<string, string> = {
   PICKING: 'Preparing',
   PACKED: 'Ready for pickup',
   RIDER_ASSIGNED: 'Rider assigned',
+  RIDER_AT_STORE: 'Rider waiting for pickup',
   OUT_FOR_DELIVERY: 'Out for delivery',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',
@@ -106,6 +109,13 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
     retry: 1,
   });
 
+  const pickupQueueQuery = useQuery({
+    queryKey: STORE_DELIVERY_OPERATIONS_QUERY_KEY,
+    queryFn: deliveryOperationsService.getQueue,
+    refetchInterval: 15_000,
+    retry: 1,
+  });
+
   const orders = useMemo(() => {
     const value: any = ordersQuery.data;
     if (Array.isArray(value)) return value;
@@ -113,10 +123,17 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
     return [];
   }, [ordersQuery.data]);
   const order = orders.find((entry: any) => entry.id === orderId) || null;
+  const pickupJob = useMemo(
+    () => (Array.isArray(pickupQueueQuery.data) ? pickupQueueQuery.data : [])
+      .find((job: any) => job.orderId === orderId && job.status === 'RIDER_AT_STORE'),
+    [orderId, pickupQueueQuery.data],
+  );
+  const awaitingPickup = order?.status === 'RIDER_AT_STORE' || Boolean(pickupJob);
 
   const refreshOrder = async () => {
     await queryClient.invalidateQueries({ queryKey: ['partner-store-orders', storeId] });
     await queryClient.invalidateQueries({ queryKey: ['store-owner-dashboard-stores'] });
+    await queryClient.invalidateQueries({ queryKey: STORE_DELIVERY_OPERATIONS_QUERY_KEY });
   };
 
   const statusMutation = useMutation({
@@ -326,6 +343,27 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
               <PriceRow label="Grand total" value={money(order.grandTotal ?? order.totalAmount, order.grandTotalPaise)} strong />
             </View>
 
+            {awaitingPickup ? (
+              <View testID="store_order_pickup_verification_card" style={styles.pickupVerifyBanner}>
+                <PackageCheck size={22} color="#0F766E" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pickupVerifyTitle}>Rider is waiting at the store</Text>
+                  <Text style={styles.pickupVerifyText}>Verify the parcel handoff before the rider leaves for the customer.</Text>
+                </View>
+                <TouchableOpacity
+                  testID="store_order_verify_pickup"
+                  style={styles.pickupVerifyButton}
+                  onPress={() => {
+                    const storeNavigator = navigation?.getParent?.()?.getParent?.();
+                    if (storeNavigator?.navigate) storeNavigator.navigate('StorePickupVerification');
+                    else navigation?.navigate?.('StorePickupVerification');
+                  }}
+                >
+                  <Text style={styles.pickupVerifyButtonText}>Verify Pickup</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
             {order.status === 'PACKED' ? (
               <View style={styles.readyBanner}><CheckCircle2 size={21} color="#15803D" /><View style={{ flex: 1 }}><Text style={styles.readyTitle}>Ready for rider pickup</Text><Text style={styles.readyText}>Normal store preparation is complete. Returns and COD exceptions remain in the separate Operations tab.</Text></View></View>
             ) : null}
@@ -421,6 +459,11 @@ const styles = StyleSheet.create({
   priceValue: { color: '#334155', fontSize: 12, fontWeight: '800' },
   totalDivider: { height: 1, backgroundColor: '#E2E8F0', marginTop: 12 },
   priceStrong: { color: '#0F172A', fontSize: 15, fontWeight: '900' },
+  pickupVerifyBanner: { marginTop: 14, borderRadius: 20, borderWidth: 1, borderColor: '#99F6E4', backgroundColor: '#F0FDFA', padding: 14, gap: 12 },
+  pickupVerifyTitle: { color: '#115E59', fontSize: 14, fontWeight: '900' },
+  pickupVerifyText: { color: '#0F766E', fontSize: 11, lineHeight: 17, marginTop: 3, fontWeight: '700' },
+  pickupVerifyButton: { minHeight: 45, borderRadius: 13, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  pickupVerifyButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
   readyBanner: { marginTop: 14, borderRadius: 18, borderWidth: 1, borderColor: '#A7F3D0', backgroundColor: '#ECFDF5', padding: 14, flexDirection: 'row', gap: 10 },
   readyTitle: { color: '#166534', fontSize: 13, fontWeight: '900' },
   readyText: { color: '#15803D', fontSize: 10, lineHeight: 16, marginTop: 3 },

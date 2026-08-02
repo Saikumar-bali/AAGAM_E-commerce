@@ -53,6 +53,8 @@ export type DeliveryOperationsQueueItem = any & {
   operations: DeliveryOperation[];
 };
 
+export const STORE_DELIVERY_OPERATIONS_QUERY_KEY = ['store', 'delivery-operations'] as const;
+
 export type ReturnInspectionLine = {
   orderItemId: string;
   disposition: ReturnDisposition;

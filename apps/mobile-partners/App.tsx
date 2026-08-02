@@ -15,6 +15,11 @@ const PartnerAlertTone = NativeModules.PartnerAlertTone as { play?: () => void; 
 
 function invalidateOperationalQueries(eventType?: string) {
   void queryClient.invalidateQueries({ queryKey: NOTIFICATION_KEY });
+  if (eventType === 'RIDER_AT_STORE' || eventType === 'PICKUP_VERIFIED') {
+    void queryClient.invalidateQueries({ queryKey: ['store', 'delivery-operations'] });
+    void queryClient.invalidateQueries({ queryKey: ['store', 'pickup-verification'] });
+    void queryClient.invalidateQueries({ queryKey: ['partner-store-orders'] });
+  }
   if (eventType === 'ORDER_PLACED' || eventType?.startsWith('ORDER_')) {
     void queryClient.invalidateQueries({ queryKey: ['partner-store-orders'] });
     void queryClient.invalidateQueries({ queryKey: ['store-owner-dashboard-stores'] });
@@ -29,7 +34,11 @@ function openOperationalDestination(message?: FirebaseMessagingTypes.RemoteMessa
   if (!message || !partnerNavigationRef.isReady()) return;
   const eventType = String(message.data?.eventType || '');
   const storeId = message.data?.storeId ? String(message.data.storeId) : undefined;
-  if (eventType === 'ORDER_PLACED' || eventType.startsWith('ORDER_')) {
+  if (eventType === 'RIDER_AT_STORE') {
+    partnerNavigationRef.navigate('StoreTabs', {
+      screen: 'StorePickupVerification',
+    });
+  } else if (eventType === 'ORDER_PLACED' || eventType.startsWith('ORDER_')) {
     partnerNavigationRef.navigate('StoreTabs', {
       screen: 'Orders',
       params: { screen: 'OrderQueue', params: { storeId } },

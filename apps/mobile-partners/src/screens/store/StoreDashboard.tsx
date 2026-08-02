@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import messaging from '@react-native-firebase/messaging';
+import React, { useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -9,14 +10,25 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@aagam/mobile-shared';
-import { Bell, ChevronRight, Package, ShoppingBag, Store, TrendingUp } from 'lucide-react-native';
+import { Bell, ChevronRight, Package, PackageCheck, ShoppingBag, Store, TrendingUp } from 'lucide-react-native';
 import { storeService } from '../../api/storeService';
+import Toast from 'react-native-toast-message';
+import { deliveryOperationsService, STORE_DELIVERY_OPERATIONS_QUERY_KEY } from '../../api/deliveryOperationsService';
 import { notificationService } from '../../api/notificationService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 
 const { width } = Dimensions.get('window');
+
+function navigateToStorePickup(navigation: any) {
+  const parent = navigation?.getParent?.();
+  if (parent?.navigate) {
+    parent.navigate('StorePickupVerification');
+    return;
+  }
+  navigation?.navigate?.('StorePickupVerification');
+}
 
 type StoreSummary = {
   id: string;
@@ -29,6 +41,7 @@ type StoreSummary = {
 
 export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
   const storesQuery = useQuery({
     queryKey: ['store-owner-dashboard-stores'],
     queryFn: storeService.getStoreDashboardSummaries,
@@ -40,6 +53,61 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
     refetchInterval: 15_000,
     retry: 1,
   });
+  const pickupQueueQuery = useQuery({
+    queryKey: STORE_DELIVERY_OPERATIONS_QUERY_KEY,
+    queryFn: deliveryOperationsService.getQueue,
+    refetchInterval: 15_000,
+    retry: 1,
+  });
+  const pickupJobs = useMemo(
+    () => (Array.isArray(pickupQueueQuery.data) ? pickupQueueQuery.data : [])
+      .filter((job: any) => job.status === 'RIDER_AT_STORE'),
+    [pickupQueueQuery.data],
+  );
+
+  useEffect(() => {
+    let alive = true;
+    let unsubscribeForeground: (() => void) | undefined;
+    let unsubscribeOpened: (() => void) | undefined;
+
+    const refreshOperationalQueries = () => {
+      void queryClient.invalidateQueries({ queryKey: STORE_DELIVERY_OPERATIONS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['store', 'pickup-verification'] });
+      void queryClient.invalidateQueries({ queryKey: ['partner-store-orders'] });
+      void queryClient.invalidateQueries({ queryKey: PARTNER_NOTIFICATION_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['store-owner-dashboard-stores'] });
+    };
+
+    const handleMessage = (message: any, navigate: boolean) => {
+      const eventType = String(message?.data?.eventType || '');
+      refreshOperationalQueries();
+      if (eventType !== 'RIDER_AT_STORE') return;
+      Toast.show({
+        type: 'info',
+        text1: message?.notification?.title || 'Rider arrived at store',
+        text2: message?.notification?.body || 'Verify the parcel handoff in Store Pickup.',
+        visibilityTime: 6000,
+      });
+      if (navigate && alive) navigateToStorePickup(navigation);
+    };
+
+    try {
+      unsubscribeForeground = messaging().onMessage(async (message) => handleMessage(message, false));
+      unsubscribeOpened = messaging().onNotificationOpenedApp((message) => handleMessage(message, true));
+      void messaging().getInitialNotification().then((message) => {
+        if (message && alive) setTimeout(() => handleMessage(message, true), 350);
+      }).catch(() => undefined);
+    } catch (_error) {
+      // Firebase is unavailable in local development builds without native configuration.
+    }
+
+    return () => {
+      alive = false;
+      unsubscribeForeground?.();
+      unsubscribeOpened?.();
+    };
+  }, [navigation, queryClient]);
+
   const stores: StoreSummary[] = Array.isArray(storesQuery.data) ? storesQuery.data : [];
   const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
 
@@ -55,7 +123,10 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
       style={styles.container}
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl refreshing={storesQuery.isRefetching} onRefresh={() => void Promise.all([storesQuery.refetch(), inboxQuery.refetch()])} />
+        <RefreshControl
+          refreshing={storesQuery.isRefetching || pickupQueueQuery.isRefetching}
+          onRefresh={() => void Promise.all([storesQuery.refetch(), inboxQuery.refetch(), pickupQueueQuery.refetch()])}
+        />
       }
     >
       <View style={styles.header}>
@@ -71,6 +142,24 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
         </View>
         <Text style={styles.headerCopy}>Live operational totals from your assigned stores.</Text>
       </View>
+
+      {pickupJobs.length > 0 ? (
+        <TouchableOpacity
+          testID="store_dashboard_pickup_banner"
+          style={styles.pickupBanner}
+          activeOpacity={0.88}
+          onPress={() => navigateToStorePickup(navigation)}
+        >
+          <PackageCheck size={23} color="#FFFFFF" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.pickupBannerTitle}>
+              {pickupJobs.length} rider{pickupJobs.length > 1 ? 's' : ''} waiting for pickup
+            </Text>
+            <Text style={styles.pickupBannerText}>Tap to verify parcel handoff</Text>
+          </View>
+          <ChevronRight size={21} color="#CCFBF1" />
+        </TouchableOpacity>
+      ) : null}
 
       {storesQuery.isLoading ? (
         <View style={styles.loading}><ActivityIndicator size="large" color="#0F766E" /></View>
@@ -145,6 +234,23 @@ const styles = StyleSheet.create({
   notificationButton: { width: 46, height: 46, borderRadius: 15, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
   notificationBadge: { position: 'absolute', right: -4, top: -4, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: '#FFFFFF' },
   notificationBadgeText: { color: '#FFFFFF', fontSize: 8, fontWeight: '900' },
+  pickupBanner: {
+    marginHorizontal: 24,
+    marginTop: 18,
+    borderRadius: 20,
+    backgroundColor: '#0F766E',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 18,
+    elevation: 4,
+    shadowColor: '#0F766E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  pickupBannerTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  pickupBannerText: { color: '#CCFBF1', fontSize: 11, fontWeight: '800', marginTop: 3 },
   loading: { minHeight: 300, alignItems: 'center', justifyContent: 'center' },
   statsGrid: { padding: 24, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   statCard: { width: (width - 60) / 2, backgroundColor: '#FFFFFF', padding: 16, borderRadius: 20, marginBottom: 12, borderLeftWidth: 4, elevation: 2 },
