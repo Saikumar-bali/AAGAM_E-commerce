@@ -27,8 +27,12 @@ export function registerMobileSessionCleanup(handler: MobileSessionCleanup) {
 }
 
 async function runMobileSessionCleanup() {
-  await Promise.allSettled(
-    Array.from(mobileSessionCleanupHandlers, (handler) => Promise.resolve().then(handler)),
+  await Promise.all(
+    Array.from(mobileSessionCleanupHandlers, (handler) => (
+      Promise.resolve()
+        .then(handler)
+        .catch(() => undefined)
+    )),
   );
 }
 
