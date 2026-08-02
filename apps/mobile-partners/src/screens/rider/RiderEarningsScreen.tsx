@@ -46,7 +46,8 @@ function startOfWeek(value: Date) {
 }
 
 function assignmentTime(assignment: RiderAssignmentOffer) {
-  const value = assignment.deliveryJob.completedAt
+  const value = assignment.deliveryJob.order.deliveredAt
+    || assignment.deliveryJob.completedAt
     || assignment.deliveryJob.updatedAt
     || assignment.respondedAt
     || assignment.offeredAt
