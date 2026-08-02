@@ -39,6 +39,12 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate --schema packages/database/prisma/schema.prisma
 
+      - name: Build shared packages
+        run: |
+          npx tsc --project packages/types/tsconfig.json
+          npx tsc --project packages/utils/tsconfig.json
+          npx tsc --project packages/database/tsconfig.json
+
       - name: Typecheck Partners app
         run: npx tsc --project apps/mobile-partners/tsconfig.json --noEmit
 
