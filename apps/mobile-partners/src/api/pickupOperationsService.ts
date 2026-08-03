@@ -96,9 +96,8 @@ export const pickupOperationsService = {
       const queue = await getReadinessQueueOnce();
       return queue.find((entry) => entry.deliveryJobId === deliveryJobId)
         || fallbackPickupReadiness(deliveryJobId);
-    } catch {
-      // The operational queue is still useful even when readiness refresh is
-      // temporarily unavailable. Keep controls locked and retry on the next poll.
+    } catch (error) {
+      if (__DEV__) console.warn('[Pickup readiness] Refresh failed; keeping queue visible.', error);
       return fallbackPickupReadiness(deliveryJobId);
     }
   },

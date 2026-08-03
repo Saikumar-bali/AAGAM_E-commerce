@@ -18,6 +18,24 @@ type PhoneRequestResult = {
   code?: string;
 };
 
+type MobileSessionCleanup = () => void | Promise<void>;
+const mobileSessionCleanupHandlers = new Set<MobileSessionCleanup>();
+
+export function registerMobileSessionCleanup(handler: MobileSessionCleanup) {
+  mobileSessionCleanupHandlers.add(handler);
+  return () => mobileSessionCleanupHandlers.delete(handler);
+}
+
+async function runMobileSessionCleanup() {
+  await Promise.all(
+    Array.from(mobileSessionCleanupHandlers, (handler) => (
+      Promise.resolve()
+        .then(handler)
+        .catch(() => undefined)
+    )),
+  );
+}
+
 interface AuthState {
   user: UserType | null;
   token: string | null;
@@ -68,7 +86,6 @@ async function readPersistedAuth(): Promise<{ user: UserType; token: string } | 
     await Keychain.resetGenericPassword({ service: AUTH_KEYCHAIN_SERVICE }).catch(() => undefined);
   }
 
-  // Migrate sessions created before an explicit Keychain service was introduced.
   const legacyCredentials = await withTimeout(Keychain.getGenericPassword(), KEYCHAIN_TIMEOUT).catch(
     () => false as const,
   );
@@ -93,6 +110,11 @@ async function clearLocalAuth() {
     withTimeout(Keychain.resetGenericPassword(), KEYCHAIN_TIMEOUT).catch(() => undefined),
   ]);
   setAuthToken(null);
+}
+
+async function invalidateMobileSession() {
+  await runMobileSessionCleanup();
+  await clearLocalAuth();
 }
 
 function mobileAuthError(error: any, fallback: string, stage: string) {
@@ -195,6 +217,9 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     try {
+      // Stop app-owned foreground/background services while the bearer token is
+      // still available, then unregister push and close the backend session.
+      await runMobileSessionCleanup();
       await disableCurrentMobilePushSubscription().catch(() => undefined);
       await apiClient.post('/auth/logout').catch(() => undefined);
     } finally {
@@ -216,8 +241,6 @@ export const useAuthStore = create<AuthState>((set) => ({
           return;
         }
 
-        // Restore the durable session before making a network call. A cold-start
-        // timeout or brief offline period must not throw the user back to Login.
         setAuthToken(stored.token);
         set({ user: stored.user, token: stored.token, isLoading: false });
 
@@ -230,17 +253,14 @@ export const useAuthStore = create<AuthState>((set) => ({
           await persistAuth(refreshedUser, stored.token).catch(() => undefined);
         } catch (error: any) {
           if (shouldInvalidateStoredSession(error)) {
-            await clearLocalAuth();
+            await invalidateMobileSession();
             set({ user: null, token: null, isLoading: false });
           } else {
-            // Keep the local session for network errors, 5xx responses and
-            // throttling. The next authenticated request remains authoritative.
+            // Keep the local session for network errors and other transient validation failures.
             set({ user: stored.user, token: stored.token, isLoading: false });
           }
         }
       } catch {
-        // Secure-storage access failed. Do not delete credentials that may still
-        // be valid; leave them available for the next cold-start attempt.
         set({ isLoading: false });
       } finally {
         initializationPromise = null;

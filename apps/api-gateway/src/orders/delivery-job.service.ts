@@ -47,6 +47,7 @@ const jobInclude = {
           id: true,
           name: true,
           ownerId: true,
+                owner: { select: { phone: true } },
           address: true,
           latitude: true,
           longitude: true,

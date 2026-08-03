@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -87,21 +87,18 @@ function imageUri(product: any) {
 export const StoreOrderDetailsReferenceScreen = ({ navigation, route }: { navigation?: any; route?: any }) => {
   const storeId = String(route?.params?.storeId || '');
   const orderId = String(route?.params?.orderId || '');
+  const initialOrder = route?.params?.order?.id === orderId ? route.params.order : undefined;
   const queryClient = useQueryClient();
+  const queryKey = ['partner-store-order', storeId, orderId] as const;
   const query = useQuery({
-    queryKey: ['partner-store-orders', storeId],
-    queryFn: () => storeService.getStoreOrders(storeId),
+    queryKey,
+    queryFn: () => storeService.getStoreOrder(storeId, orderId),
     enabled: Boolean(storeId && orderId),
+    initialData: initialOrder,
     refetchInterval: 15_000,
     retry: 1,
   });
-  const orders = useMemo(() => {
-    const value: any = query.data;
-    if (Array.isArray(value)) return value;
-    if (Array.isArray(value?.orders)) return value.orders;
-    return [];
-  }, [query.data]);
-  const order = orders.find((entry: any) => String(entry.id) === orderId) || null;
+  const order: any = query.data || null;
 
   const mutation = useMutation({
     mutationFn: (status: StoreOrderStatus) => status === 'PACKED'
@@ -109,6 +106,7 @@ export const StoreOrderDetailsReferenceScreen = ({ navigation, route }: { naviga
       : storeService.updateOrderStatus(orderId, status),
     onSuccess: async (_response, status) => {
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey }),
         queryClient.invalidateQueries({ queryKey: ['partner-store-orders', storeId] }),
         queryClient.invalidateQueries({ queryKey: ['store-owner-dashboard-stores'] }),
       ]);
@@ -210,7 +208,7 @@ export const StoreOrderDetailsReferenceScreen = ({ navigation, route }: { naviga
             </View>
 
             {['PENDING', 'PAYMENT_PENDING', 'CONFIRMED', 'PICKING'].includes(order.status) ? (
-              <TouchableOpacity style={styles.advancedButton} onPress={() => navigation?.navigate?.('AdvancedOrderDetails', { orderId, storeId })}>
+              <TouchableOpacity style={styles.advancedButton} onPress={() => navigation?.navigate?.('AdvancedOrderDetails', { orderId, storeId, order })}>
                 <Text style={styles.advancedText}>Item availability & substitutes</Text>
                 <ChevronRight size={20} color="#078B4D" />
               </TouchableOpacity>

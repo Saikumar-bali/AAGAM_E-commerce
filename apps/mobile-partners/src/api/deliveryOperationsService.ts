@@ -60,8 +60,31 @@ export type ReturnInspectionLine = {
   note?: string;
 };
 
+/** Replays of one mutation keep one logical key. */
 function operationKey(prefix: string, jobId: string) {
-  return `${prefix}:${jobId}:${Date.now()}`;
+  return `${prefix}:${jobId}`;
+}
+
+/** Each explicit OTP issue action is a new logical operation. */
+function otpIssueKey(jobId: string) {
+  return `mobile-otp:${jobId}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
+}
+
+let failureOperationSequence = 0;
+const pendingFailureKeys = new Map<string, string>();
+
+/**
+ * One failure submission keeps a stable key across transport retries. After a
+ * confirmed response the key is retired, so a later redelivery attempt for the
+ * same job receives a new logical operation key.
+ */
+function failureAttemptKey(jobId: string) {
+  const pending = pendingFailureKeys.get(jobId);
+  if (pending) return pending;
+  failureOperationSequence += 1;
+  const key = `mobile-failure:${jobId}:${Date.now()}:${failureOperationSequence}`;
+  pendingFailureKeys.set(jobId, key);
+  return key;
 }
 
 function headers(idempotencyKey: string) {
@@ -81,7 +104,7 @@ export const deliveryOperationsService = {
     return Array.isArray(response.data) ? response.data : [];
   },
 
-  issueOtp: async (deliveryJobId: string, idempotencyKey = operationKey('mobile-otp', deliveryJobId)) => {
+  issueOtp: async (deliveryJobId: string, idempotencyKey = otpIssueKey(deliveryJobId)) => {
     const response = await apiClient.post(
       `/orders/delivery-operations/jobs/${encodeURIComponent(deliveryJobId)}/otp/issue`,
       {},
@@ -114,13 +137,16 @@ export const deliveryOperationsService = {
   recordFailure: async (
     deliveryJobId: string,
     input: { reason: DeliveryFailureReason; note?: string },
-    idempotencyKey = operationKey('mobile-failure', deliveryJobId),
+    idempotencyKey?: string,
   ) => {
+    const generatedKey = !idempotencyKey;
+    const operationIdempotencyKey = idempotencyKey || failureAttemptKey(deliveryJobId);
     const response = await apiClient.post(
       `/orders/delivery-operations/jobs/${encodeURIComponent(deliveryJobId)}/failure`,
       input,
-      headers(idempotencyKey),
+      headers(operationIdempotencyKey),
     );
+    if (generatedKey) pendingFailureKeys.delete(deliveryJobId);
     return response.data;
   },
 
