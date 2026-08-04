@@ -1,4 +1,4 @@
-import messaging, { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
+import messaging from '@react-native-firebase/messaging';
 import {
   partnerOperationalSessionKey,
   registerMobileSessionCleanup,
@@ -33,6 +33,16 @@ type Props = {
   queryClient: QueryClient;
 };
 
+type RemoteMessageLike = {
+  notification?: { title?: string; body?: string };
+  data?: Record<string, string>;
+};
+
+type RiderOperationsCommand = Extract<
+  PartnerNavigationCommand,
+  { workspace: 'RIDER'; tab: 'Operations' }
+>;
+
 function dataFromInboxItem(item: PartnerNotification): Record<string, unknown> {
   return {
     ...(item.metadata || {}),
@@ -51,18 +61,55 @@ function dataFromInboxItem(item: PartnerNotification): Record<string, unknown> {
   };
 }
 
-function dataFromRemoteMessage(message: FirebaseMessagingTypes.RemoteMessage) {
+function dataFromRemoteMessage(message: RemoteMessageLike) {
   return message.data as Record<string, unknown> | undefined;
+}
+
+function navigateRiderOperations(command: RiderOperationsCommand) {
+  switch (command.screen) {
+    case 'RiderOfferDetail':
+      partnerNavigationRef.navigate('RiderTabs', {
+        screen: 'Operations',
+        params: { screen: 'RiderOfferDetail', params: command.params },
+      });
+      return;
+    case 'RiderActiveJob':
+      partnerNavigationRef.navigate('RiderTabs', {
+        screen: 'Operations',
+        params: { screen: 'RiderActiveJob', params: command.params },
+      });
+      return;
+    case 'RiderPickup':
+      partnerNavigationRef.navigate('RiderTabs', {
+        screen: 'Operations',
+        params: { screen: 'RiderPickup', params: command.params },
+      });
+      return;
+    case 'RiderDelivery':
+      partnerNavigationRef.navigate('RiderTabs', {
+        screen: 'Operations',
+        params: { screen: 'RiderDelivery', params: command.params },
+      });
+      return;
+    case 'RiderReturn':
+      partnerNavigationRef.navigate('RiderTabs', {
+        screen: 'Operations',
+        params: { screen: 'RiderReturn', params: command.params },
+      });
+      return;
+    case 'RiderJobHistoryDetail':
+      partnerNavigationRef.navigate('RiderTabs', {
+        screen: 'Operations',
+        params: { screen: 'RiderJobHistoryDetail', params: command.params },
+      });
+  }
 }
 
 function navigate(command: PartnerNavigationCommand) {
   if (!partnerNavigationRef.isReady()) return false;
   if (command.workspace === 'RIDER') {
     if (command.tab === 'Operations') {
-      partnerNavigationRef.navigate('RiderTabs', {
-        screen: 'Operations',
-        params: { screen: command.screen, params: command.params },
-      });
+      navigateRiderOperations(command);
     } else {
       partnerNavigationRef.navigate('RiderTabs', { screen: command.tab });
     }
