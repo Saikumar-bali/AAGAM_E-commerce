@@ -23,10 +23,13 @@ export type RiderArrivalOverride = {
 
 export type ArrivalEvidenceInput = RiderArrivalEvidence | RiderArrivalOverride;
 
-export type ArrivalEvidencePolicy = {
-  radiusMetres: number;
+export type TransitionEvidencePolicy = {
   maxAccuracyMetres: number;
   maxAgeMs: number;
+};
+
+export type ArrivalEvidencePolicy = TransitionEvidencePolicy & {
+  radiusMetres: number;
 };
 
 const EARTH_RADIUS_METRES = 6_371_000;
@@ -53,15 +56,13 @@ export function distanceMetresBetween(from: ArrivalCoordinate, to: ArrivalCoordi
   return EARTH_RADIUS_METRES * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function validateRiderArrivalEvidence(input: {
+export function validateRiderTransitionEvidence(input: {
   evidence: ArrivalEvidenceInput;
-  destination: ArrivalCoordinate;
-  policy: ArrivalEvidencePolicy;
+  policy: TransitionEvidencePolicy;
   now?: Date;
-  destinationType: 'STORE' | 'CUSTOMER';
 }) {
   if (!input.evidence || typeof input.evidence !== 'object') {
-    throw new BadRequestException('Current GPS evidence is required for this arrival action');
+    throw new BadRequestException('Current GPS evidence is required for this Rider transition');
   }
   const now = input.now || new Date();
   const capturedAt = new Date((input.evidence as any).capturedAt);
@@ -69,7 +70,7 @@ export function validateRiderArrivalEvidence(input: {
     throw new BadRequestException('capturedAt must be a valid ISO timestamp');
   }
   if (Math.abs(now.getTime() - capturedAt.getTime()) > input.policy.maxAgeMs) {
-    throw new BadRequestException('Arrival GPS evidence is stale. Capture a fresh location and retry.');
+    throw new BadRequestException('Rider GPS evidence is stale. Capture a fresh location and retry.');
   }
 
   if ('override' in input.evidence) {
@@ -83,7 +84,6 @@ export function validateRiderArrivalEvidence(input: {
     return {
       verified: false,
       overridden: true,
-      destinationType: input.destinationType,
       capturedAt: capturedAt.toISOString(),
       source: input.evidence.source || 'MOBILE_PARTNERS_OVERRIDE',
       override: {
@@ -95,11 +95,8 @@ export function validateRiderArrivalEvidence(input: {
     };
   }
 
-  if (!validCoordinate(input.destination)) {
-    throw new BadRequestException(`${input.destinationType.toLowerCase()} coordinates are unavailable`);
-  }
   if (!validCoordinate(input.evidence)) {
-    throw new BadRequestException('Arrival latitude and longitude are invalid');
+    throw new BadRequestException('Rider latitude and longitude are invalid');
   }
   if (
     finite(input.evidence.accuracyMetres)
@@ -110,7 +107,41 @@ export function validateRiderArrivalEvidence(input: {
     );
   }
 
-  const distanceMetres = distanceMetresBetween(input.evidence, input.destination);
+  return {
+    verified: true,
+    overridden: false,
+    latitude: input.evidence.latitude,
+    longitude: input.evidence.longitude,
+    accuracyMetres: input.evidence.accuracyMetres ?? null,
+    capturedAt: capturedAt.toISOString(),
+    source: input.evidence.source || 'MOBILE_PARTNERS_GPS',
+    policy: input.policy,
+  };
+}
+
+export function validateRiderArrivalEvidence(input: {
+  evidence: ArrivalEvidenceInput;
+  destination: ArrivalCoordinate;
+  policy: ArrivalEvidencePolicy;
+  now?: Date;
+  destinationType: 'STORE' | 'CUSTOMER';
+}) {
+  const transition = validateRiderTransitionEvidence({
+    evidence: input.evidence,
+    policy: input.policy,
+    now: input.now,
+  });
+  if (transition.overridden) {
+    return { ...transition, destinationType: input.destinationType };
+  }
+  if (!validCoordinate(input.destination)) {
+    throw new BadRequestException(`${input.destinationType.toLowerCase()} coordinates are unavailable`);
+  }
+
+  const distanceMetres = distanceMetresBetween(
+    { latitude: transition.latitude!, longitude: transition.longitude! },
+    input.destination,
+  );
   if (distanceMetres > input.policy.radiusMetres) {
     throw new BadRequestException(
       `You are ${Math.round(distanceMetres)} metres from the ${input.destinationType.toLowerCase()}. Move within ${input.policy.radiusMetres} metres and retry.`,
@@ -118,29 +149,29 @@ export function validateRiderArrivalEvidence(input: {
   }
 
   return {
-    verified: true,
-    overridden: false,
+    ...transition,
     destinationType: input.destinationType,
-    latitude: input.evidence.latitude,
-    longitude: input.evidence.longitude,
-    accuracyMetres: input.evidence.accuracyMetres ?? null,
-    capturedAt: capturedAt.toISOString(),
-    source: input.evidence.source || 'MOBILE_PARTNERS_GPS',
     distanceMetres: Math.round(distanceMetres),
-    policy: input.policy,
+  };
+}
+
+function positiveNumber(value: string | undefined, fallback: number) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+export function riderTransitionEvidencePolicy(): TransitionEvidencePolicy {
+  return {
+    maxAccuracyMetres: positiveNumber(process.env.RIDER_GEOFENCE_MAX_ACCURACY_METRES, 120),
+    maxAgeMs: positiveNumber(process.env.RIDER_GEOFENCE_MAX_AGE_SECONDS, 120) * 1_000,
   };
 }
 
 export function riderArrivalPolicy(destinationType: 'STORE' | 'CUSTOMER'): ArrivalEvidencePolicy {
-  const positiveNumber = (value: string | undefined, fallback: number) => {
-    const number = Number(value);
-    return Number.isFinite(number) && number > 0 ? number : fallback;
-  };
   return {
+    ...riderTransitionEvidencePolicy(),
     radiusMetres: destinationType === 'STORE'
       ? positiveNumber(process.env.RIDER_STORE_GEOFENCE_METRES, 250)
       : positiveNumber(process.env.RIDER_CUSTOMER_GEOFENCE_METRES, 250),
-    maxAccuracyMetres: positiveNumber(process.env.RIDER_GEOFENCE_MAX_ACCURACY_METRES, 120),
-    maxAgeMs: positiveNumber(process.env.RIDER_GEOFENCE_MAX_AGE_SECONDS, 120) * 1_000,
   };
 }
