@@ -17,6 +17,7 @@ import {
   PickupProblemDto,
   RiderAvailabilityDto,
   RiderBreakDto,
+  RiderContactDto,
   RiderDocumentDto,
   RiderHistoryQueryDto,
   RiderProfileDto,
@@ -25,13 +26,17 @@ import {
   RiderSupportTicketDto,
   VerifyPickupDto,
 } from "./rider-portal.dto";
+import { RiderPortalReadService } from "./rider-portal-read.service";
 import { RiderPortalService } from "./rider-portal.service";
 
 @Controller("riders/portal")
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.RIDER)
 export class RiderPortalController {
-  constructor(private readonly portal: RiderPortalService) {}
+  constructor(
+    private readonly portal: RiderPortalService,
+    private readonly read: RiderPortalReadService
+  ) {}
 
   @Get("home")
   home(@Req() req: any) {
@@ -43,6 +48,14 @@ export class RiderPortalController {
     return this.portal.offers(req.user.id);
   }
 
+  @Get("offers/:assignmentId")
+  offerDetail(
+    @Req() req: any,
+    @Param("assignmentId") assignmentId: string
+  ) {
+    return this.read.offerDetail(req.user.id, assignmentId);
+  }
+
   @Get("delivery")
   delivery(@Req() req: any) {
     return this.portal.currentDelivery(req.user.id);
@@ -51,6 +64,22 @@ export class RiderPortalController {
   @Get("history")
   history(@Req() req: any, @Query() query: RiderHistoryQueryDto) {
     return this.portal.history(req.user.id, query);
+  }
+
+  @Get("history/:deliveryJobId")
+  historyDetail(
+    @Req() req: any,
+    @Param("deliveryJobId") deliveryJobId: string
+  ) {
+    return this.read.historyDetail(req.user.id, deliveryJobId);
+  }
+
+  @Get("receipts/:deliveryJobId")
+  receipt(
+    @Req() req: any,
+    @Param("deliveryJobId") deliveryJobId: string
+  ) {
+    return this.read.receipt(req.user.id, deliveryJobId);
   }
 
   @Get("pickup")
@@ -68,12 +97,27 @@ export class RiderPortalController {
   }
 
   @Post("pickup/:deliveryJobId/problem")
-  pickupProblem(
+  async pickupProblem(
     @Req() req: any,
     @Param("deliveryJobId") jobId: string,
     @Body() body: PickupProblemDto
   ) {
-    return this.portal.reportPickupProblem(req.user.id, jobId, body);
+    const task = await this.portal.reportPickupProblem(
+      req.user.id,
+      jobId,
+      body
+    );
+    if (body.evidenceKeys?.length) {
+      const ticket = await this.portal.createSupport(req.user.id, {
+        deliveryJobId: jobId,
+        category: "PICKUP",
+        subject: `Pickup evidence: ${body.problemType.replaceAll("_", " ")}`,
+        description: body.note,
+        evidenceKeys: body.evidenceKeys,
+      });
+      return { task, supportTicketId: ticket.id };
+    }
+    return { task, supportTicketId: null };
   }
 
   @Get("earnings")
@@ -92,8 +136,9 @@ export class RiderPortalController {
   }
 
   @Get("availability")
-  availability(@Req() req: any) {
-    return this.portal.availability(req.user.id);
+  async availability(@Req() req: any) {
+    const availability = await this.portal.availability(req.user.id);
+    return { ...availability, ...this.read.availabilityMetadata() };
   }
 
   @Patch("availability/status")
@@ -103,6 +148,7 @@ export class RiderPortalController {
 
   @Patch("availability/schedule")
   setSchedule(@Req() req: any, @Body() body: RiderAvailabilityDto) {
+    this.read.assertSchedule(body.entries);
     return this.portal.setSchedule(req.user.id, body.entries);
   }
 
@@ -118,7 +164,7 @@ export class RiderPortalController {
 
   @Get("profile")
   profile(@Req() req: any) {
-    return this.portal.profile(req.user.id);
+    return this.read.profile(req.user.id);
   }
 
   @Patch("profile")
@@ -129,6 +175,23 @@ export class RiderPortalController {
   @Post("documents")
   addDocument(@Req() req: any, @Body() body: RiderDocumentDto) {
     return this.portal.addDocument(req.user.id, body);
+  }
+
+  @Get("documents/:documentId/preview")
+  documentPreview(
+    @Req() req: any,
+    @Param("documentId") documentId: string
+  ) {
+    return this.read.documentPreview(req.user.id, documentId);
+  }
+
+  @Post("contact/:deliveryJobId")
+  contact(
+    @Req() req: any,
+    @Param("deliveryJobId") deliveryJobId: string,
+    @Body() body: RiderContactDto
+  ) {
+    return this.read.contact(req.user.id, deliveryJobId, body);
   }
 
   @Get("support")
