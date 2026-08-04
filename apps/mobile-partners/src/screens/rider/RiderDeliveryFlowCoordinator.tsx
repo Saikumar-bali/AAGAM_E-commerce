@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useRef, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { deliveryOperationsService, DeliveryOperationsSummary } from '../../api/deliveryOperationsService';
-import { riderService } from '../../api/riderService';
+import { riderService, RIDER_WORKSPACE_QUERY_KEY } from '../../api/riderService';
+import { RiderNavigationPanel } from '../../components/rider/RiderNavigationPanel';
 import {
   RiderCompletionReceipt,
   buildRiderCompletionReceipt,
@@ -10,12 +12,11 @@ import type { RiderDeliveryJob, RiderWorkspace } from '../../domain/riderWorkspa
 import { RiderDeliveryCompletedScreen } from './RiderDeliveryCompletedScreen';
 import { RiderDeliveryFlowScreen } from './RiderDeliveryFlowScreen';
 
-const WORKSPACE_KEY = ['rider', 'delivery-workspace'] as const;
 const SUMMARY_KEY = ['rider', 'delivery-operations'] as const;
 
 export const RiderDeliveryFlowCoordinator = () => {
   const workspaceQuery = useQuery<RiderWorkspace>({
-    queryKey: WORKSPACE_KEY,
+    queryKey: RIDER_WORKSPACE_QUERY_KEY,
     queryFn: riderService.getWorkspace,
     refetchInterval: 8_000,
   });
@@ -37,7 +38,6 @@ export const RiderDeliveryFlowCoordinator = () => {
       if (summaryQuery.data) lastSummaryRef.current = summaryQuery.data;
       return;
     }
-
     const previousJob = lastJobRef.current;
     if (!previousJob || previousJob.status !== 'RIDER_AT_CUSTOMER' || receipt) return;
     setReceipt(buildRiderCompletionReceipt(previousJob, lastSummaryRef.current));
@@ -56,5 +56,20 @@ export const RiderDeliveryFlowCoordinator = () => {
     );
   }
 
-  return <RiderDeliveryFlowScreen />;
+  const rider = workspaceQuery.data?.rider;
+  const workspaceLocation = typeof rider?.latitude === 'number' && typeof rider?.longitude === 'number'
+    ? { latitude: rider.latitude, longitude: rider.longitude }
+    : null;
+
+  return (
+    <View style={styles.screen}>
+      {activeJob ? <RiderNavigationPanel job={activeJob} workspaceLocation={workspaceLocation} /> : null}
+      <View style={styles.flow}><RiderDeliveryFlowScreen /></View>
+    </View>
+  );
 };
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#F4F7FB' },
+  flow: { flex: 1, minHeight: 320 },
+});
