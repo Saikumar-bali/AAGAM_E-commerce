@@ -33,7 +33,7 @@ env:
 
 jobs:
   finalize-rider-hardening:
-    if: github.event_name == 'push' && github.ref_name == 'agent/rider-platform-hardening-final'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
