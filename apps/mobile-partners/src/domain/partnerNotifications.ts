@@ -33,6 +33,8 @@ export type PartnerNavigationCommand =
   | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderDelivery'; params: { deliveryJobId: string } }
   | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderReturn'; params: { deliveryJobId: string } }
   | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderJobHistoryDetail'; params: { deliveryJobId?: string; orderId?: string } }
+  | { workspace: 'RIDER'; tab: 'RiderSupportConversation'; params: { ticketId: string } }
+  | { workspace: 'RIDER'; tab: 'RiderSupport' }
   | { workspace: 'RIDER'; tab: 'Alerts' }
   | { workspace: 'RIDER'; tab: 'History' }
   | { workspace: 'RIDER'; tab: 'Profile' }
@@ -146,7 +148,7 @@ export function normalizeNotificationNavigation(
 export function notificationDedupeKey(payload: NotificationNavigationPayload): string {
   return payload.recipientId
     ?? payload.notificationId
-    ?? [payload.eventType, payload.assignmentId, payload.deliveryJobId, payload.orderId]
+    ?? [payload.eventType, payload.assignmentId, payload.deliveryJobId, payload.orderId, payload.ticketId]
       .filter(Boolean)
       .join(':')
     ?? 'notification:unknown';
@@ -191,7 +193,9 @@ export function navigationCommandForNotification(
     case 'RIDER_PROFILE':
       return { workspace: 'RIDER', tab: 'Profile' };
     case 'RIDER_SUPPORT':
-      return { workspace: 'RIDER', tab: 'Alerts' };
+      return payload.ticketId
+        ? { workspace: 'RIDER', tab: 'RiderSupportConversation', params: { ticketId: payload.ticketId } }
+        : { workspace: 'RIDER', tab: 'RiderSupport' };
     case 'STORE_ORDER':
       return { workspace: 'STORE', tab: 'Orders', params: { storeId: payload.storeId } };
     default:
