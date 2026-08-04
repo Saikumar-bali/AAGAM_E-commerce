@@ -38,7 +38,6 @@ export const RiderNavigator = () => {
         tabBarHideOnKeyboard: true,
         sceneStyle: { backgroundColor: '#FFFFFF' },
         tabBarStyle: {
-          position: 'absolute',
           height: 78,
           paddingBottom: 9,
           paddingTop: 8,

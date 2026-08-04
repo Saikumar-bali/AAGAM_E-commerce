@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthStore } from '@aagam/mobile-shared';
 import type { DeliveryJobStatus, RiderJobAction, RiderWorkspace } from '../domain/riderWorkspace';
 import { normalizeRiderWorkspace } from '../domain/riderWorkspace';
 import { NativeRiderTracking, nativeRiderTrackingSupported } from '../services/NativeRiderTracking';
@@ -72,8 +73,7 @@ const TRANSITION_PATHS: Record<RiderJobAction, string> = {
 const EVIDENCE_TRANSITIONS = new Set<RiderJobAction>(['EN_ROUTE_TO_STORE', 'ARRIVED_AT_STORE', 'OUT_FOR_DELIVERY', 'ARRIVED_AT_CUSTOMER']);
 
 function currentBearerToken() {
-  const value = apiClient.defaults.headers.common.Authorization;
-  return typeof value === 'string' ? value.replace(/^Bearer\s+/i, '') : '';
+  return useAuthStore.getState().token || '';
 }
 function assignmentMutationHeaders(action: 'accept' | 'reject', assignmentId: string) {
   return { headers: { 'Idempotency-Key': `mobile-assignment-${action}:${assignmentId}` } };

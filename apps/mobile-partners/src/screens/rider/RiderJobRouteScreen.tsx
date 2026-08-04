@@ -9,7 +9,7 @@ import { RiderPickupOperationsScreen } from './RiderPickupOperationsScreen';
 
 type ExactJobRoute = 'ACTIVE' | 'PICKUP' | 'DELIVERY' | 'RETURN';
 
-export const RiderJobRouteScreen = ({ route, navigation, expected }: { route: any; navigation: any; expected: ExactJobRoute }) => {
+export const RiderJobRouteScreen = ({ route, navigation, expected: _expected }: { route: any; navigation: any; expected: ExactJobRoute }) => {
   const requestedId = String(route.params?.deliveryJobId || '');
   const workspaceQuery = useQuery({
     queryKey: RIDER_WORKSPACE_QUERY_KEY,
@@ -30,12 +30,19 @@ export const RiderJobRouteScreen = ({ route, navigation, expected }: { route: an
         <Text style={styles.title}>This job is no longer active</Text>
         <Text style={styles.hint}>The assignment may have completed, expired, been cancelled or moved to another Rider.</Text>
         <TouchableOpacity style={styles.primary} onPress={() => void workspaceQuery.refetch()}><RefreshCw size={18} color="#FFFFFF" /><Text style={styles.primaryText}>Refresh current job</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.secondary} onPress={() => navigation.popToTop()}><ArrowLeft size={18} color="#0F766E" /><Text style={styles.secondaryText}>Back to jobs</Text></TouchableOpacity>
+        <TouchableOpacity
+          testID="rider_back_to_jobs"
+          style={styles.secondary}
+          onPress={() => navigation.reset({ index: 0, routes: [{ name: 'RiderJobs' }] })}
+        ><ArrowLeft size={18} color="#0F766E" /><Text style={styles.secondaryText}>Back to jobs</Text></TouchableOpacity>
       </View>
     );
   }
 
-  if (expected === 'PICKUP' && activeJob.status === 'RIDER_AT_STORE') {
+  // A Rider can arrive while an already-mounted ACTIVE route is polling. Route
+  // from canonical job status so the checklist appears without leaving and
+  // reopening the delivery from Dashboard.
+  if (activeJob.status === 'RIDER_AT_STORE') {
     const rider = workspaceQuery.data?.rider;
     const location = typeof rider?.latitude === 'number' && typeof rider?.longitude === 'number'
       ? { latitude: rider.latitude, longitude: rider.longitude }

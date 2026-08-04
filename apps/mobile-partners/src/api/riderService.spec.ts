@@ -16,6 +16,12 @@ jest.mock('../services/NativeRiderTracking', () => ({
   nativeRiderTrackingSupported: jest.fn().mockReturnValue(false),
 }));
 
+jest.mock('@aagam/mobile-shared', () => ({
+  useAuthStore: {
+    getState: jest.fn(() => ({ token: 'session-token' })),
+  },
+}));
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
   default: {
@@ -26,6 +32,10 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from './client';
+import {
+  NativeRiderTracking,
+  nativeRiderTrackingSupported,
+} from '../services/NativeRiderTracking';
 import {
   hydrateCachedRiderWorkspace,
   readCachedRiderStatus,
@@ -260,6 +270,30 @@ describe('riderService.sendLocationPing', () => {
       source: 'MOBILE_PARTNERS',
     });
     expect(result).toEqual({ sent: true });
+  });
+});
+
+describe('riderService.startTracking', () => {
+  it('passes the authenticated session token to native background tracking', async () => {
+    (nativeRiderTrackingSupported as jest.Mock).mockReturnValueOnce(true);
+    apiClient.defaults.baseURL = 'https://api.example.test/api';
+    post.mockResolvedValueOnce({ data: { tracking: true } });
+
+    const result = await riderService.startTracking(
+      'order-10',
+      'job-10',
+      'RIDER_ASSIGNED',
+    );
+
+    expect(NativeRiderTracking.start).toHaveBeenCalledWith({
+      apiUrl: 'https://api.example.test/api',
+      authToken: 'session-token',
+      orderId: 'order-10',
+      deliveryJobId: 'job-10',
+      deliveryStatus: 'RIDER_ASSIGNED',
+    });
+    expect(result).toEqual({ tracking: true, nativeTracking: true });
+    apiClient.defaults.baseURL = '';
   });
 });
 

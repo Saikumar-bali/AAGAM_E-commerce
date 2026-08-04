@@ -439,7 +439,11 @@ export default function AdminDeliveryExceptionsPage() {
                       </span>
                       {payment?.method === "COD" && (
                         <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-800 ring-1 ring-emerald-200">
-                          COD {label(payment.status)}
+                          {codCollected
+                            ? `COD ${label(payment.status)}`
+                            : job.status === "CANCELLED"
+                              ? "NO COD COLLECTED"
+                              : "COD AWAITING COLLECTION"}
                         </span>
                       )}
                     </div>

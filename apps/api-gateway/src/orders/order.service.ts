@@ -350,7 +350,18 @@ export class OrderService {
               select: { name: true }
             }
           }
-        }
+        },
+        payment: { select: { method: true, status: true, amountPaise: true } },
+        codLedger: {
+          select: {
+            expectedAmountPaise: true,
+            collectedAmountPaise: true,
+            riderHoldingBalancePaise: true,
+            depositedAmountPaise: true,
+            status: true,
+          },
+        },
+        deliveryJob: { select: { status: true } },
       },
       orderBy: {
         createdAt: 'desc'

@@ -26,6 +26,11 @@ import {
   isNotificationUpdate,
   notificationSection,
 } from '../domain/riderReferenceUi';
+import {
+  navigationCommandForNotification,
+  normalizeNotificationNavigation,
+} from '../domain/partnerNotifications';
+import { navigatePartnerCommand } from '../navigation/partnerNavigationCommands';
 
 export const PARTNER_NOTIFICATION_QUERY_KEY = ['partner-notifications'] as const;
 
@@ -60,6 +65,30 @@ function sectionTitle(section: 'TODAY' | 'YESTERDAY' | 'OLDER') {
   return 'Earlier';
 }
 
+function notificationNavigationData(item: PartnerNotification): Record<string, unknown> {
+  const metadata = item.metadata || {};
+  return {
+    ...metadata,
+    id: item.id,
+    notificationId: item.id,
+    recipientId: item.recipientId || item.id,
+    eventType: item.type,
+    target: item.target,
+    action: item.action,
+    deepLink: item.deepLink,
+    orderId: item.orderId ?? metadata.orderId,
+    deliveryJobId: item.deliveryJobId ?? metadata.deliveryJobId,
+    assignmentId: item.assignmentId ?? metadata.assignmentId,
+    ticketId: item.ticketId ?? metadata.ticketId,
+    storeId: item.storeId ?? metadata.storeId,
+  };
+}
+
+function openTypedWorkspace(item: PartnerNotification): boolean {
+  const payload = normalizeNotificationNavigation(notificationNavigationData(item));
+  return navigatePartnerCommand(navigationCommandForNotification(payload));
+}
+
 export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any }) => {
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
@@ -81,6 +110,9 @@ export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any })
         rootNavigation?.navigate?.('StoreTabs', { screen: 'StorePickupVerification' });
         return;
       }
+    }
+    if (openTypedWorkspace(item)) return;
+    if (user?.role === 'STORE_OWNER') {
       if (eventType === 'ORDER_PLACED' || eventType.startsWith('ORDER_')) {
         rootNavigation?.navigate?.('StoreTabs', {
           screen: 'Orders',

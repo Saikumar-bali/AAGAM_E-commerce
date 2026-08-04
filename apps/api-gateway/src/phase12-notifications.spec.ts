@@ -90,6 +90,79 @@ describe('Phase 12 notification inbox and communication layer', () => {
     await expect(notifications.markRead({ id: data.otherCustomer.id, role: Role.CUSTOMER }, data.confirmed.id)).rejects.toThrow('Notification not found');
   });
 
+  it('deduplicates a legacy order transition when its dedicated event exists', async () => {
+    const data = await seed();
+    const dedicated = await prisma.notification.create({
+      data: {
+        eventType: 'STORE_ACCEPTED_ORDER',
+        title: 'Order accepted',
+        body: 'The store accepted your order.',
+        orderId: data.order.id,
+      },
+    });
+    await prisma.notificationRecipient.create({
+      data: {
+        notificationId: dedicated.id,
+        userId: data.customer.id,
+        dedupeKey: `phase12:${dedicated.id}:${data.customer.id}`,
+        status: 'SENT',
+        sentAt: new Date(),
+      },
+    });
+
+    const inbox = await service().listInbox({ id: data.customer.id, role: Role.CUSTOMER }, 20);
+    expect(inbox.items.filter((item: any) => item.type === 'STORE_ACCEPTED_ORDER')).toHaveLength(1);
+    expect(inbox.items.some((item: any) => item.sourceHistoryId === data.confirmed.id)).toBe(false);
+    expect(inbox.items.some((item: any) => item.type === 'CUSTOMER_SUPPORT_TICKET_OPENED')).toBe(true);
+  });
+
+  it('does not collapse distinct delivery transitions that share a legacy order status', async () => {
+    const data = await seed();
+    const arrived = await prisma.orderStatusHistory.create({
+      data: {
+        orderId: data.order.id,
+        fromStatus: OrderStatus.OUT_FOR_DELIVERY,
+        toStatus: OrderStatus.OUT_FOR_DELIVERY,
+        actorUserId: data.riderUser.id,
+        actorRole: Role.RIDER,
+        note: 'Rider reached the customer.',
+        metadata: { deliveryToStatus: 'RIDER_AT_CUSTOMER' },
+      },
+    });
+    const failed = await prisma.orderStatusHistory.create({
+      data: {
+        orderId: data.order.id,
+        fromStatus: OrderStatus.OUT_FOR_DELIVERY,
+        toStatus: OrderStatus.OUT_FOR_DELIVERY,
+        actorUserId: data.riderUser.id,
+        actorRole: Role.RIDER,
+        note: 'Delivery attempt failed.',
+        metadata: { deliveryToStatus: 'DELIVERY_FAILED' },
+      },
+    });
+    const dedicated = await prisma.notification.create({
+      data: {
+        eventType: 'RIDER_AT_CUSTOMER',
+        title: 'Rider has arrived',
+        body: 'The rider reached the delivery location.',
+        orderId: data.order.id,
+      },
+    });
+    await prisma.notificationRecipient.create({
+      data: {
+        notificationId: dedicated.id,
+        userId: data.customer.id,
+        dedupeKey: `phase12:${dedicated.id}:${data.customer.id}`,
+        status: 'SENT',
+        sentAt: new Date(),
+      },
+    });
+
+    const inbox = await service().listInbox({ id: data.customer.id, role: Role.CUSTOMER }, 20);
+    expect(inbox.items.some((item: any) => item.sourceHistoryId === arrived.id)).toBe(false);
+    expect(inbox.items.some((item: any) => item.sourceHistoryId === failed.id)).toBe(true);
+  });
+
   it('store owner and rider see role-scoped order notifications', async () => {
     const data = await seed();
     const notifications = service();
