@@ -16,102 +16,18 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: order-delivery-mobile-ui-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   NODE_VERSION: "22.22.3"
   DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_mobile_ui_contract"
 
 jobs:
-  finalize-rider-hardening:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: agent/rider-platform-hardening-final
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      - name: Apply and validate final Rider fixes
-        shell: bash
-        run: |
-          set -euo pipefail
-          python <<'PY'
-          from pathlib import Path
-
-          def replace(path: str, old: str, new: str) -> None:
-              target = Path(path)
-              source = target.read_text()
-              if old not in source:
-                  raise SystemExit(f"Expected text was not found in {path}: {old[:100]}")
-              target.write_text(source.replace(old, new, 1))
-
-          replace(
-              'apps/mobile-partners/src/screens/rider/RiderProfileScreen.tsx',
-              "const earningsQuery = useQuery({ queryKey: EARNINGS_KEY, queryFn: riderService.getEarnings, retry: 1 });",
-              "const earningsQuery = useQuery({ queryKey: EARNINGS_KEY, queryFn: () => riderService.getEarnings(), retry: 1 });",
-          )
-          replace(
-              'apps/mobile-partners/src/notifications/PartnerPushCoordinator.tsx',
-              "      remember(notificationDedupeKey(payload));\n      await Promise.all([invalidate(payload.eventType), acknowledgeOpen(payload)]);",
-              "      if (!remember(`${notificationDedupeKey(payload)}:opened`)) return;\n      await Promise.all([invalidate(payload.eventType), acknowledgeOpen(payload)]);",
-          )
-          replace(
-              'apps/api-gateway/src/orders/rider-arrival-evidence.ts',
-              "  if (\n    finite(input.evidence.accuracyMetres)\n    && Number(input.evidence.accuracyMetres) > input.policy.maxAccuracyMetres\n  ) {\n    throw new BadRequestException(\n      `GPS accuracy must be within ${input.policy.maxAccuracyMetres} metres`,\n    );\n  }",
-              "  if (!finite(input.evidence.accuracyMetres) || Number(input.evidence.accuracyMetres) <= 0) {\n    throw new BadRequestException('GPS accuracy is required for verified Rider evidence');\n  }\n  if (Number(input.evidence.accuracyMetres) > input.policy.maxAccuracyMetres) {\n    throw new BadRequestException(\n      `GPS accuracy must be within ${input.policy.maxAccuracyMetres} metres`,\n    );\n  }",
-          )
-          replace(
-              'apps/api-gateway/src/orders/rider-arrival-evidence.spec.ts',
-              "  it('computes distance deterministically', () => {\n    expect(distanceMetresBetween(destination, destination)).toBe(0);\n  });",
-              "  it('requires accuracy for verified evidence', () => {\n    expect(() => validateRiderArrivalEvidence({\n      evidence: {\n        latitude: 17.7301,\n        longitude: 83.3101,\n        capturedAt: '2026-08-04T00:59:30.000Z',\n      },\n      destination,\n      destinationType: 'STORE',\n      policy,\n      now,\n    })).toThrow(/accuracy is required/);\n  });\n\n  it('computes distance deterministically', () => {\n    expect(distanceMetresBetween(destination, destination)).toBe(0);\n  });",
-          )
-          replace(
-              'apps/mobile-partners/src/api/riderService.spec.ts',
-              "    expect(get).toHaveBeenCalledWith('/riders/portal/history');",
-              "    expect(get).not.toHaveBeenCalledWith('/orders/dispatch/rider/workspace');",
-          )
-          replace(
-              'apps/mobile-partners/src/api/riderService.spec.ts',
-              "    expect(patch).toHaveBeenCalledWith('/riders/me/status', { status: 'ONLINE' });",
-              "    expect(patch).toHaveBeenCalledWith('/riders/portal/availability/status', { status: 'ONLINE' });",
-          )
-          replace(
-              'apps/mobile-partners/src/api/riderService.spec.ts',
-              "    expect(patch).toHaveBeenCalledWith('/riders/me/status', { status: 'BUSY', latitude: 17.5, longitude: 78.4 });",
-              "    expect(patch).toHaveBeenCalledWith('/riders/portal/availability/status', { status: 'BUSY', latitude: 17.5, longitude: 78.4 });",
-          )
-          PY
-
-          npm ci --no-audit --no-fund
-          npx prisma generate --schema packages/database/prisma/schema.prisma
-          npm run build --workspace @aagam/types
-          npm run build --workspace @aagam/utils
-          npm run build --workspace @aagam/database
-          npm run build --workspace @aagam/api-gateway
-          npm run typecheck --workspace=AagamPartners
-          npm test --workspace=AagamPartners -- --runInBand
-          npm run test:ci --workspace=@aagam/api-gateway -- rider-arrival-evidence.spec.ts --runInBand
-
-          git fetch origin main
-          git checkout origin/main -- .github/workflows/order-delivery-mobile-ui.yml
-          rm -f .github/workflows/finalize-rider-hardening.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git diff --cached --quiet && exit 0
-          git commit -m 'fix(rider): finalize lifecycle Portal and GPS contracts'
-          git push origin HEAD:agent/rider-platform-hardening-final
-
   mobile-ui-contracts:
-    if: github.event_name == 'pull_request'
     name: Mobile UI contracts and types
     runs-on: ubuntu-latest
     timeout-minutes: 25
