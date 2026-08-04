@@ -14,14 +14,17 @@ import { RiderDashboard } from '../screens/rider/RiderDashboard';
 import { RiderEarningsScreen } from '../screens/rider/RiderEarningsScreen';
 import { RiderOperationsRouterScreen } from '../screens/rider/RiderOperationsRouterScreen';
 import { RiderProfileScreen } from '../screens/rider/RiderProfileScreen';
+import { RiderNotificationSettingsScreen } from '../screens/rider/RiderNotificationSettingsScreen';
+import { RiderTrackingDiagnosticsScreen } from '../screens/rider/RiderTrackingDiagnosticsScreen';
+import type { RiderTabParamList } from './partnerNavigationTypes';
 
-const Tab = createBottomTabNavigator();
+const Tab = createBottomTabNavigator<RiderTabParamList>();
 
 export const RiderNavigator = () => {
   const inboxQuery = useQuery({
     queryKey: PARTNER_NOTIFICATION_QUERY_KEY,
     queryFn: () => notificationService.getInbox(1),
-    refetchInterval: 15_000,
+    staleTime: 10_000,
     retry: 1,
   });
   const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
@@ -116,6 +119,16 @@ export const RiderNavigator = () => {
             <UserRound size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.5 : 2} />
           ),
         }}
+      />
+      <Tab.Screen
+        name="NotificationSettings"
+        component={RiderNotificationSettingsScreen}
+        options={{ tabBarButton: () => null }}
+      />
+      <Tab.Screen
+        name="TrackingDiagnostics"
+        component={RiderTrackingDiagnosticsScreen}
+        options={{ tabBarButton: () => null }}
       />
     </Tab.Navigator>
   );
