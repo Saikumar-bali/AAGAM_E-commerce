@@ -22,6 +22,7 @@ class MainApplication : Application(), ReactApplication {
         add(RiderOnlinePackage())
         add(FirebasePnvPackage())
         add(PartnerDocumentPickerPackage())
+        add(PartnerQrScannerPackage())
         add(PartnerAlertTonePackage())
       },
     )
