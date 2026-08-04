@@ -1,0 +1,65 @@
+import { useQuery } from '@tanstack/react-query';
+import { AlertTriangle, ArrowLeft, RefreshCw } from 'lucide-react-native';
+import React from 'react';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { riderService, RIDER_WORKSPACE_QUERY_KEY } from '../../api/riderService';
+import { RiderDeliveryFlowCoordinator } from './RiderDeliveryFlowCoordinator';
+import { RiderPickupOperationsScreen } from './RiderPickupOperationsScreen';
+
+type ExactJobRoute = 'ACTIVE' | 'PICKUP' | 'DELIVERY' | 'RETURN';
+
+export const RiderJobRouteScreen = ({
+  route,
+  navigation,
+  expected,
+}: {
+  route: any;
+  navigation: any;
+  expected: ExactJobRoute;
+}) => {
+  const requestedId = String(route.params?.deliveryJobId || '');
+  const workspaceQuery = useQuery({
+    queryKey: RIDER_WORKSPACE_QUERY_KEY,
+    queryFn: riderService.getWorkspace,
+    refetchInterval: 8_000,
+    retry: 1,
+  });
+  const activeJob = workspaceQuery.data?.activeJob || null;
+  const exact = requestedId === 'current' || activeJob?.id === requestedId;
+
+  if (workspaceQuery.isLoading) {
+    return <View style={styles.state}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.hint}>Resolving current delivery…</Text></View>;
+  }
+
+  if (!activeJob || !exact) {
+    return (
+      <View style={styles.state}>
+        <AlertTriangle size={46} color="#B45309" />
+        <Text style={styles.title}>This job is no longer active</Text>
+        <Text style={styles.hint}>The assignment may have completed, expired, been cancelled or moved to another Rider.</Text>
+        <TouchableOpacity style={styles.primary} onPress={() => void workspaceQuery.refetch()}>
+          <RefreshCw size={18} color="#FFFFFF" /><Text style={styles.primaryText}>Refresh current job</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.secondary} onPress={() => navigation.popToTop()}>
+          <ArrowLeft size={18} color="#0F766E" /><Text style={styles.secondaryText}>Back to jobs</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (expected === 'PICKUP' && activeJob.status === 'RIDER_AT_STORE') {
+    return <RiderPickupOperationsScreen />;
+  }
+
+  return <RiderDeliveryFlowCoordinator />;
+};
+
+const styles = StyleSheet.create({
+  state: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: '#F4F7FB' },
+  title: { color: '#0F172A', fontSize: 20, fontWeight: '900', marginTop: 12, textAlign: 'center' },
+  hint: { color: '#64748B', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 7 },
+  primary: { marginTop: 18, minHeight: 48, borderRadius: 14, backgroundColor: '#067B5C', paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  primaryText: { color: '#FFFFFF', fontWeight: '900' },
+  secondary: { marginTop: 9, minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: '#99D8C8', paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  secondaryText: { color: '#0F766E', fontWeight: '900' },
+});
