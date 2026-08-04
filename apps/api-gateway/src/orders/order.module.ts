@@ -12,6 +12,7 @@ import { DeliveryJobService } from './delivery-job.service';
 import { DeliveryWorkflowService } from './delivery-workflow.service';
 import { DispatchAssignmentService } from './dispatch-assignment.service';
 import { DeliveryOperationsService } from './delivery-operations.service';
+import { CodSettlementFacadeService } from './cod-settlement-facade.service';
 import { PostDeliveryController } from './post-delivery.controller';
 import { PostDeliveryService } from './post-delivery.service';
 import { DeliveryOperationsController } from './delivery-operations.controller';
@@ -43,6 +44,7 @@ import { RiderArrivalEvidenceInterceptor } from './rider-arrival-evidence.interc
       useClass: AuditedDispatchService,
     },
     DeliveryOperationsService,
+    CodSettlementFacadeService,
     PostDeliveryService,
     AutoDispatchService,
     RiderArrivalEvidenceInterceptor,
