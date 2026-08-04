@@ -153,7 +153,7 @@ export function notificationDedupeKey(payload: NotificationNavigationPayload): s
     payload.orderId,
     payload.ticketId,
   ].filter(Boolean).join(':');
-  return payload.recipientId ?? payload.notificationId ?? composite || 'notification:unknown';
+  return (payload.recipientId ?? payload.notificationId ?? composite) || 'notification:unknown';
 }
 
 export function navigationCommandForNotification(
