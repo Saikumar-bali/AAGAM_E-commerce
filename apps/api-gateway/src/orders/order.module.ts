@@ -6,6 +6,7 @@ import { StoreFulfillmentController } from './store-fulfillment.controller';
 import { StoreFulfillmentService } from './store-fulfillment.service';
 import { DispatchController } from './dispatch.controller';
 import { DispatchService } from './dispatch.service';
+import { AuditedDispatchService } from './audited-dispatch.service';
 import { DeliveryEventService } from './delivery-event.service';
 import { DeliveryJobService } from './delivery-job.service';
 import { DeliveryWorkflowService } from './delivery-workflow.service';
@@ -37,7 +38,10 @@ import { RiderArrivalEvidenceInterceptor } from './rider-arrival-evidence.interc
     DeliveryJobService,
     DeliveryWorkflowService,
     StoreFulfillmentService,
-    DispatchService,
+    {
+      provide: DispatchService,
+      useClass: AuditedDispatchService,
+    },
     DeliveryOperationsService,
     PostDeliveryService,
     AutoDispatchService,
