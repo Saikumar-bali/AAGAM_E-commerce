@@ -55,4 +55,14 @@ describe('Partners notification delivery contracts', () => {
     expect(riderNavigator).toContain('name="Alerts"');
     expect(riderNavigator).toContain('tab_alerts');
   });
+
+  it('preserves metadata identifiers and prioritizes Store pickup routing', () => {
+    const inbox = read('screens/PartnerNotificationsScreen.tsx');
+    const coordinator = read('notifications/PartnerPushCoordinator.tsx');
+    expect(inbox).toContain('item.assignmentId ?? metadata.assignmentId');
+    expect(coordinator).toContain('item.assignmentId ?? metadata.assignmentId');
+    expect(inbox.indexOf("eventType === 'RIDER_AT_STORE'")).toBeLessThan(
+      inbox.indexOf('if (openTypedWorkspace(item)) return;'),
+    );
+  });
 });

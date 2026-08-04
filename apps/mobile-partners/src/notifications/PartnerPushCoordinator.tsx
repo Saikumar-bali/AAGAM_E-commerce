@@ -40,8 +40,9 @@ type RemoteMessageLike = {
 };
 
 function dataFromInboxItem(item: PartnerNotification): Record<string, unknown> {
+  const metadata = item.metadata || {};
   return {
-    ...(item.metadata || {}),
+    ...metadata,
     id: item.id,
     notificationId: item.id,
     recipientId: item.recipientId || item.id,
@@ -49,11 +50,11 @@ function dataFromInboxItem(item: PartnerNotification): Record<string, unknown> {
     target: item.target,
     action: item.action,
     deepLink: item.deepLink,
-    orderId: item.orderId,
-    deliveryJobId: item.deliveryJobId,
-    assignmentId: item.assignmentId,
-    ticketId: item.ticketId,
-    storeId: item.storeId,
+    orderId: item.orderId ?? metadata.orderId,
+    deliveryJobId: item.deliveryJobId ?? metadata.deliveryJobId,
+    assignmentId: item.assignmentId ?? metadata.assignmentId,
+    ticketId: item.ticketId ?? metadata.ticketId,
+    storeId: item.storeId ?? metadata.storeId,
   };
 }
 

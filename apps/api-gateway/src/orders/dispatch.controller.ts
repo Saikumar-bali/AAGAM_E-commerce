@@ -292,7 +292,10 @@ export class DispatchController {
       if (!Number.isFinite(since.getTime())) {
         throw new BadRequestException("historyFrom must be a valid ISO date");
       }
-      const earliestAllowed = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+      // Mobile sends the start of its local calendar day. Allow one timezone
+      // day of tolerance so a 60-day local-midnight request is not rejected by
+      // a rolling UTC timestamp comparison.
+      const earliestAllowed = new Date(Date.now() - 61 * 24 * 60 * 60 * 1000);
       if (since < earliestAllowed) {
         throw new BadRequestException("historyFrom must be within the last 60 days");
       }

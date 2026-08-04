@@ -86,7 +86,7 @@ export class NotificationService {
     const legacyRows = remaining > 0 ? await this.legacySourceRows(actor, Math.max(remaining * 2, 20)) : [];
     const legacyItems = legacyRows
       .filter((row) => !migratedLegacyIds.has(row.id))
-      .filter((row) => !dedicatedEventKeys.has(`${row.orderId}:${this.eventTypeForLegacy(row)}`))
+      .filter((row) => !dedicatedEventKeys.has(`${row.orderId}:${this.semanticEventForLegacy(row)}`))
       .slice(0, remaining)
       .map((row) => this.toLegacyInboxItem(row, actor));
 
@@ -389,7 +389,11 @@ export class NotificationService {
 
   private eventTypeForLegacy(row: any): NotificationEventTypeType {
     const metadataEvent = (row.metadata as any)?.event;
+    const deliveryTransition = (row.metadata as any)?.deliveryToStatus;
     if (metadataEvent === 'CUSTOMER_SUPPORT_TICKET_OPENED') return 'ADMIN_BROADCAST';
+    if (deliveryTransition === 'RIDER_AT_CUSTOMER') return 'RIDER_AT_CUSTOMER';
+    if (deliveryTransition === 'DELIVERY_FAILED') return 'DELIVERY_FAILED';
+    if (deliveryTransition === 'OUT_FOR_DELIVERY') return 'OUT_FOR_DELIVERY';
     if (row.toStatus === OrderStatus.CONFIRMED) return 'STORE_ACCEPTED_ORDER';
     if (row.toStatus === OrderStatus.PICKING) return 'STORE_STARTED_PICKING';
     if (row.toStatus === OrderStatus.PACKED) return 'ORDER_PACKED';
@@ -398,6 +402,10 @@ export class NotificationService {
     if (row.toStatus === OrderStatus.DELIVERED) return 'DELIVERY_COMPLETED';
     if (row.toStatus === OrderStatus.CANCELLED) return 'DELIVERY_CANCELLED';
     return 'ADMIN_BROADCAST';
+  }
+
+  private semanticEventForLegacy(row: any) {
+    return (row.metadata as any)?.deliveryToStatus || this.eventTypeForLegacy(row);
   }
 
   private async legacySourceRows(actor: Actor, limit: number) {
