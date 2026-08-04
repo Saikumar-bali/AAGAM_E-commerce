@@ -37,6 +37,13 @@ const get = apiClient.get as jest.Mock;
 const post = apiClient.post as jest.Mock;
 const patch = apiClient.patch as jest.Mock;
 const storage = AsyncStorage as jest.Mocked<typeof AsyncStorage>;
+const locationEvidence = {
+  latitude: 17.7301,
+  longitude: 83.3101,
+  accuracyMetres: 18,
+  capturedAt: '2026-08-04T01:00:00.000Z',
+  source: 'MOBILE_PARTNERS_GPS' as const,
+};
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -44,22 +51,75 @@ beforeEach(() => {
   storage.getItem.mockResolvedValue(null);
 });
 
+function mockPortalWorkspace(input?: {
+  home?: Record<string, unknown>;
+  offers?: unknown[];
+  delivery?: unknown;
+  history?: unknown[];
+}) {
+  const values = input || {};
+  get.mockImplementation((url: string) => {
+    if (url === '/riders/portal/home') {
+      return Promise.resolve({
+        data: {
+          rider: null,
+          pendingOffers: 0,
+          activeJob: null,
+          completedToday: 0,
+          unreadCount: 0,
+          alerts: [],
+          ...(values.home || {}),
+        },
+      });
+    }
+    if (url === '/riders/portal/offers') {
+      return Promise.resolve({ data: values.offers || [] });
+    }
+    if (url === '/riders/portal/delivery') {
+      return Promise.resolve({ data: values.delivery ?? null });
+    }
+    if (url === '/riders/portal/history') {
+      return Promise.resolve({ data: values.history || [] });
+    }
+    throw new Error(`Unexpected GET ${url}`);
+  });
+}
+
 describe('riderService.getWorkspace', () => {
-  it('returns normalized workspace and caches the current status', async () => {
-    get.mockResolvedValueOnce({ data: { rider: { id: 'r1', status: 'ONLINE' } } });
+  it('uses Rider Portal contracts, normalizes the workspace and caches status', async () => {
+    mockPortalWorkspace({ home: { rider: { id: 'r1', status: 'ONLINE' } } });
     const workspace = await riderService.getWorkspace();
-    expect(get).toHaveBeenCalledWith('/orders/dispatch/rider/workspace');
+    expect(get).toHaveBeenCalledWith('/riders/portal/home');
+    expect(get).toHaveBeenCalledWith('/riders/portal/offers');
+    expect(get).toHaveBeenCalledWith('/riders/portal/delivery');
+    expect(get).toHaveBeenCalledWith('/riders/portal/history');
     expect(workspace.rider).toEqual({ id: 'r1', status: 'ONLINE' });
     expect(workspace.pendingOffers).toEqual([]);
     expect(workspace.activeJob).toBeNull();
     expect(storage.setItem).toHaveBeenCalledWith('aagam:partners:rider-status:v1', 'ONLINE');
   });
 
-  it('normalizes missing arrays to empty', async () => {
-    get.mockResolvedValueOnce({ data: {} });
+  it('normalizes missing Portal arrays to empty', async () => {
+    mockPortalWorkspace();
     const workspace = await riderService.getWorkspace();
     expect(workspace.pendingOffers).toEqual([]);
     expect(workspace.assignmentHistory).toEqual([]);
+  });
+
+  it('falls back to the legacy workspace only when Portal routes are unsupported', async () => {
+    get.mockImplementation((url: string) => {
+      if (url === '/riders/portal/home') {
+        return Promise.reject({ response: { status: 404 } });
+      }
+      if (url === '/orders/dispatch/rider/workspace') {
+        return Promise.resolve({ data: { rider: { id: 'r2', status: 'BUSY' } } });
+      }
+      return Promise.resolve({ data: [] });
+    });
+    const workspace = await riderService.getWorkspace();
+    expect(get).toHaveBeenCalledWith('/orders/dispatch/rider/workspace');
+    expect(workspace.rider).toEqual({ id: 'r2', status: 'BUSY' });
+    expect(storage.setItem).toHaveBeenCalledWith('aagam:partners:rider-status:v1', 'BUSY');
   });
 });
 
@@ -126,17 +186,27 @@ describe('riderService.rejectOffer', () => {
 });
 
 describe('riderService.transitionJob', () => {
-  it('maps EN_ROUTE_TO_STORE to the correct path', async () => {
+  it('maps EN_ROUTE_TO_STORE and sends fresh location evidence', async () => {
     patch.mockResolvedValueOnce({ data: { status: 'RIDER_EN_ROUTE_TO_STORE' } });
-    const result = await riderService.transitionJob('job-1', 'EN_ROUTE_TO_STORE');
-    expect(patch).toHaveBeenCalledWith('/orders/dispatch/jobs/job-1/en-route-to-store', {});
+    const result = await riderService.transitionJob('job-1', 'EN_ROUTE_TO_STORE', {
+      locationEvidence,
+    });
+    expect(patch).toHaveBeenCalledWith(
+      '/orders/dispatch/jobs/job-1/en-route-to-store',
+      locationEvidence,
+    );
     expect(result).toEqual({ status: 'RIDER_EN_ROUTE_TO_STORE' });
   });
 
-  it('maps ARRIVED_AT_CUSTOMER to the correct path', async () => {
+  it('maps ARRIVED_AT_CUSTOMER and sends geofence evidence', async () => {
     patch.mockResolvedValueOnce({ data: { status: 'RIDER_AT_CUSTOMER' } });
-    await riderService.transitionJob('job-2', 'ARRIVED_AT_CUSTOMER');
-    expect(patch).toHaveBeenCalledWith('/orders/dispatch/jobs/job-2/arrived-at-customer', {});
+    await riderService.transitionJob('job-2', 'ARRIVED_AT_CUSTOMER', {
+      locationEvidence,
+    });
+    expect(patch).toHaveBeenCalledWith(
+      '/orders/dispatch/jobs/job-2/arrived-at-customer',
+      locationEvidence,
+    );
   });
 
   it('sends proof payload for DELIVERED action', async () => {
