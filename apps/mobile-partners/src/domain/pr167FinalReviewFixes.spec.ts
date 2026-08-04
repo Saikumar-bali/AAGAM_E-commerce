@@ -22,13 +22,17 @@ describe('PR 167 final Codex regressions', () => {
     expect(value).toContain('minuteLabel(entry.startMinute)');
   });
 
-  it('guards Firebase listeners when Firebase is unavailable', () => {
-    const value = source('screens/rider/RiderDashboard.tsx');
+  it('guards the centralized Firebase lifecycle when Firebase is unavailable', () => {
+    const value = source('notifications/PartnerPushCoordinator.tsx');
+    const dashboard = source('screens/rider/RiderDashboard.tsx');
     expect(value).toContain('try {');
-    expect(value).toContain('unsubscribeForeground = messaging().onMessage');
-    expect(value).toContain('Firebase is optional in local builds');
-    expect(value).toContain('unsubscribeForeground?.()');
-    expect(value).toContain('unsubscribeOpened?.()');
+    expect(value).toContain('openedCleanup = messaging().onNotificationOpenedApp');
+    expect(value).toContain('Local builds without Firebase still use the inbox fallback');
+    expect(value).toContain('pushCleanup();');
+    expect(value).toContain('openedCleanup();');
+    expect(value).toContain('startMobilePushLifecycle');
+    expect(dashboard).not.toContain('messaging().onMessage');
+    expect(dashboard).not.toContain('startMobilePushLifecycle');
   });
 
   it('renders workspace errors before the successful empty state', () => {

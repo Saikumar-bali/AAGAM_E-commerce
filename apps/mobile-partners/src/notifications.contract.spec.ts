@@ -22,23 +22,28 @@ describe('Partners notification delivery contracts', () => {
     expect(manifest).not.toContain('android:value="aagaam_priority_operations_v2"');
   });
 
-  it('plays the same distinctive alert while the partner app is in the foreground', () => {
+  it('plays the same distinctive alert from the single foreground coordinator', () => {
     const app = read('../App.tsx');
+    const coordinator = read('notifications/PartnerPushCoordinator.tsx');
     const toneModule = read('../android/app/src/main/java/com/aagampartners/PartnerAlertToneModule.kt');
-    expect(app).toContain('PartnerAlertTone?.play?.()');
-    expect(app).toContain('PartnerAlertTone?.stop?.()');
+    expect(app).toContain('<PartnerPushCoordinator queryClient={queryClient} />');
+    expect(coordinator).toContain('PartnerAlertTone?.play?.()');
+    expect(coordinator).toContain('PartnerAlertTone?.stop?.()');
+    expect(coordinator).toContain('startMobilePushLifecycle');
     expect(toneModule).toContain('RingtoneManager.TYPE_ALARM');
     expect(toneModule).toContain('ringtone.play()');
     expect(toneModule).toContain('4500');
   });
 
   it('keeps a durable inbox fallback when FCM registration or delivery is unavailable', () => {
-    const app = read('../App.tsx');
-    expect(app).toContain('notificationService.getInbox(50)');
-    expect(app).toContain('setInterval(() => void pollInbox(), 10_000)');
-    expect(app).toContain('Push notification setup unavailable');
-    expect(app).toContain("queryKey: ['partner-store-orders']");
-    expect(app).toContain("queryKey: ['rider', 'delivery-workspace']");
+    const coordinator = read('notifications/PartnerPushCoordinator.tsx');
+    const routing = read('domain/partnerNotifications.ts');
+    expect(coordinator).toContain('notificationService.getInbox(50)');
+    expect(coordinator).toContain('INBOX_POLL_MS = 10_000');
+    expect(coordinator).toContain('Push setup unavailable');
+    expect(coordinator).toContain('notificationDedupeKey(payload)}:opened');
+    expect(routing).toContain("['partner-store-orders']");
+    expect(routing).toContain("['rider', 'delivery-workspace']");
   });
 
   it('exposes notifications to both Store Owners and Riders', () => {

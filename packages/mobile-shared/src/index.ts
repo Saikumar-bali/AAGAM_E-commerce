@@ -11,6 +11,12 @@ export {
   getFCMToken,
   setupBackgroundMessageHandler,
 } from './utils/notifications';
+export {
+  collectPartnerRoles,
+  partnerOperationalSessionKey,
+  resolvePartnerOperationalRole,
+  type PartnerOperationalRole,
+} from './utils/partnerRole';
 export { LeafletMap } from './components/LeafletMap';
 export { checkForAppUpdate } from './utils/appUpdates';
 export { TrackingMap } from './components/TrackingMap';

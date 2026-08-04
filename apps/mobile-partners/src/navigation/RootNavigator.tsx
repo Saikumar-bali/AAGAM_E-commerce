@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { DarkTheme, NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useAuthStore } from '@aagam/mobile-shared';
+import { resolvePartnerOperationalRole, useAuthStore } from '@aagam/mobile-shared';
 import { LoginScreen } from '../screens/LoginScreen';
 import { RiderNavigator } from './RiderNavigator';
 import { StoreNavigator } from './StoreNavigator';
@@ -20,10 +20,10 @@ import { PartnerNotificationsScreen } from '../screens/PartnerNotificationsScree
 import { AagamBrand } from '../components/AagamBrand';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 import { resolveApplicantInitialRoute } from './applicantRoute';
+import type { RootStackParamList } from './partnerNavigationTypes';
 
-const Stack = createNativeStackNavigator();
-export const partnerNavigationRef = createNavigationContainerRef<any>();
-const roleSet = (user: any) => new Set<string>([user?.role, ...(Array.isArray(user?.roles) ? user.roles : [])].filter(Boolean));
+const Stack = createNativeStackNavigator<RootStackParamList>();
+export const partnerNavigationRef = createNavigationContainerRef<RootStackParamList>();
 const partnerTheme = {
   ...DarkTheme,
   colors: { ...DarkTheme.colors, primary: '#14B8A6', background: '#F4F7FB', card: '#FFFFFF', text: '#111827', border: '#E2E8F0', notification: '#F97316' },
@@ -76,10 +76,9 @@ const RootNavigator = () => {
   };
 
   if ((isLoading || !onboardingHydrated) && !bootSettled) return <LoadingScreen />;
-  const applicantInitialRoute = resolveApplicantInitialRoute(applicationResponse);
-  const roles = roleSet(user);
-  const operationalRole = roles.has('ADMIN') ? 'ADMIN' : roles.has('RIDER') ? 'RIDER' : roles.has('STORE_OWNER') ? 'STORE_OWNER' : null;
-  return <NavigationContainer ref={partnerNavigationRef} theme={partnerTheme}><Stack.Navigator key={user ? `user-${user.id}-${operationalRole || 'blocked'}` : 'applicant'} initialRouteName={user ? undefined : applicantInitialRoute} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F4F7FB' }, animation: 'fade_from_bottom' }}>{user ? operationalRole ? <>{operationalRole === 'RIDER' ? <Stack.Screen name="RiderTabs" component={RiderNavigator} /> : null}{operationalRole === 'STORE_OWNER' ? <Stack.Screen name="StoreTabs" component={StoreNavigator} /> : null}{operationalRole === 'ADMIN' ? <Stack.Screen name="AdminHome" options={{ headerShown: false }}>{(props: any) => <HomeScreen {...props} role="Admin Panel" />}</Stack.Screen> : null}{operationalRole === 'RIDER' || operationalRole === 'STORE_OWNER' ? <Stack.Screen name="Notifications" component={PartnerNotificationsScreen} /> : null}</> : <Stack.Screen name="Blocked">{() => <BlockedScreen busy={refreshing || isLoading} onRefresh={() => { void refreshAccess(); }} onLogout={() => { void logout(); }} />}</Stack.Screen> : <><Stack.Screen name="PartnerWelcome" component={PartnerWelcomeScreen} /><Stack.Screen name="Login" component={LoginScreen} /><Stack.Screen name="ApplicationStart" component={PartnerApplicationStartScreen} /><Stack.Screen name="VerifyApplication" component={PartnerVerificationScreen} /><Stack.Screen name="RiderApplication" component={RiderApplicationScreen} /><Stack.Screen name="StoreApplication" component={StoreApplicationScreen} /><Stack.Screen name="ApplicationDocuments" component={PartnerDocumentsScreen} /><Stack.Screen name="ApplicationStatus" component={PartnerApplicationStatusScreen} /><Stack.Screen name="ActivatePartner" component={PartnerActivationScreen} /><Stack.Screen name="ResumeApplication" component={PartnerResumeScreen} /></>}</Stack.Navigator></NavigationContainer>;
+  const applicantInitialRoute = resolveApplicantInitialRoute(applicationResponse) as keyof RootStackParamList;
+  const operationalRole = resolvePartnerOperationalRole(user as any);
+  return <NavigationContainer ref={partnerNavigationRef} theme={partnerTheme}><Stack.Navigator key={user ? `user-${user.id}-${operationalRole || 'blocked'}` : 'applicant'} initialRouteName={user ? undefined : applicantInitialRoute} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F4F7FB' }, animation: 'fade_from_bottom' }}>{user ? operationalRole ? <>{operationalRole === 'RIDER' ? <Stack.Screen name="RiderTabs" component={RiderNavigator} /> : null}{operationalRole === 'STORE_OWNER' ? <Stack.Screen name="StoreTabs" component={StoreNavigator as any} /> : null}{operationalRole === 'ADMIN' ? <Stack.Screen name="AdminHome" options={{ headerShown: false }}>{(props: any) => <HomeScreen {...props} role="Admin Panel" />}</Stack.Screen> : null}{operationalRole === 'RIDER' || operationalRole === 'STORE_OWNER' ? <Stack.Screen name="Notifications" component={PartnerNotificationsScreen} /> : null}</> : <Stack.Screen name="Blocked">{() => <BlockedScreen busy={refreshing || isLoading} onRefresh={() => { void refreshAccess(); }} onLogout={() => { void logout(); }} />}</Stack.Screen> : <><Stack.Screen name="PartnerWelcome" component={PartnerWelcomeScreen} /><Stack.Screen name="Login" component={LoginScreen} /><Stack.Screen name="ApplicationStart" component={PartnerApplicationStartScreen} /><Stack.Screen name="VerifyApplication" component={PartnerVerificationScreen} /><Stack.Screen name="RiderApplication" component={RiderApplicationScreen} /><Stack.Screen name="StoreApplication" component={StoreApplicationScreen} /><Stack.Screen name="ApplicationDocuments" component={PartnerDocumentsScreen} /><Stack.Screen name="ApplicationStatus" component={PartnerApplicationStatusScreen} /><Stack.Screen name="ActivatePartner" component={PartnerActivationScreen} /><Stack.Screen name="ResumeApplication" component={PartnerResumeScreen} /></>}</Stack.Navigator></NavigationContainer>;
 };
 
 const styles = StyleSheet.create({
