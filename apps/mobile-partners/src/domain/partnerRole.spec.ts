@@ -2,7 +2,7 @@ import {
   collectPartnerRoles,
   partnerOperationalSessionKey,
   resolvePartnerOperationalRole,
-} from '@aagam/mobile-shared';
+} from '../../../../packages/mobile-shared/src/utils/partnerRole';
 
 describe('resolvePartnerOperationalRole', () => {
   it.each([
