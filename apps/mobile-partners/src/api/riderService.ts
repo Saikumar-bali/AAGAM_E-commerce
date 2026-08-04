@@ -2,7 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DeliveryJobStatus, RiderJobAction, RiderWorkspace } from '../domain/riderWorkspace';
 import { normalizeRiderWorkspace } from '../domain/riderWorkspace';
 import { NativeRiderTracking, nativeRiderTrackingSupported } from '../services/NativeRiderTracking';
+import {
+  captureRiderLocationEvidence,
+  RiderLocationEvidence,
+  RiderLocationOverride,
+} from '../services/riderLocationEvidence';
 import { apiClient } from './client';
+import { riderPortalService } from './riderPortalService';
 
 export type RiderLocationPayload = {
   latitude: number;
@@ -47,6 +53,7 @@ export type RiderSupportInput = {
   description: string;
   evidenceKeys?: string[];
 };
+export type RiderTransitionEvidence = RiderLocationEvidence | RiderLocationOverride;
 
 export const RIDER_WORKSPACE_QUERY_KEY = ['rider', 'delivery-workspace'] as const;
 const RIDER_STATUS_CACHE_KEY = 'aagam:partners:rider-status:v1';
@@ -58,6 +65,12 @@ const TRANSITION_PATHS: Record<RiderJobAction, string> = {
   ARRIVED_AT_CUSTOMER: 'arrived-at-customer',
   DELIVERED: 'delivered',
 };
+const EVIDENCE_TRANSITIONS = new Set<RiderJobAction>([
+  'EN_ROUTE_TO_STORE',
+  'ARRIVED_AT_STORE',
+  'OUT_FOR_DELIVERY',
+  'ARRIVED_AT_CUSTOMER',
+]);
 
 function currentBearerToken() {
   const value = apiClient.defaults.headers.common.Authorization;
@@ -107,11 +120,14 @@ export async function hydrateCachedRiderWorkspace(queryClient: { setQueryData: (
 
 export const riderService = {
   getWorkspace: async (): Promise<RiderWorkspace> => {
-    const response = await apiClient.get('/orders/dispatch/rider/workspace');
-    const workspace = normalizeRiderWorkspace(response.data);
+    const workspace = await riderPortalService.getWorkspace();
     await cacheRiderStatus(workspace.rider?.status);
     return workspace;
   },
+  getPortalHome: riderPortalService.getHome,
+  getPortalOffers: riderPortalService.getOffers,
+  getCurrentDelivery: riderPortalService.getCurrentDelivery,
+  getPortalHistory: riderPortalService.getHistory,
   getWorkspaceSince: async (historyFrom: string): Promise<RiderWorkspace> => {
     const response = await apiClient.get('/orders/dispatch/rider/workspace', { params: { historyFrom } });
     const workspace = normalizeRiderWorkspace(response.data);
@@ -135,13 +151,26 @@ export const riderService = {
   transitionJob: async (
     deliveryJobId: string,
     action: RiderJobAction,
-    proof?: { proofType?: string; code?: string; note?: string; latitude?: number; longitude?: number },
+    proof?: {
+      proofType?: string;
+      code?: string;
+      note?: string;
+      latitude?: number;
+      longitude?: number;
+      locationEvidence?: RiderTransitionEvidence;
+    },
   ) => {
     const path = TRANSITION_PATHS[action];
+    let body: Record<string, unknown> = {};
+    if (action === 'DELIVERED') {
+      body = proof || { proofType: 'RIDER_CONFIRMATION' };
+    } else if (EVIDENCE_TRANSITIONS.has(action)) {
+      body = proof?.locationEvidence || await captureRiderLocationEvidence();
+    }
     return (
       await apiClient.patch(
         `/orders/dispatch/jobs/${encodeURIComponent(deliveryJobId)}/${path}`,
-        action === 'DELIVERED' ? (proof || { proofType: 'RIDER_CONFIRMATION' }) : {},
+        body,
       )
     ).data;
   },
