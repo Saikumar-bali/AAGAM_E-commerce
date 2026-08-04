@@ -50,19 +50,23 @@ export type PushSubscriptionSummary = {
 };
 
 function normalizePreferences(value: unknown): NotificationPreference[] {
-  const items = Array.isArray(value)
+  const items: unknown[] = Array.isArray(value)
     ? value
     : Array.isArray((value as any)?.items)
       ? (value as any).items
       : [];
-  return items.map((item: any) => ({
-    eventType: String(item.eventType || item.type || ''),
-    pushEnabled: item.pushEnabled !== false,
-    inAppEnabled: item.inAppEnabled !== false,
-    required: Boolean(item.required || item.mandatory || item.critical),
-    title: item.title,
-    description: item.description,
-  })).filter((item) => item.eventType);
+  const normalized: NotificationPreference[] = items.map((entry) => {
+    const item = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {};
+    return {
+      eventType: String(item.eventType || item.type || ''),
+      pushEnabled: item.pushEnabled !== false,
+      inAppEnabled: item.inAppEnabled !== false,
+      required: Boolean(item.required || item.mandatory || item.critical),
+      title: typeof item.title === 'string' ? item.title : undefined,
+      description: typeof item.description === 'string' ? item.description : undefined,
+    };
+  });
+  return normalized.filter((item: NotificationPreference) => Boolean(item.eventType));
 }
 
 export const notificationService = {
