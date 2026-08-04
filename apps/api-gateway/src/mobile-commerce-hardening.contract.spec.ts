@@ -60,13 +60,18 @@ describe("Mobile commerce hardening contracts", () => {
     const shared = read("packages/mobile-shared/src/utils/notifications.ts");
     const customerApp = read("apps/mobile-customer/App.tsx");
     const partnerApp = read("apps/mobile-partners/App.tsx");
+    const partnerCoordinator = read(
+      "apps/mobile-partners/src/notifications/PartnerPushCoordinator.tsx"
+    );
     const customerIndex = read("apps/mobile-customer/index.js");
     const partnerIndex = read("apps/mobile-partners/index.js");
 
     expect(shared).toContain("provider: 'FCM_MOBILE'");
     expect(shared).toContain("POST_NOTIFICATIONS");
     expect(customerApp).toContain("startMobilePushLifecycle('Aagaam Customer'");
-    expect(partnerApp).toContain("startMobilePushLifecycle(deviceName");
+    expect(partnerApp).toContain("<PartnerPushCoordinator queryClient={queryClient} />");
+    expect(partnerCoordinator).toContain("startMobilePushLifecycle(deviceName");
+    expect(partnerCoordinator).toContain("resolvePartnerOperationalRole");
     expect(customerIndex).toContain("setupBackgroundMessageHandler");
     expect(partnerIndex).toContain("setupBackgroundMessageHandler");
   });
