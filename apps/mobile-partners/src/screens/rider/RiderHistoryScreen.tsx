@@ -1,11 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  ArrowLeft,
-  CalendarDays,
-  ChevronDown,
-  ChevronRight,
-  SlidersHorizontal,
-} from 'lucide-react-native';
+import { ArrowLeft, CalendarDays, ChevronRight, RefreshCw } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,251 +11,215 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { riderService } from '../../api/riderService';
-import {
-  RiderJobListItem,
-  historyItems,
-  shortPartnerOrderId,
-  startOfLocalWeek,
-} from '../../domain/riderReferenceUi';
 
-const HISTORY_KEY = ['rider', 'assignment-history'] as const;
-type HistoryFilter = 'ALL' | 'COMPLETED' | 'CANCELLED' | 'RETURNED';
+type HistoryStatus = 'ALL' | 'DELIVERED' | 'DELIVERY_FAILED' | 'CANCELLED' | 'RETURNED_TO_STORE';
+type RangePreset = 7 | 30 | 90 | 'ALL';
 
-function historyFrom() {
-  const value = new Date();
-  value.setHours(0, 0, 0, 0);
-  value.setDate(value.getDate() - 60);
-  return value.toISOString();
+const STATUS_OPTIONS: Array<{ value: HistoryStatus; label: string }> = [
+  { value: 'ALL', label: 'All' },
+  { value: 'DELIVERED', label: 'Delivered' },
+  { value: 'DELIVERY_FAILED', label: 'Failed' },
+  { value: 'RETURNED_TO_STORE', label: 'Returned' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+];
+
+const RANGE_OPTIONS: Array<{ value: RangePreset; label: string }> = [
+  { value: 7, label: '7 days' },
+  { value: 30, label: '30 days' },
+  { value: 90, label: '90 days' },
+  { value: 'ALL', label: 'All time' },
+];
+
+function rangeParams(range: RangePreset) {
+  if (range === 'ALL') return {};
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  from.setDate(from.getDate() - (range - 1));
+  return { from: from.toISOString(), to: new Date().toISOString() };
 }
 
-function filterMatches(item: RiderJobListItem, filter: HistoryFilter) {
-  if (filter === 'ALL') return true;
-  return item.status === filter;
+function statusVisual(status: string) {
+  if (status === 'DELIVERED') return { label: 'Delivered', color: '#15803D', background: '#DCFCE7' };
+  if (status === 'RETURNED_TO_STORE') return { label: 'Returned', color: '#C2410C', background: '#FFEDD5' };
+  if (status === 'DELIVERY_FAILED') return { label: 'Failed', color: '#B91C1C', background: '#FEE2E2' };
+  return { label: 'Cancelled', color: '#7C3AED', background: '#EDE9FE' };
 }
 
-function statusVisual(status: RiderJobListItem['status']) {
-  if (status === 'COMPLETED') return { label: 'Completed', color: '#148A35', background: '#E8F8E8' };
-  if (status === 'RETURNED') return { label: 'Returned', color: '#EB7908', background: '#FFF1E4' };
-  if (status === 'CANCELLED') return { label: 'Cancelled', color: '#D51D25', background: '#FFE8E9' };
-  if (status === 'IN_PROGRESS') return { label: 'In Progress', color: '#226BD5', background: '#EAF3FF' };
-  return { label: 'Assigned', color: '#148A35', background: '#E8F8E8' };
+function money(value: unknown) {
+  return `₹${(Number(value || 0) / 100).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
-function formatDateTime(value: string | null) {
-  if (!value) return 'Time unavailable';
-  return new Date(value).toLocaleString('en-IN', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
+function address(job: any) {
+  const snapshot = job?.order?.addressSnapshot || {};
+  return [snapshot.line1, snapshot.landmark, snapshot.city].filter(Boolean).join(', ') || 'Delivery address unavailable';
+}
+
+export const RiderHistoryScreen = ({
+  onBack,
+  onOpenDetail,
+}: {
+  onBack?: () => void;
+  onOpenDetail?: (deliveryJobId: string) => void;
+}) => {
+  const insets = useSafeAreaInsets();
+  const [status, setStatus] = useState<HistoryStatus>('ALL');
+  const [range, setRange] = useState<RangePreset>(30);
+  const params = useMemo(() => ({ status, ...rangeParams(range) }), [range, status]);
+  const query = useQuery({
+    queryKey: ['rider', 'canonical-history', params],
+    queryFn: () => riderService.getHistory(params),
+    retry: 1,
   });
-}
-
-function money(value: number | null) {
-  return value == null
-    ? '—'
-    : `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function dateRangeLabel() {
-  const end = new Date();
-  const start = startOfLocalWeek(end);
-  return `${start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-}
-
-export const RiderHistoryScreen = ({ onBack }: { onBack?: () => void }) => {
-  const [filter, setFilter] = useState<HistoryFilter>('ALL');
-  const workspaceQuery = useQuery({
-    queryKey: [...HISTORY_KEY, historyFrom()],
-    queryFn: () => riderService.getWorkspaceSince(historyFrom()),
-  });
-  const allItems = useMemo(() => historyItems(workspaceQuery.data), [workspaceQuery.data]);
-  const filteredItems = useMemo(
-    () => allItems.filter((item) => filterMatches(item, filter)),
-    [allItems, filter],
-  );
-  const counts = useMemo(() => ({
-    completed: allItems.filter((item) => item.status === 'COMPLETED').length,
-    cancelled: allItems.filter((item) => item.status === 'CANCELLED').length,
-    returned: allItems.filter((item) => item.status === 'RETURNED').length,
-  }), [allItems]);
+  const jobs: any[] = Array.isArray(query.data) ? query.data : [];
 
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider jobs" style={styles.headerButton} onPress={onBack}>
+          <ArrowLeft size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <View style={styles.flex}>
+          <Text allowFontScaling style={styles.eyebrow}>AUTHORITATIVE RECORDS</Text>
+          <Text allowFontScaling style={styles.title}>Delivery history</Text>
+        </View>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh delivery history" style={styles.headerButton} onPress={() => void query.refetch()}>
+          <RefreshCw size={21} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        refreshControl={(
-          <RefreshControl
-            refreshing={workspaceQuery.isRefetching}
-            onRefresh={() => void workspaceQuery.refetch()}
-            tintColor="#FFFFFF"
-          />
-        )}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterRail}
+        contentContainerStyle={styles.filterContent}
       >
-        <View style={styles.hero}>
-          <View style={styles.headerRow}>
-            <TouchableOpacity accessibilityLabel="Back to jobs" style={styles.headerIcon} onPress={onBack}>
-              <ArrowLeft size={31} color="#FFFFFF" />
+        {STATUS_OPTIONS.map((option) => (
+          <TouchableOpacity
+            key={option.value}
+            accessibilityRole="button"
+            accessibilityState={{ selected: status === option.value }}
+            style={[styles.chip, status === option.value && styles.chipActive]}
+            onPress={() => setStatus(option.value)}
+          >
+            <Text style={[styles.chipText, status === option.value && styles.chipTextActive]}>{option.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <View style={styles.rangeArea}>
+        <CalendarDays size={19} color="#0F766E" />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rangeRail}>
+          {RANGE_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={String(option.value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: range === option.value }}
+              style={[styles.rangeButton, range === option.value && styles.rangeButtonActive]}
+              onPress={() => setRange(option.value)}
+            >
+              <Text style={[styles.rangeText, range === option.value && styles.rangeTextActive]}>{option.label}</Text>
             </TouchableOpacity>
-            <Text style={styles.title}>Delivery History</Text>
-            <View style={styles.headerIcon}><SlidersHorizontal size={29} color="#FFFFFF" /></View>
-          </View>
+          ))}
+        </ScrollView>
+      </View>
 
-          <View style={styles.filters}>
-            <HistoryFilterButton label="All" active={filter === 'ALL'} onPress={() => setFilter('ALL')} />
-            <HistoryFilterButton label="Completed" active={filter === 'COMPLETED'} onPress={() => setFilter('COMPLETED')} />
-            <HistoryFilterButton label="Cancelled" active={filter === 'CANCELLED'} onPress={() => setFilter('CANCELLED')} />
-            <HistoryFilterButton label="Returned" active={filter === 'RETURNED'} onPress={() => setFilter('RETURNED')} />
-          </View>
-
-          <View style={styles.rangeCard}>
-            <CalendarDays size={22} color="#596168" />
-            <Text style={styles.rangeText}>{dateRangeLabel()}</Text>
-            <ChevronDown size={24} color="#596168" />
-          </View>
-        </View>
-
-        <View style={styles.summaryCard}>
-          <Summary value={counts.completed} label="Completed" color="#0D8B2E" />
-          <View style={styles.summaryDivider} />
-          <Summary value={counts.cancelled} label="Cancelled" color="#D51D25" />
-          <View style={styles.summaryDivider} />
-          <Summary value={counts.returned} label="Returned" color="#EB7908" />
-        </View>
-
-        <View style={styles.listArea}>
-          {workspaceQuery.isLoading ? (
-            <View style={styles.stateCard}>
-              <ActivityIndicator size="large" color="#078D63" />
-              <Text style={styles.stateText}>Loading delivery history…</Text>
-            </View>
-          ) : workspaceQuery.isError ? (
-            <View style={styles.stateCard}>
-              <Text style={styles.stateTitle}>History unavailable</Text>
-              <Text style={styles.stateText}>{(workspaceQuery.error as Error)?.message || 'Pull down to try again.'}</Text>
-            </View>
-          ) : filteredItems.length === 0 ? (
-            <View style={styles.stateCard}>
-              <Text style={styles.stateTitle}>No deliveries in this view</Text>
-              <Text style={styles.stateText}>Completed, cancelled and returned jobs will appear here.</Text>
-            </View>
-          ) : (
-            filteredItems.map((item) => <HistoryCard key={item.key} item={item} />)
-          )}
-        </View>
+      <ScrollView
+        style={styles.list}
+        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 24 }]}
+        refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} />}
+      >
+        <Text style={styles.resultText}>{jobs.length} canonical record{jobs.length === 1 ? '' : 's'}</Text>
+        {query.isLoading ? (
+          <State icon={<ActivityIndicator size="large" color="#0F766E" />} title="Loading history" text="Reading Rider-owned delivery records from the server." />
+        ) : query.isError ? (
+          <State title="History unavailable" text={(query.error as Error)?.message || 'Pull down to retry.'} />
+        ) : jobs.length === 0 ? (
+          <State title="No matching deliveries" text="Change the server-side status or date range filters." />
+        ) : jobs.map((job) => {
+          const visual = statusVisual(String(job.status));
+          return (
+            <TouchableOpacity
+              key={job.id}
+              testID={`rider_history_${job.id}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Open delivery ${String(job.orderId).slice(-8)} details`}
+              style={styles.card}
+              onPress={() => onOpenDetail?.(job.id)}
+            >
+              <View style={styles.cardHeader}>
+                <View style={styles.flex}>
+                  <Text style={styles.orderCode}>ORDER #{String(job.orderId).slice(-8).toUpperCase()}</Text>
+                  <Text style={styles.date}>{new Date(job.updatedAt).toLocaleString('en-IN')}</Text>
+                </View>
+                <View style={[styles.badge, { backgroundColor: visual.background }]}>
+                  <Text style={[styles.badgeText, { color: visual.color }]}>{visual.label}</Text>
+                </View>
+              </View>
+              <Text style={styles.store}>{job.order?.store?.name || 'Pickup store'}</Text>
+              <Text style={styles.address}>{address(job)}</Text>
+              <View style={styles.cardFooter}>
+                <Text style={styles.amount}>{money(job.order?.grandTotalPaise)}</Text>
+                <View style={styles.openRow}><Text style={styles.openText}>Details and receipt</Text><ChevronRight size={20} color="#0F766E" /></View>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
     </View>
   );
 };
 
-function HistoryFilterButton({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
+function State({ icon, title, text }: { icon?: React.ReactNode; title: string; text: string }) {
   return (
-    <TouchableOpacity
-      style={[styles.filterButton, active && styles.filterButtonActive]}
-      onPress={onPress}
-    >
-      <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function Summary({ value, label, color }: { value: number; label: string; color: string }) {
-  return (
-    <View style={styles.summaryItem}>
-      <Text style={[styles.summaryValue, { color }]}>{value}</Text>
-      <Text style={styles.summaryLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function HistoryCard({ item }: { item: RiderJobListItem }) {
-  const visual = statusVisual(item.status);
-  return (
-    <View testID="rider_history_card" style={styles.historyCard}>
-      <View style={styles.cardTopRow}>
-        <Text style={styles.cardDate}>{formatDateTime(item.time)}</Text>
-        <Text style={styles.cardOrder}>#J-{shortPartnerOrderId(item.orderId)}</Text>
-        <View style={[styles.statusPill, { backgroundColor: visual.background }]}>
-          <Text style={[styles.statusText, { color: visual.color }]}>{visual.label}</Text>
-        </View>
-      </View>
-
-      <View style={styles.cardBody}>
-        <View style={styles.routeTimeline}>
-          <View style={[styles.routeDot, { borderColor: visual.color }]}><View style={[styles.routeDotInner, { backgroundColor: visual.color }]} /></View>
-          <View style={styles.routeLine} />
-          <View style={[styles.routeDot, { borderColor: visual.color }]}><View style={[styles.routeDotInner, { backgroundColor: visual.color }]} /></View>
-        </View>
-        <View style={styles.routeCopy}>
-          <View>
-            <Text style={styles.routeLabel}>Pickup</Text>
-            <Text style={styles.routeName}>{item.pickupName}</Text>
-            <Text style={styles.routeAddress}>{item.pickupAddress}</Text>
-          </View>
-          <View>
-            <Text style={styles.routeLabel}>Delivery</Text>
-            <Text style={styles.routeName}>{item.deliveryAddress}</Text>
-          </View>
-        </View>
-        <View style={styles.cardRight}>
-          <ChevronRight size={25} color="#4E555A" />
-          <Text style={styles.payout}>{money(item.payout)}</Text>
-        </View>
-      </View>
+    <View style={styles.state}>
+      {icon}
+      <Text style={styles.stateTitle}>{title}</Text>
+      <Text style={styles.stateText}>{text}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F7F8F7' },
-  scroll: { flex: 1 },
-  content: { paddingBottom: 112 },
-  hero: { backgroundColor: '#067B5C', paddingTop: 50, paddingHorizontal: 14, paddingBottom: 68 },
-  headerRow: { flexDirection: 'row', alignItems: 'center' },
-  headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1, color: '#FFFFFF', fontSize: 22, fontWeight: '900', marginLeft: 8 },
-  filters: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  filterButton: { flex: 1, height: 44, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.32)', alignItems: 'center', justifyContent: 'center' },
-  filterButtonActive: { backgroundColor: '#FFFFFF', borderColor: '#FFFFFF' },
-  filterText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  filterTextActive: { color: '#087150' },
-  rangeCard: { height: 60, borderRadius: 15, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, marginTop: 14 },
-  rangeText: { flex: 1, color: '#555D63', fontSize: 14, fontWeight: '600' },
-  summaryCard: { marginHorizontal: 14, marginTop: -49, height: 91, borderRadius: 17, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', elevation: 4, borderWidth: 1, borderColor: '#E0E3E2' },
-  summaryItem: { flex: 1, alignItems: 'center' },
-  summaryValue: { fontSize: 28, fontWeight: '900' },
-  summaryLabel: { color: '#4A5055', fontSize: 13, marginTop: 4 },
-  summaryDivider: { width: 1, height: 52, backgroundColor: '#E2E4E3' },
-  listArea: { paddingHorizontal: 14, paddingTop: 12 },
-  historyCard: { borderRadius: 17, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E4E3', padding: 14, marginBottom: 11, elevation: 2 },
-  cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardDate: { color: '#343A3E', fontSize: 12, flex: 1 },
-  cardOrder: { color: '#171A1C', fontSize: 13, fontWeight: '900' },
-  statusPill: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
-  statusText: { fontSize: 11, fontWeight: '900' },
-  cardBody: { flexDirection: 'row', marginTop: 13, minHeight: 94 },
-  routeTimeline: { width: 34, alignItems: 'center', paddingVertical: 3 },
-  routeDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  routeDotInner: { width: 7, height: 7, borderRadius: 4 },
-  routeLine: { width: 1, flex: 1, borderLeftWidth: 1, borderColor: '#B7C1BC', borderStyle: 'dashed' },
-  routeCopy: { flex: 1, justifyContent: 'space-between' },
-  routeLabel: { color: '#0A913B', fontSize: 11, fontWeight: '800' },
-  routeName: { color: '#171A1C', fontSize: 14, fontWeight: '700', marginTop: 2 },
-  routeAddress: { color: '#555D63', fontSize: 11, marginTop: 1 },
-  cardRight: { width: 70, alignItems: 'flex-end', justifyContent: 'space-between' },
-  payout: { color: '#111111', fontSize: 14, fontWeight: '900' },
-  stateCard: { minHeight: 250, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  stateTitle: { color: '#111827', fontSize: 18, fontWeight: '900' },
-  stateText: { color: '#6B7470', textAlign: 'center', marginTop: 7 },
+  screen: { flex: 1, backgroundColor: '#F8FAFC' },
+  flex: { flex: 1 },
+  header: { backgroundColor: '#067B5C', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  title: { color: '#FFFFFF', fontSize: 25, fontWeight: '900', marginTop: 2 },
+  filterRail: { flexGrow: 0, backgroundColor: '#FFFFFF' },
+  filterContent: { paddingHorizontal: 14, paddingVertical: 12, gap: 8 },
+  chip: { minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: '#CBD5E1', paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center' },
+  chipActive: { backgroundColor: '#0F766E', borderColor: '#0F766E' },
+  chipText: { color: '#475569', fontSize: 12, fontWeight: '800' },
+  chipTextActive: { color: '#FFFFFF' },
+  rangeArea: { backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E2E8F0', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  rangeRail: { gap: 7 },
+  rangeButton: { minHeight: 34, borderRadius: 10, backgroundColor: '#F1F5F9', paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  rangeButtonActive: { backgroundColor: '#CCFBF1' },
+  rangeText: { color: '#64748B', fontSize: 11, fontWeight: '800' },
+  rangeTextActive: { color: '#0F766E' },
+  list: { flex: 1 },
+  listContent: { padding: 14 },
+  resultText: { color: '#64748B', fontSize: 11, fontWeight: '700', marginBottom: 9 },
+  card: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 15, marginBottom: 11 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  orderCode: { color: '#0F172A', fontSize: 13, fontWeight: '900' },
+  date: { color: '#64748B', fontSize: 11, marginTop: 3 },
+  badge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
+  badgeText: { fontSize: 10, fontWeight: '900' },
+  store: { color: '#0F766E', fontSize: 14, fontWeight: '900', marginTop: 13 },
+  address: { color: '#475569', fontSize: 12, lineHeight: 18, marginTop: 4 },
+  cardFooter: { borderTopWidth: 1, borderTopColor: '#E2E8F0', marginTop: 13, paddingTop: 12, flexDirection: 'row', alignItems: 'center' },
+  amount: { flex: 1, color: '#0F172A', fontSize: 16, fontWeight: '900' },
+  openRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  openText: { color: '#0F766E', fontSize: 12, fontWeight: '800' },
+  state: { minHeight: 280, alignItems: 'center', justifyContent: 'center', padding: 30 },
+  stateTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', marginTop: 12, textAlign: 'center' },
+  stateText: { color: '#64748B', fontSize: 12, lineHeight: 18, marginTop: 6, textAlign: 'center' },
 });
