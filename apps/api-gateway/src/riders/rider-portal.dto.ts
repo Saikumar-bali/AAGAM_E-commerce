@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type } from "class-transformer";
 import {
   ArrayMaxSize,
   IsArray,
@@ -14,11 +14,17 @@ import {
   Min,
   MinLength,
   ValidateNested,
-} from 'class-validator';
+} from "class-validator";
 
 export class RiderHistoryQueryDto {
   @IsOptional()
-  @IsIn(['ALL', 'DELIVERED', 'DELIVERY_FAILED', 'CANCELLED', 'RETURNED_TO_STORE'])
+  @IsIn([
+    "ALL",
+    "DELIVERED",
+    "DELIVERY_FAILED",
+    "CANCELLED",
+    "RETURNED_TO_STORE",
+  ])
   status?: string;
 
   @IsOptional()
@@ -28,24 +34,11 @@ export class RiderHistoryQueryDto {
   @IsOptional()
   @IsDateString()
   to?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  pageSize?: number;
 }
 
 export class RiderStatusDto {
-  @IsIn(['ONLINE', 'OFFLINE'])
-  status!: 'ONLINE' | 'OFFLINE';
+  @IsIn(["ONLINE", "OFFLINE"])
+  status!: "ONLINE" | "OFFLINE";
 }
 
 export class RiderAvailabilityEntryDto {
@@ -114,7 +107,13 @@ export class RiderProfileDto {
 }
 
 export class RiderDocumentDto {
-  @IsIn(['DRIVING_LICENSE', 'IDENTITY', 'VEHICLE_REGISTRATION', 'VEHICLE_INSURANCE', 'OTHER'])
+  @IsIn([
+    "DRIVING_LICENSE",
+    "IDENTITY",
+    "VEHICLE_REGISTRATION",
+    "VEHICLE_INSURANCE",
+    "OTHER",
+  ])
   type!: string;
 
   @Matches(/^evidence\/[A-Za-z0-9_-]+\/[A-Za-z0-9._-]+$/)
@@ -156,19 +155,19 @@ export class VerifyPickupDto {
 }
 
 export class PickupProblemDto {
-  @IsIn(['MISSING_ITEM', 'WRONG_QUANTITY', 'DAMAGED_PARCEL', 'UNSEALED_PARCEL', 'OTHER'])
+  @IsIn([
+    "MISSING_ITEM",
+    "WRONG_QUANTITY",
+    "DAMAGED_PARCEL",
+    "UNSEALED_PARCEL",
+    "OTHER",
+  ])
   problemType!: string;
 
   @IsString()
   @MinLength(5)
   @MaxLength(500)
   note!: string;
-
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(8)
-  @Matches(/^evidence\/[A-Za-z0-9_-]+\/[A-Za-z0-9._-]+$/, { each: true })
-  evidenceKeys?: string[];
 }
 
 export class RiderSupportTicketDto {
@@ -177,7 +176,16 @@ export class RiderSupportTicketDto {
   @MaxLength(100)
   deliveryJobId?: string;
 
-  @IsIn(['DELIVERY', 'PICKUP', 'CUSTOMER', 'STORE', 'PAYMENT', 'SAFETY', 'APP', 'OTHER'])
+  @IsIn([
+    "DELIVERY",
+    "PICKUP",
+    "CUSTOMER",
+    "STORE",
+    "PAYMENT",
+    "SAFETY",
+    "APP",
+    "OTHER",
+  ])
   category!: string;
 
   @IsString()
@@ -210,14 +218,6 @@ export class RiderSupportMessageDto {
   evidenceKeys?: string[];
 }
 
-export class RiderContactDto {
-  @IsIn(['CUSTOMER', 'STORE'])
-  targetRole!: 'CUSTOMER' | 'STORE';
-
-  @IsIn(['CALL', 'MESSAGE', 'SAFETY_ESCALATION'])
-  channel!: 'CALL' | 'MESSAGE' | 'SAFETY_ESCALATION';
-}
-
 export class AdminRiderShiftDto {
   @IsDateString()
   startsAt!: string;
@@ -237,7 +237,7 @@ export class AdminRiderEarningDto {
   @MaxLength(100)
   deliveryJobId?: string;
 
-  @IsIn(['BASE_DELIVERY_FEE', 'DISTANCE_INCENTIVE', 'BONUS', 'PENALTY'])
+  @IsIn(["BASE_DELIVERY_FEE", "DISTANCE_INCENTIVE", "BONUS", "PENALTY"])
   type!: string;
 
   @IsInt()
@@ -255,8 +255,8 @@ export class AdminRiderEarningDto {
 }
 
 export class AdminRiderReviewDto {
-  @IsIn(['APPROVED', 'REJECTED'])
-  status!: 'APPROVED' | 'REJECTED';
+  @IsIn(["APPROVED", "REJECTED"])
+  status!: "APPROVED" | "REJECTED";
 
   @IsOptional()
   @IsString()
@@ -265,6 +265,6 @@ export class AdminRiderReviewDto {
 }
 
 export class AdminSupportStatusDto {
-  @IsIn(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'])
+  @IsIn(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"])
   status!: string;
 }
