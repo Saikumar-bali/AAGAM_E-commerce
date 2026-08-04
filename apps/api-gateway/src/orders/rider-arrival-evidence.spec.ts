@@ -89,6 +89,20 @@ describe('Rider arrival evidence', () => {
     });
   });
 
+  it('requires positive accuracy for verified evidence', () => {
+    expect(() => validateRiderArrivalEvidence({
+      evidence: {
+        latitude: 17.7301,
+        longitude: 83.3101,
+        capturedAt: '2026-08-04T00:59:30.000Z',
+      },
+      destination,
+      destinationType: 'STORE',
+      policy,
+      now,
+    })).toThrow(/accuracy is required/);
+  });
+
   it('computes distance deterministically', () => {
     expect(distanceMetresBetween(destination, destination)).toBe(0);
   });

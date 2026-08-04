@@ -74,13 +74,12 @@ export const riderPortalService = {
 
   getWorkspace: async (): Promise<RiderWorkspace> => {
     try {
-      const [home, offers, delivery, history] = await Promise.all([
+      const [home, offers, delivery] = await Promise.all([
         riderPortalService.getHome(),
         riderPortalService.getOffers(),
         riderPortalService.getCurrentDelivery(),
-        riderPortalService.getHistory(),
       ]);
-      return normalizeRiderPortalWorkspace({ home, offers, delivery, history });
+      return normalizeRiderPortalWorkspace({ home, offers, delivery, history: [] });
     } catch (error) {
       if (!shouldUseLegacyRiderWorkspace(error)) throw error;
       const response = await apiClient.get('/orders/dispatch/rider/workspace');

@@ -211,7 +211,7 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
 
     const routeOpened = async (raw: Record<string, unknown> | undefined) => {
       const payload = normalizeNotificationNavigation(raw);
-      remember(notificationDedupeKey(payload));
+      if (!remember(`${notificationDedupeKey(payload)}:opened`)) return;
       await Promise.all([invalidate(payload.eventType), acknowledgeOpen(payload)]);
       queueOrNavigate(navigationCommandForNotification(payload));
     };

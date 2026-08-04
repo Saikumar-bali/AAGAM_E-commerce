@@ -115,7 +115,7 @@ export const RiderProfileScreen = () => {
   const codQuery = useQuery({ queryKey: COD_KEY, queryFn: riderService.getCodLedger, retry: 1 });
   const performanceQuery = useQuery({ queryKey: PERFORMANCE_KEY, queryFn: riderService.getPerformance, retry: 1 });
   const supportQuery = useQuery({ queryKey: SUPPORT_KEY, queryFn: riderService.getSupportTickets, retry: 1 });
-  const earningsQuery = useQuery({ queryKey: EARNINGS_KEY, queryFn: riderService.getEarnings, retry: 1 });
+  const earningsQuery = useQuery({ queryKey: EARNINGS_KEY, queryFn: () => riderService.getEarnings(), retry: 1 });
 
   const profile: any = profileQuery.data || {};
   const availability: any = availabilityQuery.data || {};

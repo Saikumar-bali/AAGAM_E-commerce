@@ -41,6 +41,7 @@ describe('Partners notification delivery contracts', () => {
     expect(coordinator).toContain('notificationService.getInbox(50)');
     expect(coordinator).toContain('INBOX_POLL_MS = 10_000');
     expect(coordinator).toContain('Push setup unavailable');
+    expect(coordinator).toContain('notificationDedupeKey(payload)}:opened');
     expect(routing).toContain("['partner-store-orders']");
     expect(routing).toContain("['rider', 'delivery-workspace']");
   });

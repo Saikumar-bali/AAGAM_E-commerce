@@ -98,10 +98,10 @@ export function validateRiderTransitionEvidence(input: {
   if (!validCoordinate(input.evidence)) {
     throw new BadRequestException('Rider latitude and longitude are invalid');
   }
-  if (
-    finite(input.evidence.accuracyMetres)
-    && Number(input.evidence.accuracyMetres) > input.policy.maxAccuracyMetres
-  ) {
+  if (!finite(input.evidence.accuracyMetres) || Number(input.evidence.accuracyMetres) <= 0) {
+    throw new BadRequestException('GPS accuracy is required for verified Rider evidence');
+  }
+  if (Number(input.evidence.accuracyMetres) > input.policy.maxAccuracyMetres) {
     throw new BadRequestException(
       `GPS accuracy must be within ${input.policy.maxAccuracyMetres} metres`,
     );

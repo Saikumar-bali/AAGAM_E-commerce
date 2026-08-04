@@ -92,7 +92,8 @@ describe('riderService.getWorkspace', () => {
     expect(get).toHaveBeenCalledWith('/riders/portal/home');
     expect(get).toHaveBeenCalledWith('/riders/portal/offers');
     expect(get).toHaveBeenCalledWith('/riders/portal/delivery');
-    expect(get).toHaveBeenCalledWith('/riders/portal/history');
+    expect(get).not.toHaveBeenCalledWith('/riders/portal/history');
+    expect(get).toHaveBeenCalledTimes(3);
     expect(workspace.rider).toEqual({ id: 'r1', status: 'ONLINE' });
     expect(workspace.pendingOffers).toEqual([]);
     expect(workspace.activeJob).toBeNull();
@@ -227,7 +228,7 @@ describe('riderService.updateMyStatus', () => {
   it('updates and persists the confirmed status', async () => {
     patch.mockResolvedValueOnce({ data: { status: 'ONLINE' } });
     const result = await riderService.updateMyStatus('ONLINE');
-    expect(patch).toHaveBeenCalledWith('/riders/me/status', { status: 'ONLINE' });
+    expect(patch).toHaveBeenCalledWith('/riders/portal/availability/status', { status: 'ONLINE' });
     expect(storage.setItem).toHaveBeenCalledWith('aagam:partners:rider-status:v1', 'ONLINE');
     expect(result).toEqual({ status: 'ONLINE' });
   });
@@ -235,7 +236,7 @@ describe('riderService.updateMyStatus', () => {
   it('includes location when provided', async () => {
     patch.mockResolvedValueOnce({ data: { status: 'BUSY' } });
     await riderService.updateMyStatus('BUSY', { latitude: 17.5, longitude: 78.4 });
-    expect(patch).toHaveBeenCalledWith('/riders/me/status', { status: 'BUSY', latitude: 17.5, longitude: 78.4 });
+    expect(patch).toHaveBeenCalledWith('/riders/portal/availability/status', { status: 'BUSY', latitude: 17.5, longitude: 78.4 });
   });
 });
 
