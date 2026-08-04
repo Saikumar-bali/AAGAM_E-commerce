@@ -32,7 +32,7 @@ export type PartnerNavigationCommand =
   | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderPickup'; params: { deliveryJobId: string } }
   | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderDelivery'; params: { deliveryJobId: string } }
   | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderReturn'; params: { deliveryJobId: string } }
-  | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderJobHistoryDetail'; params: { deliveryJobId?: string; orderId?: string } }
+  | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderJobHistoryDetail'; params: { deliveryJobId: string; orderId?: string } }
   | { workspace: 'RIDER'; tab: 'RiderSupportConversation'; params: { ticketId: string } }
   | { workspace: 'RIDER'; tab: 'RiderSupport' }
   | { workspace: 'RIDER'; tab: 'Alerts' }
@@ -146,12 +146,14 @@ export function normalizeNotificationNavigation(
 }
 
 export function notificationDedupeKey(payload: NotificationNavigationPayload): string {
-  return payload.recipientId
-    ?? payload.notificationId
-    ?? [payload.eventType, payload.assignmentId, payload.deliveryJobId, payload.orderId, payload.ticketId]
-      .filter(Boolean)
-      .join(':')
-    ?? 'notification:unknown';
+  const composite = [
+    payload.eventType,
+    payload.assignmentId,
+    payload.deliveryJobId,
+    payload.orderId,
+    payload.ticketId,
+  ].filter(Boolean).join(':');
+  return payload.recipientId ?? payload.notificationId ?? composite || 'notification:unknown';
 }
 
 export function navigationCommandForNotification(
@@ -179,7 +181,7 @@ export function navigationCommandForNotification(
         ? { workspace: 'RIDER', tab: 'Operations', screen: 'RiderActiveJob', params: { deliveryJobId: payload.deliveryJobId } }
         : { workspace: 'RIDER', tab: 'Alerts' };
     case 'RIDER_HISTORY':
-      return payload.deliveryJobId || payload.orderId
+      return payload.deliveryJobId
         ? {
             workspace: 'RIDER',
             tab: 'Operations',
