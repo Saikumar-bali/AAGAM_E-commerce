@@ -155,7 +155,7 @@ export const RiderCodScreen = ({ navigation }: { navigation: any }) => {
                 <TouchableOpacity
                   accessibilityRole="button"
                   style={styles.secondaryAction}
-                  onPress={() => navigation.getParent()?.navigate('Operations', {
+                  onPress={() => navigation.navigate('Operations', {
                     screen: 'RiderReceipt',
                     params: { deliveryJobId: ledger.deliveryJobId },
                   })}
