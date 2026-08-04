@@ -11,7 +11,9 @@ import { Observable } from 'rxjs';
 import {
   ArrivalEvidenceInput,
   riderArrivalPolicy,
+  riderTransitionEvidencePolicy,
   validateRiderArrivalEvidence,
+  validateRiderTransitionEvidence,
 } from './rider-arrival-evidence';
 
 @Injectable()
@@ -19,12 +21,16 @@ export class RiderArrivalEvidenceInterceptor implements NestInterceptor {
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<any>> {
     const request = context.switchToHttp().getRequest<any>();
     const path = String(request.route?.path || request.originalUrl || '');
-    const destinationType = path.includes('arrived-at-store')
-      ? 'STORE'
-      : path.includes('arrived-at-customer')
-        ? 'CUSTOMER'
-        : null;
-    if (request.method !== 'PATCH' || !destinationType) return next.handle();
+    const transition = path.includes('en-route-to-store')
+      ? { destinationType: 'STORE' as const, geofence: false }
+      : path.includes('arrived-at-store')
+        ? { destinationType: 'STORE' as const, geofence: true }
+        : path.includes('out-for-delivery')
+          ? { destinationType: 'CUSTOMER' as const, geofence: false }
+          : path.includes('arrived-at-customer')
+            ? { destinationType: 'CUSTOMER' as const, geofence: true }
+            : null;
+    if (request.method !== 'PATCH' || !transition) return next.handle();
 
     const deliveryJobId = String(request.params?.deliveryJobId || '');
     const userId = String(request.user?.id || '');
@@ -38,11 +44,7 @@ export class RiderArrivalEvidenceInterceptor implements NestInterceptor {
           order: {
             include: {
               store: {
-                select: {
-                  id: true,
-                  latitude: true,
-                  longitude: true,
-                },
+                select: { id: true, latitude: true, longitude: true },
               },
             },
           },
@@ -55,21 +57,30 @@ export class RiderArrivalEvidenceInterceptor implements NestInterceptor {
       throw new ForbiddenException('This delivery is not assigned to the authenticated Rider');
     }
 
-    const destination = destinationType === 'STORE'
-      ? {
-          latitude: Number(job.order.store?.latitude),
-          longitude: Number(job.order.store?.longitude),
-        }
+    const evidence = request.body as ArrivalEvidenceInput;
+    const validated = transition.geofence
+      ? validateRiderArrivalEvidence({
+          evidence,
+          destination: transition.destinationType === 'STORE'
+            ? {
+                latitude: Number(job.order.store?.latitude),
+                longitude: Number(job.order.store?.longitude),
+              }
+            : {
+                latitude: Number(job.order.deliveryLat),
+                longitude: Number(job.order.deliveryLng),
+              },
+          destinationType: transition.destinationType,
+          policy: riderArrivalPolicy(transition.destinationType),
+        })
       : {
-          latitude: Number(job.order.deliveryLat),
-          longitude: Number(job.order.deliveryLng),
+          ...validateRiderTransitionEvidence({
+            evidence,
+            policy: riderTransitionEvidencePolicy(),
+          }),
+          destinationType: transition.destinationType,
+          geofenceRequired: false,
         };
-    const validated = validateRiderArrivalEvidence({
-      evidence: request.body as ArrivalEvidenceInput,
-      destination,
-      destinationType,
-      policy: riderArrivalPolicy(destinationType),
-    });
 
     request.user.arrivalEvidence = validated;
     request.body = {};
