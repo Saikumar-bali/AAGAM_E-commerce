@@ -12,7 +12,7 @@ import {
 import type { RiderDeliveryJob } from '../../domain/riderWorkspace';
 import { RiderRouteMap } from './RiderRouteMap';
 
-const TRACKING_HEALTH_KEY = ['rider', 'tracking-health'] as const;
+const NATIVE_TRACKING_STATUS_KEY = ['rider', 'native-tracking-status'] as const;
 
 export const RiderNavigationPanel = ({
   job,
@@ -23,7 +23,7 @@ export const RiderNavigationPanel = ({
 }) => {
   const navigation = useNavigation<any>();
   const healthQuery = useQuery({
-    queryKey: TRACKING_HEALTH_KEY,
+    queryKey: NATIVE_TRACKING_STATUS_KEY,
     queryFn: riderService.getNativeTrackingStatus,
     refetchInterval: 5_000,
     retry: 1,
