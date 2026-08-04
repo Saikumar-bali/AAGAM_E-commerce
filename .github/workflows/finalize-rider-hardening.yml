@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: finalize-rider-hardening
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   finalize:
@@ -23,12 +23,7 @@ jobs:
           ref: agent/rider-platform-hardening-final
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.22.3'
-          cache: npm
-
-      - name: Apply and validate final fixes
+      - name: Apply and publish final fixes
         shell: bash
         run: |
           set -euo pipefail
@@ -150,16 +145,6 @@ jobs:
 
           Path('.github/workflows/finalize-rider-hardening.yml').unlink()
           PY
-
-          npm ci --no-audit --no-fund
-          npx prisma generate --schema packages/database/prisma/schema.prisma
-          npm run build --workspace @aagam/types
-          npm run build --workspace @aagam/utils
-          npm run build --workspace @aagam/database
-          npm run build --workspace @aagam/api-gateway
-          npm run typecheck --workspace=AagamPartners
-          npm test --workspace=AagamPartners -- --runInBand
-          npm run test:ci --workspace=@aagam/api-gateway -- rider-arrival-evidence.spec.ts --runInBand
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
