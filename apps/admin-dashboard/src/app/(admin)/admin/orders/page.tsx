@@ -35,6 +35,15 @@ interface Order {
   store?: { name: string; address?: string | null; latitude?: number | null; longitude?: number | null };
   items?: OrderItem[];
   rider?: { user?: { name: string | null } };
+  payment?: { method?: string | null; status?: string | null; amountPaise?: number | null } | null;
+  codLedger?: {
+    expectedAmountPaise: number;
+    collectedAmountPaise: number;
+    riderHoldingBalancePaise: number;
+    depositedAmountPaise: number;
+    status: string;
+  } | null;
+  deliveryJob?: { status?: string | null } | null;
 }
 
 const statusOptions = ['PENDING', 'CONFIRMED', 'PICKING', 'PACKED', 'RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
@@ -168,7 +177,9 @@ export default function AdminOrdersPage() {
     return { atRisk, unassigned };
   }, [orders]);
 
-  const totalRevenue = orders.reduce((acc, o) => acc + o.totalAmount, 0);
+  const totalRevenue = orders
+    .filter((order) => order.status === 'DELIVERED')
+    .reduce((acc, order) => acc + order.totalAmount, 0);
   const pendingOrders = orders.filter((o) => o.status === 'PENDING').length;
   const deliveredOrders = orders.filter((o) => o.status === 'DELIVERED').length;
 
@@ -176,7 +187,7 @@ export default function AdminOrdersPage() {
     { label: 'Total Orders', value: orders.length, icon: ShoppingCart, color: 'bg-blue-500' },
     { label: 'Pending', value: pendingOrders, icon: Clock, color: 'bg-amber-500' },
     { label: 'Delivered', value: deliveredOrders, icon: CheckCircle, color: 'bg-emerald-500' },
-    { label: 'Revenue', value: `₹${totalRevenue.toFixed(2)}`, icon: DollarSign, color: 'bg-purple-500' },
+    { label: 'Delivered Revenue', value: `₹${totalRevenue.toFixed(2)}`, icon: DollarSign, color: 'bg-purple-500' },
   ];
 
   const renderEtaSummary = () => {
@@ -395,7 +406,7 @@ export default function AdminOrdersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4"><div className="flex items-center text-sm text-gray-500"><Calendar className="h-4 w-4 mr-2 text-gray-400" />{new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div></td>
-                    <td className="px-6 py-4 text-right"><div className="flex justify-end space-x-1.5"><button onClick={() => { setSelectedOrder(order); fetchOrderTracking(order.id); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"><Eye className="h-4 w-4" /></button><button onClick={() => { setSelectedOrder(order); setShowStatusModal(true); }} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"><ChevronDown className="h-4 w-4" /></button></div></td>
+                    <td className="px-6 py-4 text-right"><div className="flex justify-end space-x-1.5"><button aria-label={`View order ${order.id.substring(0, 8)}`} title="View order details" onClick={() => { setSelectedOrder(order); fetchOrderTracking(order.id); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"><Eye className="h-4 w-4" /></button><button aria-label={`Update status for order ${order.id.substring(0, 8)}`} title="Update order status" onClick={() => { setSelectedOrder(order); setShowStatusModal(true); }} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"><ChevronDown className="h-4 w-4" /></button></div></td>
                   </tr>
                 );
               })}
@@ -409,7 +420,7 @@ export default function AdminOrdersPage() {
           <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
               <div><h2 className="text-xl font-bold text-gray-900">Order Details</h2><p className="text-sm text-gray-500 font-mono">{selectedOrder.id}</p></div>
-              <button onClick={() => setSelectedOrder(null)} className="p-2 hover:bg-gray-100 rounded-lg transition-all"><X className="h-5 w-5 text-gray-500" /></button>
+              <button aria-label="Close order details" title="Close order details" onClick={() => setSelectedOrder(null)} className="p-2 hover:bg-gray-100 rounded-lg transition-all"><X className="h-5 w-5 text-gray-500" /></button>
             </div>
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -420,6 +431,18 @@ export default function AdminOrdersPage() {
               <div className="grid grid-cols-2 gap-6 mb-6">
                 <div className="bg-gray-50 rounded-xl p-4"><div className="flex items-center text-gray-500 mb-2"><User className="h-4 w-4 mr-2" /><p className="text-xs font-medium uppercase">Customer</p></div><p className="text-sm font-bold text-gray-900">{selectedOrder.customer?.name || 'Unknown'}</p><p className="text-xs text-gray-500">{selectedOrder.customer?.email}</p><p className="text-xs text-gray-500">{selectedOrder.customer?.phone || selectedOrder.addressSnapshot?.phoneE164 || 'Phone not set'}</p></div>
                 <div className="bg-gray-50 rounded-xl p-4"><div className="flex items-center text-gray-500 mb-2"><Store className="h-4 w-4 mr-2" /><p className="text-xs font-medium uppercase">Store</p></div><p className="text-sm font-bold text-gray-900">{selectedOrder.store?.name}</p><p className="text-xs text-gray-500">{selectedOrder.store?.address || 'Store address not set'}</p></div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 mb-6">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-medium uppercase text-slate-500">Delivery workflow</p>
+                  <p className="mt-1 text-sm font-bold text-slate-900">{String(selectedOrder.deliveryJob?.status || 'Not created').replaceAll('_', ' ')}</p>
+                </div>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-xs font-medium uppercase text-emerald-700">Payment and COD</p>
+                  <p className="mt-1 text-sm font-bold text-emerald-950">{selectedOrder.payment?.method || 'Payment unavailable'} · {String(selectedOrder.payment?.status || 'UNKNOWN').replaceAll('_', ' ')}</p>
+                  {selectedOrder.codLedger ? <p className="mt-1 text-xs text-emerald-800">Collected ₹{(selectedOrder.codLedger.collectedAmountPaise / 100).toFixed(2)} · Rider holding ₹{(selectedOrder.codLedger.riderHoldingBalancePaise / 100).toFixed(2)} · Deposited ₹{(selectedOrder.codLedger.depositedAmountPaise / 100).toFixed(2)} · {selectedOrder.codLedger.status.replaceAll('_', ' ')}</p> : <p className="mt-1 text-xs text-emerald-800">No COD ledger</p>}
+                </div>
               </div>
 
               <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-6">
@@ -465,7 +488,7 @@ export default function AdminOrdersPage() {
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-xl font-bold text-gray-900">Force Cancel Order</h2>
-              <button onClick={() => setShowForceCancelModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="h-5 w-5 text-gray-500" /></button>
+              <button aria-label="Close force-cancel dialog" title="Close force-cancel dialog" onClick={() => setShowForceCancelModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="h-5 w-5 text-gray-500" /></button>
             </div>
             <div className="p-6">
               <p className="text-sm text-gray-500 mb-4">Order: {selectedOrder.id.substring(0, 8)}</p>

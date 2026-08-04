@@ -490,7 +490,7 @@ export class DeliveryOperationsService {
       } as any,
       include: {
         currentRider: {
-          include: { user: { select: { id: true, name: true, email: true } } },
+          include: { user: { select: { id: true, name: true, email: true, phone: true } } },
         },
         pickupProof: true,
         deliveryProof: true,

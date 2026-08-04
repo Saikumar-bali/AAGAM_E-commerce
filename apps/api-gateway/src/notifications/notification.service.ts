@@ -73,11 +73,20 @@ export class NotificationService {
         .map((recipient) => (recipient.notification.data as any)?.legacySourceHistoryId)
         .filter(Boolean),
     );
+    const dedicatedEventKeys = new Set(
+      recipients
+        .filter((recipient) => recipient.notification.orderId)
+        .map((recipient) => `${recipient.notification.orderId}:${recipient.notification.eventType}`),
+    );
 
+    // Legacy order-history rows predate the dedicated inbox. During rolling
+    // migration, keep unmatched history but suppress an old row when the same
+    // user already has the canonical order event in the dedicated lifecycle.
     const remaining = Math.max(0, limit - dedicatedItems.length);
     const legacyRows = remaining > 0 ? await this.legacySourceRows(actor, Math.max(remaining * 2, 20)) : [];
     const legacyItems = legacyRows
       .filter((row) => !migratedLegacyIds.has(row.id))
+      .filter((row) => !dedicatedEventKeys.has(`${row.orderId}:${this.eventTypeForLegacy(row)}`))
       .slice(0, remaining)
       .map((row) => this.toLegacyInboxItem(row, actor));
 

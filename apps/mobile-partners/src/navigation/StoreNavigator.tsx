@@ -73,7 +73,6 @@ const StoreTabs = () => {
         tabBarHideOnKeyboard: true,
         sceneStyle: { backgroundColor: '#FAFBFA' },
         tabBarStyle: {
-          position: 'absolute',
           height: 83,
           paddingBottom: 12,
           paddingTop: 8,

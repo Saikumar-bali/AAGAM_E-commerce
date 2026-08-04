@@ -22,7 +22,8 @@ import {
   PartnerNavigationCommand,
   queryKeysForNotification,
 } from '../domain/partnerNotifications';
-import { partnerNavigationRef } from '../navigation/RootNavigator';
+import { navigatePartnerCommand } from '../navigation/partnerNavigationCommands';
+import { partnerNavigationRef } from '../navigation/partnerNavigationRef';
 
 const NOTIFICATION_KEY = ['partner-notifications'] as const;
 const PartnerAlertTone = NativeModules.PartnerAlertTone as { play?: () => void; stop?: () => void } | undefined;
@@ -37,11 +38,6 @@ type RemoteMessageLike = {
   notification?: { title?: string; body?: string };
   data?: Record<string, unknown>;
 };
-
-type RiderOperationsCommand = Extract<
-  PartnerNavigationCommand,
-  { workspace: 'RIDER'; tab: 'Operations' }
->;
 
 function dataFromInboxItem(item: PartnerNotification): Record<string, unknown> {
   return {
@@ -63,67 +59,6 @@ function dataFromInboxItem(item: PartnerNotification): Record<string, unknown> {
 
 function dataFromRemoteMessage(message: RemoteMessageLike) {
   return message.data;
-}
-
-function navigateRiderOperations(command: RiderOperationsCommand) {
-  switch (command.screen) {
-    case 'RiderOfferDetail':
-      partnerNavigationRef.navigate('RiderTabs', {
-        screen: 'Operations',
-        params: { screen: 'RiderOfferDetail', params: command.params },
-      });
-      return;
-    case 'RiderActiveJob':
-      partnerNavigationRef.navigate('RiderTabs', {
-        screen: 'Operations',
-        params: { screen: 'RiderActiveJob', params: command.params },
-      });
-      return;
-    case 'RiderPickup':
-      partnerNavigationRef.navigate('RiderTabs', {
-        screen: 'Operations',
-        params: { screen: 'RiderPickup', params: command.params },
-      });
-      return;
-    case 'RiderDelivery':
-      partnerNavigationRef.navigate('RiderTabs', {
-        screen: 'Operations',
-        params: { screen: 'RiderDelivery', params: command.params },
-      });
-      return;
-    case 'RiderReturn':
-      partnerNavigationRef.navigate('RiderTabs', {
-        screen: 'Operations',
-        params: { screen: 'RiderReturn', params: command.params },
-      });
-      return;
-    case 'RiderJobHistoryDetail':
-      partnerNavigationRef.navigate('RiderTabs', {
-        screen: 'Operations',
-        params: { screen: 'RiderJobHistoryDetail', params: command.params },
-      });
-  }
-}
-
-function navigate(command: PartnerNavigationCommand) {
-  if (!partnerNavigationRef.isReady()) return false;
-  if (command.workspace === 'RIDER') {
-    if (command.tab === 'Operations') {
-      navigateRiderOperations(command);
-    } else {
-      partnerNavigationRef.navigate('RiderTabs', { screen: command.tab });
-    }
-    return true;
-  }
-  if (command.workspace === 'STORE') {
-    partnerNavigationRef.navigate('StoreTabs', {
-      screen: command.tab,
-      params: { screen: 'OrderQueue', params: command.params },
-    });
-    return true;
-  }
-  partnerNavigationRef.navigate(command.screen);
-  return true;
 }
 
 export function PartnerPushCoordinator({ queryClient }: Props) {
@@ -186,11 +121,11 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     const flushNavigation = () => {
       if (!partnerNavigationRef.isReady()) return;
       const commands = pendingNavigation.current.splice(0);
-      commands.forEach((command) => navigate(command));
+      commands.forEach((command) => navigatePartnerCommand(command));
     };
 
     const queueOrNavigate = (command: PartnerNavigationCommand) => {
-      if (!navigate(command)) {
+      if (!navigatePartnerCommand(command)) {
         pendingNavigation.current = [command];
         setTimeout(flushNavigation, 350);
         setTimeout(flushNavigation, 1_000);

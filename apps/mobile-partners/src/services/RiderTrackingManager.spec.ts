@@ -1,8 +1,10 @@
 import { RiderTrackingManager, TrackingPosition } from './RiderTrackingManager';
 
-const flush = () => new Promise<void>((resolve) => {
-  setTimeout(() => resolve(), 0);
-});
+const flush = async () => {
+  // Drain the promise chain created by capture -> persist -> send without
+  // scheduling hundreds of slow Windows timer turns in the queue-cap test.
+  for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
+};
 
 describe('RiderTrackingManager', () => {
   let now: number;

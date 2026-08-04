@@ -104,7 +104,7 @@ export const CustomerNavigator = () => {
       />
       <Stack.Screen
         name="Checkout"
-        component={withBottomNav(CheckoutScreen, 'Cart')}
+        component={CheckoutScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen

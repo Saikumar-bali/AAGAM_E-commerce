@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { DarkTheme, NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { resolvePartnerOperationalRole, useAuthStore } from '@aagam/mobile-shared';
 import { LoginScreen } from '../screens/LoginScreen';
@@ -21,9 +21,10 @@ import { AagamBrand } from '../components/AagamBrand';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 import { resolveApplicantInitialRoute } from './applicantRoute';
 import type { RootStackParamList } from './partnerNavigationTypes';
+import { partnerNavigationRef } from './partnerNavigationRef';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-export const partnerNavigationRef = createNavigationContainerRef<RootStackParamList>();
+export { partnerNavigationRef } from './partnerNavigationRef';
 const partnerTheme = {
   ...DarkTheme,
   colors: { ...DarkTheme.colors, primary: '#14B8A6', background: '#F4F7FB', card: '#FFFFFF', text: '#111827', border: '#E2E8F0', notification: '#F97316' },

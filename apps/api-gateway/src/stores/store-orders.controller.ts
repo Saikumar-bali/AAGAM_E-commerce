@@ -17,6 +17,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 const ORDER_INCLUDE = {
   customer: { select: { id: true, name: true, email: true, phone: true } },
   items: { include: { product: true } },
+  payment: true,
   deliveryJob: {
     include: {
       currentRider: {

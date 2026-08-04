@@ -26,6 +26,11 @@ import {
   isNotificationUpdate,
   notificationSection,
 } from '../domain/riderReferenceUi';
+import {
+  navigationCommandForNotification,
+  normalizeNotificationNavigation,
+} from '../domain/partnerNotifications';
+import { navigatePartnerCommand } from '../navigation/partnerNavigationCommands';
 
 export const PARTNER_NOTIFICATION_QUERY_KEY = ['partner-notifications'] as const;
 
@@ -60,6 +65,29 @@ function sectionTitle(section: 'TODAY' | 'YESTERDAY' | 'OLDER') {
   return 'Earlier';
 }
 
+function notificationNavigationData(item: PartnerNotification): Record<string, unknown> {
+  return {
+    ...(item.metadata || {}),
+    id: item.id,
+    notificationId: item.id,
+    recipientId: item.recipientId || item.id,
+    eventType: item.type,
+    target: item.target,
+    action: item.action,
+    deepLink: item.deepLink,
+    orderId: item.orderId,
+    deliveryJobId: item.deliveryJobId,
+    assignmentId: item.assignmentId,
+    ticketId: item.ticketId,
+    storeId: item.storeId,
+  };
+}
+
+function openTypedWorkspace(item: PartnerNotification): boolean {
+  const payload = normalizeNotificationNavigation(notificationNavigationData(item));
+  return navigatePartnerCommand(navigationCommandForNotification(payload));
+}
+
 export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any }) => {
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
@@ -74,6 +102,7 @@ export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any })
   const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
 
   const openRoleWorkspace = (item: PartnerNotification) => {
+    if (openTypedWorkspace(item)) return;
     const eventType = String(item.type || item.metadata?.eventType || '');
     const rootNavigation = navigation?.getParent?.() || navigation;
     if (user?.role === 'STORE_OWNER') {
