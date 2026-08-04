@@ -23,10 +23,21 @@ import {
   View,
 } from 'react-native';
 import { riderService } from '../../api/riderService';
+import type { NativeTrackingStatus } from '../../services/NativeRiderTracking';
 
 const TRACKING_HEALTH_KEY = ['rider', 'tracking-health'] as const;
 
-async function permissionState() {
+type PermissionHealth = {
+  foreground: 'GRANTED' | 'MISSING';
+  background: 'GRANTED' | 'MISSING';
+};
+
+type TrackingHealth = NativeTrackingStatus & {
+  permission: PermissionHealth;
+  checkedAt: string;
+};
+
+async function permissionState(): Promise<PermissionHealth> {
   if (Platform.OS !== 'android') return { foreground: 'GRANTED', background: 'GRANTED' };
   const foreground = await PermissionsAndroid.check(
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
@@ -42,12 +53,17 @@ async function permissionState() {
   };
 }
 
-async function trackingHealth() {
+async function trackingHealth(): Promise<TrackingHealth> {
+  const fallback: NativeTrackingStatus = {
+    supported: false,
+    active: false,
+    queuedCount: 0,
+    error: 'Native tracking status is unavailable.',
+  };
   const [native, permission] = await Promise.all([
-    riderService.getNativeTrackingStatus().catch((error: any) => ({
-      supported: false,
-      active: false,
-      error: error?.message || 'Native tracking status is unavailable.',
+    riderService.getNativeTrackingStatus().catch((error: any): NativeTrackingStatus => ({
+      ...fallback,
+      error: error?.message || fallback.error,
     })),
     permissionState(),
   ]);
@@ -63,7 +79,7 @@ function dateText(value?: string | null) {
 }
 
 export const RiderTrackingDiagnosticsScreen = ({ navigation }: { navigation?: any }) => {
-  const healthQuery = useQuery({
+  const healthQuery = useQuery<TrackingHealth>({
     queryKey: TRACKING_HEALTH_KEY,
     queryFn: trackingHealth,
     refetchInterval: 5_000,
@@ -74,7 +90,7 @@ export const RiderTrackingDiagnosticsScreen = ({ navigation }: { navigation?: an
   const stale = Boolean(health?.active && (!lastSentMs || Date.now() - lastSentMs > 60_000));
   const healthy = Boolean(
     health?.active
-    && !health?.error
+    && !health.error
     && health.permission.foreground === 'GRANTED'
     && health.permission.background === 'GRANTED'
     && !stale,
