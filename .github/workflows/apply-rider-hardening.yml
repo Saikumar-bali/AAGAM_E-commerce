@@ -1,5 +1,6 @@
 name: Apply Rider Platform Hardening
 
+# Triggered after the installer workflow exists on the Rider hardening branch.
 on:
   push:
     branches:
