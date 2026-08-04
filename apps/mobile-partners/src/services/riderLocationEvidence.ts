@@ -1,5 +1,4 @@
 import { Alert } from 'react-native';
-import Geolocation from 'react-native-geolocation-service';
 
 export type RiderLocationEvidence = {
   latitude: number;
@@ -19,6 +18,35 @@ export type RiderLocationOverride = {
   source: 'MOBILE_PARTNERS_OVERRIDE';
 };
 
+type GeolocationPosition = {
+  coords: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+  };
+  timestamp?: number;
+};
+
+type GeolocationError = {
+  code?: number;
+  message?: string;
+};
+
+type GeolocationApi = {
+  getCurrentPosition: (
+    success: (position: GeolocationPosition) => void,
+    failure: (error: GeolocationError) => void,
+    options: { enableHighAccuracy: boolean; timeout: number; maximumAge: number },
+  ) => void;
+};
+
+function nativeGeolocation(): GeolocationApi {
+  // Keep the native ESM package outside the module-load path so domain and API
+  // tests can import Rider services without requiring a React Native runtime.
+  const module = require('react-native-geolocation-service');
+  return (module.default || module) as GeolocationApi;
+}
+
 function createRiderLocationOverride(input: RiderLocationOverride['override']): RiderLocationOverride {
   if (!input.note || input.note.trim().length < 8) {
     throw new Error('Add an auditable GPS exception note of at least 8 characters.');
@@ -30,7 +58,7 @@ function createRiderLocationOverride(input: RiderLocationOverride['override']): 
   };
 }
 
-function confirmGpsException(error: { code?: number; message?: string }): Promise<RiderLocationOverride> {
+function confirmGpsException(error: GeolocationError): Promise<RiderLocationOverride> {
   const permissionDenied = error.code === 1;
   const reason: RiderLocationOverride['override']['reason'] = permissionDenied
     ? 'PERMISSION_DENIED'
@@ -66,7 +94,7 @@ export function captureRiderLocationEvidence(
   timeout = 12_000,
 ): Promise<RiderLocationEvidence | RiderLocationOverride> {
   return new Promise((resolve, reject) => {
-    Geolocation.getCurrentPosition(
+    nativeGeolocation().getCurrentPosition(
       (position) => resolve({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
