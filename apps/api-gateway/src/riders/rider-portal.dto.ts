@@ -16,6 +16,8 @@ import {
   ValidateNested,
 } from "class-validator";
 
+const EVIDENCE_KEY = /^evidence\/[A-Za-z0-9_-]+\/[A-Za-z0-9._-]+$/;
+
 export class RiderHistoryQueryDto {
   @IsOptional()
   @IsIn([
@@ -116,7 +118,7 @@ export class RiderDocumentDto {
   ])
   type!: string;
 
-  @Matches(/^evidence\/[A-Za-z0-9_-]+\/[A-Za-z0-9._-]+$/)
+  @Matches(EVIDENCE_KEY)
   @MaxLength(1000)
   storageKey!: string;
 
@@ -168,6 +170,20 @@ export class PickupProblemDto {
   @MinLength(5)
   @MaxLength(500)
   note!: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @Matches(EVIDENCE_KEY, { each: true })
+  evidenceKeys?: string[];
+}
+
+export class RiderContactDto {
+  @IsIn(["CUSTOMER", "STORE"])
+  targetRole!: "CUSTOMER" | "STORE";
+
+  @IsIn(["CALL", "MESSAGE", "SAFETY_ESCALATION"])
+  channel!: "CALL" | "MESSAGE" | "SAFETY_ESCALATION";
 }
 
 export class RiderSupportTicketDto {
@@ -201,7 +217,7 @@ export class RiderSupportTicketDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(8)
-  @Matches(/^evidence\/[A-Za-z0-9_-]+\/[A-Za-z0-9._-]+$/, { each: true })
+  @Matches(EVIDENCE_KEY, { each: true })
   evidenceKeys?: string[];
 }
 
@@ -214,7 +230,7 @@ export class RiderSupportMessageDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(8)
-  @Matches(/^evidence\/[A-Za-z0-9_-]+\/[A-Za-z0-9._-]+$/, { each: true })
+  @Matches(EVIDENCE_KEY, { each: true })
   evidenceKeys?: string[];
 }
 
