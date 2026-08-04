@@ -11,21 +11,26 @@ export type RiderJobsStackParamList = {
   RiderJobHistoryDetail: { deliveryJobId?: string; orderId?: string };
 };
 
+export type RiderAccountStackParamList = {
+  AccountHub: undefined;
+  AccountProfile: undefined;
+  AccountDocuments: undefined;
+  AccountAvailability: undefined;
+  AccountSupport: { ticketId?: string; deliveryJobId?: string; category?: string; subject?: string } | undefined;
+  AccountPrivacy: undefined;
+};
+
 export type RiderTabParamList = {
   Dashboard: undefined;
   Operations: NavigatorScreenParams<RiderJobsStackParamList> | undefined;
   Alerts: undefined;
   History: undefined;
-  Profile: undefined;
+  Profile: NavigatorScreenParams<RiderAccountStackParamList> | undefined;
   NotificationSettings: undefined;
   TrackingDiagnostics: undefined;
 };
 
-export type StoreOrderQueueParams = {
-  screen?: 'OrderQueue';
-  params?: { storeId?: string };
-};
-
+export type StoreOrderQueueParams = { screen?: 'OrderQueue'; params?: { storeId?: string } };
 export type StoreTabParamList = {
   Orders: StoreOrderQueueParams | undefined;
   Dashboard?: undefined;
