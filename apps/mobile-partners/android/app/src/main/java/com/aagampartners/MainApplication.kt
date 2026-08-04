@@ -10,8 +10,8 @@ import android.os.Build
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
-import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
+import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 
 class MainApplication : Application(), ReactApplication {
   override val reactHost: ReactHost by lazy {
@@ -23,6 +23,7 @@ class MainApplication : Application(), ReactApplication {
         add(FirebasePnvPackage())
         add(PartnerDocumentPickerPackage())
         add(PartnerAlertTonePackage())
+        add(PartnerQrScannerPackage())
       },
     )
   }
@@ -35,9 +36,6 @@ class MainApplication : Application(), ReactApplication {
 
   private fun createOperationsNotificationChannel() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-
-    // A versioned channel is intentional: Android channel sound settings are immutable
-    // after creation, so existing installations receive the new partner alert profile.
     val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
     val audioAttributes = AudioAttributes.Builder()
       .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
@@ -45,10 +43,10 @@ class MainApplication : Application(), ReactApplication {
       .build()
     val channel = NotificationChannel(
       OPERATIONS_CHANNEL_ID,
-      "Aagaam priority operations",
+      "AAGAM priority operations",
       NotificationManager.IMPORTANCE_HIGH,
     ).apply {
-      description = "New orders, rider offers, pickup updates and delivery exceptions"
+      description = "New orders, Rider offers, pickup updates and delivery exceptions"
       enableVibration(true)
       vibrationPattern = longArrayOf(0, 180, 100, 180, 100, 280)
       enableLights(true)
@@ -57,9 +55,7 @@ class MainApplication : Application(), ReactApplication {
       setShowBadge(true)
       lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
     }
-
-    val manager = getSystemService(NotificationManager::class.java)
-    manager.createNotificationChannel(channel)
+    getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
   }
 
   companion object {
