@@ -144,19 +144,23 @@ describe('auto-dispatch recovery contracts', () => {
     expect(source).toContain('heartbeatController?.abort()');
   });
 
-  it('stops native availability when refreshed workspace state is offline', () => {
-    const source = read(
+  it('stops native availability and exposes permission remediation when refreshed workspace state is offline', () => {
+    const dashboard = read(
       'apps/mobile-partners/src/screens/rider/RiderDashboard.tsx',
     );
-    expect(source).toContain('RiderOnlineService.stop().catch');
-    expect(source).toContain('PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION');
-    expect(source).toContain('PermissionsAndroid.request(backgroundPermission');
-    expect(source).toContain('Linking.openSettings()');
-    expect(source).toContain('onlinePermissionMissing');
-    expect(source).toContain('const grantOnlinePermission = async () =>');
-    expect(source).toContain('const restoreOnlineAvailability = async () =>');
-    expect(source).toContain('onlinePermissionMissing ? grantOnlinePermission');
-    expect(source).toContain("'GRANT LOCATION'");
+    const diagnostics = read(
+      'apps/mobile-partners/src/screens/rider/RiderTrackingDiagnosticsScreen.tsx',
+    );
+    expect(dashboard).toContain('RiderOnlineService.stop().catch');
+    expect(dashboard).toContain('PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION');
+    expect(dashboard).toContain('PermissionsAndroid.request(background');
+    expect(dashboard).toContain('Linking.openSettings()');
+    expect(dashboard).toContain('permissionMissing');
+    expect(dashboard).toContain('requestRiderLocationPermission');
+    expect(dashboard).toContain("navigation?.navigate?.('TrackingDiagnostics')");
+    expect(diagnostics).toContain('Open location permissions');
+    expect(diagnostics).toContain('Open battery optimisation');
+    expect(diagnostics).toContain('Retry health check');
   });
 
   it('stops the Rider availability heartbeat before signing out', () => {
