@@ -1,6 +1,5 @@
 import {
   Body,
-  ConflictException,
   Controller,
   Get,
   Param,
@@ -9,16 +8,15 @@ import {
   Query,
   Req,
   UseGuards,
-} from '@nestjs/common';
-import { Role } from '@aagam/database';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+} from "@nestjs/common";
+import { Role } from "@aagam/database";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
 import {
   PickupProblemDto,
   RiderAvailabilityDto,
   RiderBreakDto,
-  RiderContactDto,
   RiderDocumentDto,
   RiderHistoryQueryDto,
   RiderProfileDto,
@@ -26,163 +24,134 @@ import {
   RiderSupportMessageDto,
   RiderSupportTicketDto,
   VerifyPickupDto,
-} from './rider-portal.dto';
-import { RiderPlatformService } from './rider-platform.service';
-import { RiderPortalService } from './rider-portal.service';
+} from "./rider-portal.dto";
+import { RiderPortalService } from "./rider-portal.service";
 
-@Controller('riders/portal')
+@Controller("riders/portal")
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.RIDER)
 export class RiderPortalController {
-  constructor(
-    private readonly portal: RiderPortalService,
-    private readonly platform: RiderPlatformService,
-  ) {}
+  constructor(private readonly portal: RiderPortalService) {}
 
-  @Get('home')
-  async home(@Req() req: any) {
-    return this.platform.sanitizePortalPayload(await this.portal.home(req.user.id));
+  @Get("home")
+  home(@Req() req: any) {
+    return this.portal.home(req.user.id);
   }
 
-  @Get('offers')
-  async offers(@Req() req: any) {
-    return this.platform.sanitizePortalPayload(await this.portal.offers(req.user.id));
+  @Get("offers")
+  offers(@Req() req: any) {
+    return this.portal.offers(req.user.id);
   }
 
-  @Get('offers/:assignmentId')
-  offer(@Req() req: any, @Param('assignmentId') assignmentId: string) {
-    return this.platform.offerDetail(req.user.id, assignmentId);
+  @Get("delivery")
+  delivery(@Req() req: any) {
+    return this.portal.currentDelivery(req.user.id);
   }
 
-  @Get('delivery')
-  async delivery(@Req() req: any) {
-    return this.platform.sanitizePortalPayload(await this.portal.currentDelivery(req.user.id));
-  }
-
-  @Get('history')
+  @Get("history")
   history(@Req() req: any, @Query() query: RiderHistoryQueryDto) {
-    return this.platform.history(req.user.id, query);
+    return this.portal.history(req.user.id, query);
   }
 
-  @Get('history/:deliveryJobId')
-  historyDetail(@Req() req: any, @Param('deliveryJobId') deliveryJobId: string) {
-    return this.platform.jobDetail(req.user.id, deliveryJobId);
+  @Get("pickup")
+  pickup(@Req() req: any) {
+    return this.portal.pickup(req.user.id);
   }
 
-  @Get('receipts/:deliveryJobId')
-  receipt(@Req() req: any, @Param('deliveryJobId') deliveryJobId: string) {
-    return this.platform.receipt(req.user.id, deliveryJobId);
-  }
-
-  @Get('pickup')
-  async pickup(@Req() req: any) {
-    return this.platform.sanitizePortalPayload(await this.portal.pickup(req.user.id));
-  }
-
-  @Post('pickup/:deliveryJobId/verify')
-  verifyPickup(@Req() req: any, @Param('deliveryJobId') jobId: string, @Body() body: VerifyPickupDto) {
+  @Post("pickup/:deliveryJobId/verify")
+  verifyPickup(
+    @Req() req: any,
+    @Param("deliveryJobId") jobId: string,
+    @Body() body: VerifyPickupDto
+  ) {
     return this.portal.verifyPickup(req.user.id, jobId, body);
   }
 
-  @Post('pickup/:deliveryJobId/problem')
-  pickupProblem(@Req() req: any, @Param('deliveryJobId') jobId: string, @Body() body: PickupProblemDto) {
-    return this.platform.reportPickupProblem(req.user.id, jobId, body);
+  @Post("pickup/:deliveryJobId/problem")
+  pickupProblem(
+    @Req() req: any,
+    @Param("deliveryJobId") jobId: string,
+    @Body() body: PickupProblemDto
+  ) {
+    return this.portal.reportPickupProblem(req.user.id, jobId, body);
   }
 
-  @Get('pickup/:deliveryJobId/evidence-url')
-  pickupEvidence(@Req() req: any, @Param('deliveryJobId') jobId: string, @Query('key') storageKey: string) {
-    return this.platform.previewPickupEvidence(req.user.id, jobId, storageKey);
-  }
-
-  @Get('earnings')
+  @Get("earnings")
   earnings(@Req() req: any, @Query() query: RiderHistoryQueryDto) {
-    return this.platform.earnings(req.user.id, query);
+    return this.portal.earnings(req.user.id, query);
   }
 
-  @Get('cod')
+  @Get("cod")
   cod(@Req() req: any) {
-    return this.platform.cod(req.user.id);
+    return this.portal.cod(req.user.id);
   }
 
-  @Get('performance')
+  @Get("performance")
   performance(@Req() req: any, @Query() query: RiderHistoryQueryDto) {
     return this.portal.performance(req.user.id, query);
   }
 
-  @Get('availability')
+  @Get("availability")
   availability(@Req() req: any) {
     return this.portal.availability(req.user.id);
   }
 
-  @Patch('availability/status')
-  async setStatus(@Req() req: any, @Body() body: RiderStatusDto) {
-    if (body.status === 'ONLINE') {
-      const eligibility = await this.platform.eligibility(req.user.id);
-      if (!eligibility.canGoOnline) {
-        throw new ConflictException(eligibility.reasons[0]?.message || 'Rider account is not eligible to go online');
-      }
-    }
+  @Patch("availability/status")
+  setStatus(@Req() req: any, @Body() body: RiderStatusDto) {
     return this.portal.setStatus(req.user.id, body.status);
   }
 
-  @Patch('availability/schedule')
+  @Patch("availability/schedule")
   setSchedule(@Req() req: any, @Body() body: RiderAvailabilityDto) {
-    this.platform.validateSchedule(body.entries);
     return this.portal.setSchedule(req.user.id, body.entries);
   }
 
-  @Post('availability/break/start')
+  @Post("availability/break/start")
   startBreak(@Req() req: any, @Body() body: RiderBreakDto) {
     return this.portal.startBreak(req.user.id, body.reason);
   }
 
-  @Post('availability/break/end')
+  @Post("availability/break/end")
   endBreak(@Req() req: any) {
     return this.portal.endBreak(req.user.id);
   }
 
-  @Get('profile')
+  @Get("profile")
   profile(@Req() req: any) {
-    return this.platform.profile(req.user.id);
+    return this.portal.profile(req.user.id);
   }
 
-  @Patch('profile')
+  @Patch("profile")
   updateProfile(@Req() req: any, @Body() body: RiderProfileDto) {
     return this.portal.updateProfile(req.user.id, body);
   }
 
-  @Post('documents')
+  @Post("documents")
   addDocument(@Req() req: any, @Body() body: RiderDocumentDto) {
     return this.portal.addDocument(req.user.id, body);
   }
 
-  @Get('documents/:documentId/preview')
-  previewDocument(@Req() req: any, @Param('documentId') documentId: string) {
-    return this.platform.previewDocument(req.user.id, documentId);
-  }
-
-  @Get('support')
+  @Get("support")
   support(@Req() req: any) {
     return this.portal.support(req.user.id);
   }
 
-  @Post('support')
+  @Post("support")
   createSupport(@Req() req: any, @Body() body: RiderSupportTicketDto) {
     return this.portal.createSupport(req.user.id, body);
   }
 
-  @Get('support/:ticketId')
-  supportTicket(@Req() req: any, @Param('ticketId') ticketId: string) {
+  @Get("support/:ticketId")
+  supportTicket(@Req() req: any, @Param("ticketId") ticketId: string) {
     return this.portal.supportTicket(req.user.id, ticketId);
   }
 
-  @Post('support/:ticketId/messages')
-  supportMessage(@Req() req: any, @Param('ticketId') ticketId: string, @Body() body: RiderSupportMessageDto) {
+  @Post("support/:ticketId/messages")
+  supportMessage(
+    @Req() req: any,
+    @Param("ticketId") ticketId: string,
+    @Body() body: RiderSupportMessageDto
+  ) {
     return this.portal.addSupportMessage(req.user.id, ticketId, body);
-  }
-
-  @Post('contact/:deliveryJobId')
-  contact(@Req() req: any, @Param('deliveryJobId') deliveryJobId: string, @Body() body: RiderContactDto) {
-    return this.platform.contact(req.user.id, deliveryJobId, body);
   }
 }
