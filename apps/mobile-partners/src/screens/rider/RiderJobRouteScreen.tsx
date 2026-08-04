@@ -52,7 +52,7 @@ export const RiderJobRouteScreen = ({ route, navigation, expected: _expected }: 
     );
   }
 
-  return <RiderDeliveryFlowCoordinator navigation={navigation} />;
+  return <RiderDeliveryFlowCoordinator />;
 };
 
 const styles = StyleSheet.create({
