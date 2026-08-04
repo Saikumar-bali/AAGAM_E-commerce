@@ -5,6 +5,8 @@ import { RiderJobsScreen } from '../screens/rider/RiderJobsScreen';
 import { RiderOfferDetailScreen } from '../screens/rider/RiderOfferDetailScreen';
 import { RiderJobRouteScreen } from '../screens/rider/RiderJobRouteScreen';
 import { RiderHistoryScreen } from '../screens/rider/RiderHistoryScreen';
+import { RiderJobHistoryDetailScreen } from '../screens/rider/RiderJobHistoryDetailScreen';
+import { RiderReceiptScreen } from '../screens/rider/RiderReceiptScreen';
 
 const Stack = createNativeStackNavigator<RiderJobsStackParamList>();
 
@@ -14,6 +16,7 @@ function Jobs({ navigation }: { navigation: any }) {
       onOpenActive={() => navigation.navigate('RiderActiveJob', { deliveryJobId: 'current' })}
       onOpenHistory={() => navigation.navigate('RiderJobHistory')}
       onOpenDashboard={() => navigation.getParent()?.navigate('Dashboard')}
+      onOpenReceipt={(deliveryJobId: string) => navigation.navigate('RiderReceipt', { deliveryJobId })}
     />
   );
 }
@@ -31,10 +34,12 @@ function Return(props: any) {
   return <RiderJobRouteScreen {...props} expected="RETURN" />;
 }
 function History({ navigation }: { navigation: any }) {
-  return <RiderHistoryScreen onBack={() => navigation.goBack()} />;
-}
-function HistoryDetail({ navigation }: { navigation: any }) {
-  return <RiderHistoryScreen onBack={() => navigation.goBack()} />;
+  return (
+    <RiderHistoryScreen
+      onBack={() => navigation.goBack()}
+      onOpenDetail={(deliveryJobId) => navigation.navigate('RiderJobHistoryDetail', { deliveryJobId })}
+    />
+  );
 }
 
 export const RiderJobsNavigator = () => (
@@ -53,6 +58,7 @@ export const RiderJobsNavigator = () => (
     <Stack.Screen name="RiderDelivery" component={Delivery} />
     <Stack.Screen name="RiderReturn" component={Return} />
     <Stack.Screen name="RiderJobHistory" component={History} />
-    <Stack.Screen name="RiderJobHistoryDetail" component={HistoryDetail} />
+    <Stack.Screen name="RiderJobHistoryDetail" component={RiderJobHistoryDetailScreen} />
+    <Stack.Screen name="RiderReceipt" component={RiderReceiptScreen} />
   </Stack.Navigator>
 );
