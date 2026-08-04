@@ -35,7 +35,7 @@ type Props = {
 
 type RemoteMessageLike = {
   notification?: { title?: string; body?: string };
-  data?: Record<string, string>;
+  data?: Record<string, unknown>;
 };
 
 type RiderOperationsCommand = Extract<
@@ -62,7 +62,7 @@ function dataFromInboxItem(item: PartnerNotification): Record<string, unknown> {
 }
 
 function dataFromRemoteMessage(message: RemoteMessageLike) {
-  return message.data as Record<string, unknown> | undefined;
+  return message.data;
 }
 
 function navigateRiderOperations(command: RiderOperationsCommand) {
