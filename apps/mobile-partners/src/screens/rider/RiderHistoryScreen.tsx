@@ -1,267 +1,88 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  ArrowLeft,
-  CalendarDays,
-  ChevronDown,
-  ChevronRight,
-  SlidersHorizontal,
-} from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ArrowLeft, ChevronRight, PackageCheck, RefreshCw } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { riderService } from '../../api/riderService';
-import {
-  RiderJobListItem,
-  historyItems,
-  shortPartnerOrderId,
-  startOfLocalWeek,
-} from '../../domain/riderReferenceUi';
 
-const HISTORY_KEY = ['rider', 'assignment-history'] as const;
-type HistoryFilter = 'ALL' | 'COMPLETED' | 'CANCELLED' | 'RETURNED';
+const FILTERS = ['ALL', 'DELIVERED', 'DELIVERY_FAILED', 'RETURNED_TO_STORE', 'CANCELLED'] as const;
+type Filter = typeof FILTERS[number];
+const label = (value: string) => value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+const when = (value?: string) => value ? new Date(value).toLocaleString() : 'Time unavailable';
 
-function historyFrom() {
-  const value = new Date();
-  value.setHours(0, 0, 0, 0);
-  value.setDate(value.getDate() - 60);
-  return value.toISOString();
-}
-
-function filterMatches(item: RiderJobListItem, filter: HistoryFilter) {
-  if (filter === 'ALL') return true;
-  return item.status === filter;
-}
-
-function statusVisual(status: RiderJobListItem['status']) {
-  if (status === 'COMPLETED') return { label: 'Completed', color: '#148A35', background: '#E8F8E8' };
-  if (status === 'RETURNED') return { label: 'Returned', color: '#EB7908', background: '#FFF1E4' };
-  if (status === 'CANCELLED') return { label: 'Cancelled', color: '#D51D25', background: '#FFE8E9' };
-  if (status === 'IN_PROGRESS') return { label: 'In Progress', color: '#226BD5', background: '#EAF3FF' };
-  return { label: 'Assigned', color: '#148A35', background: '#E8F8E8' };
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) return 'Time unavailable';
-  return new Date(value).toLocaleString('en-IN', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
+export const RiderHistoryScreen = ({ onBack, onOpenReceipt }: { onBack: () => void; onOpenReceipt: (deliveryJobId: string) => void }) => {
+  const [status, setStatus] = useState<Filter>('ALL');
+  const [page, setPage] = useState(1);
+  const query = useQuery({
+    queryKey: ['rider', 'canonical-history', status, page],
+    queryFn: () => riderService.getHistory({ status, page, pageSize: 20 }),
+    staleTime: 20_000,
   });
-}
-
-function money(value: number | null) {
-  return value == null
-    ? '—'
-    : `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function dateRangeLabel() {
-  const end = new Date();
-  const start = startOfLocalWeek(end);
-  return `${start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-}
-
-export const RiderHistoryScreen = ({ onBack }: { onBack?: () => void }) => {
-  const [filter, setFilter] = useState<HistoryFilter>('ALL');
-  const workspaceQuery = useQuery({
-    queryKey: [...HISTORY_KEY, historyFrom()],
-    queryFn: () => riderService.getWorkspaceSince(historyFrom()),
-  });
-  const allItems = useMemo(() => historyItems(workspaceQuery.data), [workspaceQuery.data]);
-  const filteredItems = useMemo(
-    () => allItems.filter((item) => filterMatches(item, filter)),
-    [allItems, filter],
-  );
-  const counts = useMemo(() => ({
-    completed: allItems.filter((item) => item.status === 'COMPLETED').length,
-    cancelled: allItems.filter((item) => item.status === 'CANCELLED').length,
-    returned: allItems.filter((item) => item.status === 'RETURNED').length,
-  }), [allItems]);
+  const data = query.data || { items: [], page: 1, totalPages: 1, total: 0 };
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        refreshControl={(
-          <RefreshControl
-            refreshing={workspaceQuery.isRefetching}
-            onRefresh={() => void workspaceQuery.refetch()}
-            tintColor="#FFFFFF"
-          />
+      <View style={styles.header}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider jobs" style={styles.iconButton} onPress={onBack}><ArrowLeft size={22} color="#0F172A" /></TouchableOpacity>
+        <View style={styles.headerText}><Text style={styles.title}>Job history</Text><Text style={styles.subtitle}>Canonical delivery outcomes and secure receipts</Text></View>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh history" style={styles.iconButton} onPress={() => query.refetch()}><RefreshCw size={19} color="#087B5B" /></TouchableOpacity>
+      </View>
+
+      <FlatList
+        horizontal
+        data={FILTERS as unknown as Filter[]}
+        keyExtractor={(item) => item}
+        showsHorizontalScrollIndicator={false}
+        style={styles.filters}
+        contentContainerStyle={styles.filterContent}
+        renderItem={({ item }) => (
+          <TouchableOpacity style={[styles.filter, status === item && styles.filterActive]} onPress={() => { setStatus(item); setPage(1); }}>
+            <Text style={[styles.filterText, status === item && styles.filterTextActive]}>{item === 'ALL' ? 'All' : label(item)}</Text>
+          </TouchableOpacity>
         )}
-      >
-        <View style={styles.hero}>
-          <View style={styles.headerRow}>
-            <TouchableOpacity accessibilityLabel="Back to jobs" style={styles.headerIcon} onPress={onBack}>
-              <ArrowLeft size={31} color="#FFFFFF" />
+      />
+
+      {query.isLoading ? <View style={styles.state}><ActivityIndicator color="#087B5B" /><Text style={styles.stateText}>Loading authoritative history…</Text></View> : null}
+      {query.isError ? <View style={styles.state}><Text style={styles.errorTitle}>History unavailable</Text><Text style={styles.stateText}>Pull to retry. No local or assignment-derived totals are shown.</Text></View> : null}
+
+      {!query.isLoading && !query.isError ? (
+        <FlatList
+          data={data.items || []}
+          keyExtractor={(item: any) => item.id}
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => query.refetch()} />}
+          ListEmptyComponent={<View style={styles.state}><PackageCheck size={34} color="#94A3B8" /><Text style={styles.errorTitle}>No terminal jobs</Text><Text style={styles.stateText}>Completed, failed, returned and cancelled jobs will appear here.</Text></View>}
+          renderItem={({ item }: { item: any }) => (
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Open receipt for order ${item.orderId}`} style={styles.card} onPress={() => onOpenReceipt(item.id)}>
+              <View style={styles.row}><View style={styles.flex}><Text style={styles.order}>Order #{String(item.orderId).slice(-8)}</Text><Text style={styles.store}>{item.store?.name || 'Store'}</Text></View><View style={styles.status}><Text style={styles.statusText}>{label(item.status)}</Text></View></View>
+              <Text style={styles.meta}>{when(item.outcomeAt)} · {item.itemCount || 0} items · {item.parcelCount || '—'} parcels</Text>
+              <View style={styles.receiptRow}><Text style={styles.receipt}>Backend-owned receipt</Text><ChevronRight size={18} color="#087B5B" /></View>
             </TouchableOpacity>
-            <Text style={styles.title}>Delivery History</Text>
-            <View style={styles.headerIcon}><SlidersHorizontal size={29} color="#FFFFFF" /></View>
-          </View>
-
-          <View style={styles.filters}>
-            <HistoryFilterButton label="All" active={filter === 'ALL'} onPress={() => setFilter('ALL')} />
-            <HistoryFilterButton label="Completed" active={filter === 'COMPLETED'} onPress={() => setFilter('COMPLETED')} />
-            <HistoryFilterButton label="Cancelled" active={filter === 'CANCELLED'} onPress={() => setFilter('CANCELLED')} />
-            <HistoryFilterButton label="Returned" active={filter === 'RETURNED'} onPress={() => setFilter('RETURNED')} />
-          </View>
-
-          <View style={styles.rangeCard}>
-            <CalendarDays size={22} color="#596168" />
-            <Text style={styles.rangeText}>{dateRangeLabel()}</Text>
-            <ChevronDown size={24} color="#596168" />
-          </View>
-        </View>
-
-        <View style={styles.summaryCard}>
-          <Summary value={counts.completed} label="Completed" color="#0D8B2E" />
-          <View style={styles.summaryDivider} />
-          <Summary value={counts.cancelled} label="Cancelled" color="#D51D25" />
-          <View style={styles.summaryDivider} />
-          <Summary value={counts.returned} label="Returned" color="#EB7908" />
-        </View>
-
-        <View style={styles.listArea}>
-          {workspaceQuery.isLoading ? (
-            <View style={styles.stateCard}>
-              <ActivityIndicator size="large" color="#078D63" />
-              <Text style={styles.stateText}>Loading delivery history…</Text>
-            </View>
-          ) : workspaceQuery.isError ? (
-            <View style={styles.stateCard}>
-              <Text style={styles.stateTitle}>History unavailable</Text>
-              <Text style={styles.stateText}>{(workspaceQuery.error as Error)?.message || 'Pull down to try again.'}</Text>
-            </View>
-          ) : filteredItems.length === 0 ? (
-            <View style={styles.stateCard}>
-              <Text style={styles.stateTitle}>No deliveries in this view</Text>
-              <Text style={styles.stateText}>Completed, cancelled and returned jobs will appear here.</Text>
-            </View>
-          ) : (
-            filteredItems.map((item) => <HistoryCard key={item.key} item={item} />)
           )}
-        </View>
-      </ScrollView>
+          ListFooterComponent={data.totalPages > 1 ? (
+            <View style={styles.pagination}>
+              <TouchableOpacity disabled={page <= 1} style={[styles.pageButton, page <= 1 && styles.disabled]} onPress={() => setPage((value) => Math.max(1, value - 1))}><Text style={styles.pageText}>Previous</Text></TouchableOpacity>
+              <Text style={styles.pageLabel}>Page {data.page || page} of {data.totalPages}</Text>
+              <TouchableOpacity disabled={page >= data.totalPages} style={[styles.pageButton, page >= data.totalPages && styles.disabled]} onPress={() => setPage((value) => value + 1)}><Text style={styles.pageText}>Next</Text></TouchableOpacity>
+            </View>
+          ) : null}
+        />
+      ) : null}
     </View>
   );
 };
 
-function HistoryFilterButton({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={[styles.filterButton, active && styles.filterButtonActive]}
-      onPress={onPress}
-    >
-      <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function Summary({ value, label, color }: { value: number; label: string; color: string }) {
-  return (
-    <View style={styles.summaryItem}>
-      <Text style={[styles.summaryValue, { color }]}>{value}</Text>
-      <Text style={styles.summaryLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function HistoryCard({ item }: { item: RiderJobListItem }) {
-  const visual = statusVisual(item.status);
-  return (
-    <View testID="rider_history_card" style={styles.historyCard}>
-      <View style={styles.cardTopRow}>
-        <Text style={styles.cardDate}>{formatDateTime(item.time)}</Text>
-        <Text style={styles.cardOrder}>#J-{shortPartnerOrderId(item.orderId)}</Text>
-        <View style={[styles.statusPill, { backgroundColor: visual.background }]}>
-          <Text style={[styles.statusText, { color: visual.color }]}>{visual.label}</Text>
-        </View>
-      </View>
-
-      <View style={styles.cardBody}>
-        <View style={styles.routeTimeline}>
-          <View style={[styles.routeDot, { borderColor: visual.color }]}><View style={[styles.routeDotInner, { backgroundColor: visual.color }]} /></View>
-          <View style={styles.routeLine} />
-          <View style={[styles.routeDot, { borderColor: visual.color }]}><View style={[styles.routeDotInner, { backgroundColor: visual.color }]} /></View>
-        </View>
-        <View style={styles.routeCopy}>
-          <View>
-            <Text style={styles.routeLabel}>Pickup</Text>
-            <Text style={styles.routeName}>{item.pickupName}</Text>
-            <Text style={styles.routeAddress}>{item.pickupAddress}</Text>
-          </View>
-          <View>
-            <Text style={styles.routeLabel}>Delivery</Text>
-            <Text style={styles.routeName}>{item.deliveryAddress}</Text>
-          </View>
-        </View>
-        <View style={styles.cardRight}>
-          <ChevronRight size={25} color="#4E555A" />
-          <Text style={styles.payout}>{money(item.payout)}</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F7F8F7' },
-  scroll: { flex: 1 },
-  content: { paddingBottom: 112 },
-  hero: { backgroundColor: '#067B5C', paddingTop: 50, paddingHorizontal: 14, paddingBottom: 68 },
-  headerRow: { flexDirection: 'row', alignItems: 'center' },
-  headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1, color: '#FFFFFF', fontSize: 22, fontWeight: '900', marginLeft: 8 },
-  filters: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  filterButton: { flex: 1, height: 44, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.32)', alignItems: 'center', justifyContent: 'center' },
-  filterButtonActive: { backgroundColor: '#FFFFFF', borderColor: '#FFFFFF' },
-  filterText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  filterTextActive: { color: '#087150' },
-  rangeCard: { height: 60, borderRadius: 15, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, marginTop: 14 },
-  rangeText: { flex: 1, color: '#555D63', fontSize: 14, fontWeight: '600' },
-  summaryCard: { marginHorizontal: 14, marginTop: -49, height: 91, borderRadius: 17, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', elevation: 4, borderWidth: 1, borderColor: '#E0E3E2' },
-  summaryItem: { flex: 1, alignItems: 'center' },
-  summaryValue: { fontSize: 28, fontWeight: '900' },
-  summaryLabel: { color: '#4A5055', fontSize: 13, marginTop: 4 },
-  summaryDivider: { width: 1, height: 52, backgroundColor: '#E2E4E3' },
-  listArea: { paddingHorizontal: 14, paddingTop: 12 },
-  historyCard: { borderRadius: 17, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E4E3', padding: 14, marginBottom: 11, elevation: 2 },
-  cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardDate: { color: '#343A3E', fontSize: 12, flex: 1 },
-  cardOrder: { color: '#171A1C', fontSize: 13, fontWeight: '900' },
-  statusPill: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
-  statusText: { fontSize: 11, fontWeight: '900' },
-  cardBody: { flexDirection: 'row', marginTop: 13, minHeight: 94 },
-  routeTimeline: { width: 34, alignItems: 'center', paddingVertical: 3 },
-  routeDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  routeDotInner: { width: 7, height: 7, borderRadius: 4 },
-  routeLine: { width: 1, flex: 1, borderLeftWidth: 1, borderColor: '#B7C1BC', borderStyle: 'dashed' },
-  routeCopy: { flex: 1, justifyContent: 'space-between' },
-  routeLabel: { color: '#0A913B', fontSize: 11, fontWeight: '800' },
-  routeName: { color: '#171A1C', fontSize: 14, fontWeight: '700', marginTop: 2 },
-  routeAddress: { color: '#555D63', fontSize: 11, marginTop: 1 },
-  cardRight: { width: 70, alignItems: 'flex-end', justifyContent: 'space-between' },
-  payout: { color: '#111111', fontSize: 14, fontWeight: '900' },
-  stateCard: { minHeight: 250, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  stateTitle: { color: '#111827', fontSize: 18, fontWeight: '900' },
-  stateText: { color: '#6B7470', textAlign: 'center', marginTop: 7 },
+  screen: { flex: 1, backgroundColor: '#F5F7F6' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },
+  headerText: { flex: 1 }, title: { color: '#0F172A', fontSize: 21, fontWeight: '900' }, subtitle: { color: '#64748B', fontSize: 12, marginTop: 2 },
+  filters: { maxHeight: 62 }, filterContent: { gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
+  filter: { paddingHorizontal: 14, minHeight: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D7E0DC' },
+  filterActive: { backgroundColor: '#087B5B', borderColor: '#087B5B' }, filterText: { color: '#475569', fontSize: 12, fontWeight: '800' }, filterTextActive: { color: '#FFFFFF' },
+  list: { padding: 16, gap: 12, paddingBottom: 30 }, card: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E2E8F0', gap: 8 },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 }, flex: { flex: 1 }, order: { color: '#0F172A', fontSize: 16, fontWeight: '900' }, store: { color: '#475569', marginTop: 3, fontWeight: '700' },
+  status: { backgroundColor: '#ECFDF5', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6 }, statusText: { color: '#047857', fontSize: 10, fontWeight: '900' }, meta: { color: '#64748B', fontSize: 12 },
+  receiptRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: '#EEF2F7' }, receipt: { color: '#087B5B', fontWeight: '900' },
+  state: { minHeight: 260, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 10 }, stateText: { color: '#64748B', textAlign: 'center' }, errorTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900' },
+  pagination: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12 }, pageButton: { minHeight: 42, paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#E6F6F1', alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.4 }, pageText: { color: '#087B5B', fontWeight: '900' }, pageLabel: { color: '#64748B', fontSize: 12, fontWeight: '800' },
 });
