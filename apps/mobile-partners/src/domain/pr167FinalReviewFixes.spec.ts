@@ -12,14 +12,15 @@ describe('PR 167 final Codex regressions', () => {
     expect(value).not.toContain("/store-owner/store-orders/summary/pending-count");
   });
 
-  it('preserves multiple same-day and unavailable schedule windows', () => {
-    const value = source('screens/rider/RiderProfileScreen.tsx');
-    expect(value).toContain('const hydrated: ScheduleDraft[] = entries.map');
-    expect(value).toContain('const presentDays = new Set');
-    expect(value).toContain('schedule.map(({ enabled, ...entry })');
+  it('preserves multiple same-day and unavailable schedule windows in the dedicated schedule screen', () => {
+    const value = source('screens/rider/RiderScheduleScreen.tsx');
+    expect(value).toContain('setEntries(schedule.map');
+    expect(value).toContain('isAvailable: Boolean(entry.isAvailable)');
+    expect(value).toContain('entries.filter((entry) => entry.dayOfWeek === day)');
+    expect(value).toContain('entries.map(({ localId: _localId, ...entry }) => entry)');
     expect(value).not.toContain('.filter((entry) => entry.enabled)');
-    expect(value).toContain('entry.startMinute}-${entry.endMinute}-${index}');
-    expect(value).toContain('minuteLabel(entry.startMinute)');
+    expect(value).toContain('key={entry.localId}');
+    expect(value).toContain('minutesLabel(entry.startMinute)');
   });
 
   it('guards the centralized Firebase lifecycle when Firebase is unavailable', () => {
@@ -35,12 +36,12 @@ describe('PR 167 final Codex regressions', () => {
     expect(dashboard).not.toContain('startMobilePushLifecycle');
   });
 
-  it('renders workspace errors before the successful empty state', () => {
+  it('renders workspace errors before the authoritative empty state', () => {
     const value = source('screens/rider/RiderDeliveryFlowScreen.tsx');
-    expect(value).toContain('Delivery workspace unavailable');
-    expect(value).toContain('Retry workspace');
+    expect(value).toContain('Active delivery unavailable');
+    expect(value).toContain('No active delivery');
     const errorBranch = value.indexOf('if (workspaceQuery.isError)');
-    const emptyBranch = value.indexOf('if (!activeJob) return <Empty', errorBranch);
+    const emptyBranch = value.indexOf('if (!activeJob) return <State', errorBranch);
     expect(errorBranch).toBeGreaterThanOrEqual(0);
     expect(emptyBranch).toBeGreaterThan(errorBranch);
   });
