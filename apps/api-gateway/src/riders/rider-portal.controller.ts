@@ -27,6 +27,7 @@ import {
   VerifyPickupDto,
 } from "./rider-portal.dto";
 import { RiderPortalReadService } from "./rider-portal-read.service";
+import { RiderPortalSecureService } from "./rider-portal-secure.service";
 import { RiderPortalService } from "./rider-portal.service";
 
 @Controller("riders/portal")
@@ -35,7 +36,8 @@ import { RiderPortalService } from "./rider-portal.service";
 export class RiderPortalController {
   constructor(
     private readonly portal: RiderPortalService,
-    private readonly read: RiderPortalReadService
+    private readonly read: RiderPortalReadService,
+    private readonly secure: RiderPortalSecureService
   ) {}
 
   @Get("home")
@@ -53,7 +55,7 @@ export class RiderPortalController {
     @Req() req: any,
     @Param("assignmentId") assignmentId: string
   ) {
-    return this.read.offerDetail(req.user.id, assignmentId);
+    return this.secure.offerDetail(req.user.id, assignmentId);
   }
 
   @Get("delivery")
@@ -63,7 +65,7 @@ export class RiderPortalController {
 
   @Get("history")
   history(@Req() req: any, @Query() query: RiderHistoryQueryDto) {
-    return this.portal.history(req.user.id, query);
+    return this.secure.history(req.user.id, query);
   }
 
   @Get("history/:deliveryJobId")
@@ -71,7 +73,7 @@ export class RiderPortalController {
     @Req() req: any,
     @Param("deliveryJobId") deliveryJobId: string
   ) {
-    return this.read.historyDetail(req.user.id, deliveryJobId);
+    return this.secure.historyDetail(req.user.id, deliveryJobId);
   }
 
   @Get("receipts/:deliveryJobId")
@@ -79,7 +81,7 @@ export class RiderPortalController {
     @Req() req: any,
     @Param("deliveryJobId") deliveryJobId: string
   ) {
-    return this.read.receipt(req.user.id, deliveryJobId);
+    return this.secure.receipt(req.user.id, deliveryJobId);
   }
 
   @Get("pickup")
@@ -191,7 +193,7 @@ export class RiderPortalController {
     @Param("deliveryJobId") deliveryJobId: string,
     @Body() body: RiderContactDto
   ) {
-    return this.read.contact(req.user.id, deliveryJobId, body);
+    return this.secure.contact(req.user.id, deliveryJobId, body);
   }
 
   @Get("support")
