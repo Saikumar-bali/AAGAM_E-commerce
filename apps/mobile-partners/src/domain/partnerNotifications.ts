@@ -205,7 +205,10 @@ export function navigationCommandForNotification(
   }
 }
 
-export function queryKeysForNotification(eventType?: string): ReadonlyArray<readonly unknown[]> {
+export function queryKeysForNotification(
+  eventType?: string,
+  ticketId?: string,
+): ReadonlyArray<readonly unknown[]> {
   const event = upper(eventType) || '';
   const keys: Array<readonly unknown[]> = [['partner-notifications']];
 
@@ -232,9 +235,14 @@ export function queryKeysForNotification(eventType?: string): ReadonlyArray<read
     keys.push(...RIDER_WORKSPACE_KEYS, ['rider', 'delivery-operations']);
   }
 
-  if (event.includes('EARNING') || event.includes('PAYOUT')) keys.push(['rider', 'earnings']);
-  if (event.includes('COD')) keys.push(['rider', 'cod']);
-  if (event.includes('SUPPORT')) keys.push(['rider', 'support']);
+  if (event.includes('EARNING') || event.includes('PAYOUT')) {
+    keys.push(['rider', 'earnings-ledger'], ['rider', 'payout-history']);
+  }
+  if (event.includes('COD')) keys.push(['rider', 'cod-ledger']);
+  if (event.includes('SUPPORT')) {
+    keys.push(['rider', 'support']);
+    if (ticketId) keys.push(['rider', 'support-ticket', ticketId]);
+  }
   if (event.includes('DOCUMENT')) keys.push(['rider', 'documents']);
   if (event.includes('PROFILE')) keys.push(['rider', 'profile']);
 
