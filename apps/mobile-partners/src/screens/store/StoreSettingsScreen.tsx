@@ -1,9 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { BellRing, LogOut, Save, Store } from 'lucide-react-native';
+import { BellRing, ExternalLink, LogOut, MapPin, Save, Store } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,6 +22,11 @@ function normalizePhone(value: string) {
   return digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
 }
 
+function coordinate(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue.toFixed(6) : null;
+}
+
 export const StoreSettingsScreen = () => {
   const queryClient = useQueryClient();
   const logout = useAuthStore((state) => state.logout);
@@ -32,6 +39,11 @@ export const StoreSettingsScreen = () => {
   const storesQuery = useQuery({ queryKey: ['store-owner-dashboard-stores'], queryFn: storeService.getStoreDashboardSummaries, retry: 1 });
   const stores = Array.isArray(storesQuery.data) ? storesQuery.data : [];
   const selected = stores.find((store: any) => store.id === selectedId) || stores[0];
+  const latitude = coordinate(selected?.latitude ?? selected?.lat);
+  const longitude = coordinate(selected?.longitude ?? selected?.lng);
+  const coordinates = latitude && longitude ? `${latitude}, ${longitude}` : 'Location coordinates are not available for this store.';
+  const orderCount = Number(selected?.orderCount || 0);
+  const totalRevenue = Number(selected?.totalRevenue || 0);
 
   useEffect(() => {
     if (!selected) return;
@@ -69,6 +81,24 @@ export const StoreSettingsScreen = () => {
     } finally { setSaving(false); }
   };
 
+  const openNotificationSettings = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        await Linking.sendIntent('android.settings.APP_NOTIFICATION_SETTINGS', [
+          { key: 'android.provider.extra.APP_PACKAGE', value: 'com.aagampartners' },
+        ]);
+        return;
+      }
+      await Linking.openSettings();
+    } catch {
+      try {
+        await Linking.openSettings();
+      } catch {
+        Toast.show({ type: 'error', text1: 'Settings unavailable', text2: 'Open Android Settings and enable notifications for AAGAM Partners.' });
+      }
+    }
+  };
+
   const confirmLogout = () => {
     Alert.alert('Sign out of partner app?', 'You will stop receiving store alerts on this account until you sign in again.', [
       { text: 'Stay signed in', style: 'cancel' },
@@ -82,8 +112,10 @@ export const StoreSettingsScreen = () => {
       {storesQuery.isLoading ? <View style={styles.center}><ActivityIndicator color="#0F766E" /><Text style={styles.muted}>Loading assigned stores…</Text></View> : storesQuery.isError ? <View style={styles.card}><Text style={styles.cardTitle}>Could not load settings</Text><TouchableOpacity style={styles.primaryButton} onPress={() => void storesQuery.refetch()}><Text style={styles.primaryText}>Retry</Text></TouchableOpacity></View> : stores.length === 0 ? <View style={styles.card}><Text style={styles.cardTitle}>No assigned store</Text><Text style={styles.cardText}>An admin must assign a store before settings can be changed.</Text></View> : <>
         {stores.length > 1 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storeRow}>{stores.map((store: any) => <TouchableOpacity key={store.id} onPress={() => setSelectedId(store.id)} style={[styles.storeChip, selected?.id === store.id && styles.storeChipActive]}><Text style={[styles.storeChipText, selected?.id === store.id && styles.storeChipTextActive]}>{store.name}</Text></TouchableOpacity>)}</ScrollView> : null}
         <View style={styles.card}><Field testID="store_settings_name" label="Store name" value={name} onChangeText={setName} /><Field testID="store_settings_phone" label="Owner mobile number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" /><Field testID="store_settings_address" label="Store address" value={address} onChangeText={setAddress} multiline /><TouchableOpacity testID="store_settings_save" onPress={() => void save()} disabled={saving} style={[styles.primaryButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color="#FFFFFF" /> : <><Save size={18} color="#FFFFFF" /><Text style={styles.primaryText}>Save store profile</Text></>}</TouchableOpacity></View>
+        <View style={styles.card}><View style={styles.infoRow}><MapPin size={21} color="#0F766E" /><View style={styles.infoCopy}><Text style={styles.cardTitle}>Store location</Text><Text testID="store_settings_coordinates" style={styles.cardText}>{coordinates}</Text></View></View></View>
+        <View style={styles.card}><View style={styles.infoRow}><Store size={21} color="#0F766E" /><View style={styles.infoCopy}><Text style={styles.cardTitle}>Store snapshot</Text><Text style={styles.cardText}>All-time orders: {orderCount}</Text><Text style={styles.cardText}>Recorded revenue: ₹{totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text></View></View></View>
       </>}
-      <View style={styles.card}><View style={styles.infoRow}><BellRing size={21} color="#0F766E" /><View style={styles.infoCopy}><Text style={styles.cardTitle}>Operational notifications</Text><Text style={styles.cardText}>Keep Android notifications enabled for new orders, picking, dispatch and delivery alerts.</Text></View></View></View>
+      <TouchableOpacity testID="store_settings_notifications" style={styles.card} onPress={() => void openNotificationSettings()} activeOpacity={0.75}><View style={styles.infoRow}><BellRing size={21} color="#0F766E" /><View style={styles.infoCopy}><Text style={styles.cardTitle}>Operational notifications</Text><Text style={styles.cardText}>Open system notification settings for new orders, picking, dispatch and delivery alerts.</Text></View><ExternalLink size={18} color="#64748B" /></View></TouchableOpacity>
       <TouchableOpacity testID="store_settings_logout" onPress={confirmLogout} style={styles.logoutButton}><LogOut size={18} color="#B91C1C" /><Text style={styles.logoutText}>Sign out of partner app</Text></TouchableOpacity>
     </ScrollView>
   );
