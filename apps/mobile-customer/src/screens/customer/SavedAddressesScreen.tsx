@@ -128,7 +128,14 @@ export const SavedAddressesScreen = () => {
             return (
               <View style={styles.addressCard}>
                 <View style={styles.addressBody}>
-                  <View style={styles.addressIcon}><Icon size={24} color="#0F766E" /></View>
+                  <View
+                    style={styles.addressIcon}
+                    accessible
+                    accessibilityRole="image"
+                    accessibilityLabel={`${item.label || 'Address'} location`}
+                  >
+                    <Icon size={24} color="#0F766E" />
+                  </View>
                   <View style={styles.addressCopy}>
                     <View style={styles.addressTitleRow}>
                       <Text style={styles.addressTitle}>{item.label || 'Address'}</Text>
