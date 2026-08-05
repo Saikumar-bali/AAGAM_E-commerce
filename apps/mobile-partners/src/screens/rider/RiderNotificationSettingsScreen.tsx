@@ -54,6 +54,9 @@ export const RiderNotificationSettingsScreen = ({ navigation }: { navigation?: a
     queryFn: notificationService.getPushSubscriptions,
     retry: 1,
   });
+  const hasCachedPreferences = Array.isArray(preferencesQuery.data);
+  const hasCachedDevices = Array.isArray(devicesQuery.data);
+  const devices = devicesQuery.data || [];
 
   const preferences = useMemo(() => {
     const server = new Map(
@@ -111,7 +114,8 @@ export const RiderNotificationSettingsScreen = ({ navigation }: { navigation?: a
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={preferencesQuery.isRefetching || devicesQuery.isRefetching} onRefresh={() => void Promise.all([preferencesQuery.refetch(), devicesQuery.refetch()])} tintColor="#0F766E" />}>
         <Text style={styles.sectionTitle}>Alert preferences</Text>
         <Text style={styles.sectionHint}>Critical delivery alerts remain enabled so active work cannot be missed.</Text>
-        {preferencesQuery.isLoading ? <ActivityIndicator color="#0F766E" /> : preferencesQuery.isError ? <ErrorState title="Preferences unavailable" onRetry={() => void preferencesQuery.refetch()} /> : preferences.map((item) => (
+        {preferencesQuery.isError && hasCachedPreferences ? <InlineRetry title="Could not refresh preferences" message="Showing your last loaded settings." onRetry={() => void preferencesQuery.refetch()} /> : null}
+        {preferencesQuery.isLoading && !hasCachedPreferences ? <ActivityIndicator color="#0F766E" /> : preferencesQuery.isError && !hasCachedPreferences ? <ErrorState title="Preferences unavailable" onRetry={() => void preferencesQuery.refetch()} /> : preferences.map((item) => (
           <View key={item.eventType} style={styles.rowCard}>
             <View style={styles.flex}>
               <Text style={styles.rowTitle}>{item.label}</Text>
@@ -134,8 +138,9 @@ export const RiderNotificationSettingsScreen = ({ navigation }: { navigation?: a
 
         <Text style={[styles.sectionTitle, styles.devicesTitle]}>Registered devices</Text>
         <Text style={styles.sectionHint}>Only device names and activity are shown. Push tokens are never exposed.</Text>
-        {devicesQuery.isLoading ? <ActivityIndicator color="#0F766E" /> : devicesQuery.isError ? <ErrorState title="Devices unavailable" onRetry={() => void devicesQuery.refetch()} /> : null}
-        {(devicesQuery.data || []).map((device: PushSubscriptionSummary) => (
+        {devicesQuery.isError && hasCachedDevices ? <InlineRetry title="Could not refresh devices" message="Showing your last loaded devices." onRetry={() => void devicesQuery.refetch()} /> : null}
+        {devicesQuery.isLoading && !hasCachedDevices ? <ActivityIndicator color="#0F766E" /> : devicesQuery.isError && !hasCachedDevices ? <ErrorState title="Devices unavailable" onRetry={() => void devicesQuery.refetch()} /> : null}
+        {devices.map((device: PushSubscriptionSummary) => (
           <View key={device.id} style={styles.deviceCard}>
             <View style={styles.deviceIcon}><Smartphone size={21} color="#0F766E" /></View>
             <View style={styles.flex}>
@@ -155,7 +160,7 @@ export const RiderNotificationSettingsScreen = ({ navigation }: { navigation?: a
             </TouchableOpacity>
           </View>
         ))}
-        {!devicesQuery.isLoading && !devicesQuery.isError && (devicesQuery.data || []).length === 0 ? (
+        {!devicesQuery.isLoading && !(devicesQuery.isError && !hasCachedDevices) && devices.length === 0 ? (
           <View style={styles.empty}><Text style={styles.rowText}>No active push devices were returned.</Text></View>
         ) : null}
       </ScrollView>
@@ -165,6 +170,10 @@ export const RiderNotificationSettingsScreen = ({ navigation }: { navigation?: a
 
 function ErrorState({ title, onRetry }: { title: string; onRetry: () => void }) {
   return <View style={styles.errorCard}><Text style={styles.errorTitle}>{title}</Text><Text style={styles.errorText}>Check your connection and try again.</Text><TouchableOpacity style={styles.errorButton} onPress={onRetry}><Text style={styles.errorButtonText}>Try again</Text></TouchableOpacity></View>;
+}
+
+function InlineRetry({ title, message, onRetry }: { title: string; message: string; onRetry: () => void }) {
+  return <View style={styles.inlineError}><View style={styles.flex}><Text style={styles.inlineErrorTitle}>{title}</Text><Text style={styles.inlineErrorText}>{message}</Text></View><TouchableOpacity onPress={onRetry}><Text style={styles.inlineRetry}>Retry</Text></TouchableOpacity></View>;
 }
 
 const styles = StyleSheet.create({
@@ -191,4 +200,8 @@ const styles = StyleSheet.create({
   errorText: { color: '#B91C1C', fontSize: 11, marginTop: 4 },
   errorButton: { marginTop: 12, borderRadius: 12, backgroundColor: '#B91C1C', paddingHorizontal: 15, paddingVertical: 10 },
   errorButtonText: { color: '#FFFFFF', fontWeight: '900' },
+  inlineError: { marginBottom: 10, borderRadius: 15, borderWidth: 1, borderColor: '#FCD34D', backgroundColor: '#FFFBEB', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  inlineErrorTitle: { color: '#92400E', fontSize: 11, fontWeight: '900' },
+  inlineErrorText: { color: '#B45309', fontSize: 10, marginTop: 3 },
+  inlineRetry: { color: '#0F766E', fontWeight: '900' },
 });
