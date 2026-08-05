@@ -25,6 +25,7 @@ import type { StoreOrderStatus } from '../../api/storeService';
 import { notificationService } from '../../api/notificationService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 import { partnerNavigationRef } from '../../navigation/partnerNavigationRef';
+import { AagamBrand } from '../../components/AagamBrand';
 import {
   StoreOrderTab,
   formatStoreMoney,
@@ -181,10 +182,8 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.header}>
-        <View style={styles.headerIcon} />
-        <Text style={styles.headerTitle}>Orders</Text>
+        <AagamBrand compact caption="Fast Quality and Trust" />
         <TouchableOpacity
-          testID="store_orders_notifications"
           accessibilityLabel="Open notifications"
           style={styles.headerIcon}
           onPress={openNotifications}

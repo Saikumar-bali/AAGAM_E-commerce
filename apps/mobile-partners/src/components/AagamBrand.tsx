@@ -1,7 +1,7 @@
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
-export function AagamBrand({ caption = 'Verified partner network', inverse = false, compact = false }: { caption?: string; inverse?: boolean; compact?: boolean }) {
+export function AagamBrand({ caption = 'Fast Quality and Trust', inverse = false, compact = false }: { caption?: string; inverse?: boolean; compact?: boolean }) {
   const size = compact ? 44 : 58;
   return <View style={styles.row}><View style={[styles.markWrap, { width: size, height: size, borderRadius: compact ? 14 : 19 }]}><Image source={require('../assets/aagam-mark.png')} resizeMode="contain" style={styles.mark} accessibilityLabel="Aagaam" /></View><View style={styles.copy}><Text style={[styles.name, compact && styles.nameCompact, inverse && styles.inverse]}>Aagaam</Text><Text style={[styles.caption, inverse && styles.captionInverse]} numberOfLines={1}>{caption}</Text></View></View>;
 }

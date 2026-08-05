@@ -21,6 +21,7 @@ import { deliveryOperationsService } from '../../api/deliveryOperationsService';
 import { notificationService } from '../../api/notificationService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 import { partnerNavigationRef } from '../../navigation/partnerNavigationRef';
+import { AagamBrand } from '../../components/AagamBrand';
 import {
   StorePickupTab,
   orderCustomerName,
@@ -89,14 +90,8 @@ export const StorePickupAlertsScreen = () => {
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.header}>
-        <View style={styles.headerIcon} />
-        <Text style={styles.title}>Pickup Alerts</Text>
-        <TouchableOpacity
-          testID="store_pickup_notifications"
-          accessibilityLabel="Open notifications"
-          style={styles.headerIcon}
-          onPress={openNotifications}
-        >
+        <AagamBrand compact caption="Fast Quality and Trust" />
+        <TouchableOpacity style={styles.headerIcon} onPress={openNotifications}>
           <Bell size={29} color="#26333D" />
           {unreadCount > 0 ? (
             <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>

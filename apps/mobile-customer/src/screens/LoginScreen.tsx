@@ -234,7 +234,7 @@ export const LoginScreen = () => {
       <View style={styles.glowAmber} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View style={styles.header}><View style={styles.brandLockup}><AagamBrand compact size={86} /><View><Text style={styles.brandName}>Aagaam</Text><Text style={styles.brandCaption}>SHOPPING MADE EFFORTLESS</Text></View></View><Text style={styles.subtitle}>Fast access. Secure checkout. Live delivery updates.</Text></View>
+          <View style={styles.header}><View style={styles.brandLockup}><AagamBrand compact size={86} /><View><Text style={styles.brandName}>Aagaam</Text><Text style={styles.brandCaption}>FAST QUALITY AND TRUST</Text></View></View><Text style={styles.subtitle}>Fast access. Secure checkout. Live delivery updates.</Text></View>
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{masked ? challengeTitle : 'Welcome to Aagaam'}</Text>
             <Text style={styles.cardSubtitle}>

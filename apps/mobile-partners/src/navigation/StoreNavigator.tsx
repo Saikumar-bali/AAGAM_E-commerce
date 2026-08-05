@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Box,
   CircleCheck,
@@ -36,6 +37,8 @@ function tabBadge(count: number) {
 }
 
 const StoreTabs = () => {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, 6);
   const inboxQuery = useQuery({
     queryKey: PARTNER_NOTIFICATION_QUERY_KEY,
     queryFn: () => notificationService.getInbox(1),
@@ -73,8 +76,8 @@ const StoreTabs = () => {
         tabBarHideOnKeyboard: true,
         sceneStyle: { backgroundColor: '#FAFBFA' },
         tabBarStyle: {
-          height: 83,
-          paddingBottom: 12,
+          height: 58 + bottomPadding,
+          paddingBottom: bottomPadding,
           paddingTop: 8,
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,

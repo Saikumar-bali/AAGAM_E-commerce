@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -7,6 +7,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -16,6 +17,7 @@ import {
   Bell,
   Box,
   IndianRupee,
+  Search,
   ShoppingCart,
   Store,
 } from 'lucide-react-native';
@@ -23,6 +25,7 @@ import { storeService } from '../../api/storeService';
 import { notificationService } from '../../api/notificationService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 import { storeAssignmentStatus } from '../../domain/storeReferenceUi';
+import { AagamBrand } from '../../components/AagamBrand';
 import { partnerNavigationRef } from '../../navigation/partnerNavigationRef';
 
 const { width } = Dimensions.get('window');
@@ -54,6 +57,7 @@ function statusTone(status: string) {
 
 export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
   const user = useAuthStore((state) => state.user);
+  const [searchQuery, setSearchQuery] = useState('');
   const storesQuery = useQuery({
     queryKey: ['store-owner-dashboard-stores'],
     queryFn: storeService.getStoreDashboardSummaries,
@@ -67,6 +71,15 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
   });
 
   const stores: StoreSummary[] = Array.isArray(storesQuery.data) ? storesQuery.data : [];
+  const filteredStores = useMemo(() => {
+    if (!searchQuery.trim()) return stores;
+    const q = searchQuery.toLowerCase();
+    return stores.filter((s) =>
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.address || '').toLowerCase().includes(q) ||
+      (s.city || '').toLowerCase().includes(q)
+    );
+  }, [stores, searchQuery]);
   const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
   const totals = useMemo(() => ({
     stores: stores.length,
@@ -99,6 +112,7 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
         <View style={styles.hero}>
           <View style={styles.heroShape} />
           <View style={styles.topRow}>
+            <AagamBrand compact caption="Fast Quality and Trust" inverse />
             <TouchableOpacity
               testID="store_dashboard_notifications"
               accessibilityLabel="Open notifications"
@@ -131,9 +145,25 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
             </View>
           ) : (
             <>
+              <View style={styles.searchBar}>
+                <Search size={18} color="#94A3B8" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search stores, orders…"
+                  placeholderTextColor="#94A3B8"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')}>
+                    <Text style={styles.searchClear}>✕</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
               <View style={styles.statsGrid}>
                 <DashboardStat icon={Store} title="Stores" value={String(totals.stores)} subtitle="Assigned" tone="#087B5A" iconBackground="#E8F8EE" />
-                <DashboardStat icon={ShoppingCart} title="Orders" value={String(totals.orders)} subtitle="All time" tone="#1557A4" iconBackground="#E8F1FD" />
+                <DashboardStat icon={ShoppingCart} title="Orders" value={String(totals.orders)} subtitle="Current" tone="#1557A4" iconBackground="#E8F1FD" />
                 <DashboardStat icon={IndianRupee} title="Revenue" value={`₹ ${totals.revenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} subtitle="Recorded" tone="#087B5A" iconBackground="#E8F8EE" />
                 <DashboardStat icon={Box} title="Products" value={String(totals.inventory)} subtitle="In Inventory" tone="#5A2DB7" iconBackground="#F0EAFE" />
               </View>
@@ -146,7 +176,7 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
               </View>
 
               <View style={styles.storeList}>
-                {stores.map((store, index) => {
+                {filteredStores.map((store, index) => {
                   const status = storeAssignmentStatus(store);
                   const tone = statusTone(status);
                   return (
@@ -154,7 +184,7 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
                       testID={`store_dashboard_card_${store.id}`}
                       key={store.id}
                       activeOpacity={0.75}
-                      style={[styles.storeRow, index < stores.length - 1 && styles.storeRowBorder]}
+                      style={[styles.storeRow, index < filteredStores.length - 1 && styles.storeRowBorder]}
                       onPress={() => navigation?.navigate?.('Orders', {
                         screen: 'OrderQueue',
                         params: { storeId: store.id },
@@ -171,7 +201,13 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
                     </TouchableOpacity>
                   );
                 })}
-                {!stores.length ? (
+                {!filteredStores.length && stores.length > 0 ? (
+                  <View style={styles.emptyAssigned}>
+                    <Search size={40} color="#A8B0B7" />
+                    <Text style={styles.stateTitle}>No stores match "{searchQuery}"</Text>
+                    <Text style={styles.stateText}>Try a different search term.</Text>
+                  </View>
+                ) : !stores.length ? (
                   <View style={styles.emptyAssigned}>
                     <Store size={40} color="#A8B0B7" />
                     <Text style={styles.stateTitle}>No stores assigned</Text>
@@ -236,7 +272,7 @@ const styles = StyleSheet.create({
     top: -95,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  topRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   notificationBadge: {
     position: 'absolute',
@@ -264,6 +300,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#F7F8F7',
     borderTopLeftRadius: 34,
     borderTopRightRadius: 34,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E4E3',
+    paddingHorizontal: 14,
+    height: 48,
+    marginBottom: 16,
+    gap: 9,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '500',
+  },
+  searchClear: {
+    fontSize: 16,
+    color: '#94A3B8',
+    fontWeight: '700',
   },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   statCard: {
