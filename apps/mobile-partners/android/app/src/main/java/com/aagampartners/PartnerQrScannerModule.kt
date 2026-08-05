@@ -37,7 +37,7 @@ class PartnerQrScannerModule(
     try {
       val integrator = IntentIntegrator(activity)
       integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
-      integrator.setPrompt("Scan the secure AAGAM pickup QR")
+      integrator.setPrompt("Scan the secure Aagaam pickup QR")
       integrator.setBeepEnabled(true)
       integrator.setBarcodeImageEnabled(false)
       integrator.setOrientationLocked(false)
