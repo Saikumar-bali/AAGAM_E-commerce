@@ -1,0 +1,78 @@
+name: Agent Apply Mobile Type Fixes
+
+on:
+  push:
+    branches: [agent/rider-portal-production-readiness]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fixes:
+    if: ${{ !contains(github.event.head_commit.message, '[skip-mobile-fixer]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/rider-portal-production-readiness
+          fetch-depth: 0
+
+      - name: Apply exact TypeScript fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              'apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx': [
+                  ("    const orderId = activeJob.order.id;\n", ""),
+                  ("            if (user?.id) await riderService.cacheLastCompletedJob(user.id, { deliveryJobId, orderId });",
+                   "            if (user?.id) await riderService.cacheLastCompletedJob(user.id, deliveryJobId);"),
+              ],
+              'apps/mobile-partners/src/screens/rider/RiderReceiptScreen.tsx': [
+                  ("    void riderService.cacheLastCompletedJob(user.id, {\n      deliveryJobId: receipt.deliveryJobId,\n      orderId: receipt.orderId,\n    });",
+                   "    void riderService.cacheLastCompletedJob(user.id, receipt.deliveryJobId);"),
+              ],
+              'apps/mobile-partners/src/screens/rider/RiderJobsScreen.tsx': [
+                  ("  const [lastCompleted, setLastCompleted] = useState<{ deliveryJobId: string; orderId: string } | null>(null);",
+                   "  const [lastCompleted, setLastCompleted] = useState<string | null>(null);"),
+                  ("    queryKey: ['rider', 'restorable-receipt', lastCompleted?.deliveryJobId],",
+                   "    queryKey: ['rider', 'restorable-receipt', lastCompleted],"),
+                  ("    queryFn: () => riderService.getReceipt(lastCompleted!.deliveryJobId),",
+                   "    queryFn: () => riderService.getReceipt(lastCompleted!),"),
+                  ("    enabled: Boolean(lastCompleted?.deliveryJobId),",
+                   "    enabled: Boolean(lastCompleted),"),
+                  ("            <TouchableOpacity accessibilityRole=\"button\" style={styles.receiptBanner} onPress={() => onOpenReceipt(lastCompleted.deliveryJobId)}>",
+                   "            <TouchableOpacity accessibilityRole=\"button\" style={styles.receiptBanner} onPress={() => onOpenReceipt(lastCompleted)}>"),
+                  ("              <View style={styles.flex}><Text style={styles.receiptTitle}>Receipt restored after restart</Text><Text style={styles.receiptText}>Order #{lastCompleted.orderId.slice(-8).toUpperCase()} is available from the server.</Text></View>",
+                   "              <View style={styles.flex}><Text style={styles.receiptTitle}>Receipt restored after restart</Text><Text style={styles.receiptText}>Order #{String(receiptQuery.data.orderId || 'UNKNOWN').slice(-8).toUpperCase()} is available from the server.</Text></View>"),
+              ],
+              'apps/mobile-partners/src/screens/rider/RiderProfileDetailsScreen.tsx': [
+                  ("onChangeText={(value) => setBankAccount(value.replace(/\\D/g, ''))}",
+                   "onChangeText={(value: string) => setBankAccount(value.replace(/\\D/g, ''))}"),
+              ],
+          }
+
+          for filename, pairs in replacements.items():
+              path = Path(filename)
+              text = path.read_text()
+              for old, new in pairs:
+                  if old not in text:
+                      raise SystemExit(f'Expected source fragment not found in {filename}: {old!r}')
+                  text = text.replace(old, new, 1)
+              path.write_text(text)
+
+          Path('.github/workflows/agent-apply-mobile-type-fixes.yml').unlink()
+          PY
+
+      - name: Commit corrected sources
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx \
+                  apps/mobile-partners/src/screens/rider/RiderReceiptScreen.tsx \
+                  apps/mobile-partners/src/screens/rider/RiderJobsScreen.tsx \
+                  apps/mobile-partners/src/screens/rider/RiderProfileDetailsScreen.tsx \
+                  .github/workflows/agent-apply-mobile-type-fixes.yml
+          git commit -m "fix(rider): align receipt restoration types [skip-mobile-fixer]"
+          git push origin HEAD:agent/rider-portal-production-readiness
