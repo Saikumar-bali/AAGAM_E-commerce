@@ -14,11 +14,12 @@ describe('customer mobile UI audit regressions', () => {
     expect(text).toContain('product.description');
   });
 
-  it('guards notification navigation and exposes retry UI', () => {
+  it('guards notification navigation and preserves cached alerts on refresh errors', () => {
     const text = source('NotificationsScreen.tsx');
     expect(text).toContain('if (item.orderId)');
     expect(text).toContain('Alerts unavailable');
-    expect(text).toContain('Try again');
+    expect(text).toContain('isError && items.length === 0');
+    expect(text).toContain('Showing your last loaded notifications.');
   });
 
   it('shows initial order failures without hiding cached history on refresh errors', () => {
@@ -31,6 +32,7 @@ describe('customer mobile UI audit regressions', () => {
   it('keeps refresh and actions truthful on saved addresses', () => {
     const text = source('SavedAddressesScreen.tsx');
     expect(text).toContain('refreshing={isRefetching}');
+    expect(text).toContain('accessibilityRole="image"');
     expect(text).not.toContain('MoreVertical');
   });
 
