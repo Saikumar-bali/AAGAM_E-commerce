@@ -47,10 +47,12 @@ describe('partner mobile UI audit regressions', () => {
     expect(text).toContain('encodeURIComponent(storeId)');
   });
 
-  it('reconnects sockets and returns reactive socket state', () => {
+  it('reconnects sockets, exposes reactive state, and preserves one-argument cleanup', () => {
     const text = repoFile('packages/mobile-shared/src/hooks/useSocket.ts');
     expect(text).toContain('reconnection: true');
     expect(text).toContain('useState<Socket | null>');
+    expect(text).toContain('if (callback)');
+    expect(text).toContain('socket?.off(event);');
     expect(text).not.toContain('socketRef.current');
   });
 });
