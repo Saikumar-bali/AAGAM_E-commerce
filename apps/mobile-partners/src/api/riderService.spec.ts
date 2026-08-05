@@ -243,10 +243,10 @@ describe('riderService.updateMyStatus', () => {
     expect(result).toEqual({ status: 'ONLINE' });
   });
 
-  it('includes location when provided', async () => {
+  it('keeps location out of the status-only contract', async () => {
     patch.mockResolvedValueOnce({ data: { status: 'BUSY' } });
-    await riderService.updateMyStatus('BUSY', { latitude: 17.5, longitude: 78.4 });
-    expect(patch).toHaveBeenCalledWith('/riders/portal/availability/status', { status: 'BUSY', latitude: 17.5, longitude: 78.4 });
+    await riderService.updateMyStatus('BUSY');
+    expect(patch).toHaveBeenCalledWith('/riders/portal/availability/status', { status: 'BUSY' });
   });
 });
 

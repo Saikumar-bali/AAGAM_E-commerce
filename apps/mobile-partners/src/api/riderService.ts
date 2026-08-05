@@ -164,8 +164,8 @@ export const riderService = {
   },
   getNativeTrackingStatus: () => NativeRiderTracking.status(),
   sendLocationPing: async (orderId: string, location: RiderLocationPayload) => (await apiClient.post('/tracking/rider-location', { orderId, ...location, source: 'MOBILE_PARTNERS' })).data,
-  updateMyStatus: async (status: CachedRiderStatus, location?: { latitude: number; longitude: number }) => {
-    const response = await apiClient.patch('/riders/portal/availability/status', { status, ...(location || {}) });
+  updateMyStatus: async (status: CachedRiderStatus) => {
+    const response = await apiClient.patch('/riders/portal/availability/status', { status });
     await cacheRiderStatus(response.data?.status || status);
     return response.data;
   },

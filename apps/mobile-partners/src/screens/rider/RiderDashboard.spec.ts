@@ -98,7 +98,7 @@ describe('RiderDashboard data layer', () => {
 
   it('can update rider online status', async () => {
     (riderService.updateMyStatus as jest.Mock).mockResolvedValue(undefined);
-    await riderService.updateMyStatus('ONLINE', { latitude: 12.9, longitude: 77.5 });
-    expect(riderService.updateMyStatus).toHaveBeenCalledWith('ONLINE', { latitude: 12.9, longitude: 77.5 });
+    await riderService.updateMyStatus('ONLINE');
+    expect(riderService.updateMyStatus).toHaveBeenCalledWith('ONLINE');
   });
 });
