@@ -23,7 +23,9 @@ import { RiderTrackingDiagnosticsScreen } from '../screens/rider/RiderTrackingDi
 import type { RiderTabParamList } from './partnerNavigationTypes';
 
 const Tab = createBottomTabNavigator<RiderTabParamList>();
-const hidden = { tabBarButton: () => null } as const;
+// Preserve tab context for deep-linked detail routes without reserving visible
+// tab-bar width for each hidden screen.
+const hidden = { tabBarButton: () => null, tabBarItemStyle: { display: 'none' as const } } as const;
 
 export const RiderNavigator = () => {
   const insets = useSafeAreaInsets();

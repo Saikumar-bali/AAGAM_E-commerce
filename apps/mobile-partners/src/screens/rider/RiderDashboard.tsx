@@ -212,8 +212,10 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
           setPermissionMissing(true);
           throw new Error('Background location is required before going online.');
         }
-        const location = await currentLocation();
-        await riderService.updateMyStatus('ONLINE', location);
+        // Verify that precise location is available before enabling dispatch.
+        // Heartbeats use /riders/me/heartbeat; availability accepts only status.
+        await currentLocation();
+        await riderService.updateMyStatus('ONLINE');
         try {
           await RiderOnlineService.start(user?.name || 'Rider');
         } catch (serviceError) {
