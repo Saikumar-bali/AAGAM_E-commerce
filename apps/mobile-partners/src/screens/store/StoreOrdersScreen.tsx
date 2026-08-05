@@ -376,7 +376,7 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
     >
       <View style={styles.orderTop}>
         <Text style={styles.orderId}>#ORD-{shortStoreOrderId(order.id)}</Text>
-        <View style={[styles.statusPill, { backgroundColor: tone.backgroundColor }]}> 
+        <View style={[styles.statusPill, { backgroundColor: tone.backgroundColor }]}>
           <Text style={[styles.statusText, { color: tone.color }]}>{tone.label}</Text>
         </View>
         <Text style={styles.orderTime}>{createdTime(order.createdAt)}</Text>
