@@ -21,10 +21,11 @@ describe('customer mobile UI audit regressions', () => {
     expect(text).toContain('Try again');
   });
 
-  it('shows order-query failures separately from an empty history', () => {
+  it('shows initial order failures without hiding cached history on refresh errors', () => {
     const text = source('OrdersScreen.tsx');
     expect(text).toContain('Orders unavailable');
-    expect(text).toContain('isError');
+    expect(text).toContain('isError && orderItems.length === 0');
+    expect(text).toContain('Showing your last loaded order history.');
   });
 
   it('keeps refresh and actions truthful on saved addresses', () => {
