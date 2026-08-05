@@ -35,13 +35,13 @@ class PartnerQrScannerModule(
 
     pendingPromise = promise
     try {
-      IntentIntegrator(activity)
-        .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES)
-        .setPrompt("Scan the secure Aagaam pickup QR")
-        .setBeepEnabled(true)
-        .setBarcodeImageEnabled(false)
-        .setOrientationLocked(false)
-        .initiateScan()
+      val integrator = IntentIntegrator(activity)
+      integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
+      integrator.setPrompt("Scan the secure AAGAM pickup QR")
+      integrator.setBeepEnabled(true)
+      integrator.setBarcodeImageEnabled(false)
+      integrator.setOrientationLocked(false)
+      integrator.initiateScan()
     } catch (error: Exception) {
       finishWithError("QR_SCANNER_OPEN_FAILED", "QR scanner could not be opened", error)
     }
