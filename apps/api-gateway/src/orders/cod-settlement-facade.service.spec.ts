@@ -2,13 +2,17 @@ import { ConflictException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
 import { CodSettlementFacadeService } from './cod-settlement-facade.service';
 
-jest.mock('@aagam/database', () => ({
-  prisma: {
-    codLedger: {
-      findFirst: jest.fn(),
+jest.mock('@aagam/database', () => {
+  const actual = jest.requireActual('@aagam/database');
+  return {
+    ...actual,
+    prisma: {
+      codLedger: {
+        findFirst: jest.fn(),
+      },
     },
-  },
-}));
+  };
+});
 
 describe('CodSettlementFacadeService', () => {
   const settleCod = jest.fn();
