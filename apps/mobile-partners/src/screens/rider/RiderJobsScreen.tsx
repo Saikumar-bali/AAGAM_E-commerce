@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
-import { riderService } from '../../api/riderService';
+import { riderService, RIDER_WORKSPACE_QUERY_KEY } from '../../api/riderService';
 import {
   RiderJobListItem,
   buildTodayJobList,
@@ -22,8 +22,6 @@ import {
   summarizeTodayJobs,
 } from '../../domain/riderReferenceUi';
 import { RiderOnlineService } from '../../services/RiderOnlineService';
-
-const WORKSPACE_KEY = ['rider', 'delivery-workspace'] as const;
 
 function statusVisual(status: RiderJobListItem['status']) {
   if (status === 'COMPLETED') return { label: 'Completed', color: '#128A35', background: '#E8F8E8', dot: '#15A83B' };
@@ -59,7 +57,7 @@ export const RiderJobsScreen = ({
   const user = useAuthStore((state) => state.user);
   const [lastCompleted, setLastCompleted] = useState<string | null>(null);
   const workspaceQuery = useQuery({
-    queryKey: WORKSPACE_KEY,
+    queryKey: RIDER_WORKSPACE_QUERY_KEY,
     queryFn: riderService.getWorkspace,
     refetchInterval: 8_000,
   });
@@ -95,7 +93,7 @@ export const RiderJobsScreen = ({
       return result;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: WORKSPACE_KEY });
+      await queryClient.invalidateQueries({ queryKey: RIDER_WORKSPACE_QUERY_KEY });
       Toast.show({ type: 'success', text1: isOnline ? 'You are offline' : 'You are online' });
     },
     onError: (error: any) => Toast.show({ type: 'error', text1: 'Availability update failed', text2: errorMessage(error) }),

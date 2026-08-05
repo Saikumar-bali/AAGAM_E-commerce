@@ -25,6 +25,7 @@ function date(value: unknown) {
 export const RiderAccountStatusScreen = ({ navigation }: { navigation: any }) => {
   const insets = useSafeAreaInsets();
   const query = useQuery({ queryKey: ['rider', 'profile'], queryFn: riderService.getProfile, retry: 1 });
+  const hasCachedProfile = Boolean(query.data);
   const lifecycle: any = query.data?.lifecycle || {};
   const eligible = lifecycle.eligibleForOperations === true;
 
@@ -39,10 +40,13 @@ export const RiderAccountStatusScreen = ({ navigation }: { navigation: any }) =>
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} />}
       >
-        {query.isLoading ? (
+        {query.isLoading && !hasCachedProfile ? (
           <View style={styles.state}><ActivityIndicator size="large" color="#0F766E" /></View>
+        ) : query.isError && !hasCachedProfile ? (
+          <View style={styles.state}><XCircle size={38} color="#B91C1C" /><Text style={styles.stateTitle}>Account status unavailable</Text><Text style={styles.stateText}>{(query.error as Error)?.message || 'Check your connection and try again.'}</Text><TouchableOpacity style={styles.primary} onPress={() => void query.refetch()}><Text style={styles.primaryText}>Try again</Text></TouchableOpacity></View>
         ) : (
           <>
+            {query.isError ? <View style={styles.errorBanner}><View style={styles.flex}><Text style={styles.errorBannerTitle}>Could not refresh account status</Text><Text style={styles.errorBannerText}>Showing your last loaded eligibility details.</Text></View><TouchableOpacity onPress={() => void query.refetch()}><Text style={styles.errorRetry}>Retry</Text></TouchableOpacity></View> : null}
             <View style={[styles.heroCard, eligible ? styles.heroGood : styles.heroAttention]}>
               {eligible ? <ShieldCheck size={38} color="#15803D" /> : <ShieldAlert size={38} color="#B45309" />}
               <Text style={styles.heroLabel}>OPERATIONS ELIGIBILITY</Text>
@@ -110,6 +114,7 @@ const styles = StyleSheet.create({
   header: { backgroundColor: '#067B5C', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, back: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '900', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 22, fontWeight: '900' },
   content: { padding: 14 },
+  errorBanner: { marginBottom: 12, borderRadius: 15, borderWidth: 1, borderColor: '#FCD34D', backgroundColor: '#FFFBEB', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }, errorBannerTitle: { color: '#92400E', fontSize: 11, fontWeight: '900' }, errorBannerText: { color: '#B45309', fontSize: 10, marginTop: 3 }, errorRetry: { color: '#0F766E', fontWeight: '900' },
   heroCard: { borderRadius: 20, borderWidth: 1, padding: 19, alignItems: 'center' }, heroGood: { backgroundColor: '#F0FDF4', borderColor: '#86EFAC' }, heroAttention: { backgroundColor: '#FFFBEB', borderColor: '#FCD34D' },
   heroLabel: { color: '#64748B', fontSize: 10, fontWeight: '900', marginTop: 10 }, heroTitle: { color: '#0F172A', fontSize: 24, fontWeight: '900', marginTop: 3 }, heroText: { color: '#475569', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 6 },
   card: { marginTop: 12, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 15 }, cardTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900', marginBottom: 7 },
@@ -118,5 +123,5 @@ const styles = StyleSheet.create({
   primary: { minHeight: 48, borderRadius: 14, backgroundColor: '#067B5C', marginTop: 13, alignItems: 'center', justifyContent: 'center' }, primaryText: { color: '#FFFFFF', fontWeight: '900' },
   warningCard: { marginTop: 12, borderRadius: 18, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', padding: 15 }, warningTitle: { color: '#991B1B', fontSize: 16, fontWeight: '900' }, changeRow: { flexDirection: 'row', gap: 9, marginTop: 12 }, changeTitle: { color: '#991B1B', fontSize: 12, fontWeight: '900' }, changeText: { color: '#7F1D1D', fontSize: 11, lineHeight: 17, marginTop: 3 },
   historyRow: { flexDirection: 'row', gap: 10, paddingVertical: 10 }, historyDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0F766E', marginTop: 4 }, note: { color: '#334155', fontSize: 11, lineHeight: 17, marginTop: 4 },
-  state: { minHeight: 420, alignItems: 'center', justifyContent: 'center' },
+  state: { minHeight: 420, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }, stateTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', marginTop: 10 }, stateText: { color: '#64748B', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 6 },
 });

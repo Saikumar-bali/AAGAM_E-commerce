@@ -112,7 +112,7 @@ describe("Mobile commerce hardening contracts", () => {
 
     expect(navigator).toContain("StoreSettingsScreen");
     expect(settings).toContain("storeService.updateOwnedStoreProfile");
-    expect(service).toContain("/store-owner/stores/${storeId}/profile");
+    expect(service).toContain("/store-owner/stores/${encodeURIComponent(storeId)}/profile");
     expect(controller).toContain("@Roles(Role.STORE_OWNER)");
     expect(settings).not.toContain("coming soon");
   });

@@ -1,17 +1,22 @@
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { apiClient } from '@aagam/mobile-shared';
 import { getUserSafeError, notify } from '../../ui/notify';
 
 export const ReviewScreen = () => {
   const route = useRoute<RouteProp<Record<string, { orderId: string }>, string>>();
+  const navigation = useNavigation<any>();
   const orderId = route.params?.orderId;
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [issue, setIssue] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [submittingSupport, setSubmittingSupport] = useState(false);
+
+  if (!orderId) {
+    return <View style={styles.invalidState}><Text style={styles.invalidTitle}>Order unavailable</Text><Text style={styles.invalidText}>Open Reviews from a completed order so the correct order can be rated.</Text><TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}><Text style={styles.backButtonText}>Go back</Text></TouchableOpacity></View>;
+  }
 
   const submitReview = async () => {
     if (submittingReview) return;
@@ -47,11 +52,10 @@ export const ReviewScreen = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Review order</Text>
-      <Text style={styles.subtitle}>Order #{orderId?.slice(-8).toUpperCase()}</Text>
+      <View style={styles.header}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back" style={styles.headerBack} onPress={() => navigation.goBack()}><Text style={styles.headerBackText}>‹</Text></TouchableOpacity><View style={styles.headerCopy}><Text style={styles.title}>Review order</Text><Text style={styles.subtitle}>Order #{orderId.slice(-8).toUpperCase()}</Text></View></View>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Rating</Text>
-        <View style={styles.stars}>{[1, 2, 3, 4, 5].map((star) => <TouchableOpacity key={star} onPress={() => setRating(star)}><Text style={[styles.star, star <= rating && styles.starActive]}>★</Text></TouchableOpacity>)}</View>
+        <View style={styles.stars}>{[1, 2, 3, 4, 5].map((star) => <TouchableOpacity key={star} testID={`review_star_${star}`} accessibilityRole="button" accessibilityLabel={`Rate ${star} star${star === 1 ? '' : 's'}`} accessibilityState={{ selected: star === rating }} onPress={() => setRating(star)}><Text style={[styles.star, star <= rating && styles.starActive]}>★</Text></TouchableOpacity>)}</View>
         <TextInput style={styles.input} value={comment} onChangeText={setComment} placeholder="Comment optional" placeholderTextColor="#94A3B8" />
         <TouchableOpacity disabled={submittingReview} style={[styles.button, submittingReview && styles.disabled]} onPress={() => void submitReview()}><Text style={styles.buttonText}>{submittingReview ? 'Submitting…' : 'Submit review'}</Text></TouchableOpacity>
       </View>
@@ -67,6 +71,15 @@ export const ReviewScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   content: { padding: 16, paddingBottom: 150 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerBack: { width: 48, height: 48, borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  headerBackText: { color: '#0F172A', fontSize: 34, lineHeight: 36, fontWeight: '700' },
+  headerCopy: { flex: 1 },
+  invalidState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: '#F8FAFC' },
+  invalidTitle: { color: '#0F172A', fontSize: 22, fontWeight: '900' },
+  invalidText: { marginTop: 8, color: '#64748B', lineHeight: 20, textAlign: 'center' },
+  backButton: { marginTop: 18, borderRadius: 14, backgroundColor: '#0F766E', paddingHorizontal: 18, paddingVertical: 12 },
+  backButtonText: { color: '#FFFFFF', fontWeight: '900' },
   title: { fontSize: 30, fontWeight: '900', color: '#0F172A' },
   subtitle: { marginTop: 4, color: '#64748B', fontWeight: '700' },
   card: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 22, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },

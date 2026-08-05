@@ -12,7 +12,7 @@ import {
   ShieldAlert,
   XCircle,
 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -42,9 +42,9 @@ function label(value: unknown) {
   return String(value || 'UNKNOWN').replaceAll('_', ' ');
 }
 
-function remainingSeconds(expiresAt?: string | null) {
+function remainingSeconds(expiresAt: string | null | undefined, now: number) {
   if (!expiresAt) return null;
-  return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000));
+  return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - now) / 1000));
 }
 
 export const RiderOfferDetailScreen = ({ route, navigation }: { route: any; navigation: any }) => {
@@ -53,6 +53,11 @@ export const RiderOfferDetailScreen = ({ route, navigation }: { route: any; navi
   const queryClient = useQueryClient();
   const [reason, setReason] = useState('');
   const [otherReason, setOtherReason] = useState('');
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, []);
   const query = useQuery({
     queryKey: ['rider', 'offer-detail', assignmentId],
     queryFn: () => riderService.getOfferDetail(assignmentId),
@@ -62,7 +67,7 @@ export const RiderOfferDetailScreen = ({ route, navigation }: { route: any; navi
   });
   const detail: any = query.data?.offer;
   const assignment: any = query.data?.assignment;
-  const remaining = remainingSeconds(detail?.expiresAt);
+  const remaining = remainingSeconds(detail?.expiresAt, now);
   const actionable = detail?.status === 'OFFERED' && (remaining == null || remaining > 0);
   const rejectionReasons: string[] = Array.isArray(detail?.rejectionReasons) ? detail.rejectionReasons : [];
   const chosenReason = reason === 'OTHER' ? otherReason.trim() : reason;
