@@ -78,7 +78,25 @@ describe('partner notification contract', () => {
     ]));
   });
 
-  it('invalidates Rider support for support replies', () => {
-    expect(queryKeysForNotification('RIDER_SUPPORT_REPLY')).toContainEqual(['rider', 'support']);
+  it('invalidates the exact support conversation for support replies', () => {
+    const keys = queryKeysForNotification('RIDER_SUPPORT_REPLY', 'ticket-789');
+    expect(keys).toContainEqual(['rider', 'support']);
+    expect(keys).toContainEqual(['rider', 'support-ticket', 'ticket-789']);
+  });
+
+  it('invalidates persisted earnings and payout history', () => {
+    expect(queryKeysForNotification('RIDER_EARNINGS_UPDATED')).toEqual(
+      expect.arrayContaining([
+        ['rider', 'earnings-ledger'],
+        ['rider', 'payout-history'],
+      ]),
+    );
+  });
+
+  it('invalidates the canonical COD ledger key', () => {
+    expect(queryKeysForNotification('RIDER_COD_UPDATED')).toContainEqual([
+      'rider',
+      'cod-ledger',
+    ]);
   });
 });
