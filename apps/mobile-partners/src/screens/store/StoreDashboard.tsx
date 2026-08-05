@@ -205,7 +205,7 @@ function DashboardStat({
   return (
     <View style={styles.statCard}>
       <View style={styles.statHeading}>
-        <View style={[styles.statIcon, { backgroundColor: iconBackground }]}> 
+        <View style={[styles.statIcon, { backgroundColor: iconBackground }]}>
           <Icon size={23} color={tone} />
         </View>
         <Text style={[styles.statTitle, { color: tone }]}>{title}</Text>
