@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { Bike, MapPin, Package, Store } from 'lucide-react-native';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { resolvePartnerOperationalRole, useAuthStore } from '@aagam/mobile-shared';
@@ -29,7 +38,81 @@ const partnerTheme = {
   ...DarkTheme,
   colors: { ...DarkTheme.colors, primary: '#14B8A6', background: '#F4F7FB', card: '#FFFFFF', text: '#111827', border: '#E2E8F0', notification: '#F97316' },
 };
-const LoadingScreen = () => <View style={styles.loadingContainer}><View style={styles.loadingGlow} /><AagamBrand caption="Partner operations" inverse /><ActivityIndicator size="small" color="#5EEAD4" /><Text style={styles.loadingTitle}>Preparing your workspace</Text><Text style={styles.loadingHint}>Securely loading orders, availability and settlements.</Text></View>;
+
+const LoadingScreen = () => (
+  <View style={styles.loadingContainer} accessibilityLabel="Loading Aagaam Partner Workspace">
+    <StatusBar barStyle="light-content" backgroundColor="#057A55" />
+    <View style={styles.loadingTopGlow} />
+    <View style={styles.loadingBottomGlow} />
+
+    <View style={styles.loadingBrand}>
+      <View style={styles.loadingLogoCard}>
+        <Image
+          source={require('../assets/aagam-mark.png')}
+          style={styles.loadingLogo}
+          resizeMode="contain"
+          accessibilityLabel="Aagaam"
+        />
+      </View>
+      <Text style={styles.loadingBrandName}>Aagaam</Text>
+      <Text style={styles.loadingBrandCaption}>PARTNERS</Text>
+      <View style={styles.loadingRolePill}>
+        <Bike size={15} color="#057A55" strokeWidth={2.4} />
+        <Text style={styles.loadingRoleText}>RIDER & STORE</Text>
+      </View>
+    </View>
+
+    <View style={styles.loadingScene}>
+      <View style={styles.loadingSkylineOne} />
+      <View style={styles.loadingSkylineTwo} />
+      <View style={styles.loadingSkylineThree} />
+      <View style={styles.loadingRoute} />
+
+      <View style={styles.riderScene}>
+        <View style={styles.locationPin}>
+          <MapPin size={18} color="#FFFFFF" fill="#FFFFFF" />
+        </View>
+        <View style={styles.riderCard}>
+          <View style={styles.deliveryBox}>
+            <Package size={21} color="#FFFFFF" strokeWidth={2.3} />
+          </View>
+          <Bike size={66} color="#FFFFFF" strokeWidth={1.9} />
+        </View>
+      </View>
+
+      <View style={styles.storeScene}>
+        <View style={[styles.locationPin, styles.storePin]}>
+          <Store size={18} color="#FFFFFF" strokeWidth={2.3} />
+        </View>
+        <View style={styles.storeCard}>
+          <View style={styles.storeAwning}>
+            {Array.from({ length: 6 }).map((_, index) => (
+              <View key={index} style={[styles.awningStripe, index % 2 === 0 && styles.awningStripeGreen]} />
+            ))}
+          </View>
+          <View style={styles.storeBody}>
+            <Store size={54} color="#057A55" strokeWidth={1.9} />
+            <View style={styles.packageStack}>
+              <Package size={25} color="#C9822A" fill="#F6D394" />
+              <Package size={20} color="#C9822A" fill="#F6D394" />
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+
+    <View style={styles.loadingCopy}>
+      <Text style={styles.loadingTitle}>Loading Partner Workspace</Text>
+      <Text style={styles.loadingHint}>Preparing rider and store tools…</Text>
+      <View style={styles.loadingDots}>
+        <View style={[styles.loadingDot, styles.loadingDotActive]} />
+        <View style={styles.loadingDot} />
+        <View style={styles.loadingDot} />
+        <View style={styles.loadingDot} />
+      </View>
+    </View>
+  </View>
+);
 
 const BlockedScreen = ({ onLogout, onRefresh, busy }: { onLogout: () => void; onRefresh: () => void; busy: boolean }) => (
   <View style={styles.blockedContainer}>
@@ -83,10 +166,264 @@ const RootNavigator = () => {
 };
 
 const styles = StyleSheet.create({
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A', paddingHorizontal: 28, gap: 17, overflow: 'hidden' },
-  loadingGlow: { position: 'absolute', width: 330, height: 330, borderRadius: 999, backgroundColor: '#0F766E', top: -170, right: -140, opacity: 0.55 },
-  loadingTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '900', marginTop: 3 },
-  loadingHint: { color: '#CBD5E1', fontSize: 12, lineHeight: 18, textAlign: 'center', maxWidth: 280 },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#057A55',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 82,
+    paddingBottom: 62,
+    paddingHorizontal: 24,
+    overflow: 'hidden',
+  },
+  loadingTopGlow: {
+    position: 'absolute',
+    width: 330,
+    height: 330,
+    borderRadius: 165,
+    right: -150,
+    top: -125,
+    backgroundColor: '#2B9B76',
+    opacity: 0.48,
+  },
+  loadingBottomGlow: {
+    position: 'absolute',
+    width: 270,
+    height: 270,
+    borderRadius: 135,
+    left: -145,
+    bottom: -135,
+    backgroundColor: '#2B9B76',
+    opacity: 0.44,
+  },
+  loadingBrand: {
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  loadingLogoCard: {
+    width: 88,
+    height: 88,
+    borderRadius: 25,
+    backgroundColor: '#FFFFFF',
+    padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#003C2A',
+    shadowOffset: { width: 0, height: 9 },
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
+    elevation: 7,
+  },
+  loadingLogo: {
+    width: '100%',
+    height: '100%',
+  },
+  loadingBrandName: {
+    color: '#FFFFFF',
+    fontSize: 39,
+    lineHeight: 44,
+    fontWeight: '900',
+    letterSpacing: -1.5,
+    marginTop: 16,
+  },
+  loadingBrandCaption: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '900',
+    letterSpacing: 2.5,
+  },
+  loadingRolePill: {
+    minHeight: 35,
+    borderRadius: 18,
+    backgroundColor: '#E3FFF4',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginTop: 11,
+  },
+  loadingRoleText: {
+    color: '#057A55',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  loadingScene: {
+    width: '100%',
+    maxWidth: 390,
+    height: 270,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: 5,
+    position: 'relative',
+  },
+  loadingSkylineOne: {
+    position: 'absolute',
+    left: 7,
+    bottom: 35,
+    width: 46,
+    height: 90,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  loadingSkylineTwo: {
+    position: 'absolute',
+    left: 86,
+    bottom: 35,
+    width: 66,
+    height: 128,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  loadingSkylineThree: {
+    position: 'absolute',
+    right: 56,
+    bottom: 35,
+    width: 54,
+    height: 112,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  loadingRoute: {
+    position: 'absolute',
+    left: 96,
+    right: 93,
+    top: 82,
+    borderTopWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.62)',
+    transform: [{ rotate: '-8deg' }],
+  },
+  riderScene: {
+    width: '47%',
+    height: 225,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  storeScene: {
+    width: '50%',
+    height: 235,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  locationPin: {
+    position: 'absolute',
+    top: 20,
+    left: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#18A77C',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.82)',
+    shadowColor: '#003C2A',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.18,
+    shadowRadius: 9,
+    elevation: 4,
+  },
+  storePin: {
+    left: undefined,
+    right: 12,
+    top: 1,
+  },
+  riderCard: {
+    width: '100%',
+    minHeight: 105,
+    borderRadius: 23,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  deliveryBox: {
+    position: 'absolute',
+    left: 15,
+    top: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#0C6C4C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  storeCard: {
+    width: '100%',
+    minHeight: 165,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    shadowColor: '#003C2A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  storeAwning: {
+    height: 35,
+    flexDirection: 'row',
+  },
+  awningStripe: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  awningStripeGreen: {
+    backgroundColor: '#2B9B76',
+  },
+  storeBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F6FFFB',
+  },
+  packageStack: {
+    position: 'absolute',
+    right: 8,
+    bottom: 7,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  loadingCopy: {
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  loadingTitle: {
+    color: '#FFFFFF',
+    fontSize: 23,
+    lineHeight: 29,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  loadingHint: {
+    color: '#D7F4E8',
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: 7,
+    fontWeight: '600',
+  },
+  loadingDots: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 22,
+  },
+  loadingDot: {
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: '#BFECDD',
+  },
+  loadingDotActive: {
+    backgroundColor: '#0AB17E',
+  },
   blockedContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4F7FB', padding: 24 },
   blockedCard: { backgroundColor: '#FFFFFF', borderRadius: 30, padding: 32, alignItems: 'center', elevation: 6, maxWidth: 350, width: '100%', borderWidth: 1, borderColor: '#E8EEF4' },
   blockedTitle: { fontSize: 22, fontWeight: '900', color: '#0F172A', marginTop: 26, marginBottom: 8, textAlign: 'center' },

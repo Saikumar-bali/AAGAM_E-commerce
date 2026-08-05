@@ -2,7 +2,9 @@ const fs = require('fs');
 const path = require('path');
 
 const screen = (file) => fs.readFileSync(path.join(__dirname, file), 'utf8');
-const repoFile = (file) => fs.readFileSync(path.join(__dirname, '../../../../', file), 'utf8');
+const repoPath = (file) => path.join(__dirname, '../../../../', file);
+const repoFile = (file) => fs.readFileSync(repoPath(file), 'utf8');
+const repoBinary = (file) => fs.readFileSync(repoPath(file));
 
 describe('partner mobile UI audit regressions', () => {
   it('removes misleading Store header navigation controls', () => {
@@ -29,6 +31,56 @@ describe('partner mobile UI audit regressions', () => {
     expect(details).toContain("backgroundColor: '#078B4D'");
     expect(settings).toContain("backgroundColor: '#057A55'");
     expect(settings).toContain("backgroundColor: '#078B4D'");
+  });
+
+  it('makes direct sign in primary and keeps application choices compact', () => {
+    const welcome = screen('PartnerWelcomeScreen.tsx');
+    expect(welcome).toContain('Grow with Aagaam');
+    expect(welcome).toContain('testID="partner_direct_sign_in"');
+    expect(welcome).toContain('Direct sign in');
+    expect(welcome).toContain('style={styles.roleRow}');
+    expect(welcome).toContain('Delivery Partner');
+    expect(welcome).toContain('Store Partner');
+    expect(welcome).toContain('Resume application');
+    expect(welcome.indexOf('Direct sign in')).toBeLessThan(welcome.indexOf('Delivery Partner'));
+    expect(welcome).not.toContain('Deliver orders on your schedule');
+    expect(welcome).not.toContain('Sell products and manage incoming');
+    expect(welcome).not.toContain('Partner access activates only after verification');
+  });
+
+  it('shows email and password together without the protected-access banner', () => {
+    const login = screen('LoginScreen.tsx');
+    expect(login).toContain("useState<'PHONE' | 'PASSWORD'>('PASSWORD')");
+    expect(login).toContain('testID="partner_password_identifier"');
+    expect(login).toContain('testID="partner_password_input"');
+    expect(login).toContain('secureTextEntry={!passwordVisible}');
+    expect(login).toContain('testID="partner_password_visibility"');
+    expect(login).toContain('Email & Password');
+    expect(login).not.toContain('Protected partner access');
+    expect(login).not.toContain('ShieldCheck');
+  });
+
+  it('uses one combined rider and store loading screen with the dashboard hero green', () => {
+    const root = repoFile('apps/mobile-partners/src/navigation/RootNavigator.tsx');
+    const baseStyles = repoFile('apps/mobile-partners/android/app/src/main/res/values/styles.xml');
+    const android12Styles = repoFile('apps/mobile-partners/android/app/src/main/res/values-v31/styles.xml');
+    expect(root).toContain('Loading Partner Workspace');
+    expect(root).toContain('Preparing rider and store tools');
+    expect(root).toContain('<Bike');
+    expect(root).toContain('<Store');
+    expect(root).toContain("backgroundColor: '#057A55'");
+    expect(baseStyles).toContain('<item name="android:windowBackground">#057A55</item>');
+    expect(android12Styles).toContain('<item name="android:windowSplashScreenBackground">#057A55</item>');
+    expect(android12Styles).toContain('@drawable/ic_launcher_foreground');
+  });
+
+  it('uses the customer artwork in both Partners launcher and in-app brand assets', () => {
+    const customerLauncher = repoBinary('apps/mobile-customer/android/app/src/main/res/drawable-nodpi/ic_launcher_foreground.png');
+    const partnerLauncher = repoBinary('apps/mobile-partners/android/app/src/main/res/drawable-nodpi/ic_launcher_foreground.png');
+    const customerBrand = repoBinary('apps/mobile-customer/src/assets/aagam-mark.png');
+    const partnerBrand = repoBinary('apps/mobile-partners/src/assets/aagam-mark.png');
+    expect(partnerLauncher.equals(customerLauncher)).toBe(true);
+    expect(partnerBrand.equals(customerBrand)).toBe(true);
   });
 
   it('uses safe-area insets instead of fixed Rider header padding', () => {
