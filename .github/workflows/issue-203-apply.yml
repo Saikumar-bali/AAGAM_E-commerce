@@ -1,28 +1,28 @@
 name: Issue 203 Apply
 
 on:
-  push:
-    branches:
-      - agent/issue-203-mobile-ui-ux-audit
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
 
 permissions:
   contents: write
 
 concurrency:
-  group: issue-203-apply-${{ github.ref }}
+  group: issue-203-apply-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   apply:
-    if: ${{ !contains(github.event.head_commit.message, '[issue-203-final]') && !contains(github.event.head_commit.message, '[issue-203-diagnostic]') }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Checkout isolated branch
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: agent/issue-203-mobile-ui-ux-audit
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
       - name: Apply deterministic audit fixes
@@ -48,7 +48,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "chore: persist issue 203 patch diagnostics [issue-203-diagnostic]"
-          git push origin HEAD:agent/issue-203-mobile-ui-ux-audit
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
       - name: Commit final source diff
         shell: bash
@@ -60,4 +60,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "fix(mobile): resolve issue 203 audit blockers [issue-203-final]"
-          git push origin HEAD:agent/issue-203-mobile-ui-ux-audit
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
