@@ -88,7 +88,12 @@ const StoreTabs = () => {
           shadowOpacity: 0.08,
           shadowRadius: 12,
         },
-        tabBarItemStyle: { minWidth: 0 },
+        tabBarItemStyle: {
+          flex: 1,
+          minWidth: 0,
+          paddingHorizontal: 0,
+        },
+        tabBarIconStyle: { marginTop: 0 },
         tabBarLabelStyle: { fontSize: 10, fontWeight: '800', marginTop: 2 },
       }}
     >
@@ -141,14 +146,6 @@ const StoreTabs = () => {
           title: 'More',
           tabBarButtonTestID: 'tab_settings',
           tabBarIcon: ({ color, size, focused }) => <Ellipsis size={focused ? size + 3 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
-        }}
-      />
-      <Tab.Screen
-        name="StorePickupVerification"
-        component={StorePickupVerificationEntryScreen}
-        options={{
-          tabBarButton: () => null,
-          tabBarStyle: { display: 'none' },
         }}
       />
     </Tab.Navigator>

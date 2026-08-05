@@ -11,6 +11,26 @@ describe('partner mobile UI audit regressions', () => {
     expect(screen('store/StorePickupAlertsScreen.tsx')).not.toContain('<ArrowLeft');
   });
 
+  it('uses exactly five equal-width Store tabs without a hidden spacer route', () => {
+    const navigator = repoFile('apps/mobile-partners/src/navigation/StoreNavigator.tsx');
+    expect((navigator.match(/<Tab\.Screen/g) || []).length).toBe(5);
+    expect(navigator).toContain('tabBarItemStyle: {');
+    expect(navigator).toContain('flex: 1,');
+    expect(navigator).not.toContain('tabBarButton: () => null');
+    expect(navigator).not.toContain("tabBarStyle: { display: 'none' }");
+  });
+
+  it('keeps Store headers separated and uses the dashboard theme on details and More', () => {
+    const brand = repoFile('apps/mobile-partners/src/components/AagamBrand.tsx');
+    const details = screen('store/StoreOrderDetailsScreen.tsx');
+    const settings = screen('store/StoreSettingsScreen.tsx');
+    expect(brand).toContain("marginRight: 'auto'");
+    expect(details).toContain("backgroundColor: '#057A55'");
+    expect(details).toContain("backgroundColor: '#078B4D'");
+    expect(settings).toContain("backgroundColor: '#057A55'");
+    expect(settings).toContain("backgroundColor: '#078B4D'");
+  });
+
   it('uses safe-area insets instead of fixed Rider header padding', () => {
     for (const file of [
       'rider/RiderDashboard.tsx',

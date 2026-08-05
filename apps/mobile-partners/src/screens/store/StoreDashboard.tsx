@@ -163,7 +163,7 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
 
               <View style={styles.statsGrid}>
                 <DashboardStat icon={Store} title="Stores" value={String(totals.stores)} subtitle="Assigned" tone="#087B5A" iconBackground="#E8F8EE" />
-                <DashboardStat icon={ShoppingCart} title="Orders" value={String(totals.orders)} subtitle="Current" tone="#1557A4" iconBackground="#E8F1FD" />
+                <DashboardStat icon={ShoppingCart} title="Orders" value={String(totals.orders)} subtitle="All time" tone="#1557A4" iconBackground="#E8F1FD" />
                 <DashboardStat icon={IndianRupee} title="Revenue" value={`₹ ${totals.revenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} subtitle="Recorded" tone="#087B5A" iconBackground="#E8F8EE" />
                 <DashboardStat icon={Box} title="Products" value={String(totals.inventory)} subtitle="In Inventory" tone="#5A2DB7" iconBackground="#F0EAFE" />
               </View>
