@@ -16,12 +16,14 @@ import {
   Linking,
   PermissionsAndroid,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { riderService } from '../../api/riderService';
 import type { NativeTrackingStatus } from '../../services/NativeRiderTracking';
 
@@ -79,6 +81,7 @@ function dateText(value?: string | null) {
 }
 
 export const RiderTrackingDiagnosticsScreen = ({ navigation }: { navigation?: any }) => {
+  const insets = useSafeAreaInsets();
   const healthQuery = useQuery<TrackingHealth>({
     queryKey: TRACKING_HEALTH_KEY,
     queryFn: trackingHealth,
@@ -98,7 +101,7 @@ export const RiderTrackingDiagnosticsScreen = ({ navigation }: { navigation?: an
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity accessibilityLabel="Go back" style={styles.back} onPress={() => navigation?.goBack?.()}>
           <ChevronLeft size={25} color="#FFFFFF" />
         </TouchableOpacity>
@@ -109,8 +112,10 @@ export const RiderTrackingDiagnosticsScreen = ({ navigation }: { navigation?: an
         <Satellite size={25} color="#FFFFFF" />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {healthQuery.isLoading ? <ActivityIndicator color="#0F766E" /> : (
+      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={healthQuery.isRefetching} onRefresh={() => void healthQuery.refetch()} tintColor="#0F766E" />}>
+        {healthQuery.isLoading ? <ActivityIndicator color="#0F766E" /> : healthQuery.isError ? (
+          <View style={[styles.healthCard, styles.warnCard]}><AlertTriangle size={28} color="#B45309" /><View style={styles.flex}><Text style={styles.healthTitle}>Health check unavailable</Text><Text style={styles.healthText}>{(healthQuery.error as Error)?.message || 'Check GPS and your network, then retry.'}</Text></View><TouchableOpacity accessibilityLabel="Retry tracking health" onPress={() => void healthQuery.refetch()}><RefreshCw size={22} color="#B45309" /></TouchableOpacity></View>
+        ) : (
           <View style={[styles.healthCard, healthy ? styles.goodCard : styles.warnCard]}>
             {healthy
               ? <Crosshair size={28} color="#047857" />
@@ -175,7 +180,7 @@ function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F4F7FB' },
   flex: { flex: 1 },
-  header: { minHeight: 116, paddingTop: 48, paddingHorizontal: 18, paddingBottom: 18, backgroundColor: '#067B5C', flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { minHeight: 116, paddingHorizontal: 18, paddingBottom: 18, backgroundColor: '#067B5C', flexDirection: 'row', alignItems: 'center', gap: 12 },
   back: { width: 38, height: 38, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
   title: { color: '#FFFFFF', fontSize: 22, fontWeight: '900', marginTop: 3 },

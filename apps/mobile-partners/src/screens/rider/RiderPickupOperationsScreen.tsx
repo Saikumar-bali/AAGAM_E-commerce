@@ -99,7 +99,6 @@ export const RiderPickupOperationsScreen = ({ navigation, deliveryJobId }: { nav
   const task = payload?.task || null;
   const checklist: any[] = Array.isArray(task?.checklist) ? task.checklist : [];
   const checklistVerified = task?.status === 'VERIFIED';
-  const activeStatus = workspaceQuery.data?.activeJob?.status;
   const effectiveJobId = String(job?.id || deliveryJobId || '');
 
   useEffect(() => {
@@ -110,13 +109,6 @@ export const RiderPickupOperationsScreen = ({ navigation, deliveryJobId }: { nav
     ])));
     setParcelCode(task.parcelCode || '');
   }, [task?.updatedAt, task?.status, job?.id]);
-
-  useEffect(() => {
-    if (!effectiveJobId || !navigation) return;
-    if (['PICKUP_VERIFIED', 'OUT_FOR_DELIVERY', 'RIDER_AT_CUSTOMER'].includes(String(activeStatus))) {
-      navigation.replace('RiderDelivery', { deliveryJobId: effectiveJobId });
-    }
-  }, [activeStatus, effectiveJobId, navigation]);
 
   const exactQuantities = useMemo(() => checklist.length > 0 && checklist.every((item: any) => (
     Number(quantities[item.orderItemId] || 0) === Number(item.expectedQuantity || 0)

@@ -266,7 +266,6 @@ export const LoginScreen = () => {
             </> : <>
               <Text style={styles.label}>Phone number or email</Text><View style={styles.inputWrapper}><Mail size={19} color="#64748B" /><TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} placeholder="Phone number or email" autoCapitalize="none" placeholderTextColor="#94A3B8" /></View>
               <Text style={styles.label}>Password</Text><View style={styles.inputWrapper}><Lock size={19} color="#64748B" /><TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry={!showPassword} placeholderTextColor="#94A3B8" /><TouchableOpacity onPress={() => setShowPassword((value) => !value)} accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}><Eye size={21} color="#64748B" /></TouchableOpacity></View>
-              <TouchableOpacity accessibilityLabel="Forgot password"><Text style={styles.forgot}>Forgot password?</Text></TouchableOpacity>
               <TouchableOpacity style={[styles.primary, passwordLoading && styles.buttonDisabled]} onPress={passwordLogin} disabled={passwordLoading}>{passwordLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Continue</Text>}</TouchableOpacity>
             </>}
 

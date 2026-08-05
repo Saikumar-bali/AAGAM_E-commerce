@@ -41,6 +41,8 @@ export const RiderAccountStatusScreen = ({ navigation }: { navigation: any }) =>
       >
         {query.isLoading ? (
           <View style={styles.state}><ActivityIndicator size="large" color="#0F766E" /></View>
+        ) : query.isError ? (
+          <View style={styles.state}><XCircle size={38} color="#B91C1C" /><Text style={styles.stateTitle}>Account status unavailable</Text><Text style={styles.stateText}>{(query.error as Error)?.message || 'Check your connection and try again.'}</Text><TouchableOpacity style={styles.primary} onPress={() => void query.refetch()}><Text style={styles.primaryText}>Try again</Text></TouchableOpacity></View>
         ) : (
           <>
             <View style={[styles.heroCard, eligible ? styles.heroGood : styles.heroAttention]}>
@@ -118,5 +120,5 @@ const styles = StyleSheet.create({
   primary: { minHeight: 48, borderRadius: 14, backgroundColor: '#067B5C', marginTop: 13, alignItems: 'center', justifyContent: 'center' }, primaryText: { color: '#FFFFFF', fontWeight: '900' },
   warningCard: { marginTop: 12, borderRadius: 18, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', padding: 15 }, warningTitle: { color: '#991B1B', fontSize: 16, fontWeight: '900' }, changeRow: { flexDirection: 'row', gap: 9, marginTop: 12 }, changeTitle: { color: '#991B1B', fontSize: 12, fontWeight: '900' }, changeText: { color: '#7F1D1D', fontSize: 11, lineHeight: 17, marginTop: 3 },
   historyRow: { flexDirection: 'row', gap: 10, paddingVertical: 10 }, historyDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0F766E', marginTop: 4 }, note: { color: '#334155', fontSize: 11, lineHeight: 17, marginTop: 4 },
-  state: { minHeight: 420, alignItems: 'center', justifyContent: 'center' },
+  state: { minHeight: 420, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }, stateTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', marginTop: 10 }, stateText: { color: '#64748B', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 6 },
 });

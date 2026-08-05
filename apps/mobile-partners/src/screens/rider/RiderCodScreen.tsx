@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   Banknote,
-  ChevronRight,
   FileCheck2,
   LifeBuoy,
   RefreshCw,
@@ -170,7 +169,7 @@ export const RiderCodScreen = ({ navigation }: { navigation: any }) => {
                   <LifeBuoy size={18} color="#0F766E" /><Text style={styles.secondaryText}>{ledger.status === 'VARIANCE_REVIEW' ? 'Dispute variance' : 'Job support'}</Text>
                 </TouchableOpacity>
               </View>
-              {needsAction ? <View style={styles.actionNote}><Text style={styles.actionNoteText}>Cash settlement is completed by the store or admin. Keep the physical deposit receipt and use Support if the reference, partial amount, or variance is incorrect.</Text><ChevronRight size={18} color="#B45309" /></View> : null}
+              {needsAction ? <View style={styles.actionNote}><Text style={styles.actionNoteText}>Cash settlement is completed by the store or admin. Keep the physical deposit receipt and use Support if the reference, partial amount, or variance is incorrect.</Text></View> : null}
             </View>
           );
         })}

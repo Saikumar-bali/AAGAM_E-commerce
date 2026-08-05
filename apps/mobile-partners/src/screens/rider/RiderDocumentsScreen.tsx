@@ -105,7 +105,7 @@ export const RiderDocumentsScreen = ({ navigation }: { navigation: any }) => {
         </View>
 
         <Text style={styles.listTitle}>Submitted documents</Text>
-        {query.isLoading ? <View style={styles.state}><ActivityIndicator size="large" color="#0F766E" /></View> : documents.length === 0 ? <View style={styles.state}><FolderOpen size={44} color="#94A3B8" /><Text style={styles.stateTitle}>No documents submitted</Text></View> : documents.map((document) => {
+        {query.isLoading ? <View style={styles.state}><ActivityIndicator size="large" color="#0F766E" /></View> : query.isError ? <View style={styles.state}><AlertTriangle size={44} color="#B45309" /><Text style={styles.stateTitle}>Documents unavailable</Text><Text style={styles.stateText}>{(query.error as Error)?.message || 'Check your connection and try again.'}</Text><TouchableOpacity style={styles.primary} onPress={() => void query.refetch()}><RefreshCw size={18} color="#FFFFFF" /><Text style={styles.primaryText}>Try again</Text></TouchableOpacity></View> : documents.length === 0 ? <View style={styles.state}><FolderOpen size={44} color="#94A3B8" /><Text style={styles.stateTitle}>No documents submitted</Text></View> : documents.map((document) => {
           const warning = document.isExpired || document.expiresSoon || document.status === 'REJECTED';
           return (
             <TouchableOpacity key={document.id} accessibilityRole="button" style={[styles.documentCard, warning && styles.documentWarning]} onPress={() => navigation.navigate('RiderDocumentPreview', { documentId: document.id })}>
@@ -139,5 +139,5 @@ const styles = StyleSheet.create({
   primary: { minHeight: 50, borderRadius: 14, backgroundColor: '#067B5C', marginTop: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, primaryText: { color: '#FFFFFF', fontWeight: '900' }, disabled: { opacity: 0.45 },
   listTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900', marginTop: 18, marginBottom: 9 }, documentCard: { borderRadius: 17, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 13, marginBottom: 9, flexDirection: 'row', alignItems: 'center', gap: 10 }, documentWarning: { borderColor: '#FCD34D', backgroundColor: '#FFFBEB' },
   documentIcon: { width: 43, height: 43, borderRadius: 13, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, warningIcon: { backgroundColor: '#FEF3C7' }, documentTitle: { color: '#0F172A', fontSize: 12, fontWeight: '900' }, documentMeta: { color: '#64748B', fontSize: 9, lineHeight: 14, marginTop: 3 }, warningText: { color: '#B45309', fontWeight: '800' }, reviewNote: { color: '#7F1D1D', fontSize: 10, lineHeight: 15, marginTop: 5 },
-  state: { minHeight: 220, alignItems: 'center', justifyContent: 'center' }, stateTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900', marginTop: 9 },
+  state: { minHeight: 220, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22 }, stateTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900', marginTop: 9 }, stateText: { color: '#64748B', fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 6 },
 });

@@ -13,10 +13,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   BriefcaseBusiness,
-  ChevronRight,
   Home,
   MapPin,
-  MoreVertical,
   Pencil,
   Phone,
   Plus,
@@ -35,7 +33,7 @@ const iconFor = (label?: string) => {
 export const SavedAddressesScreen = () => {
   const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
-  const { data: addresses = [], isLoading, isError, refetch } = useQuery({
+  const { data: addresses = [], isLoading, isError, isRefetching, refetch } = useQuery({
     queryKey: CUSTOMER_ADDRESSES_QUERY_KEY,
     queryFn: async () => {
       const response = await apiClient.get('/customer/addresses');
@@ -95,7 +93,6 @@ export const SavedAddressesScreen = () => {
             <Text style={styles.deliveringTitle}>{(addresses.find((address: any) => address.isDefault) || addresses[0]).label || 'Saved address'}</Text>
             <Text style={styles.deliveringText}>{(addresses.find((address: any) => address.isDefault) || addresses[0]).city || 'Your selected delivery location'}</Text>
           </View>
-          <ChevronRight size={22} color="#0F766E" />
         </View>
       ) : null}
 
@@ -112,7 +109,7 @@ export const SavedAddressesScreen = () => {
           data={addresses}
           keyExtractor={(item: any) => item.id}
           contentContainerStyle={styles.list}
-          refreshing={false}
+          refreshing={isRefetching}
           onRefresh={() => void refetch()}
           ListHeaderComponent={isError ? <View style={styles.errorBanner}><Text style={styles.errorBannerText}>Could not refresh addresses. Showing the last saved results.</Text><TouchableOpacity onPress={() => void refetch()}><Text style={styles.errorRetry}>Retry</Text></TouchableOpacity></View> : null}
           ListEmptyComponent={(
@@ -141,7 +138,6 @@ export const SavedAddressesScreen = () => {
                     <Text style={styles.addressText}>{item.city}, {item.state} {item.pincode}</Text>
                     <View style={styles.phoneRow}><Phone size={15} color="#64748B" /><Text style={styles.phoneText}>{item.phoneE164}</Text></View>
                   </View>
-                  <View accessibilityLabel={`Address actions for ${item.label || 'address'}`} accessibilityRole="image"><MoreVertical size={21} color="#64748B" /></View>
                 </View>
                 <View style={styles.actions}>
                   <TouchableOpacity style={styles.action} onPress={() => openProfileForm(item)}>

@@ -34,6 +34,7 @@ import {
   View,
 } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { notificationService } from '../../api/notificationService';
 import { riderService, RIDER_WORKSPACE_QUERY_KEY } from '../../api/riderService';
@@ -108,6 +109,7 @@ function shortId(value?: string | null) {
 }
 
 export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
+  const insets = useSafeAreaInsets();
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   const [statusBusy, setStatusBusy] = useState(false);
@@ -281,7 +283,7 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={workspaceQuery.isRefetching || inboxQuery.isRefetching} onRefresh={() => void refresh()} tintColor="#FFFFFF" />}
       >
-        <View style={styles.hero}>
+        <View style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
           <View style={styles.heroTop}>
             <View style={styles.flex}>
               <Text style={styles.eyebrow}>RIDER WORKSPACE</Text>
@@ -379,7 +381,7 @@ function OfferCard({ offer, now, busy, onOpen, onAccept, onReject }: { offer: Ri
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, content: { paddingBottom: 20 }, flex: { flex: 1 },
-  hero: { backgroundColor: '#067B5C', paddingTop: 52, paddingHorizontal: 18, paddingBottom: 22, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  hero: { backgroundColor: '#067B5C', paddingHorizontal: 18, paddingBottom: 22, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 9 }, eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '900', letterSpacing: 1.3 }, title: { color: '#FFFFFF', fontSize: 27, fontWeight: '900', marginTop: 4 }, subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },
   iconButton: { width: 43, height: 43, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }, badge: { position: 'absolute', right: -3, top: -3, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#EF1D25', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }, badgeText: { color: '#FFFFFF', fontSize: 8, fontWeight: '900' },
   availabilityCard: { marginTop: 20, borderRadius: 20, backgroundColor: '#FFFFFF', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }, statusIcon: { width: 45, height: 45, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, onlineIcon: { backgroundColor: '#DCFCE7' }, offlineIcon: { backgroundColor: '#FEE2E2' }, availabilityTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900' }, availabilityText: { color: '#64748B', fontSize: 10, marginTop: 3 },

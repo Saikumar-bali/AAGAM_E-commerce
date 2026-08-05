@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Clock3, MapPin, Minus, Plus, Tag, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, MapPin, Minus, Plus, Tag, Trash2 } from 'lucide-react-native';
 import { getProductImage } from '@aagam/utils';
 import { apiClient } from '@aagam/mobile-shared';
 import { useCartStore } from '../../store/cartStore';
@@ -67,7 +67,6 @@ export const CartScreen = () => {
           <View>
             <TouchableOpacity style={styles.couponCard} onPress={() => navigation.navigate('Deals')}><View style={styles.couponIcon}><Tag size={21} color="#FFFFFF" /></View><View style={styles.couponCopy}><Text style={styles.couponTitle}>Got a coupon code?</Text><Text style={styles.couponText}>Save more on your order</Text></View><Text style={styles.applyText}>Apply</Text><ArrowRight size={18} color="#0F766E" /></TouchableOpacity>
             <TouchableOpacity style={styles.infoCard} onPress={() => navigation.navigate('SavedAddresses')}><View style={styles.infoIcon}><MapPin size={21} color="#FFFFFF" /></View><View style={styles.infoCopy}><Text style={styles.infoLabel}>Delivering to</Text><Text style={styles.infoTitle}>{defaultAddress?.label || 'Add a delivery address'}</Text><Text style={styles.infoText}>{defaultAddress ? `${defaultAddress.city}, ${defaultAddress.pincode}` : 'Choose an address before checkout'}</Text></View><Text style={styles.changeText}>{defaultAddress ? 'Change' : 'Add'}</Text></TouchableOpacity>
-            <View style={styles.infoCard}><View style={styles.infoIcon}><Clock3 size={21} color="#FFFFFF" /></View><View style={styles.infoCopy}><Text style={styles.infoLabel}>Delivery slot</Text><Text style={styles.infoTitle}>Choose your slot at checkout</Text><Text style={styles.infoText}>Inventory will be checked for your address at checkout</Text></View></View>
             <View style={styles.summaryCard}><View style={styles.summaryRow}><Text style={styles.summaryLabel}>Subtotal ({itemCount} items)</Text><Text style={styles.summaryValue}>₹{subtotalBeforeSavings}</Text></View>{savings > 0 ? <View style={styles.summaryRow}><Text style={styles.savingsLabel}>Savings</Text><Text style={styles.savingsValue}>-₹{savings}</Text></View> : null}<View style={styles.divider} /><View style={styles.totalRow}><View><Text style={styles.totalLabel}>Total Amount</Text><Text style={styles.taxText}>Inclusive of all taxes</Text></View><Text style={styles.totalValue}>₹{cartTotal}</Text></View>{savings > 0 ? <View style={styles.savedStrip}><Text style={styles.savedStripText}>You saved ₹{savings} on this order</Text></View> : null}</View>
             <TouchableOpacity testID="cart_checkout_button" style={styles.checkoutButton} onPress={() => navigation.navigate('Checkout')}><Text style={styles.checkoutText}>Proceed to checkout</Text><ArrowRight size={21} color="#FFFFFF" /></TouchableOpacity>
           </View>
