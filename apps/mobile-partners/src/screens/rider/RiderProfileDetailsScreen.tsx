@@ -81,7 +81,7 @@ export const RiderProfileDetailsScreen = ({ navigation }: { navigation: any }) =
             <View style={styles.card}>
               <SectionTitle icon={<Banknote size={21} color="#0F766E" />} title="Bank payout account" />
               <View style={styles.safeNote}><ShieldCheck size={19} color="#15803D" /><Text style={styles.safeText}>The app never retrieves the full bank account. Current account: {profile.bank?.accountMasked || 'not added'} · {String(profile.bankStatus || 'PENDING').replaceAll('_', ' ')}</Text></View>
-              <Field label="New account number" value={bankAccount} onChangeText={(value) => setBankAccount(value.replace(/\D/g, ''))} placeholder="Enter only to replace" keyboardType="number-pad" secureTextEntry />
+              <Field label="New account number" value={bankAccount} onChangeText={(value: string) => setBankAccount(value.replace(/\D/g, ''))} placeholder="Enter only to replace" keyboardType="number-pad" secureTextEntry />
               <Field label="IFSC" value={bankIfsc} onChangeText={setBankIfsc} placeholder="ABCD0123456" autoCapitalize="characters" />
             </View>
 

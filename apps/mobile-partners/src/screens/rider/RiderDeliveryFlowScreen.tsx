@@ -215,7 +215,6 @@ export const RiderDeliveryFlowScreen = () => {
       return;
     }
     const deliveryJobId = activeJob.id;
-    const orderId = activeJob.order.id;
     Alert.alert('Complete delivery?', 'The server will persist proof, COD, earnings, and events before the receipt opens.', [
       { text: 'Back', style: 'cancel' },
       {
@@ -232,7 +231,7 @@ export const RiderDeliveryFlowScreen = () => {
               note: podNote.trim() || undefined,
               ...(location || {}),
             });
-            if (user?.id) await riderService.cacheLastCompletedJob(user.id, { deliveryJobId, orderId });
+            if (user?.id) await riderService.cacheLastCompletedJob(user.id, deliveryJobId);
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: RIDER_WORKSPACE_QUERY_KEY }),
               queryClient.invalidateQueries({ queryKey: SUMMARY_KEY }),

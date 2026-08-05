@@ -44,10 +44,7 @@ export const RiderReceiptScreen = ({ route, navigation }: { route: any; navigati
 
   useEffect(() => {
     if (!receipt?.deliveryJobId || !user?.id) return;
-    void riderService.cacheLastCompletedJob(user.id, {
-      deliveryJobId: receipt.deliveryJobId,
-      orderId: receipt.orderId,
-    });
+    void riderService.cacheLastCompletedJob(user.id, receipt.deliveryJobId);
   }, [receipt?.deliveryJobId, receipt?.orderId, user?.id]);
 
   return (

@@ -57,16 +57,16 @@ export const RiderJobsScreen = ({
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
-  const [lastCompleted, setLastCompleted] = useState<{ deliveryJobId: string; orderId: string } | null>(null);
+  const [lastCompleted, setLastCompleted] = useState<string | null>(null);
   const workspaceQuery = useQuery({
     queryKey: WORKSPACE_KEY,
     queryFn: riderService.getWorkspace,
     refetchInterval: 8_000,
   });
   const receiptQuery = useQuery({
-    queryKey: ['rider', 'restorable-receipt', lastCompleted?.deliveryJobId],
-    queryFn: () => riderService.getReceipt(lastCompleted!.deliveryJobId),
-    enabled: Boolean(lastCompleted?.deliveryJobId),
+    queryKey: ['rider', 'restorable-receipt', lastCompleted],
+    queryFn: () => riderService.getReceipt(lastCompleted!),
+    enabled: Boolean(lastCompleted),
     retry: 1,
   });
 
@@ -131,9 +131,9 @@ export const RiderJobsScreen = ({
 
         <View style={styles.listArea}>
           {lastCompleted && receiptQuery.data ? (
-            <TouchableOpacity accessibilityRole="button" style={styles.receiptBanner} onPress={() => onOpenReceipt(lastCompleted.deliveryJobId)}>
+            <TouchableOpacity accessibilityRole="button" style={styles.receiptBanner} onPress={() => onOpenReceipt(lastCompleted)}>
               <FileCheck2 size={23} color="#0F766E" />
-              <View style={styles.flex}><Text style={styles.receiptTitle}>Receipt restored after restart</Text><Text style={styles.receiptText}>Order #{lastCompleted.orderId.slice(-8).toUpperCase()} is available from the server.</Text></View>
+              <View style={styles.flex}><Text style={styles.receiptTitle}>Receipt restored after restart</Text><Text style={styles.receiptText}>Order #{String(receiptQuery.data.orderId || 'UNKNOWN').slice(-8).toUpperCase()} is available from the server.</Text></View>
               <Text style={styles.receiptOpen}>Open</Text>
             </TouchableOpacity>
           ) : null}
