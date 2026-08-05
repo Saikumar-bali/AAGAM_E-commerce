@@ -16,7 +16,6 @@ import {
   Bell,
   Box,
   IndianRupee,
-  Menu,
   ShoppingCart,
   Store,
 } from 'lucide-react-native';
@@ -24,6 +23,7 @@ import { storeService } from '../../api/storeService';
 import { notificationService } from '../../api/notificationService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 import { storeAssignmentStatus } from '../../domain/storeReferenceUi';
+import { partnerNavigationRef } from '../../navigation/partnerNavigationRef';
 
 const { width } = Dimensions.get('window');
 
@@ -77,9 +77,9 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
   const headline = stores[0]?.name || user?.name || 'Aagaam Store';
 
   const openNotifications = () => {
-    const parent = navigation?.getParent?.();
-    const root = parent?.getParent?.() || parent || navigation;
-    root?.navigate?.('Notifications');
+    if (partnerNavigationRef.isReady()) {
+      partnerNavigationRef.navigate('Notifications');
+    }
   };
 
   return (
@@ -99,13 +99,6 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
         <View style={styles.hero}>
           <View style={styles.heroShape} />
           <View style={styles.topRow}>
-            <TouchableOpacity
-              accessibilityLabel="Open more options"
-              style={styles.headerIcon}
-              onPress={() => navigation?.navigate?.('Settings')}
-            >
-              <Menu size={34} color="#FFFFFF" />
-            </TouchableOpacity>
             <TouchableOpacity
               testID="store_dashboard_notifications"
               accessibilityLabel="Open notifications"
@@ -140,7 +133,7 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
             <>
               <View style={styles.statsGrid}>
                 <DashboardStat icon={Store} title="Stores" value={String(totals.stores)} subtitle="Assigned" tone="#087B5A" iconBackground="#E8F8EE" />
-                <DashboardStat icon={ShoppingCart} title="Orders" value={String(totals.orders)} subtitle="Current" tone="#1557A4" iconBackground="#E8F1FD" />
+                <DashboardStat icon={ShoppingCart} title="Orders" value={String(totals.orders)} subtitle="All time" tone="#1557A4" iconBackground="#E8F1FD" />
                 <DashboardStat icon={IndianRupee} title="Revenue" value={`₹ ${totals.revenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} subtitle="Recorded" tone="#087B5A" iconBackground="#E8F8EE" />
                 <DashboardStat icon={Box} title="Products" value={String(totals.inventory)} subtitle="In Inventory" tone="#5A2DB7" iconBackground="#F0EAFE" />
               </View>
@@ -212,7 +205,7 @@ function DashboardStat({
   return (
     <View style={styles.statCard}>
       <View style={styles.statHeading}>
-        <View style={[styles.statIcon, { backgroundColor: iconBackground }]}>
+        <View style={[styles.statIcon, { backgroundColor: iconBackground }]}> 
           <Icon size={23} color={tone} />
         </View>
         <Text style={[styles.statTitle, { color: tone }]}>{title}</Text>
@@ -243,7 +236,7 @@ const styles = StyleSheet.create({
     top: -95,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  topRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
   headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   notificationBadge: {
     position: 'absolute',
