@@ -25,7 +25,7 @@ describe('CodSettlementFacadeService', () => {
     await expect(service.settle(
       'job-1',
       { id: 'admin-1', role: 'ADMIN' },
-      { depositedAmountPaise: 1000, settlementReference: 'SETTLEMENT-001' },
+      { amountPaise: 1000, settlementReference: 'SETTLEMENT-001' },
       'idempotency-1',
     )).rejects.toBeInstanceOf(ConflictException);
 
@@ -39,14 +39,14 @@ describe('CodSettlementFacadeService', () => {
     await expect(service.settle(
       'job-1',
       { id: 'admin-1', role: 'ADMIN' },
-      { depositedAmountPaise: 1000, settlementReference: '  SETTLEMENT-002  ' },
+      { amountPaise: 1000, settlementReference: '  SETTLEMENT-002  ' },
       'idempotency-2',
     )).resolves.toEqual({ id: 'ledger-1' });
 
     expect(settleCod).toHaveBeenCalledWith(
       'job-1',
       { id: 'admin-1', role: 'ADMIN' },
-      { depositedAmountPaise: 1000, settlementReference: 'SETTLEMENT-002' },
+      { amountPaise: 1000, settlementReference: 'SETTLEMENT-002' },
       'idempotency-2',
     );
   });
@@ -58,7 +58,7 @@ describe('CodSettlementFacadeService', () => {
     await expect(service.settle(
       'job-1',
       { id: 'admin-1', role: 'ADMIN' },
-      { depositedAmountPaise: 1000, settlementReference: 'SETTLEMENT-003' },
+      { amountPaise: 1000, settlementReference: 'SETTLEMENT-003' },
     )).rejects.toBeInstanceOf(ConflictException);
   });
 });
