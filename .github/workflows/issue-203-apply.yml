@@ -1,0 +1,99 @@
+name: Issue 203 Apply and Validate
+
+on:
+  push:
+    branches:
+      - agent/issue-203-mobile-ui-ux-audit
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-203-apply-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply-and-validate:
+    if: ${{ !contains(github.event.head_commit.message, '[issue-203-final]') && !contains(github.event.head_commit.message, '[issue-203-diagnostic]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/issue-203-mobile-ui-ux-audit
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.3
+          cache: npm
+
+      - name: Apply and validate audit fixes
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            python3 scripts/issue-203-fix.py
+            npm ci --no-audit --no-fund
+            npx prisma generate --schema packages/database/prisma/schema.prisma
+            npx tsc --project packages/types/tsconfig.json
+            npx tsc --project packages/utils/tsconfig.json
+            npx tsc --project packages/database/tsconfig.json
+            npm run typecheck --workspace=AagamCustomer
+            npm test --workspace=AagamCustomer
+            npm run typecheck --workspace=AagamPartners
+            npm test --workspace=AagamPartners
+            npx eslint \
+              apps/mobile-customer/src/screens/LoginScreen.tsx \
+              apps/mobile-customer/src/screens/customer/CartScreen.tsx \
+              apps/mobile-customer/src/screens/customer/NotificationsScreen.tsx \
+              apps/mobile-customer/src/screens/customer/OrdersScreen.tsx \
+              apps/mobile-customer/src/screens/customer/ProductDetailScreen.tsx \
+              apps/mobile-customer/src/screens/customer/ReviewScreen.tsx \
+              apps/mobile-customer/src/screens/customer/SavedAddressesScreen.tsx \
+              apps/mobile-partners/src/api/storeService.ts \
+              apps/mobile-partners/src/screens/rider/RiderAccountStatusScreen.tsx \
+              apps/mobile-partners/src/screens/rider/RiderCodScreen.tsx \
+              apps/mobile-partners/src/screens/rider/RiderDashboard.tsx \
+              apps/mobile-partners/src/screens/rider/RiderDocumentsScreen.tsx \
+              apps/mobile-partners/src/screens/rider/RiderJobsScreen.tsx \
+              apps/mobile-partners/src/screens/rider/RiderNotificationSettingsScreen.tsx \
+              apps/mobile-partners/src/screens/rider/RiderOfferDetailScreen.tsx \
+              apps/mobile-partners/src/screens/rider/RiderPickupOperationsScreen.tsx \
+              apps/mobile-partners/src/screens/rider/RiderTrackingDiagnosticsScreen.tsx \
+              packages/mobile-shared/src/hooks/useSocket.ts
+          } 2>&1 | tee /tmp/issue-203-validation.log
+
+      - name: Persist failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "Issue #203 branch validation failed."
+            echo
+            echo "## Working tree"
+            git status --short
+            echo
+            echo "## Validation tail"
+            tail -n 240 /tmp/issue-203-validation.log 2>/dev/null || true
+          } > issue-203-validation-failure.log
+          git add issue-203-validation-failure.log
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: persist issue 203 validation diagnostics [issue-203-diagnostic]"
+          git push origin HEAD:agent/issue-203-mobile-ui-ux-audit
+
+      - name: Commit validated source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm scripts/issue-203-fix.py .github/workflows/issue-203-apply.yml
+          git add -A
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(mobile): resolve issue 203 audit blockers [issue-203-final]"
+          git push origin HEAD:agent/issue-203-mobile-ui-ux-audit
