@@ -94,7 +94,7 @@ export const StoreSettingsScreen = () => {
       try {
         await Linking.openSettings();
       } catch {
-        Toast.show({ type: 'error', text1: 'Settings unavailable', text2: 'Open Android Settings and enable notifications for AAGAM Partners.' });
+        Toast.show({ type: 'error', text1: 'Settings unavailable', text2: 'Open Android Settings and enable notifications for the partner app.' });
       }
     }
   };
