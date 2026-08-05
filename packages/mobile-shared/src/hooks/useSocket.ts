@@ -43,7 +43,11 @@ export const useSocket = () => {
     socket?.on(event, callback);
   };
   const off = (event: string, callback?: (...args: any[]) => void) => {
-    socket?.off(event, callback);
+    if (callback) {
+      socket?.off(event, callback);
+      return;
+    }
+    socket?.off(event);
   };
 
   return { socket, emit, on, off };
