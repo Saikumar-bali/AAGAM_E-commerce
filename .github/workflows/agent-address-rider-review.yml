@@ -1,32 +1,36 @@
 name: Apply Rider Review Fixes
 
 on:
-  push:
-    paths:
-      - .github/workflows/agent-address-rider-review.yml
+  pull_request:
+    types: [synchronize]
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'agent/rider-portal-production-readiness'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
       - name: Apply reviewed fixes
         shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           def replace_once(path, old, new):
               file = Path(path)
               text = file.read_text()
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'{path}: expected one match, found {count}: {old[:80]!r}')
+                  raise SystemExit(f'{path}: expected one match, found {count}: {old[:100]!r}')
               file.write_text(text.replace(old, new, 1))
 
           def replace_between(path, start, end, replacement):
@@ -34,18 +38,14 @@ jobs:
               text = file.read_text()
               left = text.find(start)
               if left < 0:
-                  raise SystemExit(f'{path}: start marker not found')
+                  raise SystemExit(f'{path}: start marker not found: {start!r}')
               right = text.find(end, left)
               if right < 0:
-                  raise SystemExit(f'{path}: end marker not found')
+                  raise SystemExit(f'{path}: end marker not found: {end!r}')
               file.write_text(text[:left] + replacement + text[right:])
 
-          # Mobile request DTO alignment.
-          replace_once(
-              'apps/mobile-partners/src/api/riderService.ts',
-              '  page?: number;\n  pageSize?: number;\n',
-              '',
-          )
+          # API request whitelist alignment.
+          replace_once('apps/mobile-partners/src/api/riderService.ts', '  page?: number;\n  pageSize?: number;\n', '')
           replace_once(
               'apps/mobile-partners/src/api/riderService.ts',
               "  getHistory: async (filter: RiderHistoryFilter = {}) => (await apiClient.get('/riders/portal/history', { params: { page: 1, pageSize: 20, status: 'ALL', ...filter } })).data,",
@@ -57,7 +57,7 @@ jobs:
               "  getEarnings: async (filter: RiderHistoryFilter = {}) => (await apiClient.get('/riders/portal/earnings', { params: filter })).data,",
           )
 
-          # Notification invalidation follows actual screen query keys and ticket IDs.
+          # Notification invalidation follows actual screen keys and exact ticket IDs.
           replace_once(
               'apps/mobile-partners/src/domain/partnerNotifications.ts',
               'export function queryKeysForNotification(eventType?: string): ReadonlyArray<readonly unknown[]> {',
@@ -73,37 +73,25 @@ jobs:
               "    const invalidate = async (eventType?: string) => {\n      await Promise.all(\n        queryKeysForNotification(eventType).map((queryKey) => (\n          queryClient.invalidateQueries({ queryKey })\n        )),\n      );\n    };",
               "    const invalidate = async (payload: ReturnType<typeof normalizeNotificationNavigation>) => {\n      await Promise.all(\n        queryKeysForNotification(payload.eventType, payload.ticketId).map((queryKey) => (\n          queryClient.invalidateQueries({ queryKey })\n        )),\n      );\n    };",
           )
-          replace_once(
-              'apps/mobile-partners/src/notifications/PartnerPushCoordinator.tsx',
-              '      await Promise.all([invalidate(payload.eventType), acknowledgeOpen(payload)]);',
-              '      await Promise.all([invalidate(payload), acknowledgeOpen(payload)]);',
-          )
-          replace_once(
-              'apps/mobile-partners/src/notifications/PartnerPushCoordinator.tsx',
-              '      await invalidate(payload.eventType);',
-              '      await invalidate(payload);',
-          )
+          replace_once('apps/mobile-partners/src/notifications/PartnerPushCoordinator.tsx', '      await Promise.all([invalidate(payload.eventType), acknowledgeOpen(payload)]);', '      await Promise.all([invalidate(payload), acknowledgeOpen(payload)]);')
+          replace_once('apps/mobile-partners/src/notifications/PartnerPushCoordinator.tsx', '      await invalidate(payload.eventType);', '      await invalidate(payload);')
           replace_once(
               'apps/mobile-partners/src/domain/partnerNotifications.spec.ts',
               "  it('invalidates Rider support for support replies', () => {\n    expect(queryKeysForNotification('RIDER_SUPPORT_REPLY')).toContainEqual(['rider', 'support']);\n  });",
               "  it('invalidates the exact support conversation for support replies', () => {\n    const keys = queryKeysForNotification('RIDER_SUPPORT_REPLY', 'ticket-789');\n    expect(keys).toContainEqual(['rider', 'support']);\n    expect(keys).toContainEqual(['rider', 'support-ticket', 'ticket-789']);\n  });\n\n  it('invalidates persisted earnings, payout history, and COD ledger keys', () => {\n    expect(queryKeysForNotification('RIDER_EARNINGS_UPDATED')).toEqual(expect.arrayContaining([\n      ['rider', 'earnings-ledger'],\n      ['rider', 'payout-history'],\n    ]));\n    expect(queryKeysForNotification('RIDER_COD_UPDATED')).toContainEqual(['rider', 'cod-ledger']);\n  });",
           )
 
-          # Authoritative operational eligibility enforcement.
-          replace_once(
-              'apps/api-gateway/src/riders/rider-portal.service.ts',
-              '} from "./rider-portal.dto";\n',
-              '} from "./rider-portal.dto";\nimport { assertRiderEligibleForOperations } from "./rider-operations-eligibility";\n',
-          )
+          # Enforce one shared operational eligibility policy in mutation paths.
+          replace_once('apps/api-gateway/src/riders/rider-portal.service.ts', '} from "./rider-portal.dto";\n', '} from "./rider-portal.dto";\nimport { assertRiderEligibleForOperations } from "./rider-operations-eligibility";\n')
           replace_once(
               'apps/api-gateway/src/riders/rider-portal.service.ts',
               '      where: {\n        currentRiderId: rider.id,\n        status: { in: statuses as any },\n        ...(updatedAt ? { updatedAt } : {}),\n      },',
-              '      where: {\n        status: { in: statuses as any },\n        OR: [\n          { currentRiderId: rider.id },\n          { deliveryProof: { is: { riderId: rider.id } } },\n          {\n            AND: [\n              { status: { not: "DELIVERED" as any } },\n              { pickupProof: { is: { riderId: rider.id } } },\n            ],\n          },\n          {\n            AND: [\n              { status: "CANCELLED" as any },\n              {\n                assignments: {\n                  some: {\n                    riderProfileId: rider.id,\n                    status: { in: ["ACCEPTED", "CANCELLED"] as any },\n                  },\n                },\n              },\n            ],\n          },\n        ],\n        ...(updatedAt ? { updatedAt } : {}),\n      },',
+              '      where: {\n        status: { in: statuses as any },\n        OR: [\n          { currentRiderId: rider.id },\n          { deliveryProof: { is: { riderId: rider.id } } },\n          { AND: [{ status: { not: "DELIVERED" as any } }, { pickupProof: { is: { riderId: rider.id } } }] },\n          {\n            AND: [\n              { status: "CANCELLED" as any },\n              { assignments: { some: { riderProfileId: rider.id, status: { in: ["ACCEPTED", "CANCELLED"] as any } } } },\n            ],\n          },\n        ],\n        ...(updatedAt ? { updatedAt } : {}),\n      },',
           )
           replace_once(
               'apps/api-gateway/src/riders/rider-portal.service.ts',
               '  async setStatus(userId: string, status: "ONLINE" | "OFFLINE") {\n    const rider = await this.rider(userId);\n    if ((await this.activeJob(rider.id)) && status === "OFFLINE")',
-              '  async setStatus(userId: string, status: "ONLINE" | "OFFLINE") {\n    const rider = await this.rider(userId);\n    if (status === "ONLINE") {\n      await assertRiderEligibleForOperations(prisma, rider.id);\n    }\n    if ((await this.activeJob(rider.id)) && status === "OFFLINE")',
+              '  async setStatus(userId: string, status: "ONLINE" | "OFFLINE") {\n    const rider = await this.rider(userId);\n    if (status === "ONLINE") await assertRiderEligibleForOperations(prisma, rider.id);\n    if ((await this.activeJob(rider.id)) && status === "OFFLINE")',
           )
           replace_once(
               'apps/api-gateway/src/riders/rider-portal.service.ts',
@@ -111,11 +99,7 @@ jobs:
               '    if (!active) throw new NotFoundException("No active break");\n    await assertRiderEligibleForOperations(prisma, rider.id);\n    return prisma.$transaction(async (tx) => {',
           )
 
-          replace_once(
-              'apps/api-gateway/src/orders/dispatch-assignment.service.ts',
-              'import { DeliveryWorkflowService } from "./delivery-workflow.service";\n',
-              'import { DeliveryWorkflowService } from "./delivery-workflow.service";\nimport { assertRiderEligibleForOperations } from "../riders/rider-operations-eligibility";\n',
-          )
+          replace_once('apps/api-gateway/src/orders/dispatch-assignment.service.ts', 'import { DeliveryWorkflowService } from "./delivery-workflow.service";\n', 'import { DeliveryWorkflowService } from "./delivery-workflow.service";\nimport { assertRiderEligibleForOperations } from "../riders/rider-operations-eligibility";\n')
           replace_once(
               'apps/api-gateway/src/orders/dispatch-assignment.service.ts',
               '          if (!rider) throw new NotFoundException("Rider profile not found");\n          if (rider.status !== "ONLINE") {',
@@ -127,23 +111,15 @@ jobs:
               '          throw new ConflictException("Assignment offer has expired");\n        }\n\n        await assertRiderEligibleForOperations(tx, assignment.riderProfileId);\n\n        const activeJob = await tx.deliveryJob.findFirst({',
           )
 
-          replace_once(
-              'apps/api-gateway/src/orders/dispatch.controller.ts',
-              'import { DispatchService } from "./dispatch.service";\n',
-              'import { DispatchService } from "./dispatch.service";\nimport { assertRiderEligibleForOperations } from "../riders/rider-operations-eligibility";\n',
-          )
+          replace_once('apps/api-gateway/src/orders/dispatch.controller.ts', 'import { DispatchService } from "./dispatch.service";\n', 'import { DispatchService } from "./dispatch.service";\nimport { assertRiderEligibleForOperations } from "../riders/rider-operations-eligibility";\n')
           replace_once(
               'apps/api-gateway/src/orders/dispatch.controller.ts',
               '          if (!rider) throw new NotFoundException("Rider profile not found");\n          if (rider.id === job.currentRiderId) {',
               '          if (!rider) throw new NotFoundException("Rider profile not found");\n          await assertRiderEligibleForOperations(tx, rider.id);\n          if (rider.id === job.currentRiderId) {',
           )
 
-          # Historical ownership, offer privacy, shared eligibility presentation, and disabled dead relay.
-          replace_once(
-              'apps/api-gateway/src/riders/rider-portal-read.service.ts',
-              '} from "./rider-portal.dto";\n',
-              '} from "./rider-portal.dto";\nimport { evaluateRiderEligibility } from "./rider-operations-eligibility";\n',
-          )
+          # Historical ownership, safe offer shape, shared lifecycle policy, disabled unbound relay.
+          replace_once('apps/api-gateway/src/riders/rider-portal-read.service.ts', '} from "./rider-portal.dto";\n', '} from "./rider-portal.dto";\nimport { evaluateRiderEligibility } from "./rider-operations-eligibility";\n')
           replace_between(
               'apps/api-gateway/src/riders/rider-portal-read.service.ts',
               '  private async ownedJob(userId: string, deliveryJobId: string) {',
@@ -282,36 +258,11 @@ jobs:
 ''',
           )
 
-          # COD immutable-entry uniqueness migration.
-          Path('packages/database/prisma/migrations/20260804170000_cod_settlement_reference_unique/migration.sql').write_text('''-- Normalize empty references and preserve legacy duplicate rows before adding
--- the production uniqueness guarantees used by COD settlement retry handling.
-UPDATE "CodLedger"
-SET "settlementReference" = NULL
-WHERE "settlementReference" IS NOT NULL
-  AND btrim("settlementReference") = '';
+          # Immutable deposited-reference uniqueness.
+          migration = Path('packages/database/prisma/migrations/20260804170000_cod_settlement_reference_unique/migration.sql')
+          migration.write_text(migration.read_text() + '''
 
-WITH ranked AS (
-  SELECT
-    "id",
-    "settlementReference",
-    row_number() OVER (
-      PARTITION BY "settlementReference"
-      ORDER BY "updatedAt" ASC, "id" ASC
-    ) AS duplicate_rank
-  FROM "CodLedger"
-  WHERE "settlementReference" IS NOT NULL
-)
-UPDATE "CodLedger" AS ledger
-SET "settlementReference" = ranked."settlementReference"
-  || '-legacy-'
-  || left(ledger."id", 8)
-FROM ranked
-WHERE ledger."id" = ranked."id"
-  AND ranked.duplicate_rank > 1;
-
-CREATE UNIQUE INDEX IF NOT EXISTS "CodLedger_settlementReference_key"
-ON "CodLedger"("settlementReference");
-
+-- Deposit entries are the immutable financial audit trail.
 UPDATE "CodLedgerEntry"
 SET "reference" = NULL
 WHERE "type" = 'DEPOSITED'::"CodLedgerEntryType"
@@ -324,72 +275,22 @@ WHERE "type" = 'DEPOSITED'::"CodLedgerEntryType"
   AND "reference" IS NOT NULL;
 
 WITH ranked_deposits AS (
-  SELECT
-    "id",
-    "reference",
-    row_number() OVER (
-      PARTITION BY "reference"
-      ORDER BY "createdAt" ASC, "id" ASC
-    ) AS duplicate_rank
+  SELECT "id", "reference",
+    row_number() OVER (PARTITION BY "reference" ORDER BY "createdAt" ASC, "id" ASC) AS duplicate_rank
   FROM "CodLedgerEntry"
-  WHERE "type" = 'DEPOSITED'::"CodLedgerEntryType"
-    AND "reference" IS NOT NULL
+  WHERE "type" = 'DEPOSITED'::"CodLedgerEntryType" AND "reference" IS NOT NULL
 )
 UPDATE "CodLedgerEntry" AS entry
-SET "reference" = ranked_deposits."reference"
-  || '-legacy-'
-  || left(entry."id", 8)
+SET "reference" = ranked_deposits."reference" || '-legacy-' || left(entry."id", 8)
 FROM ranked_deposits
-WHERE entry."id" = ranked_deposits."id"
-  AND ranked_deposits.duplicate_rank > 1;
+WHERE entry."id" = ranked_deposits."id" AND ranked_deposits.duplicate_rank > 1;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "CodLedgerEntry_deposited_reference_key"
 ON "CodLedgerEntry"("reference")
-WHERE "type" = 'DEPOSITED'::"CodLedgerEntryType"
-  AND "reference" IS NOT NULL;
+WHERE "type" = 'DEPOSITED'::"CodLedgerEntryType" AND "reference" IS NOT NULL;
 ''')
 
-          # Regression tests for review findings.
-          Path('apps/api-gateway/src/riders/rider-portal-history-ownership.spec.ts').write_text('''import { prisma } from '@aagam/database';
-import { RiderPortalService } from './rider-portal.service';
-
-jest.mock('@aagam/database', () => ({
-  Role: { RIDER: 'RIDER' },
-  Prisma: {},
-  prisma: {
-    riderProfile: { findUnique: jest.fn() },
-    deliveryJob: { findMany: jest.fn() },
-  },
-}));
-
-describe('Rider Portal historical ownership query', () => {
-  it('includes accepted cancelled jobs without exposing reassigned completions', async () => {
-    (prisma.riderProfile.findUnique as jest.Mock).mockResolvedValue({
-      id: 'rider-1',
-      userId: 'user-1',
-      user: {},
-    });
-    (prisma.deliveryJob.findMany as jest.Mock).mockResolvedValue([]);
-
-    await new RiderPortalService().history('user-1', { status: 'ALL' } as any);
-
-    expect(prisma.deliveryJob.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({
-        OR: expect.arrayContaining([
-          { deliveryProof: { is: { riderId: 'rider-1' } } },
-          expect.objectContaining({
-            AND: expect.arrayContaining([
-              { status: 'CANCELLED' },
-              expect.objectContaining({ assignments: expect.any(Object) }),
-            ]),
-          }),
-        ]),
-      }),
-    }));
-  });
-});
-''')
-
+          # Regression coverage.
           Path('apps/api-gateway/src/riders/rider-portal-security-regressions.spec.ts').write_text('''import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
 import { RiderPortalReadService } from './rider-portal-read.service';
@@ -413,85 +314,49 @@ describe('Rider Portal security regressions', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (prisma.riderProfile.findUnique as jest.Mock).mockResolvedValue({
-      id: 'rider-owned',
-      userId: 'user-owned',
-    });
+    (prisma.riderProfile.findUnique as jest.Mock).mockResolvedValue({ id: 'rider-owned', userId: 'user-owned' });
     (prisma.riderEarning.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.$queryRaw as jest.Mock).mockResolvedValue([]);
   });
 
   it('restores a cancelled accepted job after currentRiderId is cleared', async () => {
     (prisma.deliveryJob.findFirst as jest.Mock).mockResolvedValue({
-      id: 'job-cancelled',
-      status: 'CANCELLED',
-      currentRiderId: null,
+      id: 'job-cancelled', status: 'CANCELLED', currentRiderId: null,
       assignments: [{ riderProfileId: 'rider-owned', status: 'ACCEPTED' }],
-      pickupProof: null,
-      deliveryProof: null,
+      pickupProof: null, deliveryProof: null,
     });
-
-    await expect(service.historyDetail('user-owned', 'job-cancelled')).resolves.toMatchObject({
-      receiptAvailable: true,
-    });
+    await expect(service.historyDetail('user-owned', 'job-cancelled')).resolves.toMatchObject({ receiptAvailable: true });
   });
 
   it('does not expose another Rider completion to a reassigned Rider', async () => {
     (prisma.deliveryJob.findFirst as jest.Mock).mockResolvedValue({
-      id: 'job-delivered',
-      status: 'DELIVERED',
-      currentRiderId: 'rider-new',
+      id: 'job-delivered', status: 'DELIVERED', currentRiderId: 'rider-new',
       assignments: [{ riderProfileId: 'rider-owned', status: 'REASSIGNED' }],
-      pickupProof: { riderId: 'rider-owned' },
-      deliveryProof: { riderId: 'rider-new' },
+      pickupProof: { riderId: 'rider-owned' }, deliveryProof: { riderId: 'rider-new' },
     });
-
-    await expect(service.historyDetail('user-owned', 'job-delivered'))
-      .rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.historyDetail('user-owned', 'job-delivered')).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('returns only approximate destination context before acceptance', async () => {
     (prisma.dispatchAssignment.findFirst as jest.Mock).mockResolvedValue({
-      id: 'assignment-1',
-      status: 'OFFERED',
-      offeredAt: new Date(),
-      expiresAt: new Date(Date.now() + 60000),
-      respondedAt: null,
-      rejectionReason: null,
+      id: 'assignment-1', status: 'OFFERED', offeredAt: new Date(), expiresAt: new Date(Date.now() + 60000),
+      respondedAt: null, rejectionReason: null,
       deliveryJob: {
-        id: 'job-1',
-        orderId: 'order-1',
+        id: 'job-1', orderId: 'order-1', pickupProof: null,
         order: {
           currency: 'INR',
-          addressSnapshot: {
-            address: '221B Exact Private Street',
-            phoneE164: '+919999999999',
-            recipientName: 'Private Recipient',
-            locality: 'MVP Colony',
-            city: 'Visakhapatnam',
-            state: 'Andhra Pradesh',
-            instructions: 'Call 9999999999 at the blue gate',
-          },
+          addressSnapshot: { address: '221B Exact Private Street', phoneE164: '+919999999999', recipientName: 'Private Recipient', locality: 'MVP Colony', city: 'Visakhapatnam', state: 'Andhra Pradesh', instructions: 'Call 9999999999 at the blue gate' },
           store: { id: 'store-1', name: 'Store', address: 'Business address', latitude: 17.7, longitude: 83.3 },
-          deliveryLat: 17.72,
-          deliveryLng: 83.31,
-          payment: { method: 'COD', amountPaise: 12000 },
-          items: [{ quantity: 1 }],
+          deliveryLat: 17.72, deliveryLng: 83.31,
+          payment: { method: 'COD', amountPaise: 12000 }, items: [{ quantity: 1 }],
         },
-        pickupProof: null,
       },
     });
     (prisma.riderShift.count as jest.Mock).mockResolvedValue(0);
     (prisma.riderShift.findFirst as jest.Mock).mockResolvedValue(null);
-
     const result = await service.offerDetail('user-owned', 'assignment-1');
     const serialized = JSON.stringify(result);
-    expect(result.offer.delivery).toEqual({
-      area: 'MVP Colony',
-      city: 'Visakhapatnam',
-      state: 'Andhra Pradesh',
-      approximate: true,
-    });
+    expect(result.offer.delivery).toEqual({ area: 'MVP Colony', city: 'Visakhapatnam', state: 'Andhra Pradesh', approximate: true });
     expect(serialized).not.toContain('221B Exact Private Street');
     expect(serialized).not.toContain('9999999999');
     expect(serialized).not.toContain('addressSnapshot');
@@ -499,32 +364,20 @@ describe('Rider Portal security regressions', () => {
   });
 
   it('does not return a dead relay URI when no provider exists', async () => {
-    (prisma.deliveryJob.findFirst as jest.Mock).mockResolvedValue({
-      id: 'job-active',
-      orderId: 'order-active',
-    });
-
-    await expect(service.contact('user-owned', 'job-active', {
-      targetRole: 'CUSTOMER',
-      channel: 'CALL',
-    } as any)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    (prisma.deliveryJob.findFirst as jest.Mock).mockResolvedValue({ id: 'job-active', orderId: 'order-active' });
+    await expect(service.contact('user-owned', 'job-active', { targetRole: 'CUSTOMER', channel: 'CALL' } as any)).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 });
 ''')
 
-          # Update the existing ownership assertions for the broader secure lookup.
-          replace_once(
-              'apps/api-gateway/src/riders/rider-portal-ownership.spec.ts',
-              "      where: {\n        id: 'job-foreign',\n        currentRiderId: 'rider-owned',\n      },",
-              "      where: { id: 'job-foreign' },",
-          )
-          replace_once(
-              'apps/api-gateway/src/riders/rider-portal-ownership.spec.ts',
-              "      where: {\n        id: 'job-foreign',\n        currentRiderId: 'rider-owned',\n      },",
-              "      where: { id: 'job-foreign' },",
-          )
+          # Existing ownership tests now assert the broad lookup followed by secure proof checks.
+          ownership = Path('apps/api-gateway/src/riders/rider-portal-ownership.spec.ts')
+          text = ownership.read_text()
+          old = "      where: {\n        id: 'job-foreign',\n        currentRiderId: 'rider-owned',\n      },"
+          if text.count(old) != 2:
+              raise SystemExit(f'ownership spec: expected 2 old lookups, found {text.count(old)}')
+          ownership.write_text(text.replace(old, "      where: { id: 'job-foreign' },"))
 
-          # The temporary workflow removes itself in the same commit.
           Path('.github/workflows/agent-address-rider-review.yml').unlink()
           PY
 
@@ -532,4 +385,4 @@ describe('Rider Portal security regressions', () => {
           git config user.email "178761198+Saikumar-bali@users.noreply.github.com"
           git add -A
           git commit -m "fix(rider): address blocking review findings"
-          git push origin HEAD:${{ github.ref_name }}
+          git push origin HEAD:$HEAD_BRANCH
