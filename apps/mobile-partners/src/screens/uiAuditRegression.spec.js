@@ -40,6 +40,20 @@ describe('partner mobile UI audit regressions', () => {
     expect(screen('rider/RiderCodScreen.tsx')).not.toContain('ChevronRight');
   });
 
+  it('preserves cached Rider operational data on refresh errors', () => {
+    const documents = screen('rider/RiderDocumentsScreen.tsx');
+    expect(documents).toContain('query.isError && documents.length === 0');
+    expect(documents).toContain('Showing your last loaded submissions.');
+
+    const preferences = screen('rider/RiderNotificationSettingsScreen.tsx');
+    expect(preferences).toContain('hasCachedPreferences');
+    expect(preferences).toContain('Showing your last loaded settings.');
+
+    const account = screen('rider/RiderAccountStatusScreen.tsx');
+    expect(account).toContain('query.isError && !hasCachedProfile');
+    expect(account).toContain('Showing your last loaded eligibility details.');
+  });
+
   it('keeps Store owner APIs role-safe and URL-safe', () => {
     const text = repoFile('apps/mobile-partners/src/api/storeService.ts');
     expect(text).not.toContain('createStore:');
