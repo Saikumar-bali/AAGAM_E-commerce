@@ -31,8 +31,13 @@ function navigateRiderOperations(command: RiderOperationsCommand) {
 export function navigatePartnerCommand(command: PartnerNavigationCommand) {
   if (!partnerNavigationRef.isReady()) return false;
   if (command.workspace === 'RIDER') {
-    if (command.tab === 'Operations') navigateRiderOperations(command);
-    else partnerNavigationRef.navigate('RiderTabs', { screen: command.tab });
+    if (command.tab === 'Operations') {
+      navigateRiderOperations(command);
+    } else if (command.tab === 'RiderSupportConversation') {
+      partnerNavigationRef.navigate('RiderTabs', { screen: 'RiderSupportConversation', params: command.params });
+    } else {
+      partnerNavigationRef.navigate('RiderTabs', { screen: command.tab });
+    }
     return true;
   }
   if (command.workspace === 'STORE') {

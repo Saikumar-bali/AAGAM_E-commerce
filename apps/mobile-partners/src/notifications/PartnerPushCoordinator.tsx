@@ -111,9 +111,11 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
       return true;
     };
 
-    const invalidate = async (eventType?: string) => {
+    const invalidate = async (
+      payload: ReturnType<typeof normalizeNotificationNavigation>,
+    ) => {
       await Promise.all(
-        queryKeysForNotification(eventType).map((queryKey) => (
+        queryKeysForNotification(payload.eventType, payload.ticketId).map((queryKey) => (
           queryClient.invalidateQueries({ queryKey })
         )),
       );
@@ -148,7 +150,7 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     const routeOpened = async (raw: Record<string, unknown> | undefined) => {
       const payload = normalizeNotificationNavigation(raw);
       if (!remember(`${notificationDedupeKey(payload)}:opened`)) return;
-      await Promise.all([invalidate(payload.eventType), acknowledgeOpen(payload)]);
+      await Promise.all([invalidate(payload), acknowledgeOpen(payload)]);
       queueOrNavigate(navigationCommandForNotification(payload));
     };
 
@@ -167,7 +169,7 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
         visibilityTime: 6_000,
         onPress: () => void routeOpened(raw),
       });
-      await invalidate(payload.eventType);
+      await invalidate(payload);
     };
 
     const pollInbox = async () => {

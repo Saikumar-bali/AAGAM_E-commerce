@@ -40,12 +40,21 @@ describe('Auto-dispatch CI and dependency-injection contracts', () => {
     expect(findJob).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'job-enabled' } }));
   });
 
-  it('wires the rejection and expiry paths to the actual AutoDispatchService provider', () => {
+  it('wires rejection and expiry through the eligibility-enforcing assignment provider', () => {
     const orderModule = read('apps/api-gateway/src/orders/order.module.ts');
+    const eligibleAssignments = read(
+      'apps/api-gateway/src/orders/eligible-dispatch-assignment.service.ts',
+    );
     const worker = read('apps/api-gateway/src/notifications/notification-worker.service.ts');
 
-    expect(orderModule).toContain('new DispatchAssignmentService(jobs, workflow, events, autoDispatch)');
+    expect(orderModule).toContain('new EligibleDispatchAssignmentService(');
     expect(orderModule).toContain('AutoDispatchService,');
+    expect(eligibleAssignments).toContain(
+      'extends DispatchAssignmentService',
+    );
+    expect(eligibleAssignments).toContain(
+      'assertRiderEligibleForOperations',
+    );
     expect(worker).toContain('moduleRef?.get(AutoDispatchService, { strict: false })');
     expect(worker).not.toContain("moduleRef.get('AutoDispatchService'");
   });

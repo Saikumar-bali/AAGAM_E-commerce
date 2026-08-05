@@ -12,6 +12,7 @@ import { Role } from "@aagam/database";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
+import { CodSettlementFacadeService } from "./cod-settlement-facade.service";
 import {
   CollectCodDto,
   CompleteDeliveryOperationDto,
@@ -28,7 +29,10 @@ import { DeliveryOperationsService } from "./delivery-operations.service";
 @Controller("orders/delivery-operations")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class DeliveryOperationsController {
-  constructor(private readonly operations: DeliveryOperationsService) {}
+  constructor(
+    private readonly operations: DeliveryOperationsService,
+    private readonly codSettlements: CodSettlementFacadeService
+  ) {}
 
   @Get("queue")
   @Roles(Role.ADMIN, Role.STORE_OWNER)
@@ -184,7 +188,7 @@ export class DeliveryOperationsController {
     @Req() req: any,
     @Headers("idempotency-key") idempotencyKey?: string
   ) {
-    return this.operations.settleCod(
+    return this.codSettlements.settle(
       deliveryJobId,
       req.user,
       body,

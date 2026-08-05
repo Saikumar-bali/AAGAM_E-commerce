@@ -8,7 +8,8 @@ export type RiderJobsStackParamList = {
   RiderDelivery: { deliveryJobId: string };
   RiderReturn: { deliveryJobId: string };
   RiderJobHistory: undefined;
-  RiderJobHistoryDetail: { deliveryJobId?: string; orderId?: string };
+  RiderJobHistoryDetail: { deliveryJobId: string; orderId?: string };
+  RiderReceipt: { deliveryJobId: string };
 };
 
 export type RiderTabParamList = {
@@ -19,6 +20,15 @@ export type RiderTabParamList = {
   Profile: undefined;
   NotificationSettings: undefined;
   TrackingDiagnostics: undefined;
+  RiderProfileDetails: undefined;
+  RiderAccountStatus: undefined;
+  RiderDocuments: undefined;
+  RiderDocumentPreview: { documentId: string };
+  RiderSchedule: undefined;
+  RiderCod: undefined;
+  RiderSupport: { deliveryJobId?: string } | undefined;
+  RiderSupportConversation: { ticketId: string };
+  RiderPayoutHistory: undefined;
 };
 
 export type StoreOrderQueueParams = {

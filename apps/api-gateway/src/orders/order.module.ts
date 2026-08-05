@@ -1,25 +1,27 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
-import { OrderService } from './order.service';
-import { OrderController } from './order.controller';
-import { StoreFulfillmentController } from './store-fulfillment.controller';
-import { StoreFulfillmentService } from './store-fulfillment.service';
-import { DispatchController } from './dispatch.controller';
-import { DispatchService } from './dispatch.service';
+import { PaymentsModule } from '../payments/payments.module';
 import { AuditedDispatchService } from './audited-dispatch.service';
+import { AutoDispatchService } from './auto-dispatch.service';
+import { CodSettlementFacadeService } from './cod-settlement-facade.service';
+import { CustomerDeliveryContextController } from './customer-delivery-context.controller';
 import { DeliveryEventService } from './delivery-event.service';
 import { DeliveryJobService } from './delivery-job.service';
+import { DeliveryOperationsController } from './delivery-operations.controller';
+import { DeliveryOperationsService } from './delivery-operations.service';
 import { DeliveryWorkflowService } from './delivery-workflow.service';
 import { DispatchAssignmentService } from './dispatch-assignment.service';
-import { DeliveryOperationsService } from './delivery-operations.service';
+import { DispatchController } from './dispatch.controller';
+import { DispatchService } from './dispatch.service';
+import { EligibleDispatchAssignmentService } from './eligible-dispatch-assignment.service';
+import { OrderController } from './order.controller';
+import { OrderService } from './order.service';
+import { PickupReadinessController } from './pickup-readiness.controller';
 import { PostDeliveryController } from './post-delivery.controller';
 import { PostDeliveryService } from './post-delivery.service';
-import { DeliveryOperationsController } from './delivery-operations.controller';
-import { PaymentsModule } from '../payments/payments.module';
-import { AutoDispatchService } from './auto-dispatch.service';
-import { CustomerDeliveryContextController } from './customer-delivery-context.controller';
-import { PickupReadinessController } from './pickup-readiness.controller';
 import { RiderArrivalEvidenceInterceptor } from './rider-arrival-evidence.interceptor';
+import { StoreFulfillmentController } from './store-fulfillment.controller';
+import { StoreFulfillmentService } from './store-fulfillment.service';
 
 @Module({
   imports: [PaymentsModule],
@@ -43,6 +45,7 @@ import { RiderArrivalEvidenceInterceptor } from './rider-arrival-evidence.interc
       useClass: AuditedDispatchService,
     },
     DeliveryOperationsService,
+    CodSettlementFacadeService,
     PostDeliveryService,
     AutoDispatchService,
     RiderArrivalEvidenceInterceptor,
@@ -57,7 +60,13 @@ import { RiderArrivalEvidenceInterceptor } from './rider-arrival-evidence.interc
         workflow: DeliveryWorkflowService,
         events: DeliveryEventService,
         autoDispatch: AutoDispatchService,
-      ) => new DispatchAssignmentService(jobs, workflow, events, autoDispatch),
+      ) =>
+        new EligibleDispatchAssignmentService(
+          jobs,
+          workflow,
+          events,
+          autoDispatch,
+        ),
       inject: [
         DeliveryJobService,
         DeliveryWorkflowService,

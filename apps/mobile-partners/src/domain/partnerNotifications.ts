@@ -32,7 +32,9 @@ export type PartnerNavigationCommand =
   | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderPickup'; params: { deliveryJobId: string } }
   | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderDelivery'; params: { deliveryJobId: string } }
   | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderReturn'; params: { deliveryJobId: string } }
-  | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderJobHistoryDetail'; params: { deliveryJobId?: string; orderId?: string } }
+  | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderJobHistoryDetail'; params: { deliveryJobId: string; orderId?: string } }
+  | { workspace: 'RIDER'; tab: 'RiderSupportConversation'; params: { ticketId: string } }
+  | { workspace: 'RIDER'; tab: 'RiderSupport' }
   | { workspace: 'RIDER'; tab: 'Alerts' }
   | { workspace: 'RIDER'; tab: 'History' }
   | { workspace: 'RIDER'; tab: 'Profile' }
@@ -144,12 +146,14 @@ export function normalizeNotificationNavigation(
 }
 
 export function notificationDedupeKey(payload: NotificationNavigationPayload): string {
-  return payload.recipientId
-    ?? payload.notificationId
-    ?? [payload.eventType, payload.assignmentId, payload.deliveryJobId, payload.orderId]
-      .filter(Boolean)
-      .join(':')
-    ?? 'notification:unknown';
+  const composite = [
+    payload.eventType,
+    payload.assignmentId,
+    payload.deliveryJobId,
+    payload.orderId,
+    payload.ticketId,
+  ].filter(Boolean).join(':');
+  return (payload.recipientId ?? payload.notificationId ?? composite) || 'notification:unknown';
 }
 
 export function navigationCommandForNotification(
@@ -177,7 +181,7 @@ export function navigationCommandForNotification(
         ? { workspace: 'RIDER', tab: 'Operations', screen: 'RiderActiveJob', params: { deliveryJobId: payload.deliveryJobId } }
         : { workspace: 'RIDER', tab: 'Alerts' };
     case 'RIDER_HISTORY':
-      return payload.deliveryJobId || payload.orderId
+      return payload.deliveryJobId
         ? {
             workspace: 'RIDER',
             tab: 'Operations',
@@ -191,7 +195,9 @@ export function navigationCommandForNotification(
     case 'RIDER_PROFILE':
       return { workspace: 'RIDER', tab: 'Profile' };
     case 'RIDER_SUPPORT':
-      return { workspace: 'RIDER', tab: 'Alerts' };
+      return payload.ticketId
+        ? { workspace: 'RIDER', tab: 'RiderSupportConversation', params: { ticketId: payload.ticketId } }
+        : { workspace: 'RIDER', tab: 'RiderSupport' };
     case 'STORE_ORDER':
       return { workspace: 'STORE', tab: 'Orders', params: { storeId: payload.storeId } };
     default:
@@ -199,7 +205,10 @@ export function navigationCommandForNotification(
   }
 }
 
-export function queryKeysForNotification(eventType?: string): ReadonlyArray<readonly unknown[]> {
+export function queryKeysForNotification(
+  eventType?: string,
+  ticketId?: string,
+): ReadonlyArray<readonly unknown[]> {
   const event = upper(eventType) || '';
   const keys: Array<readonly unknown[]> = [['partner-notifications']];
 
@@ -226,9 +235,14 @@ export function queryKeysForNotification(eventType?: string): ReadonlyArray<read
     keys.push(...RIDER_WORKSPACE_KEYS, ['rider', 'delivery-operations']);
   }
 
-  if (event.includes('EARNING') || event.includes('PAYOUT')) keys.push(['rider', 'earnings']);
-  if (event.includes('COD')) keys.push(['rider', 'cod']);
-  if (event.includes('SUPPORT')) keys.push(['rider', 'support']);
+  if (event.includes('EARNING') || event.includes('PAYOUT')) {
+    keys.push(['rider', 'earnings-ledger'], ['rider', 'payout-history']);
+  }
+  if (event.includes('COD')) keys.push(['rider', 'cod-ledger']);
+  if (event.includes('SUPPORT')) {
+    keys.push(['rider', 'support']);
+    if (ticketId) keys.push(['rider', 'support-ticket', ticketId]);
+  }
   if (event.includes('DOCUMENT')) keys.push(['rider', 'documents']);
   if (event.includes('PROFILE')) keys.push(['rider', 'profile']);
 

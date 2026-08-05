@@ -106,9 +106,10 @@ describe('order-to-delivery mobile UI contract', () => {
     const store = read('apps/mobile-partners/src/screens/store/StorePickupVerificationScreen.tsx');
     expect(customer).toContain('/delivery-context');
     expect(customer).toContain('/otp/customer');
-    expect(rider).toContain('Verify complete checklist');
-    expect(rider).toContain('Verify store handoff');
-    expect(rider).not.toContain('QR_CODE');
+    expect(rider).toContain('Verify exact checklist');
+    expect(rider).toContain('Secure store handoff');
+    expect(rider).toContain("method: 'QR_CODE'");
+    expect(rider).toContain('PartnerQrScanner.scan()');
     expect(store).toContain('Rider checklist pending');
     expect(store).toContain('Confirm physical handoff');
     expect(store).not.toContain('QR_CODE');

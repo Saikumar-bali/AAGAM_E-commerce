@@ -62,7 +62,7 @@ export const pickupOperationsService = {
 
   reportProblem: async (
     deliveryJobId: string,
-    input: { problemType: string; note: string },
+    input: { problemType: string; note: string; evidenceKeys?: string[] },
   ) => {
     const response = await apiClient.post(
       `/riders/portal/pickup/${encodeURIComponent(deliveryJobId)}/problem`,
@@ -74,7 +74,7 @@ export const pickupOperationsService = {
   verifyChallenge: async (
     deliveryJobId: string,
     input: {
-      method: 'STORE_PICKUP_PIN';
+      method: 'STORE_PICKUP_PIN' | 'QR_CODE';
       code: string;
       parcelCount: number;
       latitude?: number;
