@@ -20,6 +20,19 @@ const EVIDENCE_KEY = /^evidence\/[A-Za-z0-9_-]+\/[A-Za-z0-9._-]+$/;
 
 export class RiderHistoryQueryDto {
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(250)
+  pageSize?: number;
+
+  @IsOptional()
   @IsIn([
     "ALL",
     "DELIVERED",
