@@ -17,7 +17,6 @@ import {
   Box,
   ChevronLeft,
   ChevronRight,
-  Menu,
   Search,
   Store,
 } from 'lucide-react-native';
@@ -25,6 +24,7 @@ import { storeService } from '../../api/storeService';
 import type { StoreOrderStatus } from '../../api/storeService';
 import { notificationService } from '../../api/notificationService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
+import { partnerNavigationRef } from '../../navigation/partnerNavigationRef';
 import {
   StoreOrderTab,
   formatStoreMoney,
@@ -169,9 +169,9 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
   };
 
   const openNotifications = () => {
-    const tabs = navigation?.getParent?.()?.getParent?.();
-    const root = tabs?.getParent?.() || tabs || navigation;
-    root?.navigate?.('Notifications');
+    if (partnerNavigationRef.isReady()) {
+      partnerNavigationRef.navigate('Notifications');
+    }
   };
 
   const loading = storesQuery.isLoading || ordersQuery.isLoading;
@@ -181,15 +181,10 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.header}>
-        <TouchableOpacity
-          accessibilityLabel="Open dashboard"
-          style={styles.headerIcon}
-          onPress={() => navigation?.getParent?.()?.navigate?.('Dashboard')}
-        >
-          <Menu size={30} color="#425B65" />
-        </TouchableOpacity>
+        <View style={styles.headerIcon} />
         <Text style={styles.headerTitle}>Orders</Text>
         <TouchableOpacity
+          testID="store_orders_notifications"
           accessibilityLabel="Open notifications"
           style={styles.headerIcon}
           onPress={openNotifications}

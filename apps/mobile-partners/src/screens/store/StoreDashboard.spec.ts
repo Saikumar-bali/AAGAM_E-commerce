@@ -35,7 +35,8 @@ describe('StoreDashboard contracts', () => {
     const source = fs.readFileSync(path.join(__dirname, 'StoreDashboard.tsx'), 'utf8');
     expect(source).toContain('store_dashboard_notifications');
     expect(source).toContain('unreadCount');
-    expect(source).toContain("navigate?.('Notifications')");
+    expect(source).toContain('partnerNavigationRef.isReady()');
+    expect(source).toContain("partnerNavigationRef.navigate('Notifications')");
   });
 
   it('renders API-provided order, inventory and revenue totals in reference cards', () => {

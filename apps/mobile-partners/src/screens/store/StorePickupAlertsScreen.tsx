@@ -12,7 +12,6 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ArrowLeft,
   Bell,
   ChevronRight,
   PackageCheck,
@@ -21,6 +20,7 @@ import {
 import { deliveryOperationsService } from '../../api/deliveryOperationsService';
 import { notificationService } from '../../api/notificationService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
+import { partnerNavigationRef } from '../../navigation/partnerNavigationRef';
 import {
   StorePickupTab,
   orderCustomerName,
@@ -80,20 +80,23 @@ export const StorePickupAlertsScreen = () => {
   const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
 
   const openNotifications = () => {
-    const stack = navigation?.getParent?.()?.getParent?.();
-    const root = stack?.getParent?.() || stack || navigation;
-    root?.navigate?.('Notifications');
+    if (partnerNavigationRef.isReady()) {
+      partnerNavigationRef.navigate('Notifications');
+    }
   };
 
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerIcon} onPress={() => navigation.navigate('StoreTabs', { screen: 'Dashboard' })}>
-          <ArrowLeft size={30} color="#151922" />
-        </TouchableOpacity>
+        <View style={styles.headerIcon} />
         <Text style={styles.title}>Pickup Alerts</Text>
-        <TouchableOpacity style={styles.headerIcon} onPress={openNotifications}>
+        <TouchableOpacity
+          testID="store_pickup_notifications"
+          accessibilityLabel="Open notifications"
+          style={styles.headerIcon}
+          onPress={openNotifications}
+        >
           <Bell size={29} color="#26333D" />
           {unreadCount > 0 ? (
             <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>
