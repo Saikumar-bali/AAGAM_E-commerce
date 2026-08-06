@@ -102,8 +102,8 @@ test.describe('regional route planning UI', () => {
     await expect(page.getByRole('heading', { name: 'Region & Route Planning' })).toBeVisible();
     await expect(page.getByText('PM Palem', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('Madhurawada', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('RUN-PMP-001')).toBeVisible();
-    await expect(page.getByText('RUN-MDW-001')).toBeVisible();
+    await expect(page.getByText('RUN-PMP-001', { exact: true })).toBeVisible();
+    await expect(page.getByText('RUN-MDW-001', { exact: true })).toBeVisible();
     await expect(page.getByText('Rider: Ramesh')).toBeVisible();
     await expect(page.getByText('Rider: Suresh')).toBeVisible();
     await expect(page.getByRole('img', { name: 'Regional delivery routes map' })).toBeVisible();
@@ -112,7 +112,7 @@ test.describe('regional route planning UI', () => {
 
   test('admin previews a safe non-equal route split before confirmation', async ({ page }) => {
     await page.goto('/admin/route-planning');
-    await page.getByText('RUN-PMP-001').click();
+    await page.getByText('RUN-PMP-001', { exact: true }).click();
     await expect(page.getByText('Controlled route management')).toBeVisible();
     await page.getByRole('button', { name: 'Preview split' }).click();
     await expect(page.getByText('Proposed run 1')).toBeVisible();
