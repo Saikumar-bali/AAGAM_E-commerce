@@ -171,7 +171,7 @@ export class SubscriptionCashFundingService {
       },
       orderBy: { serviceDate: 'asc' },
     });
-    let status = CustomerSubscriptionStatus.ACTIVE;
+    let status: CustomerSubscriptionStatus = CustomerSubscriptionStatus.ACTIVE;
     let amountDuePaise = 0;
     if (completed) status = CustomerSubscriptionStatus.COMPLETED;
     else if (remainingFundedDeliveries === 0) {

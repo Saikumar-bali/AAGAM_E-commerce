@@ -9,6 +9,7 @@ import {
   prisma,
 } from '@aagam/database';
 import { enqueueOutboxEvent } from '../notifications/outbox.service';
+import { requiredJson } from '../common/prisma-json';
 
 type DbClient = Prisma.TransactionClient;
 
@@ -35,9 +36,9 @@ export type CreateAuthoritativeOrderInput = {
   paymentAmountPaise: number;
   currency?: string;
   idempotencyKey: string;
-  customerSnapshot: Record<string, unknown>;
-  addressSnapshot: Record<string, unknown>;
-  pricingSnapshot: Record<string, unknown>;
+  customerSnapshot: unknown;
+  addressSnapshot: unknown;
+  pricingSnapshot: unknown;
   lines: AuthoritativeOrderLine[];
   subtotalPaise: number;
   deliveryFeePaise?: number;
@@ -135,8 +136,8 @@ export class OrderCreationService {
         deliveryLat: input.deliveryLat ?? null,
         deliveryLng: input.deliveryLng ?? null,
         idempotencyKey: input.idempotencyKey,
-        customerSnapshot: input.customerSnapshot,
-        addressSnapshot: input.addressSnapshot,
+        customerSnapshot: requiredJson(input.customerSnapshot, 'customerSnapshot'),
+        addressSnapshot: requiredJson(input.addressSnapshot, 'addressSnapshot'),
         itemsSnapshot: input.lines.map((line) => ({
           productId: line.productId,
           name: line.name,
@@ -147,7 +148,7 @@ export class OrderCreationService {
           unitPricePaise: line.unitPricePaise,
           lineTotalPaise: line.lineTotalPaise,
         })),
-        pricingSnapshot: input.pricingSnapshot,
+        pricingSnapshot: requiredJson(input.pricingSnapshot, 'pricingSnapshot'),
         items: {
           create: input.lines.map((line) => ({
             productId: line.productId,

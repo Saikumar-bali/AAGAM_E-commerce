@@ -33,6 +33,7 @@ import {
   startOfUtcDay,
   SubscriptionCalendarService,
 } from './subscription-calendar.service';
+import { nullableJson, requiredJson } from '../common/prisma-json';
 
 
 type DeliveryMethodPolicy = {
@@ -234,14 +235,14 @@ export class CustomerSubscriptionService {
           deliveryMethod: dto.deliveryMethod,
           trustedDropInstructions: dto.trustedDropInstructions?.trim() || null,
           dropPointTokenHash: this.tokenHash(dto.dropPointToken),
-          priceSnapshot: {
+          priceSnapshot: requiredJson({
             pricePaise: version.pricePaise,
             mrpPaise: version.mrpPaise,
             currency: version.currency,
             version: version.version,
-          },
-          itemsSnapshot: version.itemsSnapshot,
-          addressSnapshot: {
+          }, 'priceSnapshot'),
+          itemsSnapshot: requiredJson(version.itemsSnapshot, 'itemsSnapshot'),
+          addressSnapshot: requiredJson({
             id: address.id,
             label: address.label,
             recipientName: address.recipientName,
@@ -257,12 +258,12 @@ export class CustomerSubscriptionService {
             latitude: address.latitude,
             longitude: address.longitude,
             instructions: address.instructions,
-          },
-          policySnapshot: {
+          }, 'addressSnapshot'),
+          policySnapshot: requiredJson({
             deliveryRules: version.deliveryRulesSnapshot,
             proofPolicy: version.proofPolicySnapshot,
             applicability: version.applicabilitySnapshot,
-          },
+          }, 'policySnapshot'),
           amountDuePaise: firstFunding.amountPaise,
           fundingCycle: plan.fundingCycle,
           deliveries: {
@@ -628,7 +629,7 @@ export class CustomerSubscriptionService {
         customerId,
         type: dto.type,
         description: dto.description.trim(),
-        evidence: dto.evidence ?? Prisma.JsonNull,
+        evidence: nullableJson(dto.evidence, 'issue evidence'),
         idempotencyKey: key,
       },
     });

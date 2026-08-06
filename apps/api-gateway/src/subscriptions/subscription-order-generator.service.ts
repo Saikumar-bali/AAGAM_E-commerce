@@ -18,6 +18,7 @@ import { calculateDistance } from '@aagam/utils';
 import { DeliveryJobService } from '../orders/delivery-job.service';
 import { OrderCreationService } from '../orders/order-creation.service';
 import { serviceWindow, SubscriptionCalendarService } from './subscription-calendar.service';
+import { isOneOf } from '../common/enum-membership';
 
 const logger = new Logger('SubscriptionOrderGenerator');
 
@@ -154,7 +155,7 @@ export class SubscriptionOrderGenerator {
           throw new ConflictException(`Subscription delivery cannot be generated from ${delivery.status}`);
         }
         const subscription = delivery.subscription;
-        if ([CustomerSubscriptionStatus.CANCELLED, CustomerSubscriptionStatus.COMPLETED].includes(subscription.status)) {
+        if (isOneOf(subscription.status, [CustomerSubscriptionStatus.CANCELLED, CustomerSubscriptionStatus.COMPLETED])) {
           throw new ConflictException(`Subscription is ${subscription.status.toLowerCase()}`);
         }
         if (

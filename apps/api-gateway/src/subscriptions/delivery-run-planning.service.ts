@@ -20,6 +20,7 @@ import { DeliveryWorkflowService } from '../orders/delivery-workflow.service';
 import { DeliveryOperationsService } from '../orders/delivery-operations.service';
 import { AssignDeliveryRunDto, ConfirmRunPackingDto, ConfirmRunStopReturnDto, RunVersionDto } from './subscriptions.dto';
 import { serviceWindow, startOfUtcDay } from './subscription-calendar.service';
+import { isOneOf } from '../common/enum-membership';
 
 type Actor = { id: string; role: Role };
 
@@ -174,7 +175,7 @@ export class DeliveryRunPlanningService {
       });
       if (!run) throw new NotFoundException('Delivery run not found');
       if (run.version !== dto.version) throw new ConflictException('Delivery run changed; refresh and try again');
-      if (![DeliveryRunStatus.PLANNED, DeliveryRunStatus.READY_FOR_PICKUP].includes(run.status)) {
+      if (!isOneOf(run.status, [DeliveryRunStatus.PLANNED, DeliveryRunStatus.READY_FOR_PICKUP])) {
         throw new BadRequestException(`Run cannot be assigned from ${run.status}`);
       }
       const rider = await tx.riderProfile.findFirst({
@@ -235,7 +236,7 @@ export class DeliveryRunPlanningService {
       for (const stop of run.stops) {
         const order = await tx.order.findUnique({ where: { id: stop.deliveryJob.orderId }, select: { status: true } });
         if (!order) throw new ConflictException('Run order is missing');
-        if (![OrderStatus.CONFIRMED, OrderStatus.PICKING, OrderStatus.PACKED, OrderStatus.RIDER_ASSIGNED].includes(order.status)) {
+        if (!isOneOf(order.status, [OrderStatus.CONFIRMED, OrderStatus.PICKING, OrderStatus.PACKED, OrderStatus.RIDER_ASSIGNED])) {
           throw new ConflictException(`Run order cannot be packed from ${order.status}`);
         }
         if (order.status !== OrderStatus.PACKED && order.status !== OrderStatus.RIDER_ASSIGNED) {

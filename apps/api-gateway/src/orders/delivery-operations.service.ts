@@ -1268,6 +1268,7 @@ export class DeliveryOperationsService {
               variancePaise: 0,
               status: CodSettlementStatus.HELD_BY_RIDER,
             },
+            include: { entries: { orderBy: { createdAt: "asc" } } },
           });
           await tx.codLedgerEntry.create({
             data: {

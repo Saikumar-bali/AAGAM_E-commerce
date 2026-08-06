@@ -10,6 +10,7 @@ import {
   prisma,
 } from '@aagam/database';
 import { UpsertSubscriptionPlanDto } from './subscriptions.dto';
+import { nullableJson, requiredJson } from '../common/prisma-json';
 
 const planInclude = {
   items: {
@@ -161,7 +162,7 @@ export class SubscriptionPlanService {
             totalDeliveries: dto.totalDeliveries,
             deliveryFrequency: dto.deliveryFrequency,
             selectedWeekdays: dto.selectedWeekdays ?? [],
-            customSchedule: dto.customSchedule ?? Prisma.JsonNull,
+            customSchedule: nullableJson(dto.customSchedule, 'customSchedule'),
             pricePaise: dto.pricePaise,
             mrpPaise: dto.mrpPaise,
             currency: dto.currency || 'INR',
@@ -175,7 +176,7 @@ export class SubscriptionPlanService {
             allowTrustedDrop: dto.allowTrustedDrop ?? true,
             allowPersonalHandover: dto.allowPersonalHandover ?? true,
             allowSecurityHandover: dto.allowSecurityHandover ?? true,
-            proofPolicy: dto.proofPolicy,
+            proofPolicy: requiredJson(dto.proofPolicy, 'proofPolicy'),
             isAutoRenewEnabled: dto.isAutoRenewEnabled ?? false,
             startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
             endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
@@ -184,9 +185,9 @@ export class SubscriptionPlanService {
             updatedById: actorId,
             items: {
               create: dto.items.map((item) => ({
-                productId: item.productId,
+                product: { connect: { id: item.productId } },
                 quantityPerDelivery: item.quantityPerDelivery,
-                substituteRules: item.substituteRules ?? Prisma.JsonNull,
+                substituteRules: nullableJson(item.substituteRules, 'substituteRules'),
               })),
             },
             stores: dto.storeIds?.length
@@ -234,7 +235,7 @@ export class SubscriptionPlanService {
           totalDeliveries: dto.totalDeliveries,
           deliveryFrequency: dto.deliveryFrequency,
           selectedWeekdays: dto.selectedWeekdays ?? [],
-          customSchedule: dto.customSchedule ?? Prisma.JsonNull,
+          customSchedule: nullableJson(dto.customSchedule, 'customSchedule'),
           pricePaise: dto.pricePaise,
           mrpPaise: dto.mrpPaise,
           currency: dto.currency || 'INR',
@@ -248,16 +249,16 @@ export class SubscriptionPlanService {
           allowTrustedDrop: dto.allowTrustedDrop ?? true,
           allowPersonalHandover: dto.allowPersonalHandover ?? true,
           allowSecurityHandover: dto.allowSecurityHandover ?? true,
-          proofPolicy: dto.proofPolicy,
+          proofPolicy: requiredJson(dto.proofPolicy, 'proofPolicy'),
           isAutoRenewEnabled: dto.isAutoRenewEnabled ?? false,
           startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
           endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
           sortOrder: dto.sortOrder ?? 0,
           updatedById: actorId,
           items: { create: dto.items.map((item) => ({
-            productId: item.productId,
+            product: { connect: { id: item.productId } },
             quantityPerDelivery: item.quantityPerDelivery,
-            substituteRules: item.substituteRules ?? Prisma.JsonNull,
+            substituteRules: nullableJson(item.substituteRules, 'substituteRules'),
           })) },
           stores: dto.storeIds?.length
             ? { create: [...new Set(dto.storeIds)].map((storeId) => ({ storeId })) }
@@ -355,11 +356,11 @@ export class SubscriptionPlanService {
           fundingCycle: plan.fundingCycle,
           deliveryFrequency: plan.deliveryFrequency,
           selectedWeekdays: plan.selectedWeekdays,
-          itemsSnapshot: snapshot.itemsSnapshot,
-          deliveryRulesSnapshot: snapshot.deliveryRulesSnapshot,
-          proofPolicySnapshot: snapshot.proofPolicySnapshot,
-          applicabilitySnapshot: snapshot.applicabilitySnapshot,
-          fullSnapshot: snapshot.fullSnapshot,
+          itemsSnapshot: requiredJson(snapshot.itemsSnapshot, 'itemsSnapshot'),
+          deliveryRulesSnapshot: requiredJson(snapshot.deliveryRulesSnapshot, 'deliveryRulesSnapshot'),
+          proofPolicySnapshot: requiredJson(snapshot.proofPolicySnapshot, 'proofPolicySnapshot'),
+          applicabilitySnapshot: requiredJson(snapshot.applicabilitySnapshot, 'applicabilitySnapshot'),
+          fullSnapshot: requiredJson(snapshot.fullSnapshot, 'fullSnapshot'),
           createdById: actorId,
         },
       });

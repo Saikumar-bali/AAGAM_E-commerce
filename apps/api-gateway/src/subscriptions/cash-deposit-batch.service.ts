@@ -20,6 +20,7 @@ import {
   SubmitCashDepositBatchDto,
   VerifyCashDepositBatchDto,
 } from './subscriptions.dto';
+import { nullableJson } from '../common/prisma-json';
 
 type Actor = { id: string; role: Role };
 
@@ -113,7 +114,7 @@ export class CashDepositBatchService {
           submittedAmountPaise: dto.submittedAmountPaise,
           submittedById: actor.id,
           riderSubmittedAt: new Date(),
-          receiptEvidence: dto.receiptEvidence ?? Prisma.JsonNull,
+          receiptEvidence: nullableJson(dto.receiptEvidence, 'receiptEvidence'),
           status: CashDepositBatchStatus.SUBMITTED,
           version: { increment: 1 },
         },
@@ -242,7 +243,7 @@ export class CashDepositBatchService {
           verifiedById: actor.id,
           storeVerifiedAt: new Date(),
           settlementReference: dto.settlementReference.trim(),
-          receiptEvidence: dto.receiptEvidence ?? batch.receiptEvidence ?? Prisma.JsonNull,
+          receiptEvidence: nullableJson(dto.receiptEvidence ?? batch.receiptEvidence, 'receiptEvidence'),
           status,
           version: { increment: 1 },
         },

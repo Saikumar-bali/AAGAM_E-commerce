@@ -30,6 +30,7 @@ import {
 } from './subscriptions.dto';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 import { startOfUtcDay } from './subscription-calendar.service';
+import { isOneOf } from '../common/enum-membership';
 
 type Actor = { id: string; role: Role };
 
@@ -182,7 +183,7 @@ export class DeliveryRunOperationsService {
       if (stop.status === DeliveryRunStopStatus.ARRIVED) return stop;
       if (stop.version !== dto.version) throw new ConflictException('Run stop changed; refresh and try again');
       if (stop.deliveryRun.status !== DeliveryRunStatus.IN_PROGRESS) throw new BadRequestException('Delivery run is not in progress');
-      if (![DeliveryRunStopStatus.READY, DeliveryRunStopStatus.PLANNED, DeliveryRunStopStatus.RETRY_PENDING].includes(stop.status)) {
+      if (!isOneOf(stop.status, [DeliveryRunStopStatus.READY, DeliveryRunStopStatus.PLANNED, DeliveryRunStopStatus.RETRY_PENDING])) {
         throw new BadRequestException(`Stop cannot be marked arrived from ${stop.status}`);
       }
       if (stop.deliveryJob.status === DeliveryJobStatus.OUT_FOR_DELIVERY) {
@@ -360,7 +361,7 @@ export class DeliveryRunOperationsService {
       if (prior) return stop;
     }
     if (stop.version !== dto.version) throw new ConflictException('Run stop changed; refresh and try again');
-    if (![DeliveryRunStopStatus.ARRIVED, DeliveryRunStopStatus.READY].includes(stop.status)) {
+    if (!isOneOf(stop.status, [DeliveryRunStopStatus.ARRIVED, DeliveryRunStopStatus.READY])) {
       throw new BadRequestException(`Stop cannot fail from ${stop.status}`);
     }
     const failure = await this.deliveryOperations.recordFailure(
@@ -369,9 +370,14 @@ export class DeliveryRunOperationsService {
       { reason: dto.reason, note: dto.note },
       `failure:${key}`,
     );
-    const returnRequired = failure.decision.decidedAction === DeliveryResolutionAction.RETURN_TO_STORE;
+    const decision = failure.decision ?? await prisma.deliveryFailureDecision.findFirst({
+      where: { deliveryJobId: stop.deliveryJobId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!decision) throw new ConflictException('Delivery failure resolution is unavailable');
+    const returnRequired = decision.decidedAction === DeliveryResolutionAction.RETURN_TO_STORE;
     const retryPending = !returnRequired && Boolean(dto.retryRequested) &&
-      failure.decision.decidedAction === DeliveryResolutionAction.RETRY_DELIVERY;
+      decision.decidedAction === DeliveryResolutionAction.RETRY_DELIVERY;
     if (returnRequired) {
       await this.deliveryOperations.startReturn(stop.deliveryJobId, actor, `return:${key}`);
     } else if (retryPending) {
@@ -421,7 +427,7 @@ export class DeliveryRunOperationsService {
       const stop = await tx.deliveryRunStop.findFirst({ where: { id: stopId, deliveryRunId: runId, deliveryRun: { riderId: rider.id } } });
       if (!stop) throw new NotFoundException('Run stop not found');
       if (stop.version !== dto.version) throw new ConflictException('Run stop changed; refresh and try again');
-      if ([DeliveryRunStopStatus.DELIVERED, DeliveryRunStopStatus.CANCELLED].includes(stop.status)) {
+      if (isOneOf(stop.status, [DeliveryRunStopStatus.DELIVERED, DeliveryRunStopStatus.CANCELLED])) {
         throw new BadRequestException('Completed stops cannot be reordered');
       }
       const count = await tx.deliveryRunStop.count({ where: { deliveryRunId: runId } });
@@ -453,17 +459,17 @@ export class DeliveryRunOperationsService {
       await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-finish:${runId}`}))`);
       const run = await tx.deliveryRun.findUnique({ where: { id: runId }, include: { stops: true } });
       if (!run || run.riderId !== rider.id) throw new NotFoundException('Assigned delivery run not found');
-      if ([DeliveryRunStatus.COMPLETED, DeliveryRunStatus.AWAITING_SETTLEMENT].includes(run.status)) {
+      if (isOneOf(run.status, [DeliveryRunStatus.COMPLETED, DeliveryRunStatus.AWAITING_SETTLEMENT])) {
         return run;
       }
       if (run.version !== dto.version) throw new ConflictException('Delivery run changed; refresh and try again');
-      const unresolved = run.stops.filter((stop) => [
+      const unresolved = run.stops.filter((stop) => isOneOf(stop.status, [
         DeliveryRunStopStatus.PLANNED,
         DeliveryRunStopStatus.READY,
         DeliveryRunStopStatus.ARRIVED,
         DeliveryRunStopStatus.RETRY_PENDING,
         DeliveryRunStopStatus.RETURN_REQUIRED,
-      ].includes(stop.status));
+      ]));
       if (unresolved.length) {
         throw new BadRequestException(`${unresolved.length} stop(s) still require delivery, retry, or return resolution`);
       }

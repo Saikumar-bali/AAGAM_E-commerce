@@ -9,6 +9,7 @@ import {
   prisma,
 } from '@aagam/database';
 import { AdminSubscriptionCorrectionDto, ResolveSubscriptionIssueDto } from './subscriptions.dto';
+import { isOneOf } from '../common/enum-membership';
 
 @Injectable()
 export class SubscriptionAdminReportingService {
@@ -182,7 +183,7 @@ export class SubscriptionAdminReportingService {
     if (issue.status === SubscriptionIssueStatus.RESOLVED && issue.resolution === dto.resolution.trim()) {
       return issue;
     }
-    if ([SubscriptionIssueStatus.RESOLVED, SubscriptionIssueStatus.REJECTED].includes(issue.status)) {
+    if (isOneOf(issue.status, [SubscriptionIssueStatus.RESOLVED, SubscriptionIssueStatus.REJECTED])) {
       throw new ConflictException('Subscription issue is already closed');
     }
     return prisma.subscriptionIssueReport.update({
