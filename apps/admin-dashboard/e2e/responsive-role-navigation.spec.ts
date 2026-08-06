@@ -22,6 +22,7 @@ const navigationCases: NavigationCase[] = [
       { name: 'Dashboard', href: '/admin' },
       { name: 'Partner Applications', href: '/admin/partner-applications' },
       { name: 'Analytics', href: '/admin/analytics' },
+      { name: 'Subscriptions', href: '/admin/subscriptions' },
       { name: 'Notifications', href: '/admin/notifications' },
       { name: 'Support', href: '/admin/support' },
       { name: 'Dispatch', href: '/admin/dispatch' },
@@ -181,7 +182,8 @@ test.describe('Responsive role navigation', () => {
 
     const desktopNavigation = page.getByRole('navigation', { name: 'Admin navigation' });
     await expect(desktopNavigation).toBeVisible();
-    await expect(desktopNavigation.locator('a')).toHaveCount(14);
+    await expect(desktopNavigation.locator('a')).toHaveCount(15);
+    await expect(desktopNavigation.locator('a[href="/admin/subscriptions"]')).toBeVisible();
     await expect(desktopNavigation.locator('a[href="/admin/live-tracking"]')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open all navigation' })).toBeHidden();
 
