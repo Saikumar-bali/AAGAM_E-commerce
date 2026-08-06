@@ -19,9 +19,13 @@ The following checks completed before publication:
 
 A full local `npm ci` could not be used as release proof because the execution environment could not resolve the public npm registry and its configured mirror did not contain `react-test-renderer@19.0.0`. No test, dependency, or CI requirement was weakened to hide that infrastructure failure.
 
+## Review correction
+
+The first exact-head Customer Experience contract run found one customer-facing legacy brand literal in `SubscriptionDetailScreen.tsx`. Commit `3b976c9b3ad8b84532216b5b47c0a1a7e4c5ba92` changes “AAGAM operations” to the repository’s canonical “Aagaam operations” copy. This connector-authored proof update intentionally triggers the complete exact-head validation suite after that material correction.
+
 ## Required exact-head CI proof
 
-The connector-authored commit containing this document intentionally triggers the repository's normal pull-request workflows. Merge remains blocked until the exact PR head proves:
+Merge remains blocked until the exact PR head proves:
 
 - dependency lockfile installation;
 - Prisma generation and validation;
