@@ -1,14 +1,9 @@
-name: Regional routing final API corrections
+name: Regional routing strict TypeScript correction
 
 on:
   push:
     branches:
       - feature/regional-multi-rider-route-splitting
-    paths:
-      - .github/workflows/regional-routing-ownership-consistency.yml
-  pull_request:
-    branches:
-      - main
     paths:
       - .github/workflows/regional-routing-ownership-consistency.yml
 
@@ -24,361 +19,79 @@ jobs:
         with:
           ref: feature/regional-multi-rider-route-splitting
           fetch-depth: 0
-      - name: Apply guarded API corrections
+      - name: Apply exact compile corrections
         shell: bash
         run: |
           python <<'PY'
           from pathlib import Path
 
-          def patch_file(name, replacements):
-              path = Path(name)
+          def change(file, old, new, label):
+              path = Path(file)
               text = path.read_text()
-              for old, new, label in replacements:
-                  count = text.count(old)
-                  if count != 1:
-                      raise SystemExit(f'{name} / {label}: expected one match, found {count}')
-                  text = text.replace(old, new, 1)
-              path.write_text(text)
-
-          patch_file('apps/api-gateway/src/subscriptions/regional-route-notification.service.ts', [(
-          '''    const reassigned = [
-                DeliveryRouteEventType.DELIVERY_RUN_REASSIGNED,
-                DeliveryRouteEventType.RUN_STOP_MOVED,
-                DeliveryRouteEventType.RECOVERY_RUN_CREATED,
-              ].includes(event.eventType);''',
-          '''    const reassigned = new Set<DeliveryRouteEventType>([
-                DeliveryRouteEventType.DELIVERY_RUN_REASSIGNED,
-                DeliveryRouteEventType.RUN_STOP_MOVED,
-                DeliveryRouteEventType.RECOVERY_RUN_CREATED,
-              ]).has(event.eventType);''',
-          'notification enum membership')])
-
-          patch_file('apps/api-gateway/src/subscriptions/regional-route-planning.service.ts', [
-          ('''          reason: resolution.reason || 'Delivery zone could not be resolved',''',
-           '''          reason: ('reason' in resolution ? resolution.reason : undefined) || 'Delivery zone could not be resolved',''',
-           'zone resolution union'),
-          ('''          metadata: { riderId: selected.riderId, score: selected.score, source, constraints: selected.constraints },''',
-           '''          metadata: { riderId: selected.riderId, score: selected.score, source, constraints: selected.constraints } as Prisma.InputJsonValue,''',
-           'assignment audit JSON'),
-          ])
-
-          operations = Path('apps/api-gateway/src/subscriptions/regional-route-operations.service.ts')
-          text = operations.read_text()
-          def op(old, new, label):
-              global text
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'operations / {label}: expected one match, found {count}')
-              text = text.replace(old, new, 1)
+                  raise SystemExit(f'{label}: expected 1 match, found {count}')
+              path.write_text(text.replace(old, new, 1))
 
-          op(
-          '''      [DeliveryRunStopStatus.ARRIVED, DeliveryRunStopStatus.DELIVERED, DeliveryRunStopStatus.RETURNED].includes(stop.status)''',
-          '''      new Set<DeliveryRunStopStatus>([DeliveryRunStopStatus.ARRIVED, DeliveryRunStopStatus.DELIVERED, DeliveryRunStopStatus.RETURNED]).has(stop.status)''',
-          'protected stop membership')
-          op(
-          '''        if ([DeliveryJobStatus.WAITING_FOR_DISPATCH, DeliveryJobStatus.RIDER_ASSIGNED].includes(stop.deliveryJob.status as DeliveryJobStatus)) {''',
-          '''        if (new Set<string>([DeliveryJobStatus.WAITING_FOR_DISPATCH, DeliveryJobStatus.RIDER_ASSIGNED]).has(stop.deliveryJob.status)) {''',
-          'cancel job membership')
-          op(
-          '''    if (![DeliveryRunStatus.READY_FOR_PICKUP, DeliveryRunStatus.PICKED_UP, DeliveryRunStatus.IN_PROGRESS].includes(run.status)) {''',
-          '''    if (!new Set<DeliveryRunStatus>([DeliveryRunStatus.READY_FOR_PICKUP, DeliveryRunStatus.PICKED_UP, DeliveryRunStatus.IN_PROGRESS]).has(run.status)) {''',
-          'interrupt run membership')
-          op(
-          '''    const pending = run.stops.filter((stop) => ![
+          change(
+            'apps/api-gateway/src/subscriptions/regional-route-notification.service.ts',
+            '''    const reassigned = [
+              DeliveryRouteEventType.DELIVERY_RUN_REASSIGNED,
+              DeliveryRouteEventType.RUN_STOP_MOVED,
+              DeliveryRouteEventType.RECOVERY_RUN_CREATED,
+            ].includes(event.eventType);''',
+            '''    const reassigned = new Set<DeliveryRouteEventType>([
+              DeliveryRouteEventType.DELIVERY_RUN_REASSIGNED,
+              DeliveryRouteEventType.RUN_STOP_MOVED,
+              DeliveryRouteEventType.RECOVERY_RUN_CREATED,
+            ]).has(event.eventType);''',
+            'notification membership',
+          )
+          change(
+            'apps/api-gateway/src/subscriptions/regional-route-planning.service.ts',
+            "          reason: resolution.reason || 'Delivery zone could not be resolved',",
+            "          reason: ('reason' in resolution ? resolution.reason : undefined) || 'Delivery zone could not be resolved',",
+            'zone resolution union',
+          )
+          change(
+            'apps/api-gateway/src/subscriptions/regional-route-planning.service.ts',
+            '          metadata: { riderId: selected.riderId, score: selected.score, source, constraints: selected.constraints },',
+            '          metadata: { riderId: selected.riderId, score: selected.score, source, constraints: selected.constraints } as Prisma.InputJsonValue,',
+            'audit JSON',
+          )
+          change(
+            'apps/api-gateway/src/subscriptions/regional-route-operations.service.ts',
+            '[DeliveryRunStopStatus.ARRIVED, DeliveryRunStopStatus.DELIVERED, DeliveryRunStopStatus.RETURNED].includes(stop.status)',
+            'new Set<DeliveryRunStopStatus>([DeliveryRunStopStatus.ARRIVED, DeliveryRunStopStatus.DELIVERED, DeliveryRunStopStatus.RETURNED]).has(stop.status)',
+            'protected stop membership',
+          )
+          change(
+            'apps/api-gateway/src/subscriptions/regional-route-operations.service.ts',
+            '[DeliveryJobStatus.WAITING_FOR_DISPATCH, DeliveryJobStatus.RIDER_ASSIGNED].includes(stop.deliveryJob.status as DeliveryJobStatus)',
+            'new Set<string>([DeliveryJobStatus.WAITING_FOR_DISPATCH, DeliveryJobStatus.RIDER_ASSIGNED]).has(stop.deliveryJob.status)',
+            'delivery job membership',
+          )
+          change(
+            'apps/api-gateway/src/subscriptions/regional-route-operations.service.ts',
+            '![DeliveryRunStatus.READY_FOR_PICKUP, DeliveryRunStatus.PICKED_UP, DeliveryRunStatus.IN_PROGRESS].includes(run.status)',
+            '!new Set<DeliveryRunStatus>([DeliveryRunStatus.READY_FOR_PICKUP, DeliveryRunStatus.PICKED_UP, DeliveryRunStatus.IN_PROGRESS]).has(run.status)',
+            'run status membership',
+          )
+          change(
+            'apps/api-gateway/src/subscriptions/regional-route-operations.service.ts',
+            '''    const pending = run.stops.filter((stop) => ![
               DeliveryRunStopStatus.DELIVERED,
               DeliveryRunStopStatus.RETURNED,
               DeliveryRunStopStatus.CANCELLED,
             ].includes(stop.status));''',
-          '''    const terminalStops = new Set<DeliveryRunStopStatus>([
+            '''    const terminalStops = new Set<DeliveryRunStopStatus>([
               DeliveryRunStopStatus.DELIVERED,
               DeliveryRunStopStatus.RETURNED,
               DeliveryRunStopStatus.CANCELLED,
             ]);
             const pending = run.stops.filter((stop) => !terminalStops.has(stop.status));''',
-          'recovery terminal membership')
-
-          op(
-          '''          await tx.deliveryRunStop.update({
-                    where: { id: item.id },
-                    data: {
-                      deliveryRunId: destinationRunId,
-                      sequenceNumber: stopIndex + 1,
-                      movedFromRunId: destinationRunId === source.id ? item.value.movedFromRunId : source.id,
-                      lastMovedAt: destinationRunId === source.id ? item.value.lastMovedAt : new Date(),
-                      routeOrderChangeReason: dto.reason,
-                      version: { increment: 1 },
-                    },
-                  });
-                }''',
-          '''          await tx.deliveryRunStop.update({
-                    where: { id: item.id },
-                    data: {
-                      deliveryRunId: destinationRunId,
-                      sequenceNumber: stopIndex + 1,
-                      movedFromRunId: destinationRunId === source.id ? item.value.movedFromRunId : source.id,
-                      lastMovedAt: destinationRunId === source.id ? item.value.lastMovedAt : new Date(),
-                      routeOrderChangeReason: dto.reason,
-                      version: { increment: 1 },
-                    },
-                  });
-                  if (destinationRunId !== source.id) {
-                    await tx.deliveryJob.update({
-                      where: { id: item.value.deliveryJobId },
-                      data: {
-                        currentRiderId: null,
-                        ...(item.value.deliveryJob.status === DeliveryJobStatus.RIDER_ASSIGNED ? { status: DeliveryJobStatus.WAITING_FOR_DISPATCH } : {}),
-                        version: { increment: 1 },
-                      },
-                    });
-                    await tx.subscriptionDelivery.update({
-                      where: { id: item.value.subscriptionDeliveryId },
-                      data: { status: SubscriptionDeliveryStatus.ORDER_GENERATED },
-                    });
-                  }
-                }''',
-          'split ownership reset')
-
-          op(
-          '''      if (source.riderId && target.riderId && source.riderId !== target.riderId) {
-                throw new BadRequestException('Reassign routes to one rider before merging');
-              }
-            }
-            const allStops''',
-          '''    }
-            const mergedRiderIds = [...new Set([target.riderId, ...sources.map((source) => source.riderId)].filter((id): id is string => Boolean(id)))];
-            if (mergedRiderIds.length > 1) throw new BadRequestException('Reassign routes to one rider before merging');
-            const mergedRiderId = mergedRiderIds[0] ?? null;
-            const allStops''',
-          'merge rider compatibility')
-
-          op(
-          '''        await tx.deliveryRunStop.update({
-                  where: { id: item.id },
-                  data: {
-                    deliveryRunId: target.id,
-                    sequenceNumber: index + 1,
-                    movedFromRunId: item.value.deliveryRunId === target.id ? item.value.movedFromRunId : item.value.deliveryRunId,
-                    lastMovedAt: item.value.deliveryRunId === target.id ? item.value.lastMovedAt : new Date(),
-                    routeOrderChangeReason: dto.reason,
-                    version: { increment: 1 },
-                  },
-                });
-              }''',
-          '''        await tx.deliveryRunStop.update({
-                  where: { id: item.id },
-                  data: {
-                    deliveryRunId: target.id,
-                    sequenceNumber: index + 1,
-                    movedFromRunId: item.value.deliveryRunId === target.id ? item.value.movedFromRunId : item.value.deliveryRunId,
-                    lastMovedAt: item.value.deliveryRunId === target.id ? item.value.lastMovedAt : new Date(),
-                    routeOrderChangeReason: dto.reason,
-                    version: { increment: 1 },
-                  },
-                });
-                if (new Set<string>([DeliveryJobStatus.WAITING_FOR_DISPATCH, DeliveryJobStatus.RIDER_ASSIGNED]).has(item.value.deliveryJob.status)) {
-                  await tx.deliveryJob.update({
-                    where: { id: item.value.deliveryJobId },
-                    data: {
-                      currentRiderId: mergedRiderId,
-                      status: mergedRiderId ? DeliveryJobStatus.RIDER_ASSIGNED : DeliveryJobStatus.WAITING_FOR_DISPATCH,
-                      version: { increment: 1 },
-                    },
-                  });
-                  await tx.subscriptionDelivery.update({
-                    where: { id: item.value.subscriptionDeliveryId },
-                    data: { status: mergedRiderId ? SubscriptionDeliveryStatus.ASSIGNED : SubscriptionDeliveryStatus.ORDER_GENERATED },
-                  });
-                }
-              }''',
-          'merge ownership alignment')
-
-          op(
-          '''      const updated = await tx.deliveryRun.update({
-                where: { id: target.id },
-                data: { manualOverride: true, manualOverrideReason: dto.reason, version: { increment: 1 } },
-              });''',
-          '''      const updated = await tx.deliveryRun.update({
-                where: { id: target.id },
-                data: {
-                  riderId: mergedRiderId,
-                  status: mergedRiderId ? DeliveryRunStatus.PLANNED : DeliveryRunStatus.RIDER_NEEDED,
-                  manualOverride: true,
-                  manualOverrideReason: dto.reason,
-                  version: { increment: 1 },
-                },
-              });''',
-          'merge run owner')
-
-          op(
-          '''    if (source.riderId && destination.riderId && source.riderId !== destination.riderId) {
-              throw new BadRequestException('Reassign the destination route before moving a stop between different riders');
-            }
-            const destinationCandidates''',
-          '''    if (source.riderId && destination.riderId && source.riderId !== destination.riderId) {
-              throw new BadRequestException('Reassign the destination route before moving a stop between different riders');
-            }
-            if (!new Set<string>([DeliveryJobStatus.WAITING_FOR_DISPATCH, DeliveryJobStatus.RIDER_ASSIGNED]).has(stop.deliveryJob.status)) {
-              throw new BadRequestException('Only a pending, unstarted delivery job can move between runs');
-            }
-            const destinationCandidates''',
-          'move pending guard')
-
-          op(
-          '''      if (destination.riderId && stop.deliveryJob.currentRiderId !== destination.riderId) {
-                await tx.deliveryJob.update({ where: { id: stop.deliveryJobId }, data: { currentRiderId: destination.riderId, version: { increment: 1 } } });
-              }
-              await this.resequence''',
-          '''      await tx.deliveryJob.update({
-                where: { id: stop.deliveryJobId },
-                data: {
-                  currentRiderId: destination.riderId,
-                  status: destination.riderId ? DeliveryJobStatus.RIDER_ASSIGNED : DeliveryJobStatus.WAITING_FOR_DISPATCH,
-                  version: { increment: 1 },
-                },
-              });
-              await tx.subscriptionDelivery.update({
-                where: { id: stop.subscriptionDeliveryId },
-                data: { status: destination.riderId ? SubscriptionDeliveryStatus.ASSIGNED : SubscriptionDeliveryStatus.ORDER_GENERATED },
-              });
-              await this.resequence''',
-          'move ownership alignment')
-
-          op(
-          '''        await tx.deliveryRunStop.update({
-                  where: { id: stop.id },
-                  data: {
-                    deliveryRunId: created.id,
-                    sequenceNumber: index + 1,
-                    movedFromRunId: run.id,
-                    lastMovedAt: new Date(),
-                    routeOrderChangeReason: dto.reason,
-                    status: stop.status === DeliveryRunStopStatus.ARRIVED ? DeliveryRunStopStatus.RETRY_PENDING : stop.status,
-                    version: { increment: 1 },
-                  },
-                });
-              }''',
-          '''        await tx.deliveryRunStop.update({
-                  where: { id: stop.id },
-                  data: {
-                    deliveryRunId: created.id,
-                    sequenceNumber: index + 1,
-                    movedFromRunId: run.id,
-                    lastMovedAt: new Date(),
-                    routeOrderChangeReason: dto.reason,
-                    status: stop.status === DeliveryRunStopStatus.ARRIVED ? DeliveryRunStopStatus.RETRY_PENDING : stop.status,
-                    version: { increment: 1 },
-                  },
-                });
-                await tx.deliveryJob.update({
-                  where: { id: stop.deliveryJobId },
-                  data: { status: DeliveryJobStatus.WAITING_FOR_DISPATCH, currentRiderId: null, version: { increment: 1 } },
-                });
-                await tx.subscriptionDelivery.update({
-                  where: { id: stop.subscriptionDeliveryId },
-                  data: { status: SubscriptionDeliveryStatus.ORDER_GENERATED },
-                });
-              }''',
-          'recovery ownership reset')
-
-          op(
-          '''      await this.planner.assignRider(recovery.id, selected, actor, RouteAssignmentSource.RECOVERY);
-              await prisma.deliveryRun.update({ where: { id: recovery.id }, data: { status: DeliveryRunStatus.IN_PROGRESS, startedAt: new Date(), version: { increment: 1 } } });''',
-          '''      await this.planner.assignRider(recovery.id, selected, actor, RouteAssignmentSource.RECOVERY);''',
-          'recovery independent pickup')
-
-          old_events = '''  async events(after?: string) {
-              return prisma.deliveryRouteEvent.findMany({
-                where: after ? { createdAt: { gt: new Date(after) } } : undefined,
-                orderBy: { createdAt: 'asc' },
-                take: 500,
-              });
-            }'''
-          new_events = '''  async events(after?: string, actor?: Actor) {
-              let deliveryRunWhere: Prisma.DeliveryRunWhereInput | undefined;
-              if (actor?.role === Role.RIDER) {
-                const rider = await prisma.riderProfile.findUnique({ where: { userId: actor.id }, select: { id: true } });
-                if (!rider) return [];
-                deliveryRunWhere = { riderId: rider.id };
-              } else if (actor?.role === Role.STORE_OWNER) {
-                const stores = await prisma.store.findMany({ where: { ownerId: actor.id }, select: { id: true } });
-                if (!stores.length) return [];
-                deliveryRunWhere = { storeId: { in: stores.map((store) => store.id) } };
-              }
-              const rows = await prisma.deliveryRouteEvent.findMany({
-                where: {
-                  ...(after ? { createdAt: { gt: new Date(after) } } : {}),
-                  ...(deliveryRunWhere ? { deliveryRun: { is: deliveryRunWhere } } : {}),
-                },
-                orderBy: { createdAt: 'asc' },
-                take: 500,
-              });
-              if (!actor || actor.role === Role.ADMIN) return rows;
-              return rows.map((event) => ({
-                id: event.id,
-                eventType: event.eventType,
-                deliveryRunId: event.deliveryRunId,
-                deliveryRunStopId: event.deliveryRunStopId,
-                createdAt: event.createdAt,
-                payload: { message: safeRouteEventMessage(event.eventType) },
-              }));
-            }'''
-          op(old_events, new_events, 'role-scoped events')
-          text += '''
-
-function safeRouteEventMessage(eventType: DeliveryRouteEventType) {
-  if (new Set<DeliveryRouteEventType>([DeliveryRouteEventType.DELIVERY_RUN_ASSIGNED, DeliveryRouteEventType.DELIVERY_RUN_REASSIGNED]).has(eventType)) return 'Your assigned delivery route changed. Refresh before continuing.';
-  if (new Set<DeliveryRouteEventType>([DeliveryRouteEventType.DELIVERY_RUN_SPLIT, DeliveryRouteEventType.DELIVERY_RUN_MERGED, DeliveryRouteEventType.RUN_STOP_MOVED, DeliveryRouteEventType.RUN_STOP_REORDERED]).has(eventType)) return 'The route stop list changed. Refresh to load the safe current order.';
-  if (new Set<DeliveryRouteEventType>([DeliveryRouteEventType.DELIVERY_RUN_INTERRUPTED, DeliveryRouteEventType.RECOVERY_RUN_CREATED]).has(eventType)) return 'A recovery route update is available. Refresh the route before continuing.';
-  if (eventType === DeliveryRouteEventType.DELIVERY_RUN_CANCELLED) return 'This route was cancelled or replanned.';
-  return 'Delivery route information was updated.';
-}
-'''
-          operations.write_text(text)
-
-          patch_file('apps/api-gateway/src/subscriptions/regional-routing.controller.ts', [(
-          '''  @Get()
-              list(@Query('after') after?: string) {
-                return this.operations.events(after);
-              }''',
-          '''  @Get()
-              list(@Query('after') after: string | undefined, @Req() request: AuthenticatedRequest) {
-                return this.operations.events(after, request.user);
-              }''',
-          'shared event actor')])
-
-          delivery = Path('apps/api-gateway/src/subscriptions/delivery-run-operations.service.ts')
-          dtext = delivery.read_text()
-          marker = '''  private async ownedRun'''
-          helper = '''  private safeRiderRun<T extends Record<string, any>>(run: T) {
-              const { assignmentConstraints: _constraints, assignmentReasonSummary: _reason, assignmentScoreVersion: _scoreVersion, ...safe } = run;
-              return safe;
-            }
-
-            private async ownedRun'''
-          if dtext.count(marker) != 1:
-              raise SystemExit('safe rider helper marker mismatch')
-          dtext = dtext.replace(marker, helper, 1)
-          dtext = dtext.replace("    return { rider, run };", "    return { rider, run: this.safeRiderRun(run) };", 1)
-          old_today = '''    return prisma.deliveryRun.findMany({
-              where: { riderId: rider.id, serviceDate: { gte: day, lt: next }, status: { not: DeliveryRunStatus.CANCELLED } },'''
-          new_today = '''    const runs = await prisma.deliveryRun.findMany({
-              where: { riderId: rider.id, serviceDate: { gte: day, lt: next }, status: { not: DeliveryRunStatus.CANCELLED } },'''
-          if dtext.count(old_today) != 1:
-              raise SystemExit('rider list start mismatch')
-          dtext = dtext.replace(old_today, new_today, 1)
-          end_today = '''        _count: { select: { stops: true } },
-              },
-            });
-          }'''
-          new_end_today = '''        _count: { select: { stops: true } },
-              },
-            });
-            return runs.map((run) => this.safeRiderRun(run));
-          }'''
-          if dtext.count(end_today) != 1:
-              raise SystemExit('rider list end mismatch')
-          dtext = dtext.replace(end_today, new_end_today, 1)
-          delivery.write_text(dtext)
+            'terminal stop membership',
+          )
           PY
           rm -f .github/workflows/regional-routing-privacy-boundary.yml
           rm .github/workflows/regional-routing-ownership-consistency.yml
@@ -387,9 +100,7 @@ function safeRouteEventMessage(eventType: DeliveryRouteEventType) {
           git add apps/api-gateway/src/subscriptions/regional-route-notification.service.ts \
             apps/api-gateway/src/subscriptions/regional-route-planning.service.ts \
             apps/api-gateway/src/subscriptions/regional-route-operations.service.ts \
-            apps/api-gateway/src/subscriptions/regional-routing.controller.ts \
-            apps/api-gateway/src/subscriptions/delivery-run-operations.service.ts \
             .github/workflows/regional-routing-privacy-boundary.yml \
             .github/workflows/regional-routing-ownership-consistency.yml
-          git commit -m "fix(routing): align ownership privacy and strict API types"
+          git commit -m "fix(routing): satisfy strict API TypeScript contracts"
           git push origin HEAD:feature/regional-multi-rider-route-splitting
