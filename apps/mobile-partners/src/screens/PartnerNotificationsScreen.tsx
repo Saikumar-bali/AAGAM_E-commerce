@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import {
   Bell,
@@ -22,6 +23,7 @@ import {
 } from 'lucide-react-native';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { notificationService, PartnerNotification } from '../api/notificationService';
+import { PartnerTabBrand } from '../components/PartnerTabBrand';
 import {
   isNotificationUpdate,
   notificationSection,
@@ -90,6 +92,7 @@ function openTypedWorkspace(item: PartnerNotification): boolean {
 }
 
 export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any }) => {
+  const insets = useSafeAreaInsets();
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<AlertFilter>('ALL');
@@ -166,10 +169,13 @@ export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any })
     return groups;
   }, [filteredItems]);
 
+  const brandCaption = user?.role === 'STORE_OWNER' ? 'STORE PARTNER' : 'RIDER PARTNER';
+
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+        <PartnerTabBrand inverse caption={brandCaption} style={styles.brandRow} />
         <View style={styles.headerTitleRow}>
           <Text style={styles.title}>Alerts</Text>
           <Bell size={34} color="#FFFFFF" strokeWidth={2} />
@@ -310,10 +316,10 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8F9F8' },
   header: {
     backgroundColor: '#067B5C',
-    paddingTop: 54,
     paddingHorizontal: 18,
     paddingBottom: 18,
   },
+  brandRow: { marginBottom: 17 },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',

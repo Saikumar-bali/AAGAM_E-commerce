@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   StatusBar,
   StyleSheet,
@@ -27,6 +26,7 @@ import { PartnerActivationScreen } from '../screens/PartnerActivationScreen';
 import { PartnerResumeScreen } from '../screens/PartnerResumeScreen';
 import { PartnerNotificationsScreen } from '../screens/PartnerNotificationsScreen';
 import { AagamBrand } from '../components/AagamBrand';
+import { AagamMark } from '../components/AagamMark';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 import { resolveApplicantInitialRoute } from './applicantRoute';
 import type { RootStackParamList } from './partnerNavigationTypes';
@@ -46,14 +46,7 @@ const LoadingScreen = () => (
     <View style={styles.loadingBottomGlow} />
 
     <View style={styles.loadingBrand}>
-      <View style={styles.loadingLogoCard}>
-        <Image
-          source={require('../assets/aagam-mark.png')}
-          style={styles.loadingLogo}
-          resizeMode="contain"
-          accessibilityLabel="Aagaam"
-        />
-      </View>
+      <AagamMark size={88} radius={25} style={styles.loadingLogoCard} />
       <Text style={styles.loadingBrandName}>Aagaam</Text>
       <Text style={styles.loadingBrandCaption}>PARTNERS</Text>
       <View style={styles.loadingRolePill}>
@@ -201,22 +194,12 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   loadingLogoCard: {
-    width: 88,
-    height: 88,
-    borderRadius: 25,
-    backgroundColor: '#FFFFFF',
-    padding: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: '#061B36',
     shadowColor: '#003C2A',
     shadowOffset: { width: 0, height: 9 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.24,
     shadowRadius: 18,
-    elevation: 7,
-  },
-  loadingLogo: {
-    width: '100%',
-    height: '100%',
+    elevation: 8,
   },
   loadingBrandName: {
     color: '#FFFFFF',

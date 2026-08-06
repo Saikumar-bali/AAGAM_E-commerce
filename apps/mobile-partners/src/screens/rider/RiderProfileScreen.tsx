@@ -26,6 +26,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { riderService } from '../../api/riderService';
+import { PartnerTabBrand } from '../../components/PartnerTabBrand';
 import { RiderOnlineService } from '../../services/RiderOnlineService';
 
 export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
@@ -61,13 +62,16 @@ export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
         refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} />}
       >
         <View style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 12 }]}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View>
-          <View style={styles.flex}>
-            <Text style={styles.eyebrow}>RIDER SELF-SERVICE</Text>
-            <Text style={styles.title}>{profile.user?.name || user?.name || 'Aagaam Rider'}</Text>
-            <Text style={styles.subtitle}>{profile.user?.phone || profile.user?.email || user?.email || 'Partner account'}</Text>
+          <PartnerTabBrand inverse caption="RIDER PARTNER" style={styles.brandRow} />
+          <View style={styles.profileRow}>
+            <View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View>
+            <View style={styles.flex}>
+              <Text style={styles.eyebrow}>RIDER SELF-SERVICE</Text>
+              <Text style={styles.title}>{profile.user?.name || user?.name || 'Aagaam Rider'}</Text>
+              <Text style={styles.subtitle}>{profile.user?.phone || profile.user?.email || user?.email || 'Partner account'}</Text>
+            </View>
+            {approved ? <ShieldCheck size={29} color="#A7F3D0" /> : <ShieldAlert size={29} color="#FDE68A" />}
           </View>
-          {approved ? <ShieldCheck size={29} color="#A7F3D0" /> : <ShieldAlert size={29} color="#FDE68A" />}
         </View>
 
         {query.isLoading ? (
@@ -123,7 +127,7 @@ function MenuRow({ icon, title, subtitle, onPress }: { icon: React.ReactNode; ti
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  hero: { backgroundColor: '#067B5C', paddingHorizontal: 18, paddingBottom: 23, flexDirection: 'row', alignItems: 'center', gap: 13 },
+  hero: { backgroundColor: '#067B5C', paddingHorizontal: 18, paddingBottom: 23 }, brandRow: { marginBottom: 17 }, profileRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
   avatar: { width: 58, height: 58, borderRadius: 19, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#067B5C', fontSize: 20, fontWeight: '900' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '900', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 22, fontWeight: '900', marginTop: 2 }, subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 3 },
   content: { padding: 14 },

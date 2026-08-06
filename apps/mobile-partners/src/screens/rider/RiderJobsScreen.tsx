@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { riderService, RIDER_WORKSPACE_QUERY_KEY } from '../../api/riderService';
+import { PartnerTabBrand } from '../../components/PartnerTabBrand';
 import {
   RiderJobListItem,
   buildTodayJobList,
@@ -114,6 +115,7 @@ export const RiderJobsScreen = ({
         refreshControl={<RefreshControl refreshing={workspaceQuery.isRefetching} onRefresh={() => void workspaceQuery.refetch()} tintColor="#FFFFFF" />}
       >
         <View style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+          <PartnerTabBrand inverse caption="RIDER PARTNER" style={styles.brandRow} />
           <View style={styles.headerRow}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open dashboard" style={styles.headerIcon} onPress={onOpenDashboard}><Menu size={29} color="#FFFFFF" /></TouchableOpacity>
             <View style={styles.headerCopy}><Text style={styles.title}>Today's Jobs</Text><Text style={styles.dateText}>{new Date().toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })}</Text></View>
@@ -178,7 +180,7 @@ function JobCard({ item, onPress }: { item: RiderJobListItem; onPress: () => voi
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F7F8F7' }, scroll: { flex: 1 }, flex: { flex: 1 },
-  hero: { backgroundColor: '#067B5C', paddingHorizontal: 16, paddingBottom: 34 }, headerRow: { flexDirection: 'row', alignItems: 'center' },
+  hero: { backgroundColor: '#067B5C', paddingHorizontal: 16, paddingBottom: 34 }, brandRow: { marginBottom: 15 }, headerRow: { flexDirection: 'row', alignItems: 'center' },
   headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }, headerCopy: { flex: 1, paddingLeft: 8 },
   title: { color: '#FFFFFF', fontSize: 23, fontWeight: '900' }, dateText: { color: '#FFFFFF', fontSize: 15, marginTop: 4 },
   summaryCard: { marginTop: 16, minHeight: 96, borderRadius: 18, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 },

@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Image,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
 import { Bike, ChevronRight, FileText, LockKeyhole, Store } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import { AagamMark } from '../components/AagamMark';
 import { resolveApplicantInitialRoute } from '../navigation/applicantRoute';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 
@@ -62,14 +62,7 @@ export function PartnerWelcomeScreen({ navigation }: any) {
         ]}
       >
         <View style={styles.brandBlock}>
-          <View style={styles.logoCard}>
-            <Image
-              source={require('../assets/aagam-mark.png')}
-              style={styles.logo}
-              resizeMode="contain"
-              accessibilityLabel="Aagaam"
-            />
-          </View>
+          <AagamMark size={86} radius={25} style={styles.logoCard} />
           <Text style={styles.brandName}>Aagaam</Text>
           <Text style={styles.brandCaption}>PARTNERS</Text>
         </View>
@@ -176,22 +169,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoCard: {
-    width: 86,
-    height: 86,
-    borderRadius: 25,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 8,
+    backgroundColor: '#061B36',
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 9 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.16,
     shadowRadius: 18,
-    elevation: 6,
-  },
-  logo: {
-    width: '100%',
-    height: '100%',
+    elevation: 7,
   },
   brandName: {
     color: '#0F172A',
