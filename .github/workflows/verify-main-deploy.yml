@@ -1,0 +1,129 @@
+name: Verify merged production deployment
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/verify-main-deploy.yml"
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  verify:
+    name: Verify exact main revision in production
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_SHA: a634249169ec5fefe712509def0371ee077ae8d4
+      VERIFY_BRANCH: ops/verify-main-deploy-a634249
+
+    steps:
+      - name: Checkout verification branch
+        uses: actions/checkout@v4
+        with:
+          ref: ops/verify-main-deploy-a634249
+          fetch-depth: 1
+
+      - name: Wait for exact main CI and deployment
+        id: verify
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p diagnostics docs/qa
+
+          find_run() {
+            local workflow_name="$1"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${TARGET_SHA}&per_page=100" \
+              --jq ".workflow_runs | map(select(.name == \"${workflow_name}\" and .head_branch == \"main\")) | sort_by(.created_at) | last // empty"
+          }
+
+          wait_for_run() {
+            local workflow_name="$1"
+            local output_file="$2"
+            local run_json=""
+            local run_id=""
+            local status=""
+            local conclusion=""
+
+            for attempt in $(seq 1 120); do
+              run_json="$(find_run "$workflow_name")"
+              if [[ -n "$run_json" ]]; then
+                run_id="$(jq -r '.id' <<<"$run_json")"
+                status="$(jq -r '.status' <<<"$run_json")"
+                conclusion="$(jq -r '.conclusion // ""' <<<"$run_json")"
+                echo "${workflow_name}: run ${run_id}, status=${status}, conclusion=${conclusion:-pending}"
+                if [[ "$status" == "completed" ]]; then
+                  printf '%s\n' "$run_json" > "$output_file"
+                  echo "$run_id"
+                  return 0
+                fi
+              else
+                echo "${workflow_name}: exact-sha run not visible yet (${attempt}/120)"
+              fi
+              sleep 15
+            done
+
+            echo "Timed out waiting for ${workflow_name} on ${TARGET_SHA}." >&2
+            return 1
+          }
+
+          ci_run_id="$(wait_for_run "CI" diagnostics/main-ci.json | tail -n 1)"
+          ci_conclusion="$(jq -r '.conclusion' diagnostics/main-ci.json)"
+          gh run view "$ci_run_id" --repo "$GITHUB_REPOSITORY" --json databaseId,name,displayTitle,headSha,event,status,conclusion,createdAt,updatedAt,jobs > diagnostics/main-ci-details.json
+          if [[ "$ci_conclusion" != "success" ]]; then
+            gh run view "$ci_run_id" --repo "$GITHUB_REPOSITORY" --log-failed > diagnostics/main-ci-failed.log 2>&1 || true
+          fi
+
+          deploy_run_id=""
+          deploy_conclusion="not_started"
+          if [[ "$ci_conclusion" == "success" ]]; then
+            deploy_run_id="$(wait_for_run "Deploy production" diagnostics/main-deploy.json | tail -n 1)"
+            deploy_conclusion="$(jq -r '.conclusion' diagnostics/main-deploy.json)"
+            gh run view "$deploy_run_id" --repo "$GITHUB_REPOSITORY" --json databaseId,name,displayTitle,headSha,event,status,conclusion,createdAt,updatedAt,jobs > diagnostics/main-deploy-details.json
+            gh run view "$deploy_run_id" --repo "$GITHUB_REPOSITORY" --log > diagnostics/main-deploy.log 2>&1 || true
+          fi
+
+          cat > docs/qa/main-production-deploy-verification-a634249.md <<MARKER
+          # Main production deployment verification
+
+          - Target revision: ${TARGET_SHA}
+          - Main CI run: ${ci_run_id}
+          - Main CI conclusion: ${ci_conclusion}
+          - Production deploy run: ${deploy_run_id:-not-started}
+          - Production deploy conclusion: ${deploy_conclusion}
+          - Verification workflow run: ${GITHUB_RUN_ID}
+          MARKER
+
+          if [[ "$ci_conclusion" == "success" && "$deploy_conclusion" == "success" ]]; then
+            echo "verified=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "verified=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload protected verification diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-production-deploy-verification-a634249
+          path: diagnostics/
+          if-no-files-found: warn
+          retention-days: 1
+
+      - name: Publish verification marker and remove one-use workflow
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/verify-main-deploy.yml
+          git add -f docs/qa/main-production-deploy-verification-a634249.md
+          git commit -m "chore(ci): record main production deployment verification"
+          git push origin HEAD:ops/verify-main-deploy-a634249
+
+      - name: Require successful exact-revision deployment
+        if: steps.verify.outputs.verified != 'true'
+        run: exit 1
