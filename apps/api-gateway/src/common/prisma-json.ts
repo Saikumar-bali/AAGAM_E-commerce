@@ -16,7 +16,7 @@ function normalizeNestedJson(value: unknown, path: string): Prisma.InputJsonValu
     if (prototype !== Object.prototype && prototype !== null) {
       throw new BadRequestException(`${path} must contain only plain JSON objects`);
     }
-    const output: Prisma.InputJsonObject = {};
+    const output: Record<string, Prisma.InputJsonValue | null> = {};
     for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
       if (entry === undefined) continue;
       output[key] = normalizeNestedJson(entry, `${path}.${key}`);
