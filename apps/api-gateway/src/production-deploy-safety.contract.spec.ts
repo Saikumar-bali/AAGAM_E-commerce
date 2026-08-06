@@ -15,6 +15,15 @@ function productionSourceFiles(directory: string): string[] {
 describe('production deployment safety', () => {
   it('keeps the low-memory VPS deployment on the supported runtime', () => {
     const deployScript = readFileSync(resolve(repositoryRoot, 'deploy.sh'), 'utf8');
+    const ecosystemConfig = readFileSync(resolve(repositoryRoot, 'ecosystem.config.js'), 'utf8');
+    const runtimeMigration = readFileSync(
+      resolve(repositoryRoot, 'scripts/ensure-pm2-node22-runtime.sh'),
+      'utf8',
+    );
+    const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+
     expect(deployScript).toContain('DEPLOY_NODE_VERSION="${DEPLOY_NODE_VERSION:-22.22.3}"');
     expect(deployScript).toContain('ensure_node_runtime');
     expect(deployScript).toContain('ensure_deploy_memory');
@@ -26,6 +35,15 @@ describe('production deployment safety', () => {
     expect(deployScript).toContain('fs.realpathSync(`/proc/${pid}/exe`)');
     expect(deployScript).toContain('actualRuntime === expectedRuntime');
     expect(deployScript).not.toContain('pm2_env?.node_version');
+
+    expect(packageJson.scripts['check:env:prod']).toContain('ensure-pm2-node22-runtime.sh');
+    expect(runtimeMigration).toContain('if [[ -z "${DEPLOY_SHA:-}" ]]');
+    expect(runtimeMigration).toContain('pm2 delete "$app_name"');
+    expect(runtimeMigration).toContain('pm2 start ecosystem.config.js --only "$app_name" --update-env');
+    expect(runtimeMigration).toContain('fs.realpathSync(`/proc/${pid}/exe`)');
+    expect(runtimeMigration).toContain('actualRuntime === expectedRuntime');
+    expect(ecosystemConfig).toContain('interpreter: nodeInterpreter');
+    expect(ecosystemConfig).toContain('script: npmScript');
   });
 
   it('does not deserialize PostgreSQL advisory lock void results', () => {
