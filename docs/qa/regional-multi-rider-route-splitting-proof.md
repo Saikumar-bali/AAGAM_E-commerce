@@ -5,6 +5,7 @@
 - PR: #210
 - Branch: `feature/regional-multi-rider-route-splitting`
 - Source requirement: region-aware order clustering and multi-rider route splitting
+- Base synchronization: current `main` commit `8ac1cf3432ecf6dcae6d12492134ba0a3008f758` is included before final validation
 
 ## Implemented proof surfaces
 
