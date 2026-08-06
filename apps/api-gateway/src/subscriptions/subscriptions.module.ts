@@ -6,6 +6,7 @@ import { DeliveryRunOperationsService } from './delivery-run-operations.service'
 import { DeliveryRunPlanningService } from './delivery-run-planning.service';
 import { AdminRegionalRoutingController, RegionalRoutingEventsController } from './regional-routing.controller';
 import { RegionalDeliveryZoneService } from './regional-delivery-zone.service';
+import { RegionalRouteNotificationService } from './regional-route-notification.service';
 import { RegionalRouteOperationsService } from './regional-route-operations.service';
 import { RegionalRoutePlanningService } from './regional-route-planning.service';
 import { SubscriptionAdminReportingService } from './subscription-admin-reporting.service';
@@ -43,6 +44,7 @@ import {
     RegionalDeliveryZoneService,
     RegionalRoutePlanningService,
     RegionalRouteOperationsService,
+    RegionalRouteNotificationService,
     SubscriptionCashFundingService,
     CashDepositBatchService,
     SubscriptionAdminReportingService,
