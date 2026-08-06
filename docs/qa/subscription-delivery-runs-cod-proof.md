@@ -23,7 +23,9 @@ A full local `npm ci` could not be used as release proof because the execution e
 
 The first exact-head Customer Experience contract run found one customer-facing legacy brand literal in `SubscriptionDetailScreen.tsx`. Commit `3b976c9b3ad8b84532216b5b47c0a1a7e4c5ba92` changes “AAGAM operations” to the repository’s canonical “Aagaam operations” copy.
 
-The later exact-head build exposed a shared strict-TypeScript cluster in the subscription/order backend. The correction validates all dynamic JSON before Prisma writes, preserves full enum types during state-membership checks, restores the expected COD-ledger include shape, and rejects delivery failure completion when the authoritative decision record cannot be resolved. This proof update triggers the guarded build-and-apply workflow; the workflow commits source only after `npm ci`, Prisma generation, and the API production build pass.
+The later exact-head build exposed a shared strict-TypeScript cluster in the subscription/order backend. The correction validates all dynamic JSON before Prisma writes, preserves full enum types during state-membership checks, restores the expected COD-ledger include shape, and rejects delivery failure completion when the authoritative decision record cannot be resolved.
+
+The first guarded validation attempt correctly refused to publish because it invoked the API build before compiling the internal `types`, `utils`, and `database` workspaces. The v2 guard uses the repository's dependency build order, validates the same compressed-patch checksum, and may commit the source correction only after dependency installation, Prisma generation/validation, all three internal package compilations, and the API production build pass.
 
 ## Required exact-head CI proof
 
