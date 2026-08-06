@@ -1,0 +1,144 @@
+name: Apply PM2 Node 22 process recreation fix
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.event.pull_request.head.ref == 'fix/pm2-node22-process-recreation'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/pm2-node22-process-recreation
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Patch deterministic PM2 runtime recreation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          ecosystem_path = Path('ecosystem.config.js')
+          ecosystem = ecosystem_path.read_text()
+          ecosystem = ecosystem.replace(
+              'module.exports = {\n',
+              'const nodeInterpreter = process.env.AAGAM_NODE_INTERPRETER || process.execPath;\n'
+              'const npmScript = process.env.AAGAM_NPM_CLI || "npm";\n\n'
+              'module.exports = {\n',
+              1,
+          )
+          ecosystem = ecosystem.replace('      script: "npm",\n      args: "start",', '      script: npmScript,\n      args: "start",\n      interpreter: nodeInterpreter,', 1)
+          ecosystem = ecosystem.replace('      script: "dist/src/main.js",\n      env:', '      script: "dist/src/main.js",\n      interpreter: nodeInterpreter,\n      env:', 1)
+          ecosystem = ecosystem.replace('      script: "dist/index.js",\n      env:', '      script: "dist/index.js",\n      interpreter: nodeInterpreter,\n      env:', 1)
+          ecosystem_path.write_text(ecosystem)
+
+          deploy_path = Path('deploy.sh')
+          deploy = deploy_path.read_text()
+          deploy = deploy.replace(
+              'for command_name in git curl tar sha256sum uname flock awk grep; do',
+              'for command_name in git curl tar sha256sum uname flock awk grep readlink; do',
+              1,
+          )
+          old_restart = '''deploy_node="$(command -v node)"
+pm2 startOrReload ecosystem.config.js --update-env --interpreter "$deploy_node"
+pm2 save
+'''
+          new_restart = '''deploy_node="$(readlink -f "$(command -v node)")"
+deploy_npm="$(readlink -f "$(command -v npm)")"
+export AAGAM_NODE_INTERPRETER="$deploy_node"
+export AAGAM_NPM_CLI="$deploy_npm"
+
+# PM2 preserves an existing process interpreter during startOrReload. When the
+# VPS previously ran Node 20, passing --interpreter on reload did not migrate
+# those live process definitions. Inspect the real executable for each PID and
+# recreate only mismatched processes so every app is actually launched by the
+# managed Node 22 binary while limiting downtime to one service at a time.
+required_apps=("admin-dashboard" "api-gateway" "worker-service")
+for app_name in "${required_apps[@]}"; do
+  current_runtime="$(pm2 jlist | APP_NAME="$app_name" node -e '
+    const fs = require("fs");
+    const apps = JSON.parse(fs.readFileSync(0, "utf8"));
+    const app = apps.find((candidate) => candidate.name === process.env.APP_NAME);
+    if (!app || app.pm2_env?.status !== "online") process.exit(0);
+    const pid = Number(app.pid);
+    if (!Number.isInteger(pid) || pid <= 0) process.exit(0);
+    try { process.stdout.write(fs.realpathSync(`/proc/${pid}/exe`)); }
+    catch { process.exit(0); }
+  ' 2>/dev/null || true)"
+
+  if [[ "$current_runtime" != "$deploy_node" ]]; then
+    echo "Recreating $app_name with Node 22 (current runtime: ${current_runtime:-missing})."
+    pm2 delete "$app_name" >/dev/null 2>&1 || true
+    pm2 start ecosystem.config.js --only "$app_name" --update-env
+  else
+    pm2 startOrReload ecosystem.config.js --only "$app_name" --update-env
+  fi
+done
+pm2 save
+'''
+          if old_restart not in deploy:
+              raise SystemExit('expected PM2 restart block not found')
+          deploy = deploy.replace(old_restart, new_restart, 1)
+          deploy_path.write_text(deploy)
+
+          spec_path = Path('apps/api-gateway/src/production-deploy-safety.contract.spec.ts')
+          spec = spec_path.read_text()
+          spec = spec.replace(
+              "    const deployScript = readFileSync(resolve(repositoryRoot, 'deploy.sh'), 'utf8');\n",
+              "    const deployScript = readFileSync(resolve(repositoryRoot, 'deploy.sh'), 'utf8');\n"
+              "    const ecosystemConfig = readFileSync(resolve(repositoryRoot, 'ecosystem.config.js'), 'utf8');\n",
+              1,
+          )
+          spec = spec.replace(
+              "    expect(deployScript).toContain('--interpreter \"$deploy_node\"');\n",
+              "    expect(deployScript).toContain('deploy_node=\"$(readlink -f \"$(command -v node)\")\"');\n"
+              "    expect(deployScript).toContain('export AAGAM_NODE_INTERPRETER=\"$deploy_node\"');\n"
+              "    expect(deployScript).toContain('pm2 delete \"$app_name\"');\n"
+              "    expect(deployScript).toContain('pm2 start ecosystem.config.js --only \"$app_name\" --update-env');\n"
+              "    expect(deployScript).toContain('pm2 startOrReload ecosystem.config.js --only \"$app_name\" --update-env');\n"
+              "    expect(deployScript).not.toContain('startOrReload ecosystem.config.js --update-env --interpreter');\n"
+              "    expect(ecosystemConfig).toContain('interpreter: nodeInterpreter');\n"
+              "    expect(ecosystemConfig).toContain('script: npmScript');\n",
+              1,
+          )
+          spec_path.write_text(spec)
+          PY
+
+      - name: Validate patch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n deploy.sh
+          AAGAM_NODE_INTERPRETER=/managed/node AAGAM_NPM_CLI=/managed/npm node - <<'NODE'
+          const config = require('./ecosystem.config.js');
+          const expected = ['admin-dashboard', 'api-gateway', 'worker-service'];
+          if (config.apps.length !== expected.length) throw new Error('unexpected PM2 app count');
+          for (const app of config.apps) {
+            if (app.interpreter !== '/managed/node') throw new Error(`${app.name} missing managed interpreter`);
+          }
+          if (config.apps.find((app) => app.name === 'admin-dashboard').script !== '/managed/npm') {
+            throw new Error('admin dashboard does not use managed npm CLI');
+          }
+          NODE
+          grep -F 'pm2 delete "$app_name"' deploy.sh
+          grep -F 'fs.realpathSync(`/proc/${pid}/exe`)' deploy.sh
+
+      - name: Publish fix and remove one-use workflow
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -f .github/workflows/apply-pm2-node22-process-recreation.yml
+          git config user.name "Saikumar-bali"
+          git config user.email "178761198+Saikumar-bali@users.noreply.github.com"
+          git add -f deploy.sh ecosystem.config.js apps/api-gateway/src/production-deploy-safety.contract.spec.ts .github/workflows/apply-pm2-node22-process-recreation.yml
+          git commit -m "fix(deploy): recreate PM2 apps under managed Node 22"
+          git push origin HEAD:fix/pm2-node22-process-recreation
