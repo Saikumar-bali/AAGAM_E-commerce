@@ -29,7 +29,7 @@ The guarded correction completed successfully and produced source commit `9bb689
 
 The first clean-head Playwright attempt reached the migrated and seeded database but found one invalid QA fixture enum: `SubscriptionDelivery.proofMode` used nonexistent `CUSTOMER_OTP_GPS`. The schema defines `PERSONAL_OTP_GPS` for personal handover. The guarded correction completed successfully and produced source commit `6601c98694a8c7cdbe05bfdd31ad6862bc059f1f` after verifying exactly one replacement, all migrations, the base database seed, the complete Playwright QA seed, JavaScript syntax, and a clean diff. Its temporary workflow was removed from the resulting tree.
 
-This connector-authored proof update triggers the repository's complete normal exact-head suite after the validated QA fixture correction.
+The next exact-head API regression run proved production build and migrations but exposed legacy tests that still constructed `CheckoutService` before `OrderCreationService` was extracted, plus one source contract that still looked for the outbox write in checkout instead of the shared authoritative transaction. The compatibility correction keeps explicit Nest injection in production, provides a stateless default only for direct legacy test construction, recognizes the old three-argument promotions fixture, and updates the contract to require checkout delegation plus the atomic `ORDER_PLACED` outbox write in `OrderCreationService`. A guarded workflow must pass locked install, Prisma validation/migration, internal package compilation, API build, and all API service suites before publishing these two files.
 
 ## Required exact-head CI proof
 
