@@ -45,6 +45,8 @@ model User {
   cashDepositBatchesSubmitted CashDepositBatch[] @relation("CashDepositSubmittedBy")
   cashDepositBatchesVerified CashDepositBatch[] @relation("CashDepositVerifiedBy")
   cashDepositAudits CashDepositAuditEntry[] @relation("CashDepositAuditActor")
+  deliveryRunAudits DeliveryRunAuditEntry[]
+  deliveryRouteEvents DeliveryRouteEvent[]
 }
 
 enum Role {
@@ -76,6 +78,7 @@ model Store {
   subscriptionDeliveries SubscriptionDelivery[]
   deliveryRuns DeliveryRun[]
   cashDepositBatches CashDepositBatch[]
+  deliveryZoneLinks DeliveryZoneStore[]
 }
 
 model Category {
@@ -115,15 +118,43 @@ model Product {
 }
 
 model DeliveryZone {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  subscriptionPlanLinks SubscriptionPlanZone[]
+  id                               String   @id @default(cuid())
+  name                             String   @unique
+  code                             String   @unique
+  description                      String?
+  isActive                         Boolean  @default(true)
+  sortOrder                        Int      @default(0)
+  priority                         Int      @default(0)
+  polygon                          Json?
+  centerLatitude                   Float?
+  centerLongitude                  Float?
+  fallbackRadiusKm                 Float?
+  deliverySlots                    Json?
+  maximumDailySubscriptionCapacity Int      @default(200)
+  maximumStopsPerRun               Int      @default(15)
+  maximumRouteDistanceKm           Float    @default(30)
+  maximumEstimatedDurationMinutes  Int      @default(120)
+  maximumParcelCount               Int      @default(50)
+  maximumWeightKg                  Float?
+  cashRiskLimitPaise               Int      @default(1000000)
+  slotEndBufferMinutes             Int      @default(15)
+  allowedVehicleTypes              String[] @default([])
+  neighbouringZoneIds              String[] @default([])
+  createdAt                        DateTime @default(now())
+  updatedAt                        DateTime @updatedAt
 
-  @@index([isActive, sortOrder])
+  subscriptionPlanLinks SubscriptionPlanZone[]
+  storeLinks            DeliveryZoneStore[]
+  preferredRiderLinks   DeliveryZonePreferredRider[]
+  customerAddresses     CustomerAddress[]
+  customerSubscriptions CustomerSubscription[]
+  subscriptionDeliveries SubscriptionDelivery[]
+  orders                Order[]
+  deliveryRuns          DeliveryRun[]
+  deliveryRunStops      DeliveryRunStop[]
+  homeRiders            RiderProfile[]
+
+  @@index([isActive, priority, sortOrder])
 }
 
 model Inventory {
@@ -163,6 +194,8 @@ model Order {
   grandTotalPaise  Int           @default(0)
   deliveryLat      Float?
   deliveryLng      Float?
+  deliveryZoneId   String?
+  deliveryZoneSnapshot Json?
   idempotencyKey   String?       @unique
   orderSource      OrderSource   @default(CHECKOUT)
   subscriptionId  String?
@@ -202,8 +235,10 @@ model Order {
   couponRedemption   CouponRedemption?
   subscription CustomerSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   subscriptionDelivery SubscriptionDelivery? @relation("OrderSubscriptionDelivery", fields: [subscriptionDeliveryId], references: [id], onDelete: SetNull)
+  deliveryZone DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
 
   @@index([orderSource, scheduledDeliveryDate])
+  @@index([deliveryZoneId, scheduledDeliveryDate])
   @@index([subscriptionId, scheduledDeliveryDate])
 }
 
@@ -226,6 +261,9 @@ model RiderProfile {
   status                   RiderStatus                 @default(OFFLINE)
   latitude                 Float?
   longitude                Float?
+  homeZoneId               String?
+  maximumParcelCapacity    Int                         @default(15)
+  maximumCashHoldingPaise  Int                         @default(1000000)
   orders                   Order[]
   locationPings            RiderLocationPing[]
   availabilityLocation     RiderAvailabilityLocation?
@@ -256,6 +294,8 @@ model RiderProfile {
   supportTickets           RiderSupportTicket[]
   deliveryRuns             DeliveryRun[]
   cashDepositBatches       CashDepositBatch[]
+  homeZone                  DeliveryZone?               @relation(fields: [homeZoneId], references: [id], onDelete: SetNull)
+  preferredZoneLinks        DeliveryZonePreferredRider[]
   updatedAt                DateTime                    @updatedAt
 }
 
@@ -646,9 +686,16 @@ model CustomerAddress {
   longitude          Float
   instructions       String?
   isDefault          Boolean  @default(false)
+  deliveryZoneId     String?
+  zoneResolvedAt     DateTime?
+  zoneResolutionSource DeliveryZoneResolutionSource?
+  zoneResolutionConfidence Float?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   subscriptions      CustomerSubscription[]
+  deliveryZone       DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+
+  @@index([deliveryZoneId])
 }
 
 enum PaymentMethod {
@@ -1362,11 +1409,14 @@ enum SubscriptionProofMode {
 
 enum DeliveryRunStatus {
   PLANNED
+  RIDER_NEEDED
   READY_FOR_PICKUP
   PICKED_UP
   IN_PROGRESS
   RETURNING
   AWAITING_SETTLEMENT
+  INTERRUPTED
+  RECOVERY_REQUIRED
   COMPLETED
   CANCELLED
 }
@@ -1381,6 +1431,35 @@ enum DeliveryRunStopStatus {
   RETURN_REQUIRED
   RETURNED
   CANCELLED
+}
+
+enum DeliveryZoneResolutionSource {
+  POLYGON
+  RADIUS
+  MANUAL
+  UNRESOLVED
+}
+
+enum RouteAssignmentSource {
+  AUTOMATIC
+  MANUAL
+  RECOVERY
+}
+
+enum DeliveryRouteEventType {
+  DELIVERY_REGION_RESOLVED
+  ROUTE_CLUSTER_CREATED
+  DELIVERY_RUN_SPLIT
+  DELIVERY_RUN_MERGED
+  DELIVERY_RUN_ASSIGNED
+  DELIVERY_RUN_REASSIGNED
+  DELIVERY_RUN_CAPACITY_WARNING
+  DELIVERY_RUN_CASH_LIMIT_WARNING
+  DELIVERY_RUN_INTERRUPTED
+  RECOVERY_RUN_CREATED
+  RUN_STOP_MOVED
+  RUN_STOP_REORDERED
+  DELIVERY_RUN_CANCELLED
 }
 
 enum CashDepositBatchStatus {
@@ -1533,6 +1612,7 @@ model CustomerSubscription {
   planVersionId              String
   addressId                  String
   homeStoreId                String?
+  deliveryZoneId             String?
   status                     CustomerSubscriptionStatus @default(PENDING_CASH_COLLECTION)
   startDate                  DateTime
   endDate                    DateTime
@@ -1567,6 +1647,7 @@ model CustomerSubscription {
   planVersion                SubscriptionPlanVersion    @relation(fields: [planVersionId], references: [id], onDelete: Restrict)
   address                    CustomerAddress            @relation(fields: [addressId], references: [id], onDelete: Restrict)
   homeStore                  Store?                     @relation(fields: [homeStoreId], references: [id], onDelete: SetNull)
+  deliveryZone               DeliveryZone?              @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
   cancelledBy                User?                      @relation("SubscriptionCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
   createdAt                  DateTime                   @default(now())
   updatedAt                  DateTime                   @updatedAt
@@ -1580,6 +1661,7 @@ model CustomerSubscription {
   @@index([customerId, status])
   @@index([status, nextDeliveryDate])
   @@index([homeStoreId, status])
+  @@index([deliveryZoneId, status])
 }
 
 model SubscriptionDelivery {
@@ -1591,6 +1673,7 @@ model SubscriptionDelivery {
   generationKey          String                     @unique
   deliveryJobId          String?                    @unique
   storeId                String?
+  deliveryZoneId         String?
   cashDuePaise           Int                        @default(0)
   proofMode              SubscriptionProofMode
   failureReason          String?
@@ -1605,6 +1688,7 @@ model SubscriptionDelivery {
   order                  Order?                     @relation("OrderSubscriptionDelivery")
   deliveryJob            DeliveryJob?               @relation(fields: [deliveryJobId], references: [id], onDelete: SetNull)
   store                  Store?                     @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  deliveryZone           DeliveryZone?              @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
   runStop                DeliveryRunStop?
   issueReports           SubscriptionIssueReport[]
   createdAt              DateTime                   @default(now())
@@ -1614,6 +1698,7 @@ model SubscriptionDelivery {
   @@unique([subscriptionId, sequenceNumber])
   @@index([status, serviceDate])
   @@index([storeId, serviceDate])
+  @@index([deliveryZoneId, serviceDate, status])
 }
 
 model SubscriptionFundingAllocation {
@@ -1636,48 +1721,74 @@ model SubscriptionFundingAllocation {
 }
 
 model DeliveryRun {
-  id                     String            @id @default(cuid())
-  routeCode              String            @unique
-  storeId                String
-  riderId                String?
-  serviceDate            DateTime
-  slotStart              DateTime
-  slotEnd                DateTime
-  deliveryCluster        String
-  status                 DeliveryRunStatus @default(PLANNED)
-  totalStopCount         Int               @default(0)
-  completedStopCount     Int               @default(0)
-  failedStopCount        Int               @default(0)
-  retryPendingStopCount  Int               @default(0)
-  expectedCashPaise      Int               @default(0)
-  collectedCashPaise     Int               @default(0)
-  depositedCashPaise     Int               @default(0)
-  varianceCashPaise      Int               @default(0)
-  expectedParcelCount    Int               @default(0)
-  expectedItemCount      Int               @default(0)
-  expectedBagCount       Int               @default(0)
-  packedBagCount         Int               @default(0)
-  crateCode              String?           @unique
-  packingConfirmedAt     DateTime?
-  packingConfirmedById   String?
-  storeHandoffConfirmedAt DateTime?
+  id                       String                @id @default(cuid())
+  routeCode                String                @unique
+  storeId                  String
+  riderId                  String?
+  deliveryZoneId           String?
+  serviceDate              DateTime
+  slotStart                DateTime
+  slotEnd                  DateTime
+  deliveryCluster          String
+  status                   DeliveryRunStatus     @default(PLANNED)
+  totalStopCount           Int                   @default(0)
+  completedStopCount       Int                   @default(0)
+  failedStopCount          Int                   @default(0)
+  retryPendingStopCount    Int                   @default(0)
+  expectedCashPaise        Int                   @default(0)
+  collectedCashPaise       Int                   @default(0)
+  depositedCashPaise       Int                   @default(0)
+  varianceCashPaise        Int                   @default(0)
+  expectedParcelCount      Int                   @default(0)
+  expectedItemCount        Int                   @default(0)
+  expectedBagCount         Int                   @default(0)
+  packedBagCount           Int                   @default(0)
+  crateCode                String?               @unique
+  packingConfirmedAt       DateTime?
+  packingConfirmedById     String?
+  storeHandoffConfirmedAt  DateTime?
   storeHandoffConfirmedById String?
-  pickupConfirmedAt      DateTime?
-  pickupConfirmedById    String?
-  startedAt              DateTime?
-  completedAt            DateTime?
-  version                Int               @default(0)
-  store                  Store             @relation(fields: [storeId], references: [id], onDelete: Restrict)
-  rider                  RiderProfile?     @relation(fields: [riderId], references: [id], onDelete: SetNull)
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @updatedAt
+  pickupConfirmedAt        DateTime?
+  pickupConfirmedById      String?
+  startedAt                DateTime?
+  completedAt              DateTime?
+  planningAlgorithmVersion String                @default("regional-nearest-neighbour-v1")
+  plannedAt                DateTime?
+  originalStopCount        Int                   @default(0)
+  estimatedDistanceKm      Float                 @default(0)
+  estimatedDurationMinutes Int                   @default(0)
+  clusterIdentifier        String?
+  manualOverride           Boolean               @default(false)
+  manualOverrideReason     String?
+  assignmentScoreVersion   String?
+  assignmentReasonSummary String?
+  assignmentConstraints    Json?
+  assignmentSource         RouteAssignmentSource?
+  recoveryFromRunId        String?
+  interruptedAt            DateTime?
+  interruptionReason       String?
+  version                  Int                   @default(0)
+  store                    Store                 @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  rider                    RiderProfile?         @relation(fields: [riderId], references: [id], onDelete: SetNull)
+  deliveryZone             DeliveryZone?         @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+  recoveryFromRun          DeliveryRun?          @relation("RecoveryRuns", fields: [recoveryFromRunId], references: [id], onDelete: SetNull)
+  recoveryRuns             DeliveryRun[]         @relation("RecoveryRuns")
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
 
-  stops        DeliveryRunStop[]
-  depositBatch CashDepositBatch?
+  stops                   DeliveryRunStop[]
+  movedStops              DeliveryRunStop[]      @relation("MovedFromRun")
+  depositBatch            CashDepositBatch?
+  audits                  DeliveryRunAuditEntry[] @relation("DeliveryRunAudits")
+  auditSourceEntries      DeliveryRunAuditEntry[] @relation("DeliveryRunAuditSource")
+  auditDestinationEntries DeliveryRunAuditEntry[] @relation("DeliveryRunAuditDestination")
+  routeEvents             DeliveryRouteEvent[]
 
   @@unique([storeId, serviceDate, slotStart, deliveryCluster])
   @@index([riderId, serviceDate, status])
   @@index([storeId, serviceDate, status])
+  @@index([deliveryZoneId, serviceDate, status])
+  @@index([clusterIdentifier, serviceDate])
 }
 
 model DeliveryRunStop {
@@ -1685,12 +1796,15 @@ model DeliveryRunStop {
   deliveryRunId          String
   deliveryJobId          String                @unique
   subscriptionDeliveryId String                @unique
+  deliveryZoneId         String?
   sequenceNumber         Int
   status                 DeliveryRunStopStatus @default(PLANNED)
   proofMode              SubscriptionProofMode
   cashDuePaise           Int                   @default(0)
   expectedItemCount      Int
   expectedParcelCount    Int                   @default(1)
+  deliveryLatitude       Float?
+  deliveryLongitude      Float?
   arrivedAt              DateTime?
   deliveredAt            DateTime?
   failedAt               DateTime?
@@ -1701,15 +1815,82 @@ model DeliveryRunStop {
   proofReference         String?
   failureReason          String?
   routeOrderChangeReason String?
+  movedFromRunId         String?
+  lastMovedAt            DateTime?
   version                Int                   @default(0)
   deliveryRun            DeliveryRun           @relation(fields: [deliveryRunId], references: [id], onDelete: Cascade)
   deliveryJob            DeliveryJob           @relation(fields: [deliveryJobId], references: [id], onDelete: Restrict)
   subscriptionDelivery   SubscriptionDelivery  @relation(fields: [subscriptionDeliveryId], references: [id], onDelete: Restrict)
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
+  deliveryZone           DeliveryZone?         @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+  movedFromRun           DeliveryRun?          @relation("MovedFromRun", fields: [movedFromRunId], references: [id], onDelete: SetNull)
+  routeEvents            DeliveryRouteEvent[]
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
 
   @@unique([deliveryRunId, sequenceNumber])
   @@index([deliveryRunId, status])
+  @@index([deliveryZoneId, status])
+}
+
+model DeliveryZoneStore {
+  zoneId    String
+  storeId   String
+  priority  Int          @default(0)
+  createdAt DateTime     @default(now())
+  zone      DeliveryZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  store     Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([zoneId, storeId])
+  @@index([storeId])
+}
+
+model DeliveryZonePreferredRider {
+  zoneId          String
+  riderProfileId  String
+  priority        Int          @default(0)
+  createdAt       DateTime     @default(now())
+  zone            DeliveryZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  riderProfile    RiderProfile @relation(fields: [riderProfileId], references: [id], onDelete: Cascade)
+
+  @@id([zoneId, riderProfileId])
+  @@index([riderProfileId])
+}
+
+model DeliveryRunAuditEntry {
+  id               String      @id @default(cuid())
+  deliveryRunId    String?
+  actorUserId      String?
+  actorRole        Role?
+  action           String
+  reason           String
+  sourceRunId      String?
+  destinationRunId String?
+  metadata         Json?
+  idempotencyKey   String      @unique
+  deliveryRun      DeliveryRun? @relation("DeliveryRunAudits", fields: [deliveryRunId], references: [id], onDelete: SetNull)
+  sourceRun        DeliveryRun? @relation("DeliveryRunAuditSource", fields: [sourceRunId], references: [id], onDelete: SetNull)
+  destinationRun   DeliveryRun? @relation("DeliveryRunAuditDestination", fields: [destinationRunId], references: [id], onDelete: SetNull)
+  actor            User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt        DateTime     @default(now())
+
+  @@index([deliveryRunId, createdAt])
+}
+
+model DeliveryRouteEvent {
+  id                String                 @id @default(cuid())
+  eventType         DeliveryRouteEventType
+  deliveryRunId     String?
+  deliveryRunStopId String?
+  actorUserId       String?
+  payload           Json
+  dedupeKey         String                 @unique
+  deliveryRun       DeliveryRun?           @relation(fields: [deliveryRunId], references: [id], onDelete: SetNull)
+  deliveryRunStop   DeliveryRunStop?       @relation(fields: [deliveryRunStopId], references: [id], onDelete: SetNull)
+  actor             User?                  @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt         DateTime               @default(now())
+
+  @@index([deliveryRunId, createdAt])
+  @@index([eventType, createdAt])
 }
 
 model CashDepositBatch {
