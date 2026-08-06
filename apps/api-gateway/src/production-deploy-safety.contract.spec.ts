@@ -22,6 +22,8 @@ describe('production deployment safety', () => {
     expect(deployScript).toContain('--max-old-space-size=${DEPLOY_NODE_HEAP_MB}');
     expect(deployScript).toContain('--concurrency=1');
     expect(deployScript).toContain('--interpreter "$deploy_node"');
+    expect(deployScript).toContain('fs.realpathSync(`/proc/${pid}/exe`)');
+    expect(deployScript).not.toContain('pm2_env?.node_version');
   });
 
   it('does not deserialize PostgreSQL advisory lock void results', () => {
