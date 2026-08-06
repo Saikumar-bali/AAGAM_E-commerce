@@ -20,6 +20,12 @@ const ROUTE_NOTIFICATION_EVENTS: DeliveryRouteEventType[] = [
   DeliveryRouteEventType.DELIVERY_RUN_CANCELLED,
 ];
 
+const REASSIGNMENT_EVENTS = new Set<DeliveryRouteEventType>([
+  DeliveryRouteEventType.DELIVERY_RUN_REASSIGNED,
+  DeliveryRouteEventType.RUN_STOP_MOVED,
+  DeliveryRouteEventType.RECOVERY_RUN_CREATED,
+]);
+
 type AudienceMessage = {
   key: 'rider' | 'store' | 'admin' | 'customer';
   title: string;
@@ -87,11 +93,7 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
     const customerIds = [...new Set(run.stops.map((stop) => stop.subscriptionDelivery.subscription.customerId))];
     const zone = run.deliveryZone?.name || 'your service area';
     const routeLabel = `${run.routeCode} · ${zone}`;
-    const reassigned = [
-      DeliveryRouteEventType.DELIVERY_RUN_REASSIGNED,
-      DeliveryRouteEventType.RUN_STOP_MOVED,
-      DeliveryRouteEventType.RECOVERY_RUN_CREATED,
-    ].includes(event.eventType);
+    const reassigned = REASSIGNMENT_EVENTS.has(event.eventType);
     const interrupted = event.eventType === DeliveryRouteEventType.DELIVERY_RUN_INTERRUPTED;
     const cancelled = event.eventType === DeliveryRouteEventType.DELIVERY_RUN_CANCELLED;
 
