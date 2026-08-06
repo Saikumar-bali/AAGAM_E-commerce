@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - ops/verify-main-deploy-961e6cb
+  pull_request:
+    branches:
+      - main
+    types: [opened, reopened, synchronize]
 
 permissions:
   actions: read
@@ -11,6 +15,7 @@ permissions:
 
 jobs:
   verify:
+    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'ops/verify-main-deploy-961e6cb'
     name: Verify main CI and production deployment
     runs-on: ubuntu-24.04
     timeout-minutes: 90
