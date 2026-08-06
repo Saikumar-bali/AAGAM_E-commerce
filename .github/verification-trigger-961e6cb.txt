@@ -1,1 +1,2 @@
 Temporary trigger for the branch-only exact production verifier. This branch will not be merged.
+Verifier synchronization: ready for review.
