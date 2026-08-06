@@ -33,6 +33,25 @@ describe('partner mobile UI audit regressions', () => {
     expect(settings).toContain("backgroundColor: '#078B4D'");
   });
 
+  it('renders the Aagaam artwork full-bleed through one shared mark component', () => {
+    const mark = repoFile('apps/mobile-partners/src/components/AagamMark.tsx');
+    const brand = repoFile('apps/mobile-partners/src/components/AagamBrand.tsx');
+    const login = screen('LoginScreen.tsx');
+    const welcome = screen('PartnerWelcomeScreen.tsx');
+    const root = repoFile('apps/mobile-partners/src/navigation/RootNavigator.tsx');
+    expect(mark).toContain('resizeMode="cover"');
+    expect(mark).toContain("overflow: 'hidden'");
+    expect(mark).toContain("backgroundColor: '#061B36'");
+    expect(mark).not.toContain('resizeMode="contain"');
+    expect(brand).toContain('<AagamMark');
+    expect(login).toContain('<AagamMark');
+    expect(welcome).toContain('<AagamMark');
+    expect(root).toContain('<AagamMark');
+    expect(login).not.toContain("require('../assets/aagam-mark.png')");
+    expect(welcome).not.toContain("require('../assets/aagam-mark.png')");
+    expect(root).not.toContain("require('../assets/aagam-mark.png')");
+  });
+
   it('makes direct sign in primary and keeps application choices compact', () => {
     const welcome = screen('PartnerWelcomeScreen.tsx');
     expect(welcome).toContain('Grow with Aagaam');
@@ -81,6 +100,29 @@ describe('partner mobile UI audit regressions', () => {
     const partnerBrand = repoBinary('apps/mobile-partners/src/assets/aagam-mark.png');
     expect(partnerLauncher.equals(customerLauncher)).toBe(true);
     expect(partnerBrand.equals(customerBrand)).toBe(true);
+  });
+
+  it('places the Aagaam partner brand in all five Rider tab screens', () => {
+    for (const file of [
+      'rider/RiderDashboard.tsx',
+      'rider/RiderJobsScreen.tsx',
+      'PartnerNotificationsScreen.tsx',
+      'rider/RiderEarningsScreen.tsx',
+      'rider/RiderProfileScreen.tsx',
+    ]) {
+      expect(screen(file)).toContain('PartnerTabBrand');
+    }
+  });
+
+  it('keeps Store inventory in the green Aagaam workspace theme', () => {
+    const inventory = screen('store/StoreInventoryScreen.tsx');
+    expect(inventory).toContain('AagamBrand');
+    expect(inventory).toContain('caption="Store operations"');
+    expect(inventory).toContain('StatusBar');
+    expect(inventory).toContain("const BRAND_GREEN = '#057A55'");
+    expect(inventory).toContain("const ACTION_GREEN = '#078B4D'");
+    expect(inventory).toContain('styles.bodySheet');
+    expect(inventory).toContain('testID="inventory_refresh_button"');
   });
 
   it('uses safe-area insets instead of fixed Rider header padding', () => {

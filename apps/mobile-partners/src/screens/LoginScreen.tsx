@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -24,6 +23,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiClient, useAuthStore } from '@aagam/mobile-shared';
 import Toast from 'react-native-toast-message';
+import { AagamMark } from '../components/AagamMark';
 
 const BRAND_GREEN = '#057A55';
 const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 10);
@@ -138,14 +138,7 @@ const LoginScreen = ({ navigation }: any) => {
         </TouchableOpacity>
 
         <View style={styles.brandBlock}>
-          <View style={styles.logoCard}>
-            <Image
-              source={require('../assets/aagam-mark.png')}
-              style={styles.logo}
-              resizeMode="contain"
-              accessibilityLabel="Aagaam"
-            />
-          </View>
+          <AagamMark size={82} radius={24} style={styles.logoCard} />
           <Text style={styles.brandName}>Aagaam</Text>
           <Text style={styles.brandCaption}>PARTNERS</Text>
         </View>
@@ -383,22 +376,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   logoCard: {
-    width: 82,
-    height: 82,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 8,
+    backgroundColor: '#061B36',
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.16,
     shadowRadius: 17,
-    elevation: 5,
-  },
-  logo: {
-    width: '100%',
-    height: '100%',
+    elevation: 6,
   },
   brandName: {
     color: '#0F172A',

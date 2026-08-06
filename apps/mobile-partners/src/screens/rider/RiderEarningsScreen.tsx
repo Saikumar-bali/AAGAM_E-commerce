@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { riderService } from '../../api/riderService';
+import { PartnerTabBrand } from '../../components/PartnerTabBrand';
 
 type RangePreset = 7 | 30 | 90 | 'ALL';
 
@@ -57,13 +58,16 @@ export const RiderEarningsScreen = ({ navigation }: { navigation: any }) => {
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
-        <View style={styles.flex}>
-          <Text style={styles.eyebrow}>PERSISTED RIDER LEDGER</Text>
-          <Text style={styles.title}>Earnings</Text>
+        <PartnerTabBrand inverse caption="RIDER PARTNER" style={styles.brandRow} />
+        <View style={styles.headerMain}>
+          <View style={styles.flex}>
+            <Text style={styles.eyebrow}>PERSISTED RIDER LEDGER</Text>
+            <Text style={styles.title}>Earnings</Text>
+          </View>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh earnings ledger" style={styles.headerButton} onPress={() => void query.refetch()}>
+            <RefreshCw size={21} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh earnings ledger" style={styles.headerButton} onPress={() => void query.refetch()}>
-          <RefreshCw size={21} color="#FFFFFF" />
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -138,7 +142,7 @@ function Summary({ label: summaryLabel, value }: { label: string; value: string 
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#067B5C', paddingHorizontal: 18, paddingBottom: 20, flexDirection: 'row', alignItems: 'center' },
+  header: { backgroundColor: '#067B5C', paddingHorizontal: 18, paddingBottom: 20 }, brandRow: { marginBottom: 15 }, headerMain: { flexDirection: 'row', alignItems: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '900', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 27, fontWeight: '900', marginTop: 2 },
   headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   content: { padding: 14 },
