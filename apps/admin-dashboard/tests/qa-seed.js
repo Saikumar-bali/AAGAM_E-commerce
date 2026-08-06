@@ -404,7 +404,7 @@ async function main() {
               sequenceNumber: index + 1,
               generationKey: `qa-subscription:milk-7:${serviceDate.toISOString().slice(0, 10)}`,
               cashDuePaise: index === 0 ? 49000 : 0,
-              proofMode: 'CUSTOMER_OTP_GPS',
+              proofMode: 'PERSONAL_OTP_GPS',
             };
           }),
         },
