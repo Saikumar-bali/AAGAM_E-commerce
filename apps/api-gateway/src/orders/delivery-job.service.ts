@@ -17,6 +17,7 @@ import {
   DispatchAssignmentStatus,
 } from "@aagam/types";
 import { DeliveryEventService } from "./delivery-event.service";
+import { isOneOf } from "../common/enum-membership";
 
 type DbClient = typeof prisma | any;
 type Actor = { id: string; role: Role };
@@ -230,7 +231,7 @@ export class DeliveryJobService {
     if (actor.role === Role.STORE_OWNER && order.store.ownerId !== actor.id) {
       throw new ForbiddenException("Not allowed to create a delivery job for this store");
     }
-    if (![OrderStatus.CONFIRMED, OrderStatus.PACKED, OrderStatus.RIDER_ASSIGNED].includes(order.status as OrderStatus)) {
+    if (!isOneOf(order.status, [OrderStatus.CONFIRMED, OrderStatus.PACKED, OrderStatus.RIDER_ASSIGNED])) {
       throw new ForbiddenException(`Subscription delivery job cannot be created from ${order.status}`);
     }
 
