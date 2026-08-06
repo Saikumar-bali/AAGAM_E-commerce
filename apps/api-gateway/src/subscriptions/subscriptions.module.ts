@@ -4,6 +4,10 @@ import { CashDepositBatchService } from './cash-deposit-batch.service';
 import { CustomerSubscriptionService } from './customer-subscription.service';
 import { DeliveryRunOperationsService } from './delivery-run-operations.service';
 import { DeliveryRunPlanningService } from './delivery-run-planning.service';
+import { AdminRegionalRoutingController, RegionalRoutingEventsController } from './regional-routing.controller';
+import { RegionalDeliveryZoneService } from './regional-delivery-zone.service';
+import { RegionalRouteOperationsService } from './regional-route-operations.service';
+import { RegionalRoutePlanningService } from './regional-route-planning.service';
 import { SubscriptionAdminReportingService } from './subscription-admin-reporting.service';
 import { SubscriptionCalendarService } from './subscription-calendar.service';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
@@ -26,6 +30,8 @@ import {
     RiderDeliveryRunsController,
     StoreSubscriptionOperationsController,
     AdminSubscriptionsController,
+    AdminRegionalRoutingController,
+    RegionalRoutingEventsController,
   ],
   providers: [
     SubscriptionCalendarService,
@@ -34,6 +40,9 @@ import {
     SubscriptionOrderGenerator,
     DeliveryRunPlanningService,
     DeliveryRunOperationsService,
+    RegionalDeliveryZoneService,
+    RegionalRoutePlanningService,
+    RegionalRouteOperationsService,
     SubscriptionCashFundingService,
     CashDepositBatchService,
     SubscriptionAdminReportingService,
@@ -43,6 +52,9 @@ import {
     SubscriptionCalendarService,
     SubscriptionOrderGenerator,
     DeliveryRunPlanningService,
+    RegionalDeliveryZoneService,
+    RegionalRoutePlanningService,
+    RegionalRouteOperationsService,
     SubscriptionCashFundingService,
   ],
 })
