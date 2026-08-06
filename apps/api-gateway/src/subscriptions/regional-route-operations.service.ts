@@ -30,13 +30,17 @@ import {
 import {
   GeoPoint,
   RouteCandidate,
+  RouteConstraints,
   estimateRoute,
   nearestNeighbourOrder,
   splitByOperationalConstraints,
 } from './regional-routing.geometry';
-import { RegionalRoutePlanningService } from './regional-route-planning.service';
+import {
+  RegionalRouteActor,
+  RegionalRoutePlanningService,
+} from './regional-route-planning.service';
 
-type Actor = { id: string; role: Role };
+type Actor = RegionalRouteActor;
 type Tx = Prisma.TransactionClient;
 
 type EditableRun = Prisma.DeliveryRunGetPayload<{
@@ -44,14 +48,38 @@ type EditableRun = Prisma.DeliveryRunGetPayload<{
     deliveryZone: true;
     store: true;
     rider: { include: { user: true } };
-    stops: { include: { deliveryJob: { include: { codLedger: true } }; subscriptionDelivery: true } };
+    stops: {
+      include: {
+        deliveryJob: { include: { codLedger: true } };
+        subscriptionDelivery: true;
+      };
+    };
   };
 }>;
 
-const EDITABLE_RUN_STATUSES: DeliveryRunStatus[] = [
+const EDITABLE_RUN_STATUSES = new Set<DeliveryRunStatus>([
   DeliveryRunStatus.PLANNED,
   DeliveryRunStatus.RIDER_NEEDED,
-];
+]);
+const INTERRUPTIBLE_RUN_STATUSES = new Set<DeliveryRunStatus>([
+  DeliveryRunStatus.READY_FOR_PICKUP,
+  DeliveryRunStatus.PICKED_UP,
+  DeliveryRunStatus.IN_PROGRESS,
+]);
+const PROTECTED_STOP_STATUSES = new Set<DeliveryRunStopStatus>([
+  DeliveryRunStopStatus.ARRIVED,
+  DeliveryRunStopStatus.DELIVERED,
+  DeliveryRunStopStatus.RETURNED,
+]);
+const TERMINAL_STOP_STATUSES = new Set<DeliveryRunStopStatus>([
+  DeliveryRunStopStatus.DELIVERED,
+  DeliveryRunStopStatus.RETURNED,
+  DeliveryRunStopStatus.CANCELLED,
+]);
+const MOVABLE_JOB_STATUSES = new Set<string>([
+  DeliveryJobStatus.WAITING_FOR_DISPATCH,
+  DeliveryJobStatus.RIDER_ASSIGNED,
+]);
 
 function digest(value: string, length = 8) {
   return createHash('sha256').update(value).digest('hex').slice(0, length).toUpperCase();
@@ -75,6 +103,28 @@ function candidateFromStop(stop: EditableRun['stops'][number]): RouteCandidate<E
     cashDuePaise: stop.cashDuePaise,
     value: stop,
   };
+}
+
+function safeRouteEventMessage(eventType: DeliveryRouteEventType) {
+  const assignmentEvents = new Set<DeliveryRouteEventType>([
+    DeliveryRouteEventType.DELIVERY_RUN_ASSIGNED,
+    DeliveryRouteEventType.DELIVERY_RUN_REASSIGNED,
+  ]);
+  const orderEvents = new Set<DeliveryRouteEventType>([
+    DeliveryRouteEventType.DELIVERY_RUN_SPLIT,
+    DeliveryRouteEventType.DELIVERY_RUN_MERGED,
+    DeliveryRouteEventType.RUN_STOP_MOVED,
+    DeliveryRouteEventType.RUN_STOP_REORDERED,
+  ]);
+  const recoveryEvents = new Set<DeliveryRouteEventType>([
+    DeliveryRouteEventType.DELIVERY_RUN_INTERRUPTED,
+    DeliveryRouteEventType.RECOVERY_RUN_CREATED,
+  ]);
+  if (assignmentEvents.has(eventType)) return 'Your assigned delivery route changed. Refresh before continuing.';
+  if (orderEvents.has(eventType)) return 'The route stop list changed. Refresh to load the safe current order.';
+  if (recoveryEvents.has(eventType)) return 'A recovery route update is available. Refresh before continuing.';
+  if (eventType === DeliveryRouteEventType.DELIVERY_RUN_CANCELLED) return 'This route was cancelled or replanned.';
+  return 'Delivery route information was updated.';
 }
 
 @Injectable()
@@ -106,20 +156,22 @@ export class RegionalRouteOperationsService {
   }
 
   private assertEditable(run: EditableRun) {
-    if (!EDITABLE_RUN_STATUSES.includes(run.status)) {
+    if (!EDITABLE_RUN_STATUSES.has(run.status)) {
       throw new BadRequestException(`Run ${run.routeCode} cannot be changed from ${run.status}`);
     }
     if (run.packingConfirmedAt || run.storeHandoffConfirmedAt || run.pickupConfirmedAt || run.startedAt) {
       throw new BadRequestException('Only unstarted and unpacked routes may be manually reorganised');
     }
     const protectedStop = run.stops.find((stop) =>
-      [DeliveryRunStopStatus.ARRIVED, DeliveryRunStopStatus.DELIVERED, DeliveryRunStopStatus.RETURNED].includes(stop.status)
+      PROTECTED_STOP_STATUSES.has(stop.status)
       || Number(stop.deliveryJob.codLedger?.collectedAmountPaise || 0) > 0,
     );
-    if (protectedStop) throw new BadRequestException(`Stop ${protectedStop.sequenceNumber} already has protected operational or cash history`);
+    if (protectedStop) {
+      throw new BadRequestException(`Stop ${protectedStop.sequenceNumber} already has protected operational or cash history`);
+    }
   }
 
-  private constraints(run: EditableRun, maximumStops?: number) {
+  private constraints(run: EditableRun, maximumStops?: number): RouteConstraints {
     const zone = run.deliveryZone;
     return {
       maximumStops: Math.max(1, maximumStops ?? zone?.maximumStopsPerRun ?? 15),
@@ -135,6 +187,7 @@ export class RegionalRouteOperationsService {
   private splitCandidates(run: EditableRun, dto: PreviewRouteSplitDto) {
     const candidates = run.stops.map(candidateFromStop);
     if (candidates.length < 2) throw new BadRequestException('A run requires at least two stops before it can be split');
+
     if (dto.method === RouteSplitMethod.SELECTED_STOPS) {
       const selected = new Set(dto.selectedStopIds ?? []);
       if (!selected.size) throw new BadRequestException('Select at least one stop to move into the new run');
@@ -145,19 +198,19 @@ export class RegionalRouteOperationsService {
       }
       return [nearestNeighbourOrder(routeOrigin(run), left), nearestNeighbourOrder(routeOrigin(run), right)];
     }
+
     const constraints = this.constraints(
       run,
       dto.method === RouteSplitMethod.MAX_STOPS ? dto.maximumStops : undefined,
     );
     const clusters = splitByOperationalConstraints(routeOrigin(run), candidates, constraints);
-    if (clusters.length < 2) {
-      const midpoint = Math.ceil(candidates.length / 2);
-      return [
-        nearestNeighbourOrder(routeOrigin(run), candidates.slice(0, midpoint)),
-        nearestNeighbourOrder(routeOrigin(run), candidates.slice(midpoint)),
-      ];
-    }
-    return clusters;
+    if (clusters.length >= 2) return clusters;
+
+    const midpoint = Math.ceil(candidates.length / 2);
+    return [
+      nearestNeighbourOrder(routeOrigin(run), candidates.slice(0, midpoint)),
+      nearestNeighbourOrder(routeOrigin(run), candidates.slice(midpoint)),
+    ];
   }
 
   async previewSplit(runId: string, dto: PreviewRouteSplitDto) {
@@ -190,11 +243,13 @@ export class RegionalRouteOperationsService {
     this.assertEditable(source);
     const clusters = this.splitCandidates(source, dto);
     const constraints = this.constraints(source, dto.maximumStops);
-    const result = await prisma.$transaction(async (tx) => {
+
+    const runIds = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`manual-route-split:${runId}`}))`);
-      const current = await tx.deliveryRun.findUnique({ where: { id: runId } });
+      const current = await tx.deliveryRun.findUnique({ where: { id: runId }, select: { version: true } });
       if (!current || current.version !== dto.version) throw new ConflictException('Delivery run changed during split');
-      const runIds = [source.id];
+
+      const ids = [source.id];
       for (let index = 1; index < clusters.length; index += 1) {
         const cluster = clusters[index];
         const estimate = estimateRoute(routeOrigin(source), cluster, constraints);
@@ -226,15 +281,20 @@ export class RegionalRouteOperationsService {
             assignmentSource: RouteAssignmentSource.MANUAL,
           },
         });
-        runIds.push(created.id);
+        ids.push(created.id);
       }
-      for (const runCluster of clusters) {
-        for (const item of runCluster) {
-          await tx.deliveryRunStop.update({ where: { id: item.id }, data: { sequenceNumber: -Math.abs(item.value.sequenceNumber) - 10_000 } });
+
+      for (const cluster of clusters) {
+        for (const item of cluster) {
+          await tx.deliveryRunStop.update({
+            where: { id: item.id },
+            data: { sequenceNumber: -Math.abs(item.value.sequenceNumber) - 10_000 },
+          });
         }
       }
+
       for (let runIndex = 0; runIndex < clusters.length; runIndex += 1) {
-        const destinationRunId = runIds[runIndex];
+        const destinationRunId = ids[runIndex];
         for (let stopIndex = 0; stopIndex < clusters[runIndex].length; stopIndex += 1) {
           const item = clusters[runIndex][stopIndex];
           await tx.deliveryRunStop.update({
@@ -248,9 +308,13 @@ export class RegionalRouteOperationsService {
               version: { increment: 1 },
             },
           });
+          if (destinationRunId !== source.id) {
+            await this.resetPendingJobOwnership(tx, item.value, null);
+          }
         }
       }
-      for (const id of runIds) await this.recalculate(tx, id);
+
+      for (const id of ids) await this.recalculate(tx, id);
       await tx.deliveryRun.update({
         where: { id: source.id },
         data: { manualOverride: true, manualOverrideReason: dto.reason, version: { increment: 1 } },
@@ -260,32 +324,35 @@ export class RegionalRouteOperationsService {
         actor,
         action: 'DELIVERY_RUN_SPLIT',
         reason: dto.reason,
-        metadata: { method: dto.method, resultingRunIds: runIds, clusters: clusters.map((cluster) => cluster.map((item) => item.id)) },
+        metadata: {
+          method: dto.method,
+          resultingRunIds: ids,
+          clusters: clusters.map((cluster) => cluster.map((item) => item.id)),
+        },
         eventType: DeliveryRouteEventType.DELIVERY_RUN_SPLIT,
         dedupeKey: `manual-split:${source.id}:v${source.version}`,
       });
-      return Promise.all(runIds.map((id) => tx.deliveryRun.findUniqueOrThrow({
-        where: { id },
-        include: { deliveryZone: true, rider: { include: { user: true } }, stops: { orderBy: { sequenceNumber: 'asc' } } },
-      })));
+      return ids;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-    for (let index = 0; index < result.length; index += 1) {
+    for (let index = 0; index < runIds.length; index += 1) {
       const requestedRiderId = dto.riderIds?.[index];
       if (!requestedRiderId) continue;
-      const ranked = await this.planner.rankEligibleRiders(result[index].id);
-      const selected = ranked.find((item) => item.riderId === requestedRiderId);
-      if (selected) await this.planner.assignRider(result[index].id, selected, actor, RouteAssignmentSource.MANUAL);
+      const selected = (await this.planner.rankEligibleRiders(runIds[index])).find((item) => item.riderId === requestedRiderId);
+      if (!selected) throw new BadRequestException(`Requested rider is not eligible for split run ${index + 1}`);
+      await this.planner.assignRider(runIds[index], selected, actor, RouteAssignmentSource.MANUAL);
     }
-    return Promise.all(result.map((run) => this.run(run.id)));
+    return Promise.all(runIds.map((id) => this.run(id)));
   }
 
   async merge(targetRunId: string, dto: MergeDeliveryRunsDto, actor: Actor) {
     const target = await this.run(targetRunId);
     this.assertVersion(target, dto.targetVersion);
     this.assertEditable(target);
-    const sources = await Promise.all([...new Set(dto.sourceRunIds)].filter((id) => id !== targetRunId).map((id) => this.run(id)));
-    if (!sources.length) throw new BadRequestException('Choose at least one different source run');
+    const sourceIds = [...new Set(dto.sourceRunIds)].filter((id) => id !== targetRunId);
+    if (!sourceIds.length) throw new BadRequestException('Choose at least one different source run');
+    const sources = await Promise.all(sourceIds.map((id) => this.run(id)));
+
     for (const source of sources) {
       this.assertVersion(source, Number(dto.sourceVersions[source.id]));
       this.assertEditable(source);
@@ -295,29 +362,25 @@ export class RegionalRouteOperationsService {
         && source.slotEnd.getTime() === target.slotEnd.getTime()
         && source.deliveryZoneId === target.deliveryZoneId;
       if (!compatible) throw new BadRequestException(`Run ${source.routeCode} is not compatible with ${target.routeCode}`);
-      if (source.riderId && target.riderId && source.riderId !== target.riderId) {
-        throw new BadRequestException('Reassign routes to one rider before merging');
-      }
     }
+
+    const mergedRiderIds = [...new Set(
+      [target.riderId, ...sources.map((source) => source.riderId)].filter((id): id is string => Boolean(id)),
+    )];
+    if (mergedRiderIds.length > 1) throw new BadRequestException('Reassign routes to one rider before merging');
+    const mergedRiderId = mergedRiderIds[0] ?? null;
     const allStops = [...target.stops, ...sources.flatMap((source) => source.stops)].map(candidateFromStop);
-    const constraints = this.constraints(target);
-    const estimate = estimateRoute(routeOrigin(target), nearestNeighbourOrder(routeOrigin(target), allStops), constraints);
-    const parcels = allStops.reduce((sum, item) => sum + item.parcelCount, 0);
-    const cash = allStops.reduce((sum, item) => sum + item.cashDuePaise, 0);
-    if (
-      allStops.length > constraints.maximumStops
-      || parcels > constraints.maximumParcels
-      || cash > constraints.maximumCashPaise
-      || estimate.distanceKm > constraints.maximumDistanceKm
-      || estimate.durationMinutes > constraints.maximumDurationMinutes
-    ) throw new BadRequestException('Merged route would exceed stop, parcel, cash, distance, or slot capacity');
+    this.assertCapacity(target, allStops);
 
     return prisma.$transaction(async (tx) => {
       const lockIds = [target.id, ...sources.map((source) => source.id)].sort().join(':');
       await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`manual-route-merge:${lockIds}`}))`);
       const ordered = nearestNeighbourOrder(routeOrigin(target), allStops);
       for (const item of ordered) {
-        await tx.deliveryRunStop.update({ where: { id: item.id }, data: { sequenceNumber: -Math.abs(item.value.sequenceNumber) - 20_000 } });
+        await tx.deliveryRunStop.update({
+          where: { id: item.id },
+          data: { sequenceNumber: -Math.abs(item.value.sequenceNumber) - 20_000 },
+        });
       }
       for (let index = 0; index < ordered.length; index += 1) {
         const item = ordered[index];
@@ -332,7 +395,9 @@ export class RegionalRouteOperationsService {
             version: { increment: 1 },
           },
         });
+        await this.resetPendingJobOwnership(tx, item.value, mergedRiderId);
       }
+
       for (const source of sources) {
         await tx.deliveryRun.update({
           where: { id: source.id },
@@ -352,7 +417,13 @@ export class RegionalRouteOperationsService {
       await this.recalculate(tx, target.id);
       const updated = await tx.deliveryRun.update({
         where: { id: target.id },
-        data: { manualOverride: true, manualOverrideReason: dto.reason, version: { increment: 1 } },
+        data: {
+          riderId: mergedRiderId,
+          status: mergedRiderId ? DeliveryRunStatus.PLANNED : DeliveryRunStatus.RIDER_NEEDED,
+          manualOverride: true,
+          manualOverrideReason: dto.reason,
+          version: { increment: 1 },
+        },
       });
       await this.audit(tx, {
         runId: target.id,
@@ -377,9 +448,13 @@ export class RegionalRouteOperationsService {
     this.assertVersion(destination, dto.destinationRunVersion);
     this.assertEditable(source);
     this.assertEditable(destination);
+
     const stop = source.stops.find((item) => item.id === stopId);
     if (!stop || stop.version !== dto.stopVersion) throw new ConflictException('Stop changed; refresh and try again');
     if (source.stops.length <= 1) throw new BadRequestException('Use merge or cancel instead of leaving an empty source run');
+    if (!MOVABLE_JOB_STATUSES.has(stop.deliveryJob.status)) {
+      throw new BadRequestException('Only a pending, unstarted delivery job can move between runs');
+    }
     const compatible = source.storeId === destination.storeId
       && source.serviceDate.getTime() === destination.serviceDate.getTime()
       && source.slotStart.getTime() === destination.slotStart.getTime()
@@ -389,17 +464,8 @@ export class RegionalRouteOperationsService {
     if (source.riderId && destination.riderId && source.riderId !== destination.riderId) {
       throw new BadRequestException('Reassign the destination route before moving a stop between different riders');
     }
-    const destinationCandidates = [...destination.stops, stop].map(candidateFromStop);
-    const constraints = this.constraints(destination);
-    const estimate = estimateRoute(routeOrigin(destination), nearestNeighbourOrder(routeOrigin(destination), destinationCandidates), constraints);
-    if (
-      destinationCandidates.length > constraints.maximumStops
-      || destinationCandidates.reduce((sum, item) => sum + item.parcelCount, 0) > constraints.maximumParcels
-      || destinationCandidates.reduce((sum, item) => sum + item.cashDuePaise, 0) > constraints.maximumCashPaise
-      || estimate.distanceKm > constraints.maximumDistanceKm
-      || estimate.durationMinutes > constraints.maximumDurationMinutes
-    ) throw new BadRequestException('Destination route would exceed configured operational limits');
 
+    this.assertCapacity(destination, [...destination.stops, stop].map(candidateFromStop));
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`move-stop:${stopId}`}))`);
       await tx.deliveryRunStop.update({
@@ -413,9 +479,7 @@ export class RegionalRouteOperationsService {
           version: { increment: 1 },
         },
       });
-      if (destination.riderId && stop.deliveryJob.currentRiderId !== destination.riderId) {
-        await tx.deliveryJob.update({ where: { id: stop.deliveryJobId }, data: { currentRiderId: destination.riderId, version: { increment: 1 } } });
-      }
+      await this.resetPendingJobOwnership(tx, stop, destination.riderId);
       await this.resequence(tx, source.id);
       await this.resequence(tx, destination.id);
       await this.recalculate(tx, source.id);
@@ -437,7 +501,8 @@ export class RegionalRouteOperationsService {
         dedupeKey: `move-stop:${stop.id}:v${stop.version}`,
       });
       return Promise.all([source.id, destination.id].map((id) => tx.deliveryRun.findUniqueOrThrow({
-        where: { id }, include: { deliveryZone: true, rider: { include: { user: true } }, stops: { orderBy: { sequenceNumber: 'asc' } } },
+        where: { id },
+        include: { deliveryZone: true, rider: { include: { user: true } }, stops: { orderBy: { sequenceNumber: 'asc' } } },
       })));
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
@@ -446,11 +511,14 @@ export class RegionalRouteOperationsService {
     const run = await this.run(runId);
     this.assertVersion(run, dto.version);
     this.assertEditable(run);
-    const ranked = await this.planner.rankEligibleRiders(run.id);
-    const selected = ranked.find((item) => item.riderId === dto.riderId);
+    const selected = (await this.planner.rankEligibleRiders(run.id)).find((item) => item.riderId === dto.riderId);
     if (!selected) throw new BadRequestException('Selected rider is not eligible for this route');
-    selected.summary = `${dto.reason}; ${selected.summary}`;
-    return this.planner.assignRider(run.id, selected, actor, RouteAssignmentSource.MANUAL);
+    return this.planner.assignRider(
+      run.id,
+      { ...selected, summary: `${dto.reason}; ${selected.summary}` },
+      actor,
+      RouteAssignmentSource.MANUAL,
+    );
   }
 
   async reorder(runId: string, dto: ReorderRegionalRunDto, actor: Actor) {
@@ -461,9 +529,12 @@ export class RegionalRouteOperationsService {
     if (dto.orderedStopIds.length !== existing.size || dto.orderedStopIds.some((id) => !existing.has(id))) {
       throw new BadRequestException('Ordered stop list must contain every route stop exactly once');
     }
+
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`reorder-run:${run.id}`}))`);
-      for (const stop of run.stops) await tx.deliveryRunStop.update({ where: { id: stop.id }, data: { sequenceNumber: -stop.sequenceNumber - 30_000 } });
+      for (const stop of run.stops) {
+        await tx.deliveryRunStop.update({ where: { id: stop.id }, data: { sequenceNumber: -stop.sequenceNumber - 30_000 } });
+      }
       for (let index = 0; index < dto.orderedStopIds.length; index += 1) {
         await tx.deliveryRunStop.update({
           where: { id: dto.orderedStopIds[index] },
@@ -498,13 +569,7 @@ export class RegionalRouteOperationsService {
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`cancel-run:${run.id}`}))`);
       for (const stop of run.stops) {
-        await tx.subscriptionDelivery.update({ where: { id: stop.subscriptionDeliveryId }, data: { status: SubscriptionDeliveryStatus.ORDER_GENERATED } });
-        if ([DeliveryJobStatus.WAITING_FOR_DISPATCH, DeliveryJobStatus.RIDER_ASSIGNED].includes(stop.deliveryJob.status as DeliveryJobStatus)) {
-          await tx.deliveryJob.update({
-            where: { id: stop.deliveryJobId },
-            data: { status: DeliveryJobStatus.WAITING_FOR_DISPATCH, currentRiderId: null, version: { increment: 1 } },
-          });
-        }
+        await this.resetPendingJobOwnership(tx, stop, null);
       }
       await tx.deliveryRunStop.deleteMany({ where: { deliveryRunId: run.id } });
       const updated = await tx.deliveryRun.update({
@@ -537,20 +602,23 @@ export class RegionalRouteOperationsService {
   async interruptAndRecover(runId: string, dto: InterruptDeliveryRunDto, actor: Actor) {
     const run = await this.run(runId);
     this.assertVersion(run, dto.version);
-    if (![DeliveryRunStatus.READY_FOR_PICKUP, DeliveryRunStatus.PICKED_UP, DeliveryRunStatus.IN_PROGRESS].includes(run.status)) {
+    if (!INTERRUPTIBLE_RUN_STATUSES.has(run.status)) {
       throw new BadRequestException('Only a prepared or active route can be interrupted');
     }
-    const pending = run.stops.filter((stop) => ![
-      DeliveryRunStopStatus.DELIVERED,
-      DeliveryRunStopStatus.RETURNED,
-      DeliveryRunStopStatus.CANCELLED,
-    ].includes(stop.status));
+    const pending = run.stops.filter((stop) => !TERMINAL_STOP_STATUSES.has(stop.status));
     if (!pending.length) throw new BadRequestException('No pending stops remain for a recovery route');
+    const cashProtected = pending.find((stop) => Number(stop.deliveryJob.codLedger?.collectedAmountPaise || 0) > 0);
+    if (cashProtected) throw new BadRequestException(`Stop ${cashProtected.sequenceNumber} has collected cash and must remain with the original rider`);
     const completed = run.stops.filter((stop) => stop.status === DeliveryRunStopStatus.DELIVERED);
-    const recovery = await prisma.$transaction(async (tx) => {
+
+    const recoveryId = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`recovery-run:${run.id}`}))`);
-      const existing = await tx.deliveryRun.findFirst({ where: { recoveryFromRunId: run.id, status: { not: DeliveryRunStatus.CANCELLED } } });
+      const existing = await tx.deliveryRun.findFirst({
+        where: { recoveryFromRunId: run.id, status: { not: DeliveryRunStatus.CANCELLED } },
+        select: { id: true },
+      });
       if (existing) throw new ConflictException('An active recovery run already exists');
+
       const ordered = nearestNeighbourOrder(routeOrigin(run), pending.map(candidateFromStop));
       const estimate = estimateRoute(routeOrigin(run), ordered, this.constraints(run));
       const identifier = `${run.deliveryZone?.code || 'ZONE'}-RECOVERY-${digest(`${run.id}:${run.version}:${pending.map((stop) => stop.id).sort().join('|')}`, 10)}`;
@@ -582,7 +650,13 @@ export class RegionalRouteOperationsService {
           assignmentSource: RouteAssignmentSource.RECOVERY,
         },
       });
-      for (const stop of pending) await tx.deliveryRunStop.update({ where: { id: stop.id }, data: { sequenceNumber: -stop.sequenceNumber - 40_000 } });
+
+      for (const stop of pending) {
+        await tx.deliveryRunStop.update({
+          where: { id: stop.id },
+          data: { sequenceNumber: -stop.sequenceNumber - 40_000 },
+        });
+      }
       for (let index = 0; index < ordered.length; index += 1) {
         const stop = ordered[index].value;
         await tx.deliveryRunStop.update({
@@ -593,11 +667,30 @@ export class RegionalRouteOperationsService {
             movedFromRunId: run.id,
             lastMovedAt: new Date(),
             routeOrderChangeReason: dto.reason,
-            status: stop.status === DeliveryRunStopStatus.ARRIVED ? DeliveryRunStopStatus.RETRY_PENDING : stop.status,
+            status: stop.status === DeliveryRunStopStatus.ARRIVED
+              ? DeliveryRunStopStatus.RETRY_PENDING
+              : stop.status,
             version: { increment: 1 },
           },
         });
+        await this.resetPendingJobOwnership(tx, stop, null);
+        await tx.deliveryEvent.create({
+          data: {
+            deliveryJobId: stop.deliveryJobId,
+            eventType: 'ASSIGNMENT_REASSIGNED',
+            actorUserId: actor.id,
+            actorRole: actor.role,
+            metadata: {
+              fromRiderId: run.riderId,
+              toRiderId: null,
+              sourceRunId: run.id,
+              recoveryRunId: created.id,
+              reason: dto.reason,
+            },
+          },
+        });
       }
+
       await this.recalculate(tx, run.id);
       await tx.deliveryRun.update({
         where: { id: run.id },
@@ -615,7 +708,11 @@ export class RegionalRouteOperationsService {
         action: 'DELIVERY_RUN_INTERRUPTED',
         reason: dto.reason,
         destinationRunId: created.id,
-        metadata: { completedStopIds: completed.map((stop) => stop.id), pendingStopIds: pending.map((stop) => stop.id), recoveryRunId: created.id },
+        metadata: {
+          completedStopIds: completed.map((stop) => stop.id),
+          pendingStopIds: pending.map((stop) => stop.id),
+          recoveryRunId: created.id,
+        },
         eventType: DeliveryRouteEventType.DELIVERY_RUN_INTERRUPTED,
         dedupeKey: `interrupt-run:${run.id}:v${run.version}`,
       });
@@ -629,24 +726,23 @@ export class RegionalRouteOperationsService {
         eventType: DeliveryRouteEventType.RECOVERY_RUN_CREATED,
         dedupeKey: `recovery-created:${run.id}:v${run.version}`,
       });
-      return created;
+      return created.id;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     if (dto.recoveryRiderId) {
-      const ranked = await this.planner.rankEligibleRiders(recovery.id);
-      const selected = ranked.find((item) => item.riderId === dto.recoveryRiderId);
+      const selected = (await this.planner.rankEligibleRiders(recoveryId)).find((item) => item.riderId === dto.recoveryRiderId);
       if (!selected) throw new BadRequestException('Requested recovery rider is not eligible');
-      await this.planner.assignRider(recovery.id, selected, actor, RouteAssignmentSource.RECOVERY);
-      await prisma.deliveryRun.update({ where: { id: recovery.id }, data: { status: DeliveryRunStatus.IN_PROGRESS, startedAt: new Date(), version: { increment: 1 } } });
+      await this.planner.assignRider(recoveryId, selected, actor, RouteAssignmentSource.RECOVERY);
     }
-    return { original: await this.run(run.id), recovery: await this.run(recovery.id) };
+    return { original: await this.run(run.id), recovery: await this.run(recoveryId) };
   }
 
   async dashboard(date?: string) {
     const day = date ? new Date(`${date}T00:00:00.000Z`) : new Date();
     const from = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()));
     const to = new Date(from.getTime() + 86_400_000);
-    const [zones, runs, unassigned, riders, recentEvents] = await Promise.all([
+
+    const [zones, runs, unassigned, riders, stores, recentEvents] = await Promise.all([
       prisma.deliveryZone.findMany({
         where: { isActive: true },
         orderBy: [{ priority: 'desc' }, { name: 'asc' }],
@@ -658,10 +754,19 @@ export class RegionalRouteOperationsService {
         include: {
           deliveryZone: true,
           store: { select: { id: true, name: true, latitude: true, longitude: true, address: true } },
-          rider: { include: { user: { select: { id: true, name: true } }, availabilityLocation: true } },
+          rider: {
+            include: {
+              user: { select: { id: true, name: true } },
+              availabilityLocation: true,
+            },
+          },
           stops: {
             orderBy: { sequenceNumber: 'asc' },
-            include: { deliveryJob: { include: { order: { include: { customer: { select: { name: true } } } } } } },
+            include: {
+              deliveryJob: {
+                include: { order: { include: { customer: { select: { name: true } } } } },
+              },
+            },
           },
         },
       }),
@@ -671,13 +776,27 @@ export class RegionalRouteOperationsService {
           status: SubscriptionDeliveryStatus.ORDER_GENERATED,
           runStop: null,
         },
-        include: { subscription: { include: { address: true } }, order: true, store: true, deliveryZone: true },
+        include: {
+          subscription: { include: { address: true } },
+          order: true,
+          store: true,
+          deliveryZone: true,
+        },
         orderBy: { createdAt: 'asc' },
       }),
       prisma.riderProfile.findMany({
         where: { user: { isActive: true }, approvalStatus: 'APPROVED' },
-        include: { user: { select: { id: true, name: true } }, availabilityLocation: true, homeZone: true },
+        include: {
+          user: { select: { id: true, name: true } },
+          availabilityLocation: true,
+          homeZone: true,
+        },
         orderBy: { user: { name: 'asc' } },
+      }),
+      prisma.store.findMany({
+        where: { isActive: true, deletedAt: null },
+        select: { id: true, name: true, address: true, latitude: true, longitude: true },
+        orderBy: { name: 'asc' },
       }),
       prisma.deliveryRouteEvent.findMany({
         where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
@@ -685,25 +804,33 @@ export class RegionalRouteOperationsService {
         take: 100,
       }),
     ]);
+
     const zoneSummaries = zones.map((zone) => {
       const zoneRuns = runs.filter((run) => run.deliveryZoneId === zone.id);
       return {
         ...zone,
         deliveryCount: zoneRuns.reduce((sum, run) => sum + run.totalStopCount, 0),
-        availableRiderCount: riders.filter((rider) => rider.status === 'ONLINE' && (rider.homeZoneId === zone.id || zone.preferredRiderLinks.some((link) => link.riderProfileId === rider.id))).length,
+        availableRiderCount: riders.filter((rider) =>
+          rider.status === 'ONLINE'
+          && (rider.homeZoneId === zone.id || zone.preferredRiderLinks.some((link) => link.riderProfileId === rider.id)),
+        ).length,
         estimatedDurationMinutes: zoneRuns.reduce((sum, run) => sum + run.estimatedDurationMinutes, 0),
         expectedCashPaise: zoneRuns.reduce((sum, run) => sum + run.expectedCashPaise, 0),
-        status: zoneRuns.some((run) => run.status === DeliveryRunStatus.RIDER_NEEDED) ? 'RIDER_NEEDED'
-          : zoneRuns.some((run) => run.expectedCashPaise > zone.cashRiskLimitPaise) ? 'CASH_LIMIT_RISK'
+        status: zoneRuns.some((run) => run.status === DeliveryRunStatus.RIDER_NEEDED)
+          ? 'RIDER_NEEDED'
+          : zoneRuns.some((run) => run.expectedCashPaise > zone.cashRiskLimitPaise)
+            ? 'CASH_LIMIT_RISK'
             : zoneRuns.length ? 'READY' : 'EMPTY',
       };
     });
+
     return {
       date: from.toISOString().slice(0, 10),
       zones: zoneSummaries,
       runs,
       unassigned,
       riders,
+      stores,
       recentEvents,
       totals: {
         deliveries: runs.reduce((sum, run) => sum + run.totalStopCount, 0),
@@ -717,35 +844,121 @@ export class RegionalRouteOperationsService {
     };
   }
 
-  async events(after?: string) {
-    return prisma.deliveryRouteEvent.findMany({
-      where: after ? { createdAt: { gt: new Date(after) } } : undefined,
+  async events(after?: string, actor?: Actor) {
+    let deliveryRunWhere: Prisma.DeliveryRunWhereInput | undefined;
+    if (actor?.role === Role.RIDER) {
+      const rider = await prisma.riderProfile.findUnique({ where: { userId: actor.id }, select: { id: true } });
+      if (!rider) return [];
+      deliveryRunWhere = { riderId: rider.id };
+    } else if (actor?.role === Role.STORE_OWNER) {
+      const stores = await prisma.store.findMany({ where: { ownerId: actor.id }, select: { id: true } });
+      if (!stores.length) return [];
+      deliveryRunWhere = { storeId: { in: stores.map((store) => store.id) } };
+    }
+
+    const rows = await prisma.deliveryRouteEvent.findMany({
+      where: {
+        ...(after ? { createdAt: { gt: new Date(after) } } : {}),
+        ...(deliveryRunWhere ? { deliveryRun: { is: deliveryRunWhere } } : {}),
+      },
       orderBy: { createdAt: 'asc' },
       take: 500,
+    });
+    if (!actor || actor.role === Role.ADMIN) return rows;
+    return rows.map((event) => ({
+      id: event.id,
+      eventType: event.eventType,
+      deliveryRunId: event.deliveryRunId,
+      deliveryRunStopId: event.deliveryRunStopId,
+      createdAt: event.createdAt,
+      payload: { message: safeRouteEventMessage(event.eventType) },
+    }));
+  }
+
+  private assertCapacity(run: EditableRun, candidates: RouteCandidate<unknown>[]) {
+    const constraints = this.constraints(run);
+    const estimate = estimateRoute(routeOrigin(run), nearestNeighbourOrder(routeOrigin(run), candidates), constraints);
+    const parcels = candidates.reduce((sum, item) => sum + item.parcelCount, 0);
+    const cash = candidates.reduce((sum, item) => sum + item.cashDuePaise, 0);
+    if (
+      candidates.length > constraints.maximumStops
+      || parcels > constraints.maximumParcels
+      || cash > constraints.maximumCashPaise
+      || estimate.distanceKm > constraints.maximumDistanceKm
+      || estimate.durationMinutes > constraints.maximumDurationMinutes
+    ) {
+      throw new BadRequestException('Route would exceed stop, parcel, cash, distance, or slot capacity');
+    }
+  }
+
+  private async resetPendingJobOwnership(
+    tx: Tx,
+    stop: EditableRun['stops'][number],
+    riderId: string | null,
+  ) {
+    if (!MOVABLE_JOB_STATUSES.has(stop.deliveryJob.status)) {
+      throw new BadRequestException(`Delivery job for stop ${stop.sequenceNumber} is no longer movable`);
+    }
+    await tx.deliveryJob.update({
+      where: { id: stop.deliveryJobId },
+      data: {
+        currentRiderId: riderId,
+        status: riderId ? DeliveryJobStatus.RIDER_ASSIGNED : DeliveryJobStatus.WAITING_FOR_DISPATCH,
+        version: { increment: 1 },
+      },
+    });
+    await tx.subscriptionDelivery.update({
+      where: { id: stop.subscriptionDeliveryId },
+      data: { status: riderId ? SubscriptionDeliveryStatus.ASSIGNED : SubscriptionDeliveryStatus.ORDER_GENERATED },
     });
   }
 
   private async resequence(tx: Tx, runId: string) {
-    const stops = await tx.deliveryRunStop.findMany({ where: { deliveryRunId: runId }, orderBy: [{ sequenceNumber: 'asc' }, { id: 'asc' }] });
-    for (const stop of stops) await tx.deliveryRunStop.update({ where: { id: stop.id }, data: { sequenceNumber: -Math.abs(stop.sequenceNumber) - 50_000 } });
-    for (let index = 0; index < stops.length; index += 1) await tx.deliveryRunStop.update({ where: { id: stops[index].id }, data: { sequenceNumber: index + 1 } });
+    const stops = await tx.deliveryRunStop.findMany({
+      where: { deliveryRunId: runId },
+      orderBy: [{ sequenceNumber: 'asc' }, { id: 'asc' }],
+    });
+    for (const stop of stops) {
+      await tx.deliveryRunStop.update({
+        where: { id: stop.id },
+        data: { sequenceNumber: -Math.abs(stop.sequenceNumber) - 50_000 },
+      });
+    }
+    for (let index = 0; index < stops.length; index += 1) {
+      await tx.deliveryRunStop.update({
+        where: { id: stops[index].id },
+        data: { sequenceNumber: index + 1 },
+      });
+    }
   }
 
   private async recalculate(tx: Tx, runId: string) {
-    const run = await tx.deliveryRun.findUnique({ where: { id: runId }, include: { store: true, deliveryZone: true, stops: { orderBy: { sequenceNumber: 'asc' } } } });
+    const run = await tx.deliveryRun.findUnique({
+      where: { id: runId },
+      include: { store: true, stops: { orderBy: { sequenceNumber: 'asc' } } },
+    });
     if (!run) return;
-    const candidates = run.stops.map((stop) => ({
-      id: stop.id,
-      latitude: Number(stop.deliveryLatitude),
-      longitude: Number(stop.deliveryLongitude),
-      parcelCount: stop.expectedParcelCount,
-      cashDuePaise: stop.cashDuePaise,
-      value: stop,
-    })).filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
+    const candidates = run.stops.flatMap((stop) => {
+      const latitude = Number(stop.deliveryLatitude);
+      const longitude = Number(stop.deliveryLongitude);
+      return Number.isFinite(latitude) && Number.isFinite(longitude)
+        ? [{
+            id: stop.id,
+            latitude,
+            longitude,
+            parcelCount: stop.expectedParcelCount,
+            cashDuePaise: stop.cashDuePaise,
+            value: stop,
+          }]
+        : [];
+    });
     const estimate = estimateRoute(
       { latitude: run.store.latitude, longitude: run.store.longitude },
       candidates,
-      { averageSpeedKph: Number(process.env.ROUTE_AVERAGE_SPEED_KPH || 22), serviceMinutesPerStop: Number(process.env.ROUTE_SERVICE_MINUTES_PER_STOP || 5) },
+      {
+        averageSpeedKph: Number(process.env.ROUTE_AVERAGE_SPEED_KPH || 22),
+        serviceMinutesPerStop: Number(process.env.ROUTE_SERVICE_MINUTES_PER_STOP || 5),
+      },
     );
     await tx.deliveryRun.update({
       where: { id: run.id },
