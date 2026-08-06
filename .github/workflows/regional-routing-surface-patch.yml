@@ -19,218 +19,51 @@ jobs:
         with:
           ref: feature/regional-multi-rider-route-splitting
           fetch-depth: 0
-      - name: Apply guarded surface updates
+      - name: Apply guarded parser and navigation patch
         shell: bash
         run: |
           python <<'PY'
           from pathlib import Path
 
-          def patch(path_name: str, replacements: list[tuple[str, str, str]]):
+          def replace_once(path_name: str, old: str, new: str, label: str):
               path = Path(path_name)
               text = path.read_text()
-              for old, new, label in replacements:
-                  count = text.count(old)
-                  if count != 1:
-                      raise SystemExit(f'{path_name} / {label}: expected one match, found {count}')
-                  text = text.replace(old, new, 1)
-              path.write_text(text)
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              path.write_text(text.replace(old, new, 1))
 
-          patch('apps/admin-dashboard/src/components/Sidebar.tsx', [(
-          '''    { name: "Subscriptions", href: "/admin/subscriptions", icon: CalendarDays },
-              { name: "Riders", href: "/admin/riders", icon: Truck },''',
-          '''    { name: "Subscriptions", href: "/admin/subscriptions", icon: CalendarDays },
-              { name: "Route Planning", href: "/admin/route-planning", icon: Route },
-              { name: "Riders", href: "/admin/riders", icon: Truck },''',
-          'admin route-planning link')])
-
-          patch('apps/admin-dashboard/e2e/responsive-role-navigation.spec.ts', [
-          (
-          '''      { name: 'Subscriptions', href: '/admin/subscriptions' },
-                { name: 'Notifications', href: '/admin/notifications' },''',
-          '''      { name: 'Subscriptions', href: '/admin/subscriptions' },
-                { name: 'Route Planning', href: '/admin/route-planning' },
-                { name: 'Notifications', href: '/admin/notifications' },''',
-          'admin route-planning nav case'),
-          (
-          '''    await expect(desktopNavigation.locator('a')).toHaveCount(15);
-              await expect(desktopNavigation.locator('a[href="/admin/subscriptions"]')).toBeVisible();''',
-          '''    await expect(desktopNavigation.locator('a')).toHaveCount(16);
-              await expect(desktopNavigation.locator('a[href="/admin/subscriptions"]')).toBeVisible();
-              await expect(desktopNavigation.locator('a[href="/admin/route-planning"]')).toBeVisible();''',
-          'admin desktop route count'),
-          ])
-
-          patch('apps/api-gateway/src/subscriptions/delivery-run-operations.service.ts', [
-          (
-          '''        store: { select: { id: true, name: true, address: true, latitude: true, longitude: true } },
-                stops: {''',
-          '''        store: { select: { id: true, name: true, address: true, latitude: true, longitude: true } },
-                deliveryZone: true,
-                stops: {''',
-          'rider detail zone include'),
-          (
-          '''        store: { select: { id: true, name: true, address: true, latitude: true, longitude: true } },
-                _count: { select: { stops: true } },''',
-          '''        store: { select: { id: true, name: true, address: true, latitude: true, longitude: true } },
-                deliveryZone: true,
-                _count: { select: { stops: true } },''',
-          'rider list zone include'),
-          ])
-
-          patch('apps/api-gateway/src/subscriptions/delivery-run-planning.service.ts', [(
-          '''      include: {
-                rider: { include: { user: { select: { id: true, name: true, phone: true } } } },
-                stops: {''',
-          '''      include: {
-                deliveryZone: true,
-                rider: { include: { user: { select: { id: true, name: true, phone: true } } } },
-                stops: {''',
-          'store route zone include')])
-
-          patch('apps/mobile-partners/src/api/subscriptionOperationsService.ts', [
-          (
-          '''export type DeliveryRunStatus =
-            | 'PLANNED'
-            | 'READY_FOR_PICKUP' ''',
-          '''export type DeliveryRunStatus =
-            | 'PLANNED'
-            | 'RIDER_NEEDED'
-            | 'READY_FOR_PICKUP' ''',
-          'rider needed status'),
-          (
-          '''  | 'AWAITING_SETTLEMENT'
-            | 'COMPLETED' ''',
-          '''  | 'AWAITING_SETTLEMENT'
-            | 'INTERRUPTED'
-            | 'RECOVERY_REQUIRED'
-            | 'COMPLETED' ''',
-          'recovery statuses'),
-          (
-          '''  routeCode: string;
-            serviceDate: string;''',
-          '''  routeCode: string;
-            deliveryZoneId?: string | null;
-            deliveryZone?: {
-              id: string;
-              code: string;
-              name: string;
-              maximumStopsPerRun?: number;
-              cashRiskLimitPaise?: number;
-            } | null;
-            planningAlgorithmVersion?: string;
-            estimatedDistanceKm: number;
-            estimatedDurationMinutes: number;
-            assignmentReasonSummary?: string | null;
-            assignmentSource?: 'AUTOMATIC' | 'MANUAL' | 'RECOVERY' | null;
-            recoveryFromRunId?: string | null;
-            serviceDate: string;''',
-          'run regional fields'),
-          (
-          '''  subscriptionDeliveryId: string;
-            sequenceNumber: number;''',
-          '''  subscriptionDeliveryId: string;
-            deliveryZoneId?: string | null;
-            deliveryLatitude?: number | null;
-            deliveryLongitude?: number | null;
-            movedFromRunId?: string | null;
-            lastMovedAt?: string | null;
-            sequenceNumber: number;''',
-          'stop regional fields'),
-          ])
-
-          patch('apps/mobile-partners/src/screens/rider/RiderRunsScreen.tsx', [
-          (
-          '''  if (status === 'AWAITING_SETTLEMENT') return { text: '#8A4B00', bg: '#FFF2D9' };
-            if (status === 'COMPLETED')''',
-          '''  if (status === 'AWAITING_SETTLEMENT') return { text: '#8A4B00', bg: '#FFF2D9' };
-            if (['RIDER_NEEDED', 'INTERRUPTED', 'RECOVERY_REQUIRED'].includes(status)) return { text: '#9A3412', bg: '#FFEDD5' };
-            if (status === 'COMPLETED')''',
-          'regional risk tone'),
-          (
-          '''          <Text style={styles.routeCode}>{run.routeCode}</Text>
-                    <Text style={styles.storeName} numberOfLines={1}>{run.store?.name || 'Assigned store'}</Text>''',
-          '''          <Text style={styles.routeCode}>{run.routeCode}</Text>
-                    <Text style={styles.zoneName} numberOfLines={1}>{run.deliveryZone?.name || 'Assigned region'}</Text>
-                    <Text style={styles.storeName} numberOfLines={1}>{run.store?.name || 'Assigned store'}</Text>''',
-          'rider route zone label'),
-          (
-          '''      <View style={styles.metricRow}>
-                <View style={styles.metric}><PackageCheck size={18} color="#087B5A" /><Text style={styles.metricValue}>{completed}/{total}</Text><Text style={styles.metricLabel}>stops</Text></View>
-                <View style={styles.metric}><Banknote size={18} color="#A15C00" /><Text style={styles.metricValue}>{money(run.collectedCashPaise)}</Text><Text style={styles.metricLabel}>collected</Text></View>
-                <View style={styles.openAction}><Text style={styles.openActionText}>{run.status === 'IN_PROGRESS' ? 'Resume' : 'Open'}</Text><ChevronRight size={18} color="#FFFFFF" /></View>
-              </View>''',
-          '''      <View style={styles.metricRow}>
-                <View style={styles.metric}><PackageCheck size={18} color="#087B5A" /><Text style={styles.metricValue}>{completed}/{total}</Text><Text style={styles.metricLabel}>stops</Text></View>
-                <View style={styles.metric}><MapPinned size={18} color="#155E75" /><Text style={styles.metricValue}>{Number(run.estimatedDistanceKm || 0).toFixed(1)}</Text><Text style={styles.metricLabel}>km</Text></View>
-                <View style={styles.metric}><CalendarDays size={18} color="#475569" /><Text style={styles.metricValue}>{run.estimatedDurationMinutes || 0}</Text><Text style={styles.metricLabel}>min</Text></View>
-                <View style={styles.metric}><Banknote size={18} color="#A15C00" /><Text style={styles.metricValue}>{money(run.expectedCashPaise)}</Text><Text style={styles.metricLabel}>cash</Text></View>
-                <View style={styles.openAction}><Text style={styles.openActionText}>{run.status === 'IN_PROGRESS' ? 'Resume' : 'Open'}</Text><ChevronRight size={18} color="#FFFFFF" /></View>
-              </View>''',
-          'rider route responsibility metrics'),
-          (
-          '''  routeCode: { color: '#17211D', fontSize: 16, fontWeight: '900' },
-            storeName:''',
-          '''  routeCode: { color: '#17211D', fontSize: 16, fontWeight: '900' },
-            zoneName: { color: '#087B5A', fontSize: 11, fontWeight: '900', marginTop: 2 },
-            storeName:''',
-          'rider zone style'),
-          (
-          '''  metric: { flexDirection: 'row', alignItems: 'center', gap: 4 },''',
-          '''  metric: { flexDirection: 'row', alignItems: 'center', gap: 3 },''',
-          'compact rider metric gap'),
-          ])
-
-          patch('apps/mobile-partners/src/screens/rider/RiderRunDetailScreen.tsx', [
-          (
-          '''<Text style={styles.heroEyebrow}>ROUTE {run.routeCode}</Text><Text style={styles.heroTitle}>{run.store.name}</Text>''',
-          '''<Text style={styles.heroEyebrow}>{run.deliveryZone?.name ? `${run.deliveryZone.name.toUpperCase()} · ` : ''}ROUTE {run.routeCode}</Text><Text style={styles.heroTitle}>{run.store.name}</Text>''',
-          'rider detail zone heading'),
-          (
-          '''          <View style={styles.routeStats}>
-                <View style={styles.routeStat}><Text style={styles.routeStatValue}>{run.stops.filter((stop) => ['READY', 'PLANNED', 'ARRIVED', 'RETRY_PENDING'].includes(stop.status)).length}</Text><Text style={styles.routeStatLabel}>remaining</Text></View>
-                <View style={styles.routeStatDivider} />
-                <View style={styles.routeStat}><Text style={styles.routeStatValue}>{run.retryPendingStopCount}</Text><Text style={styles.routeStatLabel}>retry</Text></View>
-                <View style={styles.routeStatDivider} />
-                <View style={styles.routeStat}><Text style={styles.routeStatValue}>{money(Math.max(0, run.collectedCashPaise - run.depositedCashPaise))}</Text><Text style={styles.routeStatLabel}>cash held</Text></View>
-              </View>''',
-          '''          <View style={styles.routeStats}>
-                <View style={styles.routeStat}><Text style={styles.routeStatValue}>{run.stops.filter((stop) => ['READY', 'PLANNED', 'ARRIVED', 'RETRY_PENDING'].includes(stop.status)).length}</Text><Text style={styles.routeStatLabel}>remaining</Text></View>
-                <View style={styles.routeStatDivider} />
-                <View style={styles.routeStat}><Text style={styles.routeStatValue}>{Number(run.estimatedDistanceKm || 0).toFixed(1)} km</Text><Text style={styles.routeStatLabel}>distance</Text></View>
-                <View style={styles.routeStatDivider} />
-                <View style={styles.routeStat}><Text style={styles.routeStatValue}>{run.estimatedDurationMinutes || 0} min</Text><Text style={styles.routeStatLabel}>estimate</Text></View>
-                <View style={styles.routeStatDivider} />
-                <View style={styles.routeStat}><Text style={styles.routeStatValue}>{money(run.expectedCashPaise)}</Text><Text style={styles.routeStatLabel}>responsibility</Text></View>
-              </View>''',
-          'rider detail regional metrics'),
-          ])
-
-          patch('apps/mobile-partners/src/screens/store/StoreSubscriptionOperationsScreen.tsx', [
-          (
-          '''  const warning = ['AWAITING_SETTLEMENT', 'RETURNING'].includes(value);''',
-          '''  const warning = ['AWAITING_SETTLEMENT', 'RETURNING', 'RIDER_NEEDED', 'INTERRUPTED', 'RECOVERY_REQUIRED'].includes(value);''',
-          'store regional risk states'),
-          (
-          '''<View style={styles.runCopy}><Text style={styles.runCode}>{run.routeCode}</Text><Text style={styles.runRider}>{run.rider?.user?.name ? `Rider: ${run.rider.user.name}` : 'Rider not assigned'}</Text></View>''',
-          '''<View style={styles.runCopy}><Text style={styles.runCode}>{run.routeCode}</Text><Text style={styles.runZone}>{run.deliveryZone?.name || 'Assigned region'} · {Number(run.estimatedDistanceKm || 0).toFixed(1)} km · {run.estimatedDurationMinutes || 0} min</Text><Text style={styles.runRider}>{run.rider?.user?.name ? `Rider: ${run.rider.user.name}` : 'Rider not assigned'}</Text></View>''',
-          'store regional route summary'),
-          (
-          '''runCode: { color: '#17211D', fontSize: 16, fontWeight: '900' }, runRider:''',
-          '''runCode: { color: '#17211D', fontSize: 16, fontWeight: '900' }, runZone: { color: '#087B5A', fontSize: 10, fontWeight: '800', marginTop: 2 }, runRider:''',
-          'store region style'),
-          ])
+          replace_once(
+              'apps/admin-dashboard/src/app/(admin)/admin/route-planning/page.tsx',
+              "const all = [...points, ...polygons.flatMap((item) => item.points.map((point, index) => ({ ...point, id: `${item.zone.id}-${index}`, kind: 'stop' as const, label: item.zone.name }))];",
+              "const all = [...points, ...polygons.flatMap((item) => item.points.map((point, index) => ({ ...point, id: `${item.zone.id}-${index}`, kind: 'stop' as const, label: item.zone.name })))];",
+              'regional map parser fix',
+          )
+          replace_once(
+              'apps/admin-dashboard/src/components/Sidebar.tsx',
+              '    { name: "Subscriptions", href: "/admin/subscriptions", icon: CalendarDays },\n    { name: "Riders", href: "/admin/riders", icon: Truck },',
+              '    { name: "Subscriptions", href: "/admin/subscriptions", icon: CalendarDays },\n    { name: "Route Planning", href: "/admin/route-planning", icon: Route },\n    { name: "Riders", href: "/admin/riders", icon: Truck },',
+              'admin route-planning navigation',
+          )
+          replace_once(
+              'apps/admin-dashboard/e2e/responsive-role-navigation.spec.ts',
+              "      { name: 'Subscriptions', href: '/admin/subscriptions' },\n      { name: 'Notifications', href: '/admin/notifications' },",
+              "      { name: 'Subscriptions', href: '/admin/subscriptions' },\n      { name: 'Route Planning', href: '/admin/route-planning' },\n      { name: 'Notifications', href: '/admin/notifications' },",
+              'responsive admin route case',
+          )
+          replace_once(
+              'apps/admin-dashboard/e2e/responsive-role-navigation.spec.ts',
+              "    await expect(desktopNavigation.locator('a')).toHaveCount(15);\n    await expect(desktopNavigation.locator('a[href=\"/admin/subscriptions\"]')).toBeVisible();",
+              "    await expect(desktopNavigation.locator('a')).toHaveCount(16);\n    await expect(desktopNavigation.locator('a[href=\"/admin/subscriptions\"]')).toBeVisible();\n    await expect(desktopNavigation.locator('a[href=\"/admin/route-planning\"]')).toBeVisible();",
+              'responsive admin desktop count',
+          )
           PY
           rm .github/workflows/regional-routing-surface-patch.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/admin-dashboard/src/components/Sidebar.tsx \
+          git add apps/admin-dashboard/src/app/'(admin)'/admin/route-planning/page.tsx \
+            apps/admin-dashboard/src/components/Sidebar.tsx \
             apps/admin-dashboard/e2e/responsive-role-navigation.spec.ts \
-            apps/api-gateway/src/subscriptions/delivery-run-operations.service.ts \
-            apps/api-gateway/src/subscriptions/delivery-run-planning.service.ts \
-            apps/mobile-partners/src/api/subscriptionOperationsService.ts \
-            apps/mobile-partners/src/screens/rider/RiderRunsScreen.tsx \
-            apps/mobile-partners/src/screens/rider/RiderRunDetailScreen.tsx \
-            apps/mobile-partners/src/screens/store/StoreSubscriptionOperationsScreen.tsx \
             .github/workflows/regional-routing-surface-patch.yml
-          git commit -m "feat(routing): expose regional context across web and Partners"
+          git commit -m "fix(routing): correct map parser and expose admin route planning"
           git push origin HEAD:feature/regional-multi-rider-route-splitting
