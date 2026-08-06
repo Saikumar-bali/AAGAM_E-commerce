@@ -15,7 +15,7 @@ test('customer sees truthful subscription funding, progress and plan discovery',
   await page.screenshot({ path: `${screenshots}/01-customer-subscriptions.png`, fullPage: true });
 
   await page.goto('/shop/subscriptions/qa-customer-subscription-milk-7');
-  await expect(page.getByText(/Subscription already funded · Customer amount due ₹0/i)).toBeVisible();
+  await expect(page.getByText(/Cash due ₹490(?:\.00)?/i)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Delivery calendar & history' })).toBeVisible();
   await page.screenshot({ path: `${screenshots}/02-customer-subscription-detail.png`, fullPage: true });
 });
