@@ -156,7 +156,10 @@ export class RegionalRoutingEventsController {
   constructor(private readonly operations: RegionalRouteOperationsService) {}
 
   @Get()
-  list(@Query('after') after?: string) {
-    return this.operations.events(after);
+  list(
+    @Query('after') after: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.operations.events(after, request.user);
   }
 }
