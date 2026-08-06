@@ -17,6 +17,7 @@ import {
   DispatchAssignmentStatus,
 } from "@aagam/types";
 import { DeliveryEventService } from "./delivery-event.service";
+import { isOneOf } from "../common/enum-membership";
 
 type DbClient = typeof prisma | any;
 type Actor = { id: string; role: Role };
@@ -208,6 +209,62 @@ export class DeliveryJobService {
           where: { orderId },
           include: jobInclude,
         });
+      }
+      throw error;
+    }
+  }
+
+
+  async ensureForSubscriptionOrder(
+    orderId: string,
+    actor: Actor,
+    tx: DbClient = prisma
+  ) {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      include: { store: { select: { ownerId: true } }, payment: true },
+    });
+    if (!order) throw new NotFoundException("Order not found");
+    if (order.orderSource !== "SUBSCRIPTION") {
+      throw new ForbiddenException("This delivery-job path is reserved for subscription orders");
+    }
+    if (actor.role === Role.STORE_OWNER && order.store.ownerId !== actor.id) {
+      throw new ForbiddenException("Not allowed to create a delivery job for this store");
+    }
+    if (!isOneOf(order.status, [OrderStatus.CONFIRMED, OrderStatus.PACKED, OrderStatus.RIDER_ASSIGNED])) {
+      throw new ForbiddenException(`Subscription delivery job cannot be created from ${order.status}`);
+    }
+
+    const existing = await tx.deliveryJob.findUnique({ where: { orderId }, include: jobInclude });
+    if (existing) {
+      await this.ensureCodLedger(existing, actor, tx);
+      return tx.deliveryJob.findUnique({ where: { id: existing.id }, include: jobInclude });
+    }
+    try {
+      const created = await tx.deliveryJob.create({
+        data: {
+          orderId,
+          status: DeliveryJobStatus.WAITING_FOR_DISPATCH,
+          currentRiderId: order.riderId || null,
+        },
+        include: jobInclude,
+      });
+      await this.ensureCodLedger(created, actor, tx);
+      await this.events.record({
+        deliveryJobId: created.id,
+        eventType: DeliveryEventType.JOB_CREATED,
+        toStatus: created.status,
+        actor,
+        metadata: {
+          orderId,
+          source: "SUBSCRIPTION_ORDER_GENERATOR",
+          legacyOrderStatus: order.status,
+        },
+      }, tx);
+      return tx.deliveryJob.findUnique({ where: { id: created.id }, include: jobInclude });
+    } catch (error: any) {
+      if (error?.code === "P2002") {
+        return tx.deliveryJob.findUnique({ where: { orderId }, include: jobInclude });
       }
       throw error;
     }

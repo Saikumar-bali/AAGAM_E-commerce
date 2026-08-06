@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import type { CustomerStackParamList } from './customerNavigationTypes';
 import {
   House,
   Grid2X2,
@@ -20,12 +21,16 @@ import { CustomerProfileScreen } from '../screens/customer/CustomerProfileScreen
 import { CustomerSupportScreen } from '../screens/customer/CustomerSupportScreen';
 import { DealsScreen } from '../screens/customer/DealsScreen';
 import { SavedAddressesScreen } from '../screens/customer/SavedAddressesScreen';
+import { SubscriptionPlansScreen } from '../screens/customer/SubscriptionPlansScreen';
+import { SubscriptionReviewScreen } from '../screens/customer/SubscriptionReviewScreen';
+import { MySubscriptionsScreen } from '../screens/customer/MySubscriptionsScreen';
+import { SubscriptionDetailScreen } from '../screens/customer/SubscriptionDetailScreen';
 import { useCartStore } from '../store/cartStore';
 import { getCartItemCount } from '../utils/customerCommerce';
 import { CustomerBottomNav, CustomerScreenWithNav } from '../components/CustomerBottomNav';
 
 const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<CustomerStackParamList>();
 
 const CustomerTabs = () => {
   const cartItemsCount = useCartStore((state) => getCartItemCount(state.items));
@@ -140,6 +145,26 @@ export const CustomerNavigator = () => {
       <Stack.Screen
         name="SavedAddresses"
         component={withBottomNav(SavedAddressesScreen, 'Profile')}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="SubscriptionPlans"
+        component={withBottomNav(SubscriptionPlansScreen, 'Home')}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="SubscriptionReview"
+        component={SubscriptionReviewScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="MySubscriptions"
+        component={withBottomNav(MySubscriptionsScreen, 'Profile')}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="SubscriptionDetail"
+        component={withBottomNav(SubscriptionDetailScreen, 'Profile')}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

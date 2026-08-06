@@ -14,7 +14,8 @@ import type { PromotionPlacements } from '@/components/customer/promotion-types'
 import ProductCard from '@/components/customer/ProductCard';
 import CartSheet from '@/components/customer/CartSheet';
 import EmptyState from '@/components/customer/EmptyState';
-import { Package, SlidersHorizontal, ArrowRight } from 'lucide-react';
+import { Package, SlidersHorizontal, ArrowRight, CalendarDays } from 'lucide-react';
+import SubscriptionPlanCard from '@/components/subscriptions/SubscriptionPlanCard';
 
 const emptyPlacements = (): PromotionPlacements => ({
   HOME_HERO: [],
@@ -57,6 +58,7 @@ export default function ShopPage() {
   const [sort, setSort] = useState('newest');
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [promotions, setPromotions] = useState<PromotionPlacements>(emptyPlacements);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
   const { cart, addToCart, updateQuantity, removeFromCart, totalPrice, totalItems } = useCart();
   const wishlist = useWishlist();
   const router = useRouter();
@@ -70,6 +72,13 @@ export default function ShopPage() {
       .catch((error) => {
         setPromotions(emptyPlacements());
         console.error('Failed to load active promotions', error);
+      });
+    apiClient
+      .get('/subscriptions/plans')
+      .then((response) => setSubscriptionPlans(Array.isArray(response.data) ? response.data : []))
+      .catch((error) => {
+        setSubscriptionPlans([]);
+        console.error('Failed to load subscription plans', error);
       });
   }, []);
 
@@ -137,6 +146,7 @@ export default function ShopPage() {
     { label: 'Reorder', icon: '🔄', href: '/shop/reorder' },
     { label: 'Wishlist', icon: '❤️', href: '/shop/wishlist', count: wishlist.count },
     { label: 'Orders', icon: '📦', href: '/shop/orders' },
+    { label: 'Subscriptions', icon: '📅', href: '/shop/subscriptions' },
     { label: 'Addresses', icon: '📍', href: '/shop/addresses' },
   ];
 
@@ -200,6 +210,16 @@ export default function ShopPage() {
               ))}
             </div>
           </section>
+
+          {subscriptionPlans.length > 0 && (
+            <section className="rounded-[28px] border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 sm:p-6">
+              <div className="mb-5 flex items-end justify-between gap-3">
+                <div><p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700"><CalendarDays className="h-4 w-4" /> Subscribe & Save</p><h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Essentials on your schedule</h2><p className="mt-1 text-sm text-slate-600">Verified first or weekly cash funding. Funded deliveries are ₹0 due.</p></div>
+                <button onClick={() => router.push('/shop/subscriptions')} className="hidden min-h-11 items-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-black text-white sm:flex">View all <ArrowRight className="h-4 w-4" /></button>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-3">{subscriptionPlans.slice(0, 3).map((plan) => <SubscriptionPlanCard key={plan.id} plan={plan} compact />)}</div>
+            </section>
+          )}
 
           <section>
             <div className="mb-3 flex items-center gap-2">

@@ -21,6 +21,7 @@ import { TrackingModule } from './tracking/tracking.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { PartnerOnboardingModule } from './partner-onboarding/partner-onboarding.module';
 import { GlobalSearchModule } from './search/search.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { GlobalSearchModule } from './search/search.module';
     AnalyticsModule,
     PartnerOnboardingModule,
     GlobalSearchModule,
+    SubscriptionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

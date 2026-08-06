@@ -29,6 +29,7 @@ import {
   timingSafeEqual,
 } from "crypto";
 import { OutboxService } from "../notifications/outbox.service";
+import { calculateDistance } from "@aagam/utils";
 import {
   CollectCodDto,
   CompleteDeliveryOperationDto,
@@ -51,6 +52,7 @@ import {
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 type Actor = { id: string; role: Role };
+type DeliveryCommitHook = (tx: Prisma.TransactionClient) => Promise<void>;
 
 type DeliveryOperationType =
   | "OTP_ISSUED"
@@ -313,6 +315,7 @@ export class DeliveryOperationsService {
             store: { select: { id: true, name: true, ownerId: true } },
             payment: true,
             items: { include: { product: true } },
+            subscription: { select: { id: true, deliveryMethod: true, dropPointTokenHash: true } },
           },
         },
         pickupProof: true,
@@ -502,6 +505,7 @@ export class DeliveryOperationsService {
             store: { select: { id: true, name: true, ownerId: true } },
             payment: true,
             items: { include: { product: true } },
+            subscription: { select: { id: true, deliveryMethod: true, dropPointTokenHash: true } },
           },
         },
       },
@@ -602,7 +606,7 @@ export class DeliveryOperationsService {
           parcelCount: input.parcelCount,
         };
       },
-      { isolationLevel: "Serializable" as any }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
   }
 
@@ -779,7 +783,7 @@ export class DeliveryOperationsService {
         });
         return { proof };
       },
-      { isolationLevel: "Serializable" as any }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
     if ("error" in outcome && outcome.error) {
       if (outcome.error.attempts >= PICKUP_MAX_ATTEMPTS) {
@@ -823,7 +827,7 @@ export class DeliveryOperationsService {
           accuracyMetres: input.accuracyMetres,
         });
       },
-      { isolationLevel: "Serializable" as any }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
   }
 
@@ -898,7 +902,7 @@ export class DeliveryOperationsService {
         );
         return { operation, expiresAt };
       },
-      { isolationLevel: "Serializable" as any }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
 
     return {
@@ -1038,18 +1042,37 @@ export class DeliveryOperationsService {
     return { ok: true, operation: verified };
   }
 
+  private async completeActiveFailureDecisions(
+    tx: Prisma.TransactionClient,
+    deliveryJobId: string,
+    actor: Actor
+  ) {
+    await tx.deliveryFailureDecision.updateMany({
+      where: { deliveryJobId, status: DeliveryResolutionStatus.IN_PROGRESS },
+      data: {
+        status: DeliveryResolutionStatus.COMPLETED,
+        appliedByUserId: actor.id,
+        appliedAt: new Date(),
+      },
+    });
+  }
+
   async completeDelivery(
     deliveryJobId: string,
     actor: Actor,
     input: CompleteDeliveryOperationDto,
-    idempotencyKey?: string
+    idempotencyKey?: string,
+    afterDelivery?: DeliveryCommitHook
   ) {
     const outcome = await prisma.$transaction(
       async (tx) => {
         await this.lock(tx, `delivery-complete:${deliveryJobId}`);
         const job = await this.job(tx, deliveryJobId);
         this.assertRiderOrAdmin(job, actor);
-        if (job.status === DeliveryJobStatus.DELIVERED) return { job };
+        if (job.status === DeliveryJobStatus.DELIVERED) {
+          if (afterDelivery) await afterDelivery(tx);
+          return { job };
+        }
         if (job.status !== DeliveryJobStatus.RIDER_AT_CUSTOMER) {
           throw new BadRequestException(
             "Rider must arrive at the customer before completing delivery"
@@ -1091,13 +1114,16 @@ export class DeliveryOperationsService {
         if (!job.currentRiderId)
           throw new BadRequestException("Delivery has no assigned Rider");
         const riderConfirmedAt = new Date();
+        const verificationMethod = input.proofType === "SECURITY_RECEPTION"
+          ? "SECURITY_RECEPTION"
+          : "CUSTOMER_OTP_PIN";
         const proof = await tx.deliveryProof.create({
           data: {
             deliveryJobId,
             orderId: job.orderId,
             riderId: job.currentRiderId,
             customerUserId: job.order.customerId,
-            verificationMethod: "CUSTOMER_OTP_PIN",
+            verificationMethod,
             otpOperationId: verified.operation.id,
             riderConfirmedAt,
             verifiedAt: riderConfirmedAt,
@@ -1117,7 +1143,7 @@ export class DeliveryOperationsService {
             deliveryProofId: proof.id,
             riderId: job.currentRiderId,
             customerUserId: job.order.customerId,
-            verificationMethod: "CUSTOMER_OTP_PIN",
+            verificationMethod,
             otpOperationId: verified.operation.id,
             riderConfirmedAt: riderConfirmedAt.toISOString(),
             verifiedAt: riderConfirmedAt.toISOString(),
@@ -1137,16 +1163,18 @@ export class DeliveryOperationsService {
             expectedStatus: DeliveryJobStatus.RIDER_AT_CUSTOMER,
             metadata: {
               phase5DeliveryProofId: proof.id,
-              proofType: "CUSTOMER_OTP_PIN",
+              proofType: verificationMethod,
               riderConfirmed: true,
               coordinatesRecorded: input.latitude != null,
               completionIdempotencyKey: idempotencyKey || null,
             },
           }
         );
+        await this.completeActiveFailureDecisions(tx, deliveryJobId, actor);
+        if (afterDelivery) await afterDelivery(tx);
         return { job: delivered };
       },
-      { isolationLevel: "Serializable" as any }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
 
     if ("otpError" in outcome && outcome.otpError) {
@@ -1159,6 +1187,342 @@ export class DeliveryOperationsService {
       throw new BadRequestException(outcome.otpError.reason);
     }
     return outcome.job;
+  }
+
+  async completeCodDelivery(
+    deliveryJobId: string,
+    actor: Actor,
+    input: CompleteDeliveryOperationDto,
+    codInput: CollectCodDto,
+    idempotencyKey?: string,
+    afterDelivery?: DeliveryCommitHook
+  ) {
+    const outcome = await prisma.$transaction(
+      async (tx) => {
+        await this.lock(tx, `delivery-complete:${deliveryJobId}`);
+        await this.lock(tx, `cod-collection:${deliveryJobId}`);
+        const job = await this.job(tx, deliveryJobId);
+        this.assertRiderOrAdmin(job, actor);
+        if (job.status === DeliveryJobStatus.DELIVERED) {
+          if (afterDelivery) await afterDelivery(tx);
+          return { job };
+        }
+        if (job.status !== DeliveryJobStatus.RIDER_AT_CUSTOMER) {
+          throw new BadRequestException(
+            "Rider must arrive at the customer before completing delivery"
+          );
+        }
+        if (input.riderConfirmed !== true) {
+          throw new BadRequestException("Rider confirmation is required");
+        }
+        if (!input.otpCode) {
+          throw new BadRequestException("Customer delivery OTP/PIN is required");
+        }
+        this.assertCoordinates(input.latitude, input.longitude);
+        const verified = await this.verifyOtpWithinTransaction(
+          tx,
+          job,
+          actor,
+          input.otpCode
+        );
+        if (!verified.ok) return { otpError: verified };
+
+        const payment = job.order.payment;
+        if (!payment || payment.method !== PaymentMethod.COD) {
+          throw new BadRequestException("This order is not a COD order");
+        }
+        if (codInput.amountPaise !== payment.amountPaise) {
+          throw new BadRequestException(
+            `COD amount must equal ${payment.amountPaise} paise`
+          );
+        }
+        if (
+          payment.status !== PaymentStatus.PENDING_COD &&
+          payment.status !== PaymentStatus.CAPTURED
+        ) {
+          throw new BadRequestException(
+            `COD payment cannot be collected from status ${payment.status}`
+          );
+        }
+
+        const collectionKey = `cod:${idempotencyKey || deliveryJobId}`;
+        let ledger = await this.ensureCodLedger(tx, job, actor);
+        if (ledger.collectedAmountPaise === 0) {
+          if (payment.status !== PaymentStatus.CAPTURED) {
+            const changed = await tx.payment.updateMany({
+              where: { id: payment.id, status: PaymentStatus.PENDING_COD },
+              data: { status: PaymentStatus.CAPTURED, verifiedAt: new Date() },
+            });
+            if (changed.count !== 1) {
+              throw new ConflictException("COD payment changed during collection");
+            }
+          }
+          const collectedAt = new Date();
+          ledger = await tx.codLedger.update({
+            where: { id: ledger.id },
+            data: {
+              riderId: job.currentRiderId,
+              collectedAmountPaise: codInput.amountPaise,
+              collectionTimestamp: collectedAt,
+              riderHoldingBalancePaise: codInput.amountPaise,
+              variancePaise: 0,
+              status: CodSettlementStatus.HELD_BY_RIDER,
+            },
+            include: { entries: { orderBy: { createdAt: "asc" } } },
+          });
+          await tx.codLedgerEntry.create({
+            data: {
+              codLedgerId: ledger.id,
+              type: CodLedgerEntryType.COLLECTED,
+              amountPaise: codInput.amountPaise,
+              holdingAfterPaise: codInput.amountPaise,
+              depositedAfterPaise: 0,
+              actorUserId: actor.id,
+              actorRole: actor.role,
+              reference: codInput.collectionReference,
+              idempotencyKey: `cod-ledger-collection:${collectionKey}`,
+              metadata: {
+                collectedAt: collectedAt.toISOString(),
+                paymentId: payment.id,
+              },
+            },
+          });
+          const operation = await this.createOperation(tx, {
+            deliveryJobId,
+            orderId: job.orderId,
+            type: "COD_COLLECTED",
+            actor,
+            idempotencyKey: collectionKey,
+            details: {
+              amountPaise: codInput.amountPaise,
+              codLedgerId: ledger.id,
+              currency: payment.currency,
+              collectionReference: codInput.collectionReference || null,
+              collectedAt: collectedAt.toISOString(),
+              riderHoldingBalancePaise: ledger.riderHoldingBalancePaise,
+            },
+          });
+          await this.notify(
+            tx,
+            job,
+            actor,
+            "DELIVERY_COMPLETED",
+            "COD payment collected",
+            `₹${(codInput.amountPaise / 100).toFixed(2)} was collected for order #${job.orderId
+              .slice(-8)
+              .toUpperCase()}.`,
+            operation,
+            { amountPaise: codInput.amountPaise }
+          );
+        } else if (
+          ledger.collectedAmountPaise !== codInput.amountPaise ||
+          payment.status !== PaymentStatus.CAPTURED
+        ) {
+          throw new ConflictException("Existing COD ledger does not match the expected collection");
+        }
+
+        if (!job.currentRiderId) {
+          throw new BadRequestException("Delivery has no assigned Rider");
+        }
+        const riderConfirmedAt = new Date();
+        const verificationMethod = input.proofType === "SECURITY_RECEPTION"
+          ? "SECURITY_RECEPTION"
+          : "CUSTOMER_OTP_PIN";
+        const proof = await tx.deliveryProof.create({
+          data: {
+            deliveryJobId,
+            orderId: job.orderId,
+            riderId: job.currentRiderId,
+            customerUserId: job.order.customerId,
+            verificationMethod,
+            otpOperationId: verified.operation.id,
+            riderConfirmedAt,
+            verifiedAt: riderConfirmedAt,
+            note: input.note,
+            latitude: input.latitude,
+            longitude: input.longitude,
+            accuracyMetres: input.accuracyMetres,
+          },
+        });
+        await this.createOperation(tx, {
+          deliveryJobId,
+          orderId: job.orderId,
+          type: "DELIVERY_PROOF_RECORDED",
+          actor,
+          idempotencyKey: `delivery-proof:${deliveryJobId}`,
+          details: {
+            deliveryProofId: proof.id,
+            riderId: job.currentRiderId,
+            customerUserId: job.order.customerId,
+            verificationMethod,
+            otpOperationId: verified.operation.id,
+            riderConfirmedAt: riderConfirmedAt.toISOString(),
+            verifiedAt: riderConfirmedAt.toISOString(),
+            note: input.note || null,
+            latitude: input.latitude ?? null,
+            longitude: input.longitude ?? null,
+            accuracyMetres: input.accuracyMetres ?? null,
+          },
+        });
+        const delivered = await this.workflow.transitionWithinTransaction(
+          tx,
+          deliveryJobId,
+          DeliveryJobStatus.DELIVERED,
+          actor,
+          {
+            expectedStatus: DeliveryJobStatus.RIDER_AT_CUSTOMER,
+            metadata: {
+              phase5DeliveryProofId: proof.id,
+              proofType: verificationMethod,
+              riderConfirmed: true,
+              coordinatesRecorded: input.latitude != null,
+              completionIdempotencyKey: idempotencyKey || null,
+              cashCollectedAtomically: true,
+            },
+          }
+        );
+        await this.completeActiveFailureDecisions(tx, deliveryJobId, actor);
+        if (afterDelivery) await afterDelivery(tx);
+        return { job: delivered };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+
+    if ("otpError" in outcome && outcome.otpError) {
+      if (outcome.otpError.attempts >= OTP_MAX_ATTEMPTS) {
+        throw new HttpException(outcome.otpError.reason, HttpStatus.TOO_MANY_REQUESTS);
+      }
+      throw new BadRequestException(outcome.otpError.reason);
+    }
+    return outcome.job;
+  }
+
+  async completeTrustedDrop(
+    deliveryJobId: string,
+    actor: Actor,
+    input: {
+      riderConfirmed: boolean;
+      dropPointToken: string;
+      proofReference: string;
+      note?: string;
+      latitude: number;
+      longitude: number;
+      accuracyMetres?: number;
+    },
+    idempotencyKey?: string,
+    afterDelivery?: DeliveryCommitHook
+  ) {
+    return prisma.$transaction(
+      async (tx) => {
+        await this.lock(tx, `trusted-drop:${deliveryJobId}`);
+        const job = await this.job(tx, deliveryJobId);
+        this.assertRiderOrAdmin(job, actor);
+        if (job.status === DeliveryJobStatus.DELIVERED) {
+          if (afterDelivery) await afterDelivery(tx);
+          return job;
+        }
+        if (job.status !== DeliveryJobStatus.RIDER_AT_CUSTOMER) {
+          throw new BadRequestException("Rider must arrive at the customer before trusted drop");
+        }
+        if (input.riderConfirmed !== true) throw new BadRequestException("Rider confirmation is required");
+        if (!input.proofReference?.trim()) throw new BadRequestException("Trusted drop photo/proof reference is required");
+        if (!input.dropPointToken?.trim()) throw new BadRequestException("Secure drop-point token is required");
+        this.assertCoordinates(input.latitude, input.longitude);
+        const subscription = job.order.subscription;
+        if (!subscription || subscription.deliveryMethod !== "TRUSTED_DROP" || !subscription.dropPointTokenHash) {
+          throw new ForbiddenException("This order is not authorized for trusted drop");
+        }
+        if (job.order.payment?.method === PaymentMethod.COD) {
+          throw new BadRequestException("Cash collection deliveries require customer OTP handover");
+        }
+        const supplied = createHash("sha256").update(input.dropPointToken.trim()).digest("hex");
+        const expected = String(subscription.dropPointTokenHash);
+        if (supplied.length !== expected.length || !timingSafeEqual(Buffer.from(supplied, "hex"), Buffer.from(expected, "hex"))) {
+          throw new ForbiddenException("Secure drop-point token is invalid");
+        }
+        if (job.order.deliveryLat == null || job.order.deliveryLng == null) {
+          throw new BadRequestException("Delivery coordinates are unavailable");
+        }
+        const distanceMetres = calculateDistance(
+          input.latitude,
+          input.longitude,
+          job.order.deliveryLat,
+          job.order.deliveryLng
+        ) * 1000;
+        const allowedMetres = Math.max(25, Math.min(500, Number(process.env.SUBSCRIPTION_TRUSTED_DROP_GEOFENCE_METRES || 150)));
+        if (distanceMetres > allowedMetres) {
+          throw new BadRequestException(`Trusted drop is outside the ${allowedMetres} metre geofence`);
+        }
+        if (!job.currentRiderId) throw new BadRequestException("Delivery has no assigned Rider");
+        const key = idempotencyKey || `trusted-drop:${deliveryJobId}`;
+        const existing = await this.findOperationByKey(tx, key);
+        if (existing) return this.job(tx, deliveryJobId);
+        const completedAt = new Date();
+        const proof = await tx.deliveryProof.create({
+          data: {
+            deliveryJobId,
+            orderId: job.orderId,
+            riderId: job.currentRiderId,
+            customerUserId: job.order.customerId,
+            verificationMethod: "TRUSTED_DROP",
+            otpOperationId: null,
+            proofReference: input.proofReference.trim(),
+            riderConfirmedAt: completedAt,
+            verifiedAt: completedAt,
+            note: input.note,
+            latitude: input.latitude,
+            longitude: input.longitude,
+            accuracyMetres: input.accuracyMetres,
+          },
+        });
+        const operation = await this.createOperation(tx, {
+          deliveryJobId,
+          orderId: job.orderId,
+          type: "DELIVERY_PROOF_RECORDED",
+          actor,
+          idempotencyKey: key,
+          details: {
+            deliveryProofId: proof.id,
+            verificationMethod: "TRUSTED_DROP",
+            proofReference: input.proofReference.trim(),
+            latitude: input.latitude,
+            longitude: input.longitude,
+            accuracyMetres: input.accuracyMetres ?? null,
+            distanceMetres,
+            geofenceMetres: allowedMetres,
+          },
+        });
+        const delivered = await this.workflow.transitionWithinTransaction(
+          tx,
+          deliveryJobId,
+          DeliveryJobStatus.DELIVERED,
+          actor,
+          {
+            expectedStatus: DeliveryJobStatus.RIDER_AT_CUSTOMER,
+            metadata: {
+              deliveryProofId: proof.id,
+              proofType: "TRUSTED_DROP",
+              proofReference: input.proofReference.trim(),
+              completionIdempotencyKey: key,
+            },
+          }
+        );
+        await this.notify(
+          tx,
+          job,
+          actor,
+          "DELIVERY_COMPLETED",
+          "Subscription delivered",
+          "Your funded subscription delivery was placed at the trusted drop point.",
+          operation,
+          { proofType: "TRUSTED_DROP" }
+        );
+        await this.completeActiveFailureDecisions(tx, deliveryJobId, actor);
+        if (afterDelivery) await afterDelivery(tx);
+        return delivered;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
   }
 
   async recordFailure(
@@ -1258,7 +1622,73 @@ export class DeliveryOperationsService {
         );
         return { operation, decision, job: changed };
       },
-      { isolationLevel: "Serializable" as any }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+  }
+
+  async retryFailedDelivery(
+    deliveryJobId: string,
+    actor: Actor,
+    idempotencyKey?: string
+  ) {
+    return prisma.$transaction(
+      async (tx) => {
+        await this.lock(tx, `delivery-retry:${deliveryJobId}`);
+        const key = idempotencyKey || `delivery-retry:${deliveryJobId}`;
+        const existing = await this.findOperationByKey(tx, key);
+        if (existing) return { operation: existing, job: await this.job(tx, deliveryJobId) };
+        const job = await this.job(tx, deliveryJobId);
+        this.assertRiderOrAdmin(job, actor);
+        if (job.status === DeliveryJobStatus.OUT_FOR_DELIVERY) return { operation: null, job };
+        if (job.status !== DeliveryJobStatus.DELIVERY_FAILED) {
+          throw new BadRequestException('Only a failed delivery can be retried');
+        }
+        const decision = await tx.deliveryFailureDecision.findFirst({
+          where: {
+            deliveryJobId,
+            status: { in: [DeliveryResolutionStatus.DECIDED, DeliveryResolutionStatus.IN_PROGRESS] },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (!decision || decision.decidedAction !== DeliveryResolutionAction.RETRY_DELIVERY) {
+          throw new BadRequestException(
+            `System resolution is ${decision?.decidedAction || 'not available'}; retry is not authorized`
+          );
+        }
+        const changed = await this.workflow.transitionWithinTransaction(
+          tx,
+          deliveryJobId,
+          DeliveryJobStatus.OUT_FOR_DELIVERY,
+          actor,
+          {
+            expectedStatus: DeliveryJobStatus.DELIVERY_FAILED,
+            skipRoleCheck: true,
+            metadata: { failureDecisionId: decision.id, routeRetry: true },
+          }
+        );
+        const operation = await this.createOperation(tx, {
+          deliveryJobId,
+          orderId: job.orderId,
+          type: 'FAILURE_RESOLUTION_APPLIED',
+          actor,
+          idempotencyKey: key,
+          details: {
+            decisionId: decision.id,
+            action: DeliveryResolutionAction.RETRY_DELIVERY,
+            appliedAt: new Date().toISOString(),
+          },
+        });
+        await tx.deliveryFailureDecision.update({
+          where: { id: decision.id },
+          data: {
+            status: DeliveryResolutionStatus.IN_PROGRESS,
+            appliedByUserId: actor.id,
+            appliedAt: new Date(),
+          },
+        });
+        return { operation, job: changed };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
   }
 
@@ -1481,7 +1911,7 @@ export class DeliveryOperationsService {
         });
         return { operation, decision: updatedDecision, job: changed };
       },
-      { isolationLevel: "Serializable" as any }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
   }
 
@@ -1572,7 +2002,7 @@ export class DeliveryOperationsService {
         );
         return { operation, job: changed };
       },
-      { isolationLevel: "Serializable" as any }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
   }
 
@@ -1633,7 +2063,7 @@ export class DeliveryOperationsService {
         );
         return { operation, job: changed };
       },
-      { isolationLevel: "Serializable" as any }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
   }
 
@@ -1784,7 +2214,7 @@ export class DeliveryOperationsService {
         );
         return operation;
       },
-      { isolationLevel: "Serializable" as any }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
   }
 
@@ -1948,7 +2378,7 @@ export class DeliveryOperationsService {
         );
         return operation;
       },
-      { isolationLevel: "Serializable" as any }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
   }
 
@@ -2115,7 +2545,7 @@ export class DeliveryOperationsService {
         );
         return operation;
       },
-      { isolationLevel: "Serializable" as any }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
   }
 }

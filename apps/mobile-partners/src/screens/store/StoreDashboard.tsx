@@ -20,6 +20,8 @@ import {
   Search,
   ShoppingCart,
   Store,
+  Route,
+  ChevronRight,
 } from 'lucide-react-native';
 import { storeService } from '../../api/storeService';
 import { notificationService } from '../../api/notificationService';
@@ -167,6 +169,22 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
                 <DashboardStat icon={IndianRupee} title="Revenue" value={`₹ ${totals.revenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} subtitle="Recorded" tone="#087B5A" iconBackground="#E8F8EE" />
                 <DashboardStat icon={Box} title="Products" value={String(totals.inventory)} subtitle="In Inventory" tone="#5A2DB7" iconBackground="#F0EAFE" />
               </View>
+
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Open subscription morning runs"
+                activeOpacity={0.78}
+                style={styles.subscriptionRunCard}
+                onPress={() => navigation?.getParent?.()?.navigate?.('StoreSubscriptionOperations')}
+              >
+                <View style={styles.subscriptionRunIcon}><Route size={25} color="#087B5A" /></View>
+                <View style={styles.subscriptionRunCopy}>
+                  <Text style={styles.subscriptionRunEyebrow}>SUBSCRIPTION OPERATIONS</Text>
+                  <Text style={styles.subscriptionRunTitle}>Morning runs & cash control</Text>
+                  <Text style={styles.subscriptionRunText}>Forecast demand, verify bags, confirm pickup and settle rider cash.</Text>
+                </View>
+                <ChevronRight size={22} color="#087B5A" />
+              </TouchableOpacity>
 
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Assigned Stores</Text>
@@ -345,6 +363,12 @@ const styles = StyleSheet.create({
   statTitle: { fontSize: 15, fontWeight: '900' },
   statValue: { color: '#10131A', fontSize: 29, fontWeight: '900', marginTop: 23 },
   statSubtitle: { color: '#626871', fontSize: 13, marginTop: 5 },
+  subscriptionRunCard: { marginTop: 18, borderRadius: 20, backgroundColor: '#EAF8F2', borderWidth: 1, borderColor: '#B8E0D0', padding: 14, flexDirection: 'row', alignItems: 'center' },
+  subscriptionRunIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  subscriptionRunCopy: { flex: 1, marginHorizontal: 11 },
+  subscriptionRunEyebrow: { color: '#087B5A', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  subscriptionRunTitle: { color: '#17211D', fontSize: 14, fontWeight: '900', marginTop: 2 },
+  subscriptionRunText: { color: '#557166', fontSize: 10, lineHeight: 15, marginTop: 2 },
   sectionHeader: { marginTop: 15, marginBottom: 13, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle: { color: '#111417', fontSize: 19, fontWeight: '900' },
   viewAll: { color: '#078B61', fontSize: 14, fontWeight: '800' },

@@ -34,6 +34,17 @@ model User {
   promotionCampaigns    PromotionCampaign[]
   createdCoupons        Coupon[]
   couponRedemptions     CouponRedemption[]
+  customerSubscriptions CustomerSubscription[] @relation("CustomerSubscriptions")
+  subscriptionPlansCreated SubscriptionPlan[] @relation("SubscriptionPlanCreatedBy")
+  subscriptionPlansUpdated SubscriptionPlan[] @relation("SubscriptionPlanUpdatedBy")
+  subscriptionVersionsCreated SubscriptionPlanVersion[] @relation("SubscriptionPlanVersionCreatedBy")
+  subscriptionCancellations CustomerSubscription[] @relation("SubscriptionCancelledBy")
+  subscriptionAudits SubscriptionAuditEntry[] @relation("SubscriptionAuditActor")
+  subscriptionIssues SubscriptionIssueReport[] @relation("SubscriptionIssueCustomer")
+  subscriptionIssuesResolved SubscriptionIssueReport[] @relation("SubscriptionIssueResolver")
+  cashDepositBatchesSubmitted CashDepositBatch[] @relation("CashDepositSubmittedBy")
+  cashDepositBatchesVerified CashDepositBatch[] @relation("CashDepositVerifiedBy")
+  cashDepositAudits CashDepositAuditEntry[] @relation("CashDepositAuditActor")
 }
 
 enum Role {
@@ -60,6 +71,11 @@ model Store {
   orders           Order[]
   inventoryLedgers InventoryLedger[]
   coupons              Coupon[]
+  subscriptionPlanLinks SubscriptionPlanStore[]
+  customerSubscriptions CustomerSubscription[]
+  subscriptionDeliveries SubscriptionDelivery[]
+  deliveryRuns DeliveryRun[]
+  cashDepositBatches CashDepositBatch[]
 }
 
 model Category {
@@ -95,6 +111,7 @@ model Product {
   inventoryLedgers InventoryLedger[]
   promotionCampaigns  PromotionCampaign[]
   couponEligibilities CouponProductEligibility[]
+  subscriptionPlanItems SubscriptionPlanItem[]
 }
 
 model DeliveryZone {
@@ -104,6 +121,7 @@ model DeliveryZone {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  subscriptionPlanLinks SubscriptionPlanZone[]
 
   @@index([isActive, sortOrder])
 }
@@ -146,6 +164,13 @@ model Order {
   deliveryLat      Float?
   deliveryLng      Float?
   idempotencyKey   String?       @unique
+  orderSource      OrderSource   @default(CHECKOUT)
+  subscriptionId  String?
+  subscriptionDeliveryId String? @unique
+  scheduledDeliveryDate DateTime?
+  deliveryWindowStart DateTime?
+  deliveryWindowEnd DateTime?
+  subscriptionSequence Int?
   customerSnapshot Json?
   addressSnapshot  Json?
   itemsSnapshot    Json?
@@ -175,6 +200,11 @@ model Order {
   failureDecisions   DeliveryFailureDecision[]
   notifications      Notification[]
   couponRedemption   CouponRedemption?
+  subscription CustomerSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  subscriptionDelivery SubscriptionDelivery? @relation("OrderSubscriptionDelivery", fields: [subscriptionDeliveryId], references: [id], onDelete: SetNull)
+
+  @@index([orderSource, scheduledDeliveryDate])
+  @@index([subscriptionId, scheduledDeliveryDate])
 }
 
 model OrderItem {
@@ -224,6 +254,8 @@ model RiderProfile {
   deliveryProofs           DeliveryProof[]
   codLedgers               CodLedger[]
   supportTickets           RiderSupportTicket[]
+  deliveryRuns             DeliveryRun[]
+  cashDepositBatches       CashDepositBatch[]
   updatedAt                DateTime                    @updatedAt
 }
 
@@ -236,6 +268,12 @@ model RiderAvailabilityLocation {
   updatedAt      DateTime     @updatedAt
 
   @@index([capturedAt])
+}
+
+enum OrderSource {
+  CHECKOUT
+  SUBSCRIPTION
+  ADMIN
 }
 
 enum OrderStatus {
@@ -308,6 +346,8 @@ model DeliveryJob {
   codLedger        CodLedger?
   failureDecisions DeliveryFailureDecision[]
   notifications    Notification[]
+  deliveryRunStop  DeliveryRunStop?
+  subscriptionDelivery SubscriptionDelivery?
 
   @@index([status, createdAt])
   @@index([currentRiderId, status])
@@ -329,6 +369,8 @@ enum PickupChallengeStatus {
 
 enum DeliveryVerificationMethod {
   CUSTOMER_OTP_PIN
+  TRUSTED_DROP
+  SECURITY_RECEPTION
 }
 
 enum CodSettlementStatus {
@@ -344,6 +386,7 @@ enum CodLedgerEntryType {
   COLLECTED
   DEPOSITED
   VARIANCE_RECORDED
+  COMPENSATING_ADJUSTMENT
 }
 
 enum DeliveryFailureReasonCode {
@@ -424,7 +467,8 @@ model DeliveryProof {
   rider              RiderProfile               @relation(fields: [riderId], references: [id], onDelete: Restrict)
   customerUserId     String
   verificationMethod DeliveryVerificationMethod @default(CUSTOMER_OTP_PIN)
-  otpOperationId     String
+  otpOperationId     String?
+  proofReference     String?
   riderConfirmedAt   DateTime
   verifiedAt         DateTime                   @default(now())
   note               String?
@@ -458,6 +502,8 @@ model CodLedger {
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
   entries                  CodLedgerEntry[]
+  subscriptionFundingAllocation SubscriptionFundingAllocation?
+  cashDepositBatchEntry CashDepositBatchEntry?
 
   @@index([riderId, status])
   @@index([status, updatedAt])
@@ -602,11 +648,13 @@ model CustomerAddress {
   isDefault          Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  subscriptions      CustomerSubscription[]
 }
 
 enum PaymentMethod {
   ONLINE
   COD
+  SUBSCRIPTION_CASH_CREDIT
 }
 
 enum PaymentStatus {
@@ -614,6 +662,7 @@ enum PaymentStatus {
   CAPTURED
   FAILED
   PENDING_COD
+  SUBSCRIPTION_FUNDED
   REFUND_PENDING
   REFUNDED
 }
@@ -1246,4 +1295,527 @@ enum CouponRedemptionStatus {
   RESERVED
   REDEEMED
   RELEASED
+}
+
+
+enum SubscriptionPlanStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum SubscriptionFundingCycle {
+  FULL_PLAN
+  WEEKLY
+}
+
+enum SubscriptionDeliveryFrequency {
+  DAILY
+  ALTERNATE_DAYS
+  WEEKDAYS
+  SELECTED_WEEKDAYS
+  WEEKLY
+  CUSTOM
+}
+
+enum SubscriptionSkipPolicy {
+  EXTEND_PLAN
+}
+
+enum CustomerSubscriptionStatus {
+  PENDING_CASH_COLLECTION
+  ACTIVE
+  PAYMENT_DUE
+  GRACE_PERIOD
+  PAUSED
+  CANCELLED
+  COMPLETED
+}
+
+enum SubscriptionDeliveryMethod {
+  TRUSTED_DROP
+  PERSONAL_HANDOVER
+  SECURITY_RECEPTION
+}
+
+enum SubscriptionDeliveryStatus {
+  SCHEDULED
+  GENERATING
+  ORDER_GENERATED
+  PREPARING
+  PACKED
+  ASSIGNED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  SKIPPED
+  FAILED
+  RESCHEDULED
+  CANCELLED
+}
+
+enum SubscriptionProofMode {
+  TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO
+  PERSONAL_OTP_GPS
+  SECURITY_RECEPTION_OTP_GPS
+}
+
+enum DeliveryRunStatus {
+  PLANNED
+  READY_FOR_PICKUP
+  PICKED_UP
+  IN_PROGRESS
+  RETURNING
+  AWAITING_SETTLEMENT
+  COMPLETED
+  CANCELLED
+}
+
+enum DeliveryRunStopStatus {
+  PLANNED
+  READY
+  ARRIVED
+  DELIVERED
+  FAILED
+  RETRY_PENDING
+  RETURN_REQUIRED
+  RETURNED
+  CANCELLED
+}
+
+enum CashDepositBatchStatus {
+  DRAFT
+  SUBMITTED
+  VERIFIED
+  SETTLED
+  VARIANCE_REVIEW
+  CANCELLED
+}
+
+enum SubscriptionFundingAllocationStatus {
+  ALLOCATED
+  REVERSED
+}
+
+enum SubscriptionIssueType {
+  MISSING_DELIVERY
+  INCORRECT_ITEMS
+  DAMAGED_ITEMS
+  PROOF_DISPUTE
+  OTHER
+}
+
+enum SubscriptionIssueStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+model SubscriptionPlan {
+  id                         String                         @id @default(cuid())
+  code                       String                         @unique
+  internalName               String
+  name                       String
+  description                String?
+  imageUrl                   String?
+  mobileImageUrl             String?
+  status                     SubscriptionPlanStatus         @default(DRAFT)
+  fundingCycle               SubscriptionFundingCycle
+  durationDays               Int
+  totalDeliveries            Int
+  deliveryFrequency          SubscriptionDeliveryFrequency
+  selectedWeekdays           Int[]                          @default([])
+  customSchedule             Json?
+  pricePaise                 Int
+  mrpPaise                   Int
+  currency                   String                         @default("INR")
+  defaultWindowStartMinute   Int
+  defaultWindowEndMinute     Int
+  orderGenerationHoursBefore Int                            @default(18)
+  skipCutoffHours            Int                            @default(12)
+  allowPause                 Boolean                        @default(true)
+  allowSkip                  Boolean                        @default(true)
+  maximumSkips               Int                            @default(3)
+  skipPolicy                 SubscriptionSkipPolicy         @default(EXTEND_PLAN)
+  allowTrustedDrop           Boolean                        @default(true)
+  allowPersonalHandover      Boolean                        @default(true)
+  allowSecurityHandover      Boolean                        @default(true)
+  proofPolicy                Json
+  isAutoRenewEnabled         Boolean                        @default(false)
+  startsAt                   DateTime?
+  endsAt                     DateTime?
+  sortOrder                  Int                            @default(0)
+  createdById                String
+  updatedById                String
+  createdBy                  User                           @relation("SubscriptionPlanCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy                  User                           @relation("SubscriptionPlanUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  createdAt                  DateTime                       @default(now())
+  updatedAt                  DateTime                       @updatedAt
+
+  items         SubscriptionPlanItem[]
+  versions      SubscriptionPlanVersion[]
+  stores        SubscriptionPlanStore[]
+  zones         SubscriptionPlanZone[]
+  subscriptions CustomerSubscription[]
+
+  @@index([status, sortOrder])
+  @@index([startsAt, endsAt])
+}
+
+model SubscriptionPlanItem {
+  id                  String           @id @default(cuid())
+  planId              String
+  productId           String
+  quantityPerDelivery Int
+  substituteRules     Json?
+  plan                SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  product             Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@unique([planId, productId])
+  @@index([productId])
+}
+
+model SubscriptionPlanVersion {
+  id                       String                   @id @default(cuid())
+  planId                   String
+  version                  Int
+  pricePaise               Int
+  mrpPaise                 Int
+  currency                 String                   @default("INR")
+  totalDeliveries          Int
+  durationDays             Int
+  fundingCycle             SubscriptionFundingCycle
+  deliveryFrequency        SubscriptionDeliveryFrequency
+  selectedWeekdays         Int[]                    @default([])
+  itemsSnapshot            Json
+  deliveryRulesSnapshot    Json
+  proofPolicySnapshot      Json
+  applicabilitySnapshot    Json
+  fullSnapshot             Json
+  createdById              String
+  plan                     SubscriptionPlan         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  createdBy                User                     @relation("SubscriptionPlanVersionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt                DateTime                 @default(now())
+
+  subscriptions CustomerSubscription[]
+
+  @@unique([planId, version])
+  @@index([planId, createdAt])
+}
+
+model SubscriptionPlanStore {
+  planId  String
+  storeId String
+  plan    SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  store   Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([planId, storeId])
+  @@index([storeId])
+}
+
+model SubscriptionPlanZone {
+  planId String
+  zoneId String
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  zone   DeliveryZone     @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@id([planId, zoneId])
+  @@index([zoneId])
+}
+
+model CustomerSubscription {
+  id                         String                     @id @default(cuid())
+  customerId                 String
+  planId                     String
+  planVersionId              String
+  addressId                  String
+  homeStoreId                String?
+  status                     CustomerSubscriptionStatus @default(PENDING_CASH_COLLECTION)
+  startDate                  DateTime
+  endDate                    DateTime
+  nextDeliveryDate           DateTime?
+  nextCashCollectionDate     DateTime?
+  deliveryWindowStartMinute  Int
+  deliveryWindowEndMinute    Int
+  deliveryMethod             SubscriptionDeliveryMethod
+  trustedDropInstructions    String?
+  dropPointTokenHash         String?
+  priceSnapshot              Json
+  itemsSnapshot              Json
+  addressSnapshot            Json
+  policySnapshot             Json
+  fundedDeliveryCount        Int                        @default(0)
+  remainingFundedDeliveries  Int                        @default(0)
+  completedDeliveries        Int                        @default(0)
+  skippedDeliveries          Int                        @default(0)
+  failedDeliveries           Int                        @default(0)
+  amountDuePaise             Int
+  amountCollectedPaise       Int                        @default(0)
+  fundingCycle               SubscriptionFundingCycle
+  pausedAt                   DateTime?
+  pauseEffectiveFrom         DateTime?
+  pauseReason                String?
+  resumedAt                  DateTime?
+  cancelledAt                DateTime?
+  cancellationReason         String?
+  cancelledById              String?
+  customer                   User                       @relation("CustomerSubscriptions", fields: [customerId], references: [id], onDelete: Restrict)
+  plan                       SubscriptionPlan           @relation(fields: [planId], references: [id], onDelete: Restrict)
+  planVersion                SubscriptionPlanVersion    @relation(fields: [planVersionId], references: [id], onDelete: Restrict)
+  address                    CustomerAddress            @relation(fields: [addressId], references: [id], onDelete: Restrict)
+  homeStore                  Store?                     @relation(fields: [homeStoreId], references: [id], onDelete: SetNull)
+  cancelledBy                User?                      @relation("SubscriptionCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+
+  deliveries        SubscriptionDelivery[]
+  orders            Order[]
+  fundingAllocations SubscriptionFundingAllocation[]
+  issues            SubscriptionIssueReport[]
+  audits            SubscriptionAuditEntry[]
+
+  @@index([customerId, status])
+  @@index([status, nextDeliveryDate])
+  @@index([homeStoreId, status])
+}
+
+model SubscriptionDelivery {
+  id                     String                     @id @default(cuid())
+  subscriptionId         String
+  serviceDate            DateTime
+  sequenceNumber         Int
+  status                 SubscriptionDeliveryStatus @default(SCHEDULED)
+  generationKey          String                     @unique
+  deliveryJobId          String?                    @unique
+  storeId                String?
+  cashDuePaise           Int                        @default(0)
+  proofMode              SubscriptionProofMode
+  failureReason          String?
+  skipReason             String?
+  rescheduledFromDate    DateTime?
+  rescheduledToDate      DateTime?
+  generatedAt            DateTime?
+  deliveredAt            DateTime?
+  skippedAt              DateTime?
+  failedAt               DateTime?
+  subscription           CustomerSubscription       @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  order                  Order?                     @relation("OrderSubscriptionDelivery")
+  deliveryJob            DeliveryJob?               @relation(fields: [deliveryJobId], references: [id], onDelete: SetNull)
+  store                  Store?                     @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  runStop                DeliveryRunStop?
+  issueReports           SubscriptionIssueReport[]
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+
+  @@unique([subscriptionId, serviceDate])
+  @@unique([subscriptionId, sequenceNumber])
+  @@index([status, serviceDate])
+  @@index([storeId, serviceDate])
+}
+
+model SubscriptionFundingAllocation {
+  id                    String                              @id @default(cuid())
+  subscriptionId        String
+  codLedgerId           String                              @unique
+  startsAtSequence      Int
+  endsAtSequence        Int
+  fundedDeliveryCount   Int
+  amountPaise           Int
+  status                SubscriptionFundingAllocationStatus @default(ALLOCATED)
+  idempotencyKey        String                              @unique
+  subscription          CustomerSubscription                @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  codLedger             CodLedger                           @relation(fields: [codLedgerId], references: [id], onDelete: Restrict)
+  createdAt             DateTime                            @default(now())
+  reversedAt            DateTime?
+  reversalReason        String?
+
+  @@index([subscriptionId, status])
+}
+
+model DeliveryRun {
+  id                     String            @id @default(cuid())
+  routeCode              String            @unique
+  storeId                String
+  riderId                String?
+  serviceDate            DateTime
+  slotStart              DateTime
+  slotEnd                DateTime
+  deliveryCluster        String
+  status                 DeliveryRunStatus @default(PLANNED)
+  totalStopCount         Int               @default(0)
+  completedStopCount     Int               @default(0)
+  failedStopCount        Int               @default(0)
+  retryPendingStopCount  Int               @default(0)
+  expectedCashPaise      Int               @default(0)
+  collectedCashPaise     Int               @default(0)
+  depositedCashPaise     Int               @default(0)
+  varianceCashPaise      Int               @default(0)
+  expectedParcelCount    Int               @default(0)
+  expectedItemCount      Int               @default(0)
+  expectedBagCount       Int               @default(0)
+  packedBagCount         Int               @default(0)
+  crateCode              String?           @unique
+  packingConfirmedAt     DateTime?
+  packingConfirmedById   String?
+  storeHandoffConfirmedAt DateTime?
+  storeHandoffConfirmedById String?
+  pickupConfirmedAt      DateTime?
+  pickupConfirmedById    String?
+  startedAt              DateTime?
+  completedAt            DateTime?
+  version                Int               @default(0)
+  store                  Store             @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  rider                  RiderProfile?     @relation(fields: [riderId], references: [id], onDelete: SetNull)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  stops        DeliveryRunStop[]
+  depositBatch CashDepositBatch?
+
+  @@unique([storeId, serviceDate, slotStart, deliveryCluster])
+  @@index([riderId, serviceDate, status])
+  @@index([storeId, serviceDate, status])
+}
+
+model DeliveryRunStop {
+  id                     String                @id @default(cuid())
+  deliveryRunId          String
+  deliveryJobId          String                @unique
+  subscriptionDeliveryId String                @unique
+  sequenceNumber         Int
+  status                 DeliveryRunStopStatus @default(PLANNED)
+  proofMode              SubscriptionProofMode
+  cashDuePaise           Int                   @default(0)
+  expectedItemCount      Int
+  expectedParcelCount    Int                   @default(1)
+  arrivedAt              DateTime?
+  deliveredAt            DateTime?
+  failedAt               DateTime?
+  retryCount             Int                   @default(0)
+  latitude               Float?
+  longitude              Float?
+  accuracyMetres         Float?
+  proofReference         String?
+  failureReason          String?
+  routeOrderChangeReason String?
+  version                Int                   @default(0)
+  deliveryRun            DeliveryRun           @relation(fields: [deliveryRunId], references: [id], onDelete: Cascade)
+  deliveryJob            DeliveryJob           @relation(fields: [deliveryJobId], references: [id], onDelete: Restrict)
+  subscriptionDelivery   SubscriptionDelivery  @relation(fields: [subscriptionDeliveryId], references: [id], onDelete: Restrict)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  @@unique([deliveryRunId, sequenceNumber])
+  @@index([deliveryRunId, status])
+}
+
+model CashDepositBatch {
+  id                    String                 @id @default(cuid())
+  reference             String                 @unique
+  riderId               String
+  storeId               String
+  deliveryRunId         String                 @unique
+  expectedAmountPaise   Int
+  submittedAmountPaise  Int                    @default(0)
+  verifiedAmountPaise   Int                    @default(0)
+  variancePaise         Int                    @default(0)
+  status                CashDepositBatchStatus @default(DRAFT)
+  submittedById         String?
+  verifiedById          String?
+  riderSubmittedAt      DateTime?
+  storeVerifiedAt       DateTime?
+  settlementReference   String?
+  receiptEvidence       Json?
+  varianceReason        String?
+  version               Int                    @default(0)
+  rider                 RiderProfile           @relation(fields: [riderId], references: [id], onDelete: Restrict)
+  store                 Store                  @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  deliveryRun           DeliveryRun            @relation(fields: [deliveryRunId], references: [id], onDelete: Restrict)
+  submittedBy           User?                  @relation("CashDepositSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  verifiedBy            User?                  @relation("CashDepositVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  entries CashDepositBatchEntry[]
+  audits  CashDepositAuditEntry[]
+
+  @@index([riderId, status])
+  @@index([storeId, status])
+}
+
+model CashDepositBatchEntry {
+  id                  String           @id @default(cuid())
+  cashDepositBatchId  String
+  codLedgerId         String           @unique
+  allocatedAmountPaise Int
+  holdingBeforePaise  Int
+  holdingAfterPaise   Int
+  depositedBeforePaise Int
+  depositedAfterPaise Int
+  cashDepositBatch    CashDepositBatch @relation(fields: [cashDepositBatchId], references: [id], onDelete: Cascade)
+  codLedger           CodLedger        @relation(fields: [codLedgerId], references: [id], onDelete: Restrict)
+  createdAt           DateTime         @default(now())
+
+  @@index([cashDepositBatchId])
+}
+
+model CashDepositAuditEntry {
+  id                 String           @id @default(cuid())
+  cashDepositBatchId String
+  actorUserId        String
+  actorRole          Role
+  action             String
+  amountPaise        Int?
+  reason             String?
+  metadata           Json?
+  idempotencyKey     String           @unique
+  cashDepositBatch   CashDepositBatch @relation(fields: [cashDepositBatchId], references: [id], onDelete: Cascade)
+  actor              User             @relation("CashDepositAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  createdAt          DateTime         @default(now())
+
+  @@index([cashDepositBatchId, createdAt])
+}
+
+model SubscriptionIssueReport {
+  id                     String                  @id @default(cuid())
+  subscriptionId         String
+  subscriptionDeliveryId String?
+  customerId             String
+  type                   SubscriptionIssueType
+  status                 SubscriptionIssueStatus @default(OPEN)
+  description            String
+  evidence               Json?
+  idempotencyKey         String                  @unique
+  resolvedById           String?
+  resolution             String?
+  resolvedAt             DateTime?
+  subscription           CustomerSubscription    @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  subscriptionDelivery   SubscriptionDelivery?    @relation(fields: [subscriptionDeliveryId], references: [id], onDelete: SetNull)
+  customer               User                    @relation("SubscriptionIssueCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  resolvedBy             User?                   @relation("SubscriptionIssueResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@index([subscriptionId, status])
+  @@index([subscriptionDeliveryId])
+  @@index([customerId, createdAt])
+}
+
+model SubscriptionAuditEntry {
+  id             String               @id @default(cuid())
+  subscriptionId String
+  actorUserId    String
+  actorRole      Role
+  action         String
+  reason         String?
+  metadata       Json?
+  idempotencyKey String               @unique
+  subscription   CustomerSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  actor          User                 @relation("SubscriptionAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  createdAt      DateTime             @default(now())
+
+  @@index([subscriptionId, createdAt])
 }
