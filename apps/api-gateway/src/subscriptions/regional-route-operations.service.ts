@@ -245,7 +245,7 @@ export class RegionalRouteOperationsService {
     const constraints = this.constraints(source, dto.maximumStops);
 
     const runIds = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`manual-route-split:${runId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`manual-route-split:${runId}`}))`);
       const current = await tx.deliveryRun.findUnique({ where: { id: runId }, select: { version: true } });
       if (!current || current.version !== dto.version) throw new ConflictException('Delivery run changed during split');
 
@@ -374,7 +374,7 @@ export class RegionalRouteOperationsService {
 
     return prisma.$transaction(async (tx) => {
       const lockIds = [target.id, ...sources.map((source) => source.id)].sort().join(':');
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`manual-route-merge:${lockIds}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`manual-route-merge:${lockIds}`}))`);
       const ordered = nearestNeighbourOrder(routeOrigin(target), allStops);
       for (const item of ordered) {
         await tx.deliveryRunStop.update({
@@ -467,7 +467,7 @@ export class RegionalRouteOperationsService {
 
     this.assertCapacity(destination, [...destination.stops, stop].map(candidateFromStop));
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`move-stop:${stopId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`move-stop:${stopId}`}))`);
       await tx.deliveryRunStop.update({
         where: { id: stop.id },
         data: {
@@ -531,7 +531,7 @@ export class RegionalRouteOperationsService {
     }
 
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`reorder-run:${run.id}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`reorder-run:${run.id}`}))`);
       for (const stop of run.stops) {
         await tx.deliveryRunStop.update({ where: { id: stop.id }, data: { sequenceNumber: -stop.sequenceNumber - 30_000 } });
       }
@@ -567,7 +567,7 @@ export class RegionalRouteOperationsService {
     this.assertVersion(run, dto.version);
     this.assertEditable(run);
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`cancel-run:${run.id}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`cancel-run:${run.id}`}))`);
       for (const stop of run.stops) {
         await this.resetPendingJobOwnership(tx, stop, null);
       }
@@ -612,7 +612,7 @@ export class RegionalRouteOperationsService {
     const completed = run.stops.filter((stop) => stop.status === DeliveryRunStopStatus.DELIVERED);
 
     const recoveryId = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`recovery-run:${run.id}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`recovery-run:${run.id}`}))`);
       const existing = await tx.deliveryRun.findFirst({
         where: { recoveryFromRunId: run.id, status: { not: DeliveryRunStatus.CANCELLED } },
         select: { id: true },

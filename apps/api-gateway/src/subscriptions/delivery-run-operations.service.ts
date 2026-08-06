@@ -92,7 +92,7 @@ export class DeliveryRunOperationsService {
   async confirmPickupReceipt(runId: string, dto: ConfirmRunPickupReceiptDto, actor: Actor) {
     const { rider } = await this.ownedRun(runId, actor);
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-rider-receipt:${runId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-rider-receipt:${runId}`}))`);
       const run = await tx.deliveryRun.findUnique({
         where: { id: runId },
         include: { stops: { include: { deliveryJob: true } } },
@@ -140,7 +140,7 @@ export class DeliveryRunOperationsService {
   async start(runId: string, dto: RunVersionDto, actor: Actor) {
     const { rider } = await this.ownedRun(runId, actor);
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-start:${runId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-start:${runId}`}))`);
       const run = await tx.deliveryRun.findUnique({ where: { id: runId }, include: { stops: { include: { deliveryJob: true } } } });
       if (!run || run.riderId !== rider.id) throw new NotFoundException('Assigned delivery run not found');
       if (run.version !== dto.version) throw new ConflictException('Delivery run changed; refresh and try again');
@@ -176,7 +176,7 @@ export class DeliveryRunOperationsService {
   async arrive(runId: string, stopId: string, dto: ArriveRunStopDto, actor: Actor) {
     const { rider } = await this.ownedRun(runId, actor);
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-stop-arrive:${stopId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-stop-arrive:${stopId}`}))`);
       const stop = await tx.deliveryRunStop.findFirst({
         where: { id: stopId, deliveryRunId: runId, deliveryRun: { riderId: rider.id } },
         include: { deliveryRun: true, deliveryJob: true },
@@ -235,7 +235,7 @@ export class DeliveryRunOperationsService {
     collectedCashPaise: number,
     dto: CompleteRunStopDto,
   ) {
-    await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-stop-finalize:${stopId}`}))`);
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-stop-finalize:${stopId}`}))`);
     const current = await tx.deliveryRunStop.findUnique({ where: { id: stopId } });
     if (!current) throw new NotFoundException('Run stop not found');
     if (current.status === DeliveryRunStopStatus.DELIVERED) return;
@@ -425,7 +425,7 @@ export class DeliveryRunOperationsService {
   async reorder(runId: string, stopId: string, dto: ReorderRunStopDto, actor: Actor) {
     const { rider } = await this.ownedRun(runId, actor);
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-reorder:${runId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-reorder:${runId}`}))`);
       const stop = await tx.deliveryRunStop.findFirst({ where: { id: stopId, deliveryRunId: runId, deliveryRun: { riderId: rider.id } } });
       if (!stop) throw new NotFoundException('Run stop not found');
       if (stop.version !== dto.version) throw new ConflictException('Run stop changed; refresh and try again');
@@ -458,7 +458,7 @@ export class DeliveryRunOperationsService {
   async finish(runId: string, dto: RunVersionDto, actor: Actor) {
     const { rider } = await this.ownedRun(runId, actor);
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-finish:${runId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-finish:${runId}`}))`);
       const run = await tx.deliveryRun.findUnique({ where: { id: runId }, include: { stops: true } });
       if (!run || run.riderId !== rider.id) throw new NotFoundException('Assigned delivery run not found');
       if (isOneOf(run.status, [DeliveryRunStatus.COMPLETED, DeliveryRunStatus.AWAITING_SETTLEMENT])) {

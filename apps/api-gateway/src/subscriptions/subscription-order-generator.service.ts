@@ -135,7 +135,7 @@ export class SubscriptionOrderGenerator {
   async generateOne(subscriptionDeliveryId: string) {
     try {
       return await prisma.$transaction(async (tx) => {
-        await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-order:${subscriptionDeliveryId}`}))`);
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-order:${subscriptionDeliveryId}`}))`);
         const delivery = await tx.subscriptionDelivery.findUnique({
           where: { id: subscriptionDeliveryId },
           include: {

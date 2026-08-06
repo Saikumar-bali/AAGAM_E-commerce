@@ -96,7 +96,7 @@ export class DeliveryRunPlanningService {
     const runs: unknown[] = [];
     for (const [key, group] of groups) {
       runs.push(await prisma.$transaction(async (tx) => {
-        await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run:${key}`}))`);
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run:${key}`}))`);
         const first = group[0];
         const window = serviceWindow(
           first.serviceDate,
@@ -168,7 +168,7 @@ export class DeliveryRunPlanningService {
 
   async assign(runId: string, dto: AssignDeliveryRunDto, actor: Actor) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-assign:${runId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-assign:${runId}`}))`);
       const run = await tx.deliveryRun.findUnique({
         where: { id: runId },
         include: { stops: { include: { deliveryJob: true } } },
@@ -216,7 +216,7 @@ export class DeliveryRunPlanningService {
 
   async confirmPacking(runId: string, dto: ConfirmRunPackingDto, actor: Actor) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-pack:${runId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-pack:${runId}`}))`);
       const run = await tx.deliveryRun.findUnique({
         where: { id: runId },
         include: {
@@ -272,7 +272,7 @@ export class DeliveryRunPlanningService {
 
   async confirmStoreHandoff(runId: string, dto: RunVersionDto, actor: Actor) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-store-handoff:${runId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-store-handoff:${runId}`}))`);
       const run = await tx.deliveryRun.findUnique({
         where: { id: runId },
         include: { store: { select: { ownerId: true } }, stops: { include: { deliveryJob: true } } },
@@ -418,7 +418,7 @@ export class DeliveryRunPlanningService {
       idempotencyKey || `subscription-return-confirm:${stop.id}`,
     );
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-return:${stopId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-return:${stopId}`}))`);
       const current = await tx.deliveryRunStop.findUnique({ where: { id: stopId } });
       if (!current) throw new NotFoundException('Run stop not found');
       if (current.status === DeliveryRunStopStatus.RETURNED) return current;

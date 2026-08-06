@@ -133,7 +133,11 @@ curl --version
 flock --version
 ```
 
-Use Node.js `22.x`, matching CI. Install PM2 once and configure it to survive reboots:
+Use Node.js `22.x`, matching CI. If the system runtime is older, `deploy.sh` downloads the pinned Node `22.22.3` archive from nodejs.org, verifies it against the official SHA-256 manifest, caches it under `~/.cache/aagam-node`, and explicitly starts PM2 applications with that runtime.
+
+On a small VPS, `deploy.sh` checks combined free RAM and swap before `npm ci`. When less than 1536 MB is available, it creates or reactivates `/var/tmp/aagam-deploy.swap` using passwordless `sudo`, then builds with Turbo concurrency `1`. The defaults can be adjusted with `DEPLOY_MIN_AVAILABLE_MEMORY_MB`, `DEPLOY_SWAP_MB`, `DEPLOY_SWAP_FILE`, and `DEPLOY_NODE_HEAP_MB`.
+
+Install PM2 once and configure it to survive reboots:
 
 ```bash
 npm install --global pm2
