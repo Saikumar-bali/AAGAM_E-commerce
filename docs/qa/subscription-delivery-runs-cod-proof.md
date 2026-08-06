@@ -19,9 +19,11 @@ The following checks completed before publication:
 
 A full local `npm ci` could not be used as release proof because the execution environment could not resolve the public npm registry and its configured mirror did not contain `react-test-renderer@19.0.0`. No test, dependency, or CI requirement was weakened to hide that infrastructure failure.
 
-## Review correction
+## Review corrections
 
-The first exact-head Customer Experience contract run found one customer-facing legacy brand literal in `SubscriptionDetailScreen.tsx`. Commit `3b976c9b3ad8b84532216b5b47c0a1a7e4c5ba92` changes “AAGAM operations” to the repository’s canonical “Aagaam operations” copy. This connector-authored proof update intentionally triggers the complete exact-head validation suite after that material correction.
+The first exact-head Customer Experience contract run found one customer-facing legacy brand literal in `SubscriptionDetailScreen.tsx`. Commit `3b976c9b3ad8b84532216b5b47c0a1a7e4c5ba92` changes “AAGAM operations” to the repository’s canonical “Aagaam operations” copy.
+
+The later exact-head build exposed a shared strict-TypeScript cluster in the subscription/order backend. The correction validates all dynamic JSON before Prisma writes, preserves full enum types during state-membership checks, restores the expected COD-ledger include shape, and rejects delivery failure completion when the authoritative decision record cannot be resolved. This proof update triggers the guarded build-and-apply workflow; the workflow commits source only after `npm ci`, Prisma generation, and the API production build pass.
 
 ## Required exact-head CI proof
 
@@ -37,6 +39,6 @@ Merge remains blocked until the exact PR head proves:
 - Partners Android typecheck/tests/build;
 - production UX contracts;
 - CodeQL and repository security checks;
-- required review approval with no unresolved threads.
+- zero unresolved actionable review threads.
 
-Any material review correction must produce a new exact-head run of the complete required suite.
+Codex review is non-blocking for this pull request at the repository owner's instruction. Any material correction must still produce a new exact-head run of the complete required suite.
