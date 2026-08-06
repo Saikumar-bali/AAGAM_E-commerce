@@ -1,0 +1,69 @@
+name: Fix subscription QA seed enum
+
+on:
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'feature/subscription-delivery-runs-cod'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aagam_ecom_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_ecom_test
+      NODE_ENV: test
+      PLAYWRIGHT_QA_SEED: 'true'
+      ADMIN_EMAIL: admin@aagam.com
+      ADMIN_PASSWORD: admin@2026!
+      CUSTOMER_EMAIL: customer@aagam.com
+      CUSTOMER_PASSWORD: customer@2026!
+      STORE_EMAIL: store@aagam.com
+      STORE_PASSWORD: store@2026!
+      RIDER_EMAIL: rider@aagam.com
+      RIDER_PASSWORD: rider@2026!
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/subscription-delivery-runs-cod
+          fetch-depth: 0
+      - name: Correct and validate the subscription fixture
+        env:
+          TARGET_BRANCH: feature/subscription-delivery-runs-cod
+        run: |
+          set -euo pipefail
+          test "$(grep -c "proofMode: 'CUSTOMER_OTP_GPS'" apps/admin-dashboard/tests/qa-seed.js)" -eq 1
+          sed -i "s/proofMode: 'CUSTOMER_OTP_GPS'/proofMode: 'PERSONAL_OTP_GPS'/" apps/admin-dashboard/tests/qa-seed.js
+          ! grep -q "CUSTOMER_OTP_GPS" apps/admin-dashboard/tests/qa-seed.js
+          test "$(grep -c "proofMode: 'PERSONAL_OTP_GPS'" apps/admin-dashboard/tests/qa-seed.js)" -eq 1
+          git rm .github/workflows/subscription-qa-seed-enum-fix.yml
+
+          npm ci --no-audit --no-fund
+          npx prisma generate --schema packages/database/prisma/schema.prisma
+          npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+          node packages/database/seed.js
+          node apps/admin-dashboard/tests/qa-seed.js
+          node --check apps/admin-dashboard/tests/qa-seed.js
+          git diff --check
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/admin-dashboard/tests/qa-seed.js
+          git commit -m 'test(subscriptions): use valid personal handover proof mode'
+          git push --force-with-lease="refs/heads/${TARGET_BRANCH}:${{ github.event.pull_request.head.sha }}" origin "HEAD:refs/heads/${TARGET_BRANCH}"
