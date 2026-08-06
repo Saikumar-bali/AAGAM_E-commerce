@@ -8,6 +8,8 @@ const adminPassword = process.env.ADMIN_PASSWORD || process.env.CI_ADMIN_PASSWOR
 const PROOF_DIR = path.resolve(__dirname, '../../../docs/qa/promotions-search-category-crash');
 
 const ts = () => Date.now().toString(36);
+const CLEANUP_ATTEMPTS = 3;
+const TRANSIENT_CLEANUP_ERROR = /ECONNRESET|ECONNREFUSED|EPIPE|socket hang up/i;
 
 async function adminBearer(request: APIRequestContext): Promise<string> {
   const login = await request.post(`${API_BASE}/auth/mobile/login`, {
@@ -45,10 +47,23 @@ async function createCampaign(
 }
 
 async function archiveCampaign(request: APIRequestContext, token: string, id: string) {
-  const response = await request.delete(`${API_BASE}/admin/promotions/campaigns/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  expect(response.ok(), `Campaign cleanup failed: ${await response.text()}`).toBeTruthy();
+  for (let attempt = 1; attempt <= CLEANUP_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await request.delete(`${API_BASE}/admin/promotions/campaigns/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10_000,
+      });
+
+      if (response.status() === 404) return;
+      expect(response.ok(), `Campaign cleanup failed: ${await response.text()}`).toBeTruthy();
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const shouldRetry = TRANSIENT_CLEANUP_ERROR.test(message) && attempt < CLEANUP_ATTEMPTS;
+      if (!shouldRetry) throw error;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 250));
+    }
+  }
 }
 
 test.describe('Public promotions placement rendering', () => {
