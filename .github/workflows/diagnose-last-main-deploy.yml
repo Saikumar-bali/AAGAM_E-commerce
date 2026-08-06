@@ -113,6 +113,7 @@ jobs:
           git rm .github/workflows/diagnose-last-main-deploy.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add deploy.sh docs/DEPLOYMENT_AUTOMATION.md apps/api-gateway/src
+          git add deploy.sh apps/api-gateway/src
+          git add -f docs/DEPLOYMENT_AUTOMATION.md
           git commit -m "fix(deploy): recover low-memory production releases"
           git push origin HEAD:ops/diagnose-last-main-deploy
