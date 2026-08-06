@@ -25,7 +25,7 @@ The first exact-head Customer Experience contract run found one customer-facing 
 
 The later exact-head build exposed a shared strict-TypeScript cluster in the subscription/order backend. The correction validates all dynamic JSON before Prisma writes, preserves full enum types during state-membership checks, restores the expected COD-ledger include shape, and rejects delivery failure completion when the authoritative decision record cannot be resolved.
 
-The first guarded validation attempt correctly refused to publish because it invoked the API build before compiling the internal `types`, `utils`, and `database` workspaces. The v2 guard uses the repository's dependency build order, validates the same compressed-patch checksum, and may commit the source correction only after dependency installation, Prisma generation/validation, all three internal package compilations, and the API production build pass.
+The first guard used the wrong workspace build order. The second guard corrected the order and proved dependency installation and Prisma generation, but its isolated helper job lacked the environment value required by `prisma validate`. The v3 guard supplies a non-production CI database URL, validates the same compressed-patch checksum, and may commit source only after Prisma validation, all internal package compilations, and the API production build pass.
 
 ## Required exact-head CI proof
 
