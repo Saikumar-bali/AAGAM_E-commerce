@@ -60,6 +60,7 @@ const menuItems: Record<Role, MenuItem[]> = {
     { name: "Delivery Zones", href: "/admin/delivery-zones", icon: MapPinned },
     { name: "Promotions", href: "/admin/promotions", icon: Megaphone },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: CalendarDays },
+    { name: "Route Planning", href: "/admin/route-planning", icon: Route },
     { name: "Riders", href: "/admin/riders", icon: Truck },
     { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
     { name: "Live Tracking", href: "/admin/live-tracking", icon: Radar },

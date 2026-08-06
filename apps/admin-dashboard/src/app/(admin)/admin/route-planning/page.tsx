@@ -313,7 +313,7 @@ function RegionalMap({ data }: { data: Dashboard | null }) {
     return rows;
   }, [data]);
   const polygons = useMemo(() => (data?.zones || []).map((zone) => ({ zone, points: polygonPoints(zone.polygon) })).filter((item) => item.points.length >= 3), [data?.zones]);
-  const all = [...points, ...polygons.flatMap((item) => item.points.map((point, index) => ({ ...point, id: `${item.zone.id}-${index}`, kind: 'stop' as const, label: item.zone.name }))];
+  const all = [...points, ...polygons.flatMap((item) => item.points.map((point, index) => ({ ...point, id: `${item.zone.id}-${index}`, kind: 'stop' as const, label: item.zone.name })))];
   const latitudes = all.map((point) => point.latitude); const longitudes = all.map((point) => point.longitude);
   const minLat = Math.min(...latitudes, 0); const maxLat = Math.max(...latitudes, 1); const minLng = Math.min(...longitudes, 0); const maxLng = Math.max(...longitudes, 1);
   const x = (longitude: number) => 55 + ((longitude - minLng) / Math.max(maxLng - minLng, 0.001)) * 890;
