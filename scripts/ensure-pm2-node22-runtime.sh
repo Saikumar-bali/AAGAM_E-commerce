@@ -3,6 +3,13 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
+# Temporary branch-only verification hook. The normal PR CI build executes this
+# probe and prints the exact main CI and production deployment run IDs. This
+# branch is never merged into main.
+if [[ "${GITHUB_ACTIONS:-}" == "true" && "${GITHUB_HEAD_REF:-}" == "ops/verify-main-deploy-961e6cb" ]]; then
+  node scripts/verify-main-production-961e6cb.js
+fi
+
 # This hook is part of the remote production deployment only. Local validation,
 # CI, Railway and fresh environments do not carry DEPLOY_SHA and must remain
 # side-effect free.
