@@ -63,7 +63,7 @@ export const SubscriptionDetailScreen = () => {
       notify.success(kind === 'skip' ? 'Delivery skipped' : kind === 'pause' ? 'Subscription paused' : 'Subscription resumed');
       await refresh();
     },
-    onError: (error) => notify.error('Action failed', getUserSafeError(error)),
+    onError: (error) => notify.error('Action failed', getUserSafeError(error, 'Please try again.')),
   });
   const tracking = useMutation({
     mutationFn: () => subscriptionService.tracking(id),
@@ -71,7 +71,7 @@ export const SubscriptionDetailScreen = () => {
       if (data.orderId) navigation.navigate('OrderDetail', { orderId: data.orderId });
       else notify.info('No active delivery', 'Tracking becomes available after the next order is generated.');
     },
-    onError: (error) => notify.error('Tracking unavailable', getUserSafeError(error)),
+    onError: (error) => notify.error('Tracking unavailable', getUserSafeError(error, 'Please try again.')),
   });
 
   const deliveries = deliveriesQuery.data ?? [];
@@ -82,7 +82,7 @@ export const SubscriptionDetailScreen = () => {
       return subscriptionService.reportIssue(id, reportableDelivery.id, issueType, issueDescription.trim());
     },
     onSuccess: () => { notify.success('Issue reported', 'Aagaam operations can now review this delivery.'); setIssueDescription(''); setSheet(null); },
-    onError: (error) => notify.error('Report failed', getUserSafeError(error)),
+    onError: (error) => notify.error('Report failed', getUserSafeError(error, 'Please try again.')),
   });
   const preferences = useMutation({
     mutationFn: () => subscriptionService.preferences(id, {
@@ -91,12 +91,12 @@ export const SubscriptionDetailScreen = () => {
       dropPointToken: preferenceMethod === 'TRUSTED_DROP' ? dropToken.trim() : undefined,
     }),
     onSuccess: async () => { notify.success('Preferences updated', 'Future eligible deliveries will use the new handover preference.'); setSheet(null); await refresh(); },
-    onError: (error) => notify.error('Update failed', getUserSafeError(error)),
+    onError: (error) => notify.error('Update failed', getUserSafeError(error, 'Please try again.')),
   });
   const cancel = useMutation({
     mutationFn: () => subscriptionService.cancel(id, cancelReason.trim()),
     onSuccess: async () => { notify.success('Subscription cancelled', 'Future ungenerated deliveries have been cancelled safely.'); setSheet(null); await refresh(); },
-    onError: (error) => notify.error('Cancellation failed', getUserSafeError(error)),
+    onError: (error) => notify.error('Cancellation failed', getUserSafeError(error, 'Please try again.')),
   });
 
   if (query.isLoading) return <View style={styles.center}><ActivityIndicator size="large" color="#087B5B" /></View>;

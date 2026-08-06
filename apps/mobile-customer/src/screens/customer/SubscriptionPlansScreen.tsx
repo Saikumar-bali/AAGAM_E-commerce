@@ -39,9 +39,10 @@ export const SubscriptionPlansScreen = () => {
         showsVerticalScrollIndicator={false}
         renderItem={({ item }: { item: SubscriptionPlan }) => {
           const savings = Math.max(0, Number(item.mrpPaise || 0) - Number(item.pricePaise || 0));
+          const imageUri = item.mobileImageUrl ?? item.imageUrl ?? undefined;
           return <View style={styles.card}>
             <View style={styles.cardTop}>
-              {item.mobileImageUrl || item.imageUrl ? <Image source={{ uri: item.mobileImageUrl || item.imageUrl }} style={styles.image} /> : <View style={[styles.image, styles.imageFallback]}><PackageCheck size={34} color="#087B5B" /></View>}
+              {imageUri ? <Image source={{ uri: imageUri }} style={styles.image} /> : <View style={[styles.image, styles.imageFallback]}><PackageCheck size={34} color="#087B5B" /></View>}
               <View style={styles.cardCopy}>
                 <View style={styles.badge}><Text style={styles.badgeText}>{item.totalDeliveries} DELIVERIES</Text></View>
                 <Text style={styles.planName}>{item.name}</Text>

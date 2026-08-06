@@ -6,6 +6,7 @@ import { ArrowLeft, CalendarDays, Check, Clock3, MapPin, ShieldCheck, WalletCard
 import { apiClient } from '../../api/client';
 import {
   subscriptionService,
+  type CreateSubscriptionPayload,
   type CustomerAddress,
   type SubscriptionDeliveryMethod,
   type SubscriptionPlan,
@@ -23,6 +24,8 @@ type MethodOption = {
   copy: string;
   isAllowed: (plan: SubscriptionPlan) => boolean;
 };
+
+type SubscriptionQuotePayload = Omit<CreateSubscriptionPayload, 'planId' | 'trustedDropInstructions' | 'dropPointToken'>;
 
 const methodOptions: MethodOption[] = [
   { value: 'PERSONAL_HANDOVER', label: 'Personal OTP', copy: 'Customer OTP + GPS', isAllowed: (plan) => plan.allowPersonalHandover },
@@ -63,7 +66,7 @@ export const SubscriptionReviewScreen = () => {
     if (firstAllowed) setMethod(firstAllowed.value);
   }, [method, plan]);
 
-  const quotePayload = useMemo(() => plan ? ({
+  const quotePayload = useMemo<SubscriptionQuotePayload | null>(() => plan ? ({
     addressId,
     startDate,
     deliveryMethod: method,
@@ -76,7 +79,7 @@ export const SubscriptionReviewScreen = () => {
       if (!quotePayload) throw new Error('The subscription plan is not ready.');
       return subscriptionService.quote(planId, quotePayload);
     },
-    onError: (error) => notify.error('Review failed', getUserSafeError(error)),
+    onError: (error) => notify.error('Review failed', getUserSafeError(error, 'Please try again.')),
   });
   const create = useMutation({
     mutationFn: () => {
@@ -92,7 +95,7 @@ export const SubscriptionReviewScreen = () => {
       notify.success('Subscription requested', result.confirmationMessage || 'Cash will be collected on the first verified delivery.');
       navigation.navigate('SubscriptionDetail', { subscriptionId: result.id });
     },
-    onError: (error) => notify.error('Subscription could not be created', getUserSafeError(error)),
+    onError: (error) => notify.error('Subscription could not be created', getUserSafeError(error, 'Please try again.')),
   });
 
   useEffect(() => {
