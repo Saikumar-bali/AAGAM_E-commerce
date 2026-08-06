@@ -1,0 +1,262 @@
+name: Regional routing ownership consistency
+
+on:
+  push:
+    branches:
+      - feature/regional-multi-rider-route-splitting
+    paths:
+      - .github/workflows/regional-routing-ownership-consistency.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/regional-multi-rider-route-splitting
+          fetch-depth: 0
+      - name: Apply guarded ownership-consistency corrections
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          path = Path('apps/api-gateway/src/subscriptions/regional-route-operations.service.ts')
+          text = path.read_text()
+
+          def replace_once(old: str, new: str, label: str):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+          '''          await tx.deliveryRunStop.update({
+                    where: { id: item.id },
+                    data: {
+                      deliveryRunId: destinationRunId,
+                      sequenceNumber: stopIndex + 1,
+                      movedFromRunId: destinationRunId === source.id ? item.value.movedFromRunId : source.id,
+                      lastMovedAt: destinationRunId === source.id ? item.value.lastMovedAt : new Date(),
+                      routeOrderChangeReason: dto.reason,
+                      version: { increment: 1 },
+                    },
+                  });
+                }
+              }''',
+          '''          await tx.deliveryRunStop.update({
+                    where: { id: item.id },
+                    data: {
+                      deliveryRunId: destinationRunId,
+                      sequenceNumber: stopIndex + 1,
+                      movedFromRunId: destinationRunId === source.id ? item.value.movedFromRunId : source.id,
+                      lastMovedAt: destinationRunId === source.id ? item.value.lastMovedAt : new Date(),
+                      routeOrderChangeReason: dto.reason,
+                      version: { increment: 1 },
+                    },
+                  });
+                  if (destinationRunId !== source.id) {
+                    await tx.deliveryJob.update({
+                      where: { id: item.value.deliveryJobId },
+                      data: {
+                        currentRiderId: null,
+                        ...(item.value.deliveryJob.status === DeliveryJobStatus.RIDER_ASSIGNED
+                          ? { status: DeliveryJobStatus.WAITING_FOR_DISPATCH }
+                          : {}),
+                        version: { increment: 1 },
+                      },
+                    });
+                    await tx.subscriptionDelivery.update({
+                      where: { id: item.value.subscriptionDeliveryId },
+                      data: { status: SubscriptionDeliveryStatus.ORDER_GENERATED },
+                    });
+                  }
+                }
+              }''',
+          'split ownership reset')
+
+          replace_once(
+          '''    for (const source of sources) {
+              this.assertVersion(source, Number(dto.sourceVersions[source.id]));
+              this.assertEditable(source);
+              const compatible = source.storeId === target.storeId
+                && source.serviceDate.getTime() === target.serviceDate.getTime()
+                && source.slotStart.getTime() === target.slotStart.getTime()
+                && source.slotEnd.getTime() === target.slotEnd.getTime()
+                && source.deliveryZoneId === target.deliveryZoneId;
+              if (!compatible) throw new BadRequestException(`Run ${source.routeCode} is not compatible with ${target.routeCode}`);
+              if (source.riderId && target.riderId && source.riderId !== target.riderId) {
+                throw new BadRequestException('Reassign routes to one rider before merging');
+              }
+            }
+            const allStops''',
+          '''    for (const source of sources) {
+              this.assertVersion(source, Number(dto.sourceVersions[source.id]));
+              this.assertEditable(source);
+              const compatible = source.storeId === target.storeId
+                && source.serviceDate.getTime() === target.serviceDate.getTime()
+                && source.slotStart.getTime() === target.slotStart.getTime()
+                && source.slotEnd.getTime() === target.slotEnd.getTime()
+                && source.deliveryZoneId === target.deliveryZoneId;
+              if (!compatible) throw new BadRequestException(`Run ${source.routeCode} is not compatible with ${target.routeCode}`);
+            }
+            const mergedRiderIds = [...new Set([target.riderId, ...sources.map((source) => source.riderId)].filter((id): id is string => Boolean(id)))];
+            if (mergedRiderIds.length > 1) throw new BadRequestException('Reassign routes to one rider before merging');
+            const mergedRiderId = mergedRiderIds[0] ?? null;
+            const allStops''',
+          'merge rider compatibility')
+
+          replace_once(
+          '''        await tx.deliveryRunStop.update({
+                  where: { id: item.id },
+                  data: {
+                    deliveryRunId: target.id,
+                    sequenceNumber: index + 1,
+                    movedFromRunId: item.value.deliveryRunId === target.id ? item.value.movedFromRunId : item.value.deliveryRunId,
+                    lastMovedAt: item.value.deliveryRunId === target.id ? item.value.lastMovedAt : new Date(),
+                    routeOrderChangeReason: dto.reason,
+                    version: { increment: 1 },
+                  },
+                });
+              }''',
+          '''        await tx.deliveryRunStop.update({
+                  where: { id: item.id },
+                  data: {
+                    deliveryRunId: target.id,
+                    sequenceNumber: index + 1,
+                    movedFromRunId: item.value.deliveryRunId === target.id ? item.value.movedFromRunId : item.value.deliveryRunId,
+                    lastMovedAt: item.value.deliveryRunId === target.id ? item.value.lastMovedAt : new Date(),
+                    routeOrderChangeReason: dto.reason,
+                    version: { increment: 1 },
+                  },
+                });
+                const desiredJobStatus = mergedRiderId ? DeliveryJobStatus.RIDER_ASSIGNED : DeliveryJobStatus.WAITING_FOR_DISPATCH;
+                if ([DeliveryJobStatus.WAITING_FOR_DISPATCH, DeliveryJobStatus.RIDER_ASSIGNED].includes(item.value.deliveryJob.status as DeliveryJobStatus)) {
+                  await tx.deliveryJob.update({
+                    where: { id: item.value.deliveryJobId },
+                    data: { currentRiderId: mergedRiderId, status: desiredJobStatus, version: { increment: 1 } },
+                  });
+                  await tx.subscriptionDelivery.update({
+                    where: { id: item.value.subscriptionDeliveryId },
+                    data: { status: mergedRiderId ? SubscriptionDeliveryStatus.ASSIGNED : SubscriptionDeliveryStatus.ORDER_GENERATED },
+                  });
+                }
+              }''',
+          'merge stop ownership')
+
+          replace_once(
+          '''      const updated = await tx.deliveryRun.update({
+                where: { id: target.id },
+                data: { manualOverride: true, manualOverrideReason: dto.reason, version: { increment: 1 } },
+              });''',
+          '''      const updated = await tx.deliveryRun.update({
+                where: { id: target.id },
+                data: {
+                  riderId: mergedRiderId,
+                  status: mergedRiderId ? DeliveryRunStatus.PLANNED : DeliveryRunStatus.RIDER_NEEDED,
+                  manualOverride: true,
+                  manualOverrideReason: dto.reason,
+                  version: { increment: 1 },
+                },
+              });''',
+          'merge target ownership')
+
+          replace_once(
+          '''    if (source.riderId && destination.riderId && source.riderId !== destination.riderId) {
+              throw new BadRequestException('Reassign the destination route before moving a stop between different riders');
+            }
+            const destinationCandidates''',
+          '''    if (source.riderId && destination.riderId && source.riderId !== destination.riderId) {
+              throw new BadRequestException('Reassign the destination route before moving a stop between different riders');
+            }
+            if (![DeliveryJobStatus.WAITING_FOR_DISPATCH, DeliveryJobStatus.RIDER_ASSIGNED].includes(stop.deliveryJob.status as DeliveryJobStatus)) {
+              throw new BadRequestException('Only a pending, unstarted delivery job can move between runs');
+            }
+            const destinationCandidates''',
+          'move pending-job guard')
+
+          replace_once(
+          '''      if (destination.riderId && stop.deliveryJob.currentRiderId !== destination.riderId) {
+                await tx.deliveryJob.update({ where: { id: stop.deliveryJobId }, data: { currentRiderId: destination.riderId, version: { increment: 1 } } });
+              }
+              await this.resequence''',
+          '''      const destinationJobStatus = destination.riderId ? DeliveryJobStatus.RIDER_ASSIGNED : DeliveryJobStatus.WAITING_FOR_DISPATCH;
+              await tx.deliveryJob.update({
+                where: { id: stop.deliveryJobId },
+                data: { currentRiderId: destination.riderId, status: destinationJobStatus, version: { increment: 1 } },
+              });
+              await tx.subscriptionDelivery.update({
+                where: { id: stop.subscriptionDeliveryId },
+                data: { status: destination.riderId ? SubscriptionDeliveryStatus.ASSIGNED : SubscriptionDeliveryStatus.ORDER_GENERATED },
+              });
+              await this.resequence''',
+          'move destination ownership')
+
+          replace_once(
+          '''        await tx.deliveryRunStop.update({
+                  where: { id: stop.id },
+                  data: {
+                    deliveryRunId: created.id,
+                    sequenceNumber: index + 1,
+                    movedFromRunId: run.id,
+                    lastMovedAt: new Date(),
+                    routeOrderChangeReason: dto.reason,
+                    status: stop.status === DeliveryRunStopStatus.ARRIVED ? DeliveryRunStopStatus.RETRY_PENDING : stop.status,
+                    version: { increment: 1 },
+                  },
+                });
+              }
+              await this.recalculate''',
+          '''        await tx.deliveryRunStop.update({
+                  where: { id: stop.id },
+                  data: {
+                    deliveryRunId: created.id,
+                    sequenceNumber: index + 1,
+                    movedFromRunId: run.id,
+                    lastMovedAt: new Date(),
+                    routeOrderChangeReason: dto.reason,
+                    status: stop.status === DeliveryRunStopStatus.ARRIVED ? DeliveryRunStopStatus.RETRY_PENDING : stop.status,
+                    version: { increment: 1 },
+                  },
+                });
+                await tx.deliveryJob.update({
+                  where: { id: stop.deliveryJobId },
+                  data: { status: DeliveryJobStatus.WAITING_FOR_DISPATCH, currentRiderId: null, version: { increment: 1 } },
+                });
+                await tx.subscriptionDelivery.update({
+                  where: { id: stop.subscriptionDeliveryId },
+                  data: { status: SubscriptionDeliveryStatus.ORDER_GENERATED },
+                });
+                await tx.deliveryEvent.create({
+                  data: {
+                    deliveryJobId: stop.deliveryJobId,
+                    eventType: 'ASSIGNMENT_REASSIGNED',
+                    actorUserId: actor.id,
+                    actorRole: actor.role,
+                    metadata: { fromRiderId: run.riderId, toRiderId: null, sourceRunId: run.id, recoveryRunId: created.id, reason: dto.reason },
+                  },
+                });
+              }
+              await this.recalculate''',
+          'recovery ownership reset')
+
+          replace_once(
+          '''      await this.planner.assignRider(recovery.id, selected, actor, RouteAssignmentSource.RECOVERY);
+              await prisma.deliveryRun.update({ where: { id: recovery.id }, data: { status: DeliveryRunStatus.IN_PROGRESS, startedAt: new Date(), version: { increment: 1 } } });
+            }''',
+          '''      await this.planner.assignRider(recovery.id, selected, actor, RouteAssignmentSource.RECOVERY);
+            }''',
+          'recovery independent pickup')
+
+          path.write_text(text)
+          PY
+          rm .github/workflows/regional-routing-ownership-consistency.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api-gateway/src/subscriptions/regional-route-operations.service.ts .github/workflows/regional-routing-ownership-consistency.yml
+          git commit -m "fix(routing): keep route and delivery-job ownership consistent"
+          git push origin HEAD:feature/regional-multi-rider-route-splitting
