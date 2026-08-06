@@ -3,13 +3,15 @@ import path from 'path';
 
 describe('checkout order notification routing contract', () => {
   const checkoutSource = fs.readFileSync(path.join(__dirname, 'checkout/checkout.service.ts'), 'utf8');
+  const orderCreationSource = fs.readFileSync(path.join(__dirname, 'orders/order-creation.service.ts'), 'utf8');
   const routingSource = fs.readFileSync(path.join(__dirname, 'notifications/notification-routing.service.ts'), 'utf8');
 
-  it('enqueues ORDER_PLACED atomically inside the checkout transaction', () => {
-    expect(checkoutSource).toContain('await enqueueOutboxEvent(tx, {');
-    expect(checkoutSource).toContain("eventType: 'ORDER_PLACED'");
-    expect(checkoutSource).toContain("idempotencyKey: `checkout:order-placed:${created.id}`");
-    expect(checkoutSource).toContain('metadata: {\n            storeId,');
+  it('enqueues ORDER_PLACED atomically through the shared order transaction', () => {
+    expect(checkoutSource).toContain('this.orderCreation.createWithinTransaction(tx, {');
+    expect(orderCreationSource).toContain('await enqueueOutboxEvent(tx, {');
+    expect(orderCreationSource).toContain("eventType: 'ORDER_PLACED'");
+    expect(orderCreationSource).toContain("idempotencyKey: `order-created:${input.idempotencyKey}`");
+    expect(orderCreationSource).toContain('storeId: input.storeId');
   });
 
   it('does not broadcast an unassigned customer order to every rider token', () => {

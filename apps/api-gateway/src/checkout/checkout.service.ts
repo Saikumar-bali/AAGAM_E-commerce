@@ -1,15 +1,24 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { CouponRedemptionStatus, OrderSource, PaymentMethod, PaymentStatus, Prisma, Role, prisma } from '@aagam/database';
 import { calculateDistance } from '@aagam/utils';
 
 import { CheckoutPlaceOrderDto, CheckoutQuoteDto } from './dto/checkout.dto';
 import { TrackingGateway } from '../tracking.gateway';
 import { NotificationService } from '../notifications/notification.service';
-import { enqueueOutboxEvent } from '../notifications/outbox.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { OrderCreationService } from '../orders/order-creation.service';
 
 const logger = new Logger('CheckoutService');
+
+function isOrderCreationService(
+  value: OrderCreationService | PromotionsService | undefined,
+): value is OrderCreationService {
+  return Boolean(
+    value &&
+      'createWithinTransaction' in value &&
+      typeof value.createWithinTransaction === 'function',
+  );
+}
 
 const haversineKm = calculateDistance;
 export const FREE_DELIVERY_MINIMUM_PAISE = 19900;
@@ -44,12 +53,27 @@ function normalizeItems(items: Array<{ productId: string; quantity: number }>) {
 
 @Injectable()
 export class CheckoutService {
+  private readonly orderCreation: OrderCreationService;
+  private readonly promotionsService: PromotionsService | undefined;
+
   constructor(
     private readonly trackingGateway: TrackingGateway,
     private readonly notificationService: NotificationService,
-    private readonly orderCreation: OrderCreationService,
-    @Optional() private readonly promotionsService: PromotionsService | undefined,
-  ) {}
+    @Inject(OrderCreationService)
+    orderCreationOrPromotions?: OrderCreationService | PromotionsService,
+    @Optional() promotionsService?: PromotionsService,
+  ) {
+    if (isOrderCreationService(orderCreationOrPromotions)) {
+      this.orderCreation = orderCreationOrPromotions;
+      this.promotionsService = promotionsService;
+      return;
+    }
+
+    // Preserve direct unit-test construction from before OrderCreationService was extracted.
+    // Nest still injects OrderCreationService explicitly through @Inject in production.
+    this.orderCreation = new OrderCreationService();
+    this.promotionsService = orderCreationOrPromotions ?? promotionsService;
+  }
 
   private nearestStore(lat: number, lng: number, stores: Array<{ id: string; name: string; latitude: number; longitude: number }>) {
     let best = stores[0];
