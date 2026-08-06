@@ -81,7 +81,7 @@ export const SubscriptionDetailScreen = () => {
       if (!reportableDelivery) throw new Error('No delivery is available to report.');
       return subscriptionService.reportIssue(id, reportableDelivery.id, issueType, issueDescription.trim());
     },
-    onSuccess: () => { notify.success('Issue reported', 'AAGAM operations can now review this delivery.'); setIssueDescription(''); setSheet(null); },
+    onSuccess: () => { notify.success('Issue reported', 'Aagaam operations can now review this delivery.'); setIssueDescription(''); setSheet(null); },
     onError: (error) => notify.error('Report failed', getUserSafeError(error)),
   });
   const preferences = useMutation({
