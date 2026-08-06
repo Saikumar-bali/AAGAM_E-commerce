@@ -44,15 +44,26 @@ type ResolvedDelivery = {
   paymentRequirement: string;
 };
 
-type Actor = { id: string; role: Role };
+export type RegionalRouteActor = { id: string; role: Role };
 
-type RiderScore = {
+export type RiderScore = {
   riderId: string;
   userId: string;
   score: number;
   summary: string;
-  constraints: Record<string, unknown>;
+  constraints: Prisma.JsonObject;
 };
+
+const ACTIVE_RUN_STATUSES = [
+  DeliveryRunStatus.PLANNED,
+  DeliveryRunStatus.RIDER_NEEDED,
+  DeliveryRunStatus.READY_FOR_PICKUP,
+  DeliveryRunStatus.PICKED_UP,
+  DeliveryRunStatus.IN_PROGRESS,
+  DeliveryRunStatus.RETURNING,
+  DeliveryRunStatus.AWAITING_SETTLEMENT,
+  DeliveryRunStatus.RECOVERY_REQUIRED,
+];
 
 function jsonRecord(value: Prisma.JsonValue | null | undefined) {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -96,13 +107,11 @@ function hardConstraintFields(delivery: PlanningDelivery) {
   const rules = jsonRecord(delivery.subscription.policySnapshot);
   const items = Array.isArray(delivery.subscription.itemsSnapshot) ? delivery.subscription.itemsSnapshot : [];
   const firstItem = items.find((item) => item && typeof item === 'object' && !Array.isArray(item)) as Record<string, Prisma.JsonValue> | undefined;
-  const handlingRequirement = textFromJson(
-    rules.temperatureRequirement ?? firstItem?.temperatureRequirement,
-    'STANDARD',
-  );
-  const vehicleRequirement = textFromJson(rules.vehicleRequirement, 'ANY');
-  const paymentRequirement = delivery.cashDuePaise > 0 ? 'CASH_COLLECTION' : 'SUBSCRIPTION_FUNDED';
-  return { handlingRequirement, vehicleRequirement, paymentRequirement };
+  return {
+    handlingRequirement: textFromJson(rules.temperatureRequirement ?? firstItem?.temperatureRequirement, 'STANDARD'),
+    vehicleRequirement: textFromJson(rules.vehicleRequirement, 'ANY'),
+    paymentRequirement: delivery.cashDuePaise > 0 ? 'CASH_COLLECTION' : 'SUBSCRIPTION_FUNDED',
+  };
 }
 
 @Injectable()
@@ -134,6 +143,7 @@ export class RegionalRoutePlanningService {
         },
       } : {}),
     };
+
     const deliveries = await prisma.subscriptionDelivery.findMany({
       where,
       include: {
@@ -146,31 +156,49 @@ export class RegionalRoutePlanningService {
     });
 
     const resolved: ResolvedDelivery[] = [];
-    const unresolved: Array<{ deliveryId: string; orderId?: string; reason: string }> = [];
+    const deferred: Array<{ deliveryId: string; orderId?: string; reason: string }> = [];
+
     for (const delivery of deliveries) {
       if (!delivery.storeId || !delivery.store || !delivery.order || !delivery.deliveryJobId) {
-        unresolved.push({ deliveryId: delivery.id, orderId: delivery.order?.id, reason: 'Delivery is missing its generated order, job, or pickup store' });
+        deferred.push({
+          deliveryId: delivery.id,
+          orderId: delivery.order?.id,
+          reason: 'Delivery is missing its generated order, job, or pickup store',
+        });
         continue;
       }
+
       const point = pointFor(delivery);
       if (!point) {
-        unresolved.push({ deliveryId: delivery.id, orderId: delivery.order.id, reason: 'Authoritative delivery coordinates are missing' });
+        deferred.push({
+          deliveryId: delivery.id,
+          orderId: delivery.order.id,
+          reason: 'Authoritative delivery coordinates are missing',
+        });
         continue;
       }
+
       const existingZone = delivery.deliveryZoneId
         ? await prisma.deliveryZone.findFirst({ where: { id: delivery.deliveryZoneId, isActive: true } })
         : null;
       const resolution = existingZone
-        ? { zone: existingZone, source: DeliveryZoneResolutionSource.MANUAL, confidence: 1 }
+        ? {
+            zone: existingZone,
+            source: DeliveryZoneResolutionSource.MANUAL,
+            confidence: 1,
+            reason: undefined as string | undefined,
+          }
         : await this.zones.resolve(point, delivery.storeId);
+
       if (!resolution.zone) {
-        unresolved.push({
+        deferred.push({
           deliveryId: delivery.id,
           orderId: delivery.order.id,
           reason: resolution.reason || 'Delivery zone could not be resolved',
         });
         continue;
       }
+
       await this.zones.persistResolution({
         point,
         zone: resolution.zone as any,
@@ -193,6 +221,7 @@ export class RegionalRoutePlanningService {
         },
         dedupeKey: `region-resolved:${delivery.id}:${resolution.zone.id}`,
       });
+
       const window = serviceWindow(
         delivery.serviceDate,
         delivery.subscription.deliveryWindowStartMinute,
@@ -222,14 +251,22 @@ export class RegionalRoutePlanningService {
       groups.set(hardKey, [...(groups.get(hardKey) ?? []), row]);
     }
 
-    const createdRuns: unknown[] = [];
-    const deferred: typeof unresolved = [...unresolved];
+    const createdRuns: Array<{ id: string; routeCode: string }> = [];
     for (const [hardKey, group] of groups) {
       const zone = group[0].zone;
+      const dayStart = new Date(Date.UTC(
+        group[0].delivery.serviceDate.getUTCFullYear(),
+        group[0].delivery.serviceDate.getUTCMonth(),
+        group[0].delivery.serviceDate.getUTCDate(),
+      ));
+      const dayEnd = new Date(dayStart.getTime() + 86_400_000);
       const zoneAlreadyPlanned = await prisma.deliveryRunStop.count({
         where: {
           deliveryZoneId: zone.id,
-          deliveryRun: { serviceDate: group[0].delivery.serviceDate, status: { not: DeliveryRunStatus.CANCELLED } },
+          deliveryRun: {
+            serviceDate: { gte: dayStart, lt: dayEnd },
+            status: { not: DeliveryRunStatus.CANCELLED },
+          },
         },
       });
       const remainingDailyCapacity = Math.max(0, zone.maximumDailySubscriptionCapacity - zoneAlreadyPlanned);
@@ -242,6 +279,7 @@ export class RegionalRoutePlanningService {
         });
       }
       if (!eligibleRows.length) continue;
+
       const origin = {
         latitude: eligibleRows[0].delivery.store!.latitude,
         longitude: eligibleRows[0].delivery.store!.longitude,
@@ -256,6 +294,7 @@ export class RegionalRoutePlanningService {
         value: row,
       }));
       const clusters = splitByOperationalConstraints(origin, candidates, constraints);
+
       for (let clusterIndex = 0; clusterIndex < clusters.length; clusterIndex += 1) {
         const cluster = clusters[clusterIndex];
         const fingerprint = [hardKey, ...cluster.map((item) => item.id).sort()].join('|');
@@ -269,16 +308,12 @@ export class RegionalRoutePlanningService {
           constraints,
           zone,
         });
-        createdRuns.push(created);
-        if (options?.assignRiders !== false) {
-          await this.assignBestEligibleRider((created as { id: string }).id);
-        }
+        createdRuns.push({ id: created.id, routeCode: created.routeCode });
+        if (options?.assignRiders !== false) await this.assignBestEligibleRider(created.id);
       }
     }
 
-    if (deferred.length) {
-      this.logger.warn(`Regional planner deferred ${deferred.length} subscription deliveries`);
-    }
+    if (deferred.length) this.logger.warn(`Regional planner deferred ${deferred.length} subscription deliveries`);
     return { runs: createdRuns, deferred };
   }
 
@@ -302,13 +337,9 @@ export class RegionalRoutePlanningService {
           slotStart: first.window.start,
           deliveryCluster: input.clusterIdentifier,
         },
-        include: {
-          deliveryZone: true,
-          rider: { include: { user: { select: { id: true, name: true } } } },
-          stops: { orderBy: { sequenceNumber: 'asc' } },
-        },
       });
       if (existing) return existing;
+
       const expectedCashPaise = input.cluster.reduce((sum, item) => sum + item.cashDuePaise, 0);
       const expectedParcelCount = input.cluster.reduce((sum, item) => sum + item.parcelCount, 0);
       const expectedItemCount = input.cluster.reduce(
@@ -347,10 +378,10 @@ export class RegionalRoutePlanningService {
           },
         },
       });
+
       for (let index = 0; index < input.cluster.length; index += 1) {
         const candidate = input.cluster[index];
         const row = candidate.value;
-        const expectedItems = row.delivery.order!.items.reduce((sum, item) => sum + item.quantity, 0);
         await tx.deliveryRunStop.create({
           data: {
             deliveryRunId: run.id,
@@ -361,13 +392,14 @@ export class RegionalRoutePlanningService {
             status: DeliveryRunStopStatus.PLANNED,
             proofMode: row.delivery.proofMode,
             cashDuePaise: row.delivery.cashDuePaise,
-            expectedItemCount: expectedItems,
+            expectedItemCount: row.delivery.order!.items.reduce((sum, item) => sum + item.quantity, 0),
             expectedParcelCount: candidate.parcelCount,
             deliveryLatitude: candidate.latitude,
             deliveryLongitude: candidate.longitude,
           },
         });
       }
+
       await tx.deliveryRunAuditEntry.create({
         data: {
           deliveryRunId: run.id,
@@ -397,23 +429,17 @@ export class RegionalRoutePlanningService {
           dedupeKey: `route-cluster-created:${input.clusterIdentifier}`,
         },
       });
-      return tx.deliveryRun.findUniqueOrThrow({
-        where: { id: run.id },
-        include: {
-          deliveryZone: true,
-          rider: { include: { user: { select: { id: true, name: true } } } },
-          stops: { orderBy: { sequenceNumber: 'asc' } },
-        },
-      });
+      return run;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
-  async rankEligibleRiders(runId: string) {
+  async rankEligibleRiders(runId: string): Promise<RiderScore[]> {
     const run = await prisma.deliveryRun.findUnique({
       where: { id: runId },
       include: { deliveryZone: { include: { preferredRiderLinks: true } }, store: true },
     });
     if (!run) return [];
+
     const requireShift = String(process.env.ROUTE_REQUIRE_SHIFT ?? 'true').toLowerCase() !== 'false';
     const now = new Date();
     const riders = await prisma.riderProfile.findMany({
@@ -426,27 +452,36 @@ export class RegionalRoutePlanningService {
         user: { select: { id: true, name: true, isActive: true } },
         availabilityLocation: true,
         shifts: {
-          where: { startsAt: { lte: run.slotStart }, endsAt: { gte: run.slotEnd }, status: { in: ['SCHEDULED', 'ACTIVE'] } },
+          where: {
+            startsAt: { lte: run.slotStart },
+            endsAt: { gte: run.slotEnd },
+            status: { in: ['SCHEDULED', 'ACTIVE'] },
+          },
         },
         breaks: { where: { status: 'ACTIVE' } },
         documents: { where: { status: 'APPROVED' } },
         deliveryRuns: {
           where: {
-            status: { notIn: [DeliveryRunStatus.COMPLETED, DeliveryRunStatus.CANCELLED, DeliveryRunStatus.INTERRUPTED] },
+            status: { in: ACTIVE_RUN_STATUSES },
             slotStart: { lt: run.slotEnd },
             slotEnd: { gt: run.slotStart },
             id: { not: run.id },
           },
           select: { id: true },
         },
-        codLedgers: { where: { riderHoldingBalancePaise: { gt: 0 } }, select: { riderHoldingBalancePaise: true } },
+        codLedgers: {
+          where: { riderHoldingBalancePaise: { gt: 0 } },
+          select: { riderHoldingBalancePaise: true },
+        },
         cashDepositBatches: { where: { status: 'VARIANCE_REVIEW' }, select: { id: true } },
       },
     });
+
     const preferred = new Set(run.deliveryZone?.preferredRiderLinks.map((item) => item.riderProfileId) ?? []);
     const allowedVehicles = new Set((run.deliveryZone?.allowedVehicleTypes ?? []).map((item) => item.toUpperCase()));
     const maxPickupDistanceKm = Math.max(1, Number(process.env.ROUTE_RIDER_MAX_PICKUP_DISTANCE_KM || 25));
     const scores: RiderScore[] = [];
+
     for (const rider of riders) {
       const location = rider.availabilityLocation
         ? { latitude: rider.availabilityLocation.latitude, longitude: rider.availabilityLocation.longitude }
@@ -455,50 +490,52 @@ export class RegionalRoutePlanningService {
           : null;
       if (!location) continue;
       if (requireShift && rider.shifts.length === 0) continue;
-      if (rider.breaks.length > 0 || rider.deliveryRuns.length > 0 || rider.cashDepositBatches.length > 0) continue;
+      if (rider.breaks.length || rider.deliveryRuns.length || rider.cashDepositBatches.length) continue;
       if (!rider.documents.some((document) => !document.expiresAt || document.expiresAt >= now)) continue;
       if (allowedVehicles.size && (!rider.vehicleType || !allowedVehicles.has(rider.vehicleType.toUpperCase()))) continue;
       if (run.expectedParcelCount > rider.maximumParcelCapacity) continue;
+
       const currentCashPaise = rider.codLedgers.reduce((sum, ledger) => sum + ledger.riderHoldingBalancePaise, 0);
       const allowedCashPaise = Math.min(
         rider.maximumCashHoldingPaise,
         run.deliveryZone?.cashRiskLimitPaise ?? rider.maximumCashHoldingPaise,
       );
       if (currentCashPaise + run.expectedCashPaise > allowedCashPaise) continue;
-      const pickupDistanceKm = haversineKm(location, { latitude: run.store.latitude, longitude: run.store.longitude });
+
+      const pickupDistanceKm = haversineKm(location, {
+        latitude: run.store.latitude,
+        longitude: run.store.longitude,
+      });
       if (pickupDistanceKm > maxPickupDistanceKm) continue;
+
       const preferredZone = preferred.has(rider.id) || rider.homeZoneId === run.deliveryZoneId;
-      const score = Math.round((
-        pickupDistanceKm * 10
-        + currentCashPaise / 100_000
-        + (preferredZone ? -25 : 0)
-        + rider.id.charCodeAt(0) / 10000
-      ) * 100) / 100;
+      const score = Math.round((pickupDistanceKm * 10 + currentCashPaise / 100_000 + (preferredZone ? -25 : 0)) * 100) / 100;
+      const constraints: Prisma.JsonObject = {
+        pickupDistanceKm: Math.round(pickupDistanceKm * 100) / 100,
+        coveringShiftId: rider.shifts[0]?.id ?? null,
+        vehicleType: rider.vehicleType,
+        parcelCapacity: rider.maximumParcelCapacity,
+        routeParcels: run.expectedParcelCount,
+        currentCashPaise,
+        routeCashPaise: run.expectedCashPaise,
+        allowedCashPaise,
+        preferredZone,
+        unresolvedCashVariance: false,
+      };
       scores.push({
         riderId: rider.id,
         userId: rider.user.id,
         score,
         summary: `${preferredZone ? 'Preferred-zone rider; ' : ''}${pickupDistanceKm.toFixed(1)} km from pickup; cash after assignment ₹${((currentCashPaise + run.expectedCashPaise) / 100).toLocaleString('en-IN')}`,
-        constraints: {
-          pickupDistanceKm: Math.round(pickupDistanceKm * 100) / 100,
-          coveringShift: rider.shifts[0]?.id ?? null,
-          vehicleType: rider.vehicleType,
-          parcelCapacity: rider.maximumParcelCapacity,
-          routeParcels: run.expectedParcelCount,
-          currentCashPaise,
-          routeCashPaise: run.expectedCashPaise,
-          allowedCashPaise,
-          preferredZone,
-          unresolvedCashVariance: false,
-        },
+        constraints,
       });
     }
+
     return scores.sort((left, right) => left.score - right.score || left.riderId.localeCompare(right.riderId));
   }
 
   async assignBestEligibleRider(runId: string) {
-    const ranked = await this.rankEligibleRiders(runId);
-    const selected = ranked[0];
+    const selected = (await this.rankEligibleRiders(runId))[0];
     if (!selected) {
       return prisma.deliveryRun.update({
         where: { id: runId },
@@ -513,12 +550,21 @@ export class RegionalRoutePlanningService {
         },
       });
     }
-    const actorUser = await prisma.user.findFirst({ where: { role: Role.ADMIN, isActive: true }, orderBy: { createdAt: 'asc' } });
-    if (!actorUser) return null;
-    return this.assignRider(runId, selected, { id: actorUser.id, role: Role.ADMIN }, RouteAssignmentSource.AUTOMATIC);
+    const actor = await prisma.user.findFirst({
+      where: { role: Role.ADMIN, isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, role: true },
+    });
+    if (!actor) return null;
+    return this.assignRider(runId, selected, actor, RouteAssignmentSource.AUTOMATIC);
   }
 
-  async assignRider(runId: string, selected: RiderScore, actor: Actor, source: RouteAssignmentSource) {
+  async assignRider(
+    runId: string,
+    selected: RiderScore,
+    actor: RegionalRouteActor,
+    source: RouteAssignmentSource,
+  ) {
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`regional-route-assign:${runId}`}))`);
       const run = await tx.deliveryRun.findUnique({
@@ -526,8 +572,8 @@ export class RegionalRoutePlanningService {
         include: { stops: { include: { deliveryJob: true } } },
       });
       if (!run) return null;
+
       for (const stop of run.stops) {
-        const currentRiderId = stop.deliveryJob.currentRiderId;
         if (stop.deliveryJob.status === DeliveryJobStatus.WAITING_FOR_DISPATCH) {
           await this.workflow.transitionWithinTransaction(
             tx,
@@ -541,7 +587,7 @@ export class RegionalRoutePlanningService {
               metadata: { deliveryRunId: run.id, routeCode: run.routeCode, assignmentSource: source },
             },
           );
-        } else if (currentRiderId !== selected.riderId) {
+        } else if (stop.deliveryJob.currentRiderId !== selected.riderId) {
           await tx.deliveryJob.update({
             where: { id: stop.deliveryJobId },
             data: { currentRiderId: selected.riderId, version: { increment: 1 } },
@@ -552,7 +598,11 @@ export class RegionalRoutePlanningService {
               eventType: 'ASSIGNMENT_REASSIGNED',
               actorUserId: actor.id,
               actorRole: actor.role,
-              metadata: { fromRiderId: currentRiderId, toRiderId: selected.riderId, deliveryRunId: run.id },
+              metadata: {
+                fromRiderId: stop.deliveryJob.currentRiderId,
+                toRiderId: selected.riderId,
+                deliveryRunId: run.id,
+              },
             },
           });
         }
@@ -561,6 +611,7 @@ export class RegionalRoutePlanningService {
           data: { status: SubscriptionDeliveryStatus.ASSIGNED },
         });
       }
+
       const updated = await tx.deliveryRun.update({
         where: { id: run.id },
         data: {
@@ -568,7 +619,7 @@ export class RegionalRoutePlanningService {
           status: DeliveryRunStatus.PLANNED,
           assignmentScoreVersion: 'regional-rider-score-v1',
           assignmentReasonSummary: selected.summary,
-          assignmentConstraints: selected.constraints as Prisma.InputJsonValue,
+          assignmentConstraints: selected.constraints,
           assignmentSource: source,
           version: { increment: 1 },
         },
@@ -581,7 +632,12 @@ export class RegionalRoutePlanningService {
           actorRole: actor.role,
           action: source === RouteAssignmentSource.AUTOMATIC ? 'DELIVERY_RUN_ASSIGNED' : 'DELIVERY_RUN_REASSIGNED',
           reason: selected.summary,
-          metadata: { riderId: selected.riderId, score: selected.score, source, constraints: selected.constraints },
+          metadata: {
+            riderId: selected.riderId,
+            score: selected.score,
+            source,
+            constraints: selected.constraints,
+          } as Prisma.InputJsonValue,
           idempotencyKey: `route-assigned:${run.id}:v${updated.version}:${selected.riderId}`,
         },
       });
@@ -592,7 +648,12 @@ export class RegionalRoutePlanningService {
             : DeliveryRouteEventType.DELIVERY_RUN_REASSIGNED,
           deliveryRunId: run.id,
           actorUserId: actor.id,
-          payload: { riderId: selected.riderId, routeCode: run.routeCode, source, reason: selected.summary },
+          payload: {
+            riderId: selected.riderId,
+            routeCode: run.routeCode,
+            source,
+            reason: selected.summary,
+          },
           dedupeKey: `route-assignment-event:${run.id}:v${updated.version}`,
         },
       });
