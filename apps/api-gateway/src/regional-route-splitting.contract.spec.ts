@@ -47,13 +47,11 @@ describe('regional multi-rider route splitting contracts', () => {
       "approvalStatus: 'APPROVED'",
       'status: RiderStatus.ONLINE',
       'rider.shifts.length === 0',
-      'rider.breaks.length > 0',
-      'rider.deliveryRuns.length > 0',
+      'rider.breaks.length || rider.deliveryRuns.length || rider.cashDepositBatches.length',
       'rider.documents.some',
       'allowedVehicles.has',
       'maximumParcelCapacity',
       'maximumCashHoldingPaise',
-      'cashDepositBatches.length > 0',
       'pickupDistanceKm > maxPickupDistanceKm',
     ]) expect(planner).toContain(token);
     expect(planner).toContain("assignmentScoreVersion: 'regional-rider-score-v1'");
