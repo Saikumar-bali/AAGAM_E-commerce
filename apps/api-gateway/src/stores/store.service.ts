@@ -86,8 +86,13 @@ export class StoreService {
     const name = String(nameInput || '').trim().replace(/\s+/g, ' ');
     if (name.length < 2) throw new BadRequestException('Delivery zone name must be at least 2 characters.');
     const last = await prisma.deliveryZone.aggregate({ _max: { sortOrder: true } });
+    const baseCode = name.toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'ZONE';
+    let code = baseCode;
+    for (let suffix = 1; await prisma.deliveryZone.findUnique({ where: { code } }); suffix += 1) {
+      code = `${baseCode.slice(0, 40)}-${suffix}`;
+    }
     try {
-      return await prisma.deliveryZone.create({ data: { name, sortOrder: (last._max.sortOrder || 0) + 1 } });
+      return await prisma.deliveryZone.create({ data: { name, code, sortOrder: (last._max.sortOrder || 0) + 1 } });
     } catch (error: any) {
       if (error?.code === 'P2002') throw new ConflictException('A delivery zone with this name already exists.');
       throw error;

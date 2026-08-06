@@ -374,6 +374,7 @@ export class DeliveryRunPlanningService {
       },
       orderBy: [{ slotStart: 'asc' }, { routeCode: 'asc' }],
       include: {
+        deliveryZone: true,
         rider: { include: { user: { select: { id: true, name: true, phone: true } } } },
         stops: {
           orderBy: { sequenceNumber: 'asc' },

@@ -2,11 +2,14 @@ import { apiClient } from './client';
 
 export type DeliveryRunStatus =
   | 'PLANNED'
+  | 'RIDER_NEEDED'
   | 'READY_FOR_PICKUP'
   | 'PICKED_UP'
   | 'IN_PROGRESS'
   | 'RETURNING'
   | 'AWAITING_SETTLEMENT'
+  | 'INTERRUPTED'
+  | 'RECOVERY_REQUIRED'
   | 'COMPLETED'
   | 'CANCELLED';
 
@@ -35,6 +38,14 @@ export type DeliveryFailureReason =
 export type DeliveryRunSummary = {
   id: string;
   routeCode: string;
+  deliveryZoneId?: string | null;
+  deliveryZone?: { id: string; code: string; name: string; maximumStopsPerRun?: number; cashRiskLimitPaise?: number } | null;
+  planningAlgorithmVersion?: string;
+  estimatedDistanceKm: number;
+  estimatedDurationMinutes: number;
+  assignmentReasonSummary?: string | null;
+  assignmentSource?: 'AUTOMATIC' | 'MANUAL' | 'RECOVERY' | null;
+  recoveryFromRunId?: string | null;
   serviceDate: string;
   slotStart: string;
   slotEnd: string;
@@ -65,6 +76,11 @@ export type DeliveryRunStop = {
   deliveryRunId: string;
   deliveryJobId: string;
   subscriptionDeliveryId: string;
+  deliveryZoneId?: string | null;
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
+  movedFromRunId?: string | null;
+  lastMovedAt?: string | null;
   sequenceNumber: number;
   status: DeliveryRunStopStatus;
   proofMode: string;
