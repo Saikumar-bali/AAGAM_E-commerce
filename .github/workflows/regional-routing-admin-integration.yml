@@ -1,0 +1,81 @@
+name: Regional routing admin integration
+
+on:
+  push:
+    branches:
+      - feature/regional-multi-rider-route-splitting
+    paths:
+      - .github/workflows/regional-routing-admin-integration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/regional-multi-rider-route-splitting
+          fetch-depth: 0
+      - name: Wire Admin routing controls
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          page = Path('apps/admin-dashboard/src/app/(admin)/admin/route-planning/page.tsx')
+          text = page.read_text()
+
+          def one(old, new, label):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              text = text.replace(old, new, 1)
+
+          one(
+            "import DashboardLayout from '@/components/DashboardLayout';",
+            "import DashboardLayout from '@/components/DashboardLayout';\nimport ZoneManagementPanel from '@/components/regional-routing/ZoneManagementPanel';\nimport RunStopOrderEditor from '@/components/regional-routing/RunStopOrderEditor';",
+            'component imports',
+          )
+          one(
+            "  riders: Rider[];\n  recentEvents:",
+            "  riders: Rider[];\n  stores: Array<{ id: string; name: string; address?: string | null }>;\n  recentEvents:",
+            'dashboard stores type',
+          )
+          one(
+            '''<section><div className="mb-3 flex items-center justify-between"><div><p className="text-xs font-black uppercase tracking-wider text-emerald-700">Regional readiness</p><h2 className="mt-1 text-2xl font-black text-slate-950">Zone summaries</h2></div></div>''',
+            '''<section><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-wider text-emerald-700">Regional readiness</p><h2 className="mt-1 text-2xl font-black text-slate-950">Zone summaries</h2></div><ZoneManagementPanel zones={data?.zones || []} stores={data?.stores || []} riders={data?.riders || []} onSaved={load}/></div>''',
+            'zone management placement',
+          )
+          one(
+            '''      <section className="mt-4 grid gap-3 sm:grid-cols-2"><button disabled={!editable(selectedRun) || working === 'reorder'}''',
+            '''      <div className="mt-4"><RunStopOrderEditor run={selectedRun} reason={reason} disabled={!editable(selectedRun)} onSaved={load}/></div>
+              <section className="mt-4 grid gap-3 sm:grid-cols-2"><button disabled={!editable(selectedRun) || working === 'reorder'}''',
+            'accessible stop editor placement',
+          )
+          one(
+            '''  const minLat = Math.min(...latitudes, 0); const maxLat = Math.max(...latitudes, 1); const minLng = Math.min(...longitudes, 0); const maxLng = Math.max(...longitudes, 1);''',
+            '''  const minLat = latitudes.length ? Math.min(...latitudes) : 0; const maxLat = latitudes.length ? Math.max(...latitudes) : 1; const minLng = longitudes.length ? Math.min(...longitudes) : 0; const maxLng = longitudes.length ? Math.max(...longitudes) : 1;''',
+            'map geographic bounds',
+          )
+          page.write_text(text)
+
+          panel = Path('apps/admin-dashboard/src/components/regional-routing/ZoneManagementPanel.tsx')
+          text = panel.read_text()
+          old = '''<p className="mt-1 text-xs text-slate-500">{zone.maximumStopsPerRun ?? 15} stops · ₹{Number(zone.cashRiskLimitPaise ?? 0).toLocaleString('en-IN') / 100}</p>'''
+          new = '''<p className="mt-1 text-xs text-slate-500">{zone.maximumStopsPerRun ?? 15} stops · ₹{(Number(zone.cashRiskLimitPaise ?? 0) / 100).toLocaleString('en-IN')}</p>'''
+          if text.count(old) != 1:
+              raise SystemExit(f'zone cash display: expected exactly one match, found {text.count(old)}')
+          panel.write_text(text.replace(old, new, 1))
+          PY
+          rm .github/workflows/regional-routing-admin-integration.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/admin-dashboard/src/app/'(admin)'/admin/route-planning/page.tsx \
+            apps/admin-dashboard/src/components/regional-routing/ZoneManagementPanel.tsx \
+            .github/workflows/regional-routing-admin-integration.yml
+          git commit -m "feat(admin): integrate geographic zone and stop-order controls"
+          git push origin HEAD:feature/regional-multi-rider-route-splitting
