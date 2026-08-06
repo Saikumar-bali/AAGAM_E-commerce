@@ -1,96 +1,129 @@
-name: Diagnose latest production deploy
+name: Apply production deploy recovery fix
 
 on:
   push:
     branches: ["ops/diagnose-last-main-deploy"]
     paths:
       - ".github/workflows/diagnose-last-main-deploy.yml"
-  pull_request:
-    branches: ["main"]
-    paths:
-      - ".github/workflows/diagnose-last-main-deploy.yml"
 
 permissions:
-  actions: read
   contents: write
 
 jobs:
-  diagnose:
-    name: Capture protected deploy diagnostics
+  apply-fix:
+    name: Apply and validate production recovery changes
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      GH_TOKEN: ${{ github.token }}
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout diagnostic branch
+      - name: Checkout fix branch
         uses: actions/checkout@v4
         with:
           ref: ops/diagnose-last-main-deploy
           fetch-depth: 1
 
-      - name: Capture latest failed production deployment
-        id: capture
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.3"
+          cache: npm
+
+      - name: Replace void advisory-lock queries and add regression coverage
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          root = Path.cwd()
+          source_root = root / 'apps' / 'api-gateway' / 'src'
+          old = '$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock'
+          new = '$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock'
+          changed_files = []
+          replacements = 0
+
+          for path in source_root.rglob('*.ts'):
+              text = path.read_text()
+              count = text.count(old)
+              if count:
+                  path.write_text(text.replace(old, new))
+                  changed_files.append(path.relative_to(root).as_posix())
+                  replacements += count
+
+          if replacements == 0:
+              raise SystemExit('No advisory-lock $queryRaw calls were found to replace.')
+
+          test_path = source_root / 'production-deploy-safety.contract.spec.ts'
+          test_path.write_text("""import { readFileSync, readdirSync, statSync } from 'fs';
+          import { resolve } from 'path';
+
+          const repositoryRoot = resolve(__dirname, '../../..');
+
+          function productionSourceFiles(directory: string): string[] {
+            return readdirSync(directory).flatMap((entry) => {
+              const path = resolve(directory, entry);
+              if (statSync(path).isDirectory()) return productionSourceFiles(path);
+              if (!path.endsWith('.ts') || path.endsWith('.spec.ts')) return [];
+              return [path];
+            });
+          }
+
+          describe('production deployment safety', () => {
+            it('keeps the low-memory VPS deployment on the supported runtime', () => {
+              const deployScript = readFileSync(resolve(repositoryRoot, 'deploy.sh'), 'utf8');
+              expect(deployScript).toContain('DEPLOY_NODE_VERSION="${DEPLOY_NODE_VERSION:-22.22.3}"');
+              expect(deployScript).toContain('ensure_node_runtime');
+              expect(deployScript).toContain('ensure_deploy_memory');
+              expect(deployScript).toContain('--concurrency=1');
+              expect(deployScript).toContain('--interpreter "$deploy_node"');
+            });
+
+            it('does not deserialize PostgreSQL advisory lock void results', () => {
+              const offenders = productionSourceFiles(resolve(repositoryRoot, 'apps/api-gateway/src'))
+                .filter((path) => /\$queryRaw(?:Unsafe)?\s*\(\s*Prisma\.sql`SELECT\s+pg_advisory_xact_lock/i.test(readFileSync(path, 'utf8')));
+              expect(offenders).toEqual([]);
+            });
+          });
+          """.replace(/^          /gm, ''))
+
+          docs_path = root / 'docs' / 'DEPLOYMENT_AUTOMATION.md'
+          docs = docs_path.read_text()
+          needle = 'Use Node.js `22.x`, matching CI. Install PM2 once and configure it to survive reboots:'
+          replacement = '''Use Node.js `22.x`, matching CI. If the system runtime is older, `deploy.sh` downloads the pinned Node `22.22.3` archive from nodejs.org, verifies it against the official SHA-256 manifest, caches it under `~/.cache/aagam-node`, and explicitly starts PM2 applications with that runtime.\n\nOn a small VPS, `deploy.sh` checks combined free RAM and swap before `npm ci`. When less than 1536 MB is available, it creates or reactivates `/var/tmp/aagam-deploy.swap` using passwordless `sudo`, then builds with Turbo concurrency `1`. The defaults can be adjusted with `DEPLOY_MIN_AVAILABLE_MEMORY_MB`, `DEPLOY_SWAP_MB`, `DEPLOY_SWAP_FILE`, and `DEPLOY_NODE_HEAP_MB`.\n\nInstall PM2 once and configure it to survive reboots:'''
+          if needle not in docs:
+              raise SystemExit('Deployment documentation anchor was not found.')
+          docs_path.write_text(docs.replace(needle, replacement, 1))
+
+          print(f'Replaced {replacements} advisory-lock query call(s) across {len(changed_files)} files:')
+          for path in changed_files:
+              print(f'  - {path}')
+          PY
+
+      - name: Validate shell and source contracts
         shell: bash
         run: |
           set -Eeuo pipefail
-          mkdir -p diagnostics docs/qa
-
-          failed_run_id="$(gh api \
-            "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy.yml/runs?branch=main&status=failure&per_page=1" \
-            --jq '.workflow_runs[0].id // empty')"
-
-          if [[ -z "$failed_run_id" ]]; then
-            echo "No failed Deploy production run was found on main." | tee diagnostics/latest-deploy-failed.log
+          bash -n deploy.sh
+          if grep -R --include='*.ts' -n '\$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock' apps/api-gateway/src; then
+            echo 'Unsafe advisory lock query remains.'
             exit 1
           fi
 
-          gh run view "$failed_run_id" \
-            --repo "$GITHUB_REPOSITORY" \
-            --json databaseId,name,displayTitle,headSha,event,status,conclusion,createdAt,updatedAt,jobs \
-            > diagnostics/latest-deploy-metadata.json
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
 
-          if ! gh run view "$failed_run_id" \
-            --repo "$GITHUB_REPOSITORY" \
-            --log-failed \
-            > diagnostics/latest-deploy-failed.log 2>&1; then
-            echo "gh run view returned a non-zero status while downloading failed logs; retained output above." \
-              >> diagnostics/latest-deploy-failed.log
-          fi
+      - name: Generate Prisma client
+        run: npx prisma generate --schema packages/database/prisma/schema.prisma
 
-          failed_sha="$(jq -r '.headSha // "unknown"' diagnostics/latest-deploy-metadata.json)"
-          failed_created_at="$(jq -r '.createdAt // "unknown"' diagnostics/latest-deploy-metadata.json)"
-          failed_title="$(jq -r '.displayTitle // .name // "unknown"' diagnostics/latest-deploy-metadata.json)"
+      - name: Run production deploy regression test
+        run: npm run test --workspace=apps/api-gateway -- production-deploy-safety.contract.spec.ts
 
-          cat > docs/qa/latest-production-deploy-diagnostic-marker.md <<MARKER
-          # Latest production deploy diagnostic
-
-          - Diagnostic workflow run: ${GITHUB_RUN_ID}
-          - Failed deploy run: ${failed_run_id}
-          - Failed deploy commit: ${failed_sha}
-          - Failed deploy title: ${failed_title}
-          - Failed deploy created at: ${failed_created_at}
-          - Artifact: latest-production-deploy-diagnostics
-          MARKER
-
-          echo "failed_run_id=$failed_run_id" >> "$GITHUB_OUTPUT"
-
-      - name: Upload protected diagnostic artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: latest-production-deploy-diagnostics
-          path: diagnostics/
-          if-no-files-found: warn
-          retention-days: 1
-
-      - name: Record diagnostic run identifiers
-        if: success()
+      - name: Remove one-use workflow and publish fix
         shell: bash
         run: |
           set -Eeuo pipefail
+          git rm .github/workflows/diagnose-last-main-deploy.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/qa/latest-production-deploy-diagnostic-marker.md
-          git commit -m "chore(ci): record latest deploy diagnostic [deploy-diagnostic-result]"
+          git add deploy.sh docs/DEPLOYMENT_AUTOMATION.md apps/api-gateway/src
+          git commit -m "fix(deploy): recover low-memory production releases"
           git push origin HEAD:ops/diagnose-last-main-deploy
