@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { SubscriptionOrderGenerator } from './subscription-order-generator.service';
-import { DeliveryRunPlanningService } from './delivery-run-planning.service';
+import { RegionalRoutePlanningService } from './regional-route-planning.service';
 
 @Injectable()
 export class SubscriptionSchedulerService implements OnModuleInit, OnModuleDestroy {
@@ -10,7 +10,7 @@ export class SubscriptionSchedulerService implements OnModuleInit, OnModuleDestr
 
   constructor(
     private readonly generator: SubscriptionOrderGenerator,
-    private readonly runPlanning: DeliveryRunPlanningService,
+    private readonly runPlanning: RegionalRoutePlanningService,
   ) {}
 
   onModuleInit() {
@@ -31,13 +31,13 @@ export class SubscriptionSchedulerService implements OnModuleInit, OnModuleDestr
     this.running = true;
     try {
       const generated = await this.generator.generateDue(new Date(), 250);
-      const runs = await this.runPlanning.planGeneratedDeliveries(1000);
-      if (generated.generated.length || generated.failures.length || runs.length) {
+      const regionalPlanning = await this.runPlanning.planGeneratedDeliveries(1000, { assignRiders: true });
+      if (generated.generated.length || generated.failures.length || regionalPlanning.runs.length || regionalPlanning.deferred.length) {
         this.logger.log(
-          `subscription scheduler generated=${generated.generated.length} deferred=${generated.failures.length} runs=${runs.length}`,
+          `subscription scheduler generated=${generated.generated.length} deferred-generation=${generated.failures.length} regional-runs=${regionalPlanning.runs.length} deferred-routing=${regionalPlanning.deferred.length}`,
         );
       }
-      return { generated, runs };
+      return { generated, runs: regionalPlanning.runs, deferredRouting: regionalPlanning.deferred };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Subscription scheduler failed: ${message}`);
