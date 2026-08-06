@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
-import { CouponRedemptionStatus, PaymentMethod, PaymentStatus, Prisma, prisma } from '@aagam/database';
+import { CouponRedemptionStatus, OrderSource, PaymentMethod, PaymentStatus, Prisma, Role, prisma } from '@aagam/database';
 import { calculateDistance } from '@aagam/utils';
 
 import { CheckoutPlaceOrderDto, CheckoutQuoteDto } from './dto/checkout.dto';
@@ -7,6 +7,7 @@ import { TrackingGateway } from '../tracking.gateway';
 import { NotificationService } from '../notifications/notification.service';
 import { enqueueOutboxEvent } from '../notifications/outbox.service';
 import { PromotionsService } from '../promotions/promotions.service';
+import { OrderCreationService } from '../orders/order-creation.service';
 
 const logger = new Logger('CheckoutService');
 
@@ -46,7 +47,8 @@ export class CheckoutService {
   constructor(
     private readonly trackingGateway: TrackingGateway,
     private readonly notificationService: NotificationService,
-    @Optional() private readonly promotionsService?: PromotionsService
+    private readonly orderCreation: OrderCreationService,
+    @Optional() private readonly promotionsService: PromotionsService | undefined,
   ) {}
 
   private nearestStore(lat: number, lng: number, stores: Array<{ id: string; name: string; latitude: number; longitude: number }>) {
@@ -429,113 +431,59 @@ export class CheckoutService {
           }
         : pricingSnapshot;
 
-      for (const item of quote.invoice.items) {
-        const existing = await tx.inventory.findUnique({
-          where: { storeId_productId: { storeId, productId: item.productId } },
-        });
-        const previousQuantity = existing?.quantity ?? 0;
-
-        if ((existing?.quantity ?? 0) < item.quantity) {
-          throw new BadRequestException(`Insufficient inventory for ${item.name}: only ${existing?.quantity ?? 0} available`);
-        }
-
-        const reserved = await tx.inventory.updateMany({
-          where: {
-            storeId,
-            productId: item.productId,
-            quantity: { gte: item.quantity },
-          },
-          data: {
-            quantity: {
-              decrement: item.quantity,
-            },
-          },
-        });
-
-        if (reserved.count !== 1) {
-          throw new BadRequestException(`Out of stock: ${item.name}`);
-        }
-
-        await tx.inventoryLedger.create({
-          data: {
-            storeId,
-            productId: item.productId,
-            orderId: null,
-            reason: 'CHECKOUT_RESERVATION',
-            quantityDelta: -item.quantity,
-            previousQuantity,
-            newQuantity: previousQuantity - item.quantity,
-            actorUserId: userId,
-            note: `Checkout reservation for ${item.name}`,
-          },
-        });
-      }
-
-      const created = await tx.order.create({
-        data: {
-          customerId: userId,
-          storeId,
-          status: orderStatus as any,
-          ...(orderStatus === 'CONFIRMED' ? { confirmedAt: new Date() } : {}),
-          totalAmount: quote.invoice.grandTotal,
-          currency: 'INR',
-          subtotal: quote.invoice.subtotal,
-          deliveryFee: quote.invoice.deliveryFee,
-          discountAmount: quote.invoice.discountAmount,
-          taxAmount: 0,
-          grandTotal: quote.invoice.grandTotal,
-          subtotalPaise: quote.invoice.subtotalPaise,
-          deliveryFeePaise: quote.invoice.deliveryFeePaise,
-          discountPaise: quote.invoice.discountPaise,
-          taxPaise: 0,
-          grandTotalPaise: quote.invoice.grandTotalPaise,
-          deliveryLat: address.latitude,
-          deliveryLng: address.longitude,
-          idempotencyKey: idempotencyKey || null,
-          customerSnapshot: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-          },
-          addressSnapshot: {
-            id: address.id,
-            label: address.label,
-            recipientName: address.recipientName,
-            phoneE164: address.phoneE164,
-            alternatePhoneE164: (address as any).alternatePhoneE164,
-            line1: address.line1,
-            line2: address.line2,
-            landmark: address.landmark,
-            city: address.city,
-            state: address.state,
-            pincode: address.pincode,
-            country: address.country,
-            latitude: address.latitude,
-            longitude: address.longitude,
-            instructions: address.instructions,
-          },
-          itemsSnapshot: quote.invoice.items.map((it) => ({
-            productId: it.productId,
-            name: it.name,
-            image: it.image,
-            quantity: it.quantity,
-            unitPrice: it.unitPrice,
-            lineTotal: it.lineTotal,
-            unitPricePaise: it.unitPricePaise,
-            lineTotalPaise: it.lineTotalPaise,
-          })),
-          pricingSnapshot: transactionPricingSnapshot,
-          items: {
-            create: quote.invoice.items.map((it) => ({
-              productId: it.productId,
-              quantity: it.quantity,
-              price: it.unitPrice,
-              unitPricePaise: it.unitPricePaise,
-              lineTotalPaise: it.lineTotalPaise,
-            })),
-          },
+      const created = await this.orderCreation.createWithinTransaction(tx, {
+        customerId: userId,
+        storeId,
+        actorUserId: userId,
+        actorRole: Role.CUSTOMER,
+        status: orderStatus as 'CONFIRMED' | 'PAYMENT_PENDING',
+        orderSource: OrderSource.CHECKOUT,
+        paymentMethod: dto.paymentMethod,
+        paymentStatus,
+        paymentProvider: dto.paymentMethod === PaymentMethod.COD ? 'COD' : 'SIMULATED',
+        paymentAmountPaise: quote.invoice.grandTotalPaise,
+        currency: 'INR',
+        idempotencyKey: idempotencyKey || `checkout:${userId}:${Date.now()}`,
+        customerSnapshot: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
         },
-        include: { items: true, store: { select: { name: true } } },
+        addressSnapshot: {
+          id: address.id,
+          label: address.label,
+          recipientName: address.recipientName,
+          phoneE164: address.phoneE164,
+          alternatePhoneE164: (address as any).alternatePhoneE164,
+          line1: address.line1,
+          line2: address.line2,
+          landmark: address.landmark,
+          city: address.city,
+          state: address.state,
+          pincode: address.pincode,
+          country: address.country,
+          latitude: address.latitude,
+          longitude: address.longitude,
+          instructions: address.instructions,
+        },
+        pricingSnapshot: transactionPricingSnapshot,
+        lines: quote.invoice.items.map((item) => ({
+          productId: item.productId,
+          categoryId: item.categoryId,
+          name: item.name,
+          image: item.image,
+          quantity: item.quantity,
+          unitPricePaise: item.unitPricePaise,
+          lineTotalPaise: item.lineTotalPaise,
+        })),
+        subtotalPaise: quote.invoice.subtotalPaise,
+        deliveryFeePaise: quote.invoice.deliveryFeePaise,
+        discountPaise: quote.invoice.discountPaise,
+        taxPaise: quote.invoice.taxPaise,
+        grandTotalPaise: quote.invoice.grandTotalPaise,
+        deliveryLat: address.latitude,
+        deliveryLng: address.longitude,
+        reservationNote: 'Checkout inventory reservation',
       });
 
       if (transactionPromotionPricing.coupon) {
@@ -557,59 +505,6 @@ export class CheckoutService {
           },
         });
       }
-
-      for (const item of quote.invoice.items) {
-        await tx.inventoryLedger.updateMany({
-          where: {
-            storeId,
-            productId: item.productId,
-            orderId: null,
-            reason: 'CHECKOUT_RESERVATION',
-          },
-          data: { orderId: created.id },
-        });
-      }
-
-      await tx.payment.create({
-        data: {
-          orderId: created.id,
-          method: dto.paymentMethod,
-          status: paymentStatus,
-          provider: dto.paymentMethod === PaymentMethod.COD ? 'COD' : 'SIMULATED',
-          amount: quote.invoice.grandTotal,
-          amountPaise: quote.invoice.grandTotalPaise,
-          currency: 'INR',
-        },
-      });
-
-      await tx.orderStatusHistory.create({
-        data: {
-          orderId: created.id,
-          fromStatus: null,
-          toStatus: orderStatus as any,
-          actorUserId: userId,
-          actorRole: 'CUSTOMER',
-          note: dto.paymentMethod === PaymentMethod.COD ? 'Order placed and confirmed' : 'Order placed, awaiting payment',
-        },
-      });
-
-      await enqueueOutboxEvent(tx, {
-        eventType: 'ORDER_PLACED',
-        aggregateType: 'ORDER',
-        aggregateId: created.id,
-        idempotencyKey: `checkout:order-placed:${created.id}`,
-        payload: {
-          orderId: created.id,
-          actorUserId: userId,
-          actorRole: 'CUSTOMER',
-          metadata: {
-            storeId,
-            paymentMethod: dto.paymentMethod,
-            itemCount: created.items?.length ?? quote.invoice.items.length,
-            grandTotalPaise: quote.invoice.grandTotalPaise,
-          },
-        },
-      });
 
       return created;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

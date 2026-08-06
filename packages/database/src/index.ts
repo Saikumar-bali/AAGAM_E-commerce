@@ -82,6 +82,15 @@ export const Role = {
 
 export type Role = (typeof Role)[keyof typeof Role]
 
+
+export const OrderSource = {
+  CHECKOUT: 'CHECKOUT',
+  SUBSCRIPTION: 'SUBSCRIPTION',
+  ADMIN: 'ADMIN',
+} as const
+
+export type OrderSource = (typeof OrderSource)[keyof typeof OrderSource]
+
 export const OrderStatus = {
   PENDING: 'PENDING',
   PAYMENT_PENDING: 'PAYMENT_PENDING',
@@ -100,6 +109,7 @@ export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus]
 export const PaymentMethod = {
   ONLINE: 'ONLINE',
   COD: 'COD',
+  SUBSCRIPTION_CASH_CREDIT: 'SUBSCRIPTION_CASH_CREDIT',
 } as const
 
 export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod]
@@ -109,6 +119,7 @@ export const PaymentStatus = {
   CAPTURED: 'CAPTURED',
   FAILED: 'FAILED',
   PENDING_COD: 'PENDING_COD',
+  SUBSCRIPTION_FUNDED: 'SUBSCRIPTION_FUNDED',
   REFUND_PENDING: 'REFUND_PENDING',
   REFUNDED: 'REFUNDED',
 } as const

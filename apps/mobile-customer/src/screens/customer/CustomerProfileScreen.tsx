@@ -18,6 +18,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import {
   Bell,
   BriefcaseBusiness,
+  CalendarDays,
   ChevronRight,
   ClipboardList,
   Headphones,
@@ -288,6 +289,7 @@ export const CustomerProfileScreen = () => {
 
       <View style={styles.menuCard}>
         <MenuRow icon={ClipboardList} title="My Orders" subtitle="Track, reorder, and review deliveries" onPress={() => navigation.navigate('Orders')} />
+        <MenuRow icon={CalendarDays} title="My Subscriptions" subtitle="Manage recurring deliveries, skips, funding and proofs" onPress={() => navigation.navigate('MySubscriptions')} />
         <MenuRow icon={Bell} title="Alerts" subtitle="Order and support notifications" onPress={() => navigation.navigate('Alerts')} />
         <MenuRow icon={Smartphone} title="Push Notifications" subtitle="Register this device for updates" onPress={() => void enablePush()} />
         <MenuRow icon={Headphones} title="Customer Support" subtitle="Open a ticket for an order, item, payment, or delivery issue" onPress={() => navigation.navigate('Support')} />

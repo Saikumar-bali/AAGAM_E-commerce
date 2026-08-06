@@ -12,6 +12,7 @@ import {
 } from 'lucide-react-native';
 import { StoreDashboard } from '../screens/store/StoreDashboard';
 import { StoreDeliveryOperationsScreen } from '../screens/store/StoreDeliveryOperationsScreen';
+import { StoreSubscriptionOperationsScreen } from '../screens/store/StoreSubscriptionOperationsScreen';
 import { StoreInventoryScreen } from '../screens/store/StoreInventoryScreen';
 import { StoreOrdersNavigator } from './StoreOrdersNavigator';
 import { StoreSettingsScreen } from '../screens/store/StoreSettingsScreen';
@@ -158,5 +159,6 @@ export const StoreNavigator = () => (
     <Stack.Screen name="StorePickupVerification" component={StorePickupVerificationEntryScreen} />
     <Stack.Screen name="StorePickupSuccess" component={StorePickupSuccessEntryScreen} />
     <Stack.Screen name="StoreReturnsCod" component={StoreDeliveryOperationsScreen} />
+    <Stack.Screen name="StoreSubscriptionOperations" component={StoreSubscriptionOperationsScreen} />
   </Stack.Navigator>
 );

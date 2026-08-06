@@ -20,6 +20,7 @@ import {
   Plus,
   ShoppingCart,
   Truck,
+  CalendarDays,
 } from 'lucide-react-native';
 import { getProductImage } from '@aagam/utils';
 import { apiClient } from '@aagam/mobile-shared';
@@ -102,6 +103,7 @@ export const ProductDetailScreen = () => {
         </View>
         <View style={styles.productHeader}><View style={styles.titleCopy}><Text style={styles.name}>{product.name}</Text><Text style={styles.measure}>{details.weight || product.unit || product.quantityLabel || 'Fresh everyday essential'}</Text>{Number.isFinite(rating) && rating > 0 ? <View style={styles.ratingRow}><Text style={styles.rating}>★ {rating.toFixed(1)}</Text>{Number.isFinite(reviewCount) && reviewCount > 0 ? <Text style={styles.reviewText}>({reviewCount.toLocaleString()} reviews)</Text> : null}<Text style={styles.qualityText}>│  ♢ Quality You Can Trust</Text></View> : null}</View><View style={styles.deliveryCard}><Truck size={23} color="#0F766E" /><Text style={styles.deliveryLabel}>Delivering to</Text><Text style={styles.deliveryTitle}>{deliveryTitle}</Text><ChevronDown size={16} color="#0F766E" /></View></View>
         <View style={styles.priceRow}><Text style={styles.price}>₹{price}</Text>{discount > 0 ? <Text style={styles.mrp}>₹{mrp}</Text> : null}{discount > 0 ? <Text style={styles.discount}>{discount}% OFF</Text> : null}</View><Text style={styles.taxText}>Inclusive of all taxes</Text>
+        <TouchableOpacity testID="product_detail_subscribe" style={styles.subscriptionCard} onPress={() => navigation.navigate('SubscriptionPlans', { productId: product.id })} activeOpacity={0.88}><View style={styles.subscriptionIcon}><CalendarDays size={23} color="#FFFFFF" /></View><View style={styles.subscriptionCopy}><Text style={styles.subscriptionEyebrow}>SUBSCRIBE & SAVE</Text><Text style={styles.subscriptionTitle}>Schedule recurring deliveries</Text><Text style={styles.subscriptionText}>Choose a published 7-day, 30-day or bundle plan. Pay cash only when funding is due.</Text></View><ArrowRight size={20} color="#0F766E" /></TouchableOpacity>
         <Text style={styles.sectionTitle}>About this product</Text><Text style={styles.description}>{productDescription}</Text>
         {detailRows.length ? <View style={styles.detailsCard}>{detailRows.map(([label, value]) => <View key={label} style={styles.detailRow}><Text style={styles.detailLabel}>{label}</Text><Text style={styles.detailValue}>{Array.isArray(value) ? value.join(', ') : String(value)}</Text></View>)}</View> : null}
         {nutrition ? <View style={styles.nutritionCard}><Text style={styles.nutritionTitle}>Nutritional Information</Text><Text style={styles.nutritionText}>{typeof nutrition === 'string' ? nutrition : JSON.stringify(nutrition)}</Text></View> : null}
@@ -167,6 +169,12 @@ const styles = StyleSheet.create({
   nutritionLabel: { marginTop: 4, color: '#64748B', fontSize: 9, fontWeight: '600' },
   nutritionLink: { marginTop: 15, color: '#0F766E', fontSize: 11, fontWeight: '900' },
   nutritionText: { marginTop: 6, color: '#64748B', fontSize: 12, lineHeight: 18 },
+  subscriptionCard: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 20, padding: 14, backgroundColor: '#E8F8F1', borderWidth: 1, borderColor: '#A9DBC6' },
+  subscriptionIcon: { width: 47, height: 47, borderRadius: 15, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' },
+  subscriptionCopy: { flex: 1 },
+  subscriptionEyebrow: { color: '#0F766E', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  subscriptionTitle: { color: '#143D32', fontSize: 15, fontWeight: '900', marginTop: 2 },
+  subscriptionText: { color: '#60766D', fontSize: 10, lineHeight: 15, marginTop: 3 },
   actionRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginHorizontal: 18, marginTop: 18 },
   quantityBox: { borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', padding: 8, backgroundColor: '#FFFFFF' },
   quantityLabel: { marginBottom: 5, color: '#64748B', fontSize: 10, fontWeight: '800' },

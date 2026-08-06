@@ -16,6 +16,7 @@ import { DispatchService } from './dispatch.service';
 import { EligibleDispatchAssignmentService } from './eligible-dispatch-assignment.service';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
+import { OrderCreationService } from './order-creation.service';
 import { PickupReadinessController } from './pickup-readiness.controller';
 import { PostDeliveryController } from './post-delivery.controller';
 import { PostDeliveryService } from './post-delivery.service';
@@ -36,6 +37,7 @@ import { StoreFulfillmentService } from './store-fulfillment.service';
   ],
   providers: [
     OrderService,
+    OrderCreationService,
     DeliveryEventService,
     DeliveryJobService,
     DeliveryWorkflowService,
@@ -77,11 +79,14 @@ import { StoreFulfillmentService } from './store-fulfillment.service';
   ],
   exports: [
     OrderService,
+    OrderCreationService,
     DeliveryEventService,
     DeliveryJobService,
     DeliveryWorkflowService,
     DispatchAssignmentService,
     AutoDispatchService,
+    DeliveryOperationsService,
+    CodSettlementFacadeService,
   ],
 })
 export class OrderModule {}

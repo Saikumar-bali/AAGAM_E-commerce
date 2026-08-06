@@ -15,6 +15,8 @@ export type RiderJobsStackParamList = {
 export type RiderTabParamList = {
   Dashboard: undefined;
   Operations: NavigatorScreenParams<RiderJobsStackParamList> | undefined;
+  Runs: undefined;
+  RiderRunDetail: { runId: string };
   Alerts: undefined;
   History: undefined;
   Profile: undefined;
@@ -40,6 +42,7 @@ export type StoreTabParamList = {
   Orders: StoreOrderQueueParams | undefined;
   Dashboard?: undefined;
   Operations?: undefined;
+  SubscriptionOperations?: undefined;
   Profile?: undefined;
 };
 

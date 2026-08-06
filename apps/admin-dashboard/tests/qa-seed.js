@@ -270,6 +270,151 @@ async function main() {
     data: { status: 'DELIVERED', deliveredAt: new Date(), riderId: null },
   });
   console.log('  Cleared active rider orders');
+
+  // Subscription delivery-runs QA fixture: a published plan and an owned customer contract.
+  const subscriptionAdmin = await prisma.user.findUnique({ where: { email: 'admin@aagam.com' } });
+  const subscriptionCustomer = await prisma.user.findUnique({ where: { email: 'customer@aagam.com' } });
+  const subscriptionAddress = subscriptionCustomer
+    ? await prisma.customerAddress.findFirst({ where: { userId: subscriptionCustomer.id }, orderBy: { isDefault: 'desc' } })
+    : null;
+  if (subscriptionAdmin && subscriptionCustomer && subscriptionAddress) {
+    const qaPlan = await prisma.subscriptionPlan.upsert({
+      where: { code: 'QA-MILK-7' },
+      update: {
+        name: 'Buffalo Milk 1 L · 7 Days',
+        internalName: 'QA Buffalo Milk 7 Day',
+        status: 'ACTIVE',
+        fundingCycle: 'FULL_PLAN',
+        durationDays: 7,
+        totalDeliveries: 7,
+        deliveryFrequency: 'DAILY',
+        pricePaise: 49000,
+        mrpPaise: 52500,
+        defaultWindowStartMinute: 360,
+        defaultWindowEndMinute: 540,
+        proofPolicy: { personal: ['OTP', 'GPS'], trustedDrop: ['GEOFENCE', 'TOKEN', 'PHOTO'] },
+        createdById: subscriptionAdmin.id,
+        updatedById: subscriptionAdmin.id,
+      },
+      create: {
+        id: 'qa-subscription-plan-milk-7',
+        code: 'QA-MILK-7',
+        internalName: 'QA Buffalo Milk 7 Day',
+        name: 'Buffalo Milk 1 L · 7 Days',
+        description: 'Fresh morning milk with first-delivery cash funding.',
+        status: 'ACTIVE',
+        fundingCycle: 'FULL_PLAN',
+        durationDays: 7,
+        totalDeliveries: 7,
+        deliveryFrequency: 'DAILY',
+        pricePaise: 49000,
+        mrpPaise: 52500,
+        defaultWindowStartMinute: 360,
+        defaultWindowEndMinute: 540,
+        orderGenerationHoursBefore: 18,
+        skipCutoffHours: 12,
+        allowPause: true,
+        allowSkip: true,
+        maximumSkips: 2,
+        allowTrustedDrop: true,
+        allowPersonalHandover: true,
+        allowSecurityHandover: true,
+        proofPolicy: { personal: ['OTP', 'GPS'], trustedDrop: ['GEOFENCE', 'TOKEN', 'PHOTO'] },
+        sortOrder: 1,
+        createdById: subscriptionAdmin.id,
+        updatedById: subscriptionAdmin.id,
+      },
+    });
+    await prisma.subscriptionPlanItem.upsert({
+      where: { planId_productId: { planId: qaPlan.id, productId: qaProduct.id } },
+      update: { quantityPerDelivery: 1 },
+      create: { planId: qaPlan.id, productId: qaProduct.id, quantityPerDelivery: 1 },
+    });
+    await prisma.subscriptionPlanStore.upsert({
+      where: { planId_storeId: { planId: qaPlan.id, storeId: qaStore.id } },
+      update: {},
+      create: { planId: qaPlan.id, storeId: qaStore.id },
+    });
+    const itemSnapshot = [{ productId: qaProduct.id, name: qaProduct.name, quantityPerDelivery: 1, unitPricePaise: qaProduct.pricePaise }];
+    const qaVersion = await prisma.subscriptionPlanVersion.upsert({
+      where: { planId_version: { planId: qaPlan.id, version: 1 } },
+      update: {},
+      create: {
+        id: 'qa-subscription-plan-version-milk-7-v1',
+        planId: qaPlan.id,
+        version: 1,
+        pricePaise: 49000,
+        mrpPaise: 52500,
+        totalDeliveries: 7,
+        durationDays: 7,
+        fundingCycle: 'FULL_PLAN',
+        deliveryFrequency: 'DAILY',
+        itemsSnapshot: itemSnapshot,
+        deliveryRulesSnapshot: { skipCutoffHours: 12, maximumSkips: 2, skipPolicy: 'EXTEND_PLAN', defaultWindowStartMinute: 360, defaultWindowEndMinute: 540 },
+        proofPolicySnapshot: { personal: ['OTP', 'GPS'], trustedDrop: ['GEOFENCE', 'TOKEN', 'PHOTO'] },
+        applicabilitySnapshot: { storeIds: [qaStore.id], zoneIds: [] },
+        fullSnapshot: { code: qaPlan.code, name: qaPlan.name, items: itemSnapshot, fundingCycle: 'FULL_PLAN', totalDeliveries: 7, pricePaise: 49000 },
+        createdById: subscriptionAdmin.id,
+      },
+    });
+    await prisma.customerSubscription.deleteMany({ where: { id: 'qa-customer-subscription-milk-7' } });
+    const startDate = new Date();
+    startDate.setUTCDate(startDate.getUTCDate() + 1);
+    startDate.setUTCHours(0, 0, 0, 0);
+    const endDate = new Date(startDate);
+    endDate.setUTCDate(endDate.getUTCDate() + 6);
+    const addressSnapshot = {
+      id: subscriptionAddress.id,
+      label: subscriptionAddress.label,
+      line1: subscriptionAddress.line1,
+      city: subscriptionAddress.city,
+      state: subscriptionAddress.state,
+      pincode: subscriptionAddress.pincode,
+      latitude: subscriptionAddress.latitude,
+      longitude: subscriptionAddress.longitude,
+    };
+    await prisma.customerSubscription.create({
+      data: {
+        id: 'qa-customer-subscription-milk-7',
+        customerId: subscriptionCustomer.id,
+        planId: qaPlan.id,
+        planVersionId: qaVersion.id,
+        addressId: subscriptionAddress.id,
+        homeStoreId: qaStore.id,
+        status: 'PENDING_CASH_COLLECTION',
+        startDate,
+        endDate,
+        nextDeliveryDate: startDate,
+        nextCashCollectionDate: startDate,
+        deliveryWindowStartMinute: 360,
+        deliveryWindowEndMinute: 540,
+        deliveryMethod: 'PERSONAL_HANDOVER',
+        priceSnapshot: { pricePaise: 49000, mrpPaise: 52500, currency: 'INR' },
+        itemsSnapshot: itemSnapshot,
+        addressSnapshot,
+        policySnapshot: { allowPause: true, allowSkip: true, maximumSkips: 2, skipPolicy: 'EXTEND_PLAN', proofPolicy: { personal: ['OTP', 'GPS'] } },
+        amountDuePaise: 49000,
+        fundingCycle: 'FULL_PLAN',
+        deliveries: {
+          create: Array.from({ length: 7 }, (_, index) => {
+            const serviceDate = new Date(startDate);
+            serviceDate.setUTCDate(serviceDate.getUTCDate() + index);
+            return {
+              serviceDate,
+              sequenceNumber: index + 1,
+              generationKey: `qa-subscription:milk-7:${serviceDate.toISOString().slice(0, 10)}`,
+              cashDuePaise: index === 0 ? 49000 : 0,
+              proofMode: 'CUSTOMER_OTP_GPS',
+            };
+          }),
+        },
+      },
+    });
+    console.log('  Subscription QA plan and customer contract ready');
+  } else {
+    console.log('  Subscription QA fixture skipped because seeded admin/customer/address is missing');
+  }
+
   console.log('QA Seed complete.');
 }
 

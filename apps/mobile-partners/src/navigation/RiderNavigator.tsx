@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, Bell, BriefcaseBusiness, House, UserRound } from 'lucide-react-native';
+import { BarChart3, Bell, BriefcaseBusiness, House, Route, UserRound } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificationService } from '../api/notificationService';
 import { PARTNER_NOTIFICATION_QUERY_KEY, PartnerNotificationsScreen } from '../screens/PartnerNotificationsScreen';
@@ -13,6 +13,8 @@ import { RiderDocumentsScreen } from '../screens/rider/RiderDocumentsScreen';
 import { RiderEarningsScreen } from '../screens/rider/RiderEarningsScreen';
 import { RiderNotificationSettingsScreen } from '../screens/rider/RiderNotificationSettingsScreen';
 import { RiderOperationsRouterScreen } from '../screens/rider/RiderOperationsRouterScreen';
+import { RiderRunDetailScreen } from '../screens/rider/RiderRunDetailScreen';
+import { RiderRunsScreen } from '../screens/rider/RiderRunsScreen';
 import { RiderPayoutHistoryScreen } from '../screens/rider/RiderPayoutHistoryScreen';
 import { RiderProfileDetailsScreen } from '../screens/rider/RiderProfileDetailsScreen';
 import { RiderProfileScreen } from '../screens/rider/RiderProfileScreen';
@@ -88,6 +90,18 @@ export const RiderNavigator = () => {
         }}
       />
       <Tab.Screen
+        name="Runs"
+        component={RiderRunsScreen}
+        options={{
+          title: 'Runs',
+          tabBarButtonTestID: 'tab_runs',
+          tabBarAccessibilityLabel: 'Subscription delivery runs',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Route size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="Alerts"
         component={PartnerNotificationsScreen}
         options={{
@@ -133,6 +147,7 @@ export const RiderNavigator = () => {
           ),
         }}
       />
+      <Tab.Screen name="RiderRunDetail" component={RiderRunDetailScreen} options={hidden} />
       <Tab.Screen name="NotificationSettings" component={RiderNotificationSettingsScreen} options={hidden} />
       <Tab.Screen name="TrackingDiagnostics" component={RiderTrackingDiagnosticsScreen} options={hidden} />
       <Tab.Screen name="RiderProfileDetails" component={RiderProfileDetailsScreen} options={hidden} />

@@ -10,6 +10,7 @@ import {
   MapPin,
   Package,
   RefreshCw,
+  Route,
   Settings,
   Store,
   UserRound,
@@ -320,8 +321,9 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
         </View>
 
         <View style={styles.quickRow}>
-          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('TrackingDiagnostics')}><HeartPulse size={19} color="#0F766E" /><Text style={styles.quickText}>Tracking health</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('NotificationSettings')}><Settings size={19} color="#0F766E" /><Text style={styles.quickText}>Alert settings</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('Runs')}><Route size={19} color="#0F766E" /><Text style={styles.quickText}>Morning runs</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('TrackingDiagnostics')}><HeartPulse size={19} color="#0F766E" /><Text style={styles.quickText}>Tracking</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('NotificationSettings')}><Settings size={19} color="#0F766E" /><Text style={styles.quickText}>Alerts</Text></TouchableOpacity>
         </View>
 
         {workspaceQuery.isLoading ? (
