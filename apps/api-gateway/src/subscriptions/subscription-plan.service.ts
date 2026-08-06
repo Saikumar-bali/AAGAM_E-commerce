@@ -333,7 +333,7 @@ export class SubscriptionPlanService {
 
   async publish(id: string, actorId: string) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-plan:${id}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-plan:${id}`}))`);
       const plan = await tx.subscriptionPlan.findUnique({ where: { id }, include: planInclude });
       if (!plan) throw new NotFoundException('Subscription plan not found');
       if (!plan.items.length) throw new BadRequestException('A plan must include at least one product');

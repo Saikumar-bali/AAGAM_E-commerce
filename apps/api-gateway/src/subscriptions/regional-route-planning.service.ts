@@ -329,7 +329,7 @@ export class RegionalRoutePlanningService {
     const estimate = estimateRoute(input.origin, input.cluster, input.constraints);
     const first = input.cluster[0].value;
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`regional-route:${input.clusterIdentifier}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`regional-route:${input.clusterIdentifier}`}))`);
       const existing = await tx.deliveryRun.findFirst({
         where: {
           storeId: first.delivery.storeId!,
@@ -566,7 +566,7 @@ export class RegionalRoutePlanningService {
     source: RouteAssignmentSource,
   ) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`regional-route-assign:${runId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`regional-route-assign:${runId}`}))`);
       const run = await tx.deliveryRun.findUnique({
         where: { id: runId },
         include: { stops: { include: { deliveryJob: true } } },

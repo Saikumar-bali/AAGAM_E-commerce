@@ -30,7 +30,7 @@ export class SubscriptionCashFundingService {
     actor: Actor,
     idempotencyKey?: string,
   ) {
-    await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-funding:${deliveryJobId}`}))`);
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-funding:${deliveryJobId}`}))`);
     const delivery = await tx.subscriptionDelivery.findUnique({
       where: { deliveryJobId },
       include: {
@@ -134,7 +134,7 @@ export class SubscriptionCashFundingService {
     actor: Actor,
     idempotencyKey?: string,
   ) {
-    await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-delivered:${subscriptionDeliveryId}`}))`);
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-delivered:${subscriptionDeliveryId}`}))`);
     const delivery = await tx.subscriptionDelivery.findUnique({
       where: { id: subscriptionDeliveryId },
       include: { subscription: { include: { planVersion: true } } },
@@ -225,7 +225,7 @@ export class SubscriptionCashFundingService {
     idempotencyKey?: string,
   ) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-failure:${subscriptionDeliveryId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-failure:${subscriptionDeliveryId}`}))`);
       const key = idempotencyKey || `subscription-failure:${subscriptionDeliveryId}:${reason}`;
       const existing = await tx.subscriptionAuditEntry.findUnique({ where: { idempotencyKey: key } });
       if (existing) {

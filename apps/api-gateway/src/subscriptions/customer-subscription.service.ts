@@ -211,7 +211,7 @@ export class CustomerSubscriptionService {
     const requestKey = idempotencyKey?.trim() || randomUUID();
 
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-create:${customerId}:${requestKey}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-create:${customerId}:${requestKey}`}))`);
       const existingAudit = await tx.subscriptionAuditEntry.findUnique({
         where: { idempotencyKey: `subscription-create:${customerId}:${requestKey}` },
         include: { subscription: { include: ownedInclude } },
@@ -345,7 +345,7 @@ export class CustomerSubscriptionService {
 
   async skip(customerId: string, subscriptionId: string, deliveryId: string, dto: SkipSubscriptionDeliveryDto, idempotencyKey?: string) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-skip:${subscriptionId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-skip:${subscriptionId}`}))`);
       const subscription = await tx.customerSubscription.findFirst({
         where: { id: subscriptionId, customerId },
         include: { plan: true },
@@ -474,7 +474,7 @@ export class CustomerSubscriptionService {
     const effective = subscription.pauseEffectiveFrom ?? startOfUtcDay(subscription.pausedAt);
     const shiftDays = Math.max(0, Math.ceil((resumeFrom.getTime() - effective.getTime()) / 86_400_000));
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-resume:${id}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-resume:${id}`}))`);
       const existing = await tx.subscriptionAuditEntry.findUnique({ where: { idempotencyKey: key } });
       if (existing) return tx.customerSubscription.findUnique({ where: { id } });
       if (shiftDays > 0) {

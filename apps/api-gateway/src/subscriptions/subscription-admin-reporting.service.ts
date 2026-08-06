@@ -137,7 +137,7 @@ export class SubscriptionAdminReportingService {
 
   async correctSubscription(id: string, dto: AdminSubscriptionCorrectionDto, actorId: string, idempotencyKey?: string) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-correction:${id}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-correction:${id}`}))`);
       const subscription = await tx.customerSubscription.findUnique({ where: { id } });
       if (!subscription) throw new NotFoundException('Subscription not found');
       const key = idempotencyKey || `subscription-correction:${id}:${Date.now()}`;

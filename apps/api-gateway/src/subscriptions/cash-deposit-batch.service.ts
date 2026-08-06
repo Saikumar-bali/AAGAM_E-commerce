@@ -36,7 +36,7 @@ export class CashDepositBatchService {
   async create(runId: string, dto: CreateCashDepositBatchDto, actor: Actor, idempotencyKey?: string) {
     const rider = await this.riderProfile(actor);
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`cash-batch-create:${runId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`cash-batch-create:${runId}`}))`);
       const run = await tx.deliveryRun.findFirst({ where: { id: runId, riderId: rider.id } });
       if (!run) throw new NotFoundException('Assigned delivery run not found');
       if (run.version !== dto.version) throw new ConflictException('Delivery run changed; refresh and try again');
@@ -101,7 +101,7 @@ export class CashDepositBatchService {
   async submit(batchId: string, dto: SubmitCashDepositBatchDto, actor: Actor, idempotencyKey?: string) {
     const rider = await this.riderProfile(actor);
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`cash-batch-submit:${batchId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`cash-batch-submit:${batchId}`}))`);
       const batch = await tx.cashDepositBatch.findUnique({ where: { id: batchId } });
       if (!batch || batch.riderId !== rider.id) throw new NotFoundException('Cash deposit batch not found');
       if (batch.version !== dto.version) throw new ConflictException('Cash batch changed; refresh and try again');
@@ -136,7 +136,7 @@ export class CashDepositBatchService {
 
   async verify(batchId: string, dto: VerifyCashDepositBatchDto, actor: Actor, idempotencyKey?: string) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`cash-batch-verify:${batchId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`cash-batch-verify:${batchId}`}))`);
       const batch = await tx.cashDepositBatch.findUnique({
         where: { id: batchId },
         include: {
@@ -277,7 +277,7 @@ export class CashDepositBatchService {
   async resolveVariance(batchId: string, dto: ResolveCashVarianceDto, actor: Actor, idempotencyKey?: string) {
     if (actor.role !== Role.ADMIN) throw new ForbiddenException('Only administrators can resolve cash variances');
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`cash-batch-resolve:${batchId}`}))`);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`cash-batch-resolve:${batchId}`}))`);
       const batch = await tx.cashDepositBatch.findUnique({ where: { id: batchId }, include: { entries: { include: { codLedger: true } } } });
       if (!batch) throw new NotFoundException('Cash deposit batch not found');
       if (batch.version !== dto.version) throw new ConflictException('Cash batch changed; refresh and try again');
