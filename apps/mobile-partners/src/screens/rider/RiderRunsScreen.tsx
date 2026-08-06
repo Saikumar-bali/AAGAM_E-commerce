@@ -37,6 +37,7 @@ function statusLabel(status: string) {
 function statusTone(status: string) {
   if (status === 'IN_PROGRESS') return { text: '#075E45', bg: '#DFF7EC' };
   if (status === 'AWAITING_SETTLEMENT') return { text: '#8A4B00', bg: '#FFF2D9' };
+  if (['RIDER_NEEDED', 'INTERRUPTED', 'RECOVERY_REQUIRED'].includes(status)) return { text: '#9A3412', bg: '#FFEDD5' };
   if (status === 'COMPLETED') return { text: '#276749', bg: '#E8F8EF' };
   if (status === 'PICKED_UP') return { text: '#155E75', bg: '#E0F2FE' };
   return { text: '#475569', bg: '#EEF2F6' };
@@ -53,6 +54,7 @@ function RunCard({ run, onPress }: { run: DeliveryRunSummary; onPress: () => voi
         <View style={styles.routeBadge}><Route size={21} color="#087B5A" /></View>
         <View style={styles.cardTitleCopy}>
           <Text style={styles.routeCode}>{run.routeCode}</Text>
+          <Text style={styles.zoneName} numberOfLines={1}>{run.deliveryZone?.name || 'Assigned region'}</Text>
           <Text style={styles.storeName} numberOfLines={1}>{run.store?.name || 'Assigned store'}</Text>
         </View>
         <View style={[styles.statusChip, { backgroundColor: tone.bg }]}>
@@ -68,8 +70,10 @@ function RunCard({ run, onPress }: { run: DeliveryRunSummary; onPress: () => voi
       </View>
       <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${percent}%` }]} /></View>
       <View style={styles.metricRow}>
-        <View style={styles.metric}><PackageCheck size={18} color="#087B5A" /><Text style={styles.metricValue}>{completed}/{total}</Text><Text style={styles.metricLabel}>stops</Text></View>
-        <View style={styles.metric}><Banknote size={18} color="#A15C00" /><Text style={styles.metricValue}>{money(run.collectedCashPaise)}</Text><Text style={styles.metricLabel}>collected</Text></View>
+        <View style={styles.metric}><PackageCheck size={17} color="#087B5A" /><Text style={styles.metricValue}>{completed}/{total}</Text><Text style={styles.metricLabel}>stops</Text></View>
+        <View style={styles.metric}><MapPinned size={17} color="#155E75" /><Text style={styles.metricValue}>{Number(run.estimatedDistanceKm || 0).toFixed(1)}</Text><Text style={styles.metricLabel}>km</Text></View>
+        <View style={styles.metric}><CalendarDays size={17} color="#475569" /><Text style={styles.metricValue}>{run.estimatedDurationMinutes || 0}</Text><Text style={styles.metricLabel}>min</Text></View>
+        <View style={styles.metric}><Banknote size={17} color="#A15C00" /><Text style={styles.metricValue}>{money(run.expectedCashPaise)}</Text><Text style={styles.metricLabel}>cash</Text></View>
         <View style={styles.openAction}><Text style={styles.openActionText}>{run.status === 'IN_PROGRESS' ? 'Resume' : 'Open'}</Text><ChevronRight size={18} color="#FFFFFF" /></View>
       </View>
     </TouchableOpacity>
@@ -153,6 +157,7 @@ const styles = StyleSheet.create({
   routeBadge: { width: 44, height: 44, borderRadius: 15, backgroundColor: '#E7F7EF', alignItems: 'center', justifyContent: 'center' },
   cardTitleCopy: { flex: 1, marginLeft: 11 },
   routeCode: { color: '#17211D', fontSize: 16, fontWeight: '900' },
+  zoneName: { color: '#087B5A', fontSize: 11, fontWeight: '900', marginTop: 2 },
   storeName: { color: '#64748B', fontSize: 12, marginTop: 2 },
   statusChip: { borderRadius: 12, paddingHorizontal: 9, paddingVertical: 6, maxWidth: 115 },
   statusChipText: { fontSize: 9, fontWeight: '900', textAlign: 'center' },
@@ -162,8 +167,8 @@ const styles = StyleSheet.create({
   windowAddress: { flex: 1, color: '#64748B', fontSize: 12 },
   progressTrack: { height: 7, borderRadius: 4, backgroundColor: '#E9EFEC', overflow: 'hidden', marginTop: 14 },
   progressFill: { height: 7, borderRadius: 4, backgroundColor: '#10A36F' },
-  metricRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, gap: 12 },
-  metric: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metricRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, gap: 7, flexWrap: 'wrap' },
+  metric: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   metricValue: { color: '#17211D', fontSize: 13, fontWeight: '900' },
   metricLabel: { color: '#7A8580', fontSize: 10 },
   openAction: { marginLeft: 'auto', minHeight: 40, borderRadius: 13, backgroundColor: '#087B5A', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 3 },

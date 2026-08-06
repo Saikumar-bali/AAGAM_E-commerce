@@ -55,6 +55,7 @@ export class DeliveryRunOperationsService {
       where: { id: runId, riderId: rider.id },
       include: {
         store: { select: { id: true, name: true, address: true, latitude: true, longitude: true } },
+        deliveryZone: true,
         stops: {
           orderBy: { sequenceNumber: 'asc' },
           include: {
@@ -77,6 +78,7 @@ export class DeliveryRunOperationsService {
       orderBy: { slotStart: 'asc' },
       include: {
         store: { select: { id: true, name: true, address: true, latitude: true, longitude: true } },
+        deliveryZone: true,
         _count: { select: { stops: true } },
       },
     });
