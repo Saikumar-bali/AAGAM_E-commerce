@@ -27,7 +27,7 @@ The later exact-head build exposed a shared strict-TypeScript cluster in the sub
 
 The guarded correction completed successfully and produced source commit `9bb689bdae413a95e825527ec2c42f066ab565e0`. Before publication it verified the compressed patch checksum, installed the locked dependency graph, generated and validated Prisma, compiled the internal `types`, `utils`, and `database` workspaces, and completed the API production build. All temporary correction workflows were removed from the resulting tree.
 
-This connector-authored proof update triggers the repository's complete normal pull-request suite on the clean source head after those corrections.
+The first clean-head Playwright attempt reached the migrated and seeded database but found one invalid QA fixture enum: `SubscriptionDelivery.proofMode` used nonexistent `CUSTOMER_OTP_GPS`. The schema defines `PERSONAL_OTP_GPS` for personal handover. A guarded correction now requires exactly one legacy occurrence, replaces it with the schema value, migrates and seeds fresh PostgreSQL, executes the complete QA seed, and removes its temporary workflow before publishing.
 
 ## Required exact-head CI proof
 
