@@ -244,19 +244,26 @@ pm2 save
 pm2 jlist | node -e '
   const fs = require("fs");
   const expected = ["admin-dashboard", "api-gateway", "worker-service"];
+  const expectedRuntime = fs.realpathSync(process.execPath);
   const apps = JSON.parse(fs.readFileSync(0, "utf8"));
   const byName = new Map(apps.map((app) => [app.name, app]));
   const offline = expected.filter((name) => byName.get(name)?.pm2_env?.status !== "online");
-  const wrongRuntime = expected.filter((name) => {
-    const version = String(byName.get(name)?.pm2_env?.node_version || "");
-    return !version.startsWith("22.");
+  const wrongRuntime = expected.flatMap((name) => {
+    const pid = Number(byName.get(name)?.pid);
+    if (!Number.isInteger(pid) || pid <= 0) return [`${name}: invalid PID ${pid}`];
+    try {
+      const actualRuntime = fs.realpathSync(`/proc/${pid}/exe`);
+      return actualRuntime === expectedRuntime ? [] : [`${name}: ${actualRuntime}`];
+    } catch (error) {
+      return [`${name}: unable to inspect /proc/${pid}/exe (${error.message})`];
+    }
   });
   if (offline.length) {
     console.error(`PM2 processes not online: ${offline.join(", ")}`);
     process.exit(1);
   }
   if (wrongRuntime.length) {
-    console.error(`PM2 processes not running on Node 22: ${wrongRuntime.join(", ")}`);
+    console.error(`PM2 processes not using ${expectedRuntime}: ${wrongRuntime.join(", ")}`);
     process.exit(1);
   }
 '
