@@ -33,7 +33,9 @@ The next exact-head API regression run proved production build and migrations bu
 
 The guarded compatibility run completed successfully and produced source commit `3d5e7a4142ae0b59f959a6848f4f3a8dbb8d1d4b`. It passed the locked dependency install, Prisma generation/validation and fresh migration, internal package compilation, API production build, and the complete API service suite before publishing the two-file correction. Its temporary workflow was removed from the resulting tree.
 
-This connector-authored proof update triggers the complete normal exact-head suite after all validated corrections.
+The final Playwright rerun passed 100 tests and isolated three browser release gates. The admin subscription dashboard discarded every successful subscription response because a form-support request used nonexistent `/delivery-zones`; it now uses the authoritative `/stores/delivery-zones/admin` endpoint. The pending full-plan customer detail now states truthfully that remaining deliveries become subscription funded with customer amount due ₹0 only after the first verified cash collection. The responsive navigation contract now counts and explicitly asserts the intentional fifteenth Admin link, Subscriptions.
+
+A targeted browser guard verifies the patch checksum, fresh migrations and both seed layers, internal package compilation, production API/dashboard builds, the responsive-navigation suite, and all four subscription role flows before it may publish these corrections. Its temporary workflow is removed from the resulting tree.
 
 ## Required exact-head CI proof
 
