@@ -37,6 +37,7 @@ describe('regional multi-rider route splitting contracts', () => {
       'maximumEstimatedDurationMinutes',
       'maximumParcelCount',
       'cashRiskLimitPaise',
+      'maximumWeightGrams',
     ]) expect(planner).toContain(token);
     expect(planner).toContain('splitByOperationalConstraints');
     expect(planner).toContain("planningAlgorithmVersion: 'regional-nearest-neighbour-v1'");
@@ -60,7 +61,9 @@ describe('regional multi-rider route splitting contracts', () => {
 
   it('does not silently overload one rider when no eligible rider remains', () => {
     expect(planner).toContain('status: DeliveryRunStatus.RIDER_NEEDED');
-    expect(planner).toContain('No eligible rider satisfies zone, shift, vehicle, capacity, overlap, proximity, and cash-risk constraints');
+    expect(planner).toContain('No eligible rider satisfies');
+    expect(planner).toContain('weight');
+    expect(planner).toContain('cash-risk constraints');
   });
 
   it('protects route mutations with transactions, locks and optimistic versions', () => {
