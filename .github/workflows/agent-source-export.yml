@@ -43,3 +43,5 @@ jobs:
           git diff --cached --check
           git commit -m "feat(subscriptions): harden production subscription delivery"
           git push origin HEAD:agent/subscription-production-completion
+
+# Triggered after the staged patch blob exists on the branch.
