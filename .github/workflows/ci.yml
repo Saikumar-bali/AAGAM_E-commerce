@@ -41,6 +41,18 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Archive exact PR source for agent validation
+        if: github.event_name == 'pull_request' && github.head_ref == 'agent/subscription-production-completion'
+        run: tar --exclude=.git -czf /tmp/aagam-source.tgz .
+
+      - name: Upload exact PR source for agent validation
+        if: github.event_name == 'pull_request' && github.head_ref == 'agent/subscription-production-completion'
+        uses: actions/upload-artifact@v4
+        with:
+          name: aagam-source-tree
+          path: /tmp/aagam-source.tgz
+          retention-days: 1
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
