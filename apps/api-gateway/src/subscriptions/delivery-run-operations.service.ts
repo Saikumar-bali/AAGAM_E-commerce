@@ -121,6 +121,7 @@ export class DeliveryRunOperationsService {
             actor,
             {
               expectedStatus: DeliveryJobStatus.RIDER_AT_STORE,
+              skipRoleCheck: true,
               metadata: { deliveryRunId: run.id, routeCode: run.routeCode, routeLevelRiderReceipt: true },
             },
           );
