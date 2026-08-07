@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpdateProductDto {
   @IsString()
@@ -38,4 +38,10 @@ export class UpdateProductDto {
   @IsObject()
   @IsOptional()
   details?: any;
+
+  /** Authoritative per-unit routing weight, independent of details.weight. */
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  weightGrams?: number;
 }
