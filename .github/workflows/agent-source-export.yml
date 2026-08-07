@@ -1,9 +1,9 @@
 name: Agent source export
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/subscription-production-completion
+      - main
     paths:
       - .github/workflows/agent-source-export.yml
 
@@ -14,10 +14,11 @@ jobs:
   export-source:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact branch
+      - name: Checkout exact PR head
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Record source identity
         run: |
           git rev-parse HEAD
