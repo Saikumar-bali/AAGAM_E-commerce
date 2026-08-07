@@ -317,13 +317,13 @@ export class RiderService {
 
     if (user.role !== Role.RIDER) return;
 
-    const alternatives = await tx.$queryRawUnsafe(
+    const alternatives = await tx.$queryRawUnsafe<Array<{ role: Role }>>(
       `SELECT "role" FROM "UserRoleMembership"
        WHERE "userId" = $1 AND "status" = 'ACTIVE' AND "role" <> 'RIDER'
        ORDER BY "grantedAt" ASC LIMIT 1`,
       userId,
     );
-    let fallbackRole = alternatives[0]?.role as Role | undefined;
+    let fallbackRole = alternatives[0]?.role;
 
     // Preserve legitimate legacy multi-role identities even if they predate the
     // membership table. A Store owner or Customer with order history must not
