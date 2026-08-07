@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: phase1-subscription-hardening-final
+  group: phase1-subscription-release-hardening-final
   cancel-in-progress: false
 
 env:
@@ -61,6 +61,7 @@ jobs:
         run: |
           python3 scripts/phase1-subscription-hardening.py
           python3 scripts/run-phase1-integration.py
+          python3 scripts/phase1-final-fix.py
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -142,9 +143,11 @@ jobs:
           test -f packages/database/prisma/migrations/20260807003000_subscription_timezone_serviceability/migration.sql
           grep -Fq 'return this.operations.events(after, request.user)' apps/api-gateway/src/subscriptions/regional-routing.controller.ts
           grep -Fq 'SubscriptionServiceabilityError' apps/api-gateway/src/subscriptions/subscription-order-generator.service.ts
+          ! grep -Fq 'deliveryRunStopId: event.deliveryRunStopId' apps/api-gateway/src/subscriptions/regional-route-operations.service.ts
           rm -f scripts/phase1-subscription-hardening.py \
             scripts/phase1-integration-fix.py \
             scripts/run-phase1-integration.py \
+            scripts/phase1-final-fix.py \
             scripts/sitecustomize.py \
             .github/phase1-integration-retry.trigger \
             .github/workflows/phase1-subscription-hardening.yml \
