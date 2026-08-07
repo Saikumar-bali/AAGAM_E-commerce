@@ -1,4 +1,4 @@
-const { mkdtempSync, rmSync, writeFileSync } = require('node:fs');
+const { mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const { spawnSync } = require('node:child_process');
@@ -7,13 +7,35 @@ const { deflateSync } = require('node:zlib');
 const root = resolve(__dirname, '..');
 const validator = resolve(__dirname, 'validate-brand-pngs.js');
 const files = [
-  'apps/admin-dashboard/public/brand/aagam-mark.png',
-  'apps/admin-dashboard/src/app/icon.png',
   'apps/mobile-customer/src/assets/aagam-mark.png',
   'apps/mobile-customer/android/app/src/main/res/drawable-nodpi/aagam_launcher_logo.png',
   'apps/mobile-partners/src/assets/aagam-mark.png',
   'apps/mobile-partners/android/app/src/main/res/drawable-nodpi/aagam_launcher_logo.png',
 ];
+
+const webBrandRoute = readFileSync(
+  resolve(root, 'apps/admin-dashboard/src/app/brand/aagam-mark/route.ts'),
+  'utf8',
+);
+const webLayout = readFileSync(resolve(root, 'apps/admin-dashboard/src/app/layout.tsx'), 'utf8');
+const webLogo = readFileSync(resolve(root, 'apps/admin-dashboard/src/components/AagamLogo.tsx'), 'utf8');
+const customerShell = readFileSync(
+  resolve(root, 'apps/admin-dashboard/src/components/customer/CustomerShell.tsx'),
+  'utf8',
+);
+
+if (!webBrandRoute.includes('../mobile-customer/android/app/src/main/res/drawable-nodpi/aagam_launcher_logo.png')) {
+  throw new Error('Web brand route must serve the authoritative customer Android launcher logo.');
+}
+for (const [name, source] of [
+  ['root metadata', webLayout],
+  ['shared web logo', webLogo],
+  ['customer web shell', customerShell],
+]) {
+  if (!source.includes('/brand/aagam-mark')) {
+    throw new Error(`${name} must use the shared Android-backed web brand route.`);
+  }
+}
 
 const crcTable = new Uint32Array(256);
 for (let value = 0; value < crcTable.length; value += 1) {
@@ -99,7 +121,7 @@ try {
   );
   expectRejected(
     join(tempDir, 'trailing-zlib-bytes.png'),
-    png(canonicalParts(Buffer.concat([deflateSync(indexedScanlines()), Buffer.from([1, 2, 3])]))),
+    png(canonicalParts(Buffer.concat([deflateSync(indexedScanlines()), Buffer.from([1, 2, 3])])),
     'trailing bytes after the zlib image stream',
   );
   expectRejected(
