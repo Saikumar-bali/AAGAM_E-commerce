@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import { Role } from '@aagam/database';
 import { ProductService } from './product.service';
+import { ProductRoutingWeightService } from './product-routing-weight.service';
+import { UpdateProductWeightDto } from './dto/update-product-weight.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -9,7 +11,10 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
 export class AdminProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(
+    private readonly productService: ProductService,
+    private readonly routingWeightService: ProductRoutingWeightService,
+  ) {}
 
   @Get()
   async findAllForAdmin() {
@@ -24,5 +29,10 @@ export class AdminProductController {
   @Patch(':id/active')
   async setActive(@Param('id') id: string, @Body('isActive') isActive: boolean) {
     return this.productService.setActive(id, Boolean(isActive));
+  }
+
+  @Patch(':id/weight')
+  async setRoutingWeight(@Param('id') id: string, @Body() data: UpdateProductWeightDto) {
+    return this.routingWeightService.setWeight(id, data.weightGrams);
   }
 }

@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ProductService } from './product.service';
+import { ProductRoutingWeightService } from './product-routing-weight.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -10,7 +11,10 @@ import { QueryProductsDto } from './dto/query-products.dto';
 
 @Controller('products')
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(
+    private readonly productService: ProductService,
+    private readonly routingWeightService: ProductRoutingWeightService,
+  ) {}
 
   @Get()
   async findAll(@Query() query: QueryProductsDto, @Req() req: any) {
@@ -64,14 +68,20 @@ export class ProductController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   async create(@Body() data: CreateProductDto) {
-    return this.productService.create(data);
+    const product = await this.productService.create(data);
+    return data.weightGrams === undefined
+      ? product
+      : this.routingWeightService.setWeight(product.id, data.weightGrams);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   async update(@Param('id') id: string, @Body() data: UpdateProductDto) {
-    return this.productService.update(id, data);
+    const product = await this.productService.update(id, data);
+    return data.weightGrams === undefined
+      ? product
+      : this.routingWeightService.setWeight(product.id, data.weightGrams);
   }
 
   @Delete(':id')
