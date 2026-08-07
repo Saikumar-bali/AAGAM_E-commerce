@@ -3,6 +3,7 @@
 Issue: #219
 PR: #220
 Base main: `24c8f4d01733e3046408cfbfedd157df4f4b6ce0`
+Implementation application commit: `2013a549c28e4cede612df0daf4b9a3a20bf09df`
 
 ## Scope completed
 
@@ -77,5 +78,7 @@ Exact PR-head acceptance requires all of the following on the final commit:
 - Existing Customer/Partners native verification workflows affected by changed Android paths
 - `git diff --check`
 - No unresolved PR review threads
+
+The production patch was reconstructed and independently SHA-256 verified before `git apply`: compressed payload `748b7db05b8a3c09d19e2ce6bbc23cb2ab786dfb9e9fd4fa37645f758c10ec57`, decoded patch `996a2bfa4e49ada582ca6a90596c3995311b3408acb68e8908a87c27475e3282`. Temporary transport files/workflows were removed by the application commit and the repository's normal CI workflow was restored from `main` before validation.
 
 The PR must not be merged from a stale or partially-tested SHA. The merge operation must be pinned to the exact green head SHA.
