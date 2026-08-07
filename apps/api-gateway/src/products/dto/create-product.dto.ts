@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateProductDto {
   @IsString()
@@ -35,4 +35,13 @@ export class CreateProductDto {
   @IsObject()
   @IsOptional()
   details?: any;
+
+  /**
+   * Authoritative per-unit routing weight. This is intentionally separate from
+   * details.weight, which is customer-facing free text such as "500 ml".
+   */
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  weightGrams?: number;
 }
