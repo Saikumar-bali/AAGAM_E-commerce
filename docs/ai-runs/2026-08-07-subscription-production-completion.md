@@ -4,6 +4,7 @@ Issue: #219
 PR: #220
 Base main: `24c8f4d01733e3046408cfbfedd157df4f4b6ce0`
 Implementation application commit: `2013a549c28e4cede612df0daf4b9a3a20bf09df`
+Compile-regression correction commit: `773186cd71822909cb907a2d268244746343cbc0`
 
 ## Scope completed
 
