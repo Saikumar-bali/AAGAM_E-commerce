@@ -4,15 +4,12 @@ on:
   pull_request:
     branches:
       - agent/subscription-release-hardening
-    paths:
-      - scripts/phase1-subscription-hardening.py
-      - .github/workflows/phase1-subscription-hardening.yml
 
 permissions:
   contents: write
 
 concurrency:
-  group: phase1-subscription-hardening
+  group: phase1-subscription-hardening-final
   cancel-in-progress: false
 
 env:
@@ -34,8 +31,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: aagam_phase1
-        ports:
-          - 5432:5432
+        ports: ["5432:5432"]
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -43,8 +39,7 @@ jobs:
           --health-retries 5
       redis:
         image: redis:7
-        ports:
-          - 6379:6379
+        ports: ["6379:6379"]
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -52,20 +47,20 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout phase branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: agent/subscription-release-hardening-phase1
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Apply production patch
-        run: python3 scripts/phase1-subscription-hardening.py
+      - name: Apply corrected production patch
+        run: |
+          python3 scripts/phase1-subscription-hardening.py
+          python3 scripts/phase1-integration-fix.py
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -81,7 +76,7 @@ jobs:
           Exact commands below completed with exit code `0` on the phase implementation head.
           EOF
 
-      - name: Prisma format and validate
+      - name: Validate and deploy migration
         shell: bash
         run: |
           set -euo pipefail
@@ -104,7 +99,7 @@ jobs:
           npx tsc --project packages/utils/tsconfig.json
           npx tsc --project packages/database/tsconfig.json
 
-      - name: Run phase 1 targeted tests
+      - name: Run targeted proof suites
         shell: bash
         run: |
           set -euo pipefail
@@ -115,21 +110,21 @@ jobs:
             src/subscription-release-hardening-phase1.contract.spec.ts \
             --json --outputFile="$GITHUB_WORKSPACE/phase1-targeted-results.json"
           node - <<'NODE' >> docs/qa/subscription-release-hardening/test-results.md
-          const result = require(process.env.GITHUB_WORKSPACE + '/phase1-targeted-results.json');
-          console.log(`- Phase 1 targeted Jest suites — exit 0; ${result.numPassedTestSuites}/${result.numTotalTestSuites} suites and ${result.numPassedTests}/${result.numTotalTests} tests passed`);
+          const r = require(process.env.GITHUB_WORKSPACE + '/phase1-targeted-results.json');
+          console.log(`- Phase 1 targeted Jest suites — exit 0; ${r.numPassedTestSuites}/${r.numTotalTestSuites} suites and ${r.numPassedTests}/${r.numTotalTests} tests passed`);
           NODE
 
-      - name: Run API CI suite
+      - name: Run full API CI
         shell: bash
         run: |
           set -euo pipefail
           npm run ci:api -- --json --outputFile="$GITHUB_WORKSPACE/phase1-api-results.json"
           node - <<'NODE' >> docs/qa/subscription-release-hardening/test-results.md
-          const result = require(process.env.GITHUB_WORKSPACE + '/phase1-api-results.json');
-          console.log(`- \`npm run ci:api\` — exit 0; ${result.numPassedTestSuites}/${result.numTotalTestSuites} suites and ${result.numPassedTests}/${result.numTotalTests} tests passed`);
+          const r = require(process.env.GITHUB_WORKSPACE + '/phase1-api-results.json');
+          console.log(`- \`npm run ci:api\` — exit 0; ${r.numPassedTestSuites}/${r.numTotalTestSuites} suites and ${r.numPassedTests}/${r.numTotalTests} tests passed`);
           NODE
 
-      - name: Build Admin and mobile applications
+      - name: Build Admin and mobile workspaces
         run: |
           npm run build:admin
           npm run build --workspace apps/mobile-partners
@@ -140,17 +135,19 @@ jobs:
           - `npm run build --workspace apps/mobile-customer` — exit 0
           EOF
 
-      - name: Verify patch hygiene
+      - name: Verify and commit phase
+        shell: bash
         run: |
           git diff --check
           test -f packages/database/prisma/migrations/20260807003000_subscription_timezone_serviceability/migration.sql
-          grep -Fq 'return this.events.list(after, request.user)' apps/api-gateway/src/subscriptions/regional-routing.controller.ts
-          grep -Fq 'SERVICEABILITY_DEFERRED' apps/api-gateway/src/subscriptions/subscription-order-generator.service.ts
-
-      - name: Remove disposable patch machinery and commit verified phase
-        shell: bash
-        run: |
-          rm -f scripts/phase1-subscription-hardening.py .github/workflows/phase1-subscription-hardening.yml
+          grep -Fq 'return this.operations.events(after, request.user)' apps/api-gateway/src/subscriptions/regional-routing.controller.ts
+          grep -Fq 'SubscriptionServiceabilityError' apps/api-gateway/src/subscriptions/subscription-order-generator.service.ts
+          rm -f scripts/phase1-subscription-hardening.py \
+            scripts/phase1-integration-fix.py \
+            .github/phase1-integration-retry.trigger \
+            .github/workflows/phase1-subscription-hardening.yml \
+            .github/workflows/phase1-subscription-hardening-retry.yml \
+            .github/workflows/phase1-subscription-hardening-retry2.yml
           git config user.name "aagam-release-hardening[bot]"
           git config user.email "aagam-release-hardening[bot]@users.noreply.github.com"
           git add -A
@@ -158,11 +155,11 @@ jobs:
           git commit -m "fix(subscriptions): secure quotes and zone-local delivery windows"
           git push origin HEAD:agent/subscription-release-hardening-phase1
 
-      - name: Upload phase diagnostics
+      - name: Upload proof artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: phase1-subscription-hardening-results
+          name: phase1-subscription-hardening-final-results
           path: |
             phase1-targeted-results.json
             phase1-api-results.json
