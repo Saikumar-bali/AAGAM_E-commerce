@@ -1,90 +1,349 @@
 name: CI
 
 on:
+  push:
+    branches: ["main", "phase-*"]
   pull_request:
     branches: ["main"]
 
 permissions:
-  contents: write
+  contents: read
   actions: read
+  security-events: write
 
 concurrency:
-  group: ci-agent-fix-${{ github.event.pull_request.number }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22.22.3"
+  PLAYWRIGHT_WORKERS: "4"
+  CI_ADMIN_EMAIL: "admin@aagam.com"
+  CI_ADMIN_PASSWORD: "admin@2026!"
+  CI_CUSTOMER_EMAIL: "customer@aagam.com"
+  CI_CUSTOMER_PASSWORD: "customer@2026!"
+  CI_STORE_EMAIL: "store@aagam.com"
+  CI_STORE_PASSWORD: "store@2026!"
+  CI_RIDER_EMAIL: "rider@aagam.com"
+  CI_RIDER_PASSWORD: "rider@2026!"
 
 jobs:
   build:
-    name: Apply exact compile fixes
+    name: Build
     runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_build"
+
     steps:
-      - name: Checkout exact PR head
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
 
-      - name: Apply guarded fixes and restore CI
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate committed branding PNGs
+        run: node scripts/validate-brand-pngs.contract.test.js
+
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema packages/database/prisma/schema.prisma
+
+      - name: Validate Prisma schema
+        run: npx prisma validate --schema packages/database/prisma/schema.prisma
+
+      - name: Validate production deployment assets
+        env:
+          NODE_ENV: production
+          DATABASE_URL: postgresql://aagam:ci-only@127.0.0.1:5432/aagam
+          REDIS_URL: redis://127.0.0.1:6379
+          JWT_SECRET: aagam-ci-only-production-validator-secret
+          CORS_ORIGINS: https://aagam.example.com
+          NEXT_PUBLIC_API_URL: https://aagam.example.com/api
+        run: |
+          bash -n deploy.sh
+          grep -Fq 'git reset --hard HEAD' .github/workflows/deploy.yml
+          grep -Fq 'bash deploy.sh' .github/workflows/deploy.yml
+          if grep -Fq 'chmod +x deploy.sh' .github/workflows/deploy.yml; then
+            echo 'deploy.yml must not mutate the tracked deploy.sh file mode.'
+            exit 1
+          fi
+          npm run check:env:prod
+          if env -u CORS_ORIGINS npm run check:env:prod >/dev/null 2>&1; then
+            echo "Production validation unexpectedly accepted missing CORS_ORIGINS."
+            exit 1
+          fi
+          if env -u NEXT_PUBLIC_API_URL npm run check:env:prod >/dev/null 2>&1; then
+            echo "Production validation unexpectedly accepted missing NEXT_PUBLIC_API_URL."
+            exit 1
+          fi
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
+      - name: Build
+        run: npx turbo build --cache-dir=".turbo" --force
+
+  test:
+    name: Service Tests
+    runs-on: ubuntu-latest
+    needs: build
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aagam_ecom_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
+      NODE_ENV: test
+      JWT_SECRET: "aagam-ci-only-jwt-secret-change-me-in-production"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema packages/database/prisma/schema.prisma
+
+      - name: Validate Prisma schema
+        run: npx prisma validate --schema packages/database/prisma/schema.prisma
+
+      - name: Build workspace packages for tests
+        run: |
+          npx tsc --project packages/types/tsconfig.json
+          npx tsc --project packages/utils/tsconfig.json
+          npx tsc --project packages/database/tsconfig.json
+
+      - name: Apply all migrations to test database
+        run: npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+
+      - name: Verify migration status
+        run: npx prisma migrate status --schema packages/database/prisma/schema.prisma
+
+      - name: Run CI-safe tests
         shell: bash
         run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
+          set -o pipefail
+          npm run test:ci --workspace=apps/api-gateway -- --json --outputFile="$GITHUB_WORKSPACE/service-test-results.json" 2>&1 \
+            | tee "$GITHUB_WORKSPACE/service-test-output.log"
 
-          def replace(path, old, new):
-              p = Path(path)
-              s = p.read_text()
-              if old not in s:
-                  raise SystemExit(f"guarded replacement not found in {path}: {old[:100]}")
-              p.write_text(s.replace(old, new, 1))
+      - name: Upload service test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-test-diagnostics
+          path: |
+            service-test-results.json
+            service-test-output.log
+          if-no-files-found: warn
+          retention-days: 14
 
-          replace(
-              'apps/api-gateway/src/subscriptions/subscription-order-generator.service.ts',
-              'async generateOne(subscriptionDeliveryId: string, correlationId = randomUUID()) {',
-              'async generateOne(subscriptionDeliveryId: string, correlationId: string = randomUUID()) {',
-          )
-          replace(
-              'apps/mobile-customer/src/screens/customer/SubscriptionDetailScreen.tsx',
-              'mutationFn: async (rotate = false) => {',
-              'mutationFn: async (rotate: boolean) => {',
-          )
-          replace(
-              'apps/mobile-customer/src/screens/customer/SubscriptionDetailScreen.tsx',
-              'AAGAM manages the signed one-time QR.',
-              'Aagaam manages the signed one-time QR.',
-          )
-          replace(
-              'apps/mobile-customer/src/screens/customer/SubscriptionReviewScreen.tsx',
-              'AAGAM securely creates your one-time QR',
-              'Aagaam securely creates your one-time QR',
-          )
-          replace(
-              'apps/mobile-partners/src/screens/rider/RiderRunDetailScreen.tsx',
-              'void PartnerConnectivity.getCurrent().then((connected) => connected && RiderRunOfflineQueue.flush().then(refreshPending));',
-              'void PartnerConnectivity.getCurrent().then(async (connected) => { if (connected) { await RiderRunOfflineQueue.flush(); await refreshPending(); } });',
-          )
-          replace(
-              'apps/mobile-partners/src/screens/rider/RiderRunDetailScreen.tsx',
-              "if (!result?.content?.trim()) throw new Error('No Trusted Drop QR content was detected.');",
-              "if (!result?.value?.trim()) throw new Error('No Trusted Drop QR content was detected.');",
-          )
-          replace(
-              'apps/mobile-partners/src/screens/rider/RiderRunDetailScreen.tsx',
-              "if (!result.content.startsWith('aagam.td.v1.')) throw new Error('This is not an AAGAM Trusted Drop QR.');",
-              "if (!result.value.startsWith('aagam.td.v1.')) throw new Error('This is not an Aagaam Trusted Drop QR.');",
-          )
-          replace(
-              'apps/mobile-partners/src/screens/rider/RiderRunDetailScreen.tsx',
-              'return result.content.trim();',
-              'return result.value.trim();',
-          )
-          PY
+  playwright:
+    name: Playwright Smoke Tests
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/phase-')
+    timeout-minutes: 30
 
-          git fetch origin main --depth=1
-          git checkout origin/main -- .github/workflows/ci.yml
-          git diff --check
-          git config user.name "AAGAM Production Completion Agent"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --check
-          git commit -m "fix(subscriptions): resolve exact-head compile regressions"
-          git push origin HEAD:agent/subscription-production-completion
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aagam_ecom_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
+      REDIS_URL: "redis://localhost:6379"
+      NODE_ENV: test
+      JWT_SECRET: "aagam-ci-only-jwt-secret-change-me-in-production"
+      PLAYWRIGHT_QA: "true"
+      PLAYWRIGHT_QA_SEED: "true"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema packages/database/prisma/schema.prisma
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+
+      - name: Seed database
+        run: node packages/database/seed.js
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
+          ADMIN_EMAIL: ${{ env.CI_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          CUSTOMER_EMAIL: ${{ env.CI_CUSTOMER_EMAIL }}
+          CUSTOMER_PASSWORD: ${{ env.CI_CUSTOMER_PASSWORD }}
+          STORE_EMAIL: ${{ env.CI_STORE_EMAIL }}
+          STORE_PASSWORD: ${{ env.CI_STORE_PASSWORD }}
+          RIDER_EMAIL: ${{ env.CI_RIDER_EMAIL }}
+          RIDER_PASSWORD: ${{ env.CI_RIDER_PASSWORD }}
+
+      - name: Build workspace packages
+        run: |
+          npx tsc --project packages/types/tsconfig.json
+          npx tsc --project packages/utils/tsconfig.json
+          npx tsc --project packages/database/tsconfig.json
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        working-directory: apps/admin-dashboard
+
+      - name: Build API gateway and dashboard
+        run: |
+          npx turbo build --filter=@aagam/api-gateway --filter=@aagam/admin-dashboard --cache-dir=".turbo" --force
+
+      - name: Start API gateway
+        run: |
+          node apps/api-gateway/dist/src/main.js &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3005/health > /dev/null 2>&1; then
+              echo "API gateway is ready"
+              break
+            fi
+            echo "Waiting for API gateway... ($i/30)"
+            sleep 2
+          done
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
+          REDIS_URL: "redis://localhost:6379"
+          JWT_SECRET: "aagam-ci-only-jwt-secret-change-me-in-production"
+          NODE_ENV: test
+          PORT: "3005"
+          PLAYWRIGHT_QA: "true"
+          PLAYWRIGHT_QA_SEED: "true"
+          CORS_ORIGINS: "http://localhost:3001"
+
+      - name: Run Playwright tests
+        run: npx playwright test --project=chromium --reporter=list --workers="$PLAYWRIGHT_WORKERS"
+        working-directory: apps/admin-dashboard
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3005
+          ADMIN_EMAIL: ${{ env.CI_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          CUSTOMER_EMAIL: ${{ env.CI_CUSTOMER_EMAIL }}
+          CUSTOMER_PASSWORD: ${{ env.CI_CUSTOMER_PASSWORD }}
+          STORE_EMAIL: ${{ env.CI_STORE_EMAIL }}
+          STORE_PASSWORD: ${{ env.CI_STORE_PASSWORD }}
+          RIDER_EMAIL: ${{ env.CI_RIDER_EMAIL }}
+          RIDER_PASSWORD: ${{ env.CI_RIDER_PASSWORD }}
+          QA_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          SEED_ADMIN_EMAIL: ${{ env.CI_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          STORE_OWNER_QA_EMAIL: ${{ env.CI_STORE_EMAIL }}
+          STORE_OWNER_QA_PASSWORD: ${{ env.CI_STORE_PASSWORD }}
+          P4_DEMO_PASS: ${{ env.CI_CUSTOMER_PASSWORD }}
+          P4_ADMIN_PASS: ${{ env.CI_ADMIN_PASSWORD }}
+          P4_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
+          P4_RIDER_PASS: ${{ env.CI_RIDER_PASSWORD }}
+          P5_CUSTOMER_PASS: ${{ env.CI_CUSTOMER_PASSWORD }}
+          P5_ADMIN_PASS: ${{ env.CI_ADMIN_PASSWORD }}
+          P5_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
+          P5_RIDER_PASS: ${{ env.CI_RIDER_PASSWORD }}
+          P6_DEMO_PASS: ${{ env.CI_CUSTOMER_PASSWORD }}
+          DISPATCH_TEST_PASS: ${{ env.CI_ADMIN_PASSWORD }}
+          DISPATCH_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
+          DISPATCH_RIDER_PASS: ${{ env.CI_RIDER_PASSWORD }}
+          NOTIF_ADMIN_PASS: ${{ env.CI_ADMIN_PASSWORD }}
+          NOTIF_CUSTOMER_PASS: ${{ env.CI_CUSTOMER_PASSWORD }}
+          NOTIF_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
+          NOTIF_RIDER_PASS: ${{ env.CI_RIDER_PASSWORD }}
+          NOTIF_FALLBACK_PASS: ${{ env.CI_ADMIN_PASSWORD }}
+          LOGIN_TEST_ADMIN_EMAIL: ${{ env.CI_ADMIN_EMAIL }}
+          LOGIN_TEST_ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          LOGIN_TEST_CUSTOMER_EMAIL: ${{ env.CI_CUSTOMER_EMAIL }}
+          LOGIN_TEST_CUSTOMER_PASSWORD: ${{ env.CI_CUSTOMER_PASSWORD }}
+          LOGIN_TEST_RIDER_EMAIL: ${{ env.CI_RIDER_EMAIL }}
+          LOGIN_TEST_RIDER_PASSWORD: ${{ env.CI_RIDER_PASSWORD }}
+          LOGIN_TEST_STORE_EMAIL: ${{ env.CI_STORE_EMAIL }}
+          LOGIN_TEST_STORE_PASSWORD: ${{ env.CI_STORE_PASSWORD }}
+          SMOKE_TEST_EMAIL: ${{ env.CI_CUSTOMER_EMAIL }}
+          SMOKE_TEST_PASSWORD: ${{ env.CI_CUSTOMER_PASSWORD }}
+          SETUP_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/admin-dashboard/playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots
+          path: docs/qa/phase-4/
+          retention-days: 14

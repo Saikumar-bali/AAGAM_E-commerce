@@ -214,7 +214,7 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
         if (result.conflicts.length) Toast.show({ type: 'error', text1: 'Route changed while offline', text2: 'Refresh the run before retrying the conflicted action.' });
       });
     });
-    void PartnerConnectivity.getCurrent().then((connected) => connected && RiderRunOfflineQueue.flush().then(refreshPending));
+    void PartnerConnectivity.getCurrent().then(async (connected) => { if (connected) { await RiderRunOfflineQueue.flush(); await refreshPending(); } });
     return () => { mounted = false; unsubscribe(); };
   }, []);
 
@@ -297,9 +297,9 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const scanTrustedDropMutation = useMutation({
     mutationFn: async () => {
       const result = await PartnerQrScanner.scan();
-      if (!result?.content?.trim()) throw new Error('No Trusted Drop QR content was detected.');
-      if (!result.content.startsWith('aagam.td.v1.')) throw new Error('This is not an AAGAM Trusted Drop QR.');
-      return result.content.trim();
+      if (!result?.value?.trim()) throw new Error('No Trusted Drop QR content was detected.');
+      if (!result.value.startsWith('aagam.td.v1.')) throw new Error('This is not an Aagaam Trusted Drop QR.');
+      return result.value.trim();
     },
     onSuccess: (token) => { setDropToken(token); setTrustedEvidenceId(''); setTrustedEvidenceName(''); Toast.show({ type: 'success', text1: 'Trusted Drop QR scanned', text2: 'Now capture a fresh photo at the drop point.' }); },
     onError: (error) => Toast.show({ type: 'error', text1: 'QR scan failed', text2: errorMessage(error) }),

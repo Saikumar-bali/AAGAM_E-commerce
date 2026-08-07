@@ -95,7 +95,7 @@ export const SubscriptionDetailScreen = () => {
     onError: (error) => notify.error('Update failed', getUserSafeError(error, 'Please try again.')),
   });
   const showQr = useMutation({
-    mutationFn: async (rotate = false) => {
+    mutationFn: async (rotate: boolean) => {
       const nextDelivery = deliveries.find((delivery) => activeDeliveryStatuses.includes(delivery.status));
       const challenge = rotate
         ? await subscriptionService.rotateTrustedDropQr(id)
@@ -150,7 +150,7 @@ export const SubscriptionDetailScreen = () => {
   </ActionSheet>
   <ActionSheet visible={sheet === 'preferences'} title="Delivery preferences" onClose={() => setSheet(null)}>
     <View style={styles.methodList}>{availableMethods(subscription).map((method) => <Pressable key={method.value} onPress={() => setPreferenceMethod(method.value)} style={[styles.method, preferenceMethod === method.value && styles.methodActive]}><Text style={styles.methodTitle}>{method.label}</Text><Text style={styles.methodCopy}>{method.copy}</Text></Pressable>)}</View>
-    {preferenceMethod === 'TRUSTED_DROP' ? <><Text style={styles.sheetCopy}>AAGAM manages the signed one-time QR. No reusable secret is stored on your device.</Text><TextInput value={dropInstructions} onChangeText={setDropInstructions} placeholder="Milk box / doorstep instructions" multiline style={[styles.input, styles.multiline]} /></> : null}
+    {preferenceMethod === 'TRUSTED_DROP' ? <><Text style={styles.sheetCopy}>Aagaam manages the signed one-time QR. No reusable secret is stored on your device.</Text><TextInput value={dropInstructions} onChangeText={setDropInstructions} placeholder="Milk box / doorstep instructions" multiline style={[styles.input, styles.multiline]} /></> : null}
     <PrimaryButton label="Save preferences" busy={preferences.isPending} onPress={() => preferences.mutate()} />
   </ActionSheet>
   {subscription.deliveryMethod === 'TRUSTED_DROP' ? <ActionSheet visible={sheet === 'trustedQr'} title="Trusted Drop QR" onClose={() => setSheet(null)}>

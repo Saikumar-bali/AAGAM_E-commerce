@@ -160,7 +160,7 @@ export class SubscriptionOrderGenerator {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
-  async generateOne(subscriptionDeliveryId: string, correlationId = randomUUID()) {
+  async generateOne(subscriptionDeliveryId: string, correlationId: string = randomUUID()) {
     const attempt = await this.beginAttempt(subscriptionDeliveryId, correlationId);
     try {
       const result = await prisma.$transaction(async (tx) => {
