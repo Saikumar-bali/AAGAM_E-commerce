@@ -16,7 +16,9 @@ function serviceWithMockStorage() {
 }
 
 const file = {
-  buffer: Buffer.from('private-evidence'),
+  // Keep the fixture representative of a real PDF now that evidence uploads
+  // validate file signatures instead of trusting Multer's declared MIME type.
+  buffer: Buffer.from('%PDF-1.7\nprivate-evidence\n%%EOF'),
   mimetype: 'application/pdf',
   originalname: 'identity.pdf',
 } as Express.Multer.File;
