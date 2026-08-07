@@ -1,9 +1,9 @@
 name: Phase 1 Subscription Hardening
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/subscription-release-hardening-phase1
+      - agent/subscription-release-hardening
     paths:
       - scripts/phase1-subscription-hardening.py
       - .github/workflows/phase1-subscription-hardening.yml
@@ -24,6 +24,7 @@ env:
 
 jobs:
   implement-and-verify:
+    if: github.event.pull_request.head.ref == 'agent/subscription-release-hardening-phase1'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
