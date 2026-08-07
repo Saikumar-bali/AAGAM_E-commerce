@@ -61,19 +61,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Apply production patch and strict role typing correction
+      - name: Apply production and integration patches
         run: |
           python3 scripts/phase1-subscription-hardening.py
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('apps/api-gateway/src/subscriptions/regional-route-event-access.service.ts')
-          text = path.read_text()
-          old = "if (!actor || ![Role.ADMIN, Role.RIDER, Role.STORE_OWNER].includes(actor.role)) {"
-          new = "if (!actor || (actor.role !== Role.ADMIN && actor.role !== Role.RIDER && actor.role !== Role.STORE_OWNER)) {"
-          if old not in text:
-              raise SystemExit('Expected generated role guard was not found')
-          path.write_text(text.replace(old, new, 1))
-          PY
+          python3 scripts/phase1-integration-fix.py
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -152,15 +143,18 @@ jobs:
         run: |
           git diff --check
           test -f packages/database/prisma/migrations/20260807003000_subscription_timezone_serviceability/migration.sql
-          grep -Fq 'return this.events.list(after, request.user)' apps/api-gateway/src/subscriptions/regional-routing.controller.ts
-          grep -Fq 'SERVICEABILITY_DEFERRED' apps/api-gateway/src/subscriptions/subscription-order-generator.service.ts
+          grep -Fq 'return this.operations.events(after, request.user)' apps/api-gateway/src/subscriptions/regional-routing.controller.ts
+          grep -Fq 'SubscriptionServiceabilityError' apps/api-gateway/src/subscriptions/subscription-order-generator.service.ts
 
-      - name: Remove disposable patch machinery and commit verified phase
+      - name: Remove disposable machinery and commit verified phase
         shell: bash
         run: |
           rm -f scripts/phase1-subscription-hardening.py \
+            scripts/phase1-integration-fix.py \
+            .github/phase1-integration-retry.trigger \
             .github/workflows/phase1-subscription-hardening.yml \
-            .github/workflows/phase1-subscription-hardening-retry.yml
+            .github/workflows/phase1-subscription-hardening-retry.yml \
+            .github/workflows/phase1-subscription-hardening-retry2.yml
           git config user.name "aagam-release-hardening[bot]"
           git config user.email "aagam-release-hardening[bot]@users.noreply.github.com"
           git add -A
@@ -172,7 +166,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: phase1-subscription-hardening-retry-results
+          name: phase1-subscription-hardening-integration-results
           path: |
             phase1-targeted-results.json
             phase1-api-results.json
