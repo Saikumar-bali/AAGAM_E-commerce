@@ -121,7 +121,7 @@ try {
   );
   expectRejected(
     join(tempDir, 'trailing-zlib-bytes.png'),
-    png(canonicalParts(Buffer.concat([deflateSync(indexedScanlines()), Buffer.from([1, 2, 3])])),
+    png(canonicalParts(Buffer.concat([deflateSync(indexedScanlines()), Buffer.from([1, 2, 3])]))),
     'trailing bytes after the zlib image stream',
   );
   expectRejected(
