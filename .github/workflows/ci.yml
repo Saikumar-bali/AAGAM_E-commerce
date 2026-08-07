@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build:
-    name: Apply verified production completion
+    name: Diagnose verified transport chunks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact PR head
@@ -23,35 +23,20 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Verify, apply, clean transport, and commit
+      - name: Show exact chunk identities
         shell: bash
         run: |
           set -euo pipefail
-
-          cat .github/agent-final.part{00..07} > /tmp/final.patch.gz.b64
-          base64 -d /tmp/final.patch.gz.b64 > /tmp/final.patch.gz
-          echo "748b7db05b8a3c09d19e2ce6bbc23cb2ab786dfb9e9fd4fa37645f758c10ec57  /tmp/final.patch.gz" | sha256sum -c -
-
-          gzip -dc /tmp/final.patch.gz > /tmp/final.patch
-          echo "996a2bfa4e49ada582ca6a90596c3995311b3408acb68e8908a87c27475e3282  /tmp/final.patch" | sha256sum -c -
-
-          git apply --check /tmp/final.patch
-          git apply /tmp/final.patch
-
-          git fetch origin main --depth=1
-          git checkout origin/main -- .github/workflows/ci.yml
-
-          rm -f .github/agent-production.patch.gz
-          rm -f .github/workflows/agent-source-export.yml
-          rm -f .github/workflows/agent-final-apply.yml
-          rm -f .github/agent-final.part{00..07}
-
-          git diff --check
-          git config user.name "AAGAM Production Completion Agent"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git add -f docs/ai-runs/2026-08-07-subscription-production-completion.md
-          git diff --cached --check
-          git status --short
-          git commit -m "feat(subscriptions): complete production hardening and regional delivery"
-          git push origin HEAD:agent/subscription-production-completion
+          wc -c .github/agent-final.part{00..07}
+          sha256sum .github/agent-final.part{00..07}
+          echo "Expected:"
+          cat <<'EOF'
+          a8e31d16f80273edc7673d4c0a130f6290e896124cb96681f8d67e901b27fc24  .github/agent-final.part00
+          5d73f35db480ac95b1bec5be7706cf33f4b7c84ced2f7ff08320de1fcbbadc62  .github/agent-final.part01
+          91f49da89608ddd08bb9762d6620cca42676fb6a33e68c1b11a7409edd08bfdd  .github/agent-final.part02
+          67a6da9dabdcb3a20004c40ff0cf5ae0ec311e24d81ae62115c2649b3efecf3f  .github/agent-final.part03
+          1e11d2e77d4762577f09c8a939803f2bba8a12465da3f959b19f8431084a127e  .github/agent-final.part04
+          fbfb0aff5e978d60f787aba0f1440ec09cc4829471d331e7e341eabc92b9ce6c  .github/agent-final.part05
+          de35b232cdb9ac1222c0911af9066e1223eb018680aa95fb603d6066b1e8324a  .github/agent-final.part06
+          7ffbfaabc6c15b5831a5ccc626b3aaeb757ff9d70d43b68eef9bc4698e180130  .github/agent-final.part07
+          EOF
