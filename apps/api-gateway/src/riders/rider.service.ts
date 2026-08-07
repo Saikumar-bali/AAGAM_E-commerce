@@ -5,8 +5,13 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, prisma } from '@aagam/database';
+import { Prisma, Role, prisma } from '@aagam/database';
 import * as bcrypt from 'bcrypt';
+import { activeUserRoles } from '../auth/user-roles';
+import {
+  normalizeEmail,
+  normalizePhoneE164,
+} from '../contact-verification/contact-otp.service';
 import { AutoDispatchService } from '../orders/auto-dispatch.service';
 import { ACTIVE_JOB_STATUSES } from '../orders/delivery-job.service';
 import {
@@ -23,13 +28,32 @@ export class RiderService {
   constructor(private readonly autoDispatch: AutoDispatchService) {}
 
   async findAll() {
-    return prisma.riderProfile.findMany({
+    const riders = await prisma.riderProfile.findMany({
+      where: { user: { isActive: true } },
       include: {
-        user: { select: { name: true, email: true, phone: true } },
+        user: {
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+            role: true,
+            isActive: true,
+          },
+        },
         orders: true,
       },
       orderBy: { updatedAt: 'desc' },
     });
+
+    const visible = await Promise.all(
+      riders.map(async (rider) => ({
+        rider,
+        roles: await activeUserRoles(rider.userId, rider.user.role),
+      })),
+    );
+    return visible
+      .filter(({ roles }) => roles.includes(Role.RIDER))
+      .map(({ rider }) => rider);
   }
 
   async findOne(id: string) {
@@ -189,49 +213,157 @@ export class RiderService {
     latitude?: number;
     longitude?: number;
   }) {
+    const email = normalizeEmail(data.email);
+    const phone = normalizePhoneE164(data.phone);
+    const existing = await prisma.user.findFirst({
+      where: { OR: [{ email }, { phone }] },
+      select: { email: true, phone: true },
+    });
+    if (existing) {
+      if (existing.phone === phone) {
+        throw new ConflictException('An account already uses this phone number');
+      }
+      throw new ConflictException('An account already uses this email address');
+    }
+
     const hashedPassword = data.password
       ? await bcrypt.hash(data.password, 10)
       : undefined;
     const coordinates = this.coordinates(data);
 
-    return prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          email: data.email,
-          name: data.name,
-          phone: data.phone,
-          role: 'RIDER',
-          ...(hashedPassword && { password: hashedPassword }),
-        },
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            email,
+            name: data.name.trim(),
+            phone,
+            role: Role.RIDER,
+            ...(hashedPassword && { password: hashedPassword }),
+          },
+        });
+        return tx.riderProfile.create({
+          data: {
+            userId: user.id,
+            status: 'OFFLINE',
+            vehicleType: data.vehicleType || null,
+            vehicleNumber: data.vehicleNumber || null,
+            emergencyContactName: data.emergencyContactName || null,
+            emergencyContactPhone: data.emergencyContactPhone || null,
+            latitude: coordinates?.latitude ?? null,
+            longitude: coordinates?.longitude ?? null,
+          },
+        });
       });
-      return tx.riderProfile.create({
-        data: {
-          userId: user.id,
-          status: 'OFFLINE',
-          vehicleType: data.vehicleType || null,
-          vehicleNumber: data.vehicleNumber || null,
-          emergencyContactName: data.emergencyContactName || null,
-          emergencyContactPhone: data.emergencyContactPhone || null,
-          latitude: coordinates?.latitude ?? null,
-          longitude: coordinates?.longitude ?? null,
-        },
-      });
-    });
+    } catch (error: unknown) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        const target = JSON.stringify((error as { meta?: unknown })?.meta || {}).toLowerCase();
+        if (target.includes('phone')) {
+          throw new ConflictException('An account already uses this phone number');
+        }
+        if (target.includes('email')) {
+          throw new ConflictException('An account already uses this email address');
+        }
+        throw new ConflictException('A Rider account already uses this identity');
+      }
+      throw error;
+    }
   }
 
   async delete(id: string) {
-    if (id.startsWith('temp-')) {
-      const userId = id.replace('temp-', '');
-      await prisma.user.delete({ where: { id: userId } });
-      return { message: 'Rider deleted successfully' };
+    return prisma.$transaction(
+      async (tx) => {
+        if (id.startsWith('temp-')) {
+          const userId = id.replace('temp-', '');
+          await this.removeRiderAccess(tx, userId);
+          return { message: 'Rider access removed successfully' };
+        }
+
+        const rider = await tx.riderProfile.findUnique({ where: { id } });
+        if (!rider) throw new NotFoundException('Rider not found');
+
+        const activeJob = await this.activeJob(tx, rider.id);
+        if (activeJob) {
+          throw new ConflictException(
+            `Rider cannot be removed while delivery ${activeJob.id} is active`,
+          );
+        }
+
+        await tx.riderProfile.update({
+          where: { id: rider.id },
+          data: { status: 'OFFLINE' },
+        });
+        await this.clearAvailability(tx, rider.id);
+        await this.removeRiderAccess(tx, rider.userId);
+        return { message: 'Rider access removed successfully' };
+      },
+      { isolationLevel: 'Serializable' as any },
+    );
+  }
+
+  private async removeRiderAccess(tx: Prisma.TransactionClient, userId: string) {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+    if (!user) throw new NotFoundException('Rider user not found');
+
+    await tx.$executeRawUnsafe(
+      `UPDATE "UserRoleMembership"
+       SET "status" = 'REVOKED', "revokedAt" = CURRENT_TIMESTAMP
+       WHERE "userId" = $1 AND "role" = 'RIDER' AND "status" = 'ACTIVE'`,
+      userId,
+    );
+
+    if (user.role !== Role.RIDER) return;
+
+    const alternatives = await tx.$queryRawUnsafe(
+      `SELECT "role" FROM "UserRoleMembership"
+       WHERE "userId" = $1 AND "status" = 'ACTIVE' AND "role" <> 'RIDER'
+       ORDER BY "grantedAt" ASC LIMIT 1`,
+      userId,
+    );
+    let fallbackRole = alternatives[0]?.role as Role | undefined;
+
+    // Preserve legitimate legacy multi-role identities even if they predate the
+    // membership table. A Store owner or Customer with order history must not
+    // lose that account merely because Rider access is removed.
+    if (!fallbackRole) {
+      const ownedStore = await tx.store.findFirst({
+        where: { ownerId: userId },
+        select: { id: true },
+      });
+      if (ownedStore) fallbackRole = Role.STORE_OWNER;
+    }
+    if (!fallbackRole) {
+      const customerOrder = await tx.order.findFirst({
+        where: { customerId: userId },
+        select: { id: true },
+      });
+      if (customerOrder) fallbackRole = Role.CUSTOMER;
     }
 
-    const rider = await prisma.riderProfile.findUnique({ where: { id } });
-    if (!rider) throw new NotFoundException('Rider not found');
+    if (fallbackRole) {
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          role: fallbackRole,
+          isActive: true,
+          deactivatedAt: null,
+          deactivationReason: null,
+        },
+      });
+      return;
+    }
 
-    await prisma.riderProfile.delete({ where: { id } });
-    await prisma.user.delete({ where: { id: rider.userId } });
-    return { message: 'Rider deleted successfully' };
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        isActive: false,
+        deactivatedAt: new Date(),
+        deactivationReason: 'Rider access removed by administrator',
+      },
+    });
   }
 
   private async hasFreshAvailability(tx: DbClient, riderProfileId: string) {
