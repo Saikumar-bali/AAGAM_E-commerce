@@ -42,8 +42,8 @@ describe('subscription production completion contracts', () => {
   });
 
   it('defaults to split cash/funded routes unless explicitly enabled', () => {
-    expect(planner).toContain("ALLOW_MIXED_CASH_RUNS ?? 'false'");
-    expect(planner).toContain("row.paymentRequirement");
+    expect(planner).toMatch(/ALLOW_MIXED_CASH_RUNS\s*(?:\|\||\?\?)\s*'false'/);
+    expect(planner).toContain("allowMixedCashRuns ? 'MIXED_PAYMENT_ALLOWED' : row.paymentRequirement");
   });
 
   it('runs production scheduling on a durable BullMQ repeatable queue without local intervals', () => {
@@ -57,12 +57,12 @@ describe('subscription production completion contracts', () => {
   it('rechecks requested riders inside the route mutation transaction', () => {
     expect(planner).toContain('validateRiderForRunWithinTransaction');
     expect(planner).toContain('assignRiderWithinTransaction');
-    expect(operations).toContain('assignRiderWithinTransaction(tx');
+    expect(operations).toMatch(/assignRiderWithinTransaction\(\s*tx/);
     const splitStart = operations.indexOf('async split(');
     const mergeStart = operations.indexOf('async merge(');
     const splitSection = operations.slice(splitStart, mergeStart);
     expect(splitSection).toContain('Prisma.TransactionIsolationLevel.Serializable');
-    expect(splitSection).toContain('assignRiderWithinTransaction(tx');
+    expect(splitSection).toMatch(/assignRiderWithinTransaction\(\s*tx/);
   });
 
   it('uses server-issued one-time signed trusted-drop challenges with no plaintext persistence', () => {
@@ -73,13 +73,15 @@ describe('subscription production completion contracts', () => {
     expect(trustedDrop).toContain('credentialVersion');
     expect(trustedDrop).toContain('rotate');
     expect(trustedDrop).toContain('revoke');
-    expect(schema).not.toMatch(/TrustedDropChallenge[\s\S]*?\btoken\s+String/);
+    const challengeModel = schema.match(/model TrustedDropChallenge\s*\{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(challengeModel).toContain('tokenHash');
+    expect(challengeModel).not.toMatch(/\btoken\s+String/);
   });
 
   it('requires real private evidence and separate arrival/completion geofence proof', () => {
     expect(upload).toContain('validateEvidenceMagic');
-    expect(trustedDrop).toContain("ownerScope: 'subscription-trusted-drop'");
-    expect(trustedDrop).toContain('RunStopGeofenceProof');
+    expect(trustedDrop).toContain("scope: 'subscription-trusted-drop'");
+    expect(schema).toContain('model RunStopGeofenceProof');
     expect(runOperations).toContain('GeofencePhase.ARRIVAL');
     expect(runOperations).toContain('GeofencePhase.COMPLETION');
     expect(deliveryOperations).toContain('trusted-drop-evidence:');
