@@ -1,0 +1,170 @@
+name: Phase 1 Subscription Hardening
+
+on:
+  push:
+    branches:
+      - agent/subscription-release-hardening-phase1
+    paths:
+      - scripts/phase1-subscription-hardening.py
+      - .github/workflows/phase1-subscription-hardening.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase1-subscription-hardening
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22.22.3"
+  DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_phase1"
+  REDIS_URL: "redis://localhost:6379"
+  NODE_ENV: test
+  JWT_SECRET: "aagam-phase1-ci-only-secret"
+
+jobs:
+  implement-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aagam_phase1
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout phase branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/subscription-release-hardening-phase1
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Apply production patch
+        run: python3 scripts/phase1-subscription-hardening.py
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Prepare QA result log
+        run: |
+          mkdir -p docs/qa/subscription-release-hardening
+          cat > docs/qa/subscription-release-hardening/test-results.md <<'EOF'
+          # Subscription release hardening test results
+
+          ## Phase 1 — security, timezone, serviceability
+
+          Exact commands below completed with exit code `0` on the phase implementation head.
+          EOF
+
+      - name: Prisma format and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx prisma format --schema packages/database/prisma/schema.prisma
+          npx prisma generate --schema packages/database/prisma/schema.prisma
+          npx prisma validate --schema packages/database/prisma/schema.prisma
+          npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+          npx prisma migrate status --schema packages/database/prisma/schema.prisma
+          cat >> docs/qa/subscription-release-hardening/test-results.md <<'EOF'
+          - `npx prisma format --schema packages/database/prisma/schema.prisma` — exit 0
+          - `npx prisma generate --schema packages/database/prisma/schema.prisma` — exit 0
+          - `npx prisma validate --schema packages/database/prisma/schema.prisma` — exit 0
+          - `npx prisma migrate deploy --schema packages/database/prisma/schema.prisma` — exit 0
+          - `npx prisma migrate status --schema packages/database/prisma/schema.prisma` — exit 0
+          EOF
+
+      - name: Build shared workspaces
+        run: |
+          npx tsc --project packages/types/tsconfig.json
+          npx tsc --project packages/utils/tsconfig.json
+          npx tsc --project packages/database/tsconfig.json
+
+      - name: Run phase 1 targeted tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test --workspace=apps/api-gateway -- --runInBand \
+            src/subscriptions/subscription-calendar.service.spec.ts \
+            src/subscriptions/subscription-serviceability.service.spec.ts \
+            src/subscriptions/regional-route-event-access.service.spec.ts \
+            src/subscription-release-hardening-phase1.contract.spec.ts \
+            --json --outputFile="$GITHUB_WORKSPACE/phase1-targeted-results.json"
+          node - <<'NODE' >> docs/qa/subscription-release-hardening/test-results.md
+          const result = require(process.env.GITHUB_WORKSPACE + '/phase1-targeted-results.json');
+          console.log(`- Phase 1 targeted Jest suites — exit 0; ${result.numPassedTestSuites}/${result.numTotalTestSuites} suites and ${result.numPassedTests}/${result.numTotalTests} tests passed`);
+          NODE
+
+      - name: Run API CI suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run ci:api -- --json --outputFile="$GITHUB_WORKSPACE/phase1-api-results.json"
+          node - <<'NODE' >> docs/qa/subscription-release-hardening/test-results.md
+          const result = require(process.env.GITHUB_WORKSPACE + '/phase1-api-results.json');
+          console.log(`- \`npm run ci:api\` — exit 0; ${result.numPassedTestSuites}/${result.numTotalTestSuites} suites and ${result.numPassedTests}/${result.numTotalTests} tests passed`);
+          NODE
+
+      - name: Build Admin and mobile applications
+        run: |
+          npm run build:admin
+          npm run build --workspace apps/mobile-partners
+          npm run build --workspace apps/mobile-customer
+          cat >> docs/qa/subscription-release-hardening/test-results.md <<'EOF'
+          - `npm run build:admin` — exit 0
+          - `npm run build --workspace apps/mobile-partners` — exit 0
+          - `npm run build --workspace apps/mobile-customer` — exit 0
+          EOF
+
+      - name: Verify patch hygiene
+        run: |
+          git diff --check
+          test -f packages/database/prisma/migrations/20260807003000_subscription_timezone_serviceability/migration.sql
+          grep -Fq 'return this.events.list(after, request.user)' apps/api-gateway/src/subscriptions/regional-routing.controller.ts
+          grep -Fq 'SERVICEABILITY_DEFERRED' apps/api-gateway/src/subscriptions/subscription-order-generator.service.ts
+
+      - name: Remove disposable patch machinery and commit verified phase
+        shell: bash
+        run: |
+          rm -f scripts/phase1-subscription-hardening.py .github/workflows/phase1-subscription-hardening.yml
+          git config user.name "aagam-release-hardening[bot]"
+          git config user.email "aagam-release-hardening[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(subscriptions): secure quotes and zone-local delivery windows"
+          git push origin HEAD:agent/subscription-release-hardening-phase1
+
+      - name: Upload phase diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-subscription-hardening-results
+          path: |
+            phase1-targeted-results.json
+            phase1-api-results.json
+            docs/qa/subscription-release-hardening/
+          if-no-files-found: warn
+          retention-days: 14
