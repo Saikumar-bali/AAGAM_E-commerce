@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -48,6 +48,10 @@ import {
 } from '../../api/subscriptionOperationsService';
 import type { RiderTabParamList } from '../../navigation/partnerNavigationTypes';
 import { RIDER_RUNS_QUERY_KEY } from './RiderRunsScreen';
+import { PartnerQrScanner } from '../../native/PartnerQrScanner';
+import { PartnerDocumentPicker } from '../../native/PartnerDocumentPicker';
+import { PartnerConnectivity } from '../../native/PartnerConnectivity';
+import { RiderRunOfflineQueue } from '../../services/RiderRunOfflineQueue';
 
 const FAILURE_REASONS: Array<{ value: DeliveryFailureReason; label: string }> = [
   { value: 'CUSTOMER_UNREACHABLE', label: 'Customer unreachable' },
@@ -130,7 +134,7 @@ function ProofSummary({ stop }: { stop: DeliveryRunStop }) {
     return <View style={styles.proofRow}><Banknote size={17} color="#A15C00" /><Text style={styles.proofText}>Collect exactly {money(stop.cashDuePaise)} with customer OTP</Text></View>;
   }
   if (method === 'TRUSTED_DROP') {
-    return <View style={styles.proofRow}><Camera size={17} color="#087B5A" /><Text style={styles.proofText}>₹0 due · token, GPS and drop proof required</Text></View>;
+    return <View style={styles.proofRow}><Camera size={17} color="#087B5A" /><Text style={styles.proofText}>₹0 due · one-time QR, arrival/completion GPS and fresh photo required</Text></View>;
   }
   if (method === 'SECURITY_RECEPTION') {
     return <View style={styles.proofRow}><ShieldCheck size={17} color="#155E75" /><Text style={styles.proofText}>₹0 due · security/reception OTP handover</Text></View>;
@@ -184,7 +188,8 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState('');
   const [dropToken, setDropToken] = useState('');
-  const [proofReference, setProofReference] = useState('');
+  const [trustedEvidenceId, setTrustedEvidenceId] = useState('');
+  const [trustedEvidenceName, setTrustedEvidenceName] = useState('');
   const [deliveryNote, setDeliveryNote] = useState('');
   const [failureOpen, setFailureOpen] = useState(false);
   const [failureReason, setFailureReason] = useState<DeliveryFailureReason>('CUSTOMER_UNREACHABLE');
@@ -194,6 +199,24 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const [pickupCrateCode, setPickupCrateCode] = useState('');
   const [cashAmount, setCashAmount] = useState('');
   const [createdBatch, setCreatedBatch] = useState<{ id: string; version: number; expectedAmountPaise: number } | null>(null);
+  const [offlinePending, setOfflinePending] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    const refreshPending = async () => { if (mounted) setOfflinePending((await RiderRunOfflineQueue.list()).length); };
+    void refreshPending();
+    const unsubscribe = PartnerConnectivity.subscribe((connected) => {
+      if (!connected) { void refreshPending(); return; }
+      void RiderRunOfflineQueue.flush().then(async (result) => {
+        if (!mounted) return;
+        setOfflinePending(result.remaining.length);
+        if (result.replayed > 0) Toast.show({ type: 'success', text1: 'Offline route actions synced', text2: `${result.replayed} queued action${result.replayed === 1 ? '' : 's'} replayed safely.` });
+        if (result.conflicts.length) Toast.show({ type: 'error', text1: 'Route changed while offline', text2: 'Refresh the run before retrying the conflicted action.' });
+      });
+    });
+    void PartnerConnectivity.getCurrent().then(async (connected) => { if (connected) { await RiderRunOfflineQueue.flush(); await refreshPending(); } });
+    return () => { mounted = false; unsubscribe(); };
+  }, []);
 
   const runQuery = useQuery({
     queryKey: ['rider', 'delivery-run', runId],
@@ -253,7 +276,13 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const arriveMutation = useMutation({
     mutationFn: async (stop: DeliveryRunStop) => {
       const coordinates = await currentLocation();
-      return subscriptionOperationsService.arriveAtStop(runId, stop.id, { ...coordinates, version: stop.version });
+      const payload = { ...coordinates, version: stop.version };
+      if (!(await PartnerConnectivity.getCurrent())) {
+        await RiderRunOfflineQueue.enqueue({ kind: 'ARRIVE', runId, stopId: stop.id, payload });
+        setOfflinePending((await RiderRunOfflineQueue.list()).length);
+        throw new Error('Offline: arrival saved securely and will replay after connectivity returns.');
+      }
+      return subscriptionOperationsService.arriveAtStop(runId, stop.id, payload);
     },
     onSuccess: async () => { await refresh(); Toast.show({ type: 'success', text1: 'Arrival recorded', text2: 'GPS and timestamp were saved for this stop.' }); },
     onError: (error) => Toast.show({ type: 'error', text1: 'Could not record arrival', text2: errorMessage(error) }),
@@ -265,25 +294,63 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
     onError: (error) => Toast.show({ type: 'error', text1: 'OTP could not be sent', text2: errorMessage(error) }),
   });
 
+  const scanTrustedDropMutation = useMutation({
+    mutationFn: async () => {
+      const result = await PartnerQrScanner.scan();
+      if (!result?.value?.trim()) throw new Error('No Trusted Drop QR content was detected.');
+      if (!result.value.startsWith('aagam.td.v1.')) throw new Error('This is not an Aagaam Trusted Drop QR.');
+      return result.value.trim();
+    },
+    onSuccess: (token) => { setDropToken(token); setTrustedEvidenceId(''); setTrustedEvidenceName(''); Toast.show({ type: 'success', text1: 'Trusted Drop QR scanned', text2: 'Now capture a fresh photo at the drop point.' }); },
+    onError: (error) => Toast.show({ type: 'error', text1: 'QR scan failed', text2: errorMessage(error) }),
+  });
+
+  const evidenceMutation = useMutation({
+    mutationFn: async (stop: DeliveryRunStop) => {
+      if (!dropToken) throw new Error('Scan the customer Trusted Drop QR first.');
+      const picked = await PartnerDocumentPicker.captureImage();
+      if (!picked.type.startsWith('image/')) throw new Error('Trusted Drop proof must be a camera image.');
+      if (picked.size > 6 * 1024 * 1024) throw new Error('Trusted Drop photo must be 6 MB or smaller.');
+      const result = await subscriptionOperationsService.uploadTrustedDropEvidence(runId, stop.id, {
+        trustedDropToken: dropToken,
+        file: { uri: picked.uri, name: picked.name, type: picked.type },
+        capturedAt: new Date().toISOString(),
+      });
+      return { ...result, name: picked.name };
+    },
+    onSuccess: (result) => { setTrustedEvidenceId(result.id); setTrustedEvidenceName(result.name); Toast.show({ type: 'success', text1: 'Drop photo secured', text2: 'The evidence is bound to this stop, rider, and QR version.' }); },
+    onError: (error) => Toast.show({ type: 'error', text1: 'Photo upload failed', text2: errorMessage(error) }),
+  });
+
   const completeMutation = useMutation({
     mutationFn: async (stop: DeliveryRunStop) => {
       const coordinates = await currentLocation();
       const trusted = stop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP' && stop.cashDuePaise === 0;
-      if (trusted && (!dropToken.trim() || !proofReference.trim())) throw new Error('Enter the secure drop token and photo/proof reference.');
+      if (!(await PartnerConnectivity.getCurrent())) {
+        if (trusted) {
+          await RiderRunOfflineQueue.enqueue({ kind: 'TRUSTED_DROP_RESCAN_REQUIRED', runId, stopId: stop.id, payload: { version: stop.version } });
+          setOfflinePending((await RiderRunOfflineQueue.list()).length);
+          throw new Error('Offline: Trusted Drop QR secrets are never stored. Reconnect, refresh, and rescan the current QR.');
+        }
+        throw new Error('Reconnect before final handover verification; OTP/proof secrets are not persisted offline.');
+      }
+      if (trusted && (!dropToken.trim() || !trustedEvidenceId)) throw new Error('Scan the current Trusted Drop QR and upload a fresh photo.');
       if (!trusted && !/^\d{6}$/.test(otpCode)) throw new Error('Enter the six-digit customer OTP.');
       return subscriptionOperationsService.completeStop(runId, stop.id, {
         ...coordinates,
         version: stop.version,
         riderConfirmed: true,
         otpCode: trusted ? undefined : otpCode,
-        dropPointToken: trusted ? dropToken.trim() : undefined,
-        proofReference: trusted ? proofReference.trim() : undefined,
+        trustedDropToken: trusted ? dropToken.trim() : undefined,
+        evidenceId: trusted ? trustedEvidenceId : undefined,
         cashCollectedPaise: stop.cashDuePaise > 0 ? stop.cashDuePaise : undefined,
         note: deliveryNote.trim() || undefined,
       });
     },
-    onSuccess: async () => {
-      setOtpCode(''); setDropToken(''); setProofReference(''); setDeliveryNote(''); setSelectedStopId(null);
+    onSuccess: async (_result, stop) => {
+      await RiderRunOfflineQueue.clearTrustedDropMarker(runId, stop.id);
+      setOfflinePending((await RiderRunOfflineQueue.list()).length);
+      setOtpCode(''); setDropToken(''); setTrustedEvidenceId(''); setTrustedEvidenceName(''); setDeliveryNote(''); setSelectedStopId(null);
       await refresh();
       Toast.show({ type: 'success', text1: 'Stop completed', text2: 'Delivery proof and funding entitlement were recorded.' });
     },
@@ -293,13 +360,13 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const failMutation = useMutation({
     mutationFn: async (stop: DeliveryRunStop) => {
       const coordinates = await currentLocation();
-      return subscriptionOperationsService.failStop(runId, stop.id, {
-        ...coordinates,
-        version: stop.version,
-        reason: failureReason,
-        note: failureNote.trim() || undefined,
-        retryRequested,
-      });
+      const payload = { ...coordinates, version: stop.version, reason: failureReason, note: failureNote.trim() || undefined, retryRequested };
+      if (!(await PartnerConnectivity.getCurrent())) {
+        await RiderRunOfflineQueue.enqueue({ kind: 'FAIL', runId, stopId: stop.id, payload });
+        setOfflinePending((await RiderRunOfflineQueue.list()).length);
+        throw new Error('Offline: delivery exception queued and will replay after reconnect.');
+      }
+      return subscriptionOperationsService.failStop(runId, stop.id, payload);
     },
     onSuccess: async () => {
       setFailureOpen(false); setFailureNote(''); setSelectedStopId(null);
@@ -314,7 +381,13 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
       if (!run) throw new Error('Route is not loaded.');
       const next = direction === 'up' ? stop.sequenceNumber - 1 : stop.sequenceNumber + 1;
       if (next < 1 || next > run.stops.length) throw new Error('This stop is already at the route boundary.');
-      return subscriptionOperationsService.reorderStop(runId, stop.id, { version: stop.version, newSequenceNumber: next, reason: 'Rider route optimization from mobile run view' });
+      const payload = { version: stop.version, newSequenceNumber: next, reason: 'Rider route optimization from mobile run view' };
+      if (!(await PartnerConnectivity.getCurrent())) {
+        await RiderRunOfflineQueue.enqueue({ kind: 'REORDER', runId, stopId: stop.id, payload });
+        setOfflinePending((await RiderRunOfflineQueue.list()).length);
+        throw new Error('Offline: route reorder queued. The server will reject it if the route version changed.');
+      }
+      return subscriptionOperationsService.reorderStop(runId, stop.id, payload);
     },
     onSuccess: async () => { await refresh(); Toast.show({ type: 'success', text1: 'Route order updated' }); },
     onError: (error) => Toast.show({ type: 'error', text1: 'Could not reorder stop', text2: errorMessage(error) }),
@@ -378,6 +451,8 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
           </View>
         </View>
 
+        {offlinePending > 0 ? <View style={styles.offlinePendingCard}><Clock3 size={20} color="#8A4B00" /><View style={styles.noticeCopy}><Text style={styles.noticeTitle}>{offlinePending} offline action{offlinePending === 1 ? '' : 's'} pending</Text><Text style={styles.noticeText}>Safe non-secret actions will replay after reconnect. Trusted Drop always requires a fresh QR rescan.</Text></View></View> : null}
+
         {run.status === 'PICKED_UP' ? <TouchableOpacity style={styles.stickyPrimary} disabled={runMutation.isPending} onPress={() => runMutation.mutate('start')}><Navigation size={20} color="#FFFFFF" /><Text style={styles.stickyPrimaryText}>{runMutation.isPending ? 'Starting…' : 'Start delivery run'}</Text></TouchableOpacity> : null}
         {run.status === 'PLANNED' || (run.status === 'READY_FOR_PICKUP' && !run.storeHandoffConfirmedAt) ? <View style={styles.noticeCard}><Clock3 size={20} color="#8A4B00" /><View style={styles.noticeCopy}><Text style={styles.noticeTitle}>Waiting for store handoff</Text><Text style={styles.noticeText}>The store must pack the exact route bags and confirm the physical handoff.</Text></View></View> : null}
         {run.status === 'READY_FOR_PICKUP' && run.storeHandoffConfirmedAt ? <View style={styles.pickupReceiptCard}><View style={styles.pickupReceiptHeader}><Package size={20} color="#087B5A" /><View style={styles.noticeCopy}><Text style={styles.pickupReceiptTitle}>Confirm your independent receipt</Text><Text style={styles.pickupReceiptText}>Count exactly {run.expectedBagCount || run.totalStopCount} bags before accepting this run.</Text></View></View>{run.crateCode ? <TextInput style={styles.input} value={pickupCrateCode} onChangeText={setPickupCrateCode} placeholder="Enter or scan route crate code" placeholderTextColor="#94A3B8" autoCapitalize="characters" /> : null}<TouchableOpacity style={styles.stickyPrimary} disabled={pickupMutation.isPending || Boolean(run.crateCode && !pickupCrateCode.trim())} onPress={() => pickupMutation.mutate()}><ShieldCheck size={20} color="#FFFFFF" /><Text style={styles.stickyPrimaryText}>{pickupMutation.isPending ? 'Verifying receipt…' : `Confirm ${run.expectedBagCount || run.totalStopCount} bags received`}</Text></TouchableOpacity></View> : null}
@@ -403,7 +478,7 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
               {selectedStop.status !== 'ARRIVED' && !['DELIVERED', 'FAILED', 'CANCELLED', 'RETURNED'].includes(selectedStop.status) ? <TouchableOpacity style={styles.sheetPrimary} disabled={arriveMutation.isPending} onPress={() => arriveMutation.mutate(selectedStop)}><MapPin size={20} color="#FFFFFF" /><Text style={styles.sheetPrimaryText}>{arriveMutation.isPending ? 'Reading GPS…' : 'I have arrived'}</Text></TouchableOpacity> : null}
               {selectedStop.status === 'ARRIVED' ? <>
                 {!(selectedStop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP' && selectedStop.cashDuePaise === 0) ? <TouchableOpacity style={styles.otpButton} disabled={otpMutation.isPending} onPress={() => otpMutation.mutate(selectedStop)}><KeyRound size={19} color="#087B5A" /><Text style={styles.otpButtonText}>{otpMutation.isPending ? 'Sending OTP…' : 'Send / resend OTP'}</Text></TouchableOpacity> : null}
-                {selectedStop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP' && selectedStop.cashDuePaise === 0 ? <><Text style={styles.inputLabel}>Secure drop token / QR reference</Text><TextInput style={styles.input} value={dropToken} onChangeText={setDropToken} placeholder="Scan or enter drop-point token" placeholderTextColor="#94A3B8" autoCapitalize="characters" /><Text style={styles.inputLabel}>Photo / proof reference</Text><TextInput style={styles.input} value={proofReference} onChangeText={setProofReference} placeholder="Upload reference or secure proof ID" placeholderTextColor="#94A3B8" /></> : <><Text style={styles.inputLabel}>Six-digit OTP</Text><TextInput style={[styles.input, styles.otpInput]} value={otpCode} onChangeText={(value) => setOtpCode(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" maxLength={6} placeholder="000000" placeholderTextColor="#94A3B8" /></>}
+                {selectedStop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP' && selectedStop.cashDuePaise === 0 ? <><Text style={styles.inputLabel}>One-time Trusted Drop QR</Text><TouchableOpacity style={styles.otpButton} disabled={scanTrustedDropMutation.isPending} onPress={() => scanTrustedDropMutation.mutate()}><KeyRound size={19} color="#087B5A" /><Text style={styles.otpButtonText}>{dropToken ? 'QR scanned · scan again' : scanTrustedDropMutation.isPending ? 'Opening scanner…' : 'Scan customer QR'}</Text></TouchableOpacity><Text style={styles.inputLabel}>Fresh drop photo</Text><TouchableOpacity style={styles.otpButton} disabled={!dropToken || evidenceMutation.isPending} onPress={() => evidenceMutation.mutate(selectedStop)}><Camera size={19} color="#087B5A" /><Text style={styles.otpButtonText}>{trustedEvidenceId ? `Photo secured · ${trustedEvidenceName || 'evidence ready'}` : evidenceMutation.isPending ? 'Uploading secure photo…' : 'Take delivery photo'}</Text></TouchableOpacity><Text style={styles.fundedText}>The QR secret is never saved for offline replay. If connectivity changes before completion, rescan the current QR.</Text></> : <><Text style={styles.inputLabel}>Six-digit OTP</Text><TextInput style={[styles.input, styles.otpInput]} value={otpCode} onChangeText={(value) => setOtpCode(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" maxLength={6} placeholder="000000" placeholderTextColor="#94A3B8" /></>}
                 <Text style={styles.inputLabel}>Delivery note (optional)</Text><TextInput style={[styles.input, styles.noteInput]} multiline value={deliveryNote} onChangeText={setDeliveryNote} placeholder="Quantity confirmed, drop location, recipient…" placeholderTextColor="#94A3B8" />
                 <TouchableOpacity style={styles.sheetPrimary} disabled={completeMutation.isPending} onPress={() => completeMutation.mutate(selectedStop)}><CheckCircle2 size={20} color="#FFFFFF" /><Text style={styles.sheetPrimaryText}>{completeMutation.isPending ? 'Verifying delivery…' : 'Verify and complete this stop'}</Text></TouchableOpacity>
                 <TouchableOpacity style={styles.failButton} onPress={() => setFailureOpen(true)}><CircleAlert size={19} color="#B42318" /><Text style={styles.failButtonText}>Report failure or request retry</Text></TouchableOpacity>
@@ -439,7 +514,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F3F7F5' }, content: { paddingBottom: 110 },
   loadingScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: '#F3F7F5', gap: 12 }, loadingTitle: { color: '#17211D', fontSize: 19, fontWeight: '900' }, loadingText: { color: '#64748B', fontSize: 13, lineHeight: 19, textAlign: 'center' }, retryButton: { minHeight: 48, borderRadius: 15, backgroundColor: '#087B5A', paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 8 }, retryButtonText: { color: '#FFFFFF', fontWeight: '900' },
   hero: { backgroundColor: '#057A55', paddingHorizontal: 18, paddingTop: 22, paddingBottom: 21, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }, headerRow: { flexDirection: 'row', alignItems: 'center' }, backButton: { width: 44, height: 44, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.13)', alignItems: 'center', justifyContent: 'center' }, headerCopy: { flex: 1, marginLeft: 12 }, heroEyebrow: { color: '#BAF3DD', fontSize: 10, letterSpacing: 1.2, fontWeight: '900' }, heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '900', marginTop: 2 }, routeIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#ECFFF7', alignItems: 'center', justifyContent: 'center' }, storeAddressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, marginTop: 14 }, storeAddressText: { flex: 1, color: '#D7F8EA', fontSize: 12, lineHeight: 18 }, progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18 }, progressTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' }, progressPercent: { color: '#BAF3DD', fontSize: 13, fontWeight: '900' }, progressTrack: { height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden', marginTop: 8 }, progressFill: { height: 8, borderRadius: 4, backgroundColor: '#6EE7B7' }, routeStats: { flexDirection: 'row', marginTop: 17, paddingVertical: 12, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.11)' }, routeStat: { flex: 1, alignItems: 'center' }, routeStatValue: { color: '#FFFFFF', fontSize: 17, fontWeight: '900' }, routeStatLabel: { color: '#CFF7E6', fontSize: 10, marginTop: 2 }, routeStatDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.22)' },
-  stickyPrimary: { minHeight: 54, margin: 16, marginBottom: 0, borderRadius: 17, backgroundColor: '#087B5A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 }, stickyPrimaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, noticeCard: { margin: 16, marginBottom: 0, borderRadius: 18, backgroundColor: '#FFF5DE', borderWidth: 1, borderColor: '#F0D9A7', padding: 15, flexDirection: 'row', gap: 11 }, noticeCopy: { flex: 1 }, noticeTitle: { color: '#704000', fontSize: 14, fontWeight: '900' }, noticeText: { color: '#8A5A14', fontSize: 12, lineHeight: 18, marginTop: 2 },
+  stickyPrimary: { minHeight: 54, margin: 16, marginBottom: 0, borderRadius: 17, backgroundColor: '#087B5A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 }, stickyPrimaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, offlinePendingCard: { margin: 16, marginBottom: 0, borderRadius: 18, backgroundColor: '#FFF5DE', borderWidth: 1, borderColor: '#F0D9A7', padding: 15, flexDirection: 'row', gap: 11 }, noticeCard: { margin: 16, marginBottom: 0, borderRadius: 18, backgroundColor: '#FFF5DE', borderWidth: 1, borderColor: '#F0D9A7', padding: 15, flexDirection: 'row', gap: 11 }, noticeCopy: { flex: 1 }, noticeTitle: { color: '#704000', fontSize: 14, fontWeight: '900' }, noticeText: { color: '#8A5A14', fontSize: 12, lineHeight: 18, marginTop: 2 },
   nextStopCard: { margin: 16, marginBottom: 0, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#B8DDCE', padding: 15, flexDirection: 'row', alignItems: 'center', shadowColor: '#0F2A20', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 }, nextStopIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#087B5A', alignItems: 'center', justifyContent: 'center' }, nextStopCopy: { flex: 1, marginHorizontal: 12 }, nextStopEyebrow: { color: '#087B5A', fontSize: 10, fontWeight: '900', letterSpacing: 1 }, nextStopName: { color: '#17211D', fontSize: 16, fontWeight: '900', marginTop: 2 }, nextStopAddress: { color: '#64748B', fontSize: 11, marginTop: 2 },
   sectionHeader: { marginTop: 23, marginBottom: 11, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, sectionTitle: { color: '#17211D', fontSize: 19, fontWeight: '900' }, sectionHint: { color: '#087B5A', fontSize: 10, fontWeight: '900', backgroundColor: '#E2F5EC', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 10 },
   stopCard: { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#E1EAE6' }, stopCardCurrent: { borderColor: '#60C69E', borderWidth: 2 }, stopHeader: { flexDirection: 'row', alignItems: 'flex-start' }, sequenceCircle: { width: 37, height: 37, borderRadius: 19, backgroundColor: '#EEF3F1', alignItems: 'center', justifyContent: 'center' }, sequenceCircleCurrent: { backgroundColor: '#087B5A' }, sequenceText: { color: '#475569', fontSize: 14, fontWeight: '900' }, sequenceTextCurrent: { color: '#FFFFFF' }, stopHeadingCopy: { flex: 1, marginHorizontal: 10 }, customerName: { color: '#17211D', fontSize: 15, fontWeight: '900' }, addressText: { color: '#64748B', fontSize: 11, lineHeight: 16, marginTop: 2 }, statusChip: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, maxWidth: 105 }, statusChipText: { fontSize: 9, fontWeight: '900', textAlign: 'center' }, statusComplete: { backgroundColor: '#E5F7EE' }, statusCompleteText: { color: '#087B5A' }, statusDanger: { backgroundColor: '#FDECEC' }, statusDangerText: { color: '#B42318' }, statusWarning: { backgroundColor: '#FFF1D6' }, statusWarningText: { color: '#8A4B00' }, statusNeutral: { backgroundColor: '#EEF2F6' }, statusNeutralText: { color: '#475569' }, itemsBox: { marginTop: 12, borderRadius: 13, backgroundColor: '#F8FAF9', padding: 10, gap: 6 }, itemRow: { flexDirection: 'row', alignItems: 'center', gap: 7 }, itemText: { color: '#475569', fontSize: 12, fontWeight: '600' }, proofRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 11 }, proofText: { flex: 1, color: '#475569', fontSize: 11, fontWeight: '700' }, failureNote: { marginTop: 10, borderRadius: 12, backgroundColor: '#FEF1F0', padding: 9, flexDirection: 'row', gap: 7 }, failureNoteText: { flex: 1, color: '#9F2D23', fontSize: 11 }, stopActions: { flexDirection: 'row', alignItems: 'center', marginTop: 13, gap: 8 }, secondaryButton: { minHeight: 42, borderRadius: 13, borderWidth: 1, borderColor: '#B8DDCE', paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 5 }, secondaryButtonText: { color: '#087B5A', fontSize: 11, fontWeight: '900' }, reorderButtons: { flexDirection: 'row', gap: 5 }, iconButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' }, primaryButtonSmall: { marginLeft: 'auto', minHeight: 42, borderRadius: 13, backgroundColor: '#087B5A', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 4 }, primaryButtonSmallText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },

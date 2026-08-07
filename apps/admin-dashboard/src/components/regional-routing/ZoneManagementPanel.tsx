@@ -22,6 +22,7 @@ type Zone = {
   code: string;
   name: string;
   description?: string | null;
+  timezone?: string | null;
   isActive?: boolean;
   priority?: number;
   polygon?: unknown;
@@ -50,6 +51,7 @@ type FormState = {
   name: string;
   code: string;
   description: string;
+  timezone: string;
   isActive: boolean;
   priority: string;
   polygonText: string;
@@ -71,7 +73,7 @@ type FormState = {
 };
 
 const blank: FormState = {
-  name: '', code: '', description: '', isActive: true, priority: '0', polygonText: '',
+  name: '', code: '', description: '', timezone: 'Asia/Kolkata', isActive: true, priority: '0', polygonText: '',
   centerLatitude: '', centerLongitude: '', fallbackRadiusKm: '',
   maximumDailySubscriptionCapacity: '200', maximumStopsPerRun: '15',
   maximumRouteDistanceKm: '30', maximumEstimatedDurationMinutes: '120',
@@ -130,6 +132,7 @@ function fromZone(zone: Zone): FormState {
     name: zone.name,
     code: zone.code,
     description: zone.description || '',
+    timezone: zone.timezone || 'Asia/Kolkata',
     isActive: zone.isActive ?? true,
     priority: String(zone.priority ?? 0),
     polygonText: polygonText(zone.polygon),
@@ -199,6 +202,7 @@ export default function ZoneManagementPanel({
         name: form.name.trim(),
         code: form.code.trim(),
         description: form.description.trim() || undefined,
+        timezone: form.timezone.trim() || 'Asia/Kolkata',
         isActive: form.isActive,
         priority: integer(form.priority, 'Priority', -1000),
         polygon: polygon.length ? polygon : undefined,
@@ -232,7 +236,7 @@ export default function ZoneManagementPanel({
     <button onClick={() => { setOpen(true); if (!selected) create(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 font-black text-emerald-800 shadow-sm hover:bg-emerald-50"><Settings2 className="h-4 w-4"/>Manage geographic zones</button>
     {open ? <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/60 p-0 sm:items-center sm:p-5"><div className="max-h-[96vh] w-full max-w-7xl overflow-hidden rounded-t-3xl bg-slate-50 shadow-2xl sm:rounded-3xl"><header className="flex items-center justify-between border-b border-slate-200 bg-white p-5"><div><p className="text-xs font-black uppercase tracking-wider text-emerald-700">Geographic service policy</p><h2 className="mt-1 text-2xl font-black text-slate-950">Delivery zones</h2><p className="mt-1 text-sm text-slate-500">Polygon first, radius fallback. Historical order snapshots remain unchanged.</p></div><button onClick={() => setOpen(false)} className="grid h-11 w-11 place-items-center rounded-xl bg-slate-100"><X className="h-5 w-5"/></button></header>
       <div className="grid max-h-[calc(96vh-96px)] overflow-y-auto lg:grid-cols-[320px_1fr]"><aside className="border-b border-slate-200 bg-white p-4 lg:border-b-0 lg:border-r"><button onClick={create} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 font-black text-white"><Plus className="h-5 w-5"/>New zone</button><div className="mt-4 space-y-2">{zones.map((zone) => <button key={zone.id} onClick={() => edit(zone)} className={`w-full rounded-2xl border p-4 text-left ${selectedId === zone.id ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 bg-white'}`}><div className="flex items-start gap-3"><MapPinned className="mt-0.5 h-5 w-5 text-emerald-700"/><div className="min-w-0 flex-1"><p className="truncate font-black text-slate-900">{zone.name}</p><p className="mt-1 text-xs font-bold text-emerald-700">{zone.code}</p><p className="mt-1 text-xs text-slate-500">{zone.maximumStopsPerRun ?? 15} stops · ₹{(Number(zone.cashRiskLimitPaise ?? 0) / 100).toLocaleString('en-IN')}</p></div><Edit3 className="h-4 w-4 text-slate-400"/></div></button>)}</div></aside>
-        <main className="space-y-5 p-4 sm:p-6"><section className="rounded-3xl border border-slate-200 bg-white p-5"><div className="grid gap-4 sm:grid-cols-2"><Field label="Zone name"><input value={form.name} onChange={(event) => set('name', event.target.value)} placeholder="PM Palem" className="input"/></Field><Field label="Stable code"><input value={form.code} onChange={(event) => set('code', event.target.value.toUpperCase())} placeholder="PMP" className="input uppercase"/></Field></div><Field label="Description"><textarea value={form.description} onChange={(event) => set('description', event.target.value)} rows={2} placeholder="Morning subscription service area" className="input min-h-20 p-3"/></Field><div className="mt-4 flex flex-wrap gap-4"><label className="flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" checked={form.isActive} onChange={(event) => set('isActive', event.target.checked)}/>Active</label><Field label="Priority"><input value={form.priority} onChange={(event) => set('priority', event.target.value)} inputMode="numeric" className="input w-28"/></Field></div></section>
+        <main className="space-y-5 p-4 sm:p-6"><section className="rounded-3xl border border-slate-200 bg-white p-5"><div className="grid gap-4 sm:grid-cols-3"><Field label="Zone name"><input value={form.name} onChange={(event) => set('name', event.target.value)} placeholder="PM Palem" className="input"/></Field><Field label="Stable code"><input value={form.code} onChange={(event) => set('code', event.target.value.toUpperCase())} placeholder="PMP" className="input uppercase"/></Field><Field label="IANA timezone"><input value={form.timezone} onChange={(event) => set('timezone', event.target.value)} placeholder="Asia/Kolkata" className="input"/></Field></div><Field label="Description"><textarea value={form.description} onChange={(event) => set('description', event.target.value)} rows={2} placeholder="Morning subscription service area" className="input min-h-20 p-3"/></Field><div className="mt-4 flex flex-wrap gap-4"><label className="flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" checked={form.isActive} onChange={(event) => set('isActive', event.target.checked)}/>Active</label><Field label="Priority"><input value={form.priority} onChange={(event) => set('priority', event.target.value)} inputMode="numeric" className="input w-28"/></Field></div></section>
           <section className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-2"><MapPinned className="h-5 w-5 text-emerald-700"/><h3 className="font-black text-slate-950">Authoritative boundary</h3></div><p className="mt-1 text-xs text-slate-500">Enter latitude, longitude per line. Polygon containment takes priority over fallback radius.</p><textarea value={form.polygonText} onChange={(event) => set('polygonText', event.target.value)} rows={6} placeholder={'17.735, 83.305\n17.735, 83.345\n17.775, 83.345\n17.775, 83.305'} className="input mt-3 min-h-36 font-mono text-xs"/><div className="mt-4 grid gap-3 sm:grid-cols-3"><Field label="Centre latitude"><input value={form.centerLatitude} onChange={(event) => set('centerLatitude', event.target.value)} inputMode="decimal" className="input"/></Field><Field label="Centre longitude"><input value={form.centerLongitude} onChange={(event) => set('centerLongitude', event.target.value)} inputMode="decimal" className="input"/></Field><Field label="Fallback radius (km)"><input value={form.fallbackRadiusKm} onChange={(event) => set('fallbackRadiusKm', event.target.value)} inputMode="decimal" className="input"/></Field></div></section>
           <section className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-2"><CircleDollarSign className="h-5 w-5 text-amber-700"/><h3 className="font-black text-slate-950">Operational limits</h3></div><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><NumberField label="Daily capacity" value={form.maximumDailySubscriptionCapacity} onChange={(value) => set('maximumDailySubscriptionCapacity', value)}/><NumberField label="Stops per run" value={form.maximumStopsPerRun} onChange={(value) => set('maximumStopsPerRun', value)}/><NumberField label="Distance (km)" value={form.maximumRouteDistanceKm} onChange={(value) => set('maximumRouteDistanceKm', value)}/><NumberField label="Duration (minutes)" value={form.maximumEstimatedDurationMinutes} onChange={(value) => set('maximumEstimatedDurationMinutes', value)}/><NumberField label="Parcel count" value={form.maximumParcelCount} onChange={(value) => set('maximumParcelCount', value)}/><NumberField label="Weight (kg, optional)" value={form.maximumWeightKg} onChange={(value) => set('maximumWeightKg', value)}/><NumberField label="Cash-risk limit (₹)" value={form.cashRiskRupees} onChange={(value) => set('cashRiskRupees', value)}/><NumberField label="Slot buffer (minutes)" value={form.slotEndBufferMinutes} onChange={(value) => set('slotEndBufferMinutes', value)}/></div><Field label="Allowed vehicle types, comma separated"><input value={form.allowedVehicleTypes} onChange={(event) => set('allowedVehicleTypes', event.target.value)} placeholder="BIKE, EV_BIKE" className="input"/></Field></section>
           <section className="grid gap-5 xl:grid-cols-2"><ChoiceSection icon={<Store/>} title="Eligible pickup stores" rows={stores.map((store) => ({ id: store.id, title: store.name, copy: store.address || '' }))} selected={form.storeIds} onToggle={(id) => toggle('storeIds', id)}/><ChoiceSection icon={<UsersRound/>} title="Preferred riders" rows={riders.map((rider) => ({ id: rider.id, title: rider.user.name || 'Rider', copy: rider.status || '' }))} selected={form.preferredRiderIds} onToggle={(id) => toggle('preferredRiderIds', id)}/></section>

@@ -48,12 +48,21 @@ describe('SubscriptionCalendarService', () => {
     expect(firstWeek.amountPaise + finalPart.amountPaise).toBe(2_399_00);
   });
 
-  it('validates delivery windows and selected-weekday configuration', () => {
-    expect(serviceWindow(new Date('2026-08-10T00:00:00.000Z'), 360, 540)).toEqual({
-      start: new Date('2026-08-10T06:00:00.000Z'),
-      end: new Date('2026-08-10T09:00:00.000Z'),
+  it('creates timezone-correct same-day and overnight windows', () => {
+    expect(serviceWindow(new Date('2026-08-10T00:00:00.000Z'), 360, 540, 'Asia/Kolkata')).toEqual({
+      start: new Date('2026-08-10T00:30:00.000Z'),
+      end: new Date('2026-08-10T03:30:00.000Z'),
     });
-    expect(() => serviceWindow(new Date('2026-08-10T00:00:00.000Z'), 540, 360)).toThrow('Delivery window is invalid');
+    expect(serviceWindow(new Date('2026-08-10T00:00:00.000Z'), 1320, 360, 'Asia/Kolkata')).toEqual({
+      start: new Date('2026-08-10T16:30:00.000Z'),
+      end: new Date('2026-08-11T00:30:00.000Z'),
+    });
+    expect(() => serviceWindow(new Date('2026-08-10T00:00:00.000Z'), 540, 540, 'Asia/Kolkata')).toThrow('Delivery window is invalid');
     expect(() => service.buildServiceDates(plan(SubscriptionDeliveryFrequency.SELECTED_WEEKDAYS), '2026-08-10', 1)).toThrow('at least one weekday');
+  });
+
+  it('honours IANA DST offsets rather than a fixed server offset', () => {
+    expect(serviceWindow(new Date('2026-01-15T00:00:00.000Z'), 360, 540, 'America/New_York').start).toEqual(new Date('2026-01-15T11:00:00.000Z'));
+    expect(serviceWindow(new Date('2026-07-15T00:00:00.000Z'), 360, 540, 'America/New_York').start).toEqual(new Date('2026-07-15T10:00:00.000Z'));
   });
 });

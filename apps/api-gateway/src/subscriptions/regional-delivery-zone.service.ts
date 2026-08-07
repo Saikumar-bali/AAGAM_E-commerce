@@ -6,6 +6,7 @@ import {
 } from '@aagam/database';
 import { UpsertRegionalDeliveryZoneDto } from './regional-routing.dto';
 import { GeoPoint, haversineKm, pointInPolygon } from './regional-routing.geometry';
+import { DEFAULT_DELIVERY_TIMEZONE, validateIanaTimezone } from './subscription-timezone';
 
 type ZoneWithLinks = Prisma.DeliveryZoneGetPayload<{
   include: {
@@ -49,6 +50,7 @@ export class RegionalDeliveryZoneService {
   async upsert(id: string | undefined, dto: UpsertRegionalDeliveryZoneDto) {
     const code = dto.code.trim().toUpperCase().replace(/[^A-Z0-9_-]+/g, '-');
     if (!code) throw new BadRequestException('A valid delivery-zone code is required');
+    const timezone = validateIanaTimezone(dto.timezone ?? DEFAULT_DELIVERY_TIMEZONE);
     if (dto.polygon?.length && dto.polygon.length < 3) {
       throw new BadRequestException('A zone polygon requires at least three points');
     }
@@ -68,6 +70,7 @@ export class RegionalDeliveryZoneService {
         name: dto.name.trim(),
         code,
         description: dto.description?.trim() || null,
+        timezone,
         isActive: dto.isActive ?? true,
         priority: dto.priority ?? 0,
         polygon: dto.polygon?.length ? dto.polygon as unknown as Prisma.InputJsonValue : Prisma.JsonNull,
@@ -178,6 +181,7 @@ export class RegionalDeliveryZoneService {
       id: input.zone.id,
       code: input.zone.code,
       name: input.zone.name,
+      timezone: input.zone.timezone,
       source: input.source,
       confidence: input.confidence,
       resolvedAt: new Date().toISOString(),

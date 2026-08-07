@@ -1,5 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SubscriptionDeliveryFrequency } from '@aagam/database';
+import {
+  DEFAULT_DELIVERY_TIMEZONE,
+  formatWindowMetadata,
+  todayInTimezone,
+  zonedServiceWindow,
+} from './subscription-timezone';
 
 type CalendarPlan = {
   deliveryFrequency: SubscriptionDeliveryFrequency;
@@ -21,14 +27,19 @@ export function addUtcDays(value: Date, days: number) {
   return startOfUtcDay(date);
 }
 
-export function serviceWindow(serviceDate: Date, startMinute: number, endMinute: number) {
-  if (startMinute < 0 || startMinute > 1439 || endMinute < 1 || endMinute > 1440 || endMinute <= startMinute) {
-    throw new BadRequestException('Delivery window is invalid');
-  }
-  const start = new Date(serviceDate);
-  start.setUTCHours(0, startMinute, 0, 0);
-  const end = new Date(serviceDate);
-  end.setUTCHours(0, endMinute, 0, 0);
+/**
+ * `serviceDate` is a date-only business anchor encoded at UTC midnight. The
+ * delivery instant itself is created in the resolved zone's IANA timezone.
+ * Keeping the date anchor stable preserves existing uniqueness/index semantics
+ * while avoiding device/server-timezone drift.
+ */
+export function serviceWindow(
+  serviceDate: Date,
+  startMinute: number,
+  endMinute: number,
+  timezone = DEFAULT_DELIVERY_TIMEZONE,
+) {
+  const { start, end } = zonedServiceWindow(serviceDate, startMinute, endMinute, timezone);
   return { start, end };
 }
 
@@ -90,6 +101,22 @@ export class SubscriptionCalendarService {
       throw new BadRequestException('Plan schedule cannot produce the configured delivery count');
     }
     return dates;
+  }
+
+  validateStartDate(startDate: Date | string, timezone: string, now = new Date()) {
+    const start = startOfUtcDay(startDate);
+    const today = todayInTimezone(timezone, now);
+    if (start < today) throw new BadRequestException('Subscription start date cannot be in the past');
+    if (start > addUtcDays(today, 90)) throw new BadRequestException('Subscription start date is too far in the future');
+    return start;
+  }
+
+  window(serviceDate: Date, startMinute: number, endMinute: number, timezone: string) {
+    return zonedServiceWindow(serviceDate, startMinute, endMinute, timezone);
+  }
+
+  windowMetadata(serviceDate: Date, startMinute: number, endMinute: number, timezone: string) {
+    return formatWindowMetadata(serviceDate, startMinute, endMinute, timezone);
   }
 
   nextAfter(plan: CalendarPlan, afterDate: Date | string, anchorDate: Date | string) {

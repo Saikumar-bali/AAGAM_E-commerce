@@ -14,7 +14,7 @@ const zoneA = {
     { latitude: 17.775, longitude: 83.305 },
   ],
   maximumStopsPerRun: 15, maximumRouteDistanceKm: 25, maximumEstimatedDurationMinutes: 120,
-  maximumParcelCount: 30, cashRiskLimitPaise: 1_000_000, deliveryCount: 10,
+  maximumParcelCount: 30, maximumWeightKg: 25, slotEndBufferMinutes: 15, timezone: 'Asia/Kolkata', cashRiskLimitPaise: 1_000_000, deliveryCount: 10,
   availableRiderCount: 1, estimatedDurationMinutes: 72, expectedCashPaise: 239900, status: 'READY',
 };
 const zoneB = {
@@ -25,7 +25,7 @@ const zoneB = {
     { latitude: 17.825, longitude: 83.335 },
   ],
   maximumStopsPerRun: 15, maximumRouteDistanceKm: 25, maximumEstimatedDurationMinutes: 120,
-  maximumParcelCount: 30, cashRiskLimitPaise: 1_000_000, deliveryCount: 10,
+  maximumParcelCount: 30, maximumWeightKg: 25, slotEndBufferMinutes: 15, timezone: 'Asia/Kolkata', cashRiskLimitPaise: 1_000_000, deliveryCount: 10,
   availableRiderCount: 1, estimatedDurationMinutes: 68, expectedCashPaise: 115800, status: 'READY',
 };
 
@@ -47,7 +47,7 @@ const runA = {
   id: 'run-pmp', routeCode: 'RUN-PMP-001', version: 3, status: 'PLANNED',
   serviceDate: '2026-08-07T00:00:00.000Z', slotStart: '2026-08-07T06:00:00.000Z', slotEnd: '2026-08-07T08:00:00.000Z',
   totalStopCount: 10, expectedCashPaise: 239900, collectedCashPaise: 0, depositedCashPaise: 0,
-  expectedParcelCount: 10, estimatedDistanceKm: 12.4, estimatedDurationMinutes: 72,
+  expectedParcelCount: 10, expectedWeightGrams: 18500, estimatedDistanceKm: 12.4, estimatedDurationMinutes: 72,
   assignmentReasonSummary: 'Preferred-zone rider; 1.4 km from pickup', deliveryZoneId: zoneA.id, deliveryZone: zoneA,
   store: { id: 'store-pmp', name: 'Aagaam PM Palem Store', address: 'PM Palem, Visakhapatnam', latitude: 17.748, longitude: 83.322 },
   rider: { id: 'rider-ramesh', user: { id: 'user-ramesh', name: 'Ramesh' }, availabilityLocation: { latitude: 17.746, longitude: 83.319 } },
@@ -57,7 +57,7 @@ const runB = {
   id: 'run-mdw', routeCode: 'RUN-MDW-001', version: 2, status: 'PLANNED',
   serviceDate: '2026-08-07T00:00:00.000Z', slotStart: '2026-08-07T06:00:00.000Z', slotEnd: '2026-08-07T08:00:00.000Z',
   totalStopCount: 10, expectedCashPaise: 115800, collectedCashPaise: 0, depositedCashPaise: 0,
-  expectedParcelCount: 10, estimatedDistanceKm: 11.2, estimatedDurationMinutes: 68,
+  expectedParcelCount: 10, expectedWeightGrams: 17250, estimatedDistanceKm: 11.2, estimatedDurationMinutes: 68,
   assignmentReasonSummary: 'Preferred-zone rider; 1.1 km from pickup', deliveryZoneId: zoneB.id, deliveryZone: zoneB,
   store: { id: 'store-mdw', name: 'Aagaam Madhurawada Store', address: 'Madhurawada, Visakhapatnam', latitude: 17.807, longitude: 83.354 },
   rider: { id: 'rider-suresh', user: { id: 'user-suresh', name: 'Suresh' }, availabilityLocation: { latitude: 17.805, longitude: 83.351 } },
@@ -85,8 +85,8 @@ async function mockRegionalApis(page: import('@playwright/test').Page) {
     sourceRun: { id: runA.id, routeCode: runA.routeCode, version: runA.version, stopCount: 10 },
     method: 'AUTOMATIC_GEOGRAPHIC',
     resultingRuns: [
-      { index: 1, stopIds: runA.stops.slice(0, 6).map((stop) => stop.id), stopCount: 6, parcelCount: 6, expectedCashPaise: 239900, estimatedDistanceKm: 7.1, estimatedDurationMinutes: 44 },
-      { index: 2, stopIds: runA.stops.slice(6).map((stop) => stop.id), stopCount: 4, parcelCount: 4, expectedCashPaise: 0, estimatedDistanceKm: 5.8, estimatedDurationMinutes: 31 },
+      { index: 1, stopIds: runA.stops.slice(0, 6).map((stop) => stop.id), stopCount: 6, parcelCount: 6, expectedCashPaise: 239900, expectedWeightGrams: 11100, estimatedDistanceKm: 7.1, estimatedDurationMinutes: 44 },
+      { index: 2, stopIds: runA.stops.slice(6).map((stop) => stop.id), stopCount: 4, parcelCount: 4, expectedCashPaise: 0, expectedWeightGrams: 7400, estimatedDistanceKm: 5.8, estimatedDurationMinutes: 31 },
     ],
   }) }));
 }
@@ -116,8 +116,8 @@ test.describe('regional route planning UI', () => {
     await expect(page.getByText('Controlled route management')).toBeVisible();
     await page.getByRole('button', { name: 'Preview split' }).click();
     await expect(page.getByText('Proposed run 1')).toBeVisible();
-    await expect(page.getByText('6 stops · 7.1 km · 44 min · ₹2,399')).toBeVisible();
-    await expect(page.getByText('4 stops · 5.8 km · 31 min · ₹0')).toBeVisible();
+    await expect(page.getByText('6 stops · 11.1 kg · 7.1 km · 44 min · ₹2,399')).toBeVisible();
+    await expect(page.getByText('4 stops · 7.4 kg · 5.8 km · 31 min · ₹0')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Confirm split' })).toBeVisible();
     await page.screenshot({ path: `${screenshots}/02-admin-route-split-preview.png`, fullPage: true });
   });

@@ -26,6 +26,10 @@ test('admin sees immutable plans, subscribers, runs and cash control', async ({ 
   await expect(page.getByRole('heading', { name: 'Subscriptions, runs & cash' })).toBeVisible();
   await expect(page.getByText('Buffalo Milk 1 L · 7 Days')).toBeVisible();
   await expect(page.getByText(/Immutable plan contracts/i)).toBeVisible();
+  await page.getByRole('button', { name: 'New plan' }).click();
+  await expect(page.getByText('Upload plan image')).toBeVisible();
+  await expect(page.getByText('Upload mobile image')).toBeVisible();
+  await expect(page.getByText(/Immutable version on publish/i)).toBeVisible();
   await page.screenshot({ path: `${screenshots}/03-admin-subscription-control-plane.png`, fullPage: true });
 });
 

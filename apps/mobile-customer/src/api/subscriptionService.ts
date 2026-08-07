@@ -71,11 +71,25 @@ export type CustomerAddress = {
 };
 
 export type SubscriptionQuote = {
-  planId: string;
-  totalAmountPaise: number;
+  plan?: { id: string; name: string; pricePaise: number; totalDeliveries: number };
+  planId?: string;
+  totalAmountPaise?: number;
   firstCashCollectionPaise: number;
-  laterDeliveryAmountPaise: number;
-  totalDeliveries: number;
+  firstFundingDeliveryCount?: number;
+  laterDeliveryAmountPaise?: number;
+  laterFundedDeliveryAmountPaise?: number;
+  totalDeliveries?: number;
+  deliveryWindowStartMinute?: number;
+  deliveryWindowEndMinute?: number;
+  serviceability?: {
+    zoneId: string;
+    zoneCode: string;
+    timezone: string;
+    storeId: string;
+    storeDistanceKm?: number;
+    slotEndBufferMinutes?: number;
+    localDeliveryWindow?: Array<{ serviceDate: string; label: string; start: string; end: string }>;
+  };
   confirmationMessage?: string;
 };
 
@@ -144,7 +158,6 @@ export type CreateSubscriptionPayload = {
   deliveryWindowEndMinute: number;
   deliveryMethod: SubscriptionDeliveryMethod;
   trustedDropInstructions?: string;
-  dropPointToken?: string;
 };
 
 export type UpdateSubscriptionPreferencesPayload = {
@@ -152,7 +165,6 @@ export type UpdateSubscriptionPreferencesPayload = {
   deliveryWindowStartMinute?: number;
   deliveryWindowEndMinute?: number;
   trustedDropInstructions?: string;
-  dropPointToken?: string;
 };
 
 function mutationHeaders(prefix: string) {
@@ -168,7 +180,7 @@ export const subscriptionService = {
     const response = await apiClient.get<SubscriptionPlan>(`/subscriptions/plans/${encodeURIComponent(id)}`);
     return response.data;
   },
-  quote: async (planId: string, payload: Omit<CreateSubscriptionPayload, 'planId' | 'trustedDropInstructions' | 'dropPointToken'>): Promise<SubscriptionQuote> => {
+  quote: async (planId: string, payload: Omit<CreateSubscriptionPayload, 'planId' | 'trustedDropInstructions'>): Promise<SubscriptionQuote> => {
     const response = await apiClient.post<SubscriptionQuote>(`/subscriptions/plans/${encodeURIComponent(planId)}/quote`, payload);
     return response.data;
   },
@@ -226,6 +238,19 @@ export const subscriptionService = {
       { reason },
       mutationHeaders('customer-subscription-cancel'),
     );
+    return response.data;
+  },
+
+  trustedDropQr: async (id: string, subscriptionDeliveryId?: string): Promise<{ token: string; version: number; expiresAt: string; subscriptionDeliveryId?: string | null }> => {
+    const response = await apiClient.post(`/customer/subscriptions/${encodeURIComponent(id)}/trusted-drop/qr`, { subscriptionDeliveryId });
+    return response.data;
+  },
+  rotateTrustedDropQr: async (id: string): Promise<{ token: string; version: number; expiresAt: string }> => {
+    const response = await apiClient.post(`/customer/subscriptions/${encodeURIComponent(id)}/trusted-drop/rotate`, {});
+    return response.data;
+  },
+  revokeTrustedDropQr: async (id: string): Promise<{ revoked: boolean }> => {
+    const response = await apiClient.post(`/customer/subscriptions/${encodeURIComponent(id)}/trusted-drop/revoke`, {});
     return response.data;
   },
   tracking: async (id: string): Promise<SubscriptionTracking> => {

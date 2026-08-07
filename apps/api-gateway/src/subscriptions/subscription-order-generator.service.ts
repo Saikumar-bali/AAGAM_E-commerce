@@ -17,7 +17,9 @@ import {
 import { calculateDistance } from '@aagam/utils';
 import { DeliveryJobService } from '../orders/delivery-job.service';
 import { OrderCreationService } from '../orders/order-creation.service';
-import { serviceWindow, SubscriptionCalendarService } from './subscription-calendar.service';
+import { SubscriptionCalendarService } from './subscription-calendar.service';
+import { SERVICEABILITY_REASONS, SubscriptionServiceabilityService } from './subscription-serviceability.service';
+import { randomUUID } from 'crypto';
 import { isOneOf } from '../common/enum-membership';
 
 const logger = new Logger('SubscriptionOrderGenerator');
@@ -28,6 +30,7 @@ type SubscriptionItemSnapshot = {
   image: string | null;
   quantity: number;
   weightPaise: number;
+  weightGrams: number;
 };
 
 function jsonRecord(value: unknown): Record<string, unknown> {
@@ -65,6 +68,7 @@ export class SubscriptionOrderGenerator {
     private readonly orderCreation: OrderCreationService,
     private readonly deliveryJobs: DeliveryJobService,
     private readonly calendar: SubscriptionCalendarService,
+    private readonly serviceability: SubscriptionServiceabilityService,
   ) {}
 
   private items(version: { itemsSnapshot: Prisma.JsonValue }): SubscriptionItemSnapshot[] {
@@ -81,6 +85,7 @@ export class SubscriptionOrderGenerator {
         image: item.image ? String(item.image) : null,
         quantity,
         weightPaise: Number(item.unitPricePaise ?? item.mrpPaise ?? 1) * Math.max(1, quantity),
+        weightGrams: Number(item.weightGrams ?? 0),
       };
     });
   }
@@ -132,9 +137,33 @@ export class SubscriptionOrderGenerator {
     return capable[0];
   }
 
-  async generateOne(subscriptionDeliveryId: string) {
+  private deferred(reason: string, message: string): never {
+    const error = new ConflictException(message) as ConflictException & { serviceabilityReason?: string };
+    error.serviceabilityReason = reason;
+    throw error;
+  }
+
+  private async beginAttempt(subscriptionDeliveryId: string, correlationId: string) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-attempt:${subscriptionDeliveryId}`}))`);
+      const delivery = await tx.subscriptionDelivery.findUnique({ where: { id: subscriptionDeliveryId }, select: { generationAttempts: true } });
+      if (!delivery) throw new BadRequestException('Subscription delivery not found');
+      const attemptNumber = delivery.generationAttempts + 1;
+      await tx.subscriptionDelivery.update({
+        where: { id: subscriptionDeliveryId },
+        data: { generationAttempts: attemptNumber, lastGenerationAttemptAt: new Date(), lastAttemptCorrelationId: correlationId },
+      });
+      const attempt = await tx.subscriptionGenerationAttempt.create({
+        data: { subscriptionDeliveryId, attemptNumber, correlationId, status: 'STARTED' },
+      });
+      return { id: attempt.id, attemptNumber };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  async generateOne(subscriptionDeliveryId: string, correlationId: string = randomUUID()) {
+    const attempt = await this.beginAttempt(subscriptionDeliveryId, correlationId);
     try {
-      return await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-order:${subscriptionDeliveryId}`}))`);
         const delivery = await tx.subscriptionDelivery.findUnique({
           where: { id: subscriptionDeliveryId },
@@ -144,6 +173,7 @@ export class SubscriptionOrderGenerator {
                 customer: { select: { id: true, name: true, email: true } },
                 plan: true,
                 planVersion: true,
+                address: true,
               },
             },
             order: true,
@@ -162,10 +192,10 @@ export class SubscriptionOrderGenerator {
           subscription.status === CustomerSubscriptionStatus.PAUSED &&
           (!subscription.pauseEffectiveFrom || delivery.serviceDate >= subscription.pauseEffectiveFrom)
         ) {
-          throw new ConflictException('Subscription is paused for this service date');
+          this.deferred(SERVICEABILITY_REASONS.SUBSCRIPTION_PAUSED, 'Subscription is paused for this service date');
         }
         if (delivery.cashDuePaise === 0 && subscription.remainingFundedDeliveries < 1) {
-          throw new ConflictException('Subscription occurrence is not funded yet');
+          this.deferred(SERVICEABILITY_REASONS.FUNDING_REQUIRED, 'Subscription occurrence is not funded yet');
         }
         await tx.subscriptionDelivery.update({
           where: { id: delivery.id },
@@ -175,13 +205,21 @@ export class SubscriptionOrderGenerator {
         if (itemSnapshots.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1)) {
           throw new BadRequestException('Subscription item quantities are invalid');
         }
-        const store = await this.resolveStore(
-          tx,
-          subscription.addressSnapshot,
-          subscription.planVersion.applicabilitySnapshot,
-          subscription.homeStoreId,
-          itemSnapshots,
-        );
+        const applicability = jsonRecord(subscription.planVersion.applicabilitySnapshot);
+        const serviceability = await this.serviceability.resolve({
+          address: subscription.address,
+          serviceDates: [delivery.serviceDate],
+          deliveryWindowStartMinute: subscription.deliveryWindowStartMinute,
+          deliveryWindowEndMinute: subscription.deliveryWindowEndMinute,
+          items: itemSnapshots.map((item) => ({ productId: item.productId, quantity: item.quantity, weightGrams: item.weightGrams })),
+          allowedZoneIds: Array.isArray(applicability.zoneIds) ? applicability.zoneIds.map(String) : [],
+          allowedStoreIds: Array.isArray(applicability.storeIds) ? applicability.storeIds.map(String) : [],
+          preferredStoreId: subscription.homeStoreId,
+          excludeDeliveryId: delivery.id,
+          requireWeight: true,
+        }, tx);
+        const store = await tx.store.findUnique({ where: { id: serviceability.storeId }, select: { id: true, name: true, latitude: true, longitude: true } });
+        if (!store) this.deferred(SERVICEABILITY_REASONS.STORE_UNAVAILABLE, 'Resolved subscription store is unavailable');
         const accountingSequence = Math.min(delivery.sequenceNumber, subscription.planVersion.totalDeliveries);
         const occurrenceAmountPaise = this.calendar.occurrenceAmount(
           subscription.planVersion.pricePaise,
@@ -203,15 +241,16 @@ export class SubscriptionOrderGenerator {
           throw new ConflictException('Subscription occurrence allocation did not balance');
         }
         const grandTotalPaise = occurrenceAmountPaise;
-        const window = serviceWindow(
+        const window = this.calendar.window(
           delivery.serviceDate,
           subscription.deliveryWindowStartMinute,
           subscription.deliveryWindowEndMinute,
+          serviceability.timezone,
         );
         const isCashCollection = delivery.cashDuePaise > 0;
         const order = await this.orderCreation.createWithinTransaction(tx, {
           customerId: subscription.customerId,
-          storeId: store.id,
+          storeId: store!.id,
           actorUserId: subscription.customerId,
           actorRole: Role.CUSTOMER,
           status: 'CONFIRMED',
@@ -255,6 +294,8 @@ export class SubscriptionOrderGenerator {
           subscriptionSequence: delivery.sequenceNumber,
           reservationNote: `Subscription occurrence ${delivery.sequenceNumber} inventory reservation`,
           outboxMetadata: {
+            correlationId,
+            serviceability: { zoneId: serviceability.zoneId, zoneCode: serviceability.zoneCode, timezone: serviceability.timezone, storeId: serviceability.storeId },
             subscriptionId: subscription.id,
             subscriptionDeliveryId: delivery.id,
             serviceDate: delivery.serviceDate.toISOString(),
@@ -270,8 +311,11 @@ export class SubscriptionOrderGenerator {
           data: {
             status: SubscriptionDeliveryStatus.ORDER_GENERATED,
             deliveryJobId: job?.id,
-            storeId: store.id,
+            storeId: store!.id,
+            deliveryZoneId: serviceability.zoneId,
             generatedAt: new Date(),
+            deferredReason: null,
+            failureReason: null,
           },
           include: { order: { include: { payment: true } }, deliveryJob: true },
         });
@@ -280,16 +324,30 @@ export class SubscriptionOrderGenerator {
         }
         return updated;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    } catch (error: unknown) {
-      await prisma.subscriptionDelivery.updateMany({
-        where: { id: subscriptionDeliveryId, status: SubscriptionDeliveryStatus.SCHEDULED },
-        data: { failureReason: errorMessage(error).slice(0, 500) },
+      await prisma.subscriptionGenerationAttempt.update({
+        where: { id: attempt.id },
+        data: { status: 'GENERATED', finishedAt: new Date(), metadata: { correlationId } },
       }).catch(() => undefined);
+      return result;
+    } catch (error: unknown) {
+      const message = errorMessage(error).slice(0, 500);
+      const reason = this.serviceability.reasonFromError(error)
+        || (error && typeof error === 'object' && 'serviceabilityReason' in error ? String((error as any).serviceabilityReason) : null);
+      await Promise.all([
+        prisma.subscriptionDelivery.updateMany({
+          where: { id: subscriptionDeliveryId, status: SubscriptionDeliveryStatus.SCHEDULED },
+          data: { failureReason: message, deferredReason: reason },
+        }),
+        prisma.subscriptionGenerationAttempt.update({
+          where: { id: attempt.id },
+          data: { status: reason ? 'DEFERRED' : 'FAILED', deferredReason: reason, message, finishedAt: new Date(), metadata: { correlationId } },
+        }),
+      ]).catch(() => undefined);
       throw error;
     }
   }
 
-  async generateDue(now = new Date(), limit = 100) {
+  async generateDue(now = new Date(), limit = 100, cycleCorrelationId = `cycle:${now.toISOString()}`) {
     const candidates = await prisma.subscriptionDelivery.findMany({
       where: {
         status: SubscriptionDeliveryStatus.SCHEDULED,
@@ -301,17 +359,18 @@ export class SubscriptionOrderGenerator {
           ] },
         },
       },
-      include: { subscription: { include: { plan: true } } },
+      include: { subscription: { include: { plan: true, deliveryZone: true } } },
       orderBy: [{ serviceDate: 'asc' }, { createdAt: 'asc' }],
       take: Math.max(1, Math.min(500, limit)),
     });
     const generated: unknown[] = [];
     const failures: Array<{ id: string; error: string }> = [];
     for (const candidate of candidates) {
-      const window = serviceWindow(
+      const window = this.calendar.window(
         candidate.serviceDate,
         candidate.subscription.deliveryWindowStartMinute,
         candidate.subscription.deliveryWindowEndMinute,
+        candidate.subscription.deliveryZone?.timezone || 'Asia/Kolkata',
       );
       const generationAt = new Date(window.start.getTime() - candidate.subscription.plan.orderGenerationHoursBefore * 3_600_000);
       if (now < generationAt) continue;
@@ -321,7 +380,7 @@ export class SubscriptionOrderGenerator {
       ) continue;
       if (candidate.cashDuePaise === 0 && candidate.subscription.remainingFundedDeliveries < 1) continue;
       try {
-        generated.push(await this.generateOne(candidate.id));
+        generated.push(await this.generateOne(candidate.id, `${cycleCorrelationId}:${candidate.id}`));
       } catch (error: unknown) {
         const message = errorMessage(error);
         failures.push({ id: candidate.id, error: message });

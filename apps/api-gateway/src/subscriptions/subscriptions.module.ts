@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { OrderModule } from '../orders/order.module';
+import { UploadModule } from '../upload/upload.module';
 import { CashDepositBatchService } from './cash-deposit-batch.service';
 import { CustomerSubscriptionService } from './customer-subscription.service';
 import { DeliveryRunOperationsService } from './delivery-run-operations.service';
 import { DeliveryRunPlanningService } from './delivery-run-planning.service';
 import { AdminRegionalRoutingController, RegionalRoutingEventsController } from './regional-routing.controller';
 import { RegionalDeliveryZoneService } from './regional-delivery-zone.service';
-import { RegionalRouteNotificationService } from './regional-route-notification.service';
 import { RegionalRouteOperationsService } from './regional-route-operations.service';
 import { RegionalRoutePlanningService } from './regional-route-planning.service';
 import { SubscriptionAdminReportingService } from './subscription-admin-reporting.service';
@@ -15,6 +15,8 @@ import { SubscriptionCashFundingService } from './subscription-cash-funding.serv
 import { SubscriptionOrderGenerator } from './subscription-order-generator.service';
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { SubscriptionSchedulerService } from './subscription-scheduler.service';
+import { SubscriptionServiceabilityService } from './subscription-serviceability.service';
+import { TrustedDropService } from './trusted-drop.service';
 import {
   AdminSubscriptionsController,
   CustomerSubscriptionsController,
@@ -24,7 +26,7 @@ import {
 } from './subscriptions.controller';
 
 @Module({
-  imports: [OrderModule],
+  imports: [OrderModule, UploadModule],
   controllers: [
     SubscriptionPlanPublicController,
     CustomerSubscriptionsController,
@@ -44,7 +46,8 @@ import {
     RegionalDeliveryZoneService,
     RegionalRoutePlanningService,
     RegionalRouteOperationsService,
-    RegionalRouteNotificationService,
+    SubscriptionServiceabilityService,
+    TrustedDropService,
     SubscriptionCashFundingService,
     CashDepositBatchService,
     SubscriptionAdminReportingService,
@@ -52,6 +55,8 @@ import {
   ],
   exports: [
     SubscriptionCalendarService,
+    SubscriptionServiceabilityService,
+    TrustedDropService,
     SubscriptionOrderGenerator,
     DeliveryRunPlanningService,
     RegionalDeliveryZoneService,

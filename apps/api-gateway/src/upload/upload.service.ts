@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CopyObjectCommand,
@@ -11,7 +11,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 
 export type EvidenceOwner = {
-  scope: 'partner-applications/riders' | 'partner-applications/stores' | 'riders' | 'stores';
+  scope: 'partner-applications/riders' | 'partner-applications/stores' | 'riders' | 'stores' | 'subscription-trusted-drop';
   ownerId: string;
   documentType: string;
 };
@@ -89,6 +89,7 @@ export class UploadService {
     owner: string | EvidenceOwner,
   ): Promise<{ storageKey: string }> {
     this.requireEvidenceStorage();
+    this.validateEvidenceMagic(file);
     const extension = this.evidenceExtension(file.mimetype);
     const storageKey =
       typeof owner === 'string'
@@ -174,6 +175,20 @@ export class UploadService {
         this.logger.error(`Private evidence cleanup failed for ${key}`, error as any);
       }
     }
+  }
+
+  private validateEvidenceMagic(file: Express.Multer.File) {
+    if (!file?.buffer?.length) throw new BadRequestException('Evidence file is empty');
+    const b = file.buffer;
+    const jpeg = b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+    const png = b.length >= 8 && b.subarray(0, 8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]));
+    const webp = b.length >= 12 && b.subarray(0, 4).toString('ascii') === 'RIFF' && b.subarray(8, 12).toString('ascii') === 'WEBP';
+    const pdf = b.length >= 5 && b.subarray(0, 5).toString('ascii') === '%PDF-';
+    const valid = file.mimetype === 'image/jpeg' ? jpeg
+      : file.mimetype === 'image/png' ? png
+        : file.mimetype === 'image/webp' ? webp
+          : file.mimetype === 'application/pdf' ? pdf : false;
+    if (!valid) throw new Error('Evidence file signature does not match its declared MIME type');
   }
 
   private legacyEvidenceKey(owner: string, extension: string) {

@@ -24,6 +24,7 @@ class MainApplication : Application(), ReactApplication {
         add(PartnerDocumentPickerPackage())
         add(PartnerQrScannerPackage())
         add(PartnerAlertTonePackage())
+        add(PartnerConnectivityPackage())
       },
     )
   }

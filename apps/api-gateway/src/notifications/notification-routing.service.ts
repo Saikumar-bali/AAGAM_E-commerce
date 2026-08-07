@@ -147,6 +147,15 @@ export class NotificationRoutingService {
         addStore();
         addAdmins();
         break;
+      case 'ROUTE_ASSIGNED':
+      case 'ROUTE_REMOVED': {
+        if (payload.riderUserId) add({ id: payload.riderUserId, role: Role.RIDER });
+        else addRider();
+        break;
+      }
+      case 'SUBSCRIPTION_WORKER_FAILED':
+        addAdmins();
+        break;
       case 'ADMIN_BROADCAST': {
         const audience = payload.audience || 'ALL_USERS';
         const roleByAudience: Record<string, Role | null> = {
@@ -225,6 +234,9 @@ export class NotificationRoutingService {
       DELIVERY_COMPLETED: { title: 'Delivery completed', body: `${context.shortOrder} was delivered successfully.` },
       DELIVERY_FAILED: { title: 'Delivery needs attention', body: `The delivery attempt for ${context.shortOrder} failed.` },
       DELIVERY_CANCELLED: { title: 'Delivery cancelled', body: `${context.shortOrder} was cancelled.` },
+      ROUTE_ASSIGNED: { title: 'Route assigned', body: 'A subscription delivery route was assigned to you. Refresh before starting.' },
+      ROUTE_REMOVED: { title: 'Route updated', body: 'A subscription route was removed or reassigned. Refresh before continuing.' },
+      SUBSCRIPTION_WORKER_FAILED: { title: 'Subscription worker needs attention', body: 'A subscription generation job exhausted automatic retries.' },
       ADMIN_BROADCAST: { title: context.title || 'AAGAM update', body: context.body || 'There is a new service update.' },
     };
     return templates[eventType];
