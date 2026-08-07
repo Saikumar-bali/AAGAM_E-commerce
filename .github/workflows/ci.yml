@@ -29,8 +29,6 @@ jobs:
           set -euo pipefail
 
           cat .github/agent-final.part{00..07} > /tmp/final.patch.gz.b64
-          echo "bfef7dd47df59cba10be33d376d397a2c2bee5953c04ff3a6b68f8f73706e9d7  /tmp/final.patch.gz.b64" | sha256sum -c -
-
           base64 -d /tmp/final.patch.gz.b64 > /tmp/final.patch.gz
           echo "748b7db05b8a3c09d19e2ce6bbc23cb2ab786dfb9e9fd4fa37645f758c10ec57  /tmp/final.patch.gz" | sha256sum -c -
 
