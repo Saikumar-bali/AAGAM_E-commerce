@@ -26,7 +26,12 @@ describe('production deployment safety', () => {
 
     expect(deployScript).toContain('DEPLOY_NODE_VERSION="${DEPLOY_NODE_VERSION:-22.22.3}"');
     expect(deployScript).toContain('ensure_node_runtime');
+    expect(deployScript).toContain('ensure_redis_runtime');
     expect(deployScript).toContain('ensure_deploy_memory');
+    expect(deployScript).toContain('Redis endpoint is reachable before deployment.');
+    expect(deployScript).toContain('Deployment will not attempt to manage a remote Redis service.');
+    expect(deployScript).toContain('sudo -n systemctl start "${service_name}.service"');
+    expect(deployScript).toMatch(/npm run check:env:prod\s+ensure_redis_runtime\s+ensure_deploy_memory/);
     expect(deployScript).toContain('npm_config_jobs="${npm_config_jobs:-1}"');
     expect(deployScript).toContain('--max-old-space-size=${DEPLOY_NODE_HEAP_MB}');
     expect(deployScript).toContain('--concurrency=1');
