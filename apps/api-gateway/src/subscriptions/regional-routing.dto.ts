@@ -66,6 +66,12 @@ export class UpsertRegionalDeliveryZoneDto {
   description?: string;
 
   @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  timezone?: string;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 
