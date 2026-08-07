@@ -25,11 +25,11 @@ type MethodOption = {
   isAllowed: (plan: SubscriptionPlan) => boolean;
 };
 
-type SubscriptionQuotePayload = Omit<CreateSubscriptionPayload, 'planId' | 'trustedDropInstructions' | 'dropPointToken'>;
+type SubscriptionQuotePayload = Omit<CreateSubscriptionPayload, 'planId' | 'trustedDropInstructions'>;
 
 const methodOptions: MethodOption[] = [
   { value: 'PERSONAL_HANDOVER', label: 'Personal OTP', copy: 'Customer OTP + GPS', isAllowed: (plan) => plan.allowPersonalHandover },
-  { value: 'TRUSTED_DROP', label: 'Trusted doorstep', copy: 'Secure token + proof', isAllowed: (plan) => plan.allowTrustedDrop },
+  { value: 'TRUSTED_DROP', label: 'Trusted doorstep', copy: 'Server QR + GPS + photo', isAllowed: (plan) => plan.allowTrustedDrop },
   { value: 'SECURITY_RECEPTION', label: 'Security / reception', copy: 'OTP + named handover', isAllowed: (plan) => plan.allowSecurityHandover },
 ];
 
@@ -48,7 +48,6 @@ export const SubscriptionReviewScreen = () => {
   const [addressId, setAddressId] = useState('');
   const [startDate, setStartDate] = useState(tomorrow());
   const [method, setMethod] = useState<SubscriptionDeliveryMethod>('PERSONAL_HANDOVER');
-  const [dropToken, setDropToken] = useState('');
   const [dropInstructions, setDropInstructions] = useState('');
   const plan = planQuery.data;
   const addresses = addressQuery.data ?? [];
@@ -87,8 +86,7 @@ export const SubscriptionReviewScreen = () => {
       return subscriptionService.create({
         ...quotePayload,
         planId,
-        trustedDropInstructions: dropInstructions.trim() || undefined,
-        dropPointToken: method === 'TRUSTED_DROP' ? dropToken.trim() : undefined,
+        trustedDropInstructions: method === 'TRUSTED_DROP' ? dropInstructions.trim() || undefined : undefined,
       });
     },
     onSuccess: (result) => {
@@ -102,7 +100,7 @@ export const SubscriptionReviewScreen = () => {
     if (quotePayload && addressId) quote.mutate();
   }, [addressId, method, planId, startDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const canSubmit = Boolean(plan && addressId && /^\d{4}-\d{2}-\d{2}$/.test(startDate) && (method !== 'TRUSTED_DROP' || dropToken.trim().length >= 6));
+  const canSubmit = Boolean(plan && addressId && /^\d{4}-\d{2}-\d{2}$/.test(startDate));
 
   if (planQuery.isLoading || addressQuery.isLoading) return <View style={styles.center}><ActivityIndicator size="large" color="#087B5B" /></View>;
   if (!plan || planQuery.isError) return <View style={styles.center}><Text style={styles.error}>Unable to prepare this subscription.</Text><Pressable onPress={() => navigation.goBack()}><Text style={styles.link}>Go back</Text></Pressable></View>;
@@ -115,15 +113,15 @@ export const SubscriptionReviewScreen = () => {
         <View style={styles.optionGrid}>{addresses.map((address) => <Pressable key={address.id} onPress={() => setAddressId(address.id)} style={[styles.optionCard, addressId === address.id && styles.optionCardSelected]}><View style={styles.optionTop}><Text style={styles.optionTitle}>{address.label || 'Address'}</Text>{addressId === address.id ? <Check size={17} color="#087B5B" /> : null}</View><Text style={styles.optionText}>{address.line1 || address.addressLine1 || 'Saved address'}{address.city ? `, ${address.city}` : ''}</Text></Pressable>)}</View>
       </Section>
       <Section icon={<CalendarDays size={18} color="#087B5B" />} title="Start date"><TextInput value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" style={styles.input} autoCapitalize="none" /><Text style={styles.help}>Use YYYY-MM-DD. The first order is created only near its delivery window.</Text></Section>
-      <Section icon={<Clock3 size={18} color="#087B5B" />} title="Delivery slot"><View style={styles.readOnly}><Text style={styles.readOnlyText}>{time(plan.defaultWindowStartMinute)} – {time(plan.defaultWindowEndMinute)}</Text></View></Section>
+      <Section icon={<Clock3 size={18} color="#087B5B" />} title="Delivery slot"><View style={styles.readOnly}><Text style={styles.readOnlyText}>{q?.serviceability?.localDeliveryWindow?.[0]?.label || `${time(plan.defaultWindowStartMinute)} – ${time(plan.defaultWindowEndMinute)}`}</Text></View><Text style={styles.help}>{q?.serviceability?.timezone ? `Shown in ${q.serviceability.timezone}. A ${q.serviceability.slotEndBufferMinutes ?? 0}-minute route safety buffer is enforced.` : 'Your confirmed service zone decides the authoritative local timezone.'}</Text></Section>
       <Section icon={<ShieldCheck size={18} color="#087B5B" />} title="Handover method">
         <View style={styles.methodList}>
           {methodOptions.filter((option) => option.isAllowed(plan)).map((option) => <Pressable key={option.value} style={[styles.method, method === option.value && styles.methodSelected]} onPress={() => setMethod(option.value)}><View style={[styles.radio, method === option.value && styles.radioSelected]}>{method === option.value ? <View style={styles.radioDot} /> : null}</View><View><Text style={styles.methodTitle}>{option.label}</Text><Text style={styles.methodCopy}>{option.copy}</Text></View></Pressable>)}
         </View>
-        {method === 'TRUSTED_DROP' ? <View style={styles.dropFields}><TextInput value={dropToken} onChangeText={setDropToken} placeholder="Drop-point token (minimum 6 characters)" secureTextEntry style={styles.input} /><TextInput value={dropInstructions} onChangeText={setDropInstructions} placeholder="Milk box / doorstep instructions" multiline style={[styles.input, styles.multiline]} /></View> : null}
+        {method === 'TRUSTED_DROP' ? <View style={styles.dropFields}><Text style={styles.help}>AAGAM securely creates your one-time QR after subscription creation. You never create or type a drop secret.</Text><TextInput value={dropInstructions} onChangeText={setDropInstructions} placeholder="Milk box / doorstep instructions" multiline style={[styles.input, styles.multiline]} /></View> : null}
       </Section>
       <Section icon={<WalletCards size={18} color="#087B5B" />} title="Cash funding summary">
-        {quote.isPending ? <ActivityIndicator color="#087B5B" /> : <View style={styles.summary}><Row label="First verified delivery" value={money(q?.firstCashCollectionPaise ?? plan.pricePaise)} strong /><Row label="Later funded deliveries" value="₹0" /><Row label="Proof" value={method === 'TRUSTED_DROP' ? 'Secure drop proof' : 'OTP + GPS'} /><Row label="Skip policy" value={plan.allowSkip ? `Up to ${plan.maximumSkips}` : 'Not available'} /></View>}
+        {quote.isPending ? <ActivityIndicator color="#087B5B" /> : <View style={styles.summary}><Row label="First verified delivery" value={money(q?.firstCashCollectionPaise ?? plan.pricePaise)} strong /><Row label="Later funded deliveries" value="₹0" /><Row label="Proof" value={method === 'TRUSTED_DROP' ? 'One-time QR + GPS + photo' : 'OTP + GPS'} /><Row label="Skip policy" value={plan.allowSkip ? `Up to ${plan.maximumSkips}` : 'Not available'} /></View>}
         <Text style={styles.cashNotice}>{q?.confirmationMessage || `Subscription requested — ${money(plan.pricePaise)} will be collected during the first verified delivery.`}</Text>
       </Section>
     </ScrollView>

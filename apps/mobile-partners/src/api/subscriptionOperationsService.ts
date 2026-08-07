@@ -260,6 +260,24 @@ export const subscriptionOperationsService = {
     return response.data;
   },
 
+
+  uploadTrustedDropEvidence: async (
+    runId: string,
+    stopId: string,
+    input: { trustedDropToken: string; file: { uri: string; name: string; type: string }; capturedAt?: string },
+  ): Promise<{ id: string; storageKey: string; capturedAt: string }> => {
+    const form = new FormData();
+    form.append('trustedDropToken', input.trustedDropToken);
+    if (input.capturedAt) form.append('capturedAt', input.capturedAt);
+    form.append('file', input.file as any);
+    const response = await apiClient.post(
+      `/rider/delivery-runs/${encodeURIComponent(runId)}/stops/${encodeURIComponent(stopId)}/trusted-drop-evidence`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return response.data;
+  },
+
   completeStop: async (
     runId: string,
     stopId: string,
@@ -270,8 +288,8 @@ export const subscriptionOperationsService = {
       accuracyMetres?: number;
       riderConfirmed: true;
       otpCode?: string;
-      dropPointToken?: string;
-      proofReference?: string;
+      trustedDropToken?: string;
+      evidenceId?: string;
       cashCollectedPaise?: number;
       note?: string;
     },

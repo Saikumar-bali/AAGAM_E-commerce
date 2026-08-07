@@ -236,12 +236,6 @@ export class CreateCustomerSubscriptionDto extends QuoteSubscriptionDto {
   @IsString()
   @MaxLength(500)
   trustedDropInstructions?: string;
-
-  @IsOptional()
-  @IsString()
-  @MinLength(6)
-  @MaxLength(180)
-  dropPointToken?: string;
 }
 
 export class SkipSubscriptionDeliveryDto {
@@ -276,12 +270,6 @@ export class UpdateSubscriptionPreferencesDto {
   @IsString()
   @MaxLength(500)
   trustedDropInstructions?: string;
-
-  @IsOptional()
-  @IsString()
-  @MinLength(6)
-  @MaxLength(180)
-  dropPointToken?: string;
 
   @IsOptional()
   @IsInt()
@@ -392,13 +380,15 @@ export class CompleteRunStopDto extends ArriveRunStopDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(180)
-  dropPointToken?: string;
+  @MinLength(32)
+  @MaxLength(4096)
+  trustedDropToken?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(2000)
-  proofReference?: string;
+  @MinLength(1)
+  @MaxLength(180)
+  evidenceId?: string;
 
   @IsOptional()
   @IsInt()
@@ -509,4 +499,23 @@ export class ResolveSubscriptionIssueDto {
   @MinLength(5)
   @MaxLength(1000)
   resolution!: string;
+}
+
+
+export class IssueTrustedDropChallengeDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  subscriptionDeliveryId?: string;
+}
+
+export class TrustedDropEvidenceUploadDto {
+  @IsString()
+  @MinLength(32)
+  @MaxLength(4096)
+  trustedDropToken!: string;
+
+  @IsOptional()
+  @IsDateString()
+  capturedAt?: string;
 }

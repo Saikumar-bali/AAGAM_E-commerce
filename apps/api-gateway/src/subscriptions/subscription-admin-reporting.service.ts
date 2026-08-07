@@ -111,9 +111,18 @@ export class SubscriptionAdminReportingService {
         take: 200,
       }),
       prisma.subscriptionDelivery.findMany({
-        where: { status: { in: [SubscriptionDeliveryStatus.FAILED, SubscriptionDeliveryStatus.RESCHEDULED] } },
+        where: {
+          OR: [
+            { status: { in: [SubscriptionDeliveryStatus.FAILED, SubscriptionDeliveryStatus.RESCHEDULED] } },
+            { deferredReason: { not: null } },
+          ],
+        },
         orderBy: { updatedAt: 'desc' },
-        include: { subscription: { include: { customer: true, plan: true } }, runStop: true },
+        include: {
+          subscription: { include: { customer: true, plan: true } },
+          runStop: true,
+          generationAttemptRows: { orderBy: { attemptNumber: 'desc' }, take: 5 },
+        },
         take: 200,
       }),
       prisma.cashDepositBatch.findMany({
@@ -122,7 +131,12 @@ export class SubscriptionAdminReportingService {
         include: { rider: { include: { user: true } }, store: true, deliveryRun: true },
         take: 200,
       }),
-    ]).then(([issues, deliveries, cashVariances]) => ({ issues, deliveries, cashVariances }));
+      prisma.subscriptionWorkerFailure.findMany({
+        where: { resolvedAt: null },
+        orderBy: { failedAt: 'desc' },
+        take: 200,
+      }),
+    ]).then(([issues, deliveries, cashVariances, workerFailures]) => ({ issues, deliveries, cashVariances, workerFailures }));
   }
 
   async analytics() {

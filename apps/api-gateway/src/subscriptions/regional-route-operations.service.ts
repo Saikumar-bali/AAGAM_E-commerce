@@ -101,6 +101,7 @@ function candidateFromStop(stop: EditableRun['stops'][number]): RouteCandidate<E
     longitude,
     parcelCount: stop.expectedParcelCount,
     cashDuePaise: stop.cashDuePaise,
+    weightGrams: stop.expectedWeightGrams,
     value: stop,
   };
 }
@@ -178,7 +179,11 @@ export class RegionalRouteOperationsService {
       maximumParcels: Math.max(1, zone?.maximumParcelCount ?? 50),
       maximumCashPaise: Math.max(0, zone?.cashRiskLimitPaise ?? 1_000_000),
       maximumDistanceKm: Math.max(0.1, zone?.maximumRouteDistanceKm ?? 30),
-      maximumDurationMinutes: Math.max(1, zone?.maximumEstimatedDurationMinutes ?? 120),
+      maximumDurationMinutes: Math.max(1, Math.min(
+        zone?.maximumEstimatedDurationMinutes ?? 120,
+        Math.max(1, Math.floor((run.slotEnd.getTime() - run.slotStart.getTime()) / 60_000) - (zone?.slotEndBufferMinutes ?? 0)),
+      )),
+      maximumWeightGrams: zone?.maximumWeightKg ? Math.floor(zone.maximumWeightKg * 1000) : undefined,
       averageSpeedKph: Math.max(5, Number(process.env.ROUTE_AVERAGE_SPEED_KPH || 22)),
       serviceMinutesPerStop: Math.max(1, Number(process.env.ROUTE_SERVICE_MINUTES_PER_STOP || 5)),
     };
@@ -230,6 +235,7 @@ export class RegionalRouteOperationsService {
           stopCount: cluster.length,
           parcelCount: cluster.reduce((sum, item) => sum + item.parcelCount, 0),
           expectedCashPaise: cluster.reduce((sum, item) => sum + item.cashDuePaise, 0),
+          expectedWeightGrams: cluster.reduce((sum, item) => sum + (item.weightGrams ?? 0), 0),
           estimatedDistanceKm: estimate.distanceKm,
           estimatedDurationMinutes: estimate.durationMinutes,
         };
@@ -274,6 +280,7 @@ export class RegionalRouteOperationsService {
             expectedParcelCount: cluster.reduce((sum, item) => sum + item.parcelCount, 0),
             expectedBagCount: cluster.reduce((sum, item) => sum + item.parcelCount, 0),
             expectedItemCount: cluster.reduce((sum, item) => sum + item.value.expectedItemCount, 0),
+            expectedWeightGrams: cluster.reduce((sum, item) => sum + (item.weightGrams ?? 0), 0),
             estimatedDistanceKm: estimate.distanceKm,
             estimatedDurationMinutes: estimate.durationMinutes,
             manualOverride: true,
@@ -319,6 +326,13 @@ export class RegionalRouteOperationsService {
         where: { id: source.id },
         data: { manualOverride: true, manualOverrideReason: dto.reason, version: { increment: 1 } },
       });
+      for (let index = 0; index < ids.length; index += 1) {
+        const requestedRiderId = dto.riderIds?.[index];
+        if (!requestedRiderId) continue;
+        await this.planner.assignRiderWithinTransaction(
+          tx, ids[index], requestedRiderId, actor, RouteAssignmentSource.MANUAL, dto.reason,
+        );
+      }
       await this.audit(tx, {
         runId: source.id,
         actor,
@@ -328,6 +342,7 @@ export class RegionalRouteOperationsService {
           method: dto.method,
           resultingRunIds: ids,
           clusters: clusters.map((cluster) => cluster.map((item) => item.id)),
+          requestedRiderIds: dto.riderIds ?? [],
         },
         eventType: DeliveryRouteEventType.DELIVERY_RUN_SPLIT,
         dedupeKey: `manual-split:${source.id}:v${source.version}`,
@@ -335,13 +350,6 @@ export class RegionalRouteOperationsService {
       return ids;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-    for (let index = 0; index < runIds.length; index += 1) {
-      const requestedRiderId = dto.riderIds?.[index];
-      if (!requestedRiderId) continue;
-      const selected = (await this.planner.rankEligibleRiders(runIds[index])).find((item) => item.riderId === requestedRiderId);
-      if (!selected) throw new BadRequestException(`Requested rider is not eligible for split run ${index + 1}`);
-      await this.planner.assignRider(runIds[index], selected, actor, RouteAssignmentSource.MANUAL);
-    }
     return Promise.all(runIds.map((id) => this.run(id)));
   }
 
@@ -408,6 +416,7 @@ export class RegionalRouteOperationsService {
             expectedParcelCount: 0,
             expectedBagCount: 0,
             expectedItemCount: 0,
+            expectedWeightGrams: 0,
             manualOverride: true,
             manualOverrideReason: dto.reason,
             version: { increment: 1 },
@@ -642,6 +651,7 @@ export class RegionalRouteOperationsService {
           expectedParcelCount: pending.reduce((sum, stop) => sum + stop.expectedParcelCount, 0),
           expectedBagCount: pending.reduce((sum, stop) => sum + stop.expectedParcelCount, 0),
           expectedItemCount: pending.reduce((sum, stop) => sum + stop.expectedItemCount, 0),
+          expectedWeightGrams: pending.reduce((sum, stop) => sum + stop.expectedWeightGrams, 0),
           estimatedDistanceKm: estimate.distanceKm,
           estimatedDurationMinutes: estimate.durationMinutes,
           recoveryFromRunId: run.id,
@@ -716,24 +726,24 @@ export class RegionalRouteOperationsService {
         eventType: DeliveryRouteEventType.DELIVERY_RUN_INTERRUPTED,
         dedupeKey: `interrupt-run:${run.id}:v${run.version}`,
       });
+      if (dto.recoveryRiderId) {
+        await this.planner.assignRiderWithinTransaction(
+          tx, created.id, dto.recoveryRiderId, actor, RouteAssignmentSource.RECOVERY, dto.reason,
+        );
+      }
       await this.audit(tx, {
         runId: created.id,
         actor,
         action: 'RECOVERY_RUN_CREATED',
         reason: dto.reason,
         sourceRunId: run.id,
-        metadata: { sourceRunId: run.id, pendingStopIds: pending.map((stop) => stop.id) },
+        metadata: { sourceRunId: run.id, pendingStopIds: pending.map((stop) => stop.id), recoveryRiderId: dto.recoveryRiderId ?? null },
         eventType: DeliveryRouteEventType.RECOVERY_RUN_CREATED,
         dedupeKey: `recovery-created:${run.id}:v${run.version}`,
       });
       return created.id;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-    if (dto.recoveryRiderId) {
-      const selected = (await this.planner.rankEligibleRiders(recoveryId)).find((item) => item.riderId === dto.recoveryRiderId);
-      if (!selected) throw new BadRequestException('Requested recovery rider is not eligible');
-      await this.planner.assignRider(recoveryId, selected, actor, RouteAssignmentSource.RECOVERY);
-    }
     return { original: await this.run(run.id), recovery: await this.run(recoveryId) };
   }
 
@@ -845,6 +855,11 @@ export class RegionalRouteOperationsService {
   }
 
   async events(after?: string, actor?: Actor) {
+    let afterDate: Date | undefined;
+    if (after) {
+      afterDate = new Date(after);
+      if (Number.isNaN(afterDate.getTime())) throw new BadRequestException('Invalid regional-event after timestamp');
+    }
     let deliveryRunWhere: Prisma.DeliveryRunWhereInput | undefined;
     if (actor?.role === Role.RIDER) {
       const rider = await prisma.riderProfile.findUnique({ where: { userId: actor.id }, select: { id: true } });
@@ -858,7 +873,7 @@ export class RegionalRouteOperationsService {
 
     const rows = await prisma.deliveryRouteEvent.findMany({
       where: {
-        ...(after ? { createdAt: { gt: new Date(after) } } : {}),
+        ...(afterDate ? { createdAt: { gt: afterDate } } : {}),
         ...(deliveryRunWhere ? { deliveryRun: { is: deliveryRunWhere } } : {}),
       },
       orderBy: { createdAt: 'asc' },
@@ -880,14 +895,16 @@ export class RegionalRouteOperationsService {
     const estimate = estimateRoute(routeOrigin(run), nearestNeighbourOrder(routeOrigin(run), candidates), constraints);
     const parcels = candidates.reduce((sum, item) => sum + item.parcelCount, 0);
     const cash = candidates.reduce((sum, item) => sum + item.cashDuePaise, 0);
+    const weightGrams = candidates.reduce((sum, item) => sum + (item.weightGrams ?? 0), 0);
     if (
       candidates.length > constraints.maximumStops
       || parcels > constraints.maximumParcels
       || cash > constraints.maximumCashPaise
+      || (constraints.maximumWeightGrams !== undefined && weightGrams > constraints.maximumWeightGrams)
       || estimate.distanceKm > constraints.maximumDistanceKm
       || estimate.durationMinutes > constraints.maximumDurationMinutes
     ) {
-      throw new BadRequestException('Route would exceed stop, parcel, cash, distance, or slot capacity');
+      throw new BadRequestException('Route would exceed stop, parcel, weight, cash, distance, or slot capacity');
     }
   }
 
@@ -948,6 +965,7 @@ export class RegionalRouteOperationsService {
             longitude,
             parcelCount: stop.expectedParcelCount,
             cashDuePaise: stop.cashDuePaise,
+            weightGrams: stop.expectedWeightGrams,
             value: stop,
           }]
         : [];
@@ -971,6 +989,7 @@ export class RegionalRouteOperationsService {
         expectedParcelCount: run.stops.reduce((sum, stop) => sum + stop.expectedParcelCount, 0),
         expectedBagCount: run.stops.reduce((sum, stop) => sum + stop.expectedParcelCount, 0),
         expectedItemCount: run.stops.reduce((sum, stop) => sum + stop.expectedItemCount, 0),
+        expectedWeightGrams: run.stops.reduce((sum, stop) => sum + stop.expectedWeightGrams, 0),
         estimatedDistanceKm: estimate.distanceKm,
         estimatedDurationMinutes: estimate.durationMinutes,
       },

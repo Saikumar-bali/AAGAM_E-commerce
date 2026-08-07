@@ -115,8 +115,9 @@ export function zonedServiceWindow(
   if (!Number.isInteger(endMinute) || endMinute < 1 || endMinute > 1440) {
     throw new BadRequestException('Delivery-window end is invalid');
   }
+  if (endMinute === startMinute) throw new BadRequestException('Delivery window is invalid');
   const zone = validateIanaTimezone(timezone);
-  const endNextDay = endMinute <= startMinute && endMinute !== 1440;
+  const endNextDay = endMinute < startMinute && endMinute !== 1440;
   const start = zonedLocalToUtc(localMinuteParts(serviceDate, startMinute), zone);
   const end = zonedLocalToUtc(localMinuteParts(serviceDate, endMinute, endNextDay ? 1 : 0), zone);
   if (end <= start) throw new BadRequestException('Delivery window must have a positive duration');

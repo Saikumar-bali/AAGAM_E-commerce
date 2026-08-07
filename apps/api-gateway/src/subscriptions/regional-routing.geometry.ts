@@ -7,6 +7,7 @@ export type RouteCandidate<T> = GeoPoint & {
   id: string;
   parcelCount: number;
   cashDuePaise: number;
+  weightGrams?: number;
   value: T;
 };
 
@@ -14,6 +15,7 @@ export type RouteConstraints = {
   maximumStops: number;
   maximumParcels: number;
   maximumCashPaise: number;
+  maximumWeightGrams?: number;
   maximumDistanceKm: number;
   maximumDurationMinutes: number;
   averageSpeedKph?: number;
@@ -150,9 +152,11 @@ export function splitByOperationalConstraints<T>(
         const estimate = estimateRoute(origin, ordered, constraints);
         const parcels = proposed.reduce((sum, item) => sum + item.parcelCount, 0);
         const cash = proposed.reduce((sum, item) => sum + item.cashDuePaise, 0);
+        const weightGrams = proposed.reduce((sum, item) => sum + Number(item.weightGrams || 0), 0);
         const feasible = proposed.length <= constraints.maximumStops
           && parcels <= constraints.maximumParcels
           && cash <= constraints.maximumCashPaise
+          && (constraints.maximumWeightGrams === undefined || weightGrams <= constraints.maximumWeightGrams)
           && estimate.distanceKm <= constraints.maximumDistanceKm
           && estimate.durationMinutes <= constraints.maximumDurationMinutes;
         if (!feasible) continue;
@@ -176,11 +180,13 @@ export function routeCapacityWarnings<T>(
   const estimate = estimateRoute(origin, nearestNeighbourOrder(origin, stops), constraints);
   const parcels = stops.reduce((sum, item) => sum + item.parcelCount, 0);
   const cash = stops.reduce((sum, item) => sum + item.cashDuePaise, 0);
+  const weightGrams = stops.reduce((sum, item) => sum + Number(item.weightGrams || 0), 0);
   const warnings: string[] = [];
   if (stops.length > constraints.maximumStops) warnings.push('CAPACITY_RISK');
   if (parcels > constraints.maximumParcels) warnings.push('PARCEL_CAPACITY_RISK');
   if (cash > constraints.maximumCashPaise) warnings.push('CASH_LIMIT_RISK');
+  if (constraints.maximumWeightGrams !== undefined && weightGrams > constraints.maximumWeightGrams) warnings.push('WEIGHT_CAPACITY_RISK');
   if (estimate.distanceKm > constraints.maximumDistanceKm) warnings.push('DISTANCE_RISK');
   if (estimate.durationMinutes > constraints.maximumDurationMinutes) warnings.push('SLOT_RISK');
-  return { ...estimate, parcels, cash, warnings };
+  return { ...estimate, parcels, cash, weightGrams, warnings };
 }

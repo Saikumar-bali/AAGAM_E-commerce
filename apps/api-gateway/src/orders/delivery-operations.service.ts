@@ -1402,8 +1402,8 @@ export class DeliveryOperationsService {
     actor: Actor,
     input: {
       riderConfirmed: boolean;
-      dropPointToken: string;
-      proofReference: string;
+      evidenceId: string;
+      challengeId: string;
       note?: string;
       latitude: number;
       longitude: number;
@@ -1425,35 +1425,36 @@ export class DeliveryOperationsService {
           throw new BadRequestException("Rider must arrive at the customer before trusted drop");
         }
         if (input.riderConfirmed !== true) throw new BadRequestException("Rider confirmation is required");
-        if (!input.proofReference?.trim()) throw new BadRequestException("Trusted drop photo/proof reference is required");
-        if (!input.dropPointToken?.trim()) throw new BadRequestException("Secure drop-point token is required");
         this.assertCoordinates(input.latitude, input.longitude);
         const subscription = job.order.subscription;
-        if (!subscription || subscription.deliveryMethod !== "TRUSTED_DROP" || !subscription.dropPointTokenHash) {
+        if (!subscription || subscription.deliveryMethod !== "TRUSTED_DROP") {
           throw new ForbiddenException("This order is not authorized for trusted drop");
         }
         if (job.order.payment?.method === PaymentMethod.COD) {
           throw new BadRequestException("Cash collection deliveries require customer OTP handover");
         }
-        const supplied = createHash("sha256").update(input.dropPointToken.trim()).digest("hex");
-        const expected = String(subscription.dropPointTokenHash);
-        if (supplied.length !== expected.length || !timingSafeEqual(Buffer.from(supplied, "hex"), Buffer.from(expected, "hex"))) {
-          throw new ForbiddenException("Secure drop-point token is invalid");
-        }
-        if (job.order.deliveryLat == null || job.order.deliveryLng == null) {
-          throw new BadRequestException("Delivery coordinates are unavailable");
-        }
-        const distanceMetres = calculateDistance(
-          input.latitude,
-          input.longitude,
-          job.order.deliveryLat,
-          job.order.deliveryLng
-        ) * 1000;
-        const allowedMetres = Math.max(25, Math.min(500, Number(process.env.SUBSCRIPTION_TRUSTED_DROP_GEOFENCE_METRES || 150)));
-        if (distanceMetres > allowedMetres) {
-          throw new BadRequestException(`Trusted drop is outside the ${allowedMetres} metre geofence`);
-        }
         if (!job.currentRiderId) throw new BadRequestException("Delivery has no assigned Rider");
+        const evidence = await tx.trustedDropEvidence.findFirst({
+          where: {
+            id: input.evidenceId,
+            deliveryJobId,
+            riderId: job.currentRiderId,
+            challengeId: input.challengeId,
+          },
+          include: { challenge: { include: { credential: true } } },
+        });
+        if (!evidence) throw new BadRequestException("Trusted Drop photo evidence is not bound to this delivery, rider, and QR challenge");
+        const challenge = evidence.challenge;
+        if (challenge.usedAt) throw new ConflictException("Trusted Drop QR has already been used");
+        if (challenge.revokedAt || challenge.expiresAt <= new Date()) throw new BadRequestException("Trusted Drop QR is expired or revoked");
+        if (challenge.credential.status !== "ACTIVE" || challenge.version !== challenge.credential.version || evidence.credentialVersion !== challenge.version) {
+          throw new ConflictException("Trusted Drop QR credential version is no longer active");
+        }
+        const consumed = await tx.trustedDropChallenge.updateMany({
+          where: { id: challenge.id, usedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+          data: { usedAt: new Date() },
+        });
+        if (consumed.count !== 1) throw new ConflictException("Trusted Drop QR was replayed or expired");
         const key = idempotencyKey || `trusted-drop:${deliveryJobId}`;
         const existing = await this.findOperationByKey(tx, key);
         if (existing) return this.job(tx, deliveryJobId);
@@ -1466,7 +1467,7 @@ export class DeliveryOperationsService {
             customerUserId: job.order.customerId,
             verificationMethod: "TRUSTED_DROP",
             otpOperationId: null,
-            proofReference: input.proofReference.trim(),
+            proofReference: `trusted-drop-evidence:${evidence.id}`,
             riderConfirmedAt: completedAt,
             verifiedAt: completedAt,
             note: input.note,
@@ -1484,38 +1485,21 @@ export class DeliveryOperationsService {
           details: {
             deliveryProofId: proof.id,
             verificationMethod: "TRUSTED_DROP",
-            proofReference: input.proofReference.trim(),
+            trustedDropEvidenceId: evidence.id,
+            credentialVersion: evidence.credentialVersion,
             latitude: input.latitude,
             longitude: input.longitude,
             accuracyMetres: input.accuracyMetres ?? null,
-            distanceMetres,
-            geofenceMetres: allowedMetres,
           },
         });
         const delivered = await this.workflow.transitionWithinTransaction(
-          tx,
-          deliveryJobId,
-          DeliveryJobStatus.DELIVERED,
-          actor,
-          {
-            expectedStatus: DeliveryJobStatus.RIDER_AT_CUSTOMER,
-            metadata: {
-              deliveryProofId: proof.id,
-              proofType: "TRUSTED_DROP",
-              proofReference: input.proofReference.trim(),
-              completionIdempotencyKey: key,
-            },
-          }
+          tx, deliveryJobId, DeliveryJobStatus.DELIVERED, actor,
+          { expectedStatus: DeliveryJobStatus.RIDER_AT_CUSTOMER, metadata: { deliveryProofId: proof.id, proofType: "TRUSTED_DROP", trustedDropEvidenceId: evidence.id, completionIdempotencyKey: key } }
         );
         await this.notify(
-          tx,
-          job,
-          actor,
-          "DELIVERY_COMPLETED",
-          "Subscription delivered",
-          "Your funded subscription delivery was placed at the trusted drop point.",
-          operation,
-          { proofType: "TRUSTED_DROP" }
+          tx, job, actor, "DELIVERY_COMPLETED", "Subscription delivered",
+          "Your funded subscription delivery was placed at the trusted drop point.", operation,
+          { proofType: "TRUSTED_DROP", trustedDropEvidenceId: evidence.id }
         );
         await this.completeActiveFailureDecisions(tx, deliveryJobId, actor);
         if (afterDelivery) await afterDelivery(tx);

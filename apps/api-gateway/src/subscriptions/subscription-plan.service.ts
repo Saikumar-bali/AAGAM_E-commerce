@@ -22,6 +22,7 @@ const planInclude = {
           image: true,
           pricePaise: true,
           mrpPaise: true,
+          weightGrams: true,
           isActive: true,
           deletedAt: true,
         },
@@ -44,8 +45,8 @@ export class SubscriptionPlanService {
   }
 
   private validate(dto: UpsertSubscriptionPlanDto) {
-    if (dto.defaultWindowEndMinute <= dto.defaultWindowStartMinute) {
-      throw new BadRequestException('Delivery window end must be after its start');
+    if (dto.defaultWindowEndMinute === dto.defaultWindowStartMinute) {
+      throw new BadRequestException('Delivery window must have a positive duration');
     }
     if (dto.mrpPaise < dto.pricePaise) {
       throw new BadRequestException('MRP cannot be below the subscription price');
@@ -69,7 +70,7 @@ export class SubscriptionPlanService {
     const [products, stores, zones] = await Promise.all([
       tx.product.findMany({
         where: { id: { in: dto.items.map((item) => item.productId) }, isActive: true, deletedAt: null },
-        select: { id: true },
+        select: { id: true, weightGrams: true },
       }),
       dto.storeIds?.length
         ? tx.store.findMany({ where: { id: { in: dto.storeIds }, isActive: true, deletedAt: null }, select: { id: true } })
@@ -79,6 +80,9 @@ export class SubscriptionPlanService {
         : Promise.resolve([]),
     ]);
     if (products.length !== dto.items.length) throw new BadRequestException('One or more plan products are unavailable');
+    if (products.some((product) => !Number.isInteger(product.weightGrams) || Number(product.weightGrams) <= 0)) {
+      throw new BadRequestException('Every subscription product requires a positive unit weight');
+    }
     if (dto.storeIds?.length && stores.length !== new Set(dto.storeIds).size) {
       throw new BadRequestException('One or more applicable stores are unavailable');
     }
@@ -280,6 +284,7 @@ export class SubscriptionPlanService {
       quantityPerDelivery: item.quantityPerDelivery,
       unitPricePaise: item.product.pricePaise,
       mrpPaise: item.product.mrpPaise,
+      weightGrams: item.product.weightGrams,
       substituteRules: item.substituteRules,
     }));
     const deliveryRulesSnapshot = {
@@ -339,6 +344,9 @@ export class SubscriptionPlanService {
       if (!plan.items.length) throw new BadRequestException('A plan must include at least one product');
       if (plan.items.some((item) => !item.product.isActive || item.product.deletedAt)) {
         throw new BadRequestException('A plan contains an unavailable product');
+      }
+      if (plan.items.some((item) => !Number.isInteger(item.product.weightGrams) || Number(item.product.weightGrams) <= 0)) {
+        throw new BadRequestException('Every subscription product requires a positive unit weight before publishing');
       }
       const latest = await tx.subscriptionPlanVersion.findFirst({
         where: { planId: id }, orderBy: { version: 'desc' }, select: { version: true },

@@ -47,6 +47,8 @@ model User {
   cashDepositAudits CashDepositAuditEntry[] @relation("CashDepositAuditActor")
   deliveryRunAudits DeliveryRunAuditEntry[]
   deliveryRouteEvents DeliveryRouteEvent[]
+  trustedDropCredentials TrustedDropCredential[] @relation("TrustedDropCredentialCustomer")
+  trustedDropChallenges TrustedDropChallenge[] @relation("TrustedDropChallengeCustomer")
 }
 
 enum Role {
@@ -101,6 +103,7 @@ model Product {
   image       String?
   images      Json?
   details     Json?
+  weightGrams Int?
   isActive    Boolean   @default(true)
   sortOrder   Int       @default(0)
   deletedAt   DateTime?
@@ -122,6 +125,7 @@ model DeliveryZone {
   name                             String   @unique
   code                             String   @unique
   description                      String?
+  timezone                         String   @default("Asia/Kolkata")
   isActive                         Boolean  @default(true)
   sortOrder                        Int      @default(0)
   priority                         Int      @default(0)
@@ -292,6 +296,8 @@ model RiderProfile {
   deliveryProofs           DeliveryProof[]
   codLedgers               CodLedger[]
   supportTickets           RiderSupportTicket[]
+  trustedDropEvidence      TrustedDropEvidence[]
+  geofenceProofs           RunStopGeofenceProof[]
   deliveryRuns             DeliveryRun[]
   cashDepositBatches       CashDepositBatch[]
   homeZone                  DeliveryZone?               @relation(fields: [homeZoneId], references: [id], onDelete: SetNull)
@@ -387,6 +393,7 @@ model DeliveryJob {
   failureDecisions DeliveryFailureDecision[]
   notifications    Notification[]
   deliveryRunStop  DeliveryRunStop?
+  trustedDropEvidence TrustedDropEvidence?
   subscriptionDelivery SubscriptionDelivery?
 
   @@index([status, createdAt])
@@ -1002,6 +1009,9 @@ enum NotificationEventType {
   DELIVERY_COMPLETED
   DELIVERY_FAILED
   DELIVERY_CANCELLED
+  ROUTE_ASSIGNED
+  ROUTE_REMOVED
+  SUBSCRIPTION_WORKER_FAILED
   ADMIN_BROADCAST
 }
 
@@ -1657,6 +1667,8 @@ model CustomerSubscription {
   fundingAllocations SubscriptionFundingAllocation[]
   issues            SubscriptionIssueReport[]
   audits            SubscriptionAuditEntry[]
+  trustedDropCredential TrustedDropCredential?
+  trustedDropChallenges TrustedDropChallenge[]
 
   @@index([customerId, status])
   @@index([status, nextDeliveryDate])
@@ -1677,6 +1689,10 @@ model SubscriptionDelivery {
   cashDuePaise           Int                        @default(0)
   proofMode              SubscriptionProofMode
   failureReason          String?
+  deferredReason         String?
+  generationAttempts     Int                        @default(0)
+  lastGenerationAttemptAt DateTime?
+  lastAttemptCorrelationId String?
   skipReason             String?
   rescheduledFromDate    DateTime?
   rescheduledToDate      DateTime?
@@ -1691,6 +1707,9 @@ model SubscriptionDelivery {
   deliveryZone           DeliveryZone?              @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
   runStop                DeliveryRunStop?
   issueReports           SubscriptionIssueReport[]
+  generationAttemptRows  SubscriptionGenerationAttempt[]
+  trustedDropChallenges  TrustedDropChallenge[]
+  trustedDropEvidence    TrustedDropEvidence?
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
 
@@ -1740,6 +1759,7 @@ model DeliveryRun {
   depositedCashPaise       Int                   @default(0)
   varianceCashPaise        Int                   @default(0)
   expectedParcelCount      Int                   @default(0)
+  expectedWeightGrams      Int                   @default(0)
   expectedItemCount        Int                   @default(0)
   expectedBagCount         Int                   @default(0)
   packedBagCount           Int                   @default(0)
@@ -1802,6 +1822,7 @@ model DeliveryRunStop {
   proofMode              SubscriptionProofMode
   cashDuePaise           Int                   @default(0)
   expectedItemCount      Int
+  expectedWeightGrams    Int                   @default(0)
   expectedParcelCount    Int                   @default(1)
   deliveryLatitude       Float?
   deliveryLongitude      Float?
@@ -1824,6 +1845,8 @@ model DeliveryRunStop {
   deliveryZone           DeliveryZone?         @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
   movedFromRun           DeliveryRun?          @relation("MovedFromRun", fields: [movedFromRunId], references: [id], onDelete: SetNull)
   routeEvents            DeliveryRouteEvent[]
+  geofenceProofs         RunStopGeofenceProof[]
+  trustedDropEvidence    TrustedDropEvidence?
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
 
@@ -1999,4 +2022,141 @@ model SubscriptionAuditEntry {
   createdAt      DateTime             @default(now())
 
   @@index([subscriptionId, createdAt])
+}
+
+
+enum TrustedDropCredentialStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum GeofencePhase {
+  ARRIVAL
+  COMPLETION
+}
+
+enum GeofenceDecision {
+  PASS
+  FAIL_DISTANCE
+  FAIL_ACCURACY
+}
+
+enum SubscriptionGenerationAttemptStatus {
+  STARTED
+  GENERATED
+  DEFERRED
+  FAILED
+}
+
+model TrustedDropCredential {
+  id             String                      @id @default(cuid())
+  subscriptionId String                      @unique
+  customerId     String
+  version        Int                         @default(1)
+  status         TrustedDropCredentialStatus @default(ACTIVE)
+  createdAt      DateTime                    @default(now())
+  rotatedAt      DateTime?
+  revokedAt      DateTime?
+  subscription   CustomerSubscription        @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  customer       User                        @relation("TrustedDropCredentialCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  challenges     TrustedDropChallenge[]
+
+  @@index([customerId, status])
+}
+
+model TrustedDropChallenge {
+  id             String                @id @default(cuid())
+  credentialId   String
+  subscriptionId         String
+  subscriptionDeliveryId String?
+  customerId             String
+  version        Int
+  tokenHash      String                @unique
+  expiresAt      DateTime
+  usedAt         DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime              @default(now())
+  credential     TrustedDropCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  subscription   CustomerSubscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  subscriptionDelivery SubscriptionDelivery? @relation(fields: [subscriptionDeliveryId], references: [id], onDelete: Cascade)
+  customer       User                  @relation("TrustedDropChallengeCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  evidence       TrustedDropEvidence?
+
+  @@index([subscriptionId, version, expiresAt])
+  @@index([subscriptionDeliveryId])
+  @@index([customerId, createdAt])
+}
+
+model TrustedDropEvidence {
+  id                     String               @id @default(cuid())
+  deliveryRunStopId      String               @unique
+  deliveryJobId          String               @unique
+  subscriptionDeliveryId String               @unique
+  riderId                String
+  challengeId            String               @unique
+  credentialVersion      Int
+  storageKey             String               @unique
+  mimeType               String
+  sizeBytes              Int
+  sha256                 String
+  capturedAt             DateTime
+  createdAt              DateTime             @default(now())
+  deliveryRunStop        DeliveryRunStop      @relation(fields: [deliveryRunStopId], references: [id], onDelete: Cascade)
+  deliveryJob            DeliveryJob          @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  subscriptionDelivery   SubscriptionDelivery @relation(fields: [subscriptionDeliveryId], references: [id], onDelete: Cascade)
+  rider                   RiderProfile        @relation(fields: [riderId], references: [id], onDelete: Restrict)
+  challenge               TrustedDropChallenge @relation(fields: [challengeId], references: [id], onDelete: Restrict)
+
+  @@index([riderId, capturedAt])
+}
+
+model RunStopGeofenceProof {
+  id                   String           @id @default(cuid())
+  deliveryRunStopId    String
+  riderId              String
+  phase                 GeofencePhase
+  latitude              Float
+  longitude             Float
+  accuracyMetres        Float
+  distanceToStopMetres  Float
+  allowedRadiusMetres   Float
+  decision              GeofenceDecision
+  measuredAt            DateTime
+  createdAt             DateTime         @default(now())
+  deliveryRunStop       DeliveryRunStop  @relation(fields: [deliveryRunStopId], references: [id], onDelete: Cascade)
+  rider                 RiderProfile     @relation(fields: [riderId], references: [id], onDelete: Restrict)
+
+  @@index([deliveryRunStopId, phase, measuredAt])
+  @@index([riderId, measuredAt])
+}
+
+model SubscriptionGenerationAttempt {
+  id                     String                              @id @default(cuid())
+  subscriptionDeliveryId String
+  attemptNumber          Int
+  correlationId          String
+  status                 SubscriptionGenerationAttemptStatus
+  deferredReason         String?
+  message                String?
+  metadata               Json?
+  startedAt              DateTime                            @default(now())
+  finishedAt             DateTime?
+  subscriptionDelivery   SubscriptionDelivery                @relation(fields: [subscriptionDeliveryId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionDeliveryId, attemptNumber])
+  @@index([status, startedAt])
+  @@index([correlationId])
+}
+
+model SubscriptionWorkerFailure {
+  id            String   @id @default(cuid())
+  jobId         String   @unique
+  correlationId String
+  attempts      Int
+  lastError     String
+  payload       Json?
+  failedAt      DateTime @default(now())
+  resolvedAt    DateTime?
+
+  @@index([failedAt])
 }

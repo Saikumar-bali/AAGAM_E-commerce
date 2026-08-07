@@ -9,8 +9,11 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   CustomerSubscriptionStatus,
   Role,
@@ -26,6 +29,7 @@ import { DeliveryRunPlanningService } from './delivery-run-planning.service';
 import { SubscriptionAdminReportingService } from './subscription-admin-reporting.service';
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { SubscriptionSchedulerService } from './subscription-scheduler.service';
+import { TrustedDropService } from './trusted-drop.service';
 import {
   AdminSubscriptionCorrectionDto,
   AssignDeliveryRunDto,
@@ -38,6 +42,7 @@ import {
   CreateCashDepositBatchDto,
   CreateCustomerSubscriptionDto,
   FailRunStopDto,
+  IssueTrustedDropChallengeDto,
   PauseSubscriptionDto,
   QuoteSubscriptionDto,
   ReorderRunStopDto,
@@ -50,6 +55,7 @@ import {
   SubmitCashDepositBatchDto,
   UpdateSubscriptionPlanStatusDto,
   UpdateSubscriptionPreferencesDto,
+  TrustedDropEvidenceUploadDto,
   UpsertSubscriptionPlanDto,
   VerifyCashDepositBatchDto,
 } from './subscriptions.dto';
@@ -85,7 +91,10 @@ export class SubscriptionPlanPublicController {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.CUSTOMER)
 export class CustomerSubscriptionsController {
-  constructor(private readonly subscriptions: CustomerSubscriptionService) {}
+  constructor(
+    private readonly subscriptions: CustomerSubscriptionService,
+    private readonly trustedDrop: TrustedDropService,
+  ) {}
 
   @Post()
   create(@Req() req: AuthenticatedRequest, @Body() body: CreateCustomerSubscriptionDto, @Headers('idempotency-key') key?: string) {
@@ -143,6 +152,25 @@ export class CustomerSubscriptionsController {
     return this.subscriptions.cancel(req.user.id, id, body, key);
   }
 
+  @Post(':id/trusted-drop/qr')
+  trustedDropQr(
+    @Param('id') id: string,
+    @Body() body: IssueTrustedDropChallengeDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.trustedDrop.issue(req.user.id, id, body.subscriptionDeliveryId);
+  }
+
+  @Post(':id/trusted-drop/rotate')
+  rotateTrustedDrop(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.trustedDrop.rotate(req.user.id, id);
+  }
+
+  @Post(':id/trusted-drop/revoke')
+  revokeTrustedDrop(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.trustedDrop.revoke(req.user.id, id);
+  }
+
   @Get(':id/tracking')
   tracking(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.subscriptions.currentTracking(req.user.id, id);
@@ -167,6 +195,7 @@ export class RiderDeliveryRunsController {
   constructor(
     private readonly runs: DeliveryRunOperationsService,
     private readonly cash: CashDepositBatchService,
+    private readonly trustedDrop: TrustedDropService,
   ) {}
 
   @Get('today')
@@ -211,6 +240,18 @@ export class RiderDeliveryRunsController {
     @Headers('idempotency-key') key?: string,
   ) {
     return this.runs.issueOtp(runId, stopId, req.user, key);
+  }
+
+  @Post(':runId/stops/:stopId/trusted-drop-evidence')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 6 * 1024 * 1024, files: 1 } }))
+  trustedDropEvidence(
+    @Param('runId') runId: string,
+    @Param('stopId') stopId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: TrustedDropEvidenceUploadDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.trustedDrop.uploadEvidence({ file, runId, stopId, token: body.trustedDropToken, capturedAt: body.capturedAt }, req.user);
   }
 
   @Post(':runId/stops/:stopId/complete')
@@ -417,6 +458,11 @@ export class AdminSubscriptionsController {
   @Get('analytics')
   analytics() {
     return this.reporting.analytics();
+  }
+
+  @Get('scheduler/readiness')
+  schedulerReadiness() {
+    return this.scheduler.readiness();
   }
 
   @Post('scheduler/run')

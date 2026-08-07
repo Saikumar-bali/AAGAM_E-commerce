@@ -1,8 +1,8 @@
 import React, { type ReactNode, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, MapPin, Pause, Play, ReceiptIndianRupee, Route, Settings2, SkipForward, TriangleAlert, X } from 'lucide-react-native';
+import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, MapPin, Pause, Play, QrCode, ReceiptIndianRupee, RefreshCw, Route, Settings2, ShieldX, SkipForward, TriangleAlert, X } from 'lucide-react-native';
 import {
   subscriptionService,
   type CustomerSubscription,
@@ -11,6 +11,7 @@ import {
 } from '../../api/subscriptionService';
 import type { CustomerStackParamList } from '../../navigation/customerNavigationTypes';
 import { getUserSafeError, notify } from '../../ui/notify';
+import { CustomerQrCode } from '../../native/CustomerQrCode';
 
 const date = (value?: string | null) => value ? new Date(value).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : '—';
 const tomorrow = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString(); };
@@ -24,7 +25,7 @@ const issueTypes = [
   { value: 'OTHER', label: 'Other' },
 ];
 
-type Sheet = 'issue' | 'preferences' | 'cancel' | null;
+type Sheet = 'issue' | 'preferences' | 'cancel' | 'trustedQr' | null;
 type LifecycleAction = 'skip' | 'pause' | 'resume';
 
 export const SubscriptionDetailScreen = () => {
@@ -39,7 +40,8 @@ export const SubscriptionDetailScreen = () => {
   const [cancelReason, setCancelReason] = useState('');
   const [preferenceMethod, setPreferenceMethod] = useState<SubscriptionDeliveryMethod>('PERSONAL_HANDOVER');
   const [dropInstructions, setDropInstructions] = useState('');
-  const [dropToken, setDropToken] = useState('');
+  const [qrImage, setQrImage] = useState<string | null>(null);
+  const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
 
   const query = useQuery({ queryKey: ['my-subscription', id], queryFn: () => subscriptionService.one(id) });
   const deliveriesQuery = useQuery({ queryKey: ['subscription-deliveries', id], queryFn: () => subscriptionService.deliveries(id) });
@@ -88,11 +90,28 @@ export const SubscriptionDetailScreen = () => {
     mutationFn: () => subscriptionService.preferences(id, {
       deliveryMethod: preferenceMethod,
       trustedDropInstructions: preferenceMethod === 'TRUSTED_DROP' ? dropInstructions.trim() : undefined,
-      dropPointToken: preferenceMethod === 'TRUSTED_DROP' ? dropToken.trim() : undefined,
     }),
     onSuccess: async () => { notify.success('Preferences updated', 'Future eligible deliveries will use the new handover preference.'); setSheet(null); await refresh(); },
     onError: (error) => notify.error('Update failed', getUserSafeError(error, 'Please try again.')),
   });
+  const showQr = useMutation({
+    mutationFn: async (rotate = false) => {
+      const nextDelivery = deliveries.find((delivery) => activeDeliveryStatuses.includes(delivery.status));
+      const challenge = rotate
+        ? await subscriptionService.rotateTrustedDropQr(id)
+        : await subscriptionService.trustedDropQr(id, nextDelivery?.id);
+      const rendered = await CustomerQrCode.render(challenge.token);
+      return { ...challenge, dataUrl: rendered.dataUrl };
+    },
+    onSuccess: (result) => { setQrImage(result.dataUrl); setQrExpiresAt(result.expiresAt); setSheet('trustedQr'); },
+    onError: (error) => notify.error('QR unavailable', getUserSafeError(error, 'Please try again.')),
+  });
+  const revokeQr = useMutation({
+    mutationFn: () => subscriptionService.revokeTrustedDropQr(id),
+    onSuccess: () => { setQrImage(null); setQrExpiresAt(null); setSheet(null); notify.success('Trusted Drop QR revoked'); },
+    onError: (error) => notify.error('Revoke failed', getUserSafeError(error, 'Please try again.')),
+  });
+
   const cancel = useMutation({
     mutationFn: () => subscriptionService.cancel(id, cancelReason.trim()),
     onSuccess: async () => { notify.success('Subscription cancelled', 'Future ungenerated deliveries have been cancelled safely.'); setSheet(null); await refresh(); },
@@ -111,14 +130,13 @@ export const SubscriptionDetailScreen = () => {
   const openPreferences = () => {
     setPreferenceMethod(subscription.deliveryMethod);
     setDropInstructions(subscription.trustedDropInstructions ?? '');
-    setDropToken('');
     setSheet('preferences');
   };
 
   return <SafeAreaView style={styles.screen}><View style={styles.header}><Pressable onPress={() => navigation.goBack()} style={styles.icon}><ArrowLeft size={22} color="#173D32" /></Pressable><View style={styles.flex}><Text style={styles.eyebrow}>SUBSCRIPTION</Text><Text style={styles.title}>{subscription.plan.name}</Text></View><Pressable style={styles.icon} onPress={openPreferences} accessibilityLabel="Edit subscription preferences"><Settings2 size={21} color="#173D32" /></Pressable></View><ScrollView contentContainerStyle={styles.content}>
     <View style={styles.hero}><View style={styles.heroTop}><View><Text style={styles.heroLabel}>PLAN PROGRESS</Text><Text style={styles.heroNumber}>{subscription.completedDeliveries} of {total}</Text><Text style={styles.heroSub}>deliveries completed</Text></View><View style={styles.ring}><Text style={styles.ringText}>{percent}%</Text></View></View><View style={styles.track}><View style={[styles.fill, { width: `${percent}%` }]} /></View><View style={styles.heroFacts}><Text style={styles.heroFact}>Funded left <Text style={styles.heroFactStrong}>{subscription.remainingFundedDeliveries}</Text></Text><Text style={styles.heroFact}>Skipped <Text style={styles.heroFactStrong}>{subscription.skippedDeliveries}</Text></Text></View></View>
     <View style={styles.nextCard}><View style={styles.nextIcon}><CalendarDays size={25} color="#FFFFFF" /></View><View style={styles.flex}><Text style={styles.nextLabel}>NEXT DELIVERY</Text><Text style={styles.nextDate}>{date(next?.serviceDate || subscription.nextDeliveryDate)}</Text><Text style={styles.nextMeta}>{next && next.cashDuePaise > 0 ? `Cash due ₹${(next.cashDuePaise / 100).toLocaleString('en-IN')}` : 'Subscription funded · Customer due ₹0'}</Text></View><Pressable style={styles.trackButton} onPress={() => tracking.mutate()}><Route size={18} color="#087B5B" /><Text style={styles.trackButtonText}>Track</Text></Pressable></View>
-    <View style={styles.actions}><Pressable disabled={lifecycle.isPending || subscription.status === 'PAUSED' || !canChange} onPress={() => lifecycle.mutate('skip')} style={styles.action}><SkipForward size={20} color="#087B5B" /><Text style={styles.actionText}>Skip next</Text></Pressable>{subscription.status === 'PAUSED' ? <Pressable disabled={lifecycle.isPending || !canChange} onPress={() => lifecycle.mutate('resume')} style={styles.action}><Play size={20} color="#087B5B" /><Text style={styles.actionText}>Resume</Text></Pressable> : <Pressable disabled={lifecycle.isPending || !canChange} onPress={() => lifecycle.mutate('pause')} style={styles.action}><Pause size={20} color="#087B5B" /><Text style={styles.actionText}>Pause</Text></Pressable>}<Pressable onPress={() => setSheet('issue')} style={styles.action}><TriangleAlert size={20} color="#B96600" /><Text style={styles.actionText}>Report</Text></Pressable></View>
+    <View style={styles.actions}><Pressable disabled={lifecycle.isPending || subscription.status === 'PAUSED' || !canChange} onPress={() => lifecycle.mutate('skip')} style={styles.action}><SkipForward size={20} color="#087B5B" /><Text style={styles.actionText}>Skip next</Text></Pressable>{subscription.status === 'PAUSED' ? <Pressable disabled={lifecycle.isPending || !canChange} onPress={() => lifecycle.mutate('resume')} style={styles.action}><Play size={20} color="#087B5B" /><Text style={styles.actionText}>Resume</Text></Pressable> : <Pressable disabled={lifecycle.isPending || !canChange} onPress={() => lifecycle.mutate('pause')} style={styles.action}><Pause size={20} color="#087B5B" /><Text style={styles.actionText}>Pause</Text></Pressable>}<Pressable onPress={() => setSheet('issue')} style={styles.action}><TriangleAlert size={20} color="#B96600" /><Text style={styles.actionText}>Report</Text></Pressable>{subscription.deliveryMethod === 'TRUSTED_DROP' ? <Pressable disabled={showQr.isPending} onPress={() => showQr.mutate(false)} style={styles.action}>{showQr.isPending ? <RefreshCw size={20} color="#087B5B" /> : <QrCode size={20} color="#087B5B" />}<Text style={styles.actionText}>Show QR</Text></Pressable> : null}</View>
     <View style={styles.section}><View style={styles.sectionHead}><Text style={styles.sectionTitle}>Delivery preferences</Text>{canChange ? <Pressable onPress={openPreferences}><Text style={styles.link}>Edit</Text></Pressable> : null}</View><Info icon={<Clock3 size={18} color="#087B5B" />} label="Window" value={`${minuteTime(subscription.deliveryWindowStartMinute)} – ${minuteTime(subscription.deliveryWindowEndMinute)}`} /><Info icon={<MapPin size={18} color="#087B5B" />} label="Handover" value={subscription.deliveryMethod.replaceAll('_', ' ')} /><Info icon={<ReceiptIndianRupee size={18} color="#B96600" />} label="Funding" value={subscription.fundingCycle === 'WEEKLY' ? 'Cash every seven deliveries' : 'Full amount on first delivery'} /></View>
     <View style={styles.section}><View style={styles.sectionHead}><Text style={styles.sectionTitle}>Calendar & history</Text><Pressable onPress={() => setShowAll((value) => !value)}><Text style={styles.link}>{showAll ? 'Show less' : 'View all'}</Text></Pressable></View>{deliveriesQuery.isLoading ? <ActivityIndicator color="#087B5B" /> : visible.map((delivery) => <DeliveryRow key={delivery.id} delivery={delivery} />)}</View>
     {subscription.fundingAllocations?.length ? <View style={styles.section}><Text style={styles.sectionTitle}>Cash funding receipts</Text>{subscription.fundingAllocations.map((allocation) => <View key={allocation.id} style={styles.receipt}><ReceiptIndianRupee size={20} color="#087B5B" /><View style={styles.flex}><Text style={styles.deliveryDate}>₹{(allocation.amountPaise / 100).toLocaleString('en-IN')} funded</Text><Text style={styles.deliveryMeta}>Deliveries {allocation.startsAtSequence}–{allocation.endsAtSequence} · {date(allocation.createdAt)}</Text></View><Text style={styles.receiptStatus}>RECEIVED</Text></View>)}</View> : null}
@@ -132,9 +150,16 @@ export const SubscriptionDetailScreen = () => {
   </ActionSheet>
   <ActionSheet visible={sheet === 'preferences'} title="Delivery preferences" onClose={() => setSheet(null)}>
     <View style={styles.methodList}>{availableMethods(subscription).map((method) => <Pressable key={method.value} onPress={() => setPreferenceMethod(method.value)} style={[styles.method, preferenceMethod === method.value && styles.methodActive]}><Text style={styles.methodTitle}>{method.label}</Text><Text style={styles.methodCopy}>{method.copy}</Text></Pressable>)}</View>
-    {preferenceMethod === 'TRUSTED_DROP' ? <><TextInput value={dropToken} onChangeText={setDropToken} placeholder="Secure drop token (minimum 6 characters)" secureTextEntry style={styles.input} /><TextInput value={dropInstructions} onChangeText={setDropInstructions} placeholder="Milk box / doorstep instructions" multiline style={[styles.input, styles.multiline]} /></> : null}
-    <PrimaryButton label="Save preferences" busy={preferences.isPending} disabled={preferenceMethod === 'TRUSTED_DROP' && dropToken.trim().length < 6} onPress={() => preferences.mutate()} />
+    {preferenceMethod === 'TRUSTED_DROP' ? <><Text style={styles.sheetCopy}>AAGAM manages the signed one-time QR. No reusable secret is stored on your device.</Text><TextInput value={dropInstructions} onChangeText={setDropInstructions} placeholder="Milk box / doorstep instructions" multiline style={[styles.input, styles.multiline]} /></> : null}
+    <PrimaryButton label="Save preferences" busy={preferences.isPending} onPress={() => preferences.mutate()} />
   </ActionSheet>
+  {subscription.deliveryMethod === 'TRUSTED_DROP' ? <ActionSheet visible={sheet === 'trustedQr'} title="Trusted Drop QR" onClose={() => setSheet(null)}>
+    <Text style={styles.sheetCopy}>Show this one-time signed QR only at the delivery point. The rider must scan it and capture a fresh delivery photo. Never send the token as text.</Text>
+    {qrImage ? <Image source={{ uri: qrImage }} style={{ width: 280, height: 280, alignSelf: 'center', borderRadius: 18 }} resizeMode="contain" /> : <ActivityIndicator color="#087B5B" />}
+    <Text style={styles.sheetCopy}>{qrExpiresAt ? `Expires ${new Date(qrExpiresAt).toLocaleString('en-IN')}` : ''}</Text>
+    <PrimaryButton label="Rotate QR" busy={showQr.isPending} onPress={() => showQr.mutate(true)} />
+    <Pressable onPress={() => revokeQr.mutate()} style={styles.cancelButton}><ShieldX size={18} color="#A33131" /><Text style={styles.cancelText}>Revoke QR</Text></Pressable>
+  </ActionSheet> : null}
   <ActionSheet visible={sheet === 'cancel'} title="Cancel subscription?" onClose={() => setSheet(null)}>
     <Text style={styles.sheetCopy}>Generated orders remain in the normal order workflow. Future ungenerated occurrences will be cancelled with an audit record.</Text>
     <TextInput value={cancelReason} onChangeText={setCancelReason} placeholder="Reason for cancellation" multiline style={[styles.input, styles.multiline]} />
@@ -145,7 +170,7 @@ export const SubscriptionDetailScreen = () => {
 
 const availableMethods = (subscription: CustomerSubscription): Array<{ value: SubscriptionDeliveryMethod; label: string; copy: string }> => [
   ...(subscription.plan.allowPersonalHandover ? [{ value: 'PERSONAL_HANDOVER' as const, label: 'Personal OTP', copy: 'Customer OTP and GPS proof' }] : []),
-  ...(subscription.plan.allowTrustedDrop ? [{ value: 'TRUSTED_DROP' as const, label: 'Trusted doorstep', copy: 'Secure token and drop proof' }] : []),
+  ...(subscription.plan.allowTrustedDrop ? [{ value: 'TRUSTED_DROP' as const, label: 'Trusted doorstep', copy: 'One-time QR, GPS and photo proof' }] : []),
   ...(subscription.plan.allowSecurityHandover ? [{ value: 'SECURITY_RECEPTION' as const, label: 'Security / reception', copy: 'Named reception handover proof' }] : []),
 ];
 const Info = ({ icon, label, value }: { icon: ReactNode; label: string; value: string }) => <View style={styles.info}>{icon}<View style={styles.flex}><Text style={styles.infoLabel}>{label}</Text><Text style={styles.infoValue}>{value}</Text></View></View>;

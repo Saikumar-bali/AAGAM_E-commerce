@@ -16,7 +16,7 @@ import {
   SubscriptionProofMode,
   prisma,
 } from '@aagam/database';
-import { createHash, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import {
   CancelSubscriptionDto,
   CreateCustomerSubscriptionDto,
@@ -34,6 +34,7 @@ import {
   SubscriptionCalendarService,
 } from './subscription-calendar.service';
 import { nullableJson, requiredJson } from '../common/prisma-json';
+import { SubscriptionServiceabilityService } from './subscription-serviceability.service';
 
 
 type DeliveryMethodPolicy = {
@@ -71,11 +72,10 @@ const ownedInclude = {
 
 @Injectable()
 export class CustomerSubscriptionService {
-  constructor(private readonly calendar: SubscriptionCalendarService) {}
-
-  private tokenHash(token?: string) {
-    return token ? createHash('sha256').update(token.trim()).digest('hex') : null;
-  }
+  constructor(
+    private readonly calendar: SubscriptionCalendarService,
+    private readonly serviceability: SubscriptionServiceabilityService,
+  ) {}
 
   private proofMode(method: SubscriptionDeliveryMethod) {
     if (method === SubscriptionDeliveryMethod.TRUSTED_DROP) {
@@ -90,9 +90,7 @@ export class CustomerSubscriptionService {
   private assertMethodAllowed(plan: DeliveryMethodPolicy, method: SubscriptionDeliveryMethod, dropPointToken?: string) {
     if (method === SubscriptionDeliveryMethod.TRUSTED_DROP) {
       if (!plan.allowTrustedDrop) throw new BadRequestException('Trusted drop is not allowed for this plan');
-      if (!dropPointToken || dropPointToken.trim().length < 6) {
-        throw new BadRequestException('A secure drop-point token is required for trusted drop');
-      }
+      // Trusted Drop credentials are server-managed. Customers never choose or persist the secret.
     }
     if (method === SubscriptionDeliveryMethod.PERSONAL_HANDOVER && !plan.allowPersonalHandover) {
       throw new BadRequestException('Personal handover is not allowed for this plan');
@@ -102,13 +100,6 @@ export class CustomerSubscriptionService {
     }
   }
 
-  private validateStart(startDate: string) {
-    const start = startOfUtcDay(startDate);
-    const today = startOfUtcDay(new Date());
-    if (start < today) throw new BadRequestException('Subscription start date cannot be in the past');
-    if (start > addUtcDays(today, 90)) throw new BadRequestException('Subscription start date is too far in the future');
-    return start;
-  }
 
   private async planForCustomer(planId: string) {
     const now = new Date();
@@ -150,9 +141,26 @@ export class CustomerSubscriptionService {
     const plan = await this.planForCustomer(planId);
     const address = await prisma.customerAddress.findFirst({ where: { id: dto.addressId, userId: customerId } });
     if (!address) throw new NotFoundException('Address not found');
-    this.assertMethodAllowed(plan, dto.deliveryMethod, dto.deliveryMethod === 'TRUSTED_DROP' ? 'quote-token' : undefined);
-    const startDate = this.validateStart(dto.startDate);
-    const dates = this.calendar.buildServiceDates(plan, startDate);
+    this.assertMethodAllowed(plan, dto.deliveryMethod);
+    const provisionalStart = startOfUtcDay(dto.startDate);
+    const dates = this.calendar.buildServiceDates(plan, provisionalStart);
+    const windowStart = dto.deliveryWindowStartMinute ?? plan.defaultWindowStartMinute;
+    const windowEnd = dto.deliveryWindowEndMinute ?? plan.defaultWindowEndMinute;
+    const serviceability = await this.serviceability.resolve({
+      address,
+      serviceDates: dates,
+      deliveryWindowStartMinute: windowStart,
+      deliveryWindowEndMinute: windowEnd,
+      items: plan.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantityPerDelivery,
+        weightGrams: item.product.weightGrams,
+      })),
+      allowedZoneIds: plan.zones.map((entry) => entry.zoneId),
+      allowedStoreIds: plan.stores.map((entry) => entry.storeId),
+      requireWeight: true,
+    });
+    const startDate = this.calendar.validateStartDate(dto.startDate, serviceability.timezone);
     const firstFunding = this.firstFunding(plan);
     return {
       plan: {
@@ -177,8 +185,9 @@ export class CustomerSubscriptionService {
       startDate,
       endDate: dates[dates.length - 1],
       deliveryDates: dates,
-      deliveryWindowStartMinute: dto.deliveryWindowStartMinute ?? plan.defaultWindowStartMinute,
-      deliveryWindowEndMinute: dto.deliveryWindowEndMinute ?? plan.defaultWindowEndMinute,
+      deliveryWindowStartMinute: windowStart,
+      deliveryWindowEndMinute: windowEnd,
+      serviceability,
       deliveryMethod: dto.deliveryMethod,
       firstCashCollectionPaise: firstFunding.amountPaise,
       firstFundingDeliveryCount: firstFunding.fundedDeliveryCount,
@@ -200,12 +209,26 @@ export class CustomerSubscriptionService {
     const plan = await this.planForCustomer(dto.planId);
     const address = await prisma.customerAddress.findFirst({ where: { id: dto.addressId, userId: customerId } });
     if (!address) throw new NotFoundException('Address not found');
-    this.assertMethodAllowed(plan, dto.deliveryMethod, dto.dropPointToken);
-    const startDate = this.validateStart(dto.startDate);
+    this.assertMethodAllowed(plan, dto.deliveryMethod);
+    const provisionalStart = startOfUtcDay(dto.startDate);
     const windowStart = dto.deliveryWindowStartMinute ?? plan.defaultWindowStartMinute;
     const windowEnd = dto.deliveryWindowEndMinute ?? plan.defaultWindowEndMinute;
-    serviceWindow(startDate, windowStart, windowEnd);
-    const dates = this.calendar.buildServiceDates(plan, startDate);
+    const dates = this.calendar.buildServiceDates(plan, provisionalStart);
+    const initialServiceability = await this.serviceability.resolve({
+      address,
+      serviceDates: dates,
+      deliveryWindowStartMinute: windowStart,
+      deliveryWindowEndMinute: windowEnd,
+      items: plan.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantityPerDelivery,
+        weightGrams: item.product.weightGrams,
+      })),
+      allowedZoneIds: plan.zones.map((entry) => entry.zoneId),
+      allowedStoreIds: plan.stores.map((entry) => entry.storeId),
+      requireWeight: true,
+    });
+    const startDate = this.calendar.validateStartDate(dto.startDate, initialServiceability.timezone);
     const version = plan.versions[0];
     const firstFunding = this.firstFunding(plan);
     const requestKey = idempotencyKey?.trim() || randomUUID();
@@ -218,13 +241,30 @@ export class CustomerSubscriptionService {
       });
       if (existingAudit) return this.publicSubscription(existingAudit.subscription);
 
+      const serviceability = await this.serviceability.resolve({
+        address,
+        serviceDates: dates,
+        deliveryWindowStartMinute: windowStart,
+        deliveryWindowEndMinute: windowEnd,
+        items: plan.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantityPerDelivery,
+          weightGrams: item.product.weightGrams,
+        })),
+        allowedZoneIds: plan.zones.map((entry) => entry.zoneId),
+        allowedStoreIds: plan.stores.map((entry) => entry.storeId),
+        preferredStoreId: initialServiceability.storeId,
+        requireWeight: true,
+      }, tx);
+
       const created = await tx.customerSubscription.create({
         data: {
           customerId,
           planId: plan.id,
           planVersionId: version.id,
           addressId: address.id,
-          homeStoreId: plan.stores.length === 1 ? plan.stores[0].storeId : null,
+          homeStoreId: serviceability.storeId,
+          deliveryZoneId: serviceability.zoneId,
           status: CustomerSubscriptionStatus.PENDING_CASH_COLLECTION,
           startDate,
           endDate: dates[dates.length - 1],
@@ -234,7 +274,7 @@ export class CustomerSubscriptionService {
           deliveryWindowEndMinute: windowEnd,
           deliveryMethod: dto.deliveryMethod,
           trustedDropInstructions: dto.trustedDropInstructions?.trim() || null,
-          dropPointTokenHash: this.tokenHash(dto.dropPointToken),
+          dropPointTokenHash: null,
           priceSnapshot: requiredJson({
             pricePaise: version.pricePaise,
             mrpPaise: version.mrpPaise,
@@ -273,8 +313,13 @@ export class CustomerSubscriptionService {
               generationKey: `subscription:${requestKey}:${index + 1}:${serviceDate.toISOString().slice(0, 10)}`,
               cashDuePaise: this.cashDueForSequence(plan, index + 1),
               proofMode: this.proofMode(dto.deliveryMethod),
+              deliveryZoneId: serviceability.zoneId,
+              storeId: serviceability.storeId,
             })),
           },
+          trustedDropCredential: dto.deliveryMethod === SubscriptionDeliveryMethod.TRUSTED_DROP
+            ? { create: { customerId, version: 1 } }
+            : undefined,
         },
         include: ownedInclude,
       });
@@ -288,6 +333,7 @@ export class CustomerSubscriptionService {
             planId: plan.id,
             planVersionId: version.id,
             firstCashCollectionPaise: firstFunding.amountPaise,
+            serviceability: { zoneId: serviceability.zoneId, zoneCode: serviceability.zoneCode, timezone: serviceability.timezone, storeId: serviceability.storeId },
           },
           idempotencyKey: `subscription-create:${customerId}:${requestKey}`,
         },
@@ -337,7 +383,7 @@ export class CustomerSubscriptionService {
   private async assertOwned(customerId: string, id: string) {
     const subscription = await prisma.customerSubscription.findFirst({
       where: { id, customerId },
-      include: { plan: true },
+      include: { plan: true, deliveryZone: true },
     });
     if (!subscription) throw new NotFoundException('Subscription not found');
     return subscription;
@@ -348,7 +394,7 @@ export class CustomerSubscriptionService {
       await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-skip:${subscriptionId}`}))`);
       const subscription = await tx.customerSubscription.findFirst({
         where: { id: subscriptionId, customerId },
-        include: { plan: true },
+        include: { plan: true, deliveryZone: true },
       });
       if (!subscription) throw new NotFoundException('Subscription not found');
       const key = idempotencyKey || `subscription-skip:${deliveryId}`;
@@ -368,7 +414,9 @@ export class CustomerSubscriptionService {
       if (delivery.status !== SubscriptionDeliveryStatus.SCHEDULED) {
         throw new ConflictException('Only an ungenerated scheduled delivery can be skipped');
       }
-      const cutoff = new Date(delivery.serviceDate.getTime() - subscription.plan.skipCutoffHours * 3_600_000);
+      const timezone = subscription.deliveryZone?.timezone || 'Asia/Kolkata';
+      const deliveryWindow = this.calendar.window(delivery.serviceDate, subscription.deliveryWindowStartMinute, subscription.deliveryWindowEndMinute, timezone);
+      const cutoff = new Date(deliveryWindow.start.getTime() - subscription.plan.skipCutoffHours * 3_600_000);
       if (new Date() >= cutoff) throw new BadRequestException('The skip cutoff has passed');
       await tx.subscriptionDelivery.update({
         where: { id: deliveryId },
@@ -511,10 +559,10 @@ export class CustomerSubscriptionService {
   async updatePreferences(customerId: string, id: string, dto: UpdateSubscriptionPreferencesDto, idempotencyKey?: string) {
     const subscription = await this.assertOwned(customerId, id);
     const method = dto.deliveryMethod ?? subscription.deliveryMethod;
-    this.assertMethodAllowed(subscription.plan, method, dto.dropPointToken || (method === 'TRUSTED_DROP' && subscription.dropPointTokenHash ? 'existing-token' : undefined));
+    this.assertMethodAllowed(subscription.plan, method);
     const startMinute = dto.deliveryWindowStartMinute ?? subscription.deliveryWindowStartMinute;
     const endMinute = dto.deliveryWindowEndMinute ?? subscription.deliveryWindowEndMinute;
-    serviceWindow(new Date(), startMinute, endMinute);
+    serviceWindow(new Date(), startMinute, endMinute, subscription.deliveryZone?.timezone || 'Asia/Kolkata');
     return prisma.$transaction(async (tx) => {
       const key = idempotencyKey || `subscription-preferences:${id}:${randomUUID()}`;
       const existing = await tx.subscriptionAuditEntry.findUnique({ where: { idempotencyKey: key } });
@@ -529,7 +577,7 @@ export class CustomerSubscriptionService {
         data: {
           deliveryMethod: method,
           trustedDropInstructions: dto.trustedDropInstructions === undefined ? undefined : dto.trustedDropInstructions.trim() || null,
-          dropPointTokenHash: dto.dropPointToken ? this.tokenHash(dto.dropPointToken) : undefined,
+          dropPointTokenHash: method === SubscriptionDeliveryMethod.TRUSTED_DROP ? null : undefined,
           deliveryWindowStartMinute: startMinute,
           deliveryWindowEndMinute: endMinute,
         },

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import {
   DeliveryResolutionAction,
+  GeofencePhase,
   DeliveryRunStatus,
   DeliveryRunStopStatus,
   PaymentMethod,
@@ -31,6 +32,7 @@ import {
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 import { startOfUtcDay } from './subscription-calendar.service';
 import { isOneOf } from '../common/enum-membership';
+import { TrustedDropService } from './trusted-drop.service';
 
 type Actor = { id: string; role: Role };
 
@@ -40,6 +42,7 @@ export class DeliveryRunOperationsService {
     private readonly workflow: DeliveryWorkflowService,
     private readonly deliveryOperations: DeliveryOperationsService,
     private readonly funding: SubscriptionCashFundingService,
+    private readonly trustedDrop: TrustedDropService,
   ) {}
 
   private async rider(actor: Actor) {
@@ -175,45 +178,53 @@ export class DeliveryRunOperationsService {
 
   async arrive(runId: string, stopId: string, dto: ArriveRunStopDto, actor: Actor) {
     const { rider } = await this.ownedRun(runId, actor);
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-stop-arrive:${stopId}`}))`);
       const stop = await tx.deliveryRunStop.findFirst({
         where: { id: stopId, deliveryRunId: runId, deliveryRun: { riderId: rider.id } },
         include: { deliveryRun: true, deliveryJob: true },
       });
       if (!stop) throw new NotFoundException('Run stop not found');
-      if (stop.status === DeliveryRunStopStatus.ARRIVED) return stop;
+      if (stop.status === DeliveryRunStopStatus.ARRIVED) return { stop };
       if (stop.version !== dto.version) throw new ConflictException('Run stop changed; refresh and try again');
       if (stop.deliveryRun.status !== DeliveryRunStatus.IN_PROGRESS) throw new BadRequestException('Delivery run is not in progress');
       if (!isOneOf(stop.status, [DeliveryRunStopStatus.READY, DeliveryRunStopStatus.PLANNED, DeliveryRunStopStatus.RETRY_PENDING])) {
         throw new BadRequestException(`Stop cannot be marked arrived from ${stop.status}`);
       }
+      if (stop.proofMode === SubscriptionProofMode.TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO) {
+        const geofence = await this.trustedDrop.recordGeofence(tx, {
+          stopId: stop.id, riderId: rider.id, phase: GeofencePhase.ARRIVAL,
+          latitude: dto.latitude, longitude: dto.longitude, accuracyMetres: dto.accuracyMetres,
+        });
+        if (!geofence.passed) return { rejectedGeofence: geofence.proof };
+      }
       if (stop.deliveryJob.status === DeliveryJobStatus.OUT_FOR_DELIVERY) {
         await this.workflow.transitionWithinTransaction(
-          tx,
-          stop.deliveryJobId,
-          DeliveryJobStatus.RIDER_AT_CUSTOMER,
-          actor,
-          {
-            expectedStatus: DeliveryJobStatus.OUT_FOR_DELIVERY,
-            metadata: { deliveryRunId: runId, deliveryRunStopId: stopId },
-          },
+          tx, stop.deliveryJobId, DeliveryJobStatus.RIDER_AT_CUSTOMER, actor,
+          { expectedStatus: DeliveryJobStatus.OUT_FOR_DELIVERY, metadata: { deliveryRunId: runId, deliveryRunStopId: stopId } },
         );
       } else if (stop.deliveryJob.status !== DeliveryJobStatus.RIDER_AT_CUSTOMER) {
         throw new ConflictException('Delivery job is not approaching the customer');
       }
-      return tx.deliveryRunStop.update({
+      const updated = await tx.deliveryRunStop.update({
         where: { id: stop.id },
         data: {
-          status: DeliveryRunStopStatus.ARRIVED,
-          arrivedAt: new Date(),
-          latitude: dto.latitude,
-          longitude: dto.longitude,
-          accuracyMetres: dto.accuracyMetres,
+          status: DeliveryRunStopStatus.ARRIVED, arrivedAt: new Date(),
+          latitude: dto.latitude, longitude: dto.longitude, accuracyMetres: dto.accuracyMetres,
           version: { increment: 1 },
         },
       });
+      return { stop: updated };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    if ('rejectedGeofence' in result && result.rejectedGeofence) {
+      const proof = result.rejectedGeofence;
+      throw new BadRequestException(
+        proof.decision === 'FAIL_ACCURACY'
+          ? `GPS accuracy must be within ${Math.round(proof.allowedRadiusMetres)} metres before Trusted Drop arrival`
+          : `Move within ${Math.round(proof.allowedRadiusMetres)} metres of the delivery point before Trusted Drop arrival`,
+      );
+    }
+    return result.stop;
   }
 
   async issueOtp(runId: string, stopId: string, actor: Actor, idempotencyKey?: string) {
@@ -248,7 +259,7 @@ export class DeliveryRunOperationsService {
         latitude: dto.latitude,
         longitude: dto.longitude,
         accuracyMetres: dto.accuracyMetres,
-        proofReference: dto.proofReference?.trim() || null,
+        proofReference: dto.evidenceId ? `trusted-drop-evidence:${dto.evidenceId}` : null,
         version: { increment: 1 },
       },
     });
@@ -263,7 +274,7 @@ export class DeliveryRunOperationsService {
   }
 
   async complete(runId: string, stopId: string, dto: CompleteRunStopDto, actor: Actor, idempotencyKey?: string) {
-    const { run } = await this.ownedRun(runId, actor);
+    const { rider, run } = await this.ownedRun(runId, actor);
     const stop = run.stops.find((candidate) => candidate.id === stopId);
     if (!stop) throw new NotFoundException('Run stop not found');
     if (stop.status === DeliveryRunStopStatus.DELIVERED) return stop;
@@ -272,6 +283,29 @@ export class DeliveryRunOperationsService {
     const key = idempotencyKey || `run-stop-complete:${stopId}`;
     const deliveryMethod = stop.subscriptionDelivery.subscription.deliveryMethod;
     const payment = stop.deliveryJob.order.payment;
+    let trustedDropChallengeId: string | null = null;
+
+    if (deliveryMethod === SubscriptionDeliveryMethod.TRUSTED_DROP && stop.cashDuePaise === 0) {
+      if (!dto.trustedDropToken) throw new BadRequestException('Scan the current Trusted Drop QR before completing the stop');
+      if (!dto.evidenceId) throw new BadRequestException('Capture and upload a Trusted Drop photo before completing the stop');
+      const completionGeofence = await prisma.$transaction((tx) => this.trustedDrop.recordGeofence(tx, {
+        stopId: stop.id, riderId: rider.id, phase: GeofencePhase.COMPLETION,
+        latitude: dto.latitude, longitude: dto.longitude, accuracyMetres: dto.accuracyMetres,
+      }));
+      if (!completionGeofence.passed) {
+        throw new BadRequestException(
+          completionGeofence.proof.decision === 'FAIL_ACCURACY'
+            ? 'GPS accuracy is not sufficient for Trusted Drop completion'
+            : `Trusted Drop completion is outside the ${Math.round(completionGeofence.proof.allowedRadiusMetres)} metre geofence`,
+        );
+      }
+      const challenge = await prisma.$transaction((tx) => this.trustedDrop.verifyForStop(tx, dto.trustedDropToken!, stop, rider.id));
+      const evidence = await prisma.trustedDropEvidence.findFirst({
+        where: { id: dto.evidenceId, deliveryRunStopId: stop.id, challengeId: challenge.id, riderId: rider.id },
+      });
+      if (!evidence) throw new BadRequestException('Uploaded Trusted Drop evidence does not match this stop and QR');
+      trustedDropChallengeId = challenge.id;
+    }
 
     if (stop.cashDuePaise > 0) {
       if (!dto.otpCode) throw new BadRequestException('Customer OTP is mandatory for cash funding collection');
@@ -312,8 +346,8 @@ export class DeliveryRunOperationsService {
           actor,
           {
             riderConfirmed: dto.riderConfirmed,
-            dropPointToken: dto.dropPointToken || '',
-            proofReference: dto.proofReference || '',
+            evidenceId: dto.evidenceId!,
+            challengeId: trustedDropChallengeId!,
             note: dto.note,
             latitude: dto.latitude,
             longitude: dto.longitude,

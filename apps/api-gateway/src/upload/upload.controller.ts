@@ -45,7 +45,7 @@ const evidenceUploadOptions = {
 function validPrivateKey(storageKey: string) {
   if (!storageKey || storageKey.includes('..') || storageKey.startsWith('/')) return false;
   // Use a simpler, non-backtracking regex to avoid ReDoS vulnerability
-  const safeKeyRegex = /^(evidence|partner-applications|riders|stores)\/[A-Za-z0-9._/-]{3,1000}$/;
+  const safeKeyRegex = /^(evidence|partner-applications|riders|stores|subscription-trusted-drop)\/[A-Za-z0-9._/-]{3,1000}$/;
   return safeKeyRegex.test(storageKey);
 }
 
@@ -105,8 +105,13 @@ export class UploadController {
             },
           }),
         ]);
+        const trustedDrop = await prisma.trustedDropEvidence.findFirst({
+          where: { riderId: rider.id, storageKey },
+          select: { id: true },
+        });
         authorized =
           Boolean(document) ||
+          Boolean(trustedDrop) ||
           tickets.some((ticket: any) => {
             const ticketKeys = Array.isArray(ticket.evidenceKeys) ? ticket.evidenceKeys : [];
             const messageKeys = ticket.messages.flatMap((message: any) =>

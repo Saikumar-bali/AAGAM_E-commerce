@@ -71,6 +71,9 @@ export const NOTIFICATION_EVENT_TYPE_VALUES = [
   "DELIVERY_COMPLETED",
   "DELIVERY_FAILED",
   "DELIVERY_CANCELLED",
+  "ROUTE_ASSIGNED",
+  "ROUTE_REMOVED",
+  "SUBSCRIPTION_WORKER_FAILED",
   "ADMIN_BROADCAST",
 ] as const;
 export const PUSH_PROVIDER_VALUES = [
@@ -278,6 +281,7 @@ export interface NotificationOutboxPayloadDto {
   deliveryJobId?: string;
   assignmentId?: string;
   riderUserId?: string;
+  storeId?: string;
   actorUserId?: string;
   actorRole?: RoleType;
   fromStatus?: string | null;
