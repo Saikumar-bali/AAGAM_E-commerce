@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { CustomerStackParamList } from './customerNavigationTypes';
@@ -25,12 +26,19 @@ import { SubscriptionPlansScreen } from '../screens/customer/SubscriptionPlansSc
 import { SubscriptionReviewScreen } from '../screens/customer/SubscriptionReviewScreen';
 import { MySubscriptionsScreen } from '../screens/customer/MySubscriptionsScreen';
 import { SubscriptionDetailScreen } from '../screens/customer/SubscriptionDetailScreen';
+import { AagamBrand } from '../components/AagamBrand';
 import { useCartStore } from '../store/cartStore';
 import { getCartItemCount } from '../utils/customerCommerce';
 import { CustomerBottomNav, CustomerScreenWithNav } from '../components/CustomerBottomNav';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator<CustomerStackParamList>();
+
+const CategoriesBrandHeader = () => (
+  <View style={styles.categoriesBrandHeader}>
+    <AagamBrand size={42} />
+  </View>
+);
 
 const CustomerTabs = () => {
   const cartItemsCount = useCartStore((state) => getCartItemCount(state.items));
@@ -56,6 +64,8 @@ const CustomerTabs = () => {
         name="Categories"
         component={ShopScreen}
         options={{
+          headerShown: true,
+          header: CategoriesBrandHeader,
           tabBarIcon: ({ color, size }) => <Grid2X2 size={size} color={color} />,
         }}
       />
@@ -170,3 +180,15 @@ export const CustomerNavigator = () => {
     </Stack.Navigator>
   );
 };
+
+const styles = StyleSheet.create({
+  categoriesBrandHeader: {
+    minHeight: 62,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#DDE7EA',
+    backgroundColor: '#FFFFFF',
+  },
+});
