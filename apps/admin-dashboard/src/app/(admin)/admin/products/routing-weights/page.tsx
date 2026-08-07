@@ -31,7 +31,7 @@ export default function ProductRoutingWeightsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<Filter>('missing');
+  const [filter, setFilter] = useState<Filter>('all');
 
   const load = async () => {
     setLoading(true);
@@ -139,7 +139,7 @@ export default function ProductRoutingWeightsPage() {
         <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center">
             <div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input aria-label="Search products" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search product, category or ID" className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500" /></div>
-            <select aria-label="Routing weight filter" value={filter} onChange={(event) => setFilter(event.target.value as Filter)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700"><option value="missing">Missing weight first</option><option value="all">All products</option><option value="ready">Routing-ready</option></select>
+            <select aria-label="Routing weight filter" value={filter} onChange={(event) => setFilter(event.target.value as Filter)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700"><option value="all">All · missing first</option><option value="missing">Missing only</option><option value="ready">Routing-ready only</option></select>
           </div>
 
           {error ? <div className="border-b border-red-100 bg-red-50 px-5 py-3 text-sm font-bold text-red-700">{error}</div> : null}
