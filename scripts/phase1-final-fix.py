@@ -28,4 +28,10 @@ replace(
     "expect(customer.match(/this\\.resolveServiceability\\(\\{/g)?.length).toBe(2);",
 )
 
+replace(
+    'apps/api-gateway/src/subscription-release-hardening-phase1.contract.spec.ts',
+    "expect(generator).toContain('SERVICEABILITY_DEFERRED');",
+    "expect(generator).toContain('SubscriptionServiceabilityError');",
+)
+
 print('Phase 1 final redaction and contract corrections applied')
