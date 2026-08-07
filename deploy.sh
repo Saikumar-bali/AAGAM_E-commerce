@@ -157,6 +157,86 @@ ensure_deploy_memory() {
   fi
 }
 
+redis_target_host() {
+  REDIS_URL="$REDIS_URL" node -e '
+    const target = new URL(process.env.REDIS_URL);
+    process.stdout.write(target.hostname);
+  '
+}
+
+redis_tcp_ready() {
+  REDIS_URL="$REDIS_URL" node - <<'NODE'
+const net = require('node:net');
+const target = new URL(process.env.REDIS_URL);
+const port = Number(target.port || 6379);
+const socket = net.createConnection({ host: target.hostname, port });
+let settled = false;
+const finish = (ok) => {
+  if (settled) return;
+  settled = true;
+  socket.destroy();
+  process.exit(ok ? 0 : 1);
+};
+socket.setTimeout(1500);
+socket.once('connect', () => finish(true));
+socket.once('timeout', () => finish(false));
+socket.once('error', () => finish(false));
+NODE
+}
+
+ensure_redis_runtime() {
+  if redis_tcp_ready; then
+    echo "Redis endpoint is reachable before deployment."
+    return
+  fi
+
+  local redis_host
+  redis_host="$(redis_target_host)"
+  case "$redis_host" in
+    localhost|127.0.0.1|::1) ;;
+    *)
+      echo "Configured external Redis endpoint is unreachable: ${redis_host}."
+      echo "Deployment will not attempt to manage a remote Redis service."
+      exit 1
+      ;;
+  esac
+
+  require_command systemctl
+  require_command sudo
+  if ! sudo -n true >/dev/null 2>&1; then
+    echo "Local Redis is stopped and passwordless sudo is required to start it."
+    echo "Allow the deployment user to start redis-server.service (or redis.service)."
+    exit 1
+  fi
+
+  local service_name
+  local started=false
+  for service_name in redis-server redis; do
+    if systemctl list-unit-files --type=service --no-legend "${service_name}.service" 2>/dev/null | grep -q "^${service_name}\\.service"; then
+      echo "Local Redis is stopped; starting ${service_name}.service."
+      sudo -n systemctl start "${service_name}.service"
+      started=true
+      break
+    fi
+  done
+
+  if [[ "$started" != true ]]; then
+    echo "Local REDIS_URL is configured, but no redis-server.service or redis.service unit exists."
+    exit 1
+  fi
+
+  for attempt in $(seq 1 10); do
+    if redis_tcp_ready; then
+      echo "Redis endpoint became reachable after starting ${service_name}.service."
+      return
+    fi
+    sleep 1
+  done
+
+  echo "Redis service was started, but ${REDIS_URL} did not become reachable."
+  exit 1
+}
+
 for command_name in git curl tar sha256sum uname flock awk grep; do
   require_command "$command_name"
 done
@@ -214,6 +294,7 @@ node --version
 npm --version
 
 npm run check:env:prod
+ensure_redis_runtime
 ensure_deploy_memory
 
 # Build tooling is stored in devDependencies, so production deployment must
