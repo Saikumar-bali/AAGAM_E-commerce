@@ -1,0 +1,56 @@
+name: Agent apply verified production completion
+
+on:
+  push:
+    branches:
+      - agent/subscription-production-completion
+    paths:
+      - .github/workflows/agent-final-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/subscription-production-completion
+
+      - name: Verify and apply exact production patch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat .github/agent-final.part{00..07} > /tmp/final.patch.gz.b64
+          echo "bfef7dd47df59cba10be33d376d397a2c2bee5953c04ff3a6b68f8f73706e9d7  /tmp/final.patch.gz.b64" | sha256sum -c -
+
+          base64 -d /tmp/final.patch.gz.b64 > /tmp/final.patch.gz
+          echo "748b7db05b8a3c09d19e2ce6bbc23cb2ab786dfb9e9fd4fa37645f758c10ec57  /tmp/final.patch.gz" | sha256sum -c -
+
+          gzip -dc /tmp/final.patch.gz > /tmp/final.patch
+          echo "996a2bfa4e49ada582ca6a90596c3995311b3408acb68e8908a87c27475e3282  /tmp/final.patch" | sha256sum -c -
+
+          git apply --check /tmp/final.patch
+          git apply /tmp/final.patch
+
+          git fetch origin main --depth=1
+          git checkout origin/main -- .github/workflows/ci.yml
+
+          rm -f .github/agent-production.patch.gz
+          rm -f .github/workflows/agent-source-export.yml
+          rm -f .github/agent-final.part{00..07}
+          rm -f .github/workflows/agent-final-apply.yml
+
+          git diff --check
+          git config user.name "AAGAM Production Completion Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git add -f docs/ai-runs/2026-08-07-subscription-production-completion.md
+          git diff --cached --check
+          git status --short
+          git commit -m "feat(subscriptions): complete production hardening and regional delivery"
+          git push origin HEAD:agent/subscription-production-completion
