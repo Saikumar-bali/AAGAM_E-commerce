@@ -195,7 +195,7 @@ export default function RiderRunsPage() {
     const gps = await coordinates();
     await apiClient.post(`/rider/delivery-runs/${activeRun?.id}/stops/${stop.id}/complete`, {
       ...gps, version: stop.version, riderConfirmed: true, otpCode: trusted ? undefined : otpCode,
-      dropPointToken: trusted ? dropToken.trim() : undefined, proofReference: trusted ? proofReference.trim() : undefined,
+      trustedDropToken: trusted ? dropToken.trim() : undefined, proofReference: trusted ? proofReference.trim() : undefined,
       cashCollectedPaise: stop.cashDuePaise > 0 ? stop.cashDuePaise : undefined, note: note.trim() || undefined,
     }, { headers: { 'Idempotency-Key': `web-complete:${stop.id}:v${stop.version}` } });
     setSelectedStop(null); setOtpCode(''); setDropToken(''); setProofReference(''); setNote('');
