@@ -19,6 +19,9 @@ import {
   PartnerApplicationType,
 } from './partner-onboarding.types';
 
+const ADMIN_INTERNAL_CONTACT_REASON_PREFIX =
+  'Identity supplied and managed by an authenticated AAGAM Admin.';
+
 @Injectable()
 export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboardingAdminService {
   constructor(
@@ -155,6 +158,20 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
       finalOwnerId,
     );
     const payload = application.applicantPayload || {};
+    const isAdminInternal = Boolean(
+      application.contactVerifiedByUserId &&
+      application.contactVerificationReason?.startsWith(
+        ADMIN_INTERNAL_CONTACT_REASON_PREFIX,
+      ),
+    );
+    const candidatePasswordHash =
+      typeof payload.adminInitialPasswordHash === 'string'
+        ? payload.adminInitialPasswordHash
+        : '';
+    const adminInitialPasswordHash =
+      isAdminInternal && /^\$2[aby]\$\d{2}\$.{53}$/.test(candidatePasswordHash)
+        ? candidatePasswordHash
+        : null;
     const operationalCode =
       application.type === PartnerApplicationType.RIDER
         ? application.applicationNumber.replace('AAG-', '')
@@ -168,16 +185,17 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
         if (!existingUser) {
           await tx.$executeRawUnsafe(
             `INSERT INTO "User" (
-              "id", "email", "phone", "name", "role", "emailVerified",
+              "id", "email", "phone", "name", "role", "password", "emailVerified",
               "phoneVerifiedAt", "accountStatus", "mustChangePassword", "operationalCode",
               "createdAt", "updatedAt"
-            ) VALUES ($1,$2,$3,$4,$5::"Role",$6,$7,$8::"PartnerAccountStatus",false,$9,
+            ) VALUES ($1,$2,$3,$4,$5::"Role",$6,$7,$8,$9::"PartnerAccountStatus",false,$10,
                       CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
             userId,
             accountEmail,
             application.phoneE164,
             dto.operationalName?.trim() || application.applicantName,
             targetRole,
+            adminInitialPasswordHash,
             Boolean(requestedEmail && application.emailVerifiedAt),
             application.phoneVerifiedAt,
             directPhoneLogin ? 'ACTIVE' : 'PENDING_ACTIVATION',
@@ -356,6 +374,9 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
               role: targetRole,
               operationalCode,
               directPhoneLogin,
+              initialPasswordApplied: Boolean(
+                adminInitialPasswordHash && !existingUser,
+              ),
             },
           },
         );

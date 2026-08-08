@@ -73,6 +73,18 @@ async function phoneLogin(request: APIRequestContext, phoneE164: string) {
   return verify.json();
 }
 
+async function passwordLogin(
+  request: APIRequestContext,
+  identifier: string,
+  password: string,
+) {
+  const login = await request.post(`${API_BASE}/auth/mobile/login`, {
+    data: { identifier, password },
+  });
+  expect(login.ok(), await login.text()).toBeTruthy();
+  return login.json();
+}
+
 async function createAndApprove(
   request: APIRequestContext,
   token: string,
@@ -81,17 +93,19 @@ async function createAndApprove(
 ) {
   const phoneE164 = uniquePhone(offset);
   const email = uniqueEmail(type, offset);
+  const initialPassword = type === 'STORE' ? `Store#${Date.now()}Aa` : undefined;
   const applicantName = type === 'RIDER' ? `Internal Rider ${Date.now()}` : `Internal Store Owner ${Date.now()}`;
   const zoneName = type === 'RIDER' ? await activeZone(request, token) : undefined;
 
   const create = await request.post(`${API_BASE}/admin/partner-onboarding/internal-applications`, {
     headers: { Authorization: `Bearer ${token}` },
-    data: { type, applicantName, phoneE164, email },
+    data: { type, applicantName, phoneE164, email, password: initialPassword },
   });
   expect(create.ok(), await create.text()).toBeTruthy();
   const created = await create.json();
   expect(created.application.status).toBe('DRAFT');
   expect(created.application.phoneVerifiedAt).toBeTruthy();
+  expect(created.application.applicantPayload.adminInitialPasswordHash).toBeUndefined();
   const applicationId = created.application.id as string;
 
   const payload = type === 'RIDER'
@@ -142,6 +156,7 @@ async function createAndApprove(
   expect(updated.application.phoneVerifiedAt).toBeTruthy();
   expect(updated.application.applicantPayload.bankAccountNumber).toBeUndefined();
   expect(updated.application.applicantPayload.bankIfsc).toBeUndefined();
+  expect(updated.application.applicantPayload.adminInitialPasswordHash).toBeUndefined();
   expect(updated.application.applicantPayload.bankAccountLast4).toBe(type === 'RIDER' ? '9012' : '1012');
   if (type === 'RIDER') expect(updated.application.applicantPayload.preferredZones).toContain(zoneName);
 
@@ -165,6 +180,7 @@ async function createAndApprove(
   const submitted = await submit.json();
   expect(submitted.application.status).toBe('UNDER_REVIEW');
   expect(submitted.application.phoneVerifiedAt).toBeTruthy();
+  expect(submitted.application.applicantPayload.adminInitialPasswordHash).toBeUndefined();
   expect(submitted.requirements.completionPercent).toBe(100);
 
   const verifyAll = await request.post(
@@ -192,7 +208,7 @@ async function createAndApprove(
   expect(approved.application.provisionedUserId).toBeTruthy();
   if (type === 'STORE') expect(approved.application.provisionedStoreId).toBeTruthy();
 
-  return { phoneE164, applicationId };
+  return { phoneE164, email, initialPassword, applicationId };
 }
 
 test.describe.serial('Admin internal Partner onboarding', () => {
@@ -203,10 +219,15 @@ test.describe.serial('Admin internal Partner onboarding', () => {
     expect(session.user.roles).toEqual(expect.arrayContaining(['CUSTOMER', 'RIDER']));
   });
 
-  test('Admin can create and provision a Store without onboarding OTP', async ({ request }) => {
+  test('Admin can create a Store with an initial password and provision full Store Owner access', async ({ request }) => {
     const token = await adminBearer(request);
     const store = await createAndApprove(request, token, 'STORE', 102);
-    const session = await phoneLogin(request, store.phoneE164);
-    expect(session.user.roles).toEqual(expect.arrayContaining(['CUSTOMER', 'STORE_OWNER']));
+    expect(store.initialPassword).toBeTruthy();
+
+    const passwordSession = await passwordLogin(request, store.email, store.initialPassword!);
+    expect(passwordSession.user.roles).toEqual(expect.arrayContaining(['CUSTOMER', 'STORE_OWNER']));
+
+    const otpSession = await phoneLogin(request, store.phoneE164);
+    expect(otpSession.user.roles).toEqual(expect.arrayContaining(['CUSTOMER', 'STORE_OWNER']));
   });
 });

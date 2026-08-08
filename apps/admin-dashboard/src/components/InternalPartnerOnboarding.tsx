@@ -215,7 +215,14 @@ export function InternalPartnerCreateButton({ onCreated, fixedType, buttonLabel 
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ type: fixedType || 'RIDER' as ApplicationType, applicantName: '', phoneE164: '', email: '' });
+  const [form, setForm] = useState({
+    type: fixedType || 'RIDER' as ApplicationType,
+    applicantName: '',
+    phoneE164: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
 
   useEffect(() => {
     if (fixedType) setForm((current) => ({ ...current, type: fixedType }));
@@ -230,6 +237,14 @@ export function InternalPartnerCreateButton({ onCreated, fixedType, buttonLabel 
       toast.warning('Enter the operational email used for Rider/Store access.', 'Operational email required');
       return;
     }
+    if (form.password && form.password.length < 8) {
+      toast.warning('Initial password must be at least 8 characters.', 'Password too short');
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      toast.warning('Password and confirmation do not match.', 'Check initial password');
+      return;
+    }
     setSubmitting(true);
     try {
       const response = await apiClient.post('/admin/partner-onboarding/internal-applications', {
@@ -237,14 +252,27 @@ export function InternalPartnerCreateButton({ onCreated, fixedType, buttonLabel 
         applicantName: form.applicantName.trim(),
         phoneE164: form.phoneE164.trim(),
         email: form.email.trim(),
+        password: form.password || undefined,
         payload: form.type === 'RIDER'
           ? { vehicleType: 'MOTORCYCLE', availability: 'Full day' }
           : undefined,
       });
-      toast.success('No OTP is required. Complete the profile and upload the mandatory documents.', 'Admin partner created');
+      toast.success(
+        form.password
+          ? 'Initial password saved securely. Complete the profile and documents before approval.'
+          : 'No OTP is required. Complete the profile and upload the mandatory documents.',
+        'Admin partner created',
+      );
       onCreated(response.data);
       setOpen(false);
-      setForm({ type: fixedType || 'RIDER', applicantName: '', phoneE164: '', email: '' });
+      setForm({
+        type: fixedType || 'RIDER',
+        applicantName: '',
+        phoneE164: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+      });
     } catch {
       // Global interceptor renders the exact API error as a toast.
     } finally {
@@ -282,6 +310,11 @@ export function InternalPartnerCreateButton({ onCreated, fixedType, buttonLabel 
               <InputField label={currentType === 'RIDER' ? 'Rider name' : 'Owner / applicant name'} value={form.applicantName} onChange={(value) => setForm((current) => ({ ...current, applicantName: value }))} />
               <InputField label="Primary mobile" value={form.phoneE164} onChange={(value) => setForm((current) => ({ ...current, phoneE164: value.replace(/[^+0-9]/g, '') }))} placeholder="10-digit mobile or +91…" />
               <InputField label="Operational email" value={form.email} onChange={(value) => setForm((current) => ({ ...current, email: value }))} type="email" placeholder="Used for the operational account" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <InputField label="Initial password (optional)" value={form.password} onChange={(value) => setForm((current) => ({ ...current, password: value }))} type="password" placeholder="Minimum 8 characters" />
+                <InputField label="Confirm password" value={form.confirmPassword} onChange={(value) => setForm((current) => ({ ...current, confirmPassword: value }))} type="password" placeholder="Re-enter password" />
+              </div>
+              <p className="text-[11px] font-semibold leading-5 text-slate-500">If you set a password, the newly approved {currentType === 'RIDER' ? 'Rider' : 'Store Owner'} can sign in with it in addition to phone OTP. Leave both password fields blank to keep OTP-only access. Existing accounts keep their current password.</p>
             </div>
             <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-800">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /> No OTP step. Admin-created identity is automatically attested and audited.
