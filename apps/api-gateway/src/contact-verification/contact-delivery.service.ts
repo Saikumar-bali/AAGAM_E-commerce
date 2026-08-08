@@ -1,4 +1,5 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { WhatsAppCloudService } from '../whatsapp-webhook/whatsapp-cloud.service';
 
 export type ContactOtpChannel = 'PHONE' | 'EMAIL';
 export type ContactOtpPurpose = 'CUSTOMER_LOGIN' | 'CUSTOMER_SIGNUP' | 'PARTNER_RESUME';
@@ -14,12 +15,14 @@ export type ContactDeliveryInput = {
 };
 
 export type ContactDeliveryResult = {
-  provider: 'QA' | 'TWILIO' | 'MAILJET' | 'RESEND';
+  provider: 'QA' | 'TWILIO' | 'WHATSAPP' | 'MAILJET' | 'RESEND';
   deliveryId: string;
 };
 
 @Injectable()
 export class ContactDeliveryService {
+  constructor(private readonly whatsapp: WhatsAppCloudService) {}
+
   async deliver(input: ContactDeliveryInput): Promise<ContactDeliveryResult> {
     if (process.env.NODE_ENV === 'test' || process.env.PLAYWRIGHT_QA === 'true') {
       return { provider: 'QA', deliveryId: `qa-${input.correlationId}` };
@@ -28,6 +31,33 @@ export class ContactDeliveryService {
   }
 
   private async sendSms(input: ContactDeliveryInput): Promise<ContactDeliveryResult> {
+    const provider = (process.env.PARTNER_SMS_PROVIDER || 'TWILIO').trim().toUpperCase();
+    if (provider === 'WHATSAPP') return this.sendWhatsApp(input);
+    if (provider !== 'TWILIO') {
+      throw new ServiceUnavailableException({
+        message: 'Phone verification provider is not supported',
+        code: 'PHONE_PROVIDER_INVALID',
+        correlationId: input.correlationId,
+      });
+    }
+    return this.sendTwilio(input);
+  }
+
+  private async sendWhatsApp(input: ContactDeliveryInput): Promise<ContactDeliveryResult> {
+    try {
+      const result = await this.whatsapp.sendOtp(input.destination, input.code);
+      return { provider: 'WHATSAPP', deliveryId: result.messageId };
+    } catch (error: any) {
+      const response = typeof error?.getResponse === 'function' ? error.getResponse() : {};
+      throw new ServiceUnavailableException({
+        message: response?.message || 'WhatsApp verification could not be delivered',
+        code: this.safeCode(response?.code, 'WHATSAPP_DELIVERY_FAILED'),
+        correlationId: input.correlationId,
+      });
+    }
+  }
+
+  private async sendTwilio(input: ContactDeliveryInput): Promise<ContactDeliveryResult> {
     const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
     const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
     // WILIO_FROM_PHONE is accepted temporarily because an earlier setup guide contained
