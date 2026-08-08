@@ -47,56 +47,83 @@ try {
 }
 
 const vulnerabilities = report.vulnerabilities || {};
-const memo = new Map();
+const names = Object.keys(vulnerabilities);
+const advisoryUrls = new Map(names.map((name) => [name, new Set()]));
+const unresolvedVia = new Map(names.map((name) => [name, new Set()]));
 
-function advisoryUrlsFor(name, visiting = new Set()) {
-  if (memo.has(name)) return memo.get(name);
-  const vulnerability = vulnerabilities[name];
-  if (!vulnerability) return new Set();
-  if (visiting.has(name)) return new Set();
-
-  const nextVisiting = new Set(visiting);
-  nextVisiting.add(name);
-  const urls = new Set();
-
-  for (const via of vulnerability.via || []) {
+// Seed each node with advisories attached directly by npm. Keep unknown string
+// dependencies fail-closed instead of silently treating them as compensated.
+for (const name of names) {
+  for (const via of vulnerabilities[name].via || []) {
     if (typeof via === 'object' && via && typeof via.url === 'string') {
-      urls.add(via.url);
-      continue;
-    }
-    if (typeof via === 'string') {
-      if (!vulnerabilities[via]) {
-        urls.add(`unresolved:${via}`);
-        continue;
-      }
-      for (const url of advisoryUrlsFor(via, nextVisiting)) urls.add(url);
+      advisoryUrls.get(name).add(via.url);
+    } else if (typeof via === 'string' && !vulnerabilities[via]) {
+      unresolvedVia.get(name).add(via);
     }
   }
+}
 
-  memo.set(name, urls);
-  return urls;
+// npm audit dependency graphs may contain cycles (for example Metro packages).
+// Propagate advisory URLs to a fixed point so cycles cannot hide the root CVE.
+let changed = true;
+let passes = 0;
+const maxPasses = Math.max(1, names.length * names.length + 1);
+while (changed && passes < maxPasses) {
+  changed = false;
+  passes += 1;
+
+  for (const name of names) {
+    const target = advisoryUrls.get(name);
+    for (const via of vulnerabilities[name].via || []) {
+      if (typeof via !== 'string' || !vulnerabilities[via]) continue;
+      for (const url of advisoryUrls.get(via)) {
+        if (!target.has(url)) {
+          target.add(url);
+          changed = true;
+        }
+      }
+      for (const unresolved of unresolvedVia.get(via)) {
+        if (!unresolvedVia.get(name).has(unresolved)) {
+          unresolvedVia.get(name).add(unresolved);
+          changed = true;
+        }
+      }
+    }
+  }
+}
+
+if (changed) {
+  console.error('Dependency advisory graph did not converge; refusing to allow audit exceptions.');
+  process.exit(1);
 }
 
 const blocked = [];
 const compensated = [];
 for (const [name, vulnerability] of Object.entries(vulnerabilities)) {
-  const urls = advisoryUrlsFor(name);
+  const urls = advisoryUrls.get(name);
+  const unknown = unresolvedVia.get(name);
   const urlList = [...urls];
+  const unknownList = [...unknown];
   const isCompensated =
+    unknownList.length === 0 &&
     urlList.length > 0 &&
     urlList.every((url) => ALLOWED_PATCHED_ADVISORIES.has(url));
 
   if (isCompensated) {
     compensated.push({ name, severity: vulnerability.severity, urls: urlList });
   } else {
-    blocked.push({ name, severity: vulnerability.severity, urls: urlList });
+    blocked.push({ name, severity: vulnerability.severity, urls: urlList, unknown: unknownList });
   }
 }
 
 if (blocked.length > 0) {
   console.error('Unmitigated npm advisories remain:');
   for (const item of blocked) {
-    console.error(`- ${item.name} [${item.severity}] ${item.urls.join(', ') || '(no resolved advisory URL)'}`);
+    const details = [
+      ...item.urls,
+      ...item.unknown.map((name) => `unresolved:${name}`),
+    ];
+    console.error(`- ${item.name} [${item.severity}] ${details.join(', ') || '(no resolved advisory URL)'}`);
   }
   process.exit(1);
 }
@@ -105,7 +132,7 @@ const directImageSize = vulnerabilities['image-size'];
 if (!directImageSize) {
   console.log('npm audit reports no vulnerabilities. Local image-size patch remains fail-closed until the dependency is upgraded/removed.');
 } else {
-  const directUrls = advisoryUrlsFor('image-size');
+  const directUrls = advisoryUrls.get('image-size');
   if (
     directUrls.size !== ALLOWED_PATCHED_ADVISORIES.size ||
     [...ALLOWED_PATCHED_ADVISORIES].some((url) => !directUrls.has(url))
