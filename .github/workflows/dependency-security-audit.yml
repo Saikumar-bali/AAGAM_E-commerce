@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   npm-audit:
-    name: npm high/critical audit
+    name: npm integrity + high/critical audit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -27,17 +27,29 @@ jobs:
           node-version: "22.22.3"
           cache: npm
 
+      - name: Install locked dependencies without lifecycle scripts
+        shell: bash
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Verify npm registry signatures and provenance
+        shell: bash
+        run: |
+          set -o pipefail
+          npm audit signatures 2>&1 | tee npm-signatures.log
+
       - name: Audit locked dependencies
         shell: bash
         run: |
           set -o pipefail
           npm audit --package-lock-only --audit-level=high 2>&1 | tee npm-audit.log
 
-      - name: Upload dependency audit report
+      - name: Upload dependency security reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: npm-security-audit
-          path: npm-audit.log
-          if-no-files-found: error
+          path: |
+            npm-signatures.log
+            npm-audit.log
+          if-no-files-found: warn
           retention-days: 14
