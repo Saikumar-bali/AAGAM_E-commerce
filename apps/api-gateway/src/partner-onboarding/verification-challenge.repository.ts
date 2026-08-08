@@ -48,6 +48,7 @@ export class VerificationChallengeRepository {
       tokenJti?: string | null;
       verifiedAt?: Date | null;
       incrementAttempt?: boolean;
+      provider?: VerificationProvider | null;
     } = {},
     db: any = prisma,
   ) {
@@ -59,6 +60,7 @@ export class VerificationChallengeRepository {
            "tokenJti" = COALESCE($5, "tokenJti"),
            "verifiedAt" = COALESCE($6, "verifiedAt"),
            "attemptCount" = "attemptCount" + CASE WHEN $7 THEN 1 ELSE 0 END,
+           "provider" = COALESCE($8::"VerificationProvider", "provider"),
            "updatedAt" = CURRENT_TIMESTAMP
        WHERE "id" = $1`,
       id,
@@ -68,6 +70,7 @@ export class VerificationChallengeRepository {
       options.tokenJti ?? null,
       options.verifiedAt ?? null,
       options.incrementAttempt === true,
+      options.provider ?? null,
     );
   }
 
