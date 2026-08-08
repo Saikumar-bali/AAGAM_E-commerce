@@ -1,9 +1,6 @@
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { getApps, initializeApp } from 'firebase-admin/app';
-import {
-  getPhoneNumberVerification,
-  PhoneNumberVerificationToken,
-} from 'firebase-admin/phone-number-verification';
+import type { PhoneNumberVerificationToken } from 'firebase-admin/phone-number-verification';
 
 export class FirebasePnvTokenException extends BadRequestException {
   constructor(readonly safeCode: string, message: string) {
@@ -21,6 +18,13 @@ export class FirebasePnvVerificationService {
     const app =
       getApps().find((candidate) => candidate.name === 'aagam-pnv') ||
       initializeApp({ projectId }, 'aagam-pnv');
+
+    // Firebase Admin v14's PNV verifier reaches an ESM-only JOSE dependency.
+    // Keep that runtime boundary lazy so unrelated CommonJS/Jest service tests do
+    // not execute the verifier dependency merely by importing application modules.
+    const { getPhoneNumberVerification } = await import(
+      'firebase-admin/phone-number-verification'
+    );
     return getPhoneNumberVerification(app).verifyToken(token);
   }
 
