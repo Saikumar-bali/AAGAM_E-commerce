@@ -392,7 +392,13 @@ export class PartnerVerificationService {
   }
 
   async createPnvChallenge(id: string, accessToken: string) {
-    if (this.phoneMode() !== 'PNV_FIRST') {
+    const mode = this.phoneMode();
+    if (mode === 'EMAIL_ONLY') {
+      throw new BadRequestException(
+        'Phone verification is temporarily unavailable. Use email verification.',
+      );
+    }
+    if (mode !== 'PNV_FIRST') {
       throw new BadRequestException(
         'Firebase PNV is unavailable in the selected phone verification mode',
       );
@@ -432,7 +438,13 @@ export class PartnerVerificationService {
   }
 
   async verifyPnv(id: string, accessToken: string, token: string) {
-    if (this.phoneMode() !== 'PNV_FIRST') {
+    const mode = this.phoneMode();
+    if (mode === 'EMAIL_ONLY') {
+      throw new BadRequestException(
+        'Phone verification is temporarily unavailable. Use email verification.',
+      );
+    }
+    if (mode !== 'PNV_FIRST') {
       throw new BadRequestException(
         'Firebase PNV is unavailable in the selected phone verification mode',
       );
