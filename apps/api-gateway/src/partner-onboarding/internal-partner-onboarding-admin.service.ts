@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { prisma } from '@aagam/database';
+import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import { UploadService } from '../upload/upload.service';
 import { normalizePhoneE164 } from '../contact-verification/contact-otp.service';
@@ -64,6 +65,18 @@ export class InternalPartnerOnboardingAdminService {
         'Internal application details and documents can only be changed while Draft or Action Required',
       );
     }
+  }
+
+  private async protectAdminPayload(
+    existing: Record<string, any>,
+    incoming: Record<string, any>,
+    password?: string,
+  ) {
+    const merged = { ...existing, ...incoming };
+    if (password) {
+      merged.adminInitialPasswordHash = await bcrypt.hash(password, 10);
+    }
+    return this.security.protectPayload(merged);
   }
 
   private async assertUniqueApplicationContact(
@@ -167,7 +180,7 @@ export class InternalPartnerOnboardingAdminService {
     const id = randomUUID();
     const applicationNumber = this.applicationNumber(dto.type);
     const internalSecret = this.security.issueAccessToken();
-    const payload = this.security.protectPayload(dto.payload || {});
+    const payload = await this.protectAdminPayload({}, dto.payload || {}, dto.password);
 
     await prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
@@ -200,6 +213,7 @@ export class InternalPartnerOnboardingAdminService {
           primaryContact: 'PHONE',
           contactAuthority: 'ADMIN_ATTESTED',
           otpRequired: false,
+          initialPasswordConfigured: Boolean(dto.password),
         },
       });
       await this.repository.writeEvent(tx, id, 'CONTACT_VERIFIED_BY_ADMIN', 'ADMIN', {
@@ -236,10 +250,11 @@ export class InternalPartnerOnboardingAdminService {
         : dto.email.trim().toLowerCase() || null;
     await this.assertUniqueApplicationContact(nextEmail, nextPhone, id);
 
-    const payload = this.security.protectPayload({
-      ...(application.applicantPayload || {}),
-      ...(dto.payload || {}),
-    });
+    const payload = await this.protectAdminPayload(
+      application.applicantPayload || {},
+      dto.payload || {},
+      dto.password,
+    );
     const phoneChanged = nextPhone !== application.phoneE164;
     const emailChanged = nextEmail !== application.email;
 
@@ -269,8 +284,9 @@ export class InternalPartnerOnboardingAdminService {
         message: 'Internal partner application details updated by Admin.',
         metadata: {
           source: 'ADMIN_INTERNAL',
-          changedCoreFields: Object.keys(dto).filter((key) => key !== 'payload'),
+          changedCoreFields: Object.keys(dto).filter((key) => key !== 'payload' && key !== 'password'),
           changedPayloadFields: Object.keys(dto.payload || {}),
+          initialPasswordUpdated: Boolean(dto.password),
         },
       });
       if (phoneChanged || !application.phoneVerifiedAt) {
