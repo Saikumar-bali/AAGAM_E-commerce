@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef } from 'react';
-import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
-import L, { type Marker as LeafletMarker } from 'leaflet';
+import React, { useEffect, useRef } from 'react';
+import L, { type Map as LeafletMap, type Marker as LeafletMarker } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 const pinIcon = L.divIcon({
@@ -18,60 +17,71 @@ type Props = {
   onChange: (latitude: number, longitude: number) => void;
 };
 
-function Recenter({ latitude, longitude }: Pick<Props, 'latitude' | 'longitude'>) {
-  const map = useMap();
-  useEffect(() => {
-    map.setView([latitude, longitude], Math.max(map.getZoom(), 17), { animate: true });
-  }, [latitude, longitude, map]);
-  return null;
-}
-
-function MapClick({ onChange }: Pick<Props, 'onChange'>) {
-  useMapEvents({
-    click(event) {
-      onChange(event.latlng.lat, event.latlng.lng);
-    },
-  });
-  return null;
-}
-
 export default function CustomerLocationPicker({ latitude, longitude, onChange }: Props) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
   const markerRef = useRef<LeafletMarker | null>(null);
-  const handlers = useMemo(
-    () => ({
-      dragend() {
-        const marker = markerRef.current;
-        if (!marker) return;
-        const position = marker.getLatLng();
-        onChange(position.lat, position.lng);
-      },
-    }),
-    [onChange],
-  );
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const map = L.map(container, { scrollWheelZoom: true }).setView([latitude, longitude], 17);
+    mapRef.current = map;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map);
+
+    const marker = L.marker([latitude, longitude], {
+      draggable: true,
+      icon: pinIcon,
+    }).addTo(map);
+    markerRef.current = marker;
+
+    const handleClick = (event: L.LeafletMouseEvent) => {
+      onChangeRef.current(event.latlng.lat, event.latlng.lng);
+    };
+    const handleDragEnd = () => {
+      const position = marker.getLatLng();
+      onChangeRef.current(position.lat, position.lng);
+    };
+
+    map.on('click', handleClick);
+    marker.on('dragend', handleDragEnd);
+
+    return () => {
+      marker.off('dragend', handleDragEnd);
+      map.off('click', handleClick);
+      map.remove();
+      markerRef.current = null;
+      mapRef.current = null;
+    };
+    // The map object is intentionally created once for this mounted picker.
+    // Prop coordinate changes are handled by the synchronization effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const marker = markerRef.current;
+    if (!map || !marker) return;
+
+    const nextPosition = L.latLng(latitude, longitude);
+    marker.setLatLng(nextPosition);
+    map.setView(nextPosition, Math.max(map.getZoom(), 17), { animate: true });
+  }, [latitude, longitude]);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-teal-200 bg-white">
       <div className="h-64 w-full">
-        <MapContainer
-          center={[latitude, longitude]}
-          zoom={17}
-          scrollWheelZoom
-          style={{ height: '100%', width: '100%' }}
-        >
-          <TileLayer
-            attribution='&copy; OpenStreetMap contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <Recenter latitude={latitude} longitude={longitude} />
-          <MapClick onChange={onChange} />
-          <Marker
-            draggable
-            eventHandlers={handlers}
-            position={[latitude, longitude]}
-            icon={pinIcon}
-            ref={markerRef}
-          />
-        </MapContainer>
+        <div ref={containerRef} className="h-full w-full" />
       </div>
       <div className="flex items-center justify-between gap-3 px-4 py-3 text-xs font-bold text-slate-600">
         <span>Drag the pin or tap the map to set the entrance.</span>
