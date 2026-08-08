@@ -6,6 +6,6 @@ import { ContactOtpService } from './contact-otp.service';
 @Module({
   imports: [WhatsAppWebhookModule],
   providers: [ContactDeliveryService, ContactOtpService],
-  exports: [ContactDeliveryService, ContactOtpService],
+  exports: [WhatsAppWebhookModule, ContactDeliveryService, ContactOtpService],
 })
 export class ContactVerificationModule {}
