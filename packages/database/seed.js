@@ -11,11 +11,23 @@ async function main() {
   console.log('🌱 Seeding database with sample data...');
 
   try {
-    // Use specific credentials from .env, falling back to SEED_DEMO_PASSWORD
-    const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD || 'admin@2026!', 10);
-    const customerPassword = await bcrypt.hash(process.env.CUSTOMER_PASSWORD || process.env.SEED_DEMO_PASSWORD || 'Demo@123', 10);
-    const storePassword = await bcrypt.hash(process.env.STORE_PASSWORD || process.env.SEED_DEMO_PASSWORD || 'Demo@123', 10);
-    const riderPassword = await bcrypt.hash(process.env.RIDER_PASSWORD || process.env.SEED_DEMO_PASSWORD || 'Demo@123', 10);
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction && !process.env.ADMIN_PASSWORD && !process.env.SEED_ADMIN_PASSWORD) {
+      throw new Error('Production seed requires ADMIN_PASSWORD or SEED_ADMIN_PASSWORD; refusing a repository-known default credential.');
+    }
+
+    // Test/development seeds may use explicit role passwords or one shared
+    // SEED_DEMO_PASSWORD. Production must always provide the Admin password.
+    const localOnlyPassword = process.env.SEED_DEMO_PASSWORD || 'Aagam-Local-Seed-Only-Change-Me!';
+    const adminPlainPassword = process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD || localOnlyPassword;
+    const customerPlainPassword = process.env.CUSTOMER_PASSWORD || localOnlyPassword;
+    const storePlainPassword = process.env.STORE_PASSWORD || localOnlyPassword;
+    const riderPlainPassword = process.env.RIDER_PASSWORD || localOnlyPassword;
+
+    const adminPassword = await bcrypt.hash(adminPlainPassword, 10);
+    const customerPassword = await bcrypt.hash(customerPlainPassword, 10);
+    const storePassword = await bcrypt.hash(storePlainPassword, 10);
+    const riderPassword = await bcrypt.hash(riderPlainPassword, 10);
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@aagam.com';
 
     // Create Admin User
@@ -529,14 +541,16 @@ async function main() {
     console.log('--------------------------------------------------');
     console.log('🎉 Database seeded successfully!');
     console.log('--------------------------------------------------');
-    console.log('Login credentials (from .env):');
-    console.log(`  Admin: ${adminEmail} / ${process.env.ADMIN_PASSWORD || 'admin@2026!'}`);
-    console.log(`  Customer: ${customerEmail} / ${process.env.CUSTOMER_PASSWORD || 'customer@2026!'}`);
-    console.log(`  Store: ${storeEmail} / ${process.env.STORE_PASSWORD || 'store@2026!'}`);
-    console.log(`  Rider: ${riderEmail} / ${process.env.RIDER_PASSWORD || 'rider@2026!'}`);
+    console.log('Seeded accounts:');
+    console.log(`  Admin: ${adminEmail}`);
+    console.log(`  Customer: ${customerEmail}`);
+    console.log(`  Store: ${storeEmail}`);
+    console.log(`  Rider: ${riderEmail}`);
+    console.log('Passwords are never printed. Supply role-specific password environment variables or SEED_DEMO_PASSWORD.');
     console.log('--------------------------------------------------');
   } catch (error) {
     console.error('❌ Seeding failed:', error);
+    process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
   }
