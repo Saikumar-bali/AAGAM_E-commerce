@@ -1,0 +1,67 @@
+name: Dependency Security Audit
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  npm-audit:
+    name: npm integrity + vulnerability policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.3"
+          cache: npm
+
+      - name: Install locked dependencies without lifecycle scripts
+        shell: bash
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Verify npm registry signatures and provenance
+        shell: bash
+        run: |
+          set -o pipefail
+          npm audit signatures 2>&1 | tee npm-signatures.log
+
+      - name: Apply and verify reviewed image-size mitigation
+        shell: bash
+        run: |
+          node scripts/patch-image-size-cves.js
+          node scripts/patch-image-size-cves.js --verify
+          node scripts/test-image-size-cve-patch.js
+
+      - name: Capture raw npm audit report
+        shell: bash
+        run: |
+          npm audit --package-lock-only --json > npm-audit.json || true
+          npm audit --package-lock-only > npm-audit.log 2>&1 || true
+
+      - name: Enforce vulnerability policy
+        shell: bash
+        run: node scripts/verify-dependency-security.js
+
+      - name: Upload dependency security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-security-audit
+          path: |
+            npm-signatures.log
+            npm-audit.log
+            npm-audit.json
+          if-no-files-found: warn
+          retention-days: 14

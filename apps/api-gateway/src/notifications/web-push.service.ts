@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import * as admin from 'firebase-admin';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -53,6 +54,14 @@ export function parseFirebaseServiceAccount(raw: string): FirebaseServiceAccount
   return parsed as FirebaseServiceAccount;
 }
 
+function toFirebaseCredential(serviceAccount: FirebaseServiceAccount) {
+  return cert({
+    projectId: serviceAccount.project_id,
+    clientEmail: serviceAccount.client_email,
+    privateKey: serviceAccount.private_key,
+  });
+}
+
 @Injectable()
 export class WebPushService implements OnModuleInit {
   private initializationAttempted = false;
@@ -72,11 +81,12 @@ export class WebPushService implements OnModuleInit {
   }
 
   private initializeFirebase() {
-    if (admin.apps.length > 0) {
+    const defaultApp = getApps().find((app) => app.name === '[DEFAULT]');
+    if (defaultApp) {
       this.readiness = {
         configured: true,
         source: this.readiness.configured ? this.readiness.source : 'existing_app',
-        projectId: this.readiness.projectId || admin.app().options.projectId,
+        projectId: this.readiness.projectId || defaultApp.options.projectId,
       };
       return;
     }
@@ -87,7 +97,7 @@ export class WebPushService implements OnModuleInit {
       const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
       if (raw) {
         const serviceAccount = parseFirebaseServiceAccount(raw);
-        admin.initializeApp({ credential: admin.credential.cert(serviceAccount as admin.ServiceAccount) });
+        initializeApp({ credential: toFirebaseCredential(serviceAccount) });
         this.readiness = {
           configured: true,
           source: 'environment',
@@ -100,9 +110,7 @@ export class WebPushService implements OnModuleInit {
       const serviceAccountPath = path.resolve(process.cwd(), 'firebase-adminsdk.json');
       if (fs.existsSync(serviceAccountPath)) {
         const serviceAccount = parseFirebaseServiceAccount(fs.readFileSync(serviceAccountPath, 'utf8'));
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
-        });
+        initializeApp({ credential: toFirebaseCredential(serviceAccount) });
         this.readiness = {
           configured: true,
           source: 'file',
@@ -139,7 +147,7 @@ export class WebPushService implements OnModuleInit {
     if (!subscription?.token) {
       return { status: 'SKIPPED', reason: 'Subscription has no FCM token' };
     }
-    if (!this.readiness.configured || admin.apps.length === 0) {
+    if (!this.readiness.configured || !getApps().some((app) => app.name === '[DEFAULT]')) {
       return {
         status: 'SKIPPED',
         reason: this.readiness.reason || 'Firebase push provider is not configured',
@@ -156,7 +164,7 @@ export class WebPushService implements OnModuleInit {
     // Android receives a native notification payload. Firebase displays it when
     // the app is backgrounded, swiped away, or the process is not running. The
     // data payload is retained so tapping it can open the Store/Rider workspace.
-    const responseId = await admin.messaging().send({
+    const responseId = await getMessaging().send({
       token: subscription.token,
       data,
       webpush: {

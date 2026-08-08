@@ -100,7 +100,7 @@ export default function CustomerOrderDetailPage() {
     socket.on('orderTimelineUpdated', (payload: any) => { if (payload.order?.id === orderId) setTrackingPayload(payload); });
     socket.on('orderStatusUpdated', (payload: any) => { if (payload.orderId === orderId) void refresh(); });
     socket.on('trackingStopped', (payload: any) => { if (payload.orderId === orderId) void refresh(); });
-    return () => socket.disconnect();
+    return () => { socket.disconnect(); };
   }, [orderId]);
   useEffect(() => { if (!orderId) return; const poll = setInterval(() => { apiClient.get(`/tracking/my/order/${orderId}`).then((response) => setTrackingPayload(response.data)).catch(() => undefined); }, 10000); return () => clearInterval(poll); }, [orderId]);
 

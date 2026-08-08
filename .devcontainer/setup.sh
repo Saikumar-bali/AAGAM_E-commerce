@@ -45,7 +45,7 @@ cd /workspaces/AAGAM_E-commerce || cd /workspaces/*
 echo "🔑 Configuring Environment Variables..."
 DB_LINK="postgresql://postgres:postgres@localhost:5432/aagam_ecom"
 REDIS_LINK="redis://localhost:6379"
-JWT_SEC="9f8c2a6d4b7e1c3f5suresh0c9d1b4a7e3f5c8d2a6b"
+JWT_SEC="${JWT_SECRET:-$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("hex"))')}"
 
 # Create root .env
 echo "DATABASE_URL=$DB_LINK" > .env

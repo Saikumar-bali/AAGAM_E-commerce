@@ -1,11 +1,18 @@
-import { BadGatewayException, Controller, Get, Query, ServiceUnavailableException } from '@nestjs/common';
+import { BadGatewayException, Controller, Get, Logger, Query, ServiceUnavailableException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
 import { createClient } from 'redis';
 import { AppService } from './app.service';
 import { WebPushService } from './notifications/web-push.service';
 
+const redisReadinessLogger = new Logger('RedisReadiness');
+
 async function pingRedis(redisUrl: string, timeoutMs = 2500) {
   const client = createClient({ url: redisUrl });
+  client.on('error', (error) => {
+    redisReadinessLogger.error(
+      `Redis readiness client error: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  });
   let timer: NodeJS.Timeout | undefined;
 
   try {
@@ -19,7 +26,15 @@ async function pingRedis(redisUrl: string, timeoutMs = 2500) {
     return true;
   } finally {
     if (timer) clearTimeout(timer);
-    if (client.isOpen) await client.quit();
+    if (client.isOpen) {
+      try {
+        await client.quit();
+      } catch (error: unknown) {
+        redisReadinessLogger.warn(
+          `Redis readiness cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
   }
 }
 

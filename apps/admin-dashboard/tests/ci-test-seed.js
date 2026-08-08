@@ -1,9 +1,10 @@
 /**
  * CI Playwright Test User Seed Script
- * 
+ *
  * This script ensures all test users required by CI Playwright tests exist.
- * Must be run after migrations and before Playwright tests start.
- * 
+ * Passwords are intentionally not embedded here; authentication fixtures receive
+ * their test-only credentials through CI/local environment variables.
+ *
  * Run with:
  *   NODE_ENV=test PLAYWRIGHT_QA_SEED=true node apps/admin-dashboard/tests/ci-test-seed.js
  */
@@ -21,43 +22,36 @@ async function seedTestUsers() {
   const users = [
     {
       email: 'admin@aagam.com',
-      password: 'admin@2026!',
       role: 'ADMIN',
       name: 'Admin User',
     },
     {
       email: 'customer@aagam.com',
-      password: 'customer@2026!',
       role: 'CUSTOMER',
       name: 'Test Customer',
     },
     {
       email: 'store@aagam.com',
-      password: 'store@2026!',
       role: 'STORE_OWNER',
       name: 'Store Owner',
     },
     {
       email: 'rider@aagam.com',
-      password: 'rider@2026!',
       role: 'RIDER',
       name: 'Test Rider',
     },
     {
       email: 'store-owner-qa@aagam.com',
-      password: 'Store@123',
       role: 'STORE_OWNER',
       name: 'QA Store Owner',
     },
     {
       email: 'qa-rider-pick-customer@aagam.com',
-      password: 'Test@1234',
       role: 'CUSTOMER',
       name: 'QA Rider Pick Customer',
     },
     {
       email: 'qa-rider-pick-store@aagam.com',
-      password: 'Test@1234',
       role: 'STORE_OWNER',
       name: 'QA Rider Pick Store Owner',
     },
@@ -67,7 +61,7 @@ async function seedTestUsers() {
 
   for (const user of users) {
     try {
-      const created = await prisma.user.upsert({
+      await prisma.user.upsert({
         where: { email: user.email },
         update: {
           role: user.role,

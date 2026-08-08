@@ -39,6 +39,31 @@ const baseTransaction = prismaClient.$transaction.bind(prismaClient) as unknown 
   options?: TransactionOptions,
 ) => Promise<unknown>
 
+const POSTGRES_RETRYABLE_TRANSACTION_STATES = ['40001', '40P01', '25P02'] as const
+
+function containsRetryablePostgresState(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+
+  const candidate = error as {
+    code?: unknown
+    message?: unknown
+    meta?: Record<string, unknown>
+  }
+  const values = [
+    candidate.code,
+    candidate.message,
+    candidate.meta?.code,
+    candidate.meta?.message,
+    candidate.meta?.database_error,
+    candidate.meta?.databaseError,
+  ]
+
+  return values.some((value) => {
+    const text = String(value || '')
+    return POSTGRES_RETRYABLE_TRANSACTION_STATES.some((state) => text.includes(state))
+  })
+}
+
 const transactionWithSerializableRetry = async (
   input: unknown,
   options?: TransactionOptions,
@@ -55,7 +80,12 @@ const transactionWithSerializableRetry = async (
     try {
       return await baseTransaction(input, options)
     } catch (error: any) {
-      const retryable = error?.code === 'P2034'
+      // Prisma normally reports Serializable conflicts as P2034. Raw PostgreSQL
+      // errors can surface as SQLSTATE 40001 (serialization), 40P01 (deadlock),
+      // or 25P02 after the transaction has already been aborted. Retrying here
+      // creates a fresh transaction; retries stay bounded so deterministic
+      // application errors still fail instead of looping indefinitely.
+      const retryable = error?.code === 'P2034' || containsRetryablePostgresState(error)
       if (!retryable || attempt === maxAttempts) throw error
       await new Promise((resolve) => setTimeout(resolve, attempt * 25))
     }

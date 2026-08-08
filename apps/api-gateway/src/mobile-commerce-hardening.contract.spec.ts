@@ -28,9 +28,12 @@ describe("Mobile commerce hardening contracts", () => {
       "apps/admin-dashboard/src/app/(shop)/shop/checkout/page.tsx"
     );
 
-    expect(picker).toContain("<MapContainer");
-    expect(picker).toContain("draggable");
-    expect(picker).toContain("dragend");
+    expect(picker).toContain("L.map(container");
+    expect(picker).toContain("L.marker([latitude, longitude]");
+    expect(picker).toContain("draggable: true");
+    expect(picker).toContain("marker.on('dragend'");
+    expect(picker).toContain("map.on('click'");
+    expect(picker).toContain("onChangeRef.current(position.lat, position.lng)");
     expect(checkout).toContain("Use live location");
     expect(checkout).toContain("CustomerLocationPicker");
   });

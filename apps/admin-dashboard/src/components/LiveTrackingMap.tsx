@@ -1,18 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-
-const DefaultIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
 
 const RiderIcon = (bearing: number = 0) => L.divIcon({
   className: 'custom-rider-icon',
@@ -51,25 +41,6 @@ const DeliveryIcon = L.divIcon({
   iconAnchor: [14, 14],
 });
 
-interface MapUpdaterProps {
-  center: [number, number];
-  points: [number, number][];
-}
-
-function MapUpdater({ center, points }: MapUpdaterProps) {
-  const map = useMap();
-  useEffect(() => {
-    if (points.length === 1) {
-      map.setView(points[0], 16, { animate: true });
-    } else if (points.length > 1) {
-      map.fitBounds(L.latLngBounds(points), { padding: [64, 64], maxZoom: 16, animate: true });
-    } else {
-      map.setView(center, 13);
-    }
-  }, [center, points, map]);
-  return null;
-}
-
 interface ActiveOrder {
   orderId: string;
   status: string;
@@ -91,112 +62,141 @@ interface LiveTrackingMapProps {
   }>;
   orders?: ActiveOrder[];
   selectedOrderId?: string | null;
+  selectedRiderId?: string | null;
   onOrderClick?: (orderId: string) => void;
   showRoutePath?: { latitude: number; longitude: number }[];
 }
 
-export default function LiveTrackingMap({ riders = [], orders = [], selectedOrderId, onOrderClick, showRoutePath }: LiveTrackingMapProps) {
-  const [mapCenter, setMapCenter] = useState<[number, number]>([20.5937, 78.9629]);
+const hasCoordinate = (value: number | null | undefined): value is number =>
+  value !== null && value !== undefined && Number.isFinite(value);
 
-  const allPoints: [number, number][] = [];
+function popupContent(title: string, lines: Array<{ label?: string; value: string }>) {
+  const root = document.createElement('div');
+  root.className = 'p-1';
 
-  riders.forEach(r => {
-    if (r.latitude && r.longitude) allPoints.push([r.latitude, r.longitude]);
-  });
+  const heading = document.createElement('p');
+  heading.className = 'font-bold text-gray-900';
+  heading.textContent = title;
+  root.appendChild(heading);
 
-  orders.forEach(o => {
-    if (o.store.latitude && o.store.longitude) allPoints.push([o.store.latitude, o.store.longitude]);
-    if (o.delivery.latitude && o.delivery.longitude) allPoints.push([o.delivery.latitude, o.delivery.longitude]);
-    if (o.rider?.latitude && o.rider?.longitude) allPoints.push([o.rider.latitude, o.rider.longitude]);
-    if (o.latestLocation) allPoints.push([o.latestLocation.latitude, o.latestLocation.longitude]);
-  });
+  for (const line of lines) {
+    const paragraph = document.createElement('p');
+    paragraph.className = 'text-xs text-gray-500 mt-1';
+    paragraph.textContent = line.label ? `${line.label}: ${line.value}` : line.value;
+    root.appendChild(paragraph);
+  }
 
+  return root;
+}
+
+export default function LiveTrackingMap({
+  riders = [],
+  orders = [],
+  selectedOrderId,
+  selectedRiderId,
+  onOrderClick,
+  showRoutePath,
+}: LiveTrackingMapProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (selectedOrderId) {
-      const order = orders.find(o => o.orderId === selectedOrderId);
-      if (order) {
-        const lat = order.rider?.latitude ?? order.latestLocation?.latitude ?? order.store.latitude;
-        const lng = order.rider?.longitude ?? order.latestLocation?.longitude ?? order.store.longitude;
-        if (lat && lng) setMapCenter([lat, lng]);
-      }
-    }
-  }, [selectedOrderId, orders]);
+    const container = containerRef.current;
+    if (!container) return;
 
-  const routePathCoords: [number, number][] = showRoutePath
-    ? showRoutePath.map(p => [p.latitude, p.longitude])
-    : [];
+    const allPoints: [number, number][] = [];
+    riders.forEach((rider) => {
+      if (hasCoordinate(rider.latitude) && hasCoordinate(rider.longitude)) {
+        allPoints.push([rider.latitude, rider.longitude]);
+      }
+    });
+    orders.forEach((order) => {
+      if (hasCoordinate(order.store.latitude) && hasCoordinate(order.store.longitude)) {
+        allPoints.push([order.store.latitude, order.store.longitude]);
+      }
+      if (hasCoordinate(order.delivery.latitude) && hasCoordinate(order.delivery.longitude)) {
+        allPoints.push([order.delivery.latitude, order.delivery.longitude]);
+      }
+      if (hasCoordinate(order.rider?.latitude) && hasCoordinate(order.rider?.longitude)) {
+        allPoints.push([order.rider.latitude, order.rider.longitude]);
+      }
+      if (order.latestLocation && hasCoordinate(order.latestLocation.latitude) && hasCoordinate(order.latestLocation.longitude)) {
+        allPoints.push([order.latestLocation.latitude, order.latestLocation.longitude]);
+      }
+    });
+
+    const selectedRider = selectedRiderId ? riders.find((rider) => rider.id === selectedRiderId) : undefined;
+    const selectedRiderPoint: [number, number] | null =
+      hasCoordinate(selectedRider?.latitude) && hasCoordinate(selectedRider?.longitude)
+        ? [selectedRider.latitude, selectedRider.longitude]
+        : null;
+
+    let mapCenter: [number, number] = [20.5937, 78.9629];
+    if (selectedRiderPoint) {
+      mapCenter = selectedRiderPoint;
+    } else if (selectedOrderId) {
+      const order = orders.find((candidate) => candidate.orderId === selectedOrderId);
+      const lat = order?.rider?.latitude ?? order?.latestLocation?.latitude ?? order?.store.latitude;
+      const lng = order?.rider?.longitude ?? order?.latestLocation?.longitude ?? order?.store.longitude;
+      if (hasCoordinate(lat) && hasCoordinate(lng)) mapCenter = [lat, lng];
+    } else if (allPoints[0]) {
+      mapCenter = allPoints[0];
+    }
+
+    const map = L.map(container, { scrollWheelZoom: true, zoomControl: true }).setView(mapCenter, 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+    }).addTo(map);
+
+    const routePathCoords: [number, number][] = (showRoutePath || [])
+      .filter((point) => hasCoordinate(point.latitude) && hasCoordinate(point.longitude))
+      .map((point) => [point.latitude, point.longitude]);
+    if (routePathCoords.length > 1) {
+      L.polyline(routePathCoords, { color: '#3B82F6', weight: 3, opacity: 0.7 }).addTo(map);
+    }
+
+    riders.forEach((rider) => {
+      if (!hasCoordinate(rider.latitude) || !hasCoordinate(rider.longitude)) return;
+      L.marker([rider.latitude, rider.longitude], { icon: RiderIcon(rider.bearing || 0) })
+        .bindPopup(popupContent(rider.user?.name || 'Rider', [{ label: 'Status', value: rider.status }]))
+        .addTo(map);
+    });
+
+    orders.forEach((order) => {
+      if (hasCoordinate(order.store.latitude) && hasCoordinate(order.store.longitude)) {
+        L.marker([order.store.latitude, order.store.longitude], { icon: StoreIcon })
+          .bindPopup(popupContent(order.store.name || 'Store', [{ value: 'Store' }]))
+          .addTo(map);
+      }
+
+      if (hasCoordinate(order.delivery.latitude) && hasCoordinate(order.delivery.longitude)) {
+        const marker = L.marker([order.delivery.latitude, order.delivery.longitude], { icon: DeliveryIcon })
+          .bindPopup(
+            popupContent('Delivery', [
+              { value: order.customer.name || 'Customer' },
+              { value: `#${order.orderId.slice(-8).toUpperCase()}` },
+            ]),
+          )
+          .addTo(map);
+        marker.on('click', () => onOrderClick?.(order.orderId));
+      }
+    });
+
+    const mapPoints = selectedRiderPoint ? [selectedRiderPoint] : allPoints;
+    if (mapPoints.length === 1) {
+      map.setView(mapPoints[0], 16, { animate: false });
+    } else if (mapPoints.length > 1) {
+      map.fitBounds(L.latLngBounds(mapPoints), { padding: [64, 64], maxZoom: 16, animate: false });
+    }
+
+    return () => {
+      map.remove();
+    };
+  }, [riders, orders, selectedOrderId, selectedRiderId, onOrderClick, showRoutePath]);
 
   return (
-    <div className="h-full w-full rounded-2xl overflow-hidden shadow-inner border border-gray-100">
-      <MapContainer
-        {...({ center: mapCenter, zoom: 13 } as any)}
-        style={{ height: '100%', width: '100%' }}
-        scrollWheelZoom={true}
-      >
-        <TileLayer
-          {...({
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          } as any)}
-        />
-        <MapUpdater center={mapCenter} points={allPoints} />
-
-        {routePathCoords.length > 1 && (
-          <Polyline positions={routePathCoords} color="#3B82F6" weight={3} opacity={0.7} />
-        )}
-
-        {riders.map(rider => (
-          rider.latitude && rider.longitude && (
-            <Marker
-              key={`rider-${rider.id}`}
-              position={[rider.latitude, rider.longitude]}
-              {...({ icon: RiderIcon(rider.bearing || 0) } as any)}
-            >
-              <Popup>
-                <div className="p-1">
-                  <p className="font-bold text-gray-900">{rider.user?.name || 'Rider'}</p>
-                  <p className="text-xs text-gray-500 mt-1">Status: <span className="font-semibold text-emerald-600">{rider.status}</span></p>
-                </div>
-              </Popup>
-            </Marker>
-          )
-        ))}
-
-        {orders.map(order => (
-          <React.Fragment key={`order-${order.orderId}`}>
-            {order.store.latitude && order.store.longitude && (
-              <Marker
-                position={[order.store.latitude, order.store.longitude]}
-                {...({ icon: StoreIcon } as any)}
-              >
-                <Popup>
-                  <div className="p-1">
-                    <p className="font-bold text-gray-900">{order.store.name}</p>
-                    <p className="text-xs text-gray-500">Store</p>
-                  </div>
-                </Popup>
-              </Marker>
-            )}
-
-            {order.delivery.latitude && order.delivery.longitude && (
-              <Marker
-                position={[order.delivery.latitude, order.delivery.longitude]}
-                {...({ icon: DeliveryIcon } as any)}
-                eventHandlers={{ click: () => onOrderClick?.(order.orderId) }}
-              >
-                <Popup>
-                  <div className="p-1">
-                    <p className="font-bold text-gray-900">Delivery</p>
-                    <p className="text-xs text-gray-500">{order.customer.name || 'Customer'}</p>
-                    <p className="text-xs text-gray-400 font-mono">#{order.orderId.slice(-8).toUpperCase()}</p>
-                  </div>
-                </Popup>
-              </Marker>
-            )}
-          </React.Fragment>
-        ))}
-      </MapContainer>
+    <div className="h-full w-full overflow-hidden rounded-2xl border border-gray-100 shadow-inner">
+      <div ref={containerRef} className="h-full w-full" />
     </div>
   );
 }

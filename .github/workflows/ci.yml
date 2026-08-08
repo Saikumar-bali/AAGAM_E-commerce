@@ -19,13 +19,12 @@ env:
   NODE_VERSION: "22.22.3"
   PLAYWRIGHT_WORKERS: "4"
   CI_ADMIN_EMAIL: "admin@aagam.com"
-  CI_ADMIN_PASSWORD: "admin@2026!"
   CI_CUSTOMER_EMAIL: "customer@aagam.com"
-  CI_CUSTOMER_PASSWORD: "customer@2026!"
   CI_STORE_EMAIL: "store@aagam.com"
-  CI_STORE_PASSWORD: "store@2026!"
   CI_RIDER_EMAIL: "rider@aagam.com"
-  CI_RIDER_PASSWORD: "rider@2026!"
+  # Ephemeral test-only credential. It changes for every workflow run and is
+  # never suitable for a deployed account.
+  CI_TEST_PASSWORD: "Aagam-CI-${{ github.run_id }}-${{ github.run_attempt }}!"
 
 jobs:
   build:
@@ -233,13 +232,13 @@ jobs:
         env:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aagam_ecom_test"
           ADMIN_EMAIL: ${{ env.CI_ADMIN_EMAIL }}
-          ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          ADMIN_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
           CUSTOMER_EMAIL: ${{ env.CI_CUSTOMER_EMAIL }}
-          CUSTOMER_PASSWORD: ${{ env.CI_CUSTOMER_PASSWORD }}
+          CUSTOMER_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
           STORE_EMAIL: ${{ env.CI_STORE_EMAIL }}
-          STORE_PASSWORD: ${{ env.CI_STORE_PASSWORD }}
+          STORE_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
           RIDER_EMAIL: ${{ env.CI_RIDER_EMAIL }}
-          RIDER_PASSWORD: ${{ env.CI_RIDER_PASSWORD }}
+          RIDER_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
 
       - name: Build workspace packages
         run: |
@@ -290,46 +289,46 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3005
           ADMIN_EMAIL: ${{ env.CI_ADMIN_EMAIL }}
-          ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          ADMIN_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
           CUSTOMER_EMAIL: ${{ env.CI_CUSTOMER_EMAIL }}
-          CUSTOMER_PASSWORD: ${{ env.CI_CUSTOMER_PASSWORD }}
+          CUSTOMER_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
           STORE_EMAIL: ${{ env.CI_STORE_EMAIL }}
-          STORE_PASSWORD: ${{ env.CI_STORE_PASSWORD }}
+          STORE_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
           RIDER_EMAIL: ${{ env.CI_RIDER_EMAIL }}
-          RIDER_PASSWORD: ${{ env.CI_RIDER_PASSWORD }}
-          QA_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          RIDER_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
+          QA_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
           SEED_ADMIN_EMAIL: ${{ env.CI_ADMIN_EMAIL }}
-          SEED_ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          SEED_ADMIN_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
           STORE_OWNER_QA_EMAIL: ${{ env.CI_STORE_EMAIL }}
-          STORE_OWNER_QA_PASSWORD: ${{ env.CI_STORE_PASSWORD }}
-          P4_DEMO_PASS: ${{ env.CI_CUSTOMER_PASSWORD }}
-          P4_ADMIN_PASS: ${{ env.CI_ADMIN_PASSWORD }}
-          P4_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
-          P4_RIDER_PASS: ${{ env.CI_RIDER_PASSWORD }}
-          P5_CUSTOMER_PASS: ${{ env.CI_CUSTOMER_PASSWORD }}
-          P5_ADMIN_PASS: ${{ env.CI_ADMIN_PASSWORD }}
-          P5_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
-          P5_RIDER_PASS: ${{ env.CI_RIDER_PASSWORD }}
-          P6_DEMO_PASS: ${{ env.CI_CUSTOMER_PASSWORD }}
-          DISPATCH_TEST_PASS: ${{ env.CI_ADMIN_PASSWORD }}
-          DISPATCH_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
-          DISPATCH_RIDER_PASS: ${{ env.CI_RIDER_PASSWORD }}
-          NOTIF_ADMIN_PASS: ${{ env.CI_ADMIN_PASSWORD }}
-          NOTIF_CUSTOMER_PASS: ${{ env.CI_CUSTOMER_PASSWORD }}
-          NOTIF_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
-          NOTIF_RIDER_PASS: ${{ env.CI_RIDER_PASSWORD }}
-          NOTIF_FALLBACK_PASS: ${{ env.CI_ADMIN_PASSWORD }}
+          STORE_OWNER_QA_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
+          P4_DEMO_PASS: ${{ env.CI_TEST_PASSWORD }}
+          P4_ADMIN_PASS: ${{ env.CI_TEST_PASSWORD }}
+          P4_STORE_PASS: ${{ env.CI_TEST_PASSWORD }}
+          P4_RIDER_PASS: ${{ env.CI_TEST_PASSWORD }}
+          P5_CUSTOMER_PASS: ${{ env.CI_TEST_PASSWORD }}
+          P5_ADMIN_PASS: ${{ env.CI_TEST_PASSWORD }}
+          P5_STORE_PASS: ${{ env.CI_TEST_PASSWORD }}
+          P5_RIDER_PASS: ${{ env.CI_TEST_PASSWORD }}
+          P6_DEMO_PASS: ${{ env.CI_TEST_PASSWORD }}
+          DISPATCH_TEST_PASS: ${{ env.CI_TEST_PASSWORD }}
+          DISPATCH_STORE_PASS: ${{ env.CI_TEST_PASSWORD }}
+          DISPATCH_RIDER_PASS: ${{ env.CI_TEST_PASSWORD }}
+          NOTIF_ADMIN_PASS: ${{ env.CI_TEST_PASSWORD }}
+          NOTIF_CUSTOMER_PASS: ${{ env.CI_TEST_PASSWORD }}
+          NOTIF_STORE_PASS: ${{ env.CI_TEST_PASSWORD }}
+          NOTIF_RIDER_PASS: ${{ env.CI_TEST_PASSWORD }}
+          NOTIF_FALLBACK_PASS: ${{ env.CI_TEST_PASSWORD }}
           LOGIN_TEST_ADMIN_EMAIL: ${{ env.CI_ADMIN_EMAIL }}
-          LOGIN_TEST_ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+          LOGIN_TEST_ADMIN_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
           LOGIN_TEST_CUSTOMER_EMAIL: ${{ env.CI_CUSTOMER_EMAIL }}
-          LOGIN_TEST_CUSTOMER_PASSWORD: ${{ env.CI_CUSTOMER_PASSWORD }}
+          LOGIN_TEST_CUSTOMER_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
           LOGIN_TEST_RIDER_EMAIL: ${{ env.CI_RIDER_EMAIL }}
-          LOGIN_TEST_RIDER_PASSWORD: ${{ env.CI_RIDER_PASSWORD }}
+          LOGIN_TEST_RIDER_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
           LOGIN_TEST_STORE_EMAIL: ${{ env.CI_STORE_EMAIL }}
-          LOGIN_TEST_STORE_PASSWORD: ${{ env.CI_STORE_PASSWORD }}
+          LOGIN_TEST_STORE_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
           SMOKE_TEST_EMAIL: ${{ env.CI_CUSTOMER_EMAIL }}
-          SMOKE_TEST_PASSWORD: ${{ env.CI_CUSTOMER_PASSWORD }}
-          SETUP_STORE_PASS: ${{ env.CI_STORE_PASSWORD }}
+          SMOKE_TEST_PASSWORD: ${{ env.CI_TEST_PASSWORD }}
+          SETUP_STORE_PASS: ${{ env.CI_TEST_PASSWORD }}
           FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
 
       - name: Upload Playwright report
