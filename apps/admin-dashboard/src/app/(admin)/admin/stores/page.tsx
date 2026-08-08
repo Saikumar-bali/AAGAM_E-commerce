@@ -3,36 +3,31 @@
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import DashboardLayout from '@/components/DashboardLayout';
+import { InternalPartnerCreateButton } from '@/components/InternalPartnerOnboarding';
+import { useToast, getToastErrorMessage } from '@/components/ToastProvider';
 import { apiClient } from '@aagam/utils';
 import {
-  AlertTriangle,
   CheckCircle,
   Edit,
-  Eye,
   Loader2,
   MapPin,
   Package,
-  Plus,
   RotateCcw,
   Search,
+  ShieldCheck,
   Store as StoreIcon,
   Trash2,
-  TrendingUp,
   User,
   X,
   XCircle,
 } from 'lucide-react';
 
 const StoreLocationPicker = dynamic(
-  () => import('@/components/StoreLocationPicker').then((m) => m.StoreLocationPicker),
+  () => import('@/components/StoreLocationPicker').then((module) => module.StoreLocationPicker),
   {
     ssr: false,
-    loading: () => (
-      <div className="h-56 bg-gray-50 rounded-xl border border-gray-200 animate-pulse flex items-center justify-center">
-        <span className="text-xs text-gray-400">Loading map...</span>
-      </div>
-    ),
-  }
+    loading: () => <div className="flex h-56 items-center justify-center rounded-xl border border-gray-200 bg-gray-50"><Loader2 className="h-6 w-6 animate-spin text-emerald-600" /></div>,
+  },
 );
 
 interface StoreRecord {
@@ -46,199 +41,119 @@ interface StoreRecord {
   createdAt: string;
   deletedAt?: string | null;
   owner?: { name: string | null; email: string | null; phone: string | null };
-  inventory?: { id: string; quantity: number; product: { name: string; price: number } }[];
+  inventory?: { id: string; quantity: number; product?: { name: string; price: number } }[];
 }
 
-type StoreFormData = {
+type EditForm = {
   name: string;
   address: string;
   latitude: number | null;
   longitude: number | null;
-  ownerEmail: string;
-  ownerName: string;
-  ownerPhone: string;
-  password: string;
   isActive: boolean;
 };
 
-const emptyForm = (): StoreFormData => ({ name: '', address: '', latitude: null, longitude: null, ownerEmail: '', ownerName: '', ownerPhone: '', password: '', isActive: true });
-
 export default function AdminStoresPage() {
+  const toast = useToast();
   const [stores, setStores] = useState<StoreRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [selectedStore, setSelectedStore] = useState<StoreRecord | null>(null);
-  const [formData, setFormData] = useState<StoreFormData>(emptyForm());
-  const [error, setError] = useState('');
   const [showDeleted, setShowDeleted] = useState(false);
+  const [selectedStore, setSelectedStore] = useState<StoreRecord | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<EditForm>({ name: '', address: '', latitude: null, longitude: null, isActive: true });
 
   const fetchStores = async () => {
     try {
       const response = await apiClient.get('/stores/admin/all');
       setStores(Array.isArray(response.data) ? response.data : []);
-    } catch (err) {
-      console.error('Failed to fetch stores', err);
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'Stores could not be loaded.'));
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchStores(); }, []);
+  useEffect(() => { void fetchStores(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredStores = stores.filter((store) => {
     if (!showDeleted && store.deletedAt) return false;
-    return (
-      store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      store.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      store.owner?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      store.owner?.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const query = searchTerm.toLowerCase();
+    return store.name.toLowerCase().includes(query)
+      || store.address.toLowerCase().includes(query)
+      || (store.owner?.name || '').toLowerCase().includes(query)
+      || (store.owner?.email || '').toLowerCase().includes(query)
+      || (store.owner?.phone || '').toLowerCase().includes(query);
   });
 
-  const activeStores = stores.filter((s) => s.isActive && !s.deletedAt).length;
-  const deletedStores = stores.filter((s) => s.deletedAt).length;
-  const totalInventory = stores.reduce((acc, s) => acc + (s.inventory?.reduce((a, i) => a + i.quantity, 0) || 0), 0);
   const stats = [
-    { label: 'Total Stores', value: stores.length, icon: StoreIcon, color: 'bg-blue-500' },
-    { label: 'Active Stores', value: activeStores, icon: CheckCircle, color: 'bg-emerald-500' },
-    { label: 'Deleted Stores', value: deletedStores, icon: XCircle, color: 'bg-red-500' },
-    { label: 'Total Inventory', value: totalInventory, icon: Package, color: 'bg-purple-500' },
+    { label: 'Total Stores', value: stores.filter((store) => !store.deletedAt).length, icon: StoreIcon, color: 'bg-blue-500' },
+    { label: 'Active Stores', value: stores.filter((store) => store.isActive && !store.deletedAt).length, icon: CheckCircle, color: 'bg-emerald-500' },
+    { label: 'Deleted Stores', value: stores.filter((store) => store.deletedAt).length, icon: XCircle, color: 'bg-red-500' },
+    { label: 'Total Inventory', value: stores.reduce((count, store) => count + (store.inventory?.reduce((sum, item) => sum + item.quantity, 0) || 0), 0), icon: Package, color: 'bg-purple-500' },
   ];
 
-  const resetForm = () => {
-    setFormData(emptyForm());
-    setError('');
+  const continueInternalOnboarding = (detail: any) => {
+    const id = detail?.application?.id;
+    window.location.assign(`/admin/partner-applications${id ? `?application=${encodeURIComponent(id)}` : ''}`);
   };
 
-  const handleEdit = (store: StoreRecord) => {
+  const openEdit = (store: StoreRecord) => {
     setSelectedStore(store);
-    setFormData({
+    setForm({
       name: store.name,
       address: store.address,
       latitude: Number(store.latitude),
       longitude: Number(store.longitude),
-      ownerEmail: store.owner?.email || '',
-      ownerName: store.owner?.name || '',
-      ownerPhone: store.owner?.phone || '',
-      password: '',
       isActive: store.isActive,
     });
-    setError('');
-    setShowEditModal(true);
+    setEditOpen(true);
   };
 
-  const handleView = async (store: StoreRecord) => {
-    try {
-      setLoading(true);
-      const res = await apiClient.get(`/stores/${store.id}`);
-      setSelectedStore(res.data);
-      setShowViewModal(true);
-    } catch (err) {
-      console.error('Failed to fetch store details', err);
-    } finally {
-      setLoading(false);
+  const saveEdit = async () => {
+    if (!selectedStore) return;
+    if (!form.name.trim() || !form.address.trim() || form.latitude == null || form.longitude == null) {
+      toast.warning('Store name, address and map location are required.');
+      return;
     }
-  };
-
-  const handleDelete = (store: StoreRecord) => {
-    setSelectedStore(store);
-    setShowDeleteModal(true);
-  };
-
-  const validateLocation = () => {
-    if (formData.latitude == null || formData.longitude == null) {
-      setError('Please pick a store location on the map first.');
-      return false;
-    }
-    return true;
-  };
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!validateLocation()) return;
-    setSubmitting(true);
-    setError('');
-    try {
-      await apiClient.post('/stores', {
-        name: formData.name.trim(),
-        address: formData.address.trim(),
-        latitude: formData.latitude,
-        longitude: formData.longitude,
-        ownerEmail: formData.ownerEmail.trim(),
-        ownerName: formData.ownerName.trim(),
-        ownerPhone: formData.ownerPhone.trim(),
-        password: formData.password,
-      });
-      setShowModal(false);
-      resetForm();
-      await fetchStores();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create store');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleUpdate = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!selectedStore || !validateLocation()) return;
-    setSubmitting(true);
-    setError('');
+    setSaving(true);
     try {
       await apiClient.patch(`/stores/${selectedStore.id}`, {
-        name: formData.name.trim(),
-        address: formData.address.trim(),
-        latitude: formData.latitude,
-        longitude: formData.longitude,
-        isActive: formData.isActive,
+        name: form.name.trim(),
+        address: form.address.trim(),
+        latitude: form.latitude,
+        longitude: form.longitude,
+        isActive: form.isActive,
       });
-      setShowEditModal(false);
-      setSelectedStore(null);
-      resetForm();
-      await fetchStores();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update store');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const confirmDelete = async () => {
-    if (!selectedStore) return;
-    setDeleting(true);
-    try {
-      await apiClient.delete(`/stores/${selectedStore.id}`);
-      setShowDeleteModal(false);
+      toast.success('Store updated.');
+      setEditOpen(false);
       setSelectedStore(null);
       await fetchStores();
-    } catch (err) {
-      console.error('Failed to delete store', err);
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'Store could not be updated.'));
     } finally {
-      setDeleting(false);
+      setSaving(false);
     }
   };
 
-  const toggleStatus = async (store: StoreRecord) => {
+  const remove = async (store: StoreRecord) => {
+    if (!window.confirm(`Delete store "${store.name}"? The store and owner access will be deactivated.`)) return;
     try {
-      await apiClient.patch(`/stores/${store.id}`, { isActive: !store.isActive });
+      await apiClient.delete(`/stores/${store.id}`);
+      toast.success('Store deleted.');
       await fetchStores();
-    } catch (err) {
-      console.error('Failed to toggle status', err);
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'Store could not be deleted.'));
     }
   };
 
-  const handleRestore = async (store: StoreRecord) => {
+  const restore = async (store: StoreRecord) => {
     try {
       await apiClient.post(`/stores/${store.id}/restore`);
+      toast.success('Store restored.');
       await fetchStores();
-    } catch (err) {
-      console.error('Failed to restore store', err);
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'Store could not be restored.'));
     }
   };
 
@@ -249,323 +164,65 @@ export default function AdminStoresPage() {
           <div>
             <p className="inline-flex rounded-full bg-teal-50 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-teal-700">Aagaam Commerce Operations</p>
             <h1 className="mt-3 text-2xl font-bold text-gray-900">Store Management</h1>
-            <p className="text-gray-500">View and manage all stores in your network.</p>
+            <p className="text-gray-500">Manage approved stores and create new Store Owner access through the Admin onboarding workflow.</p>
           </div>
-          <button
-            onClick={() => { resetForm(); setShowModal(true); }}
-            className="flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white shadow-lg shadow-emerald-900/10 transition-all hover:bg-emerald-700"
-          >
-            <Plus className="mr-2 h-5 w-5" />
-            Add New Store
-          </button>
+          <InternalPartnerCreateButton fixedType="STORE" buttonLabel="Add New Store" onCreated={continueInternalOnboarding} />
+        </div>
+
+        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm font-semibold text-teal-900">
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
+          <div><p className="font-black">One Store creation path</p><p className="mt-1 text-xs leading-5 text-teal-800">New stores now use Partner Applications for profile completion, private documents and Admin approval. No OTP is required when the account is created by Admin.</p></div>
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <div key={stat.label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">{stat.label}</p>
-                  <p className="mt-1 text-2xl font-bold text-gray-900">{stat.value}</p>
-                </div>
-                <div className={`rounded-xl p-3 ${stat.color}`}>
-                  <stat.icon className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </div>
-          ))}
+          {stats.map((stat) => <div key={stat.label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-sm font-bold text-gray-500">{stat.label}</p><p className="mt-1 text-2xl font-bold text-gray-900">{stat.value}</p></div><div className={`rounded-xl p-3 ${stat.color}`}><stat.icon className="h-6 w-6 text-white" /></div></div></div>)}
         </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center gap-3 border-b border-gray-50 bg-gray-50/50 p-4">
-          <div className="relative max-w-md flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search stores..."
-              className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        <div className="border-b border-gray-100 bg-gray-50/50 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search stores, owner, phone or email..." className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-600"><input type="checkbox" checked={showDeleted} onChange={(event) => setShowDeleted(event.target.checked)} /> Show deleted</label>
           </div>
-          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 transition-all hover:bg-gray-100 has-[:checked]:border-red-200 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-              checked={showDeleted}
-              onChange={(e) => setShowDeleted(e.target.checked)}
-            />
-            Show deleted
-            {deletedStores > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-600">{deletedStores}</span>}
-          </label>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">Store</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">Location</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">Owner</th>
-                <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-gray-500">Status</th>
-                <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-500">Actions</th>
-              </tr>
-            </thead>
+          <table className="w-full text-left">
+            <thead><tr className="border-b border-gray-100 bg-gray-50/40"><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Store</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Owner</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Location</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Status</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Inventory</th><th className="px-6 py-4 text-right text-xs font-black uppercase tracking-wide text-gray-500">Actions</th></tr></thead>
             <tbody className="divide-y divide-gray-50">
-              {loading && stores.length === 0 ? (
-                [1, 2, 3].map((i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td className="px-6 py-4"><div className="h-12 w-48 rounded bg-gray-100" /></td>
-                    <td className="px-6 py-4"><div className="h-4 w-56 rounded bg-gray-100" /></td>
-                    <td className="px-6 py-4"><div className="h-4 w-32 rounded bg-gray-100" /></td>
-                    <td className="px-6 py-4"><div className="mx-auto h-6 w-20 rounded bg-gray-100" /></td>
-                    <td className="px-6 py-4"><div className="ml-auto h-4 w-24 rounded bg-gray-100" /></td>
-                  </tr>
-                ))
-              ) : filteredStores.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center">
-                    <StoreIcon className="mx-auto mb-3 h-12 w-12 text-gray-300" />
-                    <p className="font-medium text-gray-500">No stores found</p>
-                  </td>
-                </tr>
-              ) : (
-                filteredStores.map((store) => {
-                  const isDeleted = !!store.deletedAt;
-                  return (
-                  <tr key={store.id} className={`group transition-colors hover:bg-gray-50 ${isDeleted ? 'bg-red-50/30' : ''}`}>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        <div className={`mr-4 flex h-12 w-12 items-center justify-center rounded-xl text-white shadow-lg ${isDeleted ? 'bg-red-400 shadow-red-200' : store.isActive ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-200' : 'bg-gray-400 shadow-gray-200'}`}>
-                          <StoreIcon className="h-6 w-6" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-900">{store.name}</p>
-                          <p className="text-xs text-gray-500">ID: {store.id.substring(0, 8)}</p>
-                          {isDeleted && <span className="mt-1 inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-600">Deleted</span>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex max-w-xs items-center text-sm text-gray-600">
-                        <MapPin className="mr-2 h-4 w-4 flex-shrink-0 text-gray-400" />
-                        <span className="truncate">{store.address}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-600">
-                          <User className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{store.owner?.name || 'Unknown'}</p>
-                          <p className="text-xs text-gray-500">{store.owner?.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      {isDeleted ? (
-                        <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600">
-                          <XCircle className="mr-1.5 h-3 w-3" /> Deleted
-                        </span>
-                      ) : (
-                      <button
-                        onClick={() => toggleStatus(store)}
-                        className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-bold transition-all ${store.isActive ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                      >
-                        {store.isActive ? <><CheckCircle className="mr-1.5 h-3 w-3" /> Active</> : <><XCircle className="mr-1.5 h-3 w-3" /> Inactive</>}
-                      </button>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end space-x-1.5">
-                        <button onClick={() => handleView(store)} className="rounded-lg p-2 text-gray-400 opacity-0 transition-all hover:bg-blue-50 hover:text-blue-600 group-hover:opacity-100"><Eye className="h-4 w-4" /></button>
-                        {isDeleted ? (
-                          <button onClick={() => handleRestore(store)} className="rounded-lg p-2 text-amber-600 opacity-0 transition-all hover:bg-amber-50 group-hover:opacity-100" title="Restore store"><RotateCcw className="h-4 w-4" /></button>
-                        ) : (
-                          <>
-                            <button onClick={() => handleEdit(store)} className="rounded-lg p-2 text-gray-400 opacity-0 transition-all hover:bg-emerald-50 hover:text-emerald-600 group-hover:opacity-100"><Edit className="h-4 w-4" /></button>
-                            <button onClick={() => handleDelete(store)} className="rounded-lg p-2 text-gray-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"><Trash2 className="h-4 w-4" /></button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                  );
-                })
-              )}
+              {loading ? [1, 2, 3].map((index) => <tr key={index}><td colSpan={6} className="px-6 py-5"><div className="h-10 animate-pulse rounded bg-gray-100" /></td></tr>) : filteredStores.length === 0 ? (
+                <tr><td colSpan={6} className="px-6 py-16 text-center"><StoreIcon className="mx-auto mb-3 h-12 w-12 text-gray-300" /><p className="font-bold text-gray-500">No stores found</p></td></tr>
+              ) : filteredStores.map((store) => <tr key={store.id} className={`group hover:bg-gray-50 ${store.deletedAt ? 'opacity-60' : ''}`}>
+                <td className="px-6 py-4"><div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><StoreIcon className="h-5 w-5" /></div><div><p className="font-black text-gray-900">{store.name}</p><p className="text-xs font-semibold text-gray-400">{store.id.slice(0, 8)}</p></div></div></td>
+                <td className="px-6 py-4"><div className="flex items-start gap-2"><User className="mt-0.5 h-4 w-4 text-gray-400" /><div><p className="text-sm font-bold text-gray-700">{store.owner?.name || 'Owner'}</p><p className="text-xs text-gray-500">{store.owner?.email || 'No email'}</p><p className="text-xs text-gray-500">{store.owner?.phone || 'No phone'}</p></div></div></td>
+                <td className="px-6 py-4"><div className="max-w-xs"><p className="truncate text-sm font-semibold text-gray-700">{store.address}</p><p className="mt-1 flex items-center gap-1 text-xs text-gray-400"><MapPin className="h-3 w-3" />{Number(store.latitude).toFixed(4)}, {Number(store.longitude).toFixed(4)}</p></div></td>
+                <td className="px-6 py-4">{store.deletedAt ? <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700">Deleted</span> : store.isActive ? <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">Active</span> : <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">Inactive</span>}</td>
+                <td className="px-6 py-4"><span className="inline-flex items-center gap-1 text-sm font-bold text-gray-700"><Package className="h-4 w-4 text-purple-500" />{store.inventory?.length || 0} products</span></td>
+                <td className="px-6 py-4 text-right">{store.deletedAt ? <button onClick={() => void restore(store)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700"><RotateCcw className="h-4 w-4" /> Restore</button> : <div className="flex justify-end gap-1"><button onClick={() => openEdit(store)} className="rounded-lg p-2 text-gray-400 hover:bg-blue-50 hover:text-blue-600" title="Edit store"><Edit className="h-4 w-4" /></button><button onClick={() => void remove(store)} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600" title="Delete store"><Trash2 className="h-4 w-4" /></button></div>}</td>
+              </tr>)}
             </tbody>
           </table>
         </div>
       </div>
 
-      {showModal && (
-        <StoreFormModal
-          title="Add New Store"
-          formData={formData}
-          setFormData={setFormData}
-          error={error}
-          submitting={submitting}
-          submitLabel="Create Store"
-          onClose={() => setShowModal(false)}
-          onSubmit={handleSubmit}
-          showOwnerEmail={true}
-        />
-      )}
-
-      {showEditModal && (
-        <StoreFormModal
-          title="Edit Store"
-          formData={formData}
-          setFormData={setFormData}
-          error={error}
-          submitting={submitting}
-          submitLabel="Save Changes"
-          onClose={() => setShowEditModal(false)}
-          onSubmit={handleUpdate}
-          showOwnerEmail={false}
-          showActiveToggle={true}
-        />
-      )}
-
-      {showViewModal && selectedStore && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="relative h-32 bg-gradient-to-r from-emerald-500 to-teal-600">
-              <button onClick={() => setShowViewModal(false)} className="absolute right-4 top-4 rounded-lg bg-black/20 p-2 text-white transition-all hover:bg-black/30"><X className="h-5 w-5" /></button>
-              <div className="absolute -bottom-10 left-8">
-                <div className="h-20 w-20 rounded-2xl bg-white p-1 shadow-xl">
-                  <div className="flex h-full w-full items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"><StoreIcon className="h-10 w-10" /></div>
-                </div>
-              </div>
-            </div>
-            <div className="px-8 pb-8 pt-14">
-              <div className="mb-6 flex items-start justify-between">
-                <div>
-                  <h3 className="text-2xl font-bold text-gray-900">{selectedStore.name}</h3>
-                  <div className="mt-1 flex items-center text-sm text-gray-500"><MapPin className="mr-1.5 h-4 w-4" /> {selectedStore.address}</div>
-                </div>
-                <span className={`rounded-full border px-3 py-1 text-xs font-bold ${selectedStore.isActive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-100 text-gray-600'}`}>{selectedStore.isActive ? 'ACTIVE' : 'INACTIVE'}</span>
-              </div>
-              <div className="mb-8 grid grid-cols-2 gap-4">
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><p className="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Store Owner</p><p className="text-sm font-bold text-gray-900">{selectedStore.owner?.name}</p><p className="mt-0.5 text-xs text-gray-500">{selectedStore.owner?.email}</p></div>
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><p className="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Location</p><p className="text-sm font-bold text-gray-900">{selectedStore.latitude}, {selectedStore.longitude}</p><p className="mt-0.5 text-xs text-gray-500">GPS Coordinates</p></div>
-              </div>
-              <h4 className="mb-4 flex items-center text-sm font-bold text-gray-900"><Package className="mr-2 h-4 w-4 text-purple-500" /> Current Inventory</h4>
-              <div className="max-h-48 space-y-2 overflow-y-auto pr-2">
-                {selectedStore.inventory?.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 py-8 text-center"><p className="text-sm text-gray-500">No products in inventory</p></div>
-                ) : (
-                  selectedStore.inventory?.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-3"><div><p className="text-sm font-bold text-gray-900">{item.product.name}</p><p className="text-xs text-gray-500">₹{item.product.price.toFixed(2)}</p></div><span className="rounded-lg bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-700">{item.quantity} units</span></div>
-                  ))
-                )}
-              </div>
-            </div>
-            <div className="flex gap-3 border-t border-gray-100 bg-gray-50 px-8 py-4">
-              <button onClick={() => setShowViewModal(false)} className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 font-bold text-gray-700 hover:bg-gray-50">Close</button>
-              <button onClick={() => { setShowViewModal(false); handleEdit(selectedStore); }} className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white hover:bg-emerald-700">Edit Store</button>
+      {editOpen && selectedStore ? (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white p-5"><div><p className="text-xs font-black uppercase tracking-widest text-emerald-700">Approved Store</p><h2 className="mt-1 text-xl font-black text-gray-900">Edit {selectedStore.name}</h2></div><button onClick={() => setEditOpen(false)} className="rounded-xl p-2 hover:bg-gray-100"><X className="h-5 w-5" /></button></div>
+            <div className="space-y-4 p-5">
+              <label className="block text-sm font-black text-gray-700">Store name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 px-4" /></label>
+              <label className="block text-sm font-black text-gray-700">Address<input value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 px-4" /></label>
+              <StoreLocationPicker apiClient={apiClient} compact coords={{ lat: form.latitude, lng: form.longitude }} onCoordsChange={(latitude, longitude) => setForm((current) => ({ ...current, latitude, longitude }))} onAddressChange={(address) => setForm((current) => ({ ...current, address: address.address || current.address }))} searchPlaceholder="Search store location..." />
+              <label className="flex items-center gap-3 rounded-xl bg-gray-50 p-4 text-sm font-black text-gray-700"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} /> Store is active</label>
+              <button onClick={() => void saveEdit()} disabled={saving} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 font-black text-white disabled:opacity-50">{saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle className="h-5 w-5" />} Save store</button>
             </div>
           </div>
         </div>
-      )}
-
-      {showDeleteModal && selectedStore && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100"><AlertTriangle className="h-8 w-8 text-red-600" /></div>
-            <h2 className="mb-2 text-center text-xl font-bold text-gray-900">Delete Store?</h2>
-            <p className="mb-6 text-center text-gray-500">Are you sure you want to delete <span className="font-bold text-gray-900">{selectedStore.name}</span>? This will also remove all its inventory records.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowDeleteModal(false)} className="flex-1 rounded-xl bg-gray-100 px-4 py-2.5 font-bold text-gray-700 hover:bg-gray-200">No, Keep</button>
-              <button onClick={confirmDelete} disabled={deleting} className="flex flex-1 items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 font-bold text-white hover:bg-red-700 disabled:opacity-50">{deleting ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Yes, Delete'}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      ) : null}
     </DashboardLayout>
-  );
-}
-
-function StoreFormModal({
-  title,
-  formData,
-  setFormData,
-  error,
-  submitting,
-  submitLabel,
-  onClose,
-  onSubmit,
-  showOwnerEmail,
-  showActiveToggle = false,
-}: {
-  title: string;
-  formData: StoreFormData;
-  setFormData: React.Dispatch<React.SetStateAction<StoreFormData>>;
-  error: string;
-  submitting: boolean;
-  submitLabel: string;
-  onClose: () => void;
-  onSubmit: (event: React.FormEvent) => void;
-  showOwnerEmail: boolean;
-  showActiveToggle?: boolean;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-2xl animate-in fade-in zoom-in duration-200">
-        <div className="flex items-center justify-between border-b border-gray-100 p-5">
-          <h2 className="text-xl font-bold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="rounded-lg p-2 hover:bg-gray-100"><X className="h-5 w-5 text-gray-500" /></button>
-        </div>
-        <form onSubmit={onSubmit} className="p-5">
-          {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-          <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="space-y-4">
-              <TextInput label="Store Name" required placeholder="Enter store name" value={formData.name} onChange={(value) => setFormData((prev) => ({ ...prev, name: value }))} />
-              <TextInput label="Address" required placeholder="Enter full address" value={formData.address} onChange={(value) => setFormData((prev) => ({ ...prev, address: value }))} />
-              {showOwnerEmail ? <div className="space-y-4 rounded-2xl border border-teal-100 bg-teal-50/60 p-4"><p className="text-sm font-black text-teal-900">Direct Store Owner login</p><TextInput label="Owner full name" required placeholder="Store owner name" value={formData.ownerName} onChange={(value) => setFormData((prev) => ({ ...prev, ownerName: value }))} autoComplete="off" /><TextInput label="Login email / username" required type="email" placeholder="owner@email.com" value={formData.ownerEmail} onChange={(value) => setFormData((prev) => ({ ...prev, ownerEmail: value }))} autoComplete="new-email" /><TextInput label="Owner mobile number" required placeholder="+91…" value={formData.ownerPhone} onChange={(value) => setFormData((prev) => ({ ...prev, ownerPhone: value }))} autoComplete="off" /><TextInput label="Temporary password" required type="password" placeholder="Minimum 8 characters" value={formData.password} onChange={(value) => setFormData((prev) => ({ ...prev, password: value }))} autoComplete="new-password" /><p className="text-xs font-bold text-teal-700">The owner can sign in immediately using the email or phone and this password.</p></div> : null}
-              {showActiveToggle && (
-                <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
-                  <input type="checkbox" className="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" checked={formData.isActive} onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))} />
-                  Store is Active
-                </label>
-              )}
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Store Location</label>
-              <StoreLocationPicker
-                compact
-                coords={{ lat: formData.latitude, lng: formData.longitude }}
-                onCoordsChange={(lat, lng) => setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }))}
-                onAddressChange={(addr) => setFormData((prev) => ({ ...prev, address: prev.address || addr.address }))}
-                apiClient={apiClient}
-              />
-            </div>
-          </div>
-          <div className="mt-6 flex gap-3 border-t border-gray-100 pt-5">
-            <button type="button" onClick={onClose} className="flex-1 rounded-xl bg-gray-100 px-4 py-2.5 font-bold text-gray-700 transition-all hover:bg-gray-200">Cancel</button>
-            <button type="submit" disabled={submitting} className="flex flex-1 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white transition-all hover:bg-emerald-700 disabled:opacity-50">{submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : submitLabel}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function TextInput({ label, value, onChange, required = false, type = 'text', placeholder = '', autoComplete }: { label: string; value: string; onChange: (value: string) => void; required?: boolean; type?: string; placeholder?: string; autoComplete?: string }) {
-  return (
-    <label className="block text-sm font-medium text-gray-700">
-      {label}
-      <input
-        type={type}
-        required={required}
-        autoComplete={autoComplete || 'off'}
-        className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-      />
-    </label>
   );
 }

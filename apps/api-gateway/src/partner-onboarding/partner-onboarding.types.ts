@@ -88,6 +88,8 @@ export const REQUIRED_PAYLOAD_FIELDS: Record<PartnerApplicationType, string[]> =
     'state',
     'pincode',
     'vehicleType',
+    'preferredZones',
+    'availability',
     'emergencyContactName',
     'emergencyContactPhone',
     'bankAccountCiphertext',
