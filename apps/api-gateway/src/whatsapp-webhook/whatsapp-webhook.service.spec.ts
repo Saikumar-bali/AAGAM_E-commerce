@@ -20,17 +20,27 @@ describe('WhatsAppWebhookService', () => {
     else process.env.WHATSAPP_APP_SECRET = originalAppSecret;
   });
 
-  it('returns the Meta challenge only for the configured verify token', () => {
+  it('returns a numeric Meta challenge only for the configured verify token', () => {
     expect(
       service.verifySubscription(
         'subscribe',
         'test-verify-token-123456789',
         '123456',
       ),
-    ).toBe('123456');
+    ).toBe(123456);
 
     expect(() =>
       service.verifySubscription('subscribe', 'wrong-token', '123456'),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('rejects non-numeric webhook challenges instead of reflecting them', () => {
+    expect(() =>
+      service.verifySubscription(
+        'subscribe',
+        'test-verify-token-123456789',
+        '<script>alert(1)</script>',
+      ),
     ).toThrow(ForbiddenException);
   });
 
