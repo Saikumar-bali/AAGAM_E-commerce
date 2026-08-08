@@ -2,7 +2,9 @@
 const nextConfig = {
   transpilePackages: ["@aagam/ui", "@aagam/utils", "@aagam/types"],
   typescript: {
-    ignoreBuildErrors: true,
+    // Production builds must fail on dashboard type errors rather than shipping
+    // a bundle whose compiler errors were silently ignored.
+    ignoreBuildErrors: false,
   },
   async headers() {
     return [
