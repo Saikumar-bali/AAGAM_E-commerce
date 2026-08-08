@@ -13,6 +13,8 @@ DEPLOY_NODE_CACHE_DIR="${DEPLOY_NODE_CACHE_DIR:-$HOME/.cache/aagam-node}"
 DEPLOY_MIN_AVAILABLE_MEMORY_MB="${DEPLOY_MIN_AVAILABLE_MEMORY_MB:-1536}"
 DEPLOY_SWAP_MB="${DEPLOY_SWAP_MB:-1536}"
 DEPLOY_SWAP_FILE="${DEPLOY_SWAP_FILE:-/var/tmp/aagam-deploy.swap}"
+DEPLOY_SUPPLEMENTAL_SWAP_MB="${DEPLOY_SUPPLEMENTAL_SWAP_MB:-512}"
+DEPLOY_SUPPLEMENTAL_SWAP_FILE="${DEPLOY_SUPPLEMENTAL_SWAP_FILE:-${DEPLOY_SWAP_FILE}.extra}"
 DEPLOY_NODE_HEAP_MB="${DEPLOY_NODE_HEAP_MB:-1536}"
 
 cd "$APP_DIR"
@@ -99,6 +101,58 @@ available_memory_mb() {
   ' /proc/meminfo
 }
 
+swap_is_active() {
+  local swap_file="$1"
+  sudo swapon --show=NAME --noheadings | awk '{$1=$1};1' | grep -Fxq "$swap_file"
+}
+
+create_swap_file() {
+  local swap_file="$1"
+  local swap_mb="$2"
+  local swap_dir
+  swap_dir="$(dirname "$swap_file")"
+  local free_disk_mb
+  free_disk_mb="$(df -Pm "$swap_dir" | awk 'NR == 2 { print $4 }')"
+  if (( free_disk_mb < swap_mb + 512 )); then
+    echo "Not enough disk space to create ${swap_mb} MB deployment swap at ${swap_file}."
+    echo "Free disk: ${free_disk_mb} MB; required: $((swap_mb + 512)) MB."
+    exit 1
+  fi
+
+  echo "Creating ${swap_mb} MB deployment swap file at ${swap_file}."
+  sudo swapoff "$swap_file" >/dev/null 2>&1 || true
+  sudo rm -f "$swap_file"
+  if command -v fallocate >/dev/null 2>&1; then
+    sudo fallocate -l "${swap_mb}M" "$swap_file"
+  else
+    sudo dd if=/dev/zero of="$swap_file" bs=1M count="$swap_mb" status=none
+  fi
+  sudo chmod 600 "$swap_file"
+  sudo mkswap -f "$swap_file" >/dev/null
+}
+
+ensure_swap_file() {
+  local swap_file="$1"
+  local swap_mb="$2"
+  local desired_bytes=$((swap_mb * 1024 * 1024))
+  local existing_bytes=0
+  if [[ -f "$swap_file" ]]; then
+    existing_bytes="$(stat -c '%s' "$swap_file" 2>/dev/null || echo 0)"
+  fi
+
+  if (( existing_bytes < desired_bytes )); then
+    if swap_is_active "$swap_file"; then
+      echo "Active swap file ${swap_file} is smaller than the requested ${swap_mb} MB; leaving it active instead of risking swapoff under memory pressure."
+    else
+      create_swap_file "$swap_file" "$swap_mb"
+    fi
+  fi
+
+  if ! swap_is_active "$swap_file"; then
+    sudo swapon "$swap_file"
+  fi
+}
+
 ensure_deploy_memory() {
   local available_mb
   available_mb="$(available_memory_mb)"
@@ -112,47 +166,39 @@ ensure_deploy_memory() {
   done
   if ! sudo -n true >/dev/null 2>&1; then
     echo "At least ${DEPLOY_MIN_AVAILABLE_MEMORY_MB} MB combined free memory/swap is required."
-    echo "Passwordless sudo is required to activate the deployment swap file at ${DEPLOY_SWAP_FILE}."
+    echo "Passwordless sudo is required to activate deployment swap files."
     exit 1
   fi
 
-  local desired_bytes=$((DEPLOY_SWAP_MB * 1024 * 1024))
-  local existing_bytes=0
-  if [[ -f "$DEPLOY_SWAP_FILE" ]]; then
-    existing_bytes="$(stat -c '%s' "$DEPLOY_SWAP_FILE" 2>/dev/null || echo 0)"
-  fi
-
-  if (( existing_bytes < desired_bytes )); then
-    local swap_dir
-    swap_dir="$(dirname "$DEPLOY_SWAP_FILE")"
-    local free_disk_mb
-    free_disk_mb="$(df -Pm "$swap_dir" | awk 'NR == 2 { print $4 }')"
-    if (( free_disk_mb < DEPLOY_SWAP_MB + 512 )); then
-      echo "Not enough disk space to create ${DEPLOY_SWAP_MB} MB deployment swap at ${DEPLOY_SWAP_FILE}."
-      echo "Free disk: ${free_disk_mb} MB; required: $((DEPLOY_SWAP_MB + 512)) MB."
-      exit 1
-    fi
-
-    echo "Creating ${DEPLOY_SWAP_MB} MB deployment swap file at ${DEPLOY_SWAP_FILE}."
-    sudo swapoff "$DEPLOY_SWAP_FILE" >/dev/null 2>&1 || true
-    sudo rm -f "$DEPLOY_SWAP_FILE"
-    if command -v fallocate >/dev/null 2>&1; then
-      sudo fallocate -l "${DEPLOY_SWAP_MB}M" "$DEPLOY_SWAP_FILE"
-    else
-      sudo dd if=/dev/zero of="$DEPLOY_SWAP_FILE" bs=1M count="$DEPLOY_SWAP_MB" status=none
-    fi
-    sudo chmod 600 "$DEPLOY_SWAP_FILE"
-    sudo mkswap -f "$DEPLOY_SWAP_FILE" >/dev/null
-  fi
-
-  if ! sudo swapon --show=NAME --noheadings | awk '{$1=$1};1' | grep -Fxq "$DEPLOY_SWAP_FILE"; then
-    sudo swapon "$DEPLOY_SWAP_FILE"
-  fi
+  ensure_swap_file "$DEPLOY_SWAP_FILE" "$DEPLOY_SWAP_MB"
 
   available_mb="$(available_memory_mb)"
-  echo "Deployment memory available after swap activation: ${available_mb} MB"
+  echo "Deployment memory available after primary swap activation: ${available_mb} MB"
+  if (( available_mb >= DEPLOY_MIN_AVAILABLE_MEMORY_MB )); then
+    return
+  fi
+
+  if [[ "$DEPLOY_SUPPLEMENTAL_SWAP_FILE" == "$DEPLOY_SWAP_FILE" ]]; then
+    echo "DEPLOY_SUPPLEMENTAL_SWAP_FILE must be different from DEPLOY_SWAP_FILE."
+    exit 1
+  fi
+
+  local shortfall_mb=$((DEPLOY_MIN_AVAILABLE_MEMORY_MB - available_mb))
+  local supplemental_mb="$DEPLOY_SUPPLEMENTAL_SWAP_MB"
+  # Keep a little breathing room above the hard gate so normal runtime activity
+  # does not make a deployment oscillate around the threshold by a few MB.
+  if (( supplemental_mb < shortfall_mb + 128 )); then
+    supplemental_mb=$((shortfall_mb + 128))
+  fi
+
+  echo "Primary deployment swap is active but the host is still ${shortfall_mb} MB below the memory budget."
+  echo "Provisioning ${supplemental_mb} MB supplemental deployment swap at ${DEPLOY_SUPPLEMENTAL_SWAP_FILE}."
+  ensure_swap_file "$DEPLOY_SUPPLEMENTAL_SWAP_FILE" "$supplemental_mb"
+
+  available_mb="$(available_memory_mb)"
+  echo "Deployment memory available after supplemental swap activation: ${available_mb} MB"
   if (( available_mb < DEPLOY_MIN_AVAILABLE_MEMORY_MB )); then
-    echo "Unable to provide the minimum deployment memory budget of ${DEPLOY_MIN_AVAILABLE_MEMORY_MB} MB."
+    echo "Unable to provide the minimum deployment memory budget of ${DEPLOY_MIN_AVAILABLE_MEMORY_MB} MB even after supplemental swap."
     exit 1
   fi
 }
