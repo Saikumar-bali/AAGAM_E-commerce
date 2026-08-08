@@ -2,8 +2,10 @@ import { Module } from '@nestjs/common';
 import { UploadModule } from '../upload/upload.module';
 import { ContactVerificationModule } from '../contact-verification/contact-verification.module';
 import { PartnerOnboardingAdminController } from './partner-onboarding-admin.controller';
+import { InternalPartnerOnboardingAdminController } from './internal-partner-onboarding-admin.controller';
 import { PartnerOnboardingAdminService } from './partner-onboarding-admin.service';
 import { PhonePrimaryPartnerOnboardingAdminService } from './phone-primary-partner-onboarding-admin.service';
+import { InternalPartnerOnboardingAdminService } from './internal-partner-onboarding-admin.service';
 import { PartnerOnboardingController } from './partner-onboarding.controller';
 import { PartnerOnboardingRepository } from './partner-onboarding.repository';
 import { PartnerOnboardingSecurity } from './partner-onboarding.security';
@@ -24,12 +26,14 @@ import { PartnerApplicationRecoveryService } from './partner-application-recover
     PartnerOnboardingController,
     PartnerApplicationRecoveryController,
     PartnerOnboardingAdminController,
+    InternalPartnerOnboardingAdminController,
     VerificationReadinessController,
   ],
   providers: [
     PartnerOnboardingSecurity,
     PartnerOnboardingRepository,
     PartnerApplicationRecoveryService,
+    InternalPartnerOnboardingAdminService,
     VerificationChallengeRepository,
     PartnerVerificationDeliveryService,
     FirebasePnvVerificationService,

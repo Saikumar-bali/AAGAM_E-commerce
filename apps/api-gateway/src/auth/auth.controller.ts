@@ -14,8 +14,11 @@ import {
   VerifyCustomerPhoneOtpDto,
 } from './dto/phone-auth.dto';
 
-const AUTH_LIMIT = process.env.PLAYWRIGHT_QA === 'true' ? 500 : 3;
-const PROFILE_LIMIT = process.env.PLAYWRIGHT_QA === 'true' ? 2000 : 180;
+const IS_PLAYWRIGHT_QA = process.env.PLAYWRIGHT_QA === 'true';
+const AUTH_LIMIT = IS_PLAYWRIGHT_QA ? 500 : 3;
+const OTP_REQUEST_LIMIT = IS_PLAYWRIGHT_QA ? 500 : 5;
+const OTP_VERIFY_LIMIT = IS_PLAYWRIGHT_QA ? 500 : 8;
+const PROFILE_LIMIT = IS_PLAYWRIGHT_QA ? 2000 : 180;
 
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
@@ -44,13 +47,13 @@ export class AuthController {
   }
 
   @Post('phone/request')
-  @Throttle({ short: { limit: 5, ttl: 60000 } })
+  @Throttle({ short: { limit: OTP_REQUEST_LIMIT, ttl: 60000 } })
   requestPhoneOtp(@Body() dto: RequestCustomerPhoneOtpDto) {
     return this.authService.requestPhoneOtp(dto.phoneE164, dto.purpose);
   }
 
   @Post('phone/verify')
-  @Throttle({ short: { limit: 8, ttl: 60000 } })
+  @Throttle({ short: { limit: OTP_VERIFY_LIMIT, ttl: 60000 } })
   async verifyPhoneOtp(
     @Body() dto: VerifyCustomerPhoneOtpDto,
     @Res({ passthrough: true }) response: Response,
@@ -61,7 +64,7 @@ export class AuthController {
   }
 
   @Post('mobile/phone/verify')
-  @Throttle({ short: { limit: 8, ttl: 60000 } })
+  @Throttle({ short: { limit: OTP_VERIFY_LIMIT, ttl: 60000 } })
   async mobileVerifyPhoneOtp(@Body() dto: VerifyCustomerPhoneOtpDto) {
     const result = await this.authService.verifyPhoneOtp(dto);
     return {
@@ -72,13 +75,13 @@ export class AuthController {
   }
 
   @Post('partner/phone/request')
-  @Throttle({ short: { limit: 5, ttl: 60000 } })
+  @Throttle({ short: { limit: OTP_REQUEST_LIMIT, ttl: 60000 } })
   requestPartnerPhoneOtp(@Body() dto: RequestCustomerPhoneOtpDto) {
     return this.authService.requestPartnerPhoneOtp(dto.phoneE164);
   }
 
   @Post('mobile/partner/phone/verify')
-  @Throttle({ short: { limit: 8, ttl: 60000 } })
+  @Throttle({ short: { limit: OTP_VERIFY_LIMIT, ttl: 60000 } })
   async mobileVerifyPartnerPhoneOtp(@Body() dto: VerifyCustomerPhoneOtpDto) {
     const result = await this.authService.verifyPartnerPhoneOtp(dto);
     return {
