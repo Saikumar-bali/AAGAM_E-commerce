@@ -75,19 +75,21 @@ if (rawJson) {
   );
 }
 
-const whatsappOverlays = [
+const managedOverlays = [
+  ['PARTNER_PHONE_VERIFICATION_MODE', process.env.PARTNER_PHONE_VERIFICATION_MODE_OVERRIDE],
+  ['PARTNER_SMS_PROVIDER', process.env.PARTNER_SMS_PROVIDER_OVERRIDE],
   ['WHATSAPP_ACCESS_TOKEN', process.env.WHATSAPP_ACCESS_TOKEN_SECRET],
-  ['WHATSAPP_PHONE_NUMBER_ID', process.env.WHATSAPP_PHONE_NUMBER_ID_SECRET],
-  ['WHATSAPP_BUSINESS_ACCOUNT_ID', process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_SECRET],
-  ['WHATSAPP_GRAPH_API_VERSION', process.env.WHATSAPP_GRAPH_API_VERSION_SECRET],
-  ['WHATSAPP_OTP_TEMPLATE_NAME', process.env.WHATSAPP_OTP_TEMPLATE_NAME_SECRET],
-  ['WHATSAPP_OTP_TEMPLATE_LANGUAGE_CODE', process.env.WHATSAPP_OTP_TEMPLATE_LANGUAGE_CODE_SECRET],
+  ['WHATSAPP_PHONE_NUMBER_ID', process.env.WHATSAPP_PHONE_NUMBER_ID_CONFIG],
+  ['WHATSAPP_BUSINESS_ACCOUNT_ID', process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_CONFIG],
+  ['WHATSAPP_GRAPH_API_VERSION', process.env.WHATSAPP_GRAPH_API_VERSION_CONFIG],
+  ['WHATSAPP_OTP_TEMPLATE_NAME', process.env.WHATSAPP_OTP_TEMPLATE_NAME_CONFIG],
+  ['WHATSAPP_OTP_TEMPLATE_LANGUAGE_CODE', process.env.WHATSAPP_OTP_TEMPLATE_LANGUAGE_CODE_CONFIG],
   ['WHATSAPP_WEBHOOK_VERIFY_TOKEN', process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN_SECRET],
   ['WHATSAPP_APP_SECRET', process.env.WHATSAPP_APP_SECRET_SECRET],
 ];
-const hasWhatsAppOverlay = whatsappOverlays.some(([, value]) => String(value || '').trim());
+const hasManagedOverlay = managedOverlays.some(([, value]) => String(value || '').trim());
 
-if (serviceAccount || hasWhatsAppOverlay) {
+if (serviceAccount || hasManagedOverlay) {
   envFile += '\n# Managed by GitHub production deployment. Final assignments below override base env values.\n';
 }
 
@@ -97,11 +99,11 @@ if (serviceAccount) {
   console.log('Aligned FIREBASE_PROJECT_ID with the protected Firebase service account.');
 }
 
-if (hasWhatsAppOverlay) {
-  for (const [key, value] of whatsappOverlays) {
+if (hasManagedOverlay) {
+  for (const [key, value] of managedOverlays) {
     envFile = appendManagedValue(envFile, key, value);
   }
-  console.log('Applied protected WhatsApp production settings without printing secret values.');
+  console.log('Applied managed WhatsApp production settings without printing credential values.');
 }
 
 const outputPath = resolve(outputArg);
