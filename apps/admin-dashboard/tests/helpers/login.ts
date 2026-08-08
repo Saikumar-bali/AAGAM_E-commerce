@@ -5,6 +5,8 @@ import { Page } from '@playwright/test';
 
 export type QaRole = 'ADMIN' | 'CUSTOMER' | 'STORE_OWNER' | 'RIDER';
 
+const LOCAL_TEST_PASSWORD = 'Aagam-Local-Seed-Only-Change-Me!';
+
 const EMAIL_ENV: Record<QaRole, string> = {
   ADMIN: process.env.QA_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@aagam.com',
   CUSTOMER: process.env.QA_CUSTOMER_EMAIL || process.env.CUSTOMER_EMAIL || 'customer@aagam.com',
@@ -13,10 +15,10 @@ const EMAIL_ENV: Record<QaRole, string> = {
 };
 
 const PASSWORD_ENV: Record<QaRole, string> = {
-  ADMIN: process.env.QA_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'admin@2026!',
-  CUSTOMER: process.env.QA_CUSTOMER_PASSWORD || process.env.CUSTOMER_PASSWORD || 'customer@2026!',
-  STORE_OWNER: process.env.QA_STORE_PASSWORD || process.env.STORE_PASSWORD || 'store@2026!',
-  RIDER: process.env.QA_RIDER_PASSWORD || process.env.RIDER_PASSWORD || 'rider@2026!',
+  ADMIN: process.env.QA_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || LOCAL_TEST_PASSWORD,
+  CUSTOMER: process.env.QA_CUSTOMER_PASSWORD || process.env.CUSTOMER_PASSWORD || LOCAL_TEST_PASSWORD,
+  STORE_OWNER: process.env.QA_STORE_PASSWORD || process.env.STORE_PASSWORD || LOCAL_TEST_PASSWORD,
+  RIDER: process.env.QA_RIDER_PASSWORD || process.env.RIDER_PASSWORD || LOCAL_TEST_PASSWORD,
 };
 
 export function qaCredentials(role: QaRole) {
