@@ -31,6 +31,9 @@ const ADMIN_EDITABLE = [
   PartnerApplicationStatus.ACTION_REQUIRED,
 ];
 
+const ADMIN_CONTACT_REASON =
+  'Identity supplied and managed by an authenticated AAGAM Admin. OTP is not required for Admin-created partner onboarding.';
+
 @Injectable()
 export class InternalPartnerOnboardingAdminService {
   constructor(
@@ -95,6 +98,67 @@ export class InternalPartnerOnboardingAdminService {
     }
   }
 
+  private async attestPhone(
+    id: string,
+    adminUserId: string,
+    message = 'Primary phone accepted under Admin-managed onboarding authority.',
+  ) {
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `UPDATE "PartnerApplication" SET
+          "phoneVerifiedAt" = CURRENT_TIMESTAMP,
+          "contactVerificationMethod" = 'OTHER',
+          "contactVerifiedByUserId" = $2,
+          "contactVerificationReason" = $3,
+          "verificationCodeHash" = NULL, "verificationExpiresAt" = NULL,
+          "updatedAt" = CURRENT_TIMESTAMP
+         WHERE "id" = $1`,
+        id,
+        adminUserId,
+        ADMIN_CONTACT_REASON,
+      );
+      await this.repository.writeEvent(tx, id, 'CONTACT_VERIFIED_BY_ADMIN', 'ADMIN', {
+        actorUserId: adminUserId,
+        applicantVisible: false,
+        message,
+        metadata: {
+          source: 'ADMIN_INTERNAL',
+          channel: PartnerContactChannel.PHONE,
+          method: 'OTHER',
+          otpRequired: false,
+        },
+      });
+    });
+  }
+
+  private async validateRiderZones(application: PartnerApplicationRow) {
+    if (application.type !== PartnerApplicationType.RIDER) return;
+    const requested = Array.isArray(application.applicantPayload?.preferredZones)
+      ? application.applicantPayload.preferredZones
+          .map((value: unknown) => String(value || '').trim())
+          .filter(Boolean)
+      : [];
+    if (!requested.length) {
+      throw new BadRequestException({
+        message: 'Choose at least one active delivery zone for the Rider',
+        missingFields: ['preferredZones'],
+      });
+    }
+    const unique = [...new Set(requested)];
+    const active = await prisma.deliveryZone.findMany({
+      where: { isActive: true, name: { in: unique } },
+      select: { name: true },
+    });
+    const activeNames = new Set(active.map((zone) => zone.name));
+    const unavailable = unique.filter((zone) => !activeNames.has(zone));
+    if (unavailable.length) {
+      throw new BadRequestException({
+        message: 'One or more Rider delivery zones are inactive or unavailable',
+        unavailableZones: unavailable,
+      });
+    }
+  }
+
   async create(adminUserId: string, dto: AdminCreateInternalPartnerDto) {
     const phone = normalizePhoneE164(dto.phoneE164);
     const email = dto.email?.trim().toLowerCase() || null;
@@ -109,8 +173,11 @@ export class InternalPartnerOnboardingAdminService {
       await tx.$executeRawUnsafe(
         `INSERT INTO "PartnerApplication" (
           "id", "applicationNumber", "type", "applicantName", "email",
-          "phoneE164", "accessSecretHash", "verificationChannel", "applicantPayload"
-        ) VALUES ($1,$2,$3::"PartnerApplicationType",$4,$5,$6,$7,$8,$9::jsonb)`,
+          "phoneE164", "accessSecretHash", "verificationChannel", "applicantPayload",
+          "phoneVerifiedAt", "contactVerificationMethod", "contactVerifiedByUserId",
+          "contactVerificationReason"
+        ) VALUES ($1,$2,$3::"PartnerApplicationType",$4,$5,$6,$7,$8,$9::jsonb,
+                  CURRENT_TIMESTAMP,'OTHER',$10,$11)`,
         id,
         applicationNumber,
         dto.type,
@@ -120,13 +187,31 @@ export class InternalPartnerOnboardingAdminService {
         this.security.hash(internalSecret),
         PartnerContactChannel.PHONE,
         JSON.stringify(payload),
+        adminUserId,
+        ADMIN_CONTACT_REASON,
       );
       await this.repository.writeEvent(tx, id, 'APPLICATION_CREATED', 'ADMIN', {
         actorUserId: adminUserId,
         toStatus: PartnerApplicationStatus.DRAFT,
         applicantVisible: false,
         message: 'Internal partner application created by Admin.',
-        metadata: { source: 'ADMIN_INTERNAL', primaryContact: 'PHONE' },
+        metadata: {
+          source: 'ADMIN_INTERNAL',
+          primaryContact: 'PHONE',
+          contactAuthority: 'ADMIN_ATTESTED',
+          otpRequired: false,
+        },
+      });
+      await this.repository.writeEvent(tx, id, 'CONTACT_VERIFIED_BY_ADMIN', 'ADMIN', {
+        actorUserId: adminUserId,
+        applicantVisible: false,
+        message: 'Primary phone accepted automatically for Admin-managed onboarding.',
+        metadata: {
+          source: 'ADMIN_INTERNAL',
+          channel: PartnerContactChannel.PHONE,
+          method: 'OTHER',
+          otpRequired: false,
+        },
       });
     });
 
@@ -162,15 +247,20 @@ export class InternalPartnerOnboardingAdminService {
       await tx.$executeRawUnsafe(
         `UPDATE "PartnerApplication" SET
           "applicantName" = $2, "email" = $3, "phoneE164" = $4,
-          "emailVerifiedAt" = $5, "phoneVerifiedAt" = $6,
-          "applicantPayload" = $7::jsonb, "updatedAt" = CURRENT_TIMESTAMP
+          "emailVerifiedAt" = $5, "phoneVerifiedAt" = CURRENT_TIMESTAMP,
+          "contactVerificationMethod" = 'OTHER',
+          "contactVerifiedByUserId" = $6,
+          "contactVerificationReason" = $7,
+          "verificationCodeHash" = NULL, "verificationExpiresAt" = NULL,
+          "applicantPayload" = $8::jsonb, "updatedAt" = CURRENT_TIMESTAMP
          WHERE "id" = $1`,
         id,
         dto.applicantName?.trim() || application.applicantName,
         nextEmail,
         nextPhone,
         emailChanged ? null : application.emailVerifiedAt,
-        phoneChanged ? null : application.phoneVerifiedAt,
+        adminUserId,
+        ADMIN_CONTACT_REASON,
         JSON.stringify(payload),
       );
       await this.repository.writeEvent(tx, id, 'DRAFT_UPDATED', 'ADMIN', {
@@ -183,6 +273,21 @@ export class InternalPartnerOnboardingAdminService {
           changedPayloadFields: Object.keys(dto.payload || {}),
         },
       });
+      if (phoneChanged || !application.phoneVerifiedAt) {
+        await this.repository.writeEvent(tx, id, 'CONTACT_VERIFIED_BY_ADMIN', 'ADMIN', {
+          actorUserId: adminUserId,
+          applicantVisible: false,
+          message: phoneChanged
+            ? 'Updated primary phone accepted under Admin-managed onboarding authority.'
+            : 'Primary phone accepted under Admin-managed onboarding authority.',
+          metadata: {
+            source: 'ADMIN_INTERNAL',
+            channel: PartnerContactChannel.PHONE,
+            method: 'OTHER',
+            otpRequired: false,
+          },
+        });
+      }
     });
 
     return this.repository.adminDetail(id);
@@ -322,11 +427,27 @@ export class InternalPartnerOnboardingAdminService {
     adminUserId: string,
     dto: AdminSubmitInternalPartnerDto,
   ) {
-    const application = await this.application(id);
+    let application = await this.application(id);
     if (application.status === PartnerApplicationStatus.UNDER_REVIEW) {
       return this.repository.adminDetail(id);
     }
     this.assertAdminEditable(application);
+
+    if (!application.phoneE164) {
+      throw new BadRequestException('Primary mobile number is required for an Admin-created partner');
+    }
+    if (!application.email) {
+      throw new BadRequestException({
+        message: 'Operational email is required before Admin approval',
+        missingFields: ['email'],
+      });
+    }
+    if (!application.phoneVerifiedAt) {
+      await this.attestPhone(id, adminUserId);
+      application = await this.application(id);
+    }
+    await this.validateRiderZones(application);
+
     const documents = await this.repository.documents(id, true);
     this.repository.validateForSubmission(application, documents);
 
@@ -344,6 +465,7 @@ export class InternalPartnerOnboardingAdminService {
       submissionVersion: version,
       submittedAt: new Date().toISOString(),
       source: 'ADMIN_INTERNAL',
+      contactAuthority: 'ADMIN_ATTESTED',
     };
 
     await prisma.$transaction(async (tx) => {
@@ -371,7 +493,12 @@ export class InternalPartnerOnboardingAdminService {
         toStatus: PartnerApplicationStatus.UNDER_REVIEW,
         applicantVisible: false,
         message: dto.note?.trim() || 'Internal application completed and submitted by Admin.',
-        metadata: { source: 'ADMIN_INTERNAL', submissionVersion: version },
+        metadata: {
+          source: 'ADMIN_INTERNAL',
+          submissionVersion: version,
+          contactAuthority: 'ADMIN_ATTESTED',
+          otpRequired: false,
+        },
       });
       await this.repository.writeEvent(tx, id, 'REVIEW_STARTED', 'ADMIN', {
         actorUserId: adminUserId,
