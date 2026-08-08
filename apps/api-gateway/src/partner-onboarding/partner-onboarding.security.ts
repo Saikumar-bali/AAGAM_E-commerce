@@ -59,6 +59,7 @@ export class PartnerOnboardingSecurity {
     delete next.bankAccountCiphertext;
     delete next.bankIfscCiphertext;
     delete next.taxIdentifierCiphertext;
+    delete next.adminInitialPasswordHash;
     return next;
   }
 }
