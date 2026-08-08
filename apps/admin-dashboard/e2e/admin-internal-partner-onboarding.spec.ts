@@ -5,6 +5,7 @@ const adminEmail = process.env.ADMIN_EMAIL;
 const adminPassword = process.env.ADMIN_PASSWORD;
 
 const uniquePhone = (offset: number) => `+919${String(Date.now() + offset).slice(-9).padStart(9, '0')}`;
+const uniqueEmail = (type: string, offset: number) => `internal.${type.toLowerCase()}.${Date.now()}.${offset}@example.com`;
 
 async function adminBearer(request: APIRequestContext) {
   expect(adminEmail, 'ADMIN_EMAIL must be configured').toBeTruthy();
@@ -14,6 +15,24 @@ async function adminBearer(request: APIRequestContext) {
   });
   expect(login.ok(), await login.text()).toBeTruthy();
   return (await login.json()).access_token as string;
+}
+
+async function activeZone(request: APIRequestContext, token: string) {
+  const response = await request.get(`${API_BASE}/stores/delivery-zones/admin`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(response.ok(), await response.text()).toBeTruthy();
+  const zones = await response.json();
+  const existing = (Array.isArray(zones) ? zones : []).find((zone: any) => zone.isActive && zone.name);
+  if (existing) return existing.name as string;
+
+  const name = `Internal QA Zone ${Date.now()}`;
+  const create = await request.post(`${API_BASE}/stores/delivery-zones`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { name },
+  });
+  expect(create.ok(), await create.text()).toBeTruthy();
+  return name;
 }
 
 async function uploadDocument(
@@ -61,14 +80,18 @@ async function createAndApprove(
   offset: number,
 ) {
   const phoneE164 = uniquePhone(offset);
+  const email = uniqueEmail(type, offset);
   const applicantName = type === 'RIDER' ? `Internal Rider ${Date.now()}` : `Internal Store Owner ${Date.now()}`;
+  const zoneName = type === 'RIDER' ? await activeZone(request, token) : undefined;
+
   const create = await request.post(`${API_BASE}/admin/partner-onboarding/internal-applications`, {
     headers: { Authorization: `Bearer ${token}` },
-    data: { type, applicantName, phoneE164 },
+    data: { type, applicantName, phoneE164, email },
   });
   expect(create.ok(), await create.text()).toBeTruthy();
   const created = await create.json();
   expect(created.application.status).toBe('DRAFT');
+  expect(created.application.phoneVerifiedAt).toBeTruthy();
   const applicationId = created.application.id as string;
 
   const payload = type === 'RIDER'
@@ -79,9 +102,10 @@ async function createAndApprove(
         state: 'Andhra Pradesh',
         pincode: '530041',
         vehicleType: 'WALKER',
+        preferredZones: [zoneName],
+        availability: 'Full day',
         emergencyContactName: 'Emergency Contact',
         emergencyContactPhone: '+919999999999',
-        availability: 'Full day',
         bankAccountHolderName: applicantName,
         bankAccountNumber: '123456789012',
         bankIfsc: 'ABCD0001234',
@@ -115,23 +139,11 @@ async function createAndApprove(
   );
   expect(update.ok(), await update.text()).toBeTruthy();
   const updated = await update.json();
+  expect(updated.application.phoneVerifiedAt).toBeTruthy();
   expect(updated.application.applicantPayload.bankAccountNumber).toBeUndefined();
   expect(updated.application.applicantPayload.bankIfsc).toBeUndefined();
   expect(updated.application.applicantPayload.bankAccountLast4).toBe(type === 'RIDER' ? '9012' : '1012');
-
-  const verifyContact = await request.post(
-    `${API_BASE}/admin/partner-onboarding/applications/${applicationId}/contact-verification`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-      data: {
-        channel: 'PHONE',
-        method: 'DOCUMENT_MATCH',
-        reason: 'Identity and original documents checked in person by Admin.',
-      },
-    },
-  );
-  expect(verifyContact.ok(), await verifyContact.text()).toBeTruthy();
-  expect((await verifyContact.json()).application.phoneVerifiedAt).toBeTruthy();
+  if (type === 'RIDER') expect(updated.application.applicantPayload.preferredZones).toContain(zoneName);
 
   const requiredDocuments = type === 'RIDER'
     ? ['IDENTITY', 'PROFILE_PHOTO', 'BANK_PROOF']
@@ -140,16 +152,19 @@ async function createAndApprove(
     await uploadDocument(request, token, applicationId, documentType);
   }
 
+  // No applicant OTP and no Admin contact-verification API call are performed.
+  // The authenticated Admin is the audited identity authority for internal onboarding.
   const submit = await request.post(
     `${API_BASE}/admin/partner-onboarding/internal-applications/${applicationId}/submit-for-review`,
     {
       headers: { Authorization: `Bearer ${token}` },
-      data: { note: 'Internal Admin QA onboarding completed.' },
+      data: { note: 'Internal Admin QA onboarding completed without OTP.' },
     },
   );
   expect(submit.ok(), await submit.text()).toBeTruthy();
   const submitted = await submit.json();
   expect(submitted.application.status).toBe('UNDER_REVIEW');
+  expect(submitted.application.phoneVerifiedAt).toBeTruthy();
   expect(submitted.requirements.completionPercent).toBe(100);
 
   const verifyAll = await request.post(
@@ -167,8 +182,8 @@ async function createAndApprove(
     {
       headers: { Authorization: `Bearer ${token}` },
       data: type === 'STORE'
-        ? { operationalName: payload.displayName, latitude: payload.latitude, longitude: payload.longitude }
-        : { operationalName: applicantName },
+        ? { ownerEmail: email, operationalName: payload.displayName, latitude: payload.latitude, longitude: payload.longitude }
+        : { ownerEmail: email, operationalName: applicantName },
     },
   );
   expect(approve.ok(), await approve.text()).toBeTruthy();
@@ -181,14 +196,14 @@ async function createAndApprove(
 }
 
 test.describe.serial('Admin internal Partner onboarding', () => {
-  test('Admin can complete and provision a Rider with full Rider access', async ({ request }) => {
+  test('Admin can create and provision a Rider without onboarding OTP', async ({ request }) => {
     const token = await adminBearer(request);
     const rider = await createAndApprove(request, token, 'RIDER', 101);
     const session = await phoneLogin(request, rider.phoneE164);
     expect(session.user.roles).toEqual(expect.arrayContaining(['CUSTOMER', 'RIDER']));
   });
 
-  test('Admin can complete and provision a Store with full Store Owner access', async ({ request }) => {
+  test('Admin can create and provision a Store without onboarding OTP', async ({ request }) => {
     const token = await adminBearer(request);
     const store = await createAndApprove(request, token, 'STORE', 102);
     const session = await phoneLogin(request, store.phoneE164);
