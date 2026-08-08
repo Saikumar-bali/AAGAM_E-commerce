@@ -30,7 +30,7 @@ export class WhatsAppWebhookController {
       verifyToken,
       challenge,
     );
-    return response.status(200).type('text/plain').send(verifiedChallenge);
+    return response.status(200).type('text/plain').send(String(verifiedChallenge));
   }
 
   @Post()
