@@ -116,37 +116,35 @@ describe('production deployment environment contracts', () => {
     }
   });
 
-  it('overlays protected WhatsApp secrets and validates SMS_ONLY production mode', () => {
-    const whatsappBaseEnv = baseEnv.replace(
-      'PARTNER_PHONE_VERIFICATION_MODE=EMAIL_ONLY',
-      'PARTNER_PHONE_VERIFICATION_MODE=SMS_ONLY\nPARTNER_SMS_PROVIDER=WHATSAPP',
-    );
-    const run = runPrepare(
-      {
-        FIREBASE_SERVICE_ACCOUNT_JSON_SECRET: JSON.stringify(serviceAccount),
-        FIREBASE_SERVICE_ACCOUNT_JSON_B64: '',
-        WHATSAPP_ACCESS_TOKEN_SECRET: "token-with-'quote-and-long-enough-value",
-        WHATSAPP_PHONE_NUMBER_ID_SECRET: '1322702964249664',
-        WHATSAPP_BUSINESS_ACCOUNT_ID_SECRET: '2471999716613292',
-        WHATSAPP_GRAPH_API_VERSION_SECRET: 'v23.0',
-        WHATSAPP_OTP_TEMPLATE_NAME_SECRET: 'authentication_code_copy_code_button',
-        WHATSAPP_OTP_TEMPLATE_LANGUAGE_CODE_SECRET: 'en_US',
-        WHATSAPP_WEBHOOK_VERIFY_TOKEN_SECRET: 'ci-verify-token-at-least-16-chars',
-        WHATSAPP_APP_SECRET_SECRET: 'ci-app-secret-at-least-16-chars',
-      },
-      whatsappBaseEnv,
-    );
+  it('switches a stale base env to WhatsApp without rebuilding PRODUCTION_ENV_FILE_B64', () => {
+    const run = runPrepare({
+      FIREBASE_SERVICE_ACCOUNT_JSON_SECRET: JSON.stringify(serviceAccount),
+      FIREBASE_SERVICE_ACCOUNT_JSON_B64: '',
+      PARTNER_PHONE_VERIFICATION_MODE_OVERRIDE: 'SMS_ONLY',
+      PARTNER_SMS_PROVIDER_OVERRIDE: 'WHATSAPP',
+      WHATSAPP_ACCESS_TOKEN_SECRET: "token-with-'quote-and-long-enough-value",
+      WHATSAPP_PHONE_NUMBER_ID_CONFIG: '1322702964249664',
+      WHATSAPP_BUSINESS_ACCOUNT_ID_CONFIG: '2471999716613292',
+      WHATSAPP_GRAPH_API_VERSION_CONFIG: 'v23.0',
+      WHATSAPP_OTP_TEMPLATE_NAME_CONFIG: 'authentication_code_copy_code_button',
+      WHATSAPP_OTP_TEMPLATE_LANGUAGE_CODE_CONFIG: 'en_US',
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN_SECRET: 'ci-verify-token-at-least-16-chars',
+      WHATSAPP_APP_SECRET_SECRET: 'ci-app-secret-at-least-16-chars',
+    });
 
     try {
       expect(run.result.status).toBe(0);
       const generated = readFileSync(run.output, 'utf8');
+      expect(generated).toContain('PARTNER_PHONE_VERIFICATION_MODE=EMAIL_ONLY');
+      expect(generated).toContain("PARTNER_PHONE_VERIFICATION_MODE='SMS_ONLY'");
+      expect(generated).toContain("PARTNER_SMS_PROVIDER='WHATSAPP'");
       expect(generated).toContain("WHATSAPP_PHONE_NUMBER_ID='1322702964249664'");
       expect(generated).toContain("WHATSAPP_BUSINESS_ACCOUNT_ID='2471999716613292'");
       expect(generated).toContain("WHATSAPP_GRAPH_API_VERSION='v23.0'");
       expect(generated).toContain("WHATSAPP_OTP_TEMPLATE_NAME='authentication_code_copy_code_button'");
       expect(generated).not.toContain("WHATSAPP_ACCESS_TOKEN='token-with-'quote");
       expect(run.result.stdout).toContain(
-        'Applied protected WhatsApp production settings without printing secret values.',
+        'Applied managed WhatsApp production settings without printing credential values.',
       );
       expect(run.result.stdout).not.toContain('token-with-');
 
@@ -203,11 +201,14 @@ describe('production deployment environment contracts', () => {
     }
   });
 
-  it('wires protected Firebase and WhatsApp secrets into the production workflow', () => {
+  it('wires protected credentials and WhatsApp variables into the production workflow', () => {
     const workflow = readFileSync(resolve(root, '.github/workflows/deploy.yml'), 'utf8');
     expect(workflow).toContain('FIREBASE_SERVICE_ACCOUNT_JSON_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}');
     expect(workflow).toContain('FIREBASE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_B64 }}');
+    expect(workflow).toContain('PARTNER_PHONE_VERIFICATION_MODE_OVERRIDE: ${{ vars.PARTNER_PHONE_VERIFICATION_MODE }}');
+    expect(workflow).toContain('PARTNER_SMS_PROVIDER_OVERRIDE: ${{ vars.PARTNER_SMS_PROVIDER }}');
     expect(workflow).toContain('WHATSAPP_ACCESS_TOKEN_SECRET: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}');
+    expect(workflow).toContain('WHATSAPP_PHONE_NUMBER_ID_CONFIG: ${{ vars.WHATSAPP_PHONE_NUMBER_ID || secrets.WHATSAPP_PHONE_NUMBER_ID }}');
     expect(workflow).toContain('WHATSAPP_APP_SECRET_SECRET: ${{ secrets.WHATSAPP_APP_SECRET }}');
     expect(workflow).toContain('WHATSAPP_WEBHOOK_VERIFY_TOKEN_SECRET: ${{ secrets.WHATSAPP_WEBHOOK_VERIFY_TOKEN }}');
     expect(workflow).toContain('node scripts/prepare-production-env.js "$RUNNER_TEMP/aagam-production.env"');
