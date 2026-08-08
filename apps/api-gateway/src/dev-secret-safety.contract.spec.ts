@@ -14,6 +14,10 @@ const databaseSeed = fs.readFileSync(
   path.join(root, 'packages/database/seed.js'),
   'utf8',
 );
+const ciWorkflow = fs.readFileSync(
+  path.join(root, '.github/workflows/ci.yml'),
+  'utf8',
+);
 
 describe('development and seed secret safety contract', () => {
   it('generates a fresh JWT secret when Codespace secrets are absent', () => {
@@ -33,6 +37,15 @@ describe('development and seed secret safety contract', () => {
     expect(databaseSeed).toContain('Passwords are never printed');
     expect(databaseSeed).not.toContain('Login credentials (from .env):');
     expect(databaseSeed).not.toMatch(/console\.log\([^\n]*(ADMIN_PASSWORD|CUSTOMER_PASSWORD|STORE_PASSWORD|RIDER_PASSWORD)/);
+  });
+
+  it('uses a per-run CI-only account credential instead of reusable workflow passwords', () => {
+    expect(ciWorkflow).toContain('CI_TEST_PASSWORD: "Aagam-CI-${{ github.run_id }}-${{ github.run_attempt }}!"');
+    expect(ciWorkflow).toContain('ADMIN_PASSWORD: ${{ env.CI_TEST_PASSWORD }}');
+    expect(ciWorkflow).toContain('CUSTOMER_PASSWORD: ${{ env.CI_TEST_PASSWORD }}');
+    expect(ciWorkflow).toContain('STORE_PASSWORD: ${{ env.CI_TEST_PASSWORD }}');
+    expect(ciWorkflow).toContain('RIDER_PASSWORD: ${{ env.CI_TEST_PASSWORD }}');
+    expect(ciWorkflow).not.toMatch(/^\s*CI_(ADMIN|CUSTOMER|STORE|RIDER)_PASSWORD:\s*["'][^$]/m);
   });
 
   it('fails the seed process when seeding throws', () => {
