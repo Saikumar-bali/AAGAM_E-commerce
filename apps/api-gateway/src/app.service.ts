@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '@aagam/database';
+import { Injectable, Logger } from '@nestjs/common';
+import { prisma } from '@aagam/database';
 import { createClient } from 'redis';
 
 @Injectable()
 export class AppService {
+  private readonly logger = new Logger(AppService.name);
+
   getHello(): string {
     return 'Welcome to Aagam E-commerce API Gateway! Server is UP and RUNNING.';
   }
@@ -37,31 +39,56 @@ export class AppService {
   private async checkDatabase(): Promise<{ status: string; latencyMs?: number; error?: string }> {
     const start = Date.now();
     try {
-      const prisma = new PrismaClient();
       await prisma.$queryRaw`SELECT 1`;
-      await prisma.$disconnect();
       return { status: 'ok', latencyMs: Date.now() - start };
-    } catch (error: any) {
-      return { status: 'error', latencyMs: Date.now() - start, error: error.message };
+    } catch (error: unknown) {
+      this.logger.error(
+        'Database health check failed',
+        error instanceof Error ? error.stack : String(error),
+      );
+      return {
+        status: 'error',
+        latencyMs: Date.now() - start,
+        error: 'Database health check failed',
+      };
     }
   }
 
   private async checkRedis(): Promise<{ status: string; latencyMs?: number; error?: string }> {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
     const start = Date.now();
+    const client = createClient({ url: redisUrl });
+    client.on('error', (error) => {
+      this.logger.error(
+        `Redis health client error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+
     try {
-      const client = createClient({ url: redisUrl });
       await client.connect();
       await client.ping();
-      await client.disconnect();
       return { status: 'ok', latencyMs: Date.now() - start };
-    } catch (error: any) {
+    } catch (error: unknown) {
       const isProduction = process.env.NODE_ENV === 'production';
+      this.logger.error(
+        'Redis health check failed',
+        error instanceof Error ? error.stack : String(error),
+      );
       return {
         status: isProduction ? 'error' : 'degraded',
         latencyMs: Date.now() - start,
-        error: error.message,
+        error: 'Redis health check failed',
       };
+    } finally {
+      if (client.isOpen) {
+        try {
+          await client.quit();
+        } catch (error: unknown) {
+          this.logger.warn(
+            `Redis health client cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
     }
   }
 }
