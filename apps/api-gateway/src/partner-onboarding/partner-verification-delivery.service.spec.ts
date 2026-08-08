@@ -227,6 +227,7 @@ describe('PartnerVerificationDeliveryService', () => {
 
   it('WhatsApp accepted through the selected phone provider', async () => {
     process.env.PARTNER_SMS_PROVIDER = 'WHATSAPP';
+    global.fetch = jest.fn() as any;
     whatsapp.sendOtp.mockResolvedValue({ messageId: 'wamid.test-123' });
 
     await expect(
