@@ -96,6 +96,8 @@ interface LiveTrackingMapProps {
   showRoutePath?: { latitude: number; longitude: number }[];
 }
 
+const hasCoordinate = (value: number | null | undefined): value is number => value !== null && value !== undefined;
+
 export default function LiveTrackingMap({
   riders = [],
   orders = [],
@@ -109,28 +111,38 @@ export default function LiveTrackingMap({
   const allPoints: [number, number][] = [];
 
   riders.forEach((rider) => {
-    if (rider.latitude && rider.longitude) allPoints.push([rider.latitude, rider.longitude]);
+    if (hasCoordinate(rider.latitude) && hasCoordinate(rider.longitude)) {
+      allPoints.push([rider.latitude, rider.longitude]);
+    }
   });
 
   orders.forEach((order) => {
-    if (order.store.latitude && order.store.longitude) allPoints.push([order.store.latitude, order.store.longitude]);
-    if (order.delivery.latitude && order.delivery.longitude) allPoints.push([order.delivery.latitude, order.delivery.longitude]);
-    if (order.rider?.latitude && order.rider?.longitude) allPoints.push([order.rider.latitude, order.rider.longitude]);
+    if (hasCoordinate(order.store.latitude) && hasCoordinate(order.store.longitude)) {
+      allPoints.push([order.store.latitude, order.store.longitude]);
+    }
+    if (hasCoordinate(order.delivery.latitude) && hasCoordinate(order.delivery.longitude)) {
+      allPoints.push([order.delivery.latitude, order.delivery.longitude]);
+    }
+    if (hasCoordinate(order.rider?.latitude) && hasCoordinate(order.rider?.longitude)) {
+      allPoints.push([order.rider.latitude, order.rider.longitude]);
+    }
     if (order.latestLocation) allPoints.push([order.latestLocation.latitude, order.latestLocation.longitude]);
   });
 
   const selectedRider = selectedRiderId
     ? riders.find((rider) => rider.id === selectedRiderId)
     : undefined;
+  const selectedRiderLat = selectedRider?.latitude ?? null;
+  const selectedRiderLng = selectedRider?.longitude ?? null;
   const selectedRiderPoint: [number, number] | null =
-    selectedRider?.latitude && selectedRider?.longitude
-      ? [selectedRider.latitude, selectedRider.longitude]
+    hasCoordinate(selectedRiderLat) && hasCoordinate(selectedRiderLng)
+      ? [selectedRiderLat, selectedRiderLng]
       : null;
   const mapPoints = selectedRiderPoint ? [selectedRiderPoint] : allPoints;
 
   useEffect(() => {
-    if (selectedRiderPoint) {
-      setMapCenter(selectedRiderPoint);
+    if (hasCoordinate(selectedRiderLat) && hasCoordinate(selectedRiderLng)) {
+      setMapCenter([selectedRiderLat, selectedRiderLng]);
       return;
     }
 
@@ -139,10 +151,10 @@ export default function LiveTrackingMap({
       if (order) {
         const lat = order.rider?.latitude ?? order.latestLocation?.latitude ?? order.store.latitude;
         const lng = order.rider?.longitude ?? order.latestLocation?.longitude ?? order.store.longitude;
-        if (lat && lng) setMapCenter([lat, lng]);
+        if (hasCoordinate(lat) && hasCoordinate(lng)) setMapCenter([lat, lng]);
       }
     }
-  }, [selectedOrderId, selectedRiderId, selectedRiderPoint, orders]);
+  }, [selectedOrderId, selectedRiderId, selectedRiderLat, selectedRiderLng, orders]);
 
   const routePathCoords: [number, number][] = showRoutePath
     ? showRoutePath.map((point) => [point.latitude, point.longitude])
@@ -168,7 +180,7 @@ export default function LiveTrackingMap({
         )}
 
         {riders.map((rider) => (
-          rider.latitude && rider.longitude && (
+          hasCoordinate(rider.latitude) && hasCoordinate(rider.longitude) && (
             <Marker
               key={`rider-${rider.id}`}
               position={[rider.latitude, rider.longitude]}
@@ -186,7 +198,7 @@ export default function LiveTrackingMap({
 
         {orders.map((order) => (
           <React.Fragment key={`order-${order.orderId}`}>
-            {order.store.latitude && order.store.longitude && (
+            {hasCoordinate(order.store.latitude) && hasCoordinate(order.store.longitude) && (
               <Marker
                 position={[order.store.latitude, order.store.longitude]}
                 {...({ icon: StoreIcon } as any)}
@@ -200,7 +212,7 @@ export default function LiveTrackingMap({
               </Marker>
             )}
 
-            {order.delivery.latitude && order.delivery.longitude && (
+            {hasCoordinate(order.delivery.latitude) && hasCoordinate(order.delivery.longitude) && (
               <Marker
                 position={[order.delivery.latitude, order.delivery.longitude]}
                 {...({ icon: DeliveryIcon } as any)}
