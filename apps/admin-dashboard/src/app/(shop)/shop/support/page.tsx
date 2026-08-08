@@ -79,9 +79,16 @@ export default function CustomerSupportPage() {
     try {
       const response = await apiClient.get('/orders/my');
       const items = Array.isArray(response.data) ? response.data : [];
+      const requestedOrderId =
+        typeof window === 'undefined'
+          ? ''
+          : new URLSearchParams(window.location.search).get('orderId') || '';
       setOrders(items);
       setSelectedOrderId((current) => {
-        const next = items.some((order: Order) => order.id === current) ? current : items[0]?.id || '';
+        const requested = items.some((order: Order) => order.id === requestedOrderId)
+          ? requestedOrderId
+          : '';
+        const next = requested || (items.some((order: Order) => order.id === current) ? current : items[0]?.id || '');
         selectedOrderRef.current = next;
         return next;
       });
