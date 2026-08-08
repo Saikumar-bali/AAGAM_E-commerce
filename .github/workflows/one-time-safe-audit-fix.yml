@@ -1,4 +1,5 @@
 # Temporary remediation workflow. Delete before merge.
+# Final lock refresh after React 19 map compatibility migration.
 name: One-time Safe Audit Fix
 
 on:
