@@ -18,6 +18,7 @@ const closedAppPushRequired =
 
 const emailProvider = (process.env.PARTNER_EMAIL_PROVIDER || '').trim().toUpperCase();
 const phoneMode = (process.env.PARTNER_PHONE_VERIFICATION_MODE || '').trim().toUpperCase();
+const smsProvider = (process.env.PARTNER_SMS_PROVIDER || '').trim().toUpperCase();
 
 if (verificationRequired) {
   required.push(
@@ -33,14 +34,25 @@ if (verificationRequired) {
   }
 
   if (phoneMode !== 'EMAIL_ONLY') {
-    required.push(
-      'TWILIO_ACCOUNT_SID',
-      'TWILIO_AUTH_TOKEN',
-      'TWILIO_FROM_PHONE',
-      'FIREBASE_PROJECT_ID',
-      'FIREBASE_PROJECT_NUMBER',
-      'PARTNER_SMS_PROVIDER',
-    );
+    required.push('PARTNER_SMS_PROVIDER');
+
+    if (phoneMode === 'PNV_FIRST') {
+      required.push('FIREBASE_PROJECT_ID', 'FIREBASE_PROJECT_NUMBER');
+    }
+
+    if (smsProvider === 'WHATSAPP') {
+      required.push(
+        'WHATSAPP_ACCESS_TOKEN',
+        'WHATSAPP_PHONE_NUMBER_ID',
+        'WHATSAPP_BUSINESS_ACCOUNT_ID',
+        'WHATSAPP_GRAPH_API_VERSION',
+        'WHATSAPP_OTP_TEMPLATE_NAME',
+        'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+        'WHATSAPP_APP_SECRET',
+      );
+    } else if (smsProvider === 'TWILIO') {
+      required.push('TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_PHONE');
+    }
   }
 }
 
@@ -73,16 +85,16 @@ if (
 }
 if (
   process.env.PARTNER_PHONE_VERIFICATION_MODE &&
-  !['EMAIL_ONLY', 'PNV_FIRST'].includes(phoneMode)
+  !['EMAIL_ONLY', 'SMS_ONLY', 'PNV_FIRST'].includes(phoneMode)
 ) {
-  weak.push('PARTNER_PHONE_VERIFICATION_MODE must be EMAIL_ONLY or PNV_FIRST');
+  weak.push('PARTNER_PHONE_VERIFICATION_MODE must be EMAIL_ONLY, SMS_ONLY, or PNV_FIRST');
 }
 if (
   phoneMode !== 'EMAIL_ONLY' &&
   process.env.PARTNER_SMS_PROVIDER &&
-  process.env.PARTNER_SMS_PROVIDER !== 'TWILIO'
+  !['TWILIO', 'WHATSAPP'].includes(smsProvider)
 ) {
-  weak.push('PARTNER_SMS_PROVIDER must be TWILIO');
+  weak.push('PARTNER_SMS_PROVIDER must be TWILIO or WHATSAPP');
 }
 if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
   weak.push('JWT_SECRET must be at least 32 characters');
@@ -92,6 +104,38 @@ if (
   !/^\d+$/.test(process.env.FIREBASE_PROJECT_NUMBER)
 ) {
   weak.push('FIREBASE_PROJECT_NUMBER must contain digits only');
+}
+if (
+  process.env.WHATSAPP_PHONE_NUMBER_ID &&
+  !/^\d+$/.test(process.env.WHATSAPP_PHONE_NUMBER_ID.trim())
+) {
+  weak.push('WHATSAPP_PHONE_NUMBER_ID must contain digits only');
+}
+if (
+  process.env.WHATSAPP_BUSINESS_ACCOUNT_ID &&
+  !/^\d+$/.test(process.env.WHATSAPP_BUSINESS_ACCOUNT_ID.trim())
+) {
+  weak.push('WHATSAPP_BUSINESS_ACCOUNT_ID must contain digits only');
+}
+if (
+  process.env.WHATSAPP_GRAPH_API_VERSION &&
+  !/^v\d+\.\d+$/.test(process.env.WHATSAPP_GRAPH_API_VERSION.trim())
+) {
+  weak.push('WHATSAPP_GRAPH_API_VERSION must look like vXX.X');
+}
+if (
+  smsProvider === 'WHATSAPP' &&
+  process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN &&
+  process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN.trim().length < 16
+) {
+  weak.push('WHATSAPP_WEBHOOK_VERIFY_TOKEN should be at least 16 characters');
+}
+if (
+  smsProvider === 'WHATSAPP' &&
+  process.env.WHATSAPP_APP_SECRET &&
+  process.env.WHATSAPP_APP_SECRET.trim().length < 16
+) {
+  weak.push('WHATSAPP_APP_SECRET appears too short');
 }
 
 if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
