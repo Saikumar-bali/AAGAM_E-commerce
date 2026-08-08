@@ -314,7 +314,7 @@ export function InternalPartnerCreateButton({ onCreated, fixedType, buttonLabel 
                 <InputField label="Initial password (optional)" value={form.password} onChange={(value) => setForm((current) => ({ ...current, password: value }))} type="password" placeholder="Minimum 8 characters" />
                 <InputField label="Confirm password" value={form.confirmPassword} onChange={(value) => setForm((current) => ({ ...current, confirmPassword: value }))} type="password" placeholder="Re-enter password" />
               </div>
-              <p className="text-[11px] font-semibold leading-5 text-slate-500">If you set a password, the newly approved {currentType === 'RIDER' ? 'Rider' : 'Store Owner'} can sign in with it in addition to phone OTP. Leave both password fields blank to keep OTP-only access. Existing AAGAM accounts keep their current password.</p>
+              <p className="text-[11px] font-semibold leading-5 text-slate-500">If you set a password, the newly approved {currentType === 'RIDER' ? 'Rider' : 'Store Owner'} can sign in with it in addition to phone OTP. Leave both password fields blank to keep OTP-only access. Existing accounts keep their current password.</p>
             </div>
             <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-800">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /> No OTP step. Admin-created identity is automatically attested and audited.
