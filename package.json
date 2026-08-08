@@ -59,7 +59,14 @@
     "test:rider:e2e": "npm run test --workspace=apps/api-gateway -- --testPathPattern=rider-tracking-e2e"
   },
   "devDependencies": {
+    "@nestjs/common": "11.1.28",
+    "@nestjs/core": "11.1.28",
+    "@nestjs/platform-express": "11.1.28",
+    "@nestjs/platform-socket.io": "11.1.28",
+    "@nestjs/websockets": "11.1.28",
     "react-native-dotenv": "^3.4.11",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
     "turbo": "^2.10.7"
   },
   "dependencies": {
