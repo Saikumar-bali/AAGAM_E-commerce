@@ -1,7 +1,10 @@
-# Temporary branch-only lock refresh. Delete after it pushes package-lock.json.
+# Temporary remediation workflow. Delete after it pushes package-lock.json.
 name: One-time XML Parser Lock Refresh
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - agent/security-and-issue-hardening
@@ -13,7 +16,10 @@ permissions:
 
 jobs:
   refresh-lock:
-    if: github.repository == 'Saikumar-bali/AAGAM_E-commerce' && github.ref == 'refs/heads/agent/security-and-issue-hardening'
+    if: >-
+      github.repository == 'Saikumar-bali/AAGAM_E-commerce' &&
+      ((github.event_name == 'pull_request' && github.head_ref == 'agent/security-and-issue-hardening') ||
+       (github.event_name == 'push' && github.ref == 'refs/heads/agent/security-and-issue-hardening'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
