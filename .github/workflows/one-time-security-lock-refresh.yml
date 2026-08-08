@@ -1,0 +1,65 @@
+name: One-time Security Lock Refresh
+
+on:
+  push:
+    branches:
+      - agent/security-and-issue-hardening
+    paths:
+      - .github/workflows/one-time-security-lock-refresh.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    if: github.repository == 'Saikumar-bali/AAGAM_E-commerce' && github.ref == 'refs/heads/agent/security-and-issue-hardening'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/security-and-issue-hardening
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.3'
+          cache: npm
+
+      - name: Refresh lockfile without dependency scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
+          npm ci --ignore-scripts --no-audit --no-fund
+          git diff --check
+
+      - name: Commit lockfile only
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only)"
+          if [ -z "$changed" ]; then
+            echo 'No lockfile changes were required.'
+            exit 0
+          fi
+          if [ "$changed" != "package-lock.json" ]; then
+            echo 'Unexpected files changed:'
+            printf '%s\n' "$changed"
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package-lock.json
+          git commit -m 'Refresh lockfile for security dependency upgrades'
+          git push origin HEAD:agent/security-and-issue-hardening
+
+      - name: Verify registry signatures
+        shell: bash
+        run: npm audit signatures
+
+      - name: Report remaining vulnerabilities
+        shell: bash
+        run: npm audit --package-lock-only --audit-level=high
