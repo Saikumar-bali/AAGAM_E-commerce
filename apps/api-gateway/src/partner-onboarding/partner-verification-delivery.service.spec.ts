@@ -1,3 +1,4 @@
+import { WhatsAppCloudService } from '../whatsapp-webhook/whatsapp-cloud.service';
 import { PartnerContactChannel } from './partner-onboarding.types';
 import {
   PartnerVerificationDeliveryException,
@@ -17,11 +18,18 @@ const input = {
 describe('PartnerVerificationDeliveryService', () => {
   const originalEnv = process.env;
   const originalFetch = global.fetch;
+  let whatsapp: { sendOtp: jest.Mock };
+
+  const delivery = () =>
+    new PartnerVerificationDeliveryService(
+      whatsapp as unknown as WhatsAppCloudService,
+    );
 
   beforeEach(() => {
     process.env = { ...originalEnv, NODE_ENV: 'production' };
     delete process.env.PLAYWRIGHT_QA;
     delete process.env.PARTNER_EMAIL_PROVIDER;
+    delete process.env.PARTNER_SMS_PROVIDER;
     delete process.env.MAILJET_API_KEY;
     delete process.env.MAILJET_SECRET_KEY;
     delete process.env.RESEND_API_KEY;
@@ -30,6 +38,7 @@ describe('PartnerVerificationDeliveryService', () => {
     delete process.env.TWILIO_ACCOUNT_SID;
     delete process.env.TWILIO_AUTH_TOKEN;
     delete process.env.TWILIO_FROM_PHONE;
+    whatsapp = { sendOtp: jest.fn() };
   });
 
   afterEach(() => {
@@ -57,7 +66,7 @@ describe('PartnerVerificationDeliveryService', () => {
       }),
     }) as any;
 
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).resolves.toEqual(
+    await expect(delivery().deliver(input)).resolves.toEqual(
       expect.objectContaining({
         provider: 'MAILJET',
         deliveryId: 'mailjet-message-uuid',
@@ -99,7 +108,7 @@ describe('PartnerVerificationDeliveryService', () => {
       }),
     }) as any;
 
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toMatchObject({
+    await expect(delivery().deliver(input)).rejects.toMatchObject({
       provider: 'MAILJET',
       safeCode: 'MJ-001_BAD_SENDER_',
       httpStatus: 200,
@@ -117,7 +126,7 @@ describe('PartnerVerificationDeliveryService', () => {
       json: async () => ({ ErrorIdentifier: 'unauthorized credentials' }),
     }) as any;
 
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toMatchObject({
+    await expect(delivery().deliver(input)).rejects.toMatchObject({
       safeCode: 'UNAUTHORIZED_CREDENTIALS',
       httpStatus: 401,
     });
@@ -130,7 +139,7 @@ describe('PartnerVerificationDeliveryService', () => {
     process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'not-an-email';
     global.fetch = jest.fn() as any;
 
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toMatchObject({
+    await expect(delivery().deliver(input)).rejects.toMatchObject({
       safeCode: 'MAILJET_INVALID_FROM',
     });
     expect(global.fetch).not.toHaveBeenCalled();
@@ -146,7 +155,7 @@ describe('PartnerVerificationDeliveryService', () => {
       json: async () => ({ id: 'email-1' }),
     }) as any;
 
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).resolves.toEqual(
+    await expect(delivery().deliver(input)).resolves.toEqual(
       expect.objectContaining({ provider: 'RESEND', deliveryId: 'email-1', httpStatus: 202 }),
     );
   });
@@ -160,7 +169,7 @@ describe('PartnerVerificationDeliveryService', () => {
       status: 422,
       json: async () => ({ name: 'invalid from address!' }),
     }) as any;
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toMatchObject({
+    await expect(delivery().deliver(input)).rejects.toMatchObject({
       safeCode: 'INVALID_FROM_ADDRESS_',
       httpStatus: 422,
     });
@@ -168,7 +177,7 @@ describe('PartnerVerificationDeliveryService', () => {
 
   it('Resend unconfigured', async () => {
     process.env.PARTNER_EMAIL_PROVIDER = 'RESEND';
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).rejects.toMatchObject({
+    await expect(delivery().deliver(input)).rejects.toMatchObject({
       safeCode: 'RESEND_UNCONFIGURED',
     });
   });
@@ -183,7 +192,7 @@ describe('PartnerVerificationDeliveryService', () => {
       json: async () => ({ sid: 'SM123' }),
     }) as any;
     await expect(
-      new PartnerVerificationDeliveryService().deliver({
+      delivery().deliver({
         ...input,
         channel: PartnerContactChannel.PHONE,
       }),
@@ -200,7 +209,7 @@ describe('PartnerVerificationDeliveryService', () => {
       json: async () => ({ code: 21608 }),
     }) as any;
     await expect(
-      new PartnerVerificationDeliveryService().deliver({
+      delivery().deliver({
         ...input,
         channel: PartnerContactChannel.PHONE,
       }),
@@ -209,20 +218,42 @@ describe('PartnerVerificationDeliveryService', () => {
 
   it('Twilio unconfigured', async () => {
     await expect(
-      new PartnerVerificationDeliveryService().deliver({
+      delivery().deliver({
         ...input,
         channel: PartnerContactChannel.PHONE,
       }),
     ).rejects.toBeInstanceOf(PartnerVerificationDeliveryException);
   });
 
-  it('QA mode never calls Mailjet, Resend or Twilio', async () => {
+  it('WhatsApp accepted through the selected phone provider', async () => {
+    process.env.PARTNER_SMS_PROVIDER = 'WHATSAPP';
+    whatsapp.sendOtp.mockResolvedValue({ messageId: 'wamid.test-123' });
+
+    await expect(
+      delivery().deliver({
+        ...input,
+        channel: PartnerContactChannel.PHONE,
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        provider: 'WHATSAPP',
+        deliveryId: 'wamid.test-123',
+        httpStatus: 200,
+      }),
+    );
+    expect(whatsapp.sendOtp).toHaveBeenCalledWith('+919999999999', '123456');
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('QA mode never calls Mailjet, Resend, Twilio or WhatsApp', async () => {
     process.env.NODE_ENV = 'test';
+    process.env.PARTNER_SMS_PROVIDER = 'WHATSAPP';
     global.fetch = jest.fn() as any;
-    await expect(new PartnerVerificationDeliveryService().deliver(input)).resolves.toMatchObject({
+    await expect(delivery().deliver(input)).resolves.toMatchObject({
       provider: 'QA',
       httpStatus: 202,
     });
     expect(global.fetch).not.toHaveBeenCalled();
+    expect(whatsapp.sendOtp).not.toHaveBeenCalled();
   });
 });
