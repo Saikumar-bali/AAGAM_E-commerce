@@ -61,9 +61,26 @@ function validateEnvironment(): void {
     if (process.env.PLAYWRIGHT_QA === 'true') errors.push('  ✗ PLAYWRIGHT_QA=true — MUST NOT be set in production');
     if (process.env.PLAYWRIGHT_QA_SEED === 'true') errors.push('  ✗ PLAYWRIGHT_QA_SEED=true — MUST NOT be set in production');
     const phoneMode = (process.env.PARTNER_PHONE_VERIFICATION_MODE || 'SMS_ONLY').trim().toUpperCase();
+    const smsProvider = (process.env.PARTNER_SMS_PROVIDER || 'TWILIO').trim().toUpperCase();
     if (phoneMode !== 'EMAIL_ONLY') {
-      for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_PHONE']) {
-        if (!process.env[key]?.trim()) errors.push(`  ✗ ${key} — required when phone verification is enabled`);
+      if (!['TWILIO', 'WHATSAPP'].includes(smsProvider)) {
+        errors.push('  ✗ PARTNER_SMS_PROVIDER — must be TWILIO or WHATSAPP');
+      } else if (smsProvider === 'WHATSAPP') {
+        for (const key of [
+          'WHATSAPP_ACCESS_TOKEN',
+          'WHATSAPP_PHONE_NUMBER_ID',
+          'WHATSAPP_BUSINESS_ACCOUNT_ID',
+          'WHATSAPP_GRAPH_API_VERSION',
+          'WHATSAPP_OTP_TEMPLATE_NAME',
+          'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+          'WHATSAPP_APP_SECRET',
+        ]) {
+          if (!process.env[key]?.trim()) errors.push(`  ✗ ${key} — required for WhatsApp phone verification`);
+        }
+      } else {
+        for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_PHONE']) {
+          if (!process.env[key]?.trim()) errors.push(`  ✗ ${key} — required for Twilio phone verification`);
+        }
       }
     }
   }
@@ -105,7 +122,9 @@ async function bootstrap() {
   try {
     logger.log('Validating environment...');
     validateEnvironment();
-    const app = await NestFactory.create(AppModule);
+    // rawBody is required for Meta's X-Hub-Signature-256 verification. Nest keeps
+    // the parsed body as normal while exposing the original bytes on request.rawBody.
+    const app = await NestFactory.create(AppModule, { rawBody: true });
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
     const isProduction = process.env.NODE_ENV === 'production';
     try {
