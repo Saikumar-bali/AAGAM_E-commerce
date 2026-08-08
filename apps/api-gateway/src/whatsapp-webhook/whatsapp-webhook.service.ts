@@ -75,17 +75,34 @@ export class WhatsAppWebhookService {
     });
 
     if (providerStatus === 'failed') {
-      await prisma.$executeRawUnsafe(
-        `UPDATE "ContactOtpChallenge" SET
-          "status" = CASE WHEN "status" IN ('PENDING','SENT') THEN 'FAILED' ELSE "status" END,
-          "failureCode" = CASE WHEN "status" IN ('PENDING','SENT') THEN $2 ELSE "failureCode" END,
-          "metadata" = COALESCE("metadata", '{}'::jsonb) || $3::jsonb,
-          "updatedAt" = CURRENT_TIMESTAMP
-         WHERE "provider" = 'WHATSAPP' AND "providerDeliveryId" = $1`,
-        messageId,
-        failureCode,
-        metadata,
-      );
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          `UPDATE "ContactOtpChallenge" SET
+            "status" = CASE WHEN "status" IN ('PENDING','SENT') THEN 'FAILED' ELSE "status" END,
+            "failureCode" = CASE WHEN "status" IN ('PENDING','SENT') THEN $2 ELSE "failureCode" END,
+            "metadata" = COALESCE("metadata", '{}'::jsonb) || $3::jsonb,
+            "updatedAt" = CURRENT_TIMESTAMP
+           WHERE "provider" = 'WHATSAPP' AND "providerDeliveryId" = $1`,
+          messageId,
+          failureCode,
+          metadata,
+        );
+        await tx.$executeRawUnsafe(
+          `UPDATE "VerificationChallenge" SET
+            "status" = CASE
+              WHEN "status" IN ('CREATED','DISPATCHING','SENT') THEN 'FAILED'::"VerificationChallengeStatus"
+              ELSE "status"
+            END,
+            "failureCode" = CASE
+              WHEN "status" IN ('CREATED','DISPATCHING','SENT') THEN $2
+              ELSE "failureCode"
+            END,
+            "updatedAt" = CURRENT_TIMESTAMP
+           WHERE "provider" = 'WHATSAPP'::"VerificationProvider" AND "providerDeliveryId" = $1`,
+          messageId,
+          failureCode,
+        );
+      });
       return;
     }
 
