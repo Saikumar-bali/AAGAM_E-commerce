@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 
 @Injectable()
 export class WhatsAppWebhookService {
-  verifySubscription(mode?: string, token?: string, challenge?: string): string {
+  verifySubscription(mode?: string, token?: string, challenge?: string): number {
     const expectedToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim();
     if (!expectedToken) {
       throw new ForbiddenException('WhatsApp webhook verification is not configured');
@@ -12,7 +12,14 @@ export class WhatsAppWebhookService {
     if (mode !== 'subscribe' || !token || !this.safeEqual(token, expectedToken)) {
       throw new ForbiddenException('WhatsApp webhook verification failed');
     }
-    return String(challenge || '');
+    if (!challenge || !/^\d{1,15}$/.test(challenge)) {
+      throw new ForbiddenException('WhatsApp webhook challenge is invalid');
+    }
+    const verifiedChallenge = Number.parseInt(challenge, 10);
+    if (!Number.isSafeInteger(verifiedChallenge) || verifiedChallenge < 0) {
+      throw new ForbiddenException('WhatsApp webhook challenge is invalid');
+    }
+    return verifiedChallenge;
   }
 
   assertSignature(rawBody: Buffer | undefined, signature?: string) {
