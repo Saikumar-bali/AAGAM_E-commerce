@@ -22,6 +22,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { PartnerOnboardingModule } from './partner-onboarding/partner-onboarding.module';
 import { GlobalSearchModule } from './search/search.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { WhatsAppWebhookModule } from './whatsapp-webhook/whatsapp-webhook.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     PartnerOnboardingModule,
     GlobalSearchModule,
     SubscriptionsModule,
+    WhatsAppWebhookModule,
   ],
   controllers: [AppController],
   providers: [AppService],
