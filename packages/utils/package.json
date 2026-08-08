@@ -8,6 +8,6 @@
   },
   "dependencies": {
     "@aagam/types": "*",
-    "axios": "^1.15.0"
+    "axios": "^1.18.1"
   }
 }
