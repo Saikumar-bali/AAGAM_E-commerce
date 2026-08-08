@@ -1,17 +1,8 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-
-const DefaultIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-L.Marker.prototype.options.icon = DefaultIcon;
 
 const RiderIcon = L.divIcon({
   className: 'custom-rider-icon',
@@ -29,21 +20,6 @@ const DeliveryIcon = L.divIcon({
   iconSize: [30, 30], iconAnchor: [15, 15],
 });
 
-interface MapUpdaterProps {
-  center: [number, number];
-  bounds?: [[number, number], [number, number]];
-  singlePoint: boolean;
-}
-
-function MapUpdater({ center, bounds, singlePoint }: MapUpdaterProps) {
-  const map = useMap();
-  useEffect(() => {
-    if (bounds && !singlePoint) map.fitBounds(bounds, { padding: [26, 26], maxZoom: 16, animate: true });
-    else map.setView(center, 16, { animate: true });
-  }, [center, bounds, singlePoint, map]);
-  return null;
-}
-
 interface MarkerData {
   latitude: number;
   longitude: number;
@@ -52,30 +28,75 @@ interface MarkerData {
 }
 interface CustomerTrackingMapProps { markers: MarkerData[]; }
 
-export default function CustomerTrackingMap({ markers }: CustomerTrackingMapProps) {
-  const validMarkers = markers.filter((marker) => Number.isFinite(marker.latitude) && Number.isFinite(marker.longitude));
-  if (validMarkers.length === 0) return <div className="flex h-[240px] items-center justify-center rounded-2xl bg-slate-100 text-sm font-medium text-slate-400 sm:h-[280px]">No location data available</div>;
+function popupText(value: string) {
+  const node = document.createElement('div');
+  node.className = 'p-1 text-sm font-bold';
+  node.textContent = value;
+  return node;
+}
 
-  const riderMarker = validMarkers.find((marker) => marker.type === 'rider');
-  const deliveryMarker = validMarkers.find((marker) => marker.type === 'delivery');
-  const focusMarkers = riderMarker && deliveryMarker ? [riderMarker, deliveryMarker] : riderMarker ? [riderMarker] : validMarkers;
-  const focusPoints: [number, number][] = focusMarkers.map((marker) => [marker.latitude, marker.longitude]);
-  const center: [number, number] = riderMarker ? [riderMarker.latitude, riderMarker.longitude] : focusPoints[0];
-  const bounds: [[number, number], [number, number]] = [
-    [Math.min(...focusPoints.map((point) => point[0])), Math.min(...focusPoints.map((point) => point[1]))],
-    [Math.max(...focusPoints.map((point) => point[0])), Math.max(...focusPoints.map((point) => point[1]))],
-  ];
-  const routePoints = [riderMarker, deliveryMarker].filter(Boolean).map((marker) => [marker!.latitude, marker!.longitude] as [number, number]);
-  const iconMap: Record<MarkerData['type'], L.DivIcon> = { store: StoreIcon, delivery: DeliveryIcon, rider: RiderIcon };
+export default function CustomerTrackingMap({ markers }: CustomerTrackingMapProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const validMarkers = markers.filter((marker) => Number.isFinite(marker.latitude) && Number.isFinite(marker.longitude));
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || validMarkers.length === 0) return;
+
+    const riderMarker = validMarkers.find((marker) => marker.type === 'rider');
+    const deliveryMarker = validMarkers.find((marker) => marker.type === 'delivery');
+    const focusMarkers = riderMarker && deliveryMarker ? [riderMarker, deliveryMarker] : riderMarker ? [riderMarker] : validMarkers;
+    const focusPoints: [number, number][] = focusMarkers.map((marker) => [marker.latitude, marker.longitude]);
+    const center: [number, number] = riderMarker ? [riderMarker.latitude, riderMarker.longitude] : focusPoints[0];
+
+    const map = L.map(container, {
+      zoomControl: false,
+      scrollWheelZoom: false,
+      minZoom: 8,
+      maxZoom: 18,
+    }).setView(center, 16);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
+
+    const routePoints = [riderMarker, deliveryMarker]
+      .filter((marker): marker is MarkerData => Boolean(marker))
+      .map((marker) => [marker.latitude, marker.longitude] as [number, number]);
+    if (routePoints.length === 2) {
+      L.polyline(routePoints, { dashArray: '7 8', weight: 3, opacity: 0.7 }).addTo(map);
+    }
+
+    const iconMap: Record<MarkerData['type'], L.DivIcon> = {
+      store: StoreIcon,
+      delivery: DeliveryIcon,
+      rider: RiderIcon,
+    };
+    validMarkers.forEach((marker) => {
+      L.marker([marker.latitude, marker.longitude], { icon: iconMap[marker.type] })
+        .bindPopup(popupText(marker.label || marker.type))
+        .addTo(map);
+    });
+
+    if (focusPoints.length === 1) {
+      map.setView(focusPoints[0], 16, { animate: false });
+    } else {
+      map.fitBounds(L.latLngBounds(focusPoints), { padding: [26, 26], maxZoom: 16, animate: false });
+    }
+
+    return () => {
+      map.remove();
+    };
+  }, [validMarkers]);
+
+  if (validMarkers.length === 0) {
+    return <div className="flex h-[240px] items-center justify-center rounded-2xl bg-slate-100 text-sm font-medium text-slate-400 sm:h-[280px]">No location data available</div>;
+  }
 
   return (
     <div className="h-[240px] w-full overflow-hidden rounded-2xl sm:h-[280px]">
-      <MapContainer {...({ center, zoom: 16, minZoom: 8, maxZoom: 18, zoomControl: false } as any)} style={{ height: '100%', width: '100%' }} scrollWheelZoom={false}>
-        <TileLayer {...({ attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' } as any)} />
-        <MapUpdater center={center} bounds={bounds} singlePoint={focusPoints.length === 1} />
-        {routePoints.length === 2 ? <Polyline positions={routePoints} pathOptions={{ dashArray: '7 8', weight: 3, opacity: 0.7 }} /> : null}
-        {validMarkers.map((marker, index) => <Marker key={`${marker.type}-${index}`} position={[marker.latitude, marker.longitude]} {...({ icon: iconMap[marker.type] } as any)}><Popup><div className="p-1 text-sm font-bold">{marker.label || marker.type}</div></Popup></Marker>)}
-      </MapContainer>
+      <div ref={containerRef} className="h-full w-full" />
     </div>
   );
 }
