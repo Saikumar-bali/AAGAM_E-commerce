@@ -12,7 +12,9 @@
     "@nestjs/core": "11.1.28",
     "@nestjs/platform-express": "11.1.28",
     "@nestjs/platform-socket.io": "11.1.28",
-    "@nestjs/websockets": "11.1.28"
+    "@nestjs/websockets": "11.1.28",
+    "postcss": "8.5.23",
+    "sharp": "0.35.3"
   },
   "scripts": {
     "dev": "turbo dev --filter=!AagamMobile --filter=!AagamCustomer --filter=!AagamPartners",
