@@ -10,6 +10,7 @@ export enum VerificationProvider {
   RESEND = 'RESEND',
   MAILJET = 'MAILJET',
   TWILIO = 'TWILIO',
+  WHATSAPP = 'WHATSAPP',
   FIREBASE_PNV = 'FIREBASE_PNV',
 }
 
