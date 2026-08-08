@@ -37,7 +37,10 @@ export function getFirebaseWebPushConfig() {
     messagingSenderId: process.env.FIREBASE_WEB_MESSAGING_SENDER_ID || '',
     appId: process.env.FIREBASE_WEB_APP_ID || '',
   };
-  const vapidKey = process.env.FIREBASE_WEB_VAPID_KEY || '';
+  // Firebase expects an unpadded URL-safe Base64 VAPID key. Environment values
+  // are frequently copied with visual wrapping/whitespace, which breaks the
+  // padding calculation inside Firebase Messaging before it calls window.atob().
+  const vapidKey = (process.env.FIREBASE_WEB_VAPID_KEY || '').replace(/\s+/g, '');
   const blank = (value: string) => value.trim().length === 0;
   const enabled = [
     firebaseConfig.apiKey,
@@ -142,13 +145,9 @@ export class NotificationsController {
 
   @Post('admin/broadcast')
   @Roles(Role.ADMIN)
-  broadcast(
-    @Req() req: any,
-    @Body() body: unknown,
-    @Headers('idempotency-key') idempotencyKey?: string,
-  ) {
+  adminBroadcast(@Req() req: any, @Body() body: unknown) {
     const dto = this.parse<any>(AdminBroadcastSchema, body);
-    return this.notifications.createBroadcast(req.user, dto, idempotencyKey);
+    return this.notifications.createBroadcast(req.user, dto);
   }
 
   @Post('admin/process-outbox')
