@@ -176,7 +176,10 @@ export default function LiveTrackingMap({
         <MapUpdater center={mapCenter} points={mapPoints} />
 
         {routePathCoords.length > 1 && (
-          <Polyline positions={routePathCoords} color="#3B82F6" weight={3} opacity={0.7} />
+          <Polyline
+            positions={routePathCoords}
+            pathOptions={{ color: '#3B82F6', weight: 3, opacity: 0.7 }}
+          />
         )}
 
         {riders.map((rider) => (
