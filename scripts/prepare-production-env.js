@@ -41,7 +41,13 @@ function validateServiceAccount(raw) {
 }
 
 function shellSingleQuote(value) {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function appendManagedValue(envFile, key, value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return envFile;
+  return `${envFile}${key}=${shellSingleQuote(normalized)}\n`;
 }
 
 const outputArg = process.argv[2];
@@ -69,11 +75,35 @@ if (rawJson) {
   );
 }
 
+const managedOverlays = [
+  ['PARTNER_PHONE_VERIFICATION_MODE', process.env.PARTNER_PHONE_VERIFICATION_MODE_OVERRIDE],
+  ['PARTNER_SMS_PROVIDER', process.env.PARTNER_SMS_PROVIDER_OVERRIDE],
+  ['WHATSAPP_ACCESS_TOKEN', process.env.WHATSAPP_ACCESS_TOKEN_SECRET],
+  ['WHATSAPP_PHONE_NUMBER_ID', process.env.WHATSAPP_PHONE_NUMBER_ID_CONFIG],
+  ['WHATSAPP_BUSINESS_ACCOUNT_ID', process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_CONFIG],
+  ['WHATSAPP_GRAPH_API_VERSION', process.env.WHATSAPP_GRAPH_API_VERSION_CONFIG],
+  ['WHATSAPP_OTP_TEMPLATE_NAME', process.env.WHATSAPP_OTP_TEMPLATE_NAME_CONFIG],
+  ['WHATSAPP_OTP_TEMPLATE_LANGUAGE_CODE', process.env.WHATSAPP_OTP_TEMPLATE_LANGUAGE_CODE_CONFIG],
+  ['WHATSAPP_WEBHOOK_VERIFY_TOKEN', process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN_SECRET],
+  ['WHATSAPP_APP_SECRET', process.env.WHATSAPP_APP_SECRET_SECRET],
+];
+const hasManagedOverlay = managedOverlays.some(([, value]) => String(value || '').trim());
+
+if (serviceAccount || hasManagedOverlay) {
+  envFile += '\n# Managed by GitHub production deployment. Final assignments below override base env values.\n';
+}
+
 if (serviceAccount) {
-  envFile += `\n# Managed by GitHub production deployment. These final assignments override earlier values.\n`;
-  envFile += `FIREBASE_PROJECT_ID=${shellSingleQuote(serviceAccount.projectId)}\n`;
-  envFile += `FIREBASE_SERVICE_ACCOUNT_JSON=${shellSingleQuote(serviceAccount.json)}\n`;
+  envFile = appendManagedValue(envFile, 'FIREBASE_PROJECT_ID', serviceAccount.projectId);
+  envFile = appendManagedValue(envFile, 'FIREBASE_SERVICE_ACCOUNT_JSON', serviceAccount.json);
   console.log('Aligned FIREBASE_PROJECT_ID with the protected Firebase service account.');
+}
+
+if (hasManagedOverlay) {
+  for (const [key, value] of managedOverlays) {
+    envFile = appendManagedValue(envFile, key, value);
+  }
+  console.log('Applied managed WhatsApp production settings without printing credential values.');
 }
 
 const outputPath = resolve(outputArg);

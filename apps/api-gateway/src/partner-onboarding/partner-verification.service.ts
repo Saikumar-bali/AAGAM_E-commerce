@@ -59,20 +59,29 @@ export class PartnerVerificationService {
     return this.phoneMode() !== 'EMAIL_ONLY';
   }
 
+  private selectedSmsProvider(): VerificationProvider {
+    return (process.env.PARTNER_SMS_PROVIDER || 'TWILIO').trim().toUpperCase() ===
+      VerificationProvider.WHATSAPP
+      ? VerificationProvider.WHATSAPP
+      : VerificationProvider.TWILIO;
+  }
+
   private providerFor(channel: PartnerContactChannel): VerificationProvider {
     if (isVerificationQaMode()) return VerificationProvider.QA;
     return channel === PartnerContactChannel.EMAIL
       ? selectedEmailVerificationProvider()
-      : VerificationProvider.TWILIO;
+      : this.selectedSmsProvider();
   }
 
   async capabilities() {
     const qaMode = isVerificationQaMode();
     const mode = this.phoneMode();
     const phoneAvailable = mode !== 'EMAIL_ONLY';
+    const pnvFirst = mode === 'PNV_FIRST';
     const emailProvider = qaMode
       ? VerificationProvider.QA
       : selectedEmailVerificationProvider();
+    const smsProvider = qaMode ? VerificationProvider.QA : this.selectedSmsProvider();
     return {
       mode,
       qaMode,
@@ -83,25 +92,15 @@ export class PartnerVerificationService {
       },
       phone: {
         available: phoneAvailable,
-        preferredMethod: 'FIREBASE_PNV',
-        preferredProvider: 'FIREBASE_PNV',
+        preferredMethod: pnvFirst ? 'FIREBASE_PNV' : 'SMS_OTP',
+        preferredProvider: pnvFirst ? VerificationProvider.FIREBASE_PNV : smsProvider,
         pnvConfigured:
-          phoneAvailable &&
-          (qaMode ||
-            Boolean(
-              process.env.FIREBASE_PROJECT_ID?.trim() &&
-                process.env.FIREBASE_PROJECT_NUMBER?.trim(),
-            )),
+          pnvFirst &&
+          (qaMode || this.isConfigured(VerificationProvider.FIREBASE_PNV)),
         fallbackMethod: 'SMS_OTP',
-        fallbackProvider: process.env.PARTNER_SMS_PROVIDER || 'TWILIO',
+        fallbackProvider: smsProvider,
         smsConfigured:
-          phoneAvailable &&
-          (qaMode ||
-            Boolean(
-              process.env.TWILIO_ACCOUNT_SID?.trim() &&
-                process.env.TWILIO_AUTH_TOKEN?.trim() &&
-                process.env.TWILIO_FROM_PHONE?.trim(),
-            )),
+          phoneAvailable && (qaMode || this.isConfigured(smsProvider)),
       },
     };
   }
@@ -110,29 +109,33 @@ export class PartnerVerificationService {
     const qaMode = isVerificationQaMode();
     const phoneMode = this.phoneMode();
     const phoneEnabled = phoneMode !== 'EMAIL_ONLY';
+    const pnvFirst = phoneMode === 'PNV_FIRST';
     const activeEmailProvider = qaMode
       ? VerificationProvider.QA
       : selectedEmailVerificationProvider();
+    const activeSmsProvider = qaMode
+      ? VerificationProvider.QA
+      : this.selectedSmsProvider();
     const providers = await Promise.all(
       [
         VerificationProvider.RESEND,
         VerificationProvider.MAILJET,
         VerificationProvider.TWILIO,
+        VerificationProvider.WHATSAPP,
         VerificationProvider.FIREBASE_PNV,
       ].map(async (provider) => ({
         provider,
         configured: this.isConfigured(provider),
         active:
           provider === activeEmailProvider ||
-          (phoneEnabled &&
-            (provider === VerificationProvider.TWILIO ||
-              provider === VerificationProvider.FIREBASE_PNV)),
+          (phoneEnabled && provider === activeSmsProvider) ||
+          (pnvFirst && provider === VerificationProvider.FIREBASE_PNV),
         qaMode,
         lastSuccessfulProviderCheckTimestamp:
           (await this.challenges.lastSuccessfulProviderCheck(provider))?.toISOString() || null,
       })),
     );
-    return { activeEmailProvider, phoneMode, providers };
+    return { activeEmailProvider, activeSmsProvider, phoneMode, providers };
   }
 
   private isConfigured(provider: VerificationProvider): boolean {
@@ -152,15 +155,30 @@ export class PartnerVerificationService {
       case VerificationProvider.TWILIO:
         return (
           this.phoneVerificationEnabled() &&
+          this.selectedSmsProvider() === VerificationProvider.TWILIO &&
           Boolean(
             process.env.TWILIO_ACCOUNT_SID?.trim() &&
               process.env.TWILIO_AUTH_TOKEN?.trim() &&
               process.env.TWILIO_FROM_PHONE?.trim(),
           )
         );
-      case VerificationProvider.FIREBASE_PNV:
+      case VerificationProvider.WHATSAPP:
         return (
           this.phoneVerificationEnabled() &&
+          this.selectedSmsProvider() === VerificationProvider.WHATSAPP &&
+          Boolean(
+            process.env.WHATSAPP_ACCESS_TOKEN?.trim() &&
+              process.env.WHATSAPP_PHONE_NUMBER_ID?.trim() &&
+              process.env.WHATSAPP_BUSINESS_ACCOUNT_ID?.trim() &&
+              process.env.WHATSAPP_GRAPH_API_VERSION?.trim() &&
+              process.env.WHATSAPP_OTP_TEMPLATE_NAME?.trim() &&
+              process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim() &&
+              process.env.WHATSAPP_APP_SECRET?.trim(),
+          )
+        );
+      case VerificationProvider.FIREBASE_PNV:
+        return (
+          this.phoneMode() === 'PNV_FIRST' &&
           Boolean(
             process.env.FIREBASE_PROJECT_ID?.trim() &&
               process.env.FIREBASE_PROJECT_NUMBER?.trim(),
@@ -255,7 +273,7 @@ export class PartnerVerificationService {
         await this.challenges.setStatus(
           challenge.id,
           VerificationChallengeStatus.SENT,
-          { providerDeliveryId: result.deliveryId },
+          { providerDeliveryId: result.deliveryId, provider: result.provider },
           tx,
         );
         await tx.$executeRawUnsafe(
@@ -374,13 +392,19 @@ export class PartnerVerificationService {
   }
 
   async createPnvChallenge(id: string, accessToken: string) {
-    const application = await this.applications.requireApplication(id, accessToken);
-    this.applications.assertEditable(application);
-    if (!this.phoneVerificationEnabled()) {
+    const mode = this.phoneMode();
+    if (mode === 'EMAIL_ONLY') {
       throw new BadRequestException(
         'Phone verification is temporarily unavailable. Use email verification.',
       );
     }
+    if (mode !== 'PNV_FIRST') {
+      throw new BadRequestException(
+        'Firebase PNV is unavailable in the selected phone verification mode',
+      );
+    }
+    const application = await this.applications.requireApplication(id, accessToken);
+    this.applications.assertEditable(application);
     if (!application.phoneE164) {
       throw new BadRequestException('Application does not have a phone number');
     }
@@ -414,6 +438,17 @@ export class PartnerVerificationService {
   }
 
   async verifyPnv(id: string, accessToken: string, token: string) {
+    const mode = this.phoneMode();
+    if (mode === 'EMAIL_ONLY') {
+      throw new BadRequestException(
+        'Phone verification is temporarily unavailable. Use email verification.',
+      );
+    }
+    if (mode !== 'PNV_FIRST') {
+      throw new BadRequestException(
+        'Firebase PNV is unavailable in the selected phone verification mode',
+      );
+    }
     if (!accessToken) throw new UnauthorizedException('Application access could not be verified');
     const application = await this.applications.requireApplication(id, accessToken);
     this.applications.assertEditable(application);

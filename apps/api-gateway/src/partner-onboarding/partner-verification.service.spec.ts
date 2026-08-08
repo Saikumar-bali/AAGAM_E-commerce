@@ -103,6 +103,7 @@ describe('PartnerVerificationService regression contracts', () => {
     process.env = {
       ...originalEnv,
       NODE_ENV: 'test',
+      PARTNER_PHONE_VERIFICATION_MODE: 'PNV_FIRST',
       FIREBASE_PROJECT_ID: 'aagam-test',
       FIREBASE_PROJECT_NUMBER: '123',
     };

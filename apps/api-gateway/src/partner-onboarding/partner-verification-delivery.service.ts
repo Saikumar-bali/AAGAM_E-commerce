@@ -1,5 +1,6 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { WhatsAppCloudService } from '../whatsapp-webhook/whatsapp-cloud.service';
 import { PartnerContactChannel } from './partner-onboarding.types';
 import {
   EmailVerificationProvider,
@@ -23,7 +24,8 @@ export type PartnerVerificationDeliveryResult = {
   provider:
     | VerificationProvider.QA
     | EmailVerificationProvider
-    | VerificationProvider.TWILIO;
+    | VerificationProvider.TWILIO
+    | VerificationProvider.WHATSAPP;
   deliveryId: string;
   correlationId: string;
   httpStatus: number;
@@ -44,6 +46,8 @@ export class PartnerVerificationDeliveryException extends ServiceUnavailableExce
 @Injectable()
 export class PartnerVerificationDeliveryService {
   private readonly logger = new Logger(PartnerVerificationDeliveryService.name);
+
+  constructor(private readonly whatsapp: WhatsAppCloudService) {}
 
   async deliver(input: PartnerVerificationDeliveryInput): Promise<PartnerVerificationDeliveryResult> {
     const correlationId = input.correlationId || randomUUID();
@@ -215,6 +219,64 @@ export class PartnerVerificationDeliveryService {
   }
 
   private async sendSms(
+    input: PartnerVerificationDeliveryInput,
+    correlationId: string,
+  ): Promise<PartnerVerificationDeliveryResult> {
+    const provider = (process.env.PARTNER_SMS_PROVIDER || 'TWILIO').trim().toUpperCase();
+    if (provider === VerificationProvider.WHATSAPP) {
+      return this.sendWhatsApp(input, correlationId);
+    }
+    if (provider !== VerificationProvider.TWILIO) {
+      throw this.failure(
+        input,
+        VerificationProvider.TWILIO,
+        'PHONE_PROVIDER_INVALID',
+        correlationId,
+        undefined,
+        'Partner phone verification provider is not supported',
+      );
+    }
+    return this.sendTwilioSms(input, correlationId);
+  }
+
+  private async sendWhatsApp(
+    input: PartnerVerificationDeliveryInput,
+    correlationId: string,
+  ): Promise<PartnerVerificationDeliveryResult> {
+    const to = input.phoneE164?.trim();
+    if (!to) {
+      throw this.failure(
+        input,
+        VerificationProvider.WHATSAPP,
+        'WHATSAPP_DESTINATION_MISSING',
+        correlationId,
+        undefined,
+        'Partner WhatsApp verification destination is missing',
+      );
+    }
+
+    try {
+      const result = await this.whatsapp.sendOtp(to, input.code);
+      return {
+        provider: VerificationProvider.WHATSAPP,
+        deliveryId: result.messageId,
+        correlationId,
+        httpStatus: 200,
+      };
+    } catch (error: any) {
+      const response = typeof error?.getResponse === 'function' ? error.getResponse() : {};
+      throw this.failure(
+        input,
+        VerificationProvider.WHATSAPP,
+        this.safeProviderCode(response?.code, 'WHATSAPP_DELIVERY_FAILED'),
+        correlationId,
+        undefined,
+        response?.message || 'Partner WhatsApp verification could not be delivered',
+      );
+    }
+  }
+
+  private async sendTwilioSms(
     input: PartnerVerificationDeliveryInput,
     correlationId: string,
   ): Promise<PartnerVerificationDeliveryResult> {
