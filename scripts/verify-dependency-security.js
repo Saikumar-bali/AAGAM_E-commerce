@@ -17,6 +17,10 @@ function run(command, args, options = {}) {
   });
 }
 
+// Prove the reviewed transitive UUID major override still resolves the same
+// v4 API used by Google's HTTP helpers before trusting the audit result.
+run(process.execPath, ['scripts/test-google-uuid-security-override.js']);
+
 // The only audit exceptions are vendor-unfixed image-size parser CVEs. They are
 // accepted only when the exact local patch is present and exploit regressions
 // terminate safely.
