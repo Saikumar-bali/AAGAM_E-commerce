@@ -12,8 +12,8 @@ import {
   Loader2,
   MessageSquareText,
   Package,
+  Phone,
   RefreshCw,
-  ShieldCheck,
 } from 'lucide-react';
 
 type Order = {
@@ -36,6 +36,9 @@ type Ticket = {
     createdAt?: string;
   };
 };
+
+const SUPPORT_PHONE = '8340064486';
+const SUPPORT_PHONE_HREF = '+918340064486';
 
 const categories = [
   { value: 'ORDER_STATUS', label: 'Order status or delay' },
@@ -65,6 +68,7 @@ export default function CustomerSupportPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [lastCreatedTicketId, setLastCreatedTicketId] = useState('');
   const selectedOrderRef = useRef('');
   const historyRequestVersion = useRef(0);
 
@@ -134,6 +138,7 @@ export default function CustomerSupportPage() {
   const selectOrder = (orderId: string) => {
     selectedOrderRef.current = orderId;
     setSelectedOrderId(orderId);
+    setLastCreatedTicketId('');
   };
 
   const submitTicket = async () => {
@@ -150,15 +155,20 @@ export default function CustomerSupportPage() {
 
     setSubmitting(true);
     try {
-      await apiClient.post(`/orders/post-delivery/${orderId}/support`, {
+      const response = await apiClient.post(`/orders/post-delivery/${orderId}/support`, {
         category,
         message: details,
         priority: category === 'PAYMENT' || category === 'MISSING_ITEM' ? 'HIGH' : 'NORMAL',
         requestedRefund,
       });
+      const ticketId = typeof response.data?.ticketId === 'string' ? response.data.ticketId : '';
       setMessage('');
       setRequestedRefund(false);
-      toast.success('The Aagaam support team can now review your request.', 'Support ticket opened');
+      setLastCreatedTicketId(ticketId);
+      toast.success(
+        ticketId ? `Reference ID: ${ticketId}` : 'The Aagaam support team can now review your request.',
+        'Support ticket opened',
+      );
       if (selectedOrderRef.current === orderId) await loadTicketHistory(orderId);
     } catch {
       // Global API interceptor shows conflicts and backend validation as a toast.
@@ -179,7 +189,10 @@ export default function CustomerSupportPage() {
               <h1 className="mt-4 text-3xl font-black tracking-[-0.04em] sm:text-4xl">How can we help?</h1>
               <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-300">Choose the affected order and send the details directly to the support queue. Your ticket stays linked to the order for faster resolution.</p>
             </div>
-            <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur"><ShieldCheck className="h-7 w-7 text-teal-300" /><div><p className="font-black">Verified account</p><p className="text-xs font-semibold text-slate-300">Only your orders are available here.</p></div></div>
+            <a href={`tel:${SUPPORT_PHONE_HREF}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur transition hover:bg-white/15" aria-label={`Call Aagaam customer care on ${SUPPORT_PHONE}`}>
+              <Phone className="h-7 w-7 text-teal-300" />
+              <div><p className="text-xs font-black uppercase tracking-[0.12em] text-slate-300">Call support</p><p className="mt-1 text-lg font-black text-white">{SUPPORT_PHONE}</p></div>
+            </a>
           </div>
         </section>
 
@@ -208,8 +221,9 @@ export default function CustomerSupportPage() {
               <label className="mt-4 block"><span className="mb-2 block text-sm font-black text-slate-800">Describe what happened</span><textarea value={message} onChange={(event) => setMessage(event.target.value.slice(0, 1000))} rows={6} maxLength={1000} placeholder="Include the item, payment, delivery or refund details that will help the support team investigate." className="enterprise-input min-h-36 w-full resize-y bg-white" /></label>
               <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"><input type="checkbox" checked={requestedRefund} onChange={(event) => setRequestedRefund(event.target.checked)} className="mt-1 h-4 w-4 accent-teal-700" /><span><span className="block text-sm font-black text-slate-900">This request may need a refund</span><span className="mt-1 block text-xs font-semibold leading-5 text-slate-500">Support will review eligibility. Selecting this does not automatically approve a refund.</span></span></label>
               <button type="button" onClick={() => void submitTicket()} disabled={submitting || !selectedOrderId || message.trim().length < 5} className="enterprise-button mt-5 w-full gap-2 disabled:cursor-not-allowed disabled:opacity-50">{submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <MessageSquareText className="h-5 w-5" />}{submitting ? 'Opening ticket…' : 'Open support ticket'}</button>
+              {lastCreatedTicketId ? <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-700">Support reference ID</p><p className="mt-2 break-all font-mono text-sm font-black text-emerald-950">{lastCreatedTicketId}</p><p className="mt-2 text-xs font-semibold leading-5 text-emerald-800">Keep this reference for follow-up. You can also call <a href={`tel:${SUPPORT_PHONE_HREF}`} className="font-black underline">{SUPPORT_PHONE}</a> and share this ID with support.</p></div> : null}
 
-              <div className="mt-6 border-t border-slate-100 pt-5"><div className="flex items-center justify-between"><h3 className="font-black text-slate-950">Previous tickets for this order</h3>{loadingHistory ? <Loader2 className="h-4 w-4 animate-spin text-teal-600" /> : null}</div>{!loadingHistory && tickets.length === 0 ? <p className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-500">No support ticket has been opened for this order.</p> : null}<div className="mt-3 space-y-3">{tickets.map((ticket) => <div key={ticket.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-emerald-700"><CheckCircle2 className="h-4 w-4" />{ticket.metadata?.status || 'OPEN'}</span><span className="text-xs font-semibold text-slate-400">{ticketDate(ticket.createdAt || ticket.metadata?.createdAt)}</span></div><p className="mt-2 text-sm font-black text-slate-900">{categories.find((item) => item.value === ticket.metadata?.category)?.label || ticket.metadata?.category || 'Support request'}</p><p className="mt-1 line-clamp-3 text-sm font-semibold leading-6 text-slate-600">{ticket.metadata?.message || 'Support request submitted.'}</p></div>)}</div></div>
+              <div className="mt-6 border-t border-slate-100 pt-5"><div className="flex items-center justify-between"><h3 className="font-black text-slate-950">Previous tickets for this order</h3>{loadingHistory ? <Loader2 className="h-4 w-4 animate-spin text-teal-600" /> : null}</div>{!loadingHistory && tickets.length === 0 ? <p className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-500">No support ticket has been opened for this order.</p> : null}<div className="mt-3 space-y-3">{tickets.map((ticket) => <div key={ticket.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-emerald-700"><CheckCircle2 className="h-4 w-4" />{ticket.metadata?.status || 'OPEN'}</span><span className="text-xs font-semibold text-slate-400">{ticketDate(ticket.createdAt || ticket.metadata?.createdAt)}</span></div><p className="mt-2 break-all font-mono text-[11px] font-bold text-teal-700">Reference ID: {ticket.id}</p><p className="mt-2 text-sm font-black text-slate-900">{categories.find((item) => item.value === ticket.metadata?.category)?.label || ticket.metadata?.category || 'Support request'}</p><p className="mt-1 line-clamp-3 text-sm font-semibold leading-6 text-slate-600">{ticket.metadata?.message || 'Support request submitted.'}</p></div>)}</div></div>
             </section>
           </div>
         )}
