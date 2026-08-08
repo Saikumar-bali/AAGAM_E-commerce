@@ -20,16 +20,25 @@ test('customer sees truthful subscription funding, progress and plan discovery',
   await page.screenshot({ path: `${screenshots}/02-customer-subscription-detail.png`, fullPage: true });
 });
 
-test('admin sees immutable plans, subscribers, runs and cash control', async ({ page }) => {
+test('admin sees simple rupee plan setup plus subscribers, runs and cash control', async ({ page }) => {
   await loginWithCookieSession(page, 'ADMIN');
   await page.goto('/admin/subscriptions');
   await expect(page.getByRole('heading', { name: 'Subscriptions, runs & cash' })).toBeVisible();
   await expect(page.getByText('Buffalo Milk 1 L · 7 Days')).toBeVisible();
-  await expect(page.getByText(/Immutable plan contracts/i)).toBeVisible();
   await page.getByRole('button', { name: 'New plan' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Create subscription plan' })).toBeVisible();
+  await expect(page.getByText(/Technical codes, paise conversion and scheduler defaults are handled automatically/i)).toBeVisible();
   await expect(page.getByText('Upload plan image')).toBeVisible();
-  await expect(page.getByText('Upload mobile image')).toBeVisible();
-  await expect(page.getByText(/Immutable version on publish/i)).toBeVisible();
+  await expect(page.getByText('Plan price (₹)')).toBeVisible();
+  await expect(page.getByText('MRP (₹)')).toBeVisible();
+  await expect(page.getByText('Delivery from')).toBeVisible();
+  await expect(page.getByText('Delivery until')).toBeVisible();
+  await expect(page.getByText(/Amounts are shown in rupees here and safely converted to paise/i)).toBeVisible();
+
+  await expect(page.getByText('Code', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Internal name', { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Price \(paise\)|MRP \(paise\)|Slot start minute|Generate hours|Skip cutoff/i)).toHaveCount(0);
   await page.screenshot({ path: `${screenshots}/03-admin-subscription-control-plane.png`, fullPage: true });
 });
 
