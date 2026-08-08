@@ -23,7 +23,6 @@ import {
   MapPin,
   Key,
   Lock,
-  Vehicle,
 } from 'lucide-react';
 
 const StoreLocationPicker = dynamic(
@@ -83,17 +82,6 @@ const LiveTrackingMap = dynamic(() => import('@/components/LiveTrackingMap'), {
     </div>
   ),
 });
-
-interface Rider {
-  id: string;
-  status: 'ONLINE' | 'OFFLINE' | 'BUSY';
-  latitude: number | null;
-  longitude: number | null;
-  bearing?: number;
-  updatedAt: string;
-  user?: { name: string | null; email: string | null; phone: string | null };
-  orders?: Array<{ id: string }>;
-}
 
 const statusOptions = ['All', 'Online', 'Offline', 'Busy'];
 
@@ -461,7 +449,6 @@ export default function AdminRidersPage() {
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
               {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm font-medium">{error}</div>}
 
-              {/* Contact Information */}
               <div>
                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Contact Information</h3>
                 <div className="space-y-3">
@@ -482,7 +469,6 @@ export default function AdminRidersPage() {
                 </div>
               </div>
 
-              {/* Credentials */}
               <div>
                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3 flex items-center"><Key className="h-4 w-4 mr-1.5" /> Credentials</h3>
                 <div className="space-y-3">
@@ -501,7 +487,6 @@ export default function AdminRidersPage() {
                 </div>
               </div>
 
-              {/* Vehicle */}
               <div>
                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3 flex items-center"><Bike className="h-4 w-4 mr-1.5" /> Vehicle Details</h3>
                 <div className="grid grid-cols-2 gap-3">
@@ -521,7 +506,6 @@ export default function AdminRidersPage() {
                 </div>
               </div>
 
-              {/* Emergency Contact */}
               <div>
                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Emergency Contact</h3>
                 <div className="grid grid-cols-2 gap-3">
@@ -536,7 +520,6 @@ export default function AdminRidersPage() {
                 </div>
               </div>
 
-              {/* Location */}
               <div>
                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3 flex items-center"><MapPin className="h-4 w-4 mr-1.5" /> Initial Location</h3>
                 <div className="w-full">
@@ -554,7 +537,6 @@ export default function AdminRidersPage() {
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all">
                   Cancel
