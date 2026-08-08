@@ -145,9 +145,13 @@ export class NotificationsController {
 
   @Post('admin/broadcast')
   @Roles(Role.ADMIN)
-  adminBroadcast(@Req() req: any, @Body() body: unknown) {
+  broadcast(
+    @Req() req: any,
+    @Body() body: unknown,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
     const dto = this.parse<any>(AdminBroadcastSchema, body);
-    return this.notifications.createBroadcast(req.user, dto);
+    return this.notifications.createBroadcast(req.user, dto, idempotencyKey);
   }
 
   @Post('admin/process-outbox')
