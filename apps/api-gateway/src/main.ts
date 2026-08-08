@@ -85,6 +85,12 @@ class RedisIoAdapter extends IoAdapter {
   async connectToRedis(redisUrl: string): Promise<void> {
     const pubClient = createClient({ url: redisUrl });
     const subClient = pubClient.duplicate();
+    pubClient.on('error', (error) => {
+      logger.error(`Redis pub client error: ${error instanceof Error ? error.message : String(error)}`);
+    });
+    subClient.on('error', (error) => {
+      logger.error(`Redis sub client error: ${error instanceof Error ? error.message : String(error)}`);
+    });
     await Promise.all([pubClient.connect(), subClient.connect()]);
     this.adapterConstructor = createAdapter(pubClient, subClient);
   }
