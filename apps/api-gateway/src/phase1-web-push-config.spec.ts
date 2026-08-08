@@ -70,6 +70,20 @@ describe('Firebase web push configuration contract', () => {
     expect(result.missing).toHaveLength(5);
   });
 
+  it('normalizes accidental whitespace inside the VAPID key', () => {
+    process.env.FIREBASE_WEB_API_KEY = 'public-api-key';
+    process.env.FIREBASE_WEB_PROJECT_ID = 'aagam-project';
+    process.env.FIREBASE_WEB_MESSAGING_SENDER_ID = '123456789';
+    process.env.FIREBASE_WEB_APP_ID = '1:123456789:web:abcdef';
+    process.env.FIREBASE_WEB_VAPID_KEY = 'BL3t01aDk678RPr-gtQ2TZE8VD18DAHNC hjVUHoNFqqmC3QvxiCBdUr3ABjJKh hK8MsUiGk TmU3ZJa-d0zN0xUA';
+
+    const result = getFirebaseWebPushConfig();
+
+    expect(result.enabled).toBe(true);
+    expect(result.vapidKey).toBe('BL3t01aDk678RPr-gtQ2TZE8VD18DAHNChjVUHoNFqqmC3QvxiCBdUr3ABjJKhhK8MsUiGkTmU3ZJa-d0zN0xUA');
+    expect(result.vapidKey).toHaveLength(87);
+  });
+
   it('returns the public Firebase configuration only when every required value exists', () => {
     process.env.FIREBASE_WEB_API_KEY = 'public-api-key';
     process.env.FIREBASE_WEB_AUTH_DOMAIN = 'aagam.firebaseapp.com';
