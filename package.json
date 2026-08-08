@@ -17,6 +17,9 @@
     "sharp": "0.35.3"
   },
   "scripts": {
+    "postinstall": "node scripts/patch-image-size-cves.js",
+    "security:image-size": "node scripts/patch-image-size-cves.js --verify && node scripts/test-image-size-cve-patch.js",
+    "security:dependencies": "node scripts/verify-dependency-security.js",
     "dev": "turbo dev --filter=!AagamMobile --filter=!AagamCustomer --filter=!AagamPartners",
     "build": "npm run build:api",
     "build:all": "turbo build",
