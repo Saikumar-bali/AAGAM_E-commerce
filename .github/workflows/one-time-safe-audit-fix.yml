@@ -1,7 +1,10 @@
-# Temporary branch-only workflow. Delete before merge.
+# Temporary remediation workflow. Delete before merge.
 name: One-time Safe Audit Fix
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - agent/security-and-issue-hardening
@@ -16,7 +19,10 @@ permissions:
 
 jobs:
   audit-fix:
-    if: github.repository == 'Saikumar-bali/AAGAM_E-commerce' && github.ref == 'refs/heads/agent/security-and-issue-hardening'
+    if: >-
+      github.repository == 'Saikumar-bali/AAGAM_E-commerce' &&
+      ((github.event_name == 'pull_request' && github.head_ref == 'agent/security-and-issue-hardening') ||
+       (github.event_name == 'push' && github.ref == 'refs/heads/agent/security-and-issue-hardening'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout remediation branch
