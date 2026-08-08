@@ -91,40 +91,61 @@ interface LiveTrackingMapProps {
   }>;
   orders?: ActiveOrder[];
   selectedOrderId?: string | null;
+  selectedRiderId?: string | null;
   onOrderClick?: (orderId: string) => void;
   showRoutePath?: { latitude: number; longitude: number }[];
 }
 
-export default function LiveTrackingMap({ riders = [], orders = [], selectedOrderId, onOrderClick, showRoutePath }: LiveTrackingMapProps) {
+export default function LiveTrackingMap({
+  riders = [],
+  orders = [],
+  selectedOrderId,
+  selectedRiderId,
+  onOrderClick,
+  showRoutePath,
+}: LiveTrackingMapProps) {
   const [mapCenter, setMapCenter] = useState<[number, number]>([20.5937, 78.9629]);
 
   const allPoints: [number, number][] = [];
 
-  riders.forEach(r => {
-    if (r.latitude && r.longitude) allPoints.push([r.latitude, r.longitude]);
+  riders.forEach((rider) => {
+    if (rider.latitude && rider.longitude) allPoints.push([rider.latitude, rider.longitude]);
   });
 
-  orders.forEach(o => {
-    if (o.store.latitude && o.store.longitude) allPoints.push([o.store.latitude, o.store.longitude]);
-    if (o.delivery.latitude && o.delivery.longitude) allPoints.push([o.delivery.latitude, o.delivery.longitude]);
-    if (o.rider?.latitude && o.rider?.longitude) allPoints.push([o.rider.latitude, o.rider.longitude]);
-    if (o.latestLocation) allPoints.push([o.latestLocation.latitude, o.latestLocation.longitude]);
+  orders.forEach((order) => {
+    if (order.store.latitude && order.store.longitude) allPoints.push([order.store.latitude, order.store.longitude]);
+    if (order.delivery.latitude && order.delivery.longitude) allPoints.push([order.delivery.latitude, order.delivery.longitude]);
+    if (order.rider?.latitude && order.rider?.longitude) allPoints.push([order.rider.latitude, order.rider.longitude]);
+    if (order.latestLocation) allPoints.push([order.latestLocation.latitude, order.latestLocation.longitude]);
   });
 
+  const selectedRider = selectedRiderId
+    ? riders.find((rider) => rider.id === selectedRiderId)
+    : undefined;
+  const selectedRiderPoint: [number, number] | null =
+    selectedRider?.latitude && selectedRider?.longitude
+      ? [selectedRider.latitude, selectedRider.longitude]
+      : null;
+  const mapPoints = selectedRiderPoint ? [selectedRiderPoint] : allPoints;
 
   useEffect(() => {
+    if (selectedRiderPoint) {
+      setMapCenter(selectedRiderPoint);
+      return;
+    }
+
     if (selectedOrderId) {
-      const order = orders.find(o => o.orderId === selectedOrderId);
+      const order = orders.find((candidate) => candidate.orderId === selectedOrderId);
       if (order) {
         const lat = order.rider?.latitude ?? order.latestLocation?.latitude ?? order.store.latitude;
         const lng = order.rider?.longitude ?? order.latestLocation?.longitude ?? order.store.longitude;
         if (lat && lng) setMapCenter([lat, lng]);
       }
     }
-  }, [selectedOrderId, orders]);
+  }, [selectedOrderId, selectedRiderId, selectedRiderPoint, orders]);
 
   const routePathCoords: [number, number][] = showRoutePath
-    ? showRoutePath.map(p => [p.latitude, p.longitude])
+    ? showRoutePath.map((point) => [point.latitude, point.longitude])
     : [];
 
   return (
@@ -140,13 +161,13 @@ export default function LiveTrackingMap({ riders = [], orders = [], selectedOrde
             url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
           } as any)}
         />
-        <MapUpdater center={mapCenter} points={allPoints} />
+        <MapUpdater center={mapCenter} points={mapPoints} />
 
         {routePathCoords.length > 1 && (
           <Polyline positions={routePathCoords} color="#3B82F6" weight={3} opacity={0.7} />
         )}
 
-        {riders.map(rider => (
+        {riders.map((rider) => (
           rider.latitude && rider.longitude && (
             <Marker
               key={`rider-${rider.id}`}
@@ -163,7 +184,7 @@ export default function LiveTrackingMap({ riders = [], orders = [], selectedOrde
           )
         ))}
 
-        {orders.map(order => (
+        {orders.map((order) => (
           <React.Fragment key={`order-${order.orderId}`}>
             {order.store.latitude && order.store.longitude && (
               <Marker
