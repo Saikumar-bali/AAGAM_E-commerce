@@ -22,4 +22,9 @@ describe('dashboard security configuration contract', () => {
     expect(nextConfig).toContain("process.env.API_BACKEND_URL || 'http://127.0.0.1:3005'");
     expect(nextConfig).not.toMatch(/API_BACKEND_URL\s*\|\|\s*['\"]http:\/\/(?!127\.0\.0\.1|localhost)/);
   });
+
+  it('does not suppress dashboard TypeScript build failures', () => {
+    expect(nextConfig).toContain('ignoreBuildErrors: false');
+    expect(nextConfig).not.toContain('ignoreBuildErrors: true');
+  });
 });
