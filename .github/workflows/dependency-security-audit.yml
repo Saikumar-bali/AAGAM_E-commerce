@@ -1,0 +1,43 @@
+name: Dependency Security Audit
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  npm-audit:
+    name: npm high/critical audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.3"
+          cache: npm
+
+      - name: Audit locked dependencies
+        shell: bash
+        run: |
+          set -o pipefail
+          npm audit --package-lock-only --audit-level=high 2>&1 | tee npm-audit.log
+
+      - name: Upload dependency audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-security-audit
+          path: npm-audit.log
+          if-no-files-found: error
+          retention-days: 14
