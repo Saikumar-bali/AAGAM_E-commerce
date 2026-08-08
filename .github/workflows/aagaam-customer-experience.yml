@@ -26,3 +26,4 @@ jobs:
         run: |
           node scripts/aagaam-customer-experience.contract.test.js
           node scripts/aagaam-visible-brand.contract.test.js
+          node scripts/customer-support-logo-fit.contract.test.js
