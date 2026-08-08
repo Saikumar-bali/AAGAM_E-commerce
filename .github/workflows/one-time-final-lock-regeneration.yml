@@ -1,0 +1,58 @@
+# Temporary branch-only remediation workflow. Delete after lock regeneration.
+name: One-time Final Lock Regeneration
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate-lock:
+    if: github.repository == 'Saikumar-bali/AAGAM_E-commerce' && github.head_ref == 'agent/security-and-issue-hardening'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/security-and-issue-hardening
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.3'
+          cache: npm
+      - name: Regenerate lock from current manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit signatures
+          npm audit --package-lock-only --json > /tmp/npm-audit.json || true
+          node - <<'NODE'
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync('/tmp/npm-audit.json','utf8'));
+          const bad = report.vulnerabilities?.['fast-xml-parser'];
+          if (bad) {
+            console.error(JSON.stringify(bad, null, 2));
+            process.exit(1);
+          }
+          console.log('fast-xml-parser advisory removed from regenerated lock.');
+          NODE
+          git diff --check
+      - name: Commit regenerated lock only
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only)"
+          if [ "$changed" != "package-lock.json" ]; then
+            echo "Expected only package-lock.json, got: $changed"
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package-lock.json
+          git commit -m 'Regenerate lock with patched RN CLI XML parser'
+          git push origin HEAD:agent/security-and-issue-hardening
