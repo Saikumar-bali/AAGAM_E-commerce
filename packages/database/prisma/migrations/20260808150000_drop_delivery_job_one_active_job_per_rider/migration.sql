@@ -1,0 +1,13 @@
+-- The DeliveryJob_one_active_job_per_rider partial unique index enforces a
+-- legacy per-parcel invariant (a rider may hold at most one active job) that is
+-- incompatible with regional multi-stop delivery runs, where a single rider
+-- legitimately carries every job in a route simultaneously.
+--
+-- assignRiderWithinTransaction assigns the route rider to each stop's job, so
+-- the second+ job of any multi-stop run violates the index and the whole
+-- reassign transaction fails with a P2002 unique-constraint error (surfaced as a
+-- generic 500 because Prisma exceptions are not mapped). The legacy dispatch
+-- flow already guards against double-assignment in application code
+-- (DispatchAssignmentService.accept checks for an existing active job), so this
+-- index is a redundant backstop and can be dropped.
+DROP INDEX IF EXISTS "DeliveryJob_one_active_job_per_rider";
