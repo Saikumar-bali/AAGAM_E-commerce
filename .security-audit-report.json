@@ -77,107 +77,6 @@
       ],
       "fixAvailable": true
     },
-    "@nestjs/common": {
-      "name": "@nestjs/common",
-      "severity": "moderate",
-      "isDirect": false,
-      "via": [
-        "file-type"
-      ],
-      "effects": [],
-      "range": "10.4.16 - 10.4.22 || 11.0.16 - 11.1.16 || 12.0.0-alpha.0 - 12.0.0-alpha.2",
-      "nodes": [
-        "node_modules/@nestjs/common"
-      ],
-      "fixAvailable": true
-    },
-    "@nestjs/core": {
-      "name": "@nestjs/core",
-      "severity": "moderate",
-      "isDirect": false,
-      "via": [
-        "@nestjs/platform-express",
-        "@nestjs/websockets",
-        {
-          "source": 1117063,
-          "name": "@nestjs/core",
-          "dependency": "@nestjs/core",
-          "title": "@nestjs/core Improperly Neutralizes Special Elements in Output Used by a Downstream Component ('Injection')",
-          "url": "https://github.com/advisories/GHSA-36xv-jgw5-4q75",
-          "severity": "moderate",
-          "cwe": [
-            "CWE-74"
-          ],
-          "cvss": {
-            "score": 6.1,
-            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:N/A:L"
-          },
-          "range": "<=11.1.17"
-        }
-      ],
-      "effects": [
-        "@nestjs/platform-express",
-        "@nestjs/websockets"
-      ],
-      "range": "<=11.1.17",
-      "nodes": [
-        "node_modules/@nestjs/core"
-      ],
-      "fixAvailable": true
-    },
-    "@nestjs/platform-express": {
-      "name": "@nestjs/platform-express",
-      "severity": "high",
-      "isDirect": false,
-      "via": [
-        "@nestjs/core",
-        "body-parser",
-        "express",
-        "multer"
-      ],
-      "effects": [
-        "@nestjs/core"
-      ],
-      "range": "<=11.1.14 || 12.0.0-alpha.0 - 12.0.0-alpha.2",
-      "nodes": [
-        "node_modules/@nestjs/platform-express"
-      ],
-      "fixAvailable": true
-    },
-    "@nestjs/platform-socket.io": {
-      "name": "@nestjs/platform-socket.io",
-      "severity": "moderate",
-      "isDirect": false,
-      "via": [
-        "@nestjs/websockets"
-      ],
-      "effects": [
-        "@nestjs/websockets"
-      ],
-      "range": "<=11.0.0-next.4",
-      "nodes": [
-        "node_modules/@nestjs/platform-socket.io"
-      ],
-      "fixAvailable": true
-    },
-    "@nestjs/websockets": {
-      "name": "@nestjs/websockets",
-      "severity": "moderate",
-      "isDirect": false,
-      "via": [
-        "@nestjs/core",
-        "@nestjs/platform-socket.io"
-      ],
-      "effects": [
-        "@nestjs/core",
-        "@nestjs/platform-socket.io"
-      ],
-      "range": "<=11.0.0-next.4",
-      "nodes": [
-        "node_modules/@nestjs/websockets"
-      ],
-      "fixAvailable": true
-    },
     "@react-native/community-cli-plugin": {
       "name": "@react-native/community-cli-plugin",
       "severity": "high",
@@ -254,7 +153,7 @@
     },
     "body-parser": {
       "name": "body-parser",
-      "severity": "moderate",
+      "severity": "low",
       "isDirect": false,
       "via": [
         {
@@ -272,32 +171,12 @@
             "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L"
           },
           "range": ">=2.0.0 <2.3.0"
-        },
-        {
-          "source": 1123977,
-          "name": "body-parser",
-          "dependency": "body-parser",
-          "title": "body-parser vulnerable to denial of service when invalid limit value silently disables size enforcement",
-          "url": "https://github.com/advisories/GHSA-v422-hmwv-36x6",
-          "severity": "low",
-          "cwe": [
-            "CWE-770"
-          ],
-          "cvss": {
-            "score": 3.7,
-            "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L"
-          },
-          "range": "<1.20.6"
-        },
-        "qs"
+        }
       ],
-      "effects": [
-        "@nestjs/platform-express"
-      ],
-      "range": "<=1.20.5 || 2.0.0-beta.1 - 2.2.2",
+      "effects": [],
+      "range": "2.0.0 - 2.2.2",
       "nodes": [
-        "node_modules/@react-native-community/cli-server-api/node_modules/body-parser",
-        "node_modules/body-parser"
+        "node_modules/@react-native-community/cli-server-api/node_modules/body-parser"
       ],
       "fixAvailable": true
     },
@@ -477,22 +356,6 @@
       ],
       "fixAvailable": true
     },
-    "express": {
-      "name": "express",
-      "severity": "moderate",
-      "isDirect": false,
-      "via": [
-        "qs"
-      ],
-      "effects": [
-        "@nestjs/platform-express"
-      ],
-      "range": "4.21.0 - 4.22.1 || 5.0.0-alpha.1 - 5.0.1",
-      "nodes": [
-        "node_modules/express"
-      ],
-      "fixAvailable": true
-    },
     "fast-xml-parser": {
       "name": "fast-xml-parser",
       "severity": "moderate",
@@ -521,54 +384,6 @@
       "range": "<5.7.0",
       "nodes": [
         "node_modules/@aws-sdk/xml-builder/node_modules/fast-xml-parser"
-      ],
-      "fixAvailable": true
-    },
-    "file-type": {
-      "name": "file-type",
-      "severity": "moderate",
-      "isDirect": false,
-      "via": [
-        {
-          "source": 1114301,
-          "name": "file-type",
-          "dependency": "file-type",
-          "title": "file-type affected by infinite loop in ASF parser on malformed input with zero-size sub-header",
-          "url": "https://github.com/advisories/GHSA-5v7r-6r5c-r473",
-          "severity": "moderate",
-          "cwe": [
-            "CWE-835"
-          ],
-          "cvss": {
-            "score": 5.3,
-            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
-          },
-          "range": ">=13.0.0 <21.3.1"
-        },
-        {
-          "source": 1114726,
-          "name": "file-type",
-          "dependency": "file-type",
-          "title": "file-type: ZIP Decompression Bomb DoS via [Content_Types].xml entry",
-          "url": "https://github.com/advisories/GHSA-j47w-4g3g-c36v",
-          "severity": "moderate",
-          "cwe": [
-            "CWE-400",
-            "CWE-409"
-          ],
-          "cvss": {
-            "score": 5.3,
-            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
-          },
-          "range": ">=20.0.0 <=21.3.1"
-        }
-      ],
-      "effects": [
-        "@nestjs/common"
-      ],
-      "range": "13.0.0 - 21.3.1",
-      "nodes": [
-        "node_modules/file-type"
       ],
       "fixAvailable": true
     },
@@ -909,101 +724,6 @@
         "isSemVerMajor": true
       }
     },
-    "multer": {
-      "name": "multer",
-      "severity": "high",
-      "isDirect": false,
-      "via": [
-        {
-          "source": 1113635,
-          "name": "multer",
-          "dependency": "multer",
-          "title": "Multer vulnerable to Denial of Service via incomplete cleanup",
-          "url": "https://github.com/advisories/GHSA-xf7r-hgr6-v32p",
-          "severity": "high",
-          "cwe": [
-            "CWE-459"
-          ],
-          "cvss": {
-            "score": 0,
-            "vectorString": null
-          },
-          "range": "<2.1.0"
-        },
-        {
-          "source": 1113636,
-          "name": "multer",
-          "dependency": "multer",
-          "title": "Multer vulnerable to Denial of Service via resource exhaustion",
-          "url": "https://github.com/advisories/GHSA-v52c-386h-88mc",
-          "severity": "high",
-          "cwe": [
-            "CWE-772"
-          ],
-          "cvss": {
-            "score": 0,
-            "vectorString": null
-          },
-          "range": "<2.1.0"
-        },
-        {
-          "source": 1113996,
-          "name": "multer",
-          "dependency": "multer",
-          "title": "Multer Vulnerable to Denial of Service via Uncontrolled Recursion",
-          "url": "https://github.com/advisories/GHSA-5528-5vmv-3xc2",
-          "severity": "high",
-          "cwe": [
-            "CWE-674"
-          ],
-          "cvss": {
-            "score": 0,
-            "vectorString": null
-          },
-          "range": "<2.1.1"
-        },
-        {
-          "source": 1121089,
-          "name": "multer",
-          "dependency": "multer",
-          "title": "Multer vulnerable to Denial of Service via deeply nested field names",
-          "url": "https://github.com/advisories/GHSA-72gw-mp4g-v24j",
-          "severity": "high",
-          "cwe": [
-            "CWE-400"
-          ],
-          "cvss": {
-            "score": 7.5,
-            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-          },
-          "range": ">=1.0.0 <2.2.0"
-        },
-        {
-          "source": 1121091,
-          "name": "multer",
-          "dependency": "multer",
-          "title": "Multer vulnerable to Denial of Service via incomplete cleanup of aborted uploads",
-          "url": "https://github.com/advisories/GHSA-3p4h-7m6x-2hcm",
-          "severity": "moderate",
-          "cwe": [
-            "CWE-459"
-          ],
-          "cvss": {
-            "score": 5.3,
-            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
-          },
-          "range": ">=2.0.0-alpha.1 <2.2.0"
-        }
-      ],
-      "effects": [
-        "@nestjs/platform-express"
-      ],
-      "range": "<=2.1.1",
-      "nodes": [
-        "node_modules/multer"
-      ],
-      "fixAvailable": true
-    },
     "next": {
       "name": "next",
       "severity": "high",
@@ -1100,8 +820,7 @@
       ],
       "range": "<=8.5.22",
       "nodes": [
-        "apps/admin-dashboard/node_modules/next/node_modules/postcss",
-        "node_modules/postcss"
+        "apps/admin-dashboard/node_modules/next/node_modules/postcss"
       ],
       "fixAvailable": {
         "name": "next",
@@ -1184,38 +903,6 @@
       "range": "<=7.6.4",
       "nodes": [
         "node_modules/protobufjs"
-      ],
-      "fixAvailable": true
-    },
-    "qs": {
-      "name": "qs",
-      "severity": "moderate",
-      "isDirect": false,
-      "via": [
-        {
-          "source": 1119502,
-          "name": "qs",
-          "dependency": "qs",
-          "title": "qs has a remotely triggerable DoS: qs.stringify crashes with TypeError on null/undefined entries in comma-format arrays when encodeValuesOnly is set",
-          "url": "https://github.com/advisories/GHSA-q8mj-m7cp-5q26",
-          "severity": "moderate",
-          "cwe": [
-            "CWE-476"
-          ],
-          "cvss": {
-            "score": 5.3,
-            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
-          },
-          "range": ">=6.11.1 <=6.15.1"
-        }
-      ],
-      "effects": [
-        "body-parser",
-        "express"
-      ],
-      "range": "6.11.1 - 6.15.1",
-      "nodes": [
-        "node_modules/qs"
       ],
       "fixAvailable": true
     },
@@ -1581,19 +1268,19 @@
   "metadata": {
     "vulnerabilities": {
       "info": 0,
-      "low": 0,
-      "moderate": 19,
-      "high": 21,
+      "low": 1,
+      "moderate": 11,
+      "high": 19,
       "critical": 2,
-      "total": 42
+      "total": 33
     },
     "dependencies": {
-      "prod": 994,
-      "dev": 574,
-      "optional": 265,
-      "peer": 192,
+      "prod": 991,
+      "dev": 575,
+      "optional": 242,
+      "peer": 156,
       "peerOptional": 0,
-      "total": 1874
+      "total": 1840
     }
   }
 }
