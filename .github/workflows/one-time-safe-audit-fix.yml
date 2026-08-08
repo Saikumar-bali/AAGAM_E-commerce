@@ -1,3 +1,4 @@
+# Temporary branch-only workflow. Delete before merge.
 name: One-time Safe Audit Fix
 
 on:
