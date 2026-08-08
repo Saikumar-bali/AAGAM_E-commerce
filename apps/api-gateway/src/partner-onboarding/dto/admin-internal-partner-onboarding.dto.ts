@@ -21,6 +21,12 @@ export class AdminCreateInternalPartnerDto {
   email?: string;
 
   @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  password?: string;
+
+  @IsOptional()
   @IsObject()
   payload?: Record<string, any>;
 }
@@ -40,6 +46,12 @@ export class AdminUpdateInternalPartnerDto {
   @IsEmail()
   @MaxLength(254)
   email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  password?: string;
 
   @IsOptional()
   @IsObject()
