@@ -117,7 +117,7 @@ async function createAndApprove(
   const updated = await update.json();
   expect(updated.application.applicantPayload.bankAccountNumber).toBeUndefined();
   expect(updated.application.applicantPayload.bankIfsc).toBeUndefined();
-  expect(updated.application.applicantPayload.bankAccountLast4).toBe('9012');
+  expect(updated.application.applicantPayload.bankAccountLast4).toBe(type === 'RIDER' ? '9012' : '1012');
 
   const verifyContact = await request.post(
     `${API_BASE}/admin/partner-onboarding/applications/${applicationId}/contact-verification`,
