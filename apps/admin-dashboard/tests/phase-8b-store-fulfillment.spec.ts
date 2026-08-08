@@ -10,9 +10,9 @@ async function waitForStyles(page: Page) {
 }
 
 const STORE_EMAIL = process.env.STORE_OWNER_QA_EMAIL || process.env.STORE_EMAIL || 'store@aagam.com';
-const STORE_PASS = process.env.STORE_OWNER_QA_PASSWORD || process.env.STORE_PASSWORD || 'store@2026!';
+const STORE_PASS = process.env.STORE_OWNER_QA_PASSWORD || process.env.STORE_PASSWORD || process.env.CI_TEST_PASSWORD || 'store@2026!';
 const P8B_STORE_EMAIL = process.env.P8B_STORE_EMAIL || 'qa-rider-pick-store@aagam.com';
-const P8B_STORE_PASS = process.env.P8B_STORE_PASSWORD || 'store@2026!';
+const P8B_STORE_PASS = process.env.P8B_STORE_PASSWORD || process.env.STORE_OWNER_QA_PASSWORD || process.env.STORE_PASSWORD || process.env.CI_TEST_PASSWORD || 'store@2026!';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
 
 async function loginAsStore(page: Page, email = STORE_EMAIL, password = STORE_PASS) {
