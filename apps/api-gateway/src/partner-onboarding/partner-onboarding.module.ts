@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { UploadModule } from '../upload/upload.module';
 import { ContactVerificationModule } from '../contact-verification/contact-verification.module';
 import { PartnerOnboardingAdminController } from './partner-onboarding-admin.controller';
+import { InternalPartnerOnboardingAdminController } from './internal-partner-onboarding-admin.controller';
 import { PartnerOnboardingAdminService } from './partner-onboarding-admin.service';
 import { PhonePrimaryPartnerOnboardingAdminService } from './phone-primary-partner-onboarding-admin.service';
 import { InternalPartnerOnboardingAdminService } from './internal-partner-onboarding-admin.service';
@@ -25,6 +26,7 @@ import { PartnerApplicationRecoveryService } from './partner-application-recover
     PartnerOnboardingController,
     PartnerApplicationRecoveryController,
     PartnerOnboardingAdminController,
+    InternalPartnerOnboardingAdminController,
     VerificationReadinessController,
   ],
   providers: [
