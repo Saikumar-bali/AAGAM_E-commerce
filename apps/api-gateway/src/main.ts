@@ -135,6 +135,30 @@ async function bootstrap() {
       logger.error('CORS_ORIGINS must be set in production mode');
       process.exit(1);
     }
+
+    // CORS controls whether browser JavaScript may read a cross-origin response,
+    // but it does not stop a cross-site form/request from reaching a mutation
+    // handler. Because production web sessions use credentialed cookies, reject
+    // unsafe browser requests that explicitly carry an untrusted Origin. Mobile
+    // bearer-token clients and server-to-server clients generally omit Origin and
+    // continue to work unchanged.
+    if (isProduction) {
+      const unsafeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+      const allowedOrigins = new Set(corsOrigins);
+      app.use((request: any, response: any, next: any) => {
+        const origin = typeof request.headers?.origin === 'string' ? request.headers.origin : '';
+        if (!unsafeMethods.has(String(request.method || '').toUpperCase()) || !origin) {
+          return next();
+        }
+        if (allowedOrigins.has(origin)) return next();
+        return response.status(403).json({
+          statusCode: 403,
+          message: 'Cross-origin mutation denied',
+          error: 'Forbidden',
+        });
+      });
+    }
+
     app.enableCors({
       origin: isProduction ? corsOrigins : true,
       credentials: true,
