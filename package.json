@@ -13,6 +13,8 @@
     "@nestjs/platform-express": "11.1.28",
     "@nestjs/platform-socket.io": "11.1.28",
     "@nestjs/websockets": "11.1.28",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
     "postcss": "8.5.23",
     "sharp": "0.35.3"
   },
@@ -70,8 +72,8 @@
     "@nestjs/platform-socket.io": "11.1.28",
     "@nestjs/websockets": "11.1.28",
     "react-native-dotenv": "^3.4.11",
-    "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
     "turbo": "^2.10.7"
   },
   "dependencies": {
