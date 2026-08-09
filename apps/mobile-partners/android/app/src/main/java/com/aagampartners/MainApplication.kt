@@ -39,7 +39,7 @@ class MainApplication : Application(), ReactApplication {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
 
     // Android freezes a channel's sound after first creation. v3 intentionally
-    // moves existing Rider/Store installs away from the old TYPE_ALARM profile.
+    // moves existing Rider/Store installs away from the old alarm-sound profile.
     // Background/killed-state pushes use the device's notification stream, while
     // foreground alerts use our short multi-tone PartnerAlertTone pattern.
     val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
