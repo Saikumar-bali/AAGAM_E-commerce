@@ -84,6 +84,7 @@ const pushSender = read('apps/api-gateway/src/notifications/web-push.service.ts'
 const foregroundTone = read('apps/mobile-partners/android/app/src/main/java/com/aagampartners/PartnerAlertToneModule.kt');
 const partnerApp = read('apps/mobile-partners/App.tsx');
 const partnerPushCoordinator = read('apps/mobile-partners/src/notifications/PartnerPushCoordinator.tsx');
+const sharedPush = read('packages/mobile-shared/src/utils/notifications.ts');
 contains(application, 'OPERATIONS_CHANNEL_ID = "aagam_priority_operations_v3"', 'Partner alerts must retain the internal AAGAM namespace while versioning immutable Android channel sound.');
 contains(application, '"Aagaam delivery alerts"', 'The visible Android channel name must use the Aagaam brand.');
 excludes(application, 'OPERATIONS_CHANNEL_ID = "aagaam_priority_operations_v3"', 'The UI rename must not migrate internal channel identifiers.');
@@ -94,6 +95,8 @@ contains(application, 'add(PartnerAlertTonePackage())', 'The foreground tone mod
 contains(manifest, 'android:value="aagam_priority_operations_v3"', 'Firebase must use the current internal AAGAM partner alert channel id.');
 excludes(manifest, 'android:value="aagaam_priority_operations_v3"', 'Firebase identifiers must not be renamed for display branding.');
 contains(pushSender, "channelId: 'aagam_priority_operations_v3'", 'Background FCM pushes must target the current partner alert channel.');
+contains(pushSender, "sound: 'default'", 'Pre-channel Android versions must retain an audible FCM fallback.');
+contains(pushSender, 'defaultVibrateTimings: true', 'Pre-channel Android versions must retain vibration.');
 excludes(pushSender, "channelId: 'high_priority_orders'", 'Background FCM pushes must not bypass the app-created sound profile.');
 contains(foregroundTone, 'RingtoneManager.TYPE_RINGTONE', 'Foreground notifications must use the same non-alarm sound family.');
 contains(foregroundTone, 'ringtone.play()', 'Foreground notifications must play the partner alert tone.');
@@ -101,8 +104,10 @@ contains(partnerApp, '<PartnerPushCoordinator queryClient={queryClient} />', 'Th
 contains(partnerPushCoordinator, 'PartnerAlertTone?.play?.()', 'Foreground FCM and inbox alerts must invoke the native tone.');
 contains(partnerPushCoordinator, 'PartnerAlertTone?.stop?.()', 'The alert tone must stop during lifecycle cleanup.');
 contains(partnerPushCoordinator, 'startMobilePushLifecycle', 'One coordinator must own mobile push registration and foreground delivery.');
-contains(partnerPushCoordinator, 'registerDeviceToken(deviceName)', 'The partner coordinator must self-heal Store/Rider push subscriptions.');
+contains(partnerPushCoordinator, 'repairDeviceToken(deviceName)', 'The partner coordinator must self-heal Store/Rider push subscriptions without requesting permission again.');
+contains(partnerPushCoordinator, 'if (repairPromise) await repairPromise', 'Logout must wait for an in-flight token repair before disabling the subscription.');
 contains(partnerPushCoordinator, "if (state === 'active')", 'Push registration repair must run when the app returns to foreground.');
+contains(sharedPush, 'PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS)', 'Periodic repair must check existing notification permission without prompting.');
 excludes(read('apps/mobile-partners/src/screens/rider/RiderDashboard.tsx'), 'startMobilePushLifecycle', 'Rider screens must not create duplicate push lifecycles.');
 
 const welcome = read('apps/mobile-partners/src/screens/PartnerWelcomeScreen.tsx');
