@@ -1,0 +1,71 @@
+name: PR231 Finalize Photo Verification Enum
+
+on:
+  push:
+    branches: [fix/support-otp-photo-admin-create-ux]
+    paths:
+      - ".github/workflows/pr231-finalize-photo-enum.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/support-otp-photo-admin-create-ux
+          fetch-depth: 0
+
+      - name: Add first-class Rider photo delivery verification method
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          schema = Path('packages/database/prisma/schema.prisma')
+          schema_text = schema.read_text()
+          old_enum = '''enum DeliveryVerificationMethod {
+  CUSTOMER_OTP_PIN
+  TRUSTED_DROP
+  SECURITY_RECEPTION
+}'''
+          new_enum = '''enum DeliveryVerificationMethod {
+  CUSTOMER_OTP_PIN
+  TRUSTED_DROP
+  SECURITY_RECEPTION
+  RIDER_PHOTO_EVIDENCE
+}'''
+          if old_enum not in schema_text:
+              raise SystemExit('Expected DeliveryVerificationMethod enum block was not found')
+          schema.write_text(schema_text.replace(old_enum, new_enum, 1))
+
+          service = Path('apps/api-gateway/src/orders/delivery-photo-proof.service.ts')
+          service_text = service.read_text()
+          old_assignment = '''            // Kept in the legacy non-OTP enum bucket until the dedicated
+            // verification-method migration lands; proofType below remains authoritative.
+            verificationMethod: 'SECURITY_RECEPTION','''
+          new_assignment = '''            verificationMethod: 'RIDER_PHOTO_EVIDENCE','''
+          if old_assignment not in service_text:
+              raise SystemExit('Expected temporary photo verification assignment was not found')
+          service.write_text(service_text.replace(old_assignment, new_assignment, 1))
+
+          migration = Path('packages/database/prisma/migrations/20260809054500_rider_photo_delivery_verification_method/migration.sql')
+          migration.parent.mkdir(parents=True, exist_ok=True)
+          migration.write_text('''-- Persist Rider photo fallback as a first-class delivery verification method.\nALTER TYPE "DeliveryVerificationMethod" ADD VALUE IF NOT EXISTS 'RIDER_PHOTO_EVIDENCE';\n''')
+
+          Path('.github/workflows/pr231-finalize-photo-enum.yml').unlink()
+          PY
+
+          git diff --check
+          grep -A5 -F 'enum DeliveryVerificationMethod {' packages/database/prisma/schema.prisma | grep -F 'RIDER_PHOTO_EVIDENCE'
+          grep -F "verificationMethod: 'RIDER_PHOTO_EVIDENCE'" apps/api-gateway/src/orders/delivery-photo-proof.service.ts
+          test -s packages/database/prisma/migrations/20260809054500_rider_photo_delivery_verification_method/migration.sql
+
+          git config user.name "AAGAM CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(delivery): persist rider photo verification method"
+          git push origin HEAD:fix/support-otp-photo-admin-create-ux
