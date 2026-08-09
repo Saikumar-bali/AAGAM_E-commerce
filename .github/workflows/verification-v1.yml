@@ -49,8 +49,10 @@ jobs:
       PARTNER_QA_VERIFICATION_CODE: "424242"
       FIREBASE_PROJECT_ID: aagam-verification-ci
       FIREBASE_PROJECT_NUMBER: "123456789"
-      PARTNER_PHONE_VERIFICATION_MODE: PNV_FIRST
-      PARTNER_SMS_PROVIDER: TWILIO
+      # CI deliberately stays provider-offline. Tests that need PNV mode isolate
+      # that mode inside the test process and use mocks; no SMS/phone provider
+      # credential or live phone test target is exposed to this workflow.
+      PARTNER_PHONE_VERIFICATION_MODE: EMAIL_ONLY
     steps:
       - uses: actions/checkout@v4
         with:
@@ -86,7 +88,7 @@ jobs:
           set -o pipefail
           npm run test:ci --workspace @aagam/api-gateway -- --json --outputFile="$GITHUB_WORKSPACE/verification-api-tests.json" 2>&1 | tee verification-api-tests.log
           npm test --workspace AagamPartners -- --json --outputFile="$GITHUB_WORKSPACE/verification-mobile-tests.json" 2>&1 | tee verification-mobile-tests.log
-      - name: Production QA rejection proof
+      - name: Production QA rejection proof without SMS provider
         env:
           NODE_ENV: production
           FORCE_VERIFICATION_ENV_VALIDATION: "true"
@@ -96,14 +98,9 @@ jobs:
           CORS_ORIGINS: https://aagam.example.com
           NEXT_PUBLIC_API_URL: https://aagam.example.com/api
           RESEND_API_KEY: re_ci_placeholder
+          PARTNER_EMAIL_PROVIDER: RESEND
           PARTNER_VERIFICATION_FROM_EMAIL: verify@aagam.example.com
-          TWILIO_ACCOUNT_SID: AC00000000000000000000000000000000
-          TWILIO_AUTH_TOKEN: ci-placeholder
-          TWILIO_FROM_PHONE: "+15550000000"
-          FIREBASE_PROJECT_ID: aagam-verification-ci
-          FIREBASE_PROJECT_NUMBER: "123456789"
-          PARTNER_PHONE_VERIFICATION_MODE: PNV_FIRST
-          PARTNER_SMS_PROVIDER: TWILIO
+          PARTNER_PHONE_VERIFICATION_MODE: EMAIL_ONLY
           PLAYWRIGHT_QA: "true"
         run: |
           if node scripts/validate-prod-env.js > verification-prod-env.log 2>&1; then
@@ -126,7 +123,6 @@ jobs:
     name: Android debug and native proof
     runs-on: ubuntu-latest
     env:
-      PNV_TEST_NUMBER_ID: ${{ secrets.FIREBASE_PNV_TEST_NUMBER_ID }}
       DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
@@ -174,21 +170,13 @@ jobs:
         run: |
           set -o pipefail
           gradle assembleDebug testDebugUnitTest --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/verification-android-build.log"
-      - name: Record native PNV test-session evidence status
+      - name: Record offline native verification proof
         run: |
           mkdir -p verification-device-proof
-          if [[ -n "$PNV_TEST_NUMBER_ID" ]]; then
-            printf '%s\n' \
-              'Firebase PNV runtime test token was supplied to the workflow.' \
-              'The token is never written to source, resources, BuildConfig, logs, or artifacts.' \
-              'Physical-device/public-beta execution must be run by the protected device runner.' \
-              > verification-device-proof/PNV_TEST_SESSION_READY.txt
-          else
-            printf '%s\n' \
-              'NOT RUN: FIREBASE_PNV_TEST_NUMBER_ID secret is not configured.' \
-              'No claim of signed-token device E2E success is made by this artifact.' \
-              > verification-device-proof/PNV_DEVICE_E2E_NOT_RUN.txt
-          fi
+          printf '%s\n' \
+            'OFFLINE CI ONLY: this workflow does not load a Firebase phone test target, SMS provider credentials, or a live phone verification session.' \
+            'Native PNV behavior is covered by build/unit contracts; live phone verification belongs to explicit device QA, not automatic CI.' \
+            > verification-device-proof/PNV_PROVIDER_OFFLINE.txt
           cp apps/mobile-partners/src/native/FirebasePnv.contract.spec.ts verification-device-proof/
       - name: Collect APK and reports
         if: always()
