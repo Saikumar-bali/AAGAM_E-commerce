@@ -496,20 +496,39 @@ export default function AdminSubscriptionsPage() {
                       </select>
                     </Field>
                     <Field label="Plan duration (days)">
-                      <input
-                        type="number"
-                        min="1"
-                        max="366"
-                        value={form.durationDays}
-                        onChange={(event) => {
-                          const durationDays = event.target.value;
-                          setForm((current) => ({
-                            ...current,
-                            durationDays,
-                            totalDeliveries: current.deliveryFrequency === 'DAILY' ? durationDays : current.totalDeliveries,
-                          }));
-                        }}
-                      />
+                      <div className="flex gap-2">
+                        {[['7', '7 days'], ['30', '30 days']].map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setForm((current) => ({
+                              ...current,
+                              durationDays: value,
+                              totalDeliveries: current.deliveryFrequency === 'DAILY' ? value : current.totalDeliveries,
+                            }))}
+                            className={`min-h-12 flex-1 rounded-xl px-3 text-sm font-black ${form.durationDays === value ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                        <input
+                          aria-label="Custom plan duration"
+                          className="min-h-12 w-28 rounded-xl border border-slate-200 px-3"
+                          type="number"
+                          min="1"
+                          max="366"
+                          value={form.durationDays}
+                          onChange={(event) => {
+                            const durationDays = event.target.value;
+                            setForm((current) => ({
+                              ...current,
+                              durationDays,
+                              totalDeliveries: current.deliveryFrequency === 'DAILY' ? durationDays : current.totalDeliveries,
+                            }));
+                          }}
+                        />
+                      </div>
+                      <p className="mt-2 text-xs font-semibold text-slate-500">Choose a standard 7-day or 30-day plan, or enter a custom duration.</p>
                     </Field>
                     {form.deliveryFrequency === 'DAILY' ? (
                       <div className="rounded-xl bg-emerald-50 px-4 py-3">
