@@ -3,6 +3,7 @@ import "./globals.css";
 import { ToastProvider } from "@/components/ToastProvider";
 import TenDigitPhoneGuard from "@/components/TenDigitPhoneGuard";
 import CustomerDeliveryOtpListener from "@/components/customer/CustomerDeliveryOtpListener";
+import RiderPhotoProofFallback from "@/components/rider/RiderPhotoProofFallback";
 
 export const metadata: Metadata = {
   title: "Aagaam Commerce",
@@ -25,6 +26,7 @@ export default function RootLayout({
         <ToastProvider>
           <TenDigitPhoneGuard />
           <CustomerDeliveryOtpListener />
+          <RiderPhotoProofFallback />
           {children}
         </ToastProvider>
       </body>
