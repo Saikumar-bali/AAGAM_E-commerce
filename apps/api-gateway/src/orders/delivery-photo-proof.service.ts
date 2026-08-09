@@ -12,6 +12,7 @@ import {
   prisma,
 } from '@aagam/database';
 import { DeliveryJobStatus } from '@aagam/types';
+import { randomUUID } from 'crypto';
 import { UploadService } from '../upload/upload.service';
 import { DeliveryWorkflowService } from './delivery-workflow.service';
 
@@ -97,7 +98,10 @@ export class DeliveryPhotoProofService {
     const { storageKey } = await this.uploads.uploadEvidence(file, actor.id);
     try {
       const outcome = await prisma.$transaction(async (tx) => {
-        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-photo-proof:${deliveryJobId}`}))`);
+        // Use the canonical delivery-completion lock. Under READ COMMITTED the
+        // recheck after waiting sees the winner's committed state, so a second
+        // photo submission can return success and clean up its unused upload.
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-complete:${deliveryJobId}`}))`);
         const current = await this.assertRiderJob(tx, deliveryJobId, actor);
         if (current.delivered || current.job.status === DeliveryJobStatus.DELIVERED) {
           return { job: current.job, unusedUpload: true };
@@ -122,6 +126,36 @@ export class DeliveryPhotoProofService {
             accuracyMetres: input.accuracyMetres,
           },
         });
+
+        const operationDetails = JSON.stringify({
+          deliveryProofId: proof.id,
+          riderId: job.currentRiderId,
+          customerUserId: job.order.customerId,
+          verificationMethod: 'RIDER_PHOTO_EVIDENCE',
+          proofReference: storageKey,
+          riderConfirmedAt: now.toISOString(),
+          verifiedAt: now.toISOString(),
+          note: input.note?.trim() || null,
+          latitude: input.latitude,
+          longitude: input.longitude,
+          accuracyMetres: input.accuracyMetres ?? null,
+          otpFallback: true,
+        });
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "DeliveryOperation" (
+            "id", "deliveryJobId", "orderId", "type", "status",
+            "actorUserId", "actorRole", "idempotencyKey", "details",
+            "createdAt", "updatedAt"
+          ) VALUES (
+            ${`dop_${randomUUID()}`}, ${deliveryJobId}, ${job.orderId},
+            'DELIVERY_PROOF_RECORDED'::"DeliveryOperationType",
+            'COMPLETED'::"DeliveryOperationStatus",
+            ${actor.id}, ${actor.role}::"Role",
+            ${`delivery-proof:${deliveryJobId}`}, ${operationDetails}::jsonb,
+            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+          )
+          ON CONFLICT ("idempotencyKey") DO NOTHING
+        `);
 
         // A photo fallback completes the same handoff that an OTP would have
         // completed. Any still-active code must stop looking valid immediately.
@@ -158,7 +192,7 @@ export class DeliveryPhotoProofService {
           data: { status: 'COMPLETED', appliedByUserId: actor.id, appliedAt: now },
         });
         return { job: delivered, unusedUpload: false };
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 
       if (outcome.unusedUpload) {
         await this.uploads.deleteEvidence(storageKey).catch(() => undefined);
