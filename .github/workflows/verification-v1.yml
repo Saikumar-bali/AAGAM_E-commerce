@@ -1,79 +1,199 @@
 name: Verification V1 Firebase PNV
 
 on:
+  push:
+    branches: [phase-verification-v1-firebase-pnv]
   pull_request:
     branches: [main]
     paths:
+      - "apps/api-gateway/src/partner-onboarding/**"
+      - "apps/mobile-partners/**"
+      - "packages/database/prisma/migrations/20260718143000_verification_v1_firebase_pnv/**"
+      - "scripts/validate-prod-env.js"
+      - ".env.production.example"
       - ".github/workflows/verification-v1.yml"
+      - "docs/VERIFICATION_V1_*.md"
+      - "docs/ai-runs/2026-07-18_verification-v1-firebase-pnv.md"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  security-events: write
 
 env:
-  HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+  NODE_VERSION: "22.22.3"
+  HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
-  finalize-pr231-photo-enum:
-    name: Finalize PR231 photo verification enum
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'fix/support-otp-photo-admin-create-ux'
+  backend-proof:
+    name: Backend, migration, and service proof
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aagam_verification_v1
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aagam_verification_v1
+      NODE_ENV: test
+      JWT_SECRET: aagam-verification-v1-ci-secret-long-enough
+      PLAYWRIGHT_QA: "true"
+      PARTNER_QA_VERIFICATION_CODE: "424242"
+      FIREBASE_PROJECT_ID: aagam-verification-ci
+      FIREBASE_PROJECT_NUMBER: "123456789"
+      # CI deliberately stays provider-offline. Tests that need PNV mode isolate
+      # that mode inside the test process and use mocks; no SMS/phone provider
+      # credential or live phone test target is exposed to this workflow.
+      PARTNER_PHONE_VERIFICATION_MODE: EMAIL_ONLY
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 2
-      - name: Persist first-class Rider photo verification method
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: npm ci
+        run: npm ci --no-audit --no-fund | tee verification-npm-ci.log
+      - name: Prisma generate and validate
+        run: |
+          set -o pipefail
+          npx prisma generate --schema packages/database/prisma/schema.prisma 2>&1 | tee verification-prisma-generate.log
+          npx prisma validate --schema packages/database/prisma/schema.prisma 2>&1 | tee verification-prisma-validate.log
+      - name: Fresh PostgreSQL migration
+        run: |
+          set -o pipefail
+          npx prisma migrate deploy --schema packages/database/prisma/schema.prisma 2>&1 | tee verification-migration.log
+          npx prisma migrate status --schema packages/database/prisma/schema.prisma 2>&1 | tee -a verification-migration.log
+          psql "$DATABASE_URL" -c '\d+ "VerificationChallenge"' | tee verification-challenge-schema.log
+      - name: CodeQL-compatible TypeScript build
+        run: |
+          set -o pipefail
+          npm run build --workspace @aagam/types 2>&1 | tee verification-build.log
+          npm run build --workspace @aagam/utils 2>&1 | tee -a verification-build.log
+          npm run build --workspace @aagam/database 2>&1 | tee -a verification-build.log
+          npm run build --workspace @aagam/api-gateway 2>&1 | tee -a verification-build.log
+          npx tsc --project apps/mobile-partners/tsconfig.json --noEmit 2>&1 | tee verification-mobile-ts.log
+      - name: Verification regression tests
+        run: |
+          set -o pipefail
+          npm run test:ci --workspace @aagam/api-gateway -- --json --outputFile="$GITHUB_WORKSPACE/verification-api-tests.json" 2>&1 | tee verification-api-tests.log
+          npm test --workspace AagamPartners -- --json --outputFile="$GITHUB_WORKSPACE/verification-mobile-tests.json" 2>&1 | tee verification-mobile-tests.log
+      - name: Production QA rejection proof without SMS provider
+        env:
+          NODE_ENV: production
+          FORCE_VERIFICATION_ENV_VALIDATION: "true"
+          DATABASE_URL: postgresql://aagam:ci@localhost:5432/aagam
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: aagam-verification-prod-validator-secret
+          CORS_ORIGINS: https://aagam.example.com
+          NEXT_PUBLIC_API_URL: https://aagam.example.com/api
+          RESEND_API_KEY: re_ci_placeholder
+          PARTNER_EMAIL_PROVIDER: RESEND
+          PARTNER_VERIFICATION_FROM_EMAIL: verify@aagam.example.com
+          PARTNER_PHONE_VERIFICATION_MODE: EMAIL_ONLY
+          PLAYWRIGHT_QA: "true"
+        run: |
+          if node scripts/validate-prod-env.js > verification-prod-env.log 2>&1; then
+            echo "Production validation incorrectly accepted PLAYWRIGHT_QA" | tee -a verification-prod-env.log
+            exit 1
+          fi
+          grep -F "PLAYWRIGHT_QA must not be set" verification-prod-env.log
+      - name: Upload backend proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-v1-backend-proof-${{ env.HEAD_SHA }}
+          path: |
+            verification-*.log
+            verification-*.json
+          if-no-files-found: error
+          retention-days: 30
+
+  android-proof:
+    name: Android debug and native proof
+    runs-on: ubuntu-latest
+    env:
+      DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+      - run: npm ci --no-audit --no-fund
+      - run: |
+          npm run build --workspace @aagam/types
+          npm run build --workspace @aagam/utils
+      - name: Provision pinned debug signing and generate SHA proof
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          schema = Path('packages/database/prisma/schema.prisma')
-          text = schema.read_text()
-          old = '''enum DeliveryVerificationMethod {
-  CUSTOMER_OTP_PIN
-  TRUSTED_DROP
-  SECURITY_RECEPTION
-}'''
-          new = '''enum DeliveryVerificationMethod {
-  CUSTOMER_OTP_PIN
-  TRUSTED_DROP
-  SECURITY_RECEPTION
-  RIDER_PHOTO_EVIDENCE
-}'''
-          if 'RIDER_PHOTO_EVIDENCE' not in text:
-              if old not in text:
-                  raise SystemExit('DeliveryVerificationMethod block not found')
-              schema.write_text(text.replace(old, new, 1))
-
-          service = Path('apps/api-gateway/src/orders/delivery-photo-proof.service.ts')
-          text = service.read_text()
-          legacy = '''            // Kept in the legacy non-OTP enum bucket until the dedicated
-            // verification-method migration lands; proofType below remains authoritative.
-            verificationMethod: 'SECURITY_RECEPTION','''
-          if "verificationMethod: 'RIDER_PHOTO_EVIDENCE'" not in text:
-              if legacy not in text:
-                  raise SystemExit('temporary delivery photo method not found')
-              service.write_text(text.replace(legacy, "            verificationMethod: 'RIDER_PHOTO_EVIDENCE',", 1))
-
-          migration = Path('packages/database/prisma/migrations/20260809052000_rider_photo_delivery_verification_method/migration.sql')
-          migration.parent.mkdir(parents=True, exist_ok=True)
-          migration.write_text('''-- Persist Rider photo fallback as a first-class delivery verification method.\nALTER TYPE "DeliveryVerificationMethod" ADD VALUE IF NOT EXISTS 'RIDER_PHOTO_EVIDENCE';\n''')
-          PY
-
-          # This workflow is a one-commit bootstrap only. Restore the clean
-          # workflow from its parent so the branch does not retain CI mutation logic.
-          git show HEAD^:.github/workflows/verification-v1.yml > .github/workflows/verification-v1.yml
-
-          git diff --check
-          grep -A5 -F 'enum DeliveryVerificationMethod {' packages/database/prisma/schema.prisma | grep -F 'RIDER_PHOTO_EVIDENCE'
-          grep -F "verificationMethod: 'RIDER_PHOTO_EVIDENCE'" apps/api-gateway/src/orders/delivery-photo-proof.service.ts
-          test -s packages/database/prisma/migrations/20260809052000_rider_photo_delivery_verification_method/migration.sql
-
-          git config user.name "AAGAM CI"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A
-          git commit -m "fix(delivery): persist rider photo verification method"
-          git push origin "HEAD:${HEAD_BRANCH}"
+          if [[ -z "$DEBUG_KEYSTORE_BASE64" ]]; then
+            echo "DEBUG_KEYSTORE_BASE64 is required so the APK and Firebase SHA proof use a stable certificate." >&2
+            exit 1
+          fi
+          mkdir -p "$HOME/.android"
+          printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 --decode > "$HOME/.android/debug.keystore"
+          chmod 600 "$HOME/.android/debug.keystore"
+          keytool -list -v \
+            -keystore "$HOME/.android/debug.keystore" \
+            -alias androiddebugkey \
+            -storepass android \
+            2>&1 | tee "$GITHUB_WORKSPACE/verification-signing-report.log"
+          awk '/SHA1:|SHA256:/{print}' "$GITHUB_WORKSPACE/verification-signing-report.log" \
+            > "$GITHUB_WORKSPACE/verification-sha-fingerprints.txt"
+          grep -q 'SHA1:' "$GITHUB_WORKSPACE/verification-sha-fingerprints.txt"
+          grep -q 'SHA256:' "$GITHUB_WORKSPACE/verification-sha-fingerprints.txt"
+          cat "$GITHUB_WORKSPACE/verification-sha-fingerprints.txt"
+      - name: Android debug build and unit contracts
+        working-directory: apps/mobile-partners/android
+        run: |
+          set -o pipefail
+          gradle assembleDebug testDebugUnitTest --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/verification-android-build.log"
+      - name: Record offline native verification proof
+        run: |
+          mkdir -p verification-device-proof
+          printf '%s\n' \
+            'OFFLINE CI ONLY: this workflow does not load a Firebase phone test target, SMS provider credentials, or a live phone verification session.' \
+            'Native PNV behavior is covered by build/unit contracts; live phone verification belongs to explicit device QA, not automatic CI.' \
+            > verification-device-proof/PNV_PROVIDER_OFFLINE.txt
+          cp apps/mobile-partners/src/native/FirebasePnv.contract.spec.ts verification-device-proof/
+      - name: Collect APK and reports
+        if: always()
+        run: |
+          mkdir -p verification-android-artifacts
+          cp apps/mobile-partners/android/app/build/outputs/apk/debug/app-debug.apk verification-android-artifacts/aagam-partners-verification-v1-debug.apk 2>/dev/null || true
+          cp -R apps/mobile-partners/android/app/build/reports/tests verification-android-artifacts/ 2>/dev/null || true
+      - name: Upload Android proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-v1-android-proof-${{ env.HEAD_SHA }}
+          path: |
+            verification-android-artifacts/**
+            verification-device-proof/**
+            verification-android-build.log
+            verification-signing-report.log
+            verification-sha-fingerprints.txt
+          if-no-files-found: error
+          retention-days: 30
