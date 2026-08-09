@@ -23,9 +23,11 @@ import {
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { resolvePartnerInboxRole } from './notification-audience';
 import { NotificationService } from './notification.service';
 import { NotificationWorkerService } from './notification-worker.service';
 import { OutboxService } from './outbox.service';
+import { PartnerNotificationInboxService } from './partner-notification-inbox.service';
 import { PushSubscriptionService } from './push-subscription.service';
 
 export function getFirebaseWebPushConfig() {
@@ -71,6 +73,7 @@ export function getFirebaseWebPushConfig() {
 export class NotificationsController {
   constructor(
     private readonly notifications: NotificationService,
+    private readonly partnerInbox: PartnerNotificationInboxService,
     private readonly subscriptions: PushSubscriptionService,
     private readonly worker: NotificationWorkerService,
     private readonly outbox: OutboxService,
@@ -90,6 +93,8 @@ export class NotificationsController {
   @Get('inbox')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
   inbox(@Req() req: any, @Query('limit') limit?: string) {
+    const partnerRole = resolvePartnerInboxRole(req.user);
+    if (partnerRole) return this.partnerInbox.list(req.user.id, partnerRole, limit);
     return this.notifications.listInbox(req.user, limit);
   }
 

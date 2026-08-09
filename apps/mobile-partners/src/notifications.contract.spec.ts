@@ -9,20 +9,21 @@ describe('Partners notification delivery contracts', () => {
   it('creates the versioned high-priority Android channel used by Firebase partner pushes', () => {
     const application = read('../android/app/src/main/java/com/aagampartners/MainApplication.kt');
     const manifest = read('../android/app/src/main/AndroidManifest.xml');
-    expect(application).toContain('OPERATIONS_CHANNEL_ID = "aagam_priority_operations_v2"');
-    expect(application).toContain('"Aagaam priority operations"');
+    expect(application).toContain('OPERATIONS_CHANNEL_ID = "aagam_priority_operations_v3"');
+    expect(application).toContain('"Aagaam urgent operations"');
     expect(application).toContain('NotificationManager.IMPORTANCE_HIGH');
-    expect(application).toContain('RingtoneManager.TYPE_ALARM');
+    expect(application).toContain('RingtoneManager.TYPE_NOTIFICATION');
+    expect(application).not.toContain('RingtoneManager.TYPE_ALARM');
     expect(application).toContain('AudioAttributes.USAGE_NOTIFICATION_EVENT');
-    expect(application).toContain('vibrationPattern = longArrayOf(0, 180, 100, 180, 100, 280)');
+    expect(application).toContain('vibrationPattern = longArrayOf(0, 320, 120, 320, 120, 520, 180, 320)');
     expect(application).toContain('createOperationsNotificationChannel()');
     expect(application).toContain('add(PartnerAlertTonePackage())');
     expect(manifest).toContain('com.google.firebase.messaging.default_notification_channel_id');
-    expect(manifest).toContain('android:value="aagam_priority_operations_v2"');
-    expect(manifest).not.toContain('android:value="aagaam_priority_operations_v2"');
+    expect(manifest).toContain('android:value="aagam_priority_operations_v3"');
+    expect(manifest).not.toContain('android:value="aagam_priority_operations_v2"');
   });
 
-  it('plays the same distinctive alert from the single foreground coordinator', () => {
+  it('plays a distinctive notification-stream tone from the single foreground coordinator', () => {
     const app = read('../App.tsx');
     const coordinator = read('notifications/PartnerPushCoordinator.tsx');
     const toneModule = read('../android/app/src/main/java/com/aagampartners/PartnerAlertToneModule.kt');
@@ -30,9 +31,10 @@ describe('Partners notification delivery contracts', () => {
     expect(coordinator).toContain('PartnerAlertTone?.play?.()');
     expect(coordinator).toContain('PartnerAlertTone?.stop?.()');
     expect(coordinator).toContain('startMobilePushLifecycle');
-    expect(toneModule).toContain('RingtoneManager.TYPE_ALARM');
-    expect(toneModule).toContain('ringtone.play()');
-    expect(toneModule).toContain('4500');
+    expect(toneModule).toContain('AudioManager.STREAM_NOTIFICATION');
+    expect(toneModule).toContain('ToneGenerator.TONE_PROP_BEEP2');
+    expect(toneModule).toContain('ToneGenerator.TONE_PROP_ACK');
+    expect(toneModule).not.toContain('TYPE_ALARM');
   });
 
   it('keeps a durable inbox fallback when FCM registration or delivery is unavailable', () => {
@@ -44,6 +46,25 @@ describe('Partners notification delivery contracts', () => {
     expect(coordinator).toContain('notificationDedupeKey(payload)}:opened');
     expect(routing).toContain("['partner-store-orders']");
     expect(routing).toContain("['rider', 'delivery-workspace']");
+  });
+
+  it('repairs Rider or Store FCM binding without re-prompting notification permission', () => {
+    const coordinator = read('notifications/PartnerPushCoordinator.tsx');
+    const sharedPush = read('../../../packages/mobile-shared/src/utils/notifications.ts');
+    expect(coordinator).toContain('reverifyDeviceTokenBinding');
+    expect(coordinator).not.toContain('registerDeviceToken');
+    expect(coordinator).toContain('PUSH_STARTUP_RETRY_MS = 30_000');
+    expect(coordinator).toContain('PUSH_REVERIFY_MS = 5 * 60_000');
+    expect(coordinator).toContain('pushReverifyInFlight');
+    expect(coordinator).toContain('pushLifecycleStartInFlight');
+    expect(coordinator).toContain('registerMobileSessionCleanup(async () =>');
+    expect(coordinator).toContain('await Promise.all([');
+    expect(coordinator).toContain("if (state === 'active')");
+    expect(coordinator).toContain("role === 'RIDER' ? 'Aagaam Rider' : 'Aagaam Store Partner'");
+    expect(sharedPush).toContain('hasExistingNotificationPermission');
+    expect(sharedPush).toContain('PermissionsAndroid.check');
+    expect(sharedPush).toContain('export async function reverifyDeviceTokenBinding');
+    expect(sharedPush).not.toContain('reverifyDeviceTokenBinding(deviceName?: string) {\n  const hasPermission = await requestUserPermission()');
   });
 
   it('exposes notifications to both Store Owners and Riders', () => {

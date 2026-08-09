@@ -3,6 +3,7 @@ import {
   partnerOperationalSessionKey,
   registerMobileSessionCleanup,
   resolvePartnerOperationalRole,
+  reverifyDeviceTokenBinding,
   startMobilePushLifecycle,
   useAuthStore,
 } from '@aagam/mobile-shared';
@@ -29,6 +30,8 @@ const NOTIFICATION_KEY = ['partner-notifications'] as const;
 const PartnerAlertTone = NativeModules.PartnerAlertTone as { play?: () => void; stop?: () => void } | undefined;
 const MAX_DEDUPE_ENTRIES = 500;
 const INBOX_POLL_MS = 10_000;
+const PUSH_REVERIFY_MS = 5 * 60_000;
+const PUSH_STARTUP_RETRY_MS = 30_000;
 
 type Props = {
   queryClient: QueryClient;
@@ -96,7 +99,22 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     let pushCleanup: () => void = () => undefined;
     let openedCleanup: () => void = () => undefined;
     let interval: ReturnType<typeof setInterval> | undefined;
+    let pushReverifyInterval: ReturnType<typeof setInterval> | undefined;
+    let pushStartupRetry: ReturnType<typeof setTimeout> | undefined;
     let polling = false;
+    let pushReverifyInFlight: Promise<void> | null = null;
+    let pushLifecycleStartInFlight: Promise<void> | null = null;
+
+    const clearPushRecoveryTimers = () => {
+      if (pushReverifyInterval) {
+        clearInterval(pushReverifyInterval);
+        pushReverifyInterval = undefined;
+      }
+      if (pushStartupRetry) {
+        clearTimeout(pushStartupRetry);
+        pushStartupRetry = undefined;
+      }
+    };
 
     const remember = (key: string) => {
       if (!key) return false;
@@ -200,7 +218,23 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     };
 
     const deviceName = role === 'RIDER' ? 'Aagaam Rider' : 'Aagaam Store Partner';
-    void startMobilePushLifecycle(deviceName, (message) => {
+    const reverifyPushRegistration = () => {
+      if (disposed) return Promise.resolve();
+      if (pushReverifyInFlight) return pushReverifyInFlight;
+
+      const task = reverifyDeviceTokenBinding(deviceName)
+        .catch((error) => {
+          if (__DEV__) console.warn('[FCM] Partner push re-registration failed.', error?.message || error);
+        })
+        .then(() => undefined)
+        .finally(() => {
+          if (pushReverifyInFlight === task) pushReverifyInFlight = null;
+        });
+      pushReverifyInFlight = task;
+      return task;
+    };
+
+    const lifecycleTask = startMobilePushLifecycle(deviceName, (message) => {
       void showForeground(
         dataFromRemoteMessage(message),
         message.notification?.title || String(message.data?.title || ''),
@@ -210,13 +244,24 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
       if (disposed) cleanup();
       else pushCleanup = cleanup;
     }).catch(() => {
-      Toast.show({
-        type: 'error',
-        text1: 'Push setup unavailable',
-        text2: 'The durable Alerts inbox will continue checking for operational updates.',
-        visibilityTime: 7_000,
-      });
+      if (!disposed) {
+        Toast.show({
+          type: 'error',
+          text1: 'Push setup unavailable',
+          text2: 'The durable Alerts inbox will continue checking for operational updates.',
+          visibilityTime: 7_000,
+        });
+      }
+    }).finally(() => {
+      if (pushLifecycleStartInFlight === lifecycleTask) pushLifecycleStartInFlight = null;
     });
+    pushLifecycleStartInFlight = lifecycleTask;
+
+    // If initial registration failed for a transient network/session reason, repair
+    // only an already-authorized token. Automatic recovery never opens a permission
+    // prompt after the user chose "Not now".
+    pushStartupRetry = setTimeout(() => { void reverifyPushRegistration(); }, PUSH_STARTUP_RETRY_MS);
+    pushReverifyInterval = setInterval(() => { void reverifyPushRegistration(); }, PUSH_REVERIFY_MS);
 
     try {
       openedCleanup = messaging().onNotificationOpenedApp((message) => {
@@ -234,10 +279,20 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         flushNavigation();
+        void reverifyPushRegistration();
         void pollInbox();
       }
     });
-    const unregisterCleanup = registerMobileSessionCleanup(() => {
+    const unregisterCleanup = registerMobileSessionCleanup(async () => {
+      // Logout waits for any already-started registration POST to finish before
+      // disableCurrentMobilePushSubscription runs. This prevents a late POST from
+      // reactivating the FCM token after logout has disabled it.
+      disposed = true;
+      clearPushRecoveryTimers();
+      await Promise.all([
+        pushReverifyInFlight?.catch(() => undefined),
+        pushLifecycleStartInFlight?.catch(() => undefined),
+      ]);
       pendingNavigation.current = [];
       seen.current.clear();
       PartnerAlertTone?.stop?.();
@@ -245,6 +300,7 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
 
     return () => {
       disposed = true;
+      clearPushRecoveryTimers();
       PartnerAlertTone?.stop?.();
       pushCleanup();
       openedCleanup();

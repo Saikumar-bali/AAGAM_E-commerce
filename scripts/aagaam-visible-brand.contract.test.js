@@ -61,8 +61,8 @@ assert.ok(
   'The existing internal Android media path must remain unchanged.',
 );
 assert.ok(
-  read('apps/mobile-partners/android/app/src/main/AndroidManifest.xml').includes('aagam_priority_operations_v2'),
-  'The internal notification channel ID must remain unchanged.',
+  read('apps/mobile-partners/android/app/src/main/AndroidManifest.xml').includes('aagam_priority_operations_v3'),
+  'The internal notification channel must retain the AAGAM namespace while allowing sound-profile versioning.',
 );
 
 console.log('Aagaam visible brand contracts passed.');

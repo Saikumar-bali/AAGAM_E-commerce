@@ -9,6 +9,7 @@ type RemoteMessage = {
 
 type FirebaseMessaging = {
   requestPermission: () => Promise<number>;
+  hasPermission?: () => Promise<number>;
   registerDeviceForRemoteMessages?: () => Promise<void>;
   getToken: () => Promise<string>;
   onTokenRefresh: (handler: (token: string) => void | Promise<void>) => () => void;
@@ -57,6 +58,23 @@ async function requestAndroidNotificationPermission() {
     },
   );
   return result === PermissionsAndroid.RESULTS.GRANTED;
+}
+
+async function hasExistingNotificationPermission(messaging: FirebaseMessaging) {
+  if (Platform.OS === 'android') {
+    if (Number(Platform.Version) < 33) return true;
+    return PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+  }
+
+  if (!messaging.hasPermission) return false;
+  try {
+    const authStatus = await messaging.hasPermission();
+    const status = getAuthorizationStatus();
+    if (!status) return Boolean(authStatus);
+    return authStatus === status.AUTHORIZED || authStatus === status.PROVISIONAL;
+  } catch {
+    return false;
+  }
 }
 
 export async function requestUserPermission() {
@@ -113,6 +131,20 @@ async function persistSubscription(token: string, deviceName?: string) {
 export async function registerDeviceToken(deviceName?: string) {
   const hasPermission = await requestUserPermission();
   if (!hasPermission) return { enabled: false, reason: 'PERMISSION_NOT_GRANTED' };
+  const token = await getFCMToken();
+  if (!token) return { enabled: false, reason: 'TOKEN_UNAVAILABLE' };
+  const subscription = await persistSubscription(token, deviceName);
+  return { enabled: true, token, subscription };
+}
+
+// Repairs the authenticated account's server binding without ever opening an OS
+// permission prompt. This is safe to call from app foreground/timer recovery.
+export async function reverifyDeviceTokenBinding(deviceName?: string) {
+  const messaging = getMessaging();
+  if (!messaging) return { enabled: false, reason: 'MESSAGING_UNAVAILABLE' };
+  if (!(await hasExistingNotificationPermission(messaging))) {
+    return { enabled: false, reason: 'PERMISSION_NOT_GRANTED' };
+  }
   const token = await getFCMToken();
   if (!token) return { enabled: false, reason: 'TOKEN_UNAVAILABLE' };
   const subscription = await persistSubscription(token, deviceName);

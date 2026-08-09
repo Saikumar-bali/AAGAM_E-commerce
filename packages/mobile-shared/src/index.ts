@@ -4,6 +4,7 @@ export { useSocket } from './hooks/useSocket';
 export { useLocation } from './hooks/useLocation';
 export {
   registerDeviceToken,
+  reverifyDeviceTokenBinding,
   registerRefreshedToken,
   startMobilePushLifecycle,
   disableCurrentMobilePushSubscription,
