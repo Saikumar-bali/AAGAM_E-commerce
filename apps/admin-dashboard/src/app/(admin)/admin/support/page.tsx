@@ -3,9 +3,18 @@
 import React, { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
-import { Headphones, RefreshCw } from 'lucide-react';
+import { Headphones, Package, Phone, RefreshCw } from 'lucide-react';
 
-type Ticket = { id: string; orderId: string; createdAt: string; customer?: { name?: string | null; email?: string | null; phone?: string | null }; store?: { name?: string | null }; metadata?: any };
+type TicketItem = { id?: string | null; productId?: string | null; name?: string | null; quantity?: number | null };
+type Ticket = {
+  id: string;
+  orderId: string;
+  createdAt: string;
+  customer?: { name?: string | null; email?: string | null; phone?: string | null };
+  store?: { name?: string | null };
+  items?: TicketItem[];
+  metadata?: any;
+};
 
 export default function AdminSupportQueuePage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -25,14 +34,14 @@ export default function AdminSupportQueuePage() {
     }
   };
 
-  useEffect(() => { fetchTickets(); }, []);
+  useEffect(() => { void fetchTickets(); }, []);
 
   return (
     <DashboardLayout allowedRole="ADMIN">
       <main className="space-y-5 p-4 pb-24">
         <section className="flex flex-col gap-4 rounded-3xl bg-slate-950 p-6 text-white md:flex-row md:items-center md:justify-between">
           <div><p className="text-xs font-black uppercase text-teal-300">Post-delivery support</p><h1 className="mt-2 text-3xl font-black">Support Queue</h1><p className="mt-2 text-sm text-slate-300">Review order issues, refund requests and delivery complaints.</p></div>
-          <button onClick={fetchTickets} className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-black text-slate-950"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh</button>
+          <button onClick={() => void fetchTickets()} className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-black text-slate-950"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh</button>
         </section>
 
         {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-700">{error}</div>}
@@ -43,7 +52,8 @@ export default function AdminSupportQueuePage() {
           {tickets.map((ticket) => (
             <article key={ticket.id} className="rounded-3xl border bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between gap-3"><div><p className="font-mono text-sm font-black">#{ticket.orderId.slice(-8).toUpperCase()}</p><p className="mt-1 break-all font-mono text-[10px] font-bold text-teal-700">Support ref: {ticket.id}</p><p className="mt-1 text-xs font-bold text-slate-500">{new Date(ticket.createdAt).toLocaleString('en-IN')} · {ticket.store?.name || 'Store'}</p></div><span className={`rounded-full px-2 py-1 text-[11px] font-black ${ticket.metadata?.priority === 'HIGH' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-700'}`}>{ticket.metadata?.priority || 'NORMAL'}</span></div>
-              <div className="mt-4 rounded-2xl bg-slate-50 p-4"><p className="text-xs font-black uppercase text-slate-400">Customer</p><p className="mt-1 text-sm font-black text-slate-900">{ticket.customer?.name || ticket.customer?.email || 'Customer'}</p><p className="text-xs font-bold text-slate-500">{ticket.customer?.phone || ticket.customer?.email || 'No contact'}</p></div>
+              <div className="mt-4 rounded-2xl bg-slate-50 p-4"><p className="text-xs font-black uppercase text-slate-400">Customer</p><p className="mt-1 text-sm font-black text-slate-900">{ticket.customer?.name || ticket.customer?.email || 'Customer'}</p>{ticket.customer?.phone ? <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-black text-slate-700"><Phone className="h-3.5 w-3.5 text-teal-700" />{ticket.customer.phone}</p> : null}<p className="mt-1 text-xs font-bold text-slate-500">{ticket.customer?.email || (ticket.customer?.phone ? 'No email' : 'No contact')}</p></div>
+              <div className="mt-4 rounded-2xl border border-slate-100 p-4"><p className="flex items-center gap-1.5 text-xs font-black uppercase text-slate-400"><Package className="h-3.5 w-3.5" />Order items</p>{ticket.items?.length ? <div className="mt-2 space-y-2">{ticket.items.map((item, index) => <div key={item.id || item.productId || `${ticket.id}-${index}`} className="flex items-center justify-between gap-3 text-sm"><span className="font-bold text-slate-800">{item.name || 'Item'}</span><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-black text-slate-600">× {Number(item.quantity || 1)}</span></div>)}</div> : <p className="mt-2 text-xs font-bold text-slate-500">Order item snapshot unavailable.</p>}</div>
               <div className="mt-4"><p className="text-xs font-black uppercase text-slate-400">{ticket.metadata?.category || 'Issue'}</p><p className="mt-1 text-sm font-bold text-slate-800">{ticket.metadata?.message || 'No message'}</p>{ticket.metadata?.requestedRefund && <p className="mt-2 inline-flex rounded-full bg-amber-50 px-2 py-1 text-[11px] font-black text-amber-700">Refund review requested</p>}</div>
             </article>
           ))}
