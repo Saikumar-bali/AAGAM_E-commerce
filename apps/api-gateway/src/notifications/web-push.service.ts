@@ -162,8 +162,9 @@ export class WebPushService implements OnModuleInit {
     if (payload.deepLink) data.deepLink = payload.deepLink;
 
     // Android receives a native notification payload. Firebase displays it when
-    // the app is backgrounded, swiped away, or the process is not running. The
-    // data payload is retained so tapping it can open the Store/Rider workspace.
+    // the app is backgrounded, swiped away, or the process is not running. On
+    // Android 12+ the versioned app-created channel owns sound/vibration so the
+    // delivery remains loud without falling back to an alarm-clock tone.
     const responseId = await getMessaging().send({
       token: subscription.token,
       data,
@@ -179,12 +180,9 @@ export class WebPushService implements OnModuleInit {
           title: payload.title,
           body: payload.body,
           icon: 'ic_notification',
-          sound: 'default',
-          channelId: 'aagam_priority_operations_v2',
+          channelId: 'aagam_priority_operations_v3',
           tag: data.recipientId || data.notificationId || data.eventType || 'aagam-notification',
           visibility: 'public',
-          defaultVibrateTimings: true,
-          defaultSound: true,
         },
       },
       apns: {
