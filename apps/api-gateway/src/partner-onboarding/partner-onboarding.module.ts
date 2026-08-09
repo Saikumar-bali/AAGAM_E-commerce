@@ -4,6 +4,7 @@ import { ContactVerificationModule } from '../contact-verification/contact-verif
 import { PartnerOnboardingAdminController } from './partner-onboarding-admin.controller';
 import { InternalPartnerOnboardingAdminController } from './internal-partner-onboarding-admin.controller';
 import { PartnerOnboardingAdminService } from './partner-onboarding-admin.service';
+import { PartnerApplicationPurgeService } from './partner-application-purge.service';
 import { PhonePrimaryPartnerOnboardingAdminService } from './phone-primary-partner-onboarding-admin.service';
 import { InternalPartnerOnboardingAdminService } from './internal-partner-onboarding-admin.service';
 import { PartnerOnboardingController } from './partner-onboarding.controller';
@@ -33,6 +34,7 @@ import { PartnerApplicationRecoveryService } from './partner-application-recover
     PartnerOnboardingSecurity,
     PartnerOnboardingRepository,
     PartnerApplicationRecoveryService,
+    PartnerApplicationPurgeService,
     InternalPartnerOnboardingAdminService,
     VerificationChallengeRepository,
     PartnerVerificationDeliveryService,
