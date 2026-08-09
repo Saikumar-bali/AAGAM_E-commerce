@@ -23,9 +23,11 @@ import {
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { resolvePartnerInboxRole } from './notification-audience';
 import { NotificationService } from './notification.service';
 import { NotificationWorkerService } from './notification-worker.service';
 import { OutboxService } from './outbox.service';
+import { PartnerNotificationInboxService } from './partner-notification-inbox.service';
 import { PushSubscriptionService } from './push-subscription.service';
 
 export function getFirebaseWebPushConfig() {
@@ -66,32 +68,12 @@ export function getFirebaseWebPushConfig() {
   };
 }
 
-export function scopePartnerInbox(role: Role, inbox: any) {
-  if (role !== Role.RIDER && role !== Role.STORE_OWNER) return inbox;
-
-  // Partner operational alerts must be backed by NotificationRecipient. That row
-  // proves the durable routing matrix addressed the event to this exact user.
-  // OrderStatusHistory is a business audit log, not an audience definition; using
-  // it as a Partner fallback leaked support/customer-only events and duplicated
-  // lifecycle cards such as OUT_FOR_DELIVERY and DELIVERED.
-  const items = (Array.isArray(inbox?.items) ? inbox.items : []).filter((item: any) => {
-    const metadata = item?.metadata || {};
-    return Boolean(item?.recipientId) && metadata.migratedFromOrderHistory !== true;
-  });
-
-  return {
-    ...inbox,
-    items,
-    unreadCount: items.filter((item: any) => !item?.readAt).length,
-    source: 'PARTNER_SCOPED',
-  };
-}
-
 @Controller('notifications')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class NotificationsController {
   constructor(
     private readonly notifications: NotificationService,
+    private readonly partnerInbox: PartnerNotificationInboxService,
     private readonly subscriptions: PushSubscriptionService,
     private readonly worker: NotificationWorkerService,
     private readonly outbox: OutboxService,
@@ -110,9 +92,10 @@ export class NotificationsController {
 
   @Get('inbox')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
-  async inbox(@Req() req: any, @Query('limit') limit?: string) {
-    const inbox = await this.notifications.listInbox(req.user, limit);
-    return scopePartnerInbox(req.user.role, inbox);
+  inbox(@Req() req: any, @Query('limit') limit?: string) {
+    const partnerRole = resolvePartnerInboxRole(req.user);
+    if (partnerRole) return this.partnerInbox.list(req.user.id, partnerRole, limit);
+    return this.notifications.listInbox(req.user, limit);
   }
 
   @Patch(':notificationId/read')
