@@ -42,6 +42,25 @@ const RIDER_LEGACY_EVENTS = new Set([
   'ORDER_DELIVERED',
 ]);
 
+const STORE_DEDICATED_EVENTS = new Set([
+  'ORDER_PLACED',
+  'ASSIGNMENT_ACCEPTED',
+  'ASSIGNMENT_REJECTED',
+  'ASSIGNMENT_EXPIRED',
+  'RIDER_EN_ROUTE_TO_STORE',
+  'RIDER_AT_STORE',
+  'DELIVERY_COMPLETED',
+  'DELIVERY_FAILED',
+  'DELIVERY_CANCELLED',
+]);
+
+const RIDER_DEDICATED_EVENTS = new Set([
+  'ASSIGNMENT_OFFERED',
+  'ROUTE_ASSIGNED',
+  'ROUTE_REMOVED',
+  'DELIVERY_COMPLETED',
+]);
+
 const SINGLETON_ORDER_EVENTS = new Set([
   'ORDER_PLACED',
   'DELIVERY_COMPLETED',
@@ -66,6 +85,7 @@ export function legacyNotificationSemantic(item: InboxItem) {
   if (deliveryStatus) {
     if (deliveryStatus === 'DELIVERED') return 'DELIVERY_COMPLETED';
     if (deliveryStatus === 'CANCELLED') return 'DELIVERY_CANCELLED';
+    if (deliveryStatus === 'RIDER_ASSIGNED') return 'ASSIGNMENT_ACCEPTED';
     return deliveryStatus;
   }
 
@@ -75,6 +95,22 @@ export function legacyNotificationSemantic(item: InboxItem) {
   if (type === 'ORDER_CANCELLED') return 'DELIVERY_CANCELLED';
   if (type === 'ORDER_RIDER_ASSIGNED') return 'ASSIGNMENT_ACCEPTED';
   return type;
+}
+
+function broadcastVisibleToRole(item: InboxItem, role: Role) {
+  const audience = upper(item.metadata?.audience);
+  if (!audience || audience === 'ALL_USERS') return true;
+  if (role === Role.RIDER) return audience === 'RIDERS';
+  if (role === Role.STORE_OWNER) return audience === 'STORE_OWNERS';
+  return false;
+}
+
+function dedicatedVisibleToRole(item: InboxItem, role: Role) {
+  const semantic = legacyNotificationSemantic(item);
+  if (semantic === 'ADMIN_BROADCAST') return broadcastVisibleToRole(item, role);
+  if (role === Role.STORE_OWNER) return STORE_DEDICATED_EVENTS.has(semantic);
+  if (role === Role.RIDER) return RIDER_DEDICATED_EVENTS.has(semantic);
+  return true;
 }
 
 function legacyVisibleToRole(item: InboxItem, role: Role) {
@@ -100,10 +136,11 @@ export function scopeNotificationInboxForActor<T extends InboxItem>(
 ): InboxPayload<T> {
   if (role !== Role.RIDER && role !== Role.STORE_OWNER) return inbox;
 
+  const visibleDedicated = inbox.items.filter((item) => (
+    Boolean(item.recipientId) && dedicatedVisibleToRole(item, role)
+  ));
   const dedicatedKeys = new Set(
-    inbox.items
-      .filter((item) => Boolean(item.recipientId))
-      .map((item) => `${item.orderId || ''}:${legacyNotificationSemantic(item)}`),
+    visibleDedicated.map((item) => `${item.orderId || ''}:${legacyNotificationSemantic(item)}`),
   );
 
   const seenSingletons = new Set<string>();
@@ -111,7 +148,9 @@ export function scopeNotificationInboxForActor<T extends InboxItem>(
     const semantic = legacyNotificationSemantic(item);
     const key = `${item.orderId || ''}:${semantic}`;
 
-    if (!item.recipientId) {
+    if (item.recipientId) {
+      if (!dedicatedVisibleToRole(item, role)) return false;
+    } else {
       if (!legacyVisibleToRole(item, role)) return false;
       if (dedicatedKeys.has(key)) return false;
     }
