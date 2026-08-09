@@ -28,7 +28,7 @@ class PartnerAlertToneModule(
   }
 
   private fun stopInternal() {
-    scheduled.toList().forEach(handler::removeCallbacks)
+    scheduled.toList().forEach { runnable -> handler.removeCallbacks(runnable) }
     scheduled.clear()
     activeTone?.stopTone()
     activeTone?.release()
