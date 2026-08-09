@@ -16,7 +16,8 @@ type InboxItem = {
   readAt?: string | null;
 };
 
-const LAST_OTP_KEY = 'aagam:last-auto-opened-delivery-otp';
+const HANDLED_OTP_KEY = 'aagam:auto-opened-delivery-otps';
+const MAX_HANDLED_NOTICES = 40;
 
 function jobIdFromDeepLink(value: unknown) {
   if (typeof value !== 'string') return null;
@@ -31,6 +32,26 @@ function isOtpNotice(item: InboxItem) {
     || text.includes('code is ready in the order screen');
 }
 
+function handledNotices() {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(HANDLED_OTP_KEY) || '[]');
+    return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function noticeWasHandled(noticeId: string) {
+  return handledNotices().includes(noticeId);
+}
+
+function markNoticeHandled(noticeId?: string | null) {
+  if (!noticeId) return;
+  const values = handledNotices().filter((value) => value !== noticeId);
+  values.push(noticeId);
+  window.localStorage.setItem(HANDLED_OTP_KEY, JSON.stringify(values.slice(-MAX_HANDLED_NOTICES)));
+}
+
 export default function CustomerDeliveryOtpListener() {
   const pathname = usePathname();
   const customerArea = Boolean(pathname?.startsWith('/shop'));
@@ -40,7 +61,7 @@ export default function CustomerDeliveryOtpListener() {
 
   const showJob = useCallback((jobId: string, noticeId?: string | null) => {
     if (!jobId) return;
-    if (noticeId) window.localStorage.setItem(LAST_OTP_KEY, noticeId);
+    markNoticeHandled(noticeId);
     setDeliveryJobId(jobId);
     setOpen(true);
   }, []);
@@ -48,10 +69,14 @@ export default function CustomerDeliveryOtpListener() {
   const resolveOrder = useCallback(async (orderId: string, noticeId?: string | null) => {
     try {
       const response = await apiClient.get(`/orders/my/${encodeURIComponent(orderId)}/delivery-context`);
-      if (response.data?.deliveryStatus !== 'RIDER_AT_CUSTOMER' || !response.data?.deliveryJobId) return;
+      if (response.data?.deliveryStatus !== 'RIDER_AT_CUSTOMER' || !response.data?.deliveryJobId) {
+        return 'INACTIVE' as const;
+      }
       showJob(String(response.data.deliveryJobId), noticeId);
+      return 'SHOWN' as const;
     } catch {
       // The next inbox poll can retry. Do not interrupt shopping for a transient read failure.
+      return 'RETRY' as const;
     }
   }, [showJob]);
 
@@ -90,11 +115,21 @@ export default function CustomerDeliveryOtpListener() {
       try {
         const response = await apiClient.get('/notifications/inbox');
         const items: InboxItem[] = Array.isArray(response.data?.items) ? response.data.items : [];
-        const latest = items.find((item) => item.orderId && isOtpNotice(item));
-        if (!latest?.orderId) return;
-        const noticeId = `inbox:${latest.sourceHistoryId || latest.id || latest.orderId}`;
-        if (window.localStorage.getItem(LAST_OTP_KEY) === noticeId) return;
-        await resolveOrder(String(latest.orderId), noticeId);
+        const candidates = items.filter((item) => item.orderId && isOtpNotice(item));
+
+        for (const item of candidates) {
+          if (!active || !item.orderId) break;
+          const noticeId = `inbox:${item.sourceHistoryId || item.id || item.orderId}`;
+          if (noticeWasHandled(noticeId)) continue;
+
+          const result = await resolveOrder(String(item.orderId), noticeId);
+          if (result === 'SHOWN') break;
+          if (result === 'INACTIVE') {
+            markNoticeHandled(noticeId);
+          }
+          // RETRY remains unseen so a later poll can retry it, while this pass
+          // can still inspect older notices for another active delivery.
+        }
       } catch {
         // Push remains the primary path. Polling is intentionally a quiet fallback.
       } finally {
