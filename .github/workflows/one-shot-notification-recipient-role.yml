@@ -1,0 +1,86 @@
+name: One-shot notification recipient role patch
+
+on:
+  push:
+    branches: [fix/partner-notification-role-routing-store-push]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/partner-notification-role-routing-store-push
+          fetch-depth: 0
+      - name: Patch Prisma schema and add migration
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          schema = Path('packages/database/prisma/schema.prisma')
+          text = schema.read_text()
+          old = '''model NotificationRecipient {
+            id             String                      @id @default(cuid())
+            notificationId String
+            notification   Notification                @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+            userId         String
+            user           User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+            status         NotificationRecipientStatus @default(QUEUED)
+            dedupeKey      String                      @unique
+            sentAt         DateTime?
+            openedAt       DateTime?
+            readAt         DateTime?
+            failedAt       DateTime?
+            failureReason  String?
+            createdAt      DateTime                    @default(now())
+            updatedAt      DateTime                    @updatedAt
+
+            attempts NotificationDeliveryAttempt[]
+
+            @@unique([notificationId, userId])
+            @@index([userId, status, createdAt])
+          }'''
+          new = '''model NotificationRecipient {
+            id             String                      @id @default(cuid())
+            notificationId String
+            notification   Notification                @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+            userId         String
+            user           User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+            recipientRole  Role?
+            status         NotificationRecipientStatus @default(QUEUED)
+            dedupeKey      String                      @unique
+            sentAt         DateTime?
+            openedAt       DateTime?
+            readAt         DateTime?
+            failedAt       DateTime?
+            failureReason  String?
+            createdAt      DateTime                    @default(now())
+            updatedAt      DateTime                    @updatedAt
+
+            attempts NotificationDeliveryAttempt[]
+
+            @@unique([notificationId, userId, recipientRole])
+            @@index([userId, status, createdAt])
+            @@index([userId, recipientRole, status, createdAt])
+          }'''
+          if old not in text:
+              raise SystemExit('NotificationRecipient schema block did not match expected source')
+          schema.write_text(text.replace(old, new, 1))
+
+          migration = Path('packages/database/prisma/migrations/20260809070000_notification_recipient_role')
+          migration.mkdir(parents=True, exist_ok=True)
+          (migration / 'migration.sql').write_text('''-- Persist the exact role an event was routed to so multi-role users receive\n-- isolated Customer, Rider, Store Owner, and Admin inboxes. Historical rows\n-- remain NULL and continue through the scoped legacy-history fallback.\nALTER TABLE "NotificationRecipient" ADD COLUMN "recipientRole" "Role";\n\nDROP INDEX IF EXISTS "NotificationRecipient_notificationId_userId_key";\n\nCREATE UNIQUE INDEX "NotificationRecipient_notificationId_userId_recipientRole_key"\nON "NotificationRecipient"("notificationId", "userId", "recipientRole");\n\nCREATE INDEX "NotificationRecipient_userId_recipientRole_status_createdAt_idx"\nON "NotificationRecipient"("userId", "recipientRole", "status", "createdAt");\n''')
+          PY
+
+          git rm .github/workflows/one-shot-notification-recipient-role.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/database/prisma/schema.prisma packages/database/prisma/migrations/20260809070000_notification_recipient_role/migration.sql
+          git commit -m 'feat(notifications): persist routed recipient role'
+          git push origin HEAD:fix/partner-notification-role-routing-store-push
