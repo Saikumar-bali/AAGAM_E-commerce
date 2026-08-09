@@ -40,9 +40,9 @@ class PartnerAlertToneModule(
     handler.post {
       try {
         stopInternal()
-        // Use the notification stream rather than TYPE_ALARM. Three short,
-        // high-volume pulses are intentionally easier to notice in a busy store
-        // or on the road without sounding like the phone's alarm clock.
+        // Use the notification stream rather than the phone's alarm source.
+        // Three short, high-volume pulses are intentionally easier to notice in
+        // a busy store or on the road without sounding like an alarm clock.
         val generator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
         activeTone = generator
         generator.startTone(ToneGenerator.TONE_PROP_BEEP2, 320)
