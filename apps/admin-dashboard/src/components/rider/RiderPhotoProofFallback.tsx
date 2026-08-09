@@ -53,6 +53,20 @@ export default function RiderPhotoProofFallback() {
     return () => { alive = false; window.clearInterval(timer); };
   }, [activePage]);
 
+  const proofContext = `${activePage ? 'active' : 'inactive'}:${job?.id || 'no-job'}:${job?.status || 'none'}`;
+  useEffect(() => {
+    setOpen(false);
+    setFile(null);
+    setConfirmed(false);
+  }, [proofContext]);
+
+  const closeProof = () => {
+    if (submitting) return;
+    setOpen(false);
+    setFile(null);
+    setConfirmed(false);
+  };
+
   if (!activePage || job?.status !== 'RIDER_AT_CUSTOMER') return null;
 
   const submit = async () => {
@@ -98,7 +112,7 @@ export default function RiderPhotoProofFallback() {
       {open ? (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Delivery photo proof">
           <div className="relative w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
-            <button type="button" onClick={() => !submitting && setOpen(false)} className="absolute right-4 top-4 rounded-full bg-slate-100 p-2 text-slate-500"><X className="h-5 w-5" /></button>
+            <button type="button" onClick={closeProof} className="absolute right-4 top-4 rounded-full bg-slate-100 p-2 text-slate-500"><X className="h-5 w-5" /></button>
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-teal-50"><ShieldCheck className="h-6 w-6 text-teal-700" /></div>
             <p className="mt-4 text-xs font-black uppercase tracking-widest text-teal-700">Delivery fallback · #{String(job.order?.id || '').slice(-8).toUpperCase()}</p>
             <h2 className="mt-1 text-2xl font-black text-slate-950">Use a delivery photo</h2>
