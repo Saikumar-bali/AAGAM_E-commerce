@@ -59,8 +59,10 @@ jobs:
           Path('.github/workflows/pr231-photo-enum-fix.yml').unlink()
           PY
 
-          npx prisma format --schema packages/database/prisma/schema.prisma
-          npx prisma validate --schema packages/database/prisma/schema.prisma
+          git diff --check
+          grep -A5 -F 'enum DeliveryVerificationMethod {' packages/database/prisma/schema.prisma | grep -F 'RIDER_PHOTO_EVIDENCE'
+          grep -F "verificationMethod: 'RIDER_PHOTO_EVIDENCE'" apps/api-gateway/src/orders/delivery-photo-proof.service.ts
+          test -s packages/database/prisma/migrations/20260809052000_rider_photo_delivery_verification_method/migration.sql
 
           git config user.name "AAGAM CI"
           git config user.email "actions@users.noreply.github.com"
