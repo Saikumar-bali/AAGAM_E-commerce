@@ -163,8 +163,9 @@ export class WebPushService implements OnModuleInit {
 
     // Android receives a native notification payload. Firebase displays it when
     // the app is backgrounded, swiped away, or the process is not running. On
-    // Android 12+ the versioned app-created channel owns sound/vibration so the
-    // delivery remains loud without falling back to an alarm-clock tone.
+    // Android 8+ the versioned app-created channel owns sound/vibration. The
+    // explicit defaults below preserve audible/vibrating delivery on API 24-25,
+    // where Android notification channels do not exist yet.
     const responseId = await getMessaging().send({
       token: subscription.token,
       data,
@@ -181,6 +182,9 @@ export class WebPushService implements OnModuleInit {
           body: payload.body,
           icon: 'ic_notification',
           channelId: 'aagam_priority_operations_v3',
+          sound: 'default',
+          defaultSound: true,
+          defaultVibrateTimings: true,
           tag: data.recipientId || data.notificationId || data.eventType || 'aagam-notification',
           visibility: 'public',
         },
