@@ -3,7 +3,6 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-  ServiceUnavailableException,
 } from "@nestjs/common";
 import { Prisma, prisma } from "@aagam/database";
 import { UploadService } from "../upload/upload.service";
@@ -555,37 +554,28 @@ export class RiderPortalReadService {
       };
     }
 
-    const targetPhone =
-      input.targetRole === "STORE"
-        ? job.order.store.owner.phone
-        : job.order.customer.phone ||
-          String((job.order.addressSnapshot as any)?.phoneE164 || "");
-    if (!targetPhone)
-      throw new NotFoundException("Contact is unavailable for this delivery");
-
-    const relayNumber = String(
-      process.env.RIDER_CONTACT_RELAY_NUMBER || ""
+    const addressPhone = String(
+      (job.order.addressSnapshot as any)?.phoneE164 ||
+      (job.order.addressSnapshot as any)?.alternatePhoneE164 ||
+      ""
     ).trim();
-    if (!relayNumber) {
-      throw new ServiceUnavailableException(
-        "Privacy contact relay is not configured"
-      );
-    }
-    const reference = `AAGAM-${job.id.slice(-8).toUpperCase()}`;
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    const uri =
-      input.channel === "CALL"
-        ? `tel:${relayNumber}`
-        : `sms:${relayNumber}?body=${encodeURIComponent(
-            `${reference} ${input.targetRole}`
-          )}`;
+    const targetPhone = String(
+      input.targetRole === "STORE"
+        ? job.order.store.owner.phone || ""
+        : addressPhone || job.order.customer.phone || ""
+    ).trim();
+    if (!targetPhone)
+      throw new NotFoundException("Contact number is unavailable for this delivery");
+
+    const uri = input.channel === "CALL" ? `tel:${targetPhone}` : `sms:${targetPhone}`;
     return {
       channel: input.channel,
       targetRole: input.targetRole,
       status: "READY",
-      reference,
-      expiresAt,
       uri,
+      source: input.targetRole === "CUSTOMER" && addressPhone
+        ? "DELIVERY_ADDRESS"
+        : "ACCOUNT_CONTACT",
     };
   }
 

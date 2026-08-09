@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StatusBar, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { checkForAppUpdate } from '@aagam/mobile-shared';
@@ -10,6 +10,11 @@ import { PartnerPushCoordinator } from './src/notifications/PartnerPushCoordinat
 import { RiderPhotoProofFallback } from './src/components/RiderPhotoProofFallback';
 
 const queryClient = new QueryClient();
+
+function PartnerToastHost() {
+  const insets = useSafeAreaInsets();
+  return <Toast position="top" topOffset={insets.top + 8} />;
+}
 
 function App() {
   const [cacheReady, setCacheReady] = useState(false);
@@ -39,7 +44,7 @@ function App() {
             <Text style={styles.loadingText}>Restoring partner workspace…</Text>
           </View>
         )}
-        <Toast />
+        <PartnerToastHost />
       </SafeAreaProvider>
     </QueryClientProvider>
   );

@@ -2,7 +2,6 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma, prisma } from '@aagam/database';
 import { RiderContactDto, RiderHistoryQueryDto } from './rider-portal.dto';
@@ -371,13 +370,8 @@ export class RiderPortalSecureService {
     deliveryJobId: string,
     input: RiderContactDto,
   ) {
-    if (input.channel === 'SAFETY_ESCALATION') {
-      return this.read.contact(userId, deliveryJobId, input);
-    }
-    throw new ServiceUnavailableException({
-      code: 'RIDER_CONTACT_RELAY_UNAVAILABLE',
-      message:
-        'Private calling and messaging are unavailable. Use Rider Support or Safety escalation.',
-    });
+    // RiderPortalReadService.contact performs the current-Rider ownership check,
+    // active delivery status check, target contact resolution, and safety escalation.
+    return this.read.contact(userId, deliveryJobId, input);
   }
 }

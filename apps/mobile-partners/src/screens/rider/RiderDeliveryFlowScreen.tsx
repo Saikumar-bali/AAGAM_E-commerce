@@ -133,7 +133,7 @@ export const RiderDeliveryFlowScreen = () => {
   const nextAction = activeJob ? nextActionForStatus(activeJob.status) : null;
   const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
   const expectedCod = Number(summary?.cod?.expectedAmountPaise || 0);
-  const returningToStore = activeJob?.status === 'RETURNING_TO_STORE';
+  const returningToStore = Boolean(activeJob && ['DELIVERY_FAILED', 'RETURNING_TO_STORE'].includes(activeJob.status));
   const headingToStore = Boolean(activeJob && (returningToStore || ['RIDER_ASSIGNED', 'RIDER_EN_ROUTE_TO_STORE'].includes(activeJob.status)));
   const customerName = activeJob?.order.customer?.name || activeJob?.order.addressSnapshot?.recipientName || 'Customer';
   const destinationName = headingToStore ? activeJob?.order.store?.name || 'Pickup store' : customerName;
@@ -174,10 +174,16 @@ export const RiderDeliveryFlowScreen = () => {
         Toast.show({ type: 'success', text1: 'Safety escalation created', text2: 'Opening the protected support conversation.' });
         navigation.getParent()?.navigate('RiderSupportConversation', { ticketId: result.supportTicketId });
       } else {
-        Toast.show({ type: 'success', text1: channel === 'CALL' ? 'Private relay ready' : 'Private message relay ready', text2: `Reference ${result.reference || 'created'} expires automatically.` });
+        Toast.show({
+          type: 'success',
+          text1: channel === 'CALL' ? 'Opening call' : 'Opening message',
+          text2: result.source === 'DELIVERY_ADDRESS'
+            ? 'Using the phone number saved with this delivery address.'
+            : 'Using the contact number saved for this delivery.',
+        });
       }
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Private contact unavailable', text2: errorMessage(error) });
+      Toast.show({ type: 'error', text1: 'Contact unavailable', text2: errorMessage(error) });
     } finally {
       setBusy(null);
     }
@@ -298,10 +304,10 @@ export const RiderDeliveryFlowScreen = () => {
         </View>
 
         <View style={styles.contactCard}>
-          <View style={styles.contactHeader}><ShieldAlert size={20} color="#0F766E" /><View style={styles.flex}><Text style={styles.contactTitle}>Privacy-safe contact</Text><Text style={styles.contactText}>The raw customer and store phone numbers are never shown or dialled.</Text></View></View>
+          <View style={styles.contactHeader}><PhoneCall size={20} color="#0F766E" /><View style={styles.flex}><Text style={styles.contactTitle}>Delivery contact</Text><Text style={styles.contactText}>{returningToStore ? 'Call or message the store contact for this parcel return.' : headingToStore ? 'Call or message the store contact for this active pickup.' : 'Call or message the phone number saved with the customer delivery address.'}</Text></View></View>
           <View style={styles.contactActions}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Call ${targetRole.toLowerCase()} through private relay`} style={styles.contactButton} disabled={Boolean(busy)} onPress={() => void requestPrivateContact('CALL')}>{busy === 'contact-CALL' ? <ActivityIndicator color="#0F766E" /> : <PhoneCall size={19} color="#0F766E" />}<Text style={styles.contactButtonText}>Private call</Text></TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Message ${targetRole.toLowerCase()} through private relay`} style={styles.contactButton} disabled={Boolean(busy)} onPress={() => void requestPrivateContact('MESSAGE')}>{busy === 'contact-MESSAGE' ? <ActivityIndicator color="#0F766E" /> : <MessageCircle size={19} color="#0F766E" />}<Text style={styles.contactButtonText}>Private message</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Call ${targetRole.toLowerCase()} delivery contact`} style={styles.contactButton} disabled={Boolean(busy)} onPress={() => void requestPrivateContact('CALL')}>{busy === 'contact-CALL' ? <ActivityIndicator color="#0F766E" /> : <PhoneCall size={19} color="#0F766E" />}<Text style={styles.contactButtonText}>Call</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Message ${targetRole.toLowerCase()} delivery contact`} style={styles.contactButton} disabled={Boolean(busy)} onPress={() => void requestPrivateContact('MESSAGE')}>{busy === 'contact-MESSAGE' ? <ActivityIndicator color="#0F766E" /> : <MessageCircle size={19} color="#0F766E" />}<Text style={styles.contactButtonText}>Message</Text></TouchableOpacity>
           </View>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Escalate delivery safety concern" style={styles.safetyButton} disabled={Boolean(busy)} onPress={() => void requestPrivateContact('SAFETY_ESCALATION')}>{busy === 'contact-SAFETY_ESCALATION' ? <ActivityIndicator color="#B91C1C" /> : <ShieldAlert size={18} color="#B91C1C" />}<Text style={styles.safetyText}>Safety escalation</Text></TouchableOpacity>
         </View>
