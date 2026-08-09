@@ -42,10 +42,11 @@ export class NotificationDeliveryService {
     });
     const subscriptions = allSubscriptions.filter((subscription) => {
       const subscriptionRole = mobileSubscriptionRole(subscription.deviceName);
-      // Unknown/web/legacy device labels remain compatible. Current mobile apps
-      // register explicit Customer/Rider/Store labels and are strictly scoped.
-      return !subscriptionRole
-        || isNotificationForRole(subscriptionRole, recipient.notification.eventType, notificationData);
+      if (!subscriptionRole) return true; // web/legacy device labels remain compatible
+      if (recipient.recipientRole) return subscriptionRole === recipient.recipientRole;
+      // Historical recipient rows have no persisted role. Keep the old inference
+      // only for those rows; every newly materialized recipient is exact-role scoped.
+      return isNotificationForRole(subscriptionRole, recipient.notification.eventType, notificationData);
     });
 
     if (!(await this.pushEnabled(recipient.userId, recipient.notification.eventType))) {
@@ -68,7 +69,9 @@ export class NotificationDeliveryService {
     const skippedReasons: string[] = [];
 
     for (const subscription of subscriptions) {
-      const subscriptionRole = mobileSubscriptionRole(subscription.deviceName) || recipient.user.role;
+      const subscriptionRole = mobileSubscriptionRole(subscription.deviceName)
+        || recipient.recipientRole
+        || recipient.user.role;
       const deepLink = this.recipientDeepLink(
         subscriptionRole,
         recipient.notification.orderId,
@@ -88,6 +91,7 @@ export class NotificationDeliveryService {
             ...notificationData,
             notificationId: recipient.notification.id,
             recipientId: recipient.id,
+            recipientRole: recipient.recipientRole || undefined,
             eventType: recipient.notification.eventType,
             deepLink,
           },
