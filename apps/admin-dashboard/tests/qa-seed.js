@@ -271,7 +271,18 @@ async function main() {
   });
   console.log('  Cleared active rider orders');
 
-  // Subscription delivery-runs QA fixture: a published plan and an owned customer contract.
+  // Subscription delivery-runs QA fixture: a published weekly plan and an owned customer contract.
+  const qaSubscriptionProduct = await prisma.product.upsert({
+    where: { id: 'qa-subscription-milk-1l' },
+    update: { name: 'Buffalo Milk 1 L', price: 70, pricePaise: 7000, categoryId: qaCategory.id },
+    create: { id: 'qa-subscription-milk-1l', name: 'Buffalo Milk 1 L', price: 70, pricePaise: 7000, categoryId: qaCategory.id },
+  });
+  await prisma.inventory.upsert({
+    where: { storeId_productId: { storeId: qaStore.id, productId: qaSubscriptionProduct.id } },
+    update: { quantity: 50 },
+    create: { storeId: qaStore.id, productId: qaSubscriptionProduct.id, quantity: 50 },
+  });
+
   const subscriptionAdmin = await prisma.user.findUnique({ where: { email: 'admin@aagam.com' } });
   const subscriptionCustomer = await prisma.user.findUnique({ where: { email: 'customer@aagam.com' } });
   const subscriptionAddress = subscriptionCustomer
@@ -284,7 +295,7 @@ async function main() {
         name: 'Buffalo Milk 1 L · 7 Days',
         internalName: 'QA Buffalo Milk 7 Day',
         status: 'ACTIVE',
-        fundingCycle: 'FULL_PLAN',
+        fundingCycle: 'WEEKLY',
         durationDays: 7,
         totalDeliveries: 7,
         deliveryFrequency: 'DAILY',
@@ -301,9 +312,9 @@ async function main() {
         code: 'QA-MILK-7',
         internalName: 'QA Buffalo Milk 7 Day',
         name: 'Buffalo Milk 1 L · 7 Days',
-        description: 'Fresh morning milk with first-delivery cash funding.',
+        description: 'Fresh morning milk with weekly cash funding.',
         status: 'ACTIVE',
-        fundingCycle: 'FULL_PLAN',
+        fundingCycle: 'WEEKLY',
         durationDays: 7,
         totalDeliveries: 7,
         deliveryFrequency: 'DAILY',
@@ -325,20 +336,28 @@ async function main() {
         updatedById: subscriptionAdmin.id,
       },
     });
-    await prisma.subscriptionPlanItem.upsert({
-      where: { planId_productId: { planId: qaPlan.id, productId: qaProduct.id } },
-      update: { quantityPerDelivery: 1 },
-      create: { planId: qaPlan.id, productId: qaProduct.id, quantityPerDelivery: 1 },
+    await prisma.subscriptionPlanItem.deleteMany({ where: { planId: qaPlan.id } });
+    await prisma.subscriptionPlanItem.create({
+      data: { planId: qaPlan.id, productId: qaSubscriptionProduct.id, quantityPerDelivery: 1 },
     });
     await prisma.subscriptionPlanStore.upsert({
       where: { planId_storeId: { planId: qaPlan.id, storeId: qaStore.id } },
       update: {},
       create: { planId: qaPlan.id, storeId: qaStore.id },
     });
-    const itemSnapshot = [{ productId: qaProduct.id, name: qaProduct.name, quantityPerDelivery: 1, unitPricePaise: qaProduct.pricePaise }];
+    const itemSnapshot = [{ productId: qaSubscriptionProduct.id, name: qaSubscriptionProduct.name, quantityPerDelivery: 1, unitPricePaise: qaSubscriptionProduct.pricePaise }];
     const qaVersion = await prisma.subscriptionPlanVersion.upsert({
       where: { planId_version: { planId: qaPlan.id, version: 1 } },
-      update: {},
+      update: {
+        pricePaise: 49000,
+        mrpPaise: 52500,
+        totalDeliveries: 7,
+        durationDays: 7,
+        fundingCycle: 'WEEKLY',
+        deliveryFrequency: 'DAILY',
+        itemsSnapshot: itemSnapshot,
+        fullSnapshot: { code: qaPlan.code, name: qaPlan.name, items: itemSnapshot, fundingCycle: 'WEEKLY', totalDeliveries: 7, pricePaise: 49000 },
+      },
       create: {
         id: 'qa-subscription-plan-version-milk-7-v1',
         planId: qaPlan.id,
@@ -347,13 +366,13 @@ async function main() {
         mrpPaise: 52500,
         totalDeliveries: 7,
         durationDays: 7,
-        fundingCycle: 'FULL_PLAN',
+        fundingCycle: 'WEEKLY',
         deliveryFrequency: 'DAILY',
         itemsSnapshot: itemSnapshot,
         deliveryRulesSnapshot: { skipCutoffHours: 12, maximumSkips: 2, skipPolicy: 'EXTEND_PLAN', defaultWindowStartMinute: 360, defaultWindowEndMinute: 540 },
         proofPolicySnapshot: { personal: ['OTP', 'GPS'], trustedDrop: ['GEOFENCE', 'TOKEN', 'PHOTO'] },
         applicabilitySnapshot: { storeIds: [qaStore.id], zoneIds: [] },
-        fullSnapshot: { code: qaPlan.code, name: qaPlan.name, items: itemSnapshot, fundingCycle: 'FULL_PLAN', totalDeliveries: 7, pricePaise: 49000 },
+        fullSnapshot: { code: qaPlan.code, name: qaPlan.name, items: itemSnapshot, fundingCycle: 'WEEKLY', totalDeliveries: 7, pricePaise: 49000 },
         createdById: subscriptionAdmin.id,
       },
     });
@@ -394,7 +413,7 @@ async function main() {
         addressSnapshot,
         policySnapshot: { allowPause: true, allowSkip: true, maximumSkips: 2, skipPolicy: 'EXTEND_PLAN', proofPolicy: { personal: ['OTP', 'GPS'] } },
         amountDuePaise: 49000,
-        fundingCycle: 'FULL_PLAN',
+        fundingCycle: 'WEEKLY',
         deliveries: {
           create: Array.from({ length: 7 }, (_, index) => {
             const serviceDate = new Date(startDate);
@@ -410,7 +429,7 @@ async function main() {
         },
       },
     });
-    console.log('  Subscription QA plan and customer contract ready');
+    console.log('  Subscription QA weekly plan and customer contract ready');
   } else {
     console.log('  Subscription QA fixture skipped because seeded admin/customer/address is missing');
   }
