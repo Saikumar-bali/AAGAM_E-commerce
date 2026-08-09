@@ -48,16 +48,23 @@ describe('Partners notification delivery contracts', () => {
     expect(routing).toContain("['rider', 'delivery-workspace']");
   });
 
-  it('re-verifies the active Rider or Store FCM token after transient registration failures', () => {
+  it('repairs Rider or Store FCM binding without re-prompting notification permission', () => {
     const coordinator = read('notifications/PartnerPushCoordinator.tsx');
-    expect(coordinator).toContain('registerDeviceToken');
+    const sharedPush = read('../../../packages/mobile-shared/src/utils/notifications.ts');
+    expect(coordinator).toContain('reverifyDeviceTokenBinding');
+    expect(coordinator).not.toContain('registerDeviceToken');
     expect(coordinator).toContain('PUSH_STARTUP_RETRY_MS = 30_000');
     expect(coordinator).toContain('PUSH_REVERIFY_MS = 5 * 60_000');
-    expect(coordinator).toContain('setTimeout(reverifyPushRegistration, PUSH_STARTUP_RETRY_MS)');
-    expect(coordinator).toContain('setInterval(reverifyPushRegistration, PUSH_REVERIFY_MS)');
+    expect(coordinator).toContain('pushReverifyInFlight');
+    expect(coordinator).toContain('pushLifecycleStartInFlight');
+    expect(coordinator).toContain('registerMobileSessionCleanup(async () =>');
+    expect(coordinator).toContain('await Promise.all([');
     expect(coordinator).toContain("if (state === 'active')");
-    expect(coordinator).toContain('reverifyPushRegistration();');
     expect(coordinator).toContain("role === 'RIDER' ? 'Aagaam Rider' : 'Aagaam Store Partner'");
+    expect(sharedPush).toContain('hasExistingNotificationPermission');
+    expect(sharedPush).toContain('PermissionsAndroid.check');
+    expect(sharedPush).toContain('export async function reverifyDeviceTokenBinding');
+    expect(sharedPush).not.toContain('reverifyDeviceTokenBinding(deviceName?: string) {\n  const hasPermission = await requestUserPermission()');
   });
 
   it('exposes notifications to both Store Owners and Riders', () => {
