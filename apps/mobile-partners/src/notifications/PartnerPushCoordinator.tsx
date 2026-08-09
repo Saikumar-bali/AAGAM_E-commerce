@@ -1,6 +1,7 @@
 import messaging from '@react-native-firebase/messaging';
 import {
   partnerOperationalSessionKey,
+  registerDeviceToken,
   registerMobileSessionCleanup,
   resolvePartnerOperationalRole,
   startMobilePushLifecycle,
@@ -29,6 +30,7 @@ const NOTIFICATION_KEY = ['partner-notifications'] as const;
 const PartnerAlertTone = NativeModules.PartnerAlertTone as { play?: () => void; stop?: () => void } | undefined;
 const MAX_DEDUPE_ENTRIES = 500;
 const INBOX_POLL_MS = 10_000;
+const PUSH_REPAIR_MS = 2 * 60 * 1000;
 
 type Props = {
   queryClient: QueryClient;
@@ -96,7 +98,9 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     let pushCleanup: () => void = () => undefined;
     let openedCleanup: () => void = () => undefined;
     let interval: ReturnType<typeof setInterval> | undefined;
+    let pushRepairInterval: ReturnType<typeof setInterval> | undefined;
     let polling = false;
+    let repairingPush = false;
 
     const remember = (key: string) => {
       if (!key) return false;
@@ -200,6 +204,22 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     };
 
     const deviceName = role === 'RIDER' ? 'Aagaam Rider' : 'Aagaam Store Partner';
+    const repairPushRegistration = async () => {
+      if (disposed || repairingPush) return;
+      repairingPush = true;
+      try {
+        // Re-upserting is intentional. It repairs a Store/Rider subscription after
+        // a transient API failure, server cleanup, token reassignment, or account
+        // switch even when Firebase has not emitted an onTokenRefresh callback.
+        await registerDeviceToken(deviceName);
+      } catch {
+        // Durable inbox polling remains the fallback; retry on the next foreground
+        // transition or repair interval without interrupting Partner operations.
+      } finally {
+        repairingPush = false;
+      }
+    };
+
     void startMobilePushLifecycle(deviceName, (message) => {
       void showForeground(
         dataFromRemoteMessage(message),
@@ -231,9 +251,13 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
 
     void pollInbox();
     interval = setInterval(() => void pollInbox(), INBOX_POLL_MS);
+    pushRepairInterval = setInterval(() => {
+      if (AppState.currentState === 'active') void repairPushRegistration();
+    }, PUSH_REPAIR_MS);
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         flushNavigation();
+        void repairPushRegistration();
         void pollInbox();
       }
     });
@@ -251,6 +275,7 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
       unregisterCleanup();
       appState.remove();
       if (interval) clearInterval(interval);
+      if (pushRepairInterval) clearInterval(pushRepairInterval);
     };
   }, [queryClient, user]);
 
