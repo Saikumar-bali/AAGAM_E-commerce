@@ -1,63 +1,57 @@
 import { Role } from '@aagam/database';
-import { scopePartnerInbox } from './notifications.controller';
+import {
+  isNotificationForRole,
+  notificationAudienceRoles,
+  resolvePartnerInboxRole,
+} from './notification-audience';
 
-const canonical = (id: string, type: string, readAt: string | null = null) => ({
-  id,
-  recipientId: `recipient-${id}`,
-  type,
-  readAt,
-  metadata: {},
-});
-
-const legacy = (id: string, type: string, readAt: string | null = null) => ({
-  id,
-  type,
-  readAt,
-  metadata: {},
-});
-
-describe('partner notification inbox scoping', () => {
-  const mixedInbox = {
-    items: [
-      canonical('offer', 'ASSIGNMENT_OFFERED'),
-      canonical('completed', 'DELIVERY_COMPLETED'),
-      legacy('support', 'CUSTOMER_SUPPORT_TICKET_OPENED'),
-      legacy('out-for-delivery', 'ORDER_OUT_FOR_DELIVERY'),
-      {
-        ...canonical('migrated', 'DELIVERY_COMPLETED'),
-        metadata: { migratedFromOrderHistory: true },
-      },
-    ],
-    unreadCount: 5,
-    source: 'DEDICATED_WITH_LEGACY_FALLBACK',
-  };
-
-  it('never exposes legacy order history rows to riders', () => {
-    expect(scopePartnerInbox(Role.RIDER, mixedInbox)).toEqual(
-      expect.objectContaining({
-        source: 'PARTNER_SCOPED',
-        unreadCount: 2,
-        items: [
-          expect.objectContaining({ id: 'offer' }),
-          expect.objectContaining({ id: 'completed' }),
-        ],
-      }),
-    );
+describe('partner notification audience scoping', () => {
+  it('resolves a Rider membership even when CUSTOMER remains the primary role', () => {
+    expect(resolvePartnerInboxRole({
+      role: Role.CUSTOMER,
+      roles: [Role.CUSTOMER, Role.RIDER],
+    })).toBe(Role.RIDER);
   });
 
-  it('never exposes legacy support or lifecycle rows to store owners', () => {
-    const scoped = scopePartnerInbox(Role.STORE_OWNER, mixedInbox);
-    expect(scoped.items.map((item: any) => item.id)).toEqual(['offer', 'completed']);
-    expect(scoped.unreadCount).toBe(2);
+  it('resolves a Store Owner membership even when CUSTOMER remains the primary role', () => {
+    expect(resolvePartnerInboxRole({
+      role: Role.CUSTOMER,
+      roles: [Role.CUSTOMER, Role.STORE_OWNER],
+    })).toBe(Role.STORE_OWNER);
   });
 
-  it('rejects migrated legacy lifecycle rows even when they already have a recipient id', () => {
-    const scoped = scopePartnerInbox(Role.RIDER, mixedInbox);
-    expect(scoped.items.some((item: any) => item.id === 'migrated')).toBe(false);
+  it('matches the partner workspace precedence when a legacy account has both partner roles', () => {
+    expect(resolvePartnerInboxRole({
+      role: Role.CUSTOMER,
+      roles: [Role.STORE_OWNER, Role.RIDER],
+    })).toBe(Role.RIDER);
   });
 
-  it('does not alter customer or admin inboxes', () => {
-    expect(scopePartnerInbox(Role.CUSTOMER, mixedInbox)).toBe(mixedInbox);
-    expect(scopePartnerInbox(Role.ADMIN, mixedInbox)).toBe(mixedInbox);
+  it('keeps customer-only lifecycle events out of Rider and Store alerts', () => {
+    for (const eventType of ['STORE_ACCEPTED_ORDER', 'STORE_STARTED_PICKING', 'OUT_FOR_DELIVERY', 'RIDER_AT_CUSTOMER']) {
+      expect(isNotificationForRole(Role.RIDER, eventType)).toBe(false);
+      expect(isNotificationForRole(Role.STORE_OWNER, eventType)).toBe(false);
+    }
+  });
+
+  it('keeps Store operational events out of Rider alerts', () => {
+    for (const eventType of ['ORDER_PLACED', 'ASSIGNMENT_REJECTED', 'RIDER_EN_ROUTE_TO_STORE', 'RIDER_AT_STORE']) {
+      expect(isNotificationForRole(Role.STORE_OWNER, eventType)).toBe(true);
+      expect(isNotificationForRole(Role.RIDER, eventType)).toBe(false);
+    }
+  });
+
+  it('allows only Rider-addressed events in Rider alerts', () => {
+    expect(isNotificationForRole(Role.RIDER, 'ASSIGNMENT_OFFERED')).toBe(true);
+    expect(isNotificationForRole(Role.RIDER, 'ROUTE_ASSIGNED')).toBe(true);
+    expect(isNotificationForRole(Role.RIDER, 'ROUTE_REMOVED')).toBe(true);
+    expect(isNotificationForRole(Role.RIDER, 'DELIVERY_COMPLETED')).toBe(true);
+  });
+
+  it('uses the retained admin-broadcast audience instead of assuming all partners', () => {
+    expect(notificationAudienceRoles('ADMIN_BROADCAST', { audience: 'RIDERS' })).toEqual([Role.RIDER]);
+    expect(isNotificationForRole(Role.RIDER, 'ADMIN_BROADCAST', { audience: 'RIDERS' })).toBe(true);
+    expect(isNotificationForRole(Role.STORE_OWNER, 'ADMIN_BROADCAST', { audience: 'RIDERS' })).toBe(false);
+    expect(notificationAudienceRoles('ADMIN_BROADCAST', {})).toEqual([]);
   });
 });
