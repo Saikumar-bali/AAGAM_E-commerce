@@ -92,26 +92,69 @@ export class NotificationsController {
     return parsed.data as T;
   }
 
+  private inboxRole(user: any, requested?: string) {
+    const requestedRole = String(requested || '').trim().toUpperCase();
+    const memberships = new Set<Role>([
+      user.role,
+      ...(Array.isArray(user.roles) ? user.roles : []),
+    ]);
+    if (
+      (requestedRole === Role.RIDER || requestedRole === Role.STORE_OWNER)
+      && memberships.has(requestedRole as Role)
+    ) {
+      return requestedRole as Role;
+    }
+    return user.role as Role;
+  }
+
+  private inboxLimit(value?: string | number) {
+    return Math.min(100, Math.max(1, Number(value || 50)));
+  }
+
   @Get('inbox')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
-  async inbox(@Req() req: any, @Query('limit') limit?: string) {
-    const inbox = await this.notifications.listInbox(req.user, limit);
-    return scopeNotificationInboxForActor(inbox, req.user.role);
+  async inbox(
+    @Req() req: any,
+    @Query('limit') limit?: string,
+    @Query('role') requestedRole?: string,
+  ) {
+    const role = this.inboxRole(req.user, requestedRole);
+    const requestedLimit = this.inboxLimit(limit);
+    const actor = { ...req.user, role };
+    // Partner workspaces over-fetch before role filtering so unrelated customer
+    // history cannot consume the visible page during the legacy migration window.
+    const fetchLimit = role === Role.RIDER || role === Role.STORE_OWNER ? 100 : requestedLimit;
+    const inbox = scopeNotificationInboxForActor(
+      await this.notifications.listInbox(actor, fetchLimit),
+      role,
+    );
+    const items = inbox.items.slice(0, requestedLimit);
+    return {
+      ...inbox,
+      items,
+      unreadCount: items.filter((item: any) => !item.readAt).length,
+    };
   }
 
   @Patch(':notificationId/read')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
-  async markRead(@Param('notificationId') notificationId: string, @Req() req: any) {
-    if (req.user.role === Role.RIDER || req.user.role === Role.STORE_OWNER) {
+  async markRead(
+    @Param('notificationId') notificationId: string,
+    @Req() req: any,
+    @Query('role') requestedRole?: string,
+  ) {
+    const role = this.inboxRole(req.user, requestedRole);
+    if (role === Role.RIDER || role === Role.STORE_OWNER) {
+      const actor = { ...req.user, role };
       const inbox = scopeNotificationInboxForActor(
-        await this.notifications.listInbox(req.user, 500),
-        req.user.role,
+        await this.notifications.listInbox(actor, 100),
+        role,
       );
       if (!actorCanAccessInboxItem(inbox, notificationId)) {
         throw new NotFoundException('Notification not found');
       }
     }
-    return this.notifications.markRead(req.user, notificationId);
+    return this.notifications.markRead({ ...req.user, role }, notificationId);
   }
 
   @Patch(':recipientId/opened')
