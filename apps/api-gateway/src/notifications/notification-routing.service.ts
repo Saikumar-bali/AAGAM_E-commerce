@@ -29,7 +29,7 @@ export class NotificationRoutingService {
   private async adminRecipients() {
     return prisma.user.findMany({
       where: { role: Role.ADMIN },
-      select: { id: true, role: true },
+      select: { id: true },
     });
   }
 
@@ -65,9 +65,9 @@ export class NotificationRoutingService {
       ? await prisma.order.findUnique({
           where: { id: orderId },
           include: {
-            customer: { select: { id: true, role: true, name: true } },
-            store: { include: { owner: { select: { id: true, role: true, name: true } } } },
-            rider: { include: { user: { select: { id: true, role: true, name: true } } } },
+            customer: { select: { id: true, name: true } },
+            store: { include: { owner: { select: { id: true, name: true } } } },
+            rider: { include: { user: { select: { id: true, name: true } } } },
             payment: { select: { method: true } },
           },
         })
@@ -75,13 +75,17 @@ export class NotificationRoutingService {
 
     const admins = await this.adminRecipients();
     const candidateMap = new Map<string, { id: string; role: Role }>();
-    const add = (user?: { id: string; role: Role } | null) => {
-      if (user?.id) candidateMap.set(user.id, user);
+    const add = (user: { id: string } | null | undefined, role: Role) => {
+      if (!user?.id) return;
+      candidateMap.set(`${user.id}:${role}`, { id: user.id, role });
     };
-    const addAdmins = () => admins.forEach(add);
-    const addCustomer = () => add(order?.customer || null);
-    const addStore = () => add(order?.store?.owner || null);
-    const addRider = () => add(order?.rider?.user || assignment?.riderProfile?.user || null);
+    const addAdmins = () => admins.forEach((user) => add(user, Role.ADMIN));
+    const addCustomer = () => add(order?.customer || null, Role.CUSTOMER);
+    const addStore = () => add(order?.store?.owner || null, Role.STORE_OWNER);
+    const addRider = () => add(
+      order?.rider?.user || assignment?.riderProfile?.user || null,
+      Role.RIDER,
+    );
 
     switch (eventType) {
       case 'ORDER_PLACED':
@@ -98,13 +102,11 @@ export class NotificationRoutingService {
         break;
       case 'ASSIGNMENT_OFFERED': {
         if (payload.riderUserId) {
-          // Look up via RiderProfile; User.role may stay CUSTOMER for
-          // mobile-onboarded riders.
           const profile = await prisma.riderProfile.findUnique({
             where: { userId: payload.riderUserId },
             select: { userId: true },
           });
-          if (profile) add({ id: profile.userId, role: Role.RIDER });
+          if (profile) add({ id: profile.userId }, Role.RIDER);
         } else {
           addRider();
         }
@@ -149,7 +151,7 @@ export class NotificationRoutingService {
         break;
       case 'ROUTE_ASSIGNED':
       case 'ROUTE_REMOVED': {
-        if (payload.riderUserId) add({ id: payload.riderUserId, role: Role.RIDER });
+        if (payload.riderUserId) add({ id: payload.riderUserId }, Role.RIDER);
         else addRider();
         break;
       }
@@ -158,19 +160,29 @@ export class NotificationRoutingService {
         break;
       case 'ADMIN_BROADCAST': {
         const audience = payload.audience || 'ALL_USERS';
-        const roleByAudience: Record<string, Role | null> = {
-          ALL_USERS: null,
-          CUSTOMERS: Role.CUSTOMER,
-          RIDERS: Role.RIDER,
-          STORE_OWNERS: Role.STORE_OWNER,
-          ADMINS: Role.ADMIN,
-        };
-        const users = await prisma.user.findMany({
-          where: roleByAudience[audience] ? { role: roleByAudience[audience] as Role } : {},
-          select: { id: true, role: true },
-          take: 5000,
-        });
-        users.forEach(add);
+        if (audience === 'RIDERS') {
+          const profiles = await prisma.riderProfile.findMany({ select: { userId: true } });
+          profiles.forEach((profile) => add({ id: profile.userId }, Role.RIDER));
+        } else if (audience === 'STORE_OWNERS') {
+          const stores = await prisma.store.findMany({
+            where: { deletedAt: null },
+            select: { ownerId: true },
+            distinct: ['ownerId'],
+          });
+          stores.forEach((store) => add({ id: store.ownerId }, Role.STORE_OWNER));
+        } else if (audience === 'ADMINS') {
+          addAdmins();
+        } else {
+          const users = await prisma.user.findMany({
+            where: audience === 'CUSTOMERS' ? { role: Role.CUSTOMER } : {},
+            select: { id: true, role: true },
+            take: 5000,
+          });
+          users.forEach((user) => add(
+            user,
+            audience === 'CUSTOMERS' ? Role.CUSTOMER : user.role,
+          ));
+        }
         break;
       }
     }
@@ -203,6 +215,7 @@ export class NotificationRoutingService {
         deliveryJobId,
         assignmentId: payload.assignmentId || null,
         riderUserId: payload.riderUserId || assignment?.riderProfile?.userId || order?.rider?.userId || null,
+        ...(eventType === 'ADMIN_BROADCAST' ? { audience: payload.audience || 'ALL_USERS' } : {}),
         ...(payload.metadata || {}),
       },
       recipients,
