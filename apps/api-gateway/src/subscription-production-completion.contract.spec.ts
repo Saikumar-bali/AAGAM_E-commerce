@@ -20,7 +20,7 @@ describe('subscription production completion contracts', () => {
   const notificationRouting = read('apps/api-gateway/src/notifications/notification-routing.service.ts');
   const riderOfflineQueue = read('apps/mobile-partners/src/services/RiderRunOfflineQueue.ts');
   const customerReview = read('apps/mobile-customer/src/screens/customer/SubscriptionReviewScreen.tsx');
-  const admin = read('apps/admin-dashboard/src/app/(admin)/admin/subscriptions/page.tsx');
+  const admin = read('apps/admin-dashboard/src/components/subscriptions/AdminSubscriptionsPage.tsx');
 
   it('uses one shared resolver for quote, create, and occurrence generation', () => {
     expect(customer.match(/this\.serviceability\.resolve\(/g)?.length).toBeGreaterThanOrEqual(3);
