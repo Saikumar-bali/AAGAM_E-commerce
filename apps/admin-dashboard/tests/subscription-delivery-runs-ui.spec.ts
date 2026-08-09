@@ -20,16 +20,29 @@ test('customer sees truthful subscription funding, progress and plan discovery',
   await page.screenshot({ path: `${screenshots}/02-customer-subscription-detail.png`, fullPage: true });
 });
 
-test('admin sees simple rupee plan setup plus subscribers, runs and cash control', async ({ page }) => {
+test('admin sees actual customer subscriptions, real plan records and readable analytics', async ({ page }) => {
   await loginWithCookieSession(page, 'ADMIN');
   await page.goto('/admin/subscriptions');
   await expect(page.getByRole('heading', { name: 'Subscriptions, runs & cash' })).toBeVisible();
-  await expect(page.getByText('Buffalo Milk 1 L', { exact: true })).toBeVisible();
-  await expect(page.getByText('Weekly', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('7 days', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText(/₹490(?:\.00)?/).first()).toBeVisible();
-  await page.getByRole('button', { name: 'New plan' }).click();
 
+  // The route now opens on operational customer subscriptions instead of plan cadence placeholders.
+  await expect(page.getByRole('heading', { name: 'Customer subscriptions' })).toBeVisible();
+  await expect(page.getByText('Buffalo Milk 1 L · 7 Days').first()).toBeVisible();
+
+  // Plans shows one card per persisted plan. It must not synthesize missing Weekly/Monthly slots.
+  await page.getByRole('button', { name: 'Plans', exact: true }).click();
+  await expect(page.getByText('Buffalo Milk 1 L · 7 Days').first()).toBeVisible();
+  await expect(page.getByText('Not created yet')).toHaveCount(0);
+  await page.screenshot({ path: `${screenshots}/03-admin-subscription-control-plane.png`, fullPage: true });
+
+  // Prisma groupBy arrays are rendered as semantic metrics/tables, never raw JSON.
+  await page.getByRole('button', { name: 'Analytics', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Subscription analytics' })).toBeVisible();
+  await expect(page.getByText('Upcoming 7-day demand')).toBeVisible();
+  await expect(page.locator('body')).not.toContainText('"_count"');
+  await expect(page.locator('body')).not.toContainText('"_sum"');
+
+  await page.getByRole('button', { name: 'New plan' }).click();
   await expect(page.getByRole('heading', { name: 'Create subscription plan' })).toBeVisible();
   await expect(page.getByText(/Technical codes, paise conversion and scheduler defaults are handled automatically/i)).toBeVisible();
   await expect(page.getByText('Upload plan image')).toBeVisible();
@@ -42,7 +55,6 @@ test('admin sees simple rupee plan setup plus subscribers, runs and cash control
   await expect(page.getByText('Code', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Internal name', { exact: true })).toHaveCount(0);
   await expect(page.getByText(/Price \(paise\)|MRP \(paise\)|Slot start minute|Generate hours|Skip cutoff/i)).toHaveCount(0);
-  await page.screenshot({ path: `${screenshots}/03-admin-subscription-control-plane.png`, fullPage: true });
 });
 
 test('rider run view explicitly forbids bulk delivery completion and daily cash collection', async ({ page }) => {
