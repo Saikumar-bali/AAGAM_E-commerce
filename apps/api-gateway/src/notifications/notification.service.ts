@@ -250,7 +250,8 @@ export class NotificationService {
             data: {
               notificationId: notification.id,
               userId: routedRecipient.userId,
-              dedupeKey: `${outboxEvent.id}:${routedRecipient.userId}`,
+              recipientRole: routedRecipient.role,
+              dedupeKey: `${outboxEvent.id}:${routedRecipient.userId}:${routedRecipient.role}`,
               status: 'QUEUED',
             },
           });

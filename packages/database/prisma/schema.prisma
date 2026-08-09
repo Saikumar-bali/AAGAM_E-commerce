@@ -1125,6 +1125,7 @@ model NotificationRecipient {
   notification   Notification                @relation(fields: [notificationId], references: [id], onDelete: Cascade)
   userId         String
   user           User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipientRole  Role?
   status         NotificationRecipientStatus @default(QUEUED)
   dedupeKey      String                      @unique
   sentAt         DateTime?
@@ -1137,8 +1138,9 @@ model NotificationRecipient {
 
   attempts NotificationDeliveryAttempt[]
 
-  @@unique([notificationId, userId])
+  @@unique([notificationId, userId, recipientRole])
   @@index([userId, status, createdAt])
+  @@index([userId, recipientRole, status, createdAt])
 }
 
 model NotificationDeliveryAttempt {
