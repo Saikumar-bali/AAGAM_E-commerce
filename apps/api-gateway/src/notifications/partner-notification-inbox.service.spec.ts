@@ -4,9 +4,10 @@ import { PartnerNotificationInboxService } from './partner-notification-inbox.se
 describe('PartnerNotificationInboxService', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  const recipient = (id: string, eventType: string, data: any = {}, readAt: Date | null = null) => ({
+  const recipient = (id: string, eventType: string, role: Role, readAt: Date | null = null) => ({
     id,
     userId: 'user-1',
+    recipientRole: role,
     status: readAt ? 'READ' : 'SENT',
     sentAt: new Date('2026-08-09T04:00:00.000Z'),
     openedAt: null,
@@ -20,52 +21,49 @@ describe('PartnerNotificationInboxService', () => {
       orderId: 'order-1',
       deliveryJobId: 'job-1',
       deepLink: null,
-      data,
+      data: {},
       createdAt: new Date('2026-08-09T04:00:00.000Z'),
     },
   });
 
-  it('continues to older rows when the newest page contains only migrated or wrong-role alerts', async () => {
-    const firstPage = Array.from({ length: 50 }, (_, index) => (
-      index % 2 === 0
-        ? recipient(`migrated-${index}`, 'DELIVERY_COMPLETED', { migratedFromOrderHistory: true })
-        : recipient(`customer-${index}`, 'OUT_FOR_DELIVERY')
-    ));
-    const secondPage = [
-      recipient('rider-offer', 'ASSIGNMENT_OFFERED'),
-      recipient('rider-completed', 'DELIVERY_COMPLETED', {}, new Date('2026-08-09T04:05:00.000Z')),
-    ];
-    const findMany = jest.spyOn(prisma.notificationRecipient, 'findMany')
-      .mockResolvedValueOnce(firstPage as any)
-      .mockResolvedValueOnce(secondPage as any);
-
-    const service = new PartnerNotificationInboxService();
-    const inbox = await service.list('user-1', Role.RIDER, 2);
-
-    expect(findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({ skip: 0, take: 50 }));
-    expect(findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({ skip: 50, take: 50 }));
-    expect(inbox.items.map((item) => item.id)).toEqual(['rider-offer', 'rider-completed']);
-    expect(inbox.unreadCount).toBe(1);
-    expect(inbox.source).toBe('PARTNER_SCOPED');
-  });
-
-  it('does not show customer-only canonical events in a Rider inbox for the same user', async () => {
-    jest.spyOn(prisma.notificationRecipient, 'findMany').mockResolvedValue([
-      recipient('customer-out', 'OUT_FOR_DELIVERY'),
-      recipient('rider-offer', 'ASSIGNMENT_OFFERED'),
+  it('queries Rider recipients by persisted role before applying the public limit', async () => {
+    const findMany = jest.spyOn(prisma.notificationRecipient, 'findMany').mockResolvedValue([
+      recipient('rider-offer', 'ASSIGNMENT_OFFERED', Role.RIDER),
+      recipient('rider-completed', 'DELIVERY_COMPLETED', Role.RIDER, new Date('2026-08-09T04:05:00.000Z')),
     ] as any);
 
-    const inbox = await new PartnerNotificationInboxService().list('user-1', Role.RIDER, 10);
-    expect(inbox.items.map((item) => item.id)).toEqual(['rider-offer']);
+    const inbox = await new PartnerNotificationInboxService().list('user-1', Role.RIDER, 2);
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: 'user-1', recipientRole: Role.RIDER },
+      take: 2,
+    }));
+    expect(inbox.items.map((item) => item.id)).toEqual(['rider-offer', 'rider-completed']);
+    expect(inbox.unreadCount).toBe(1);
+    expect(inbox.source).toBe('PARTNER_ROLE_SCOPED');
   });
 
-  it('does not show Rider-only canonical events in a Store inbox for the same user', async () => {
-    jest.spyOn(prisma.notificationRecipient, 'findMany').mockResolvedValue([
-      recipient('rider-offer', 'ASSIGNMENT_OFFERED'),
-      recipient('store-arrival', 'RIDER_AT_STORE'),
+  it('queries Store recipients independently for a multi-role identity', async () => {
+    const findMany = jest.spyOn(prisma.notificationRecipient, 'findMany').mockResolvedValue([
+      recipient('store-arrival', 'RIDER_AT_STORE', Role.STORE_OWNER),
+      recipient('store-completed', 'DELIVERY_COMPLETED', Role.STORE_OWNER),
     ] as any);
 
     const inbox = await new PartnerNotificationInboxService().list('user-1', Role.STORE_OWNER, 10);
-    expect(inbox.items.map((item) => item.id)).toEqual(['store-arrival']);
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: 'user-1', recipientRole: Role.STORE_OWNER },
+    }));
+    expect(inbox.items.map((item) => item.id)).toEqual(['store-arrival', 'store-completed']);
+  });
+
+  it('rejects read acknowledgement for a recipient belonging to another role', async () => {
+    jest.spyOn(prisma.notificationRecipient, 'findFirst').mockResolvedValue(null);
+    await expect(
+      new PartnerNotificationInboxService().markRead('user-1', Role.RIDER, 'store-recipient'),
+    ).rejects.toThrow('Notification not found');
+    expect(prisma.notificationRecipient.findFirst).toHaveBeenCalledWith({
+      where: { id: 'store-recipient', userId: 'user-1', recipientRole: Role.RIDER },
+    });
   });
 });
