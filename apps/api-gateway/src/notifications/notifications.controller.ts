@@ -66,6 +66,33 @@ export function getFirebaseWebPushConfig() {
   };
 }
 
+export function scopePartnerInbox(role: Role, inbox: any) {
+  if (role !== Role.RIDER && role !== Role.STORE_OWNER) return inbox;
+
+  const items = (Array.isArray(inbox?.items) ? inbox.items : []).filter((item: any) => {
+    const metadata = item?.metadata || {};
+    const isCanonicalRecipient = Boolean(item?.recipientId) && metadata.migratedFromOrderHistory !== true;
+    if (isCanonicalRecipient) return true;
+
+    // Support/rating rows predate the outbox and are still useful to the owning
+    // Store. They are never Rider notifications. All order/delivery lifecycle
+    // rows must come from NotificationRecipient so the documented role matrix is
+    // enforced and legacy OrderStatusHistory cannot leak unrelated events.
+    if (role === Role.STORE_OWNER) {
+      return item?.type === 'CUSTOMER_SUPPORT_TICKET_OPENED'
+        || item?.type === 'CUSTOMER_RATING_SUBMITTED';
+    }
+    return false;
+  });
+
+  return {
+    ...inbox,
+    items,
+    unreadCount: items.filter((item: any) => !item?.readAt).length,
+    source: 'PARTNER_SCOPED',
+  };
+}
+
 @Controller('notifications')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class NotificationsController {
@@ -89,8 +116,9 @@ export class NotificationsController {
 
   @Get('inbox')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
-  inbox(@Req() req: any, @Query('limit') limit?: string) {
-    return this.notifications.listInbox(req.user, limit);
+  async inbox(@Req() req: any, @Query('limit') limit?: string) {
+    const inbox = await this.notifications.listInbox(req.user, limit);
+    return scopePartnerInbox(req.user.role, inbox);
   }
 
   @Patch(':notificationId/read')
