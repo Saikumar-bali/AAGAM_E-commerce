@@ -1,0 +1,69 @@
+name: One-shot notification service role patch
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'fix/partner-notification-role-routing-store-push' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+      - name: Patch notification materialization
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/api-gateway/src/notifications/notification.service.ts')
+          text = path.read_text()
+
+          replacements = [
+            (
+              '''    const recipients = await prisma.notificationRecipient.findMany({\n      where: { userId: actor.id },\n      include: { notification: true },\n      orderBy: { createdAt: 'desc' },\n      take: limit,\n    });''',
+              '''    const recipients = await prisma.notificationRecipient.findMany({\n      where: { userId: actor.id, recipientRole: actor.role },\n      include: { notification: true },\n      orderBy: { createdAt: 'desc' },\n      take: limit,\n    });'''
+            ),
+            (
+              '''    const recipient = await prisma.notificationRecipient.findFirst({\n      where: { id: notificationOrSourceId, userId: actor.id },\n    });''',
+              '''    const recipient = await prisma.notificationRecipient.findFirst({\n      where: { id: notificationOrSourceId, userId: actor.id, recipientRole: actor.role },\n    });'''
+            ),
+            (
+              '''    const recipient = await prisma.notificationRecipient.findFirst({\n      where: { id: recipientId, userId: actor.id },\n    });''',
+              '''    const recipient = await prisma.notificationRecipient.findFirst({\n      where: { id: recipientId, userId: actor.id, recipientRole: actor.role },\n    });'''
+            ),
+            (
+              '''              notificationId: notification.id,\n              userId: routedRecipient.userId,\n              dedupeKey: `${outboxEvent.id}:${routedRecipient.userId}`,\n              status: 'QUEUED',''',
+              '''              notificationId: notification.id,\n              userId: routedRecipient.userId,\n              recipientRole: routedRecipient.role,\n              dedupeKey: `${outboxEvent.id}:${routedRecipient.userId}:${routedRecipient.role}`,\n              status: 'QUEUED','''
+            ),
+            (
+              '''    const dedupeKey = `legacy:${row.id}:${actor.id}`;''',
+              '''    const dedupeKey = `legacy:${row.id}:${actor.id}:${actor.role}`;'''
+            ),
+            (
+              '''          notificationId: notification.id,\n          userId: actor.id,\n          dedupeKey,\n          status: markRead ? 'READ' : 'SENT',''',
+              '''          notificationId: notification.id,\n          userId: actor.id,\n          recipientRole: actor.role,\n          dedupeKey,\n          status: markRead ? 'READ' : 'SENT','''
+            ),
+          ]
+
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'Expected notification service block not found:\n{old}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+
+          git rm .github/workflows/one-shot-notification-service-role.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/api-gateway/src/notifications/notification.service.ts
+          git commit -m 'fix(notifications): materialize recipients by routed role'
+          git push origin HEAD:${{ github.head_ref }}
