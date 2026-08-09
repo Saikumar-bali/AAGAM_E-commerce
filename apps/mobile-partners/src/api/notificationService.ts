@@ -96,7 +96,11 @@ export const notificationService = {
   },
 
   markOpened: async (recipientId: string) => {
-    const response = await apiClient.patch(`/notifications/${encodeURIComponent(recipientId)}/opened`);
+    const response = await apiClient.patch(
+      `/notifications/${encodeURIComponent(recipientId)}/opened`,
+      undefined,
+      { params: { role: activePartnerRole() } },
+    );
     return response.data;
   },
 
