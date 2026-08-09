@@ -1,0 +1,202 @@
+name: Apply requested admin and customer polish
+
+on:
+  push:
+    branches:
+      - fix/admin-copy-customer-mobile-polish-20260809
+    paths:
+      - .github/workflows/apply-admin-customer-polish.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/admin-copy-customer-mobile-polish-20260809
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply requested changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def read(path):
+              return Path(path).read_text(encoding='utf-8')
+
+          def write(path, content):
+              Path(path).write_text(content, encoding='utf-8')
+
+          def replace_exact(path, old, new, count=1):
+              text = read(path)
+              actual = text.count(old)
+              if actual != count:
+                  raise SystemExit(f'{path}: expected {count} occurrence(s), found {actual}: {old[:100]!r}')
+              write(path, text.replace(old, new, count))
+
+          # Admin: use the already-human-friendly create modal on the two requested routes.
+          stores = 'apps/admin-dashboard/src/app/(admin)/admin/stores/page.tsx'
+          replace_exact(
+              stores,
+              "import { InternalPartnerCreateButton } from '@/components/InternalPartnerOnboarding';",
+              "import { InternalPartnerCreateButton } from '@/components/InternalPartnerOnboardingSimple';",
+          )
+          text = read(stores)
+          text = text.replace('  ShieldCheck,\n', '', 1)
+          banner = re.compile(
+              r'\n\s*<div className="mb-5 flex items-start gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm font-semibold text-teal-900">\s*'
+              r'<ShieldCheck className="mt-0\.5 h-5 w-5 shrink-0" />\s*'
+              r'<div><p className="font-black">One Store creation path</p><p className="mt-1 text-xs leading-5 text-teal-800">New stores now use Partner Applications for profile completion, private documents and Admin approval\. No OTP is required when the account is created by Admin\.</p></div>\s*'
+              r'</div>\n',
+              re.S,
+          )
+          text, n = banner.subn('\n', text, count=1)
+          if n != 1:
+              raise SystemExit(f'{stores}: Store onboarding guide banner was not found')
+          write(stores, text)
+
+          partners = 'apps/admin-dashboard/src/app/(admin)/admin/partner-applications/page.tsx'
+          replace_exact(
+              partners,
+              "import { InternalPartnerCreateButton, InternalPartnerDraftControls } from '@/components/InternalPartnerOnboarding';",
+              "import { InternalPartnerCreateButton, InternalPartnerDraftControls } from '@/components/InternalPartnerOnboardingSimple';",
+          )
+
+          # Customer subscription list: make the final plan fully scrollable above the floating nav.
+          subs = 'apps/mobile-customer/src/screens/customer/SubscriptionPlansScreen.tsx'
+          replace_exact(
+              subs,
+              "import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';\n",
+              "import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';\nimport { useSafeAreaInsets } from 'react-native-safe-area-context';\n",
+          )
+          replace_exact(
+              subs,
+              "const money = (paise: number) => `₹${(Number(paise || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;\n",
+              "const money = (paise: number) => `₹${(Number(paise || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;\nconst bottomNavScrollClearance = 132;\n",
+          )
+          replace_exact(
+              subs,
+              "  const route = useRoute<RouteProp<CustomerStackParamList, 'SubscriptionPlans'>>();\n",
+              "  const route = useRoute<RouteProp<CustomerStackParamList, 'SubscriptionPlans'>>();\n  const insets = useSafeAreaInsets();\n",
+          )
+          replace_exact(
+              subs,
+              "  const productId = route.params?.productId;\n",
+              "  const productId = route.params?.productId;\n  const listBottomInset = bottomNavScrollClearance + Math.max(insets.bottom, 8);\n",
+          )
+          replace_exact(
+              subs,
+              "        contentContainerStyle={styles.list}\n        showsVerticalScrollIndicator={false}\n",
+              "        contentContainerStyle={[styles.list, { paddingBottom: listBottomInset }]}\n        scrollIndicatorInsets={{ bottom: listBottomInset }}\n        showsVerticalScrollIndicator={false}\n",
+          )
+
+          # Customer cart: show sale price, original MRP, and per-item savings together.
+          cart = 'apps/mobile-customer/src/screens/customer/CartScreen.tsx'
+          replace_exact(
+              cart,
+              "import { AagamBrand } from '../../components/AagamBrand';\n\n",
+              "import { AagamBrand } from '../../components/AagamBrand';\n\nconst money = (value: number) => Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });\n\n",
+          )
+          replace_exact(
+              cart,
+              '<Text style={styles.itemPrice}>₹{item.product.price}</Text><Text style={styles.stockPending}>Availability checked at checkout</Text>',
+              "<View style={styles.itemPriceRow}><Text style={styles.itemPrice}>₹{money(Number(item.product.price || 0))}</Text>{getProductMrp(item.product) > Number(item.product.price || 0) ? <Text style={styles.itemMrp}>MRP ₹{money(getProductMrp(item.product))}</Text> : null}</View>{getProductMrp(item.product) > Number(item.product.price || 0) ? <Text style={styles.itemSaving}>Save ₹{money(getProductMrp(item.product) - Number(item.product.price || 0))} per item</Text> : null}<Text style={styles.stockPending}>Availability checked at checkout</Text>",
+          )
+          replace_exact(
+              cart,
+              "itemPrice: { marginTop: 7, color: '#0F172A', fontSize: 16, fontWeight: '900' }, stock:",
+              "itemPriceRow: { marginTop: 7, flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 6 }, itemPrice: { color: '#0F172A', fontSize: 16, fontWeight: '900' }, itemMrp: { color: '#94A3B8', fontSize: 11, fontWeight: '800', textDecorationLine: 'line-through' }, itemSaving: { marginTop: 2, color: '#B45309', fontSize: 11, fontWeight: '900' }, stock:",
+          )
+
+          # Checkout: COD is the only selectable method until online payments are actually supported.
+          checkout = 'apps/mobile-customer/src/screens/customer/CheckoutScreen.tsx'
+          replace_exact(
+              checkout,
+              "  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('COD');\n",
+              "  const paymentMethod = 'COD' as const;\n",
+          )
+          replace_exact(
+              checkout,
+              "      notify.success('Order placed', paymentMethod === 'ONLINE' ? 'Your order is waiting for payment confirmation.' : 'Your COD order has been confirmed.');\n",
+              "      notify.success('Order placed', 'Your COD order has been confirmed.');\n",
+          )
+          text = read(checkout)
+          payment_pattern = re.compile(
+              r'<View style=\{styles\.paymentRow\}>\{\(\[\'COD\', \'ONLINE\'\] as const\)\.map\(\(option\) => \{ const active = paymentMethod === option; return <TouchableOpacity testID=\{`checkout_payment_\$\{option\.toLowerCase\(\)\}`\} key=\{option\} style=\{\[styles\.paymentButton, active && styles\.paymentButtonActive\]\} onPress=\{\(\) => setPaymentMethod\(option\)\}><Text style=\{\[styles\.paymentLabel, active && styles\.paymentLabelActive\]\}>\{option === \'COD\' \? \'Cash on Delivery\' : \'Pay Online\'\}</Text><Text style=\{styles\.paymentMeta\}>\{option === \'COD\' \? \'Pay when the order arrives\' : \'Simulated payment capture\'\}</Text></TouchableOpacity>; \}\)\}</View>'
+          )
+          payment_replacement = '''<View style={styles.paymentRow}><TouchableOpacity testID="checkout_payment_cod" style={[styles.paymentButton, styles.paymentButtonActive]} accessibilityState={{ selected: true }}><Text style={[styles.paymentLabel, styles.paymentLabelActive]}>Cash on Delivery</Text><Text style={styles.paymentMeta}>Pay when the order arrives</Text></TouchableOpacity><TouchableOpacity testID="checkout_payment_online" disabled accessibilityState={{ disabled: true }} style={[styles.paymentButton, { opacity: 0.55, backgroundColor: '#F8FAFC' }]}><Text style={[styles.paymentLabel, { color: '#94A3B8' }]}>Pay Online</Text><Text style={styles.paymentMeta}>Currently unavailable</Text></TouchableOpacity></View>'''
+          text, n = payment_pattern.subn(payment_replacement, text, count=1)
+          if n != 1:
+              raise SystemExit(f'{checkout}: payment selector pattern was not found')
+          write(checkout, text)
+
+          # Android notification branding: both APKs provide the same valid monochrome small icon.
+          customer_manifest = 'apps/mobile-customer/android/app/src/main/AndroidManifest.xml'
+          replace_exact(
+              customer_manifest,
+              '      android:supportsRtl="true">\n      <activity',
+              '      android:supportsRtl="true">\n      <meta-data\n        android:name="com.google.firebase.messaging.default_notification_icon"\n        android:resource="@drawable/ic_notification" />\n      <meta-data\n        android:name="com.google.firebase.messaging.default_notification_color"\n        android:resource="@color/notification_icon_color" />\n      <activity',
+          )
+
+          partner_manifest = 'apps/mobile-partners/android/app/src/main/AndroidManifest.xml'
+          replace_exact(
+              partner_manifest,
+              '      <meta-data\n        android:name="com.google.firebase.messaging.default_notification_icon"\n        android:value="@drawable/ic_notification" />\n',
+              '      <meta-data\n        android:name="com.google.firebase.messaging.default_notification_icon"\n        android:resource="@drawable/ic_notification" />\n      <meta-data\n        android:name="com.google.firebase.messaging.default_notification_color"\n        android:resource="@color/notification_icon_color" />\n',
+          )
+
+          for colors in [
+              'apps/mobile-customer/android/app/src/main/res/values/colors.xml',
+              'apps/mobile-partners/android/app/src/main/res/values/colors.xml',
+          ]:
+              replace_exact(
+                  colors,
+                  '    <color name="ic_launcher_background">#061B36</color>\n',
+                  '    <color name="ic_launcher_background">#061B36</color>\n    <color name="notification_icon_color">#0F766E</color>\n',
+              )
+
+          icon = '''<vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="48dp"
+              android:height="48dp"
+              android:viewportWidth="48"
+              android:viewportHeight="48">
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M24,4L41,40H31L25,26H19L13,40H7L24,4zM24,18L21,26H27L24,18z" />
+          </vector>
+          '''
+          customer_icon = Path('apps/mobile-customer/android/app/src/main/res/drawable/ic_notification.xml')
+          customer_icon.parent.mkdir(parents=True, exist_ok=True)
+          customer_icon.write_text(icon, encoding='utf-8')
+
+          # Assertions tied directly to the requested behavior.
+          assert "InternalPartnerOnboardingSimple" in read(stores)
+          assert "InternalPartnerOnboardingSimple" in read(partners)
+          assert "One Store creation path" not in read(stores)
+          assert "listBottomInset" in read(subs) and "scrollIndicatorInsets" in read(subs)
+          assert "MRP ₹" in read(cart) and "per item" in read(cart)
+          assert "Currently unavailable" in read(checkout)
+          assert "setPaymentMethod" not in read(checkout)
+          assert 'android:resource="@drawable/ic_notification"' in read(customer_manifest)
+          assert 'android:resource="@drawable/ic_notification"' in read(partner_manifest)
+          assert customer_icon.exists()
+          assert Path('apps/mobile-partners/android/app/src/main/res/drawable/ic_notification.xml').exists()
+          PY
+
+          git diff --check
+
+      - name: Commit implementation and remove bootstrap workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/apply-admin-customer-polish.yml
+          git add -A
+          git commit -m "fix: polish admin onboarding and customer Android checkout UI"
+          git push origin HEAD:fix/admin-copy-customer-mobile-polish-20260809
