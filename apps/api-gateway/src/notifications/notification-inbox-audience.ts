@@ -42,25 +42,6 @@ const RIDER_LEGACY_EVENTS = new Set([
   'ORDER_DELIVERED',
 ]);
 
-const STORE_DEDICATED_EVENTS = new Set([
-  'ORDER_PLACED',
-  'ASSIGNMENT_ACCEPTED',
-  'ASSIGNMENT_REJECTED',
-  'ASSIGNMENT_EXPIRED',
-  'RIDER_EN_ROUTE_TO_STORE',
-  'RIDER_AT_STORE',
-  'DELIVERY_COMPLETED',
-  'DELIVERY_FAILED',
-  'DELIVERY_CANCELLED',
-]);
-
-const RIDER_DEDICATED_EVENTS = new Set([
-  'ASSIGNMENT_OFFERED',
-  'ROUTE_ASSIGNED',
-  'ROUTE_REMOVED',
-  'DELIVERY_COMPLETED',
-]);
-
 const SINGLETON_ORDER_EVENTS = new Set([
   'ORDER_PLACED',
   'DELIVERY_COMPLETED',
@@ -97,23 +78,7 @@ export function legacyNotificationSemantic(item: InboxItem) {
   return type;
 }
 
-function broadcastVisibleToRole(item: InboxItem, role: Role) {
-  const audience = upper(item.metadata?.audience);
-  if (!audience || audience === 'ALL_USERS') return true;
-  if (role === Role.RIDER) return audience === 'RIDERS';
-  if (role === Role.STORE_OWNER) return audience === 'STORE_OWNERS';
-  return false;
-}
-
-function dedicatedVisibleToRole(item: InboxItem, role: Role) {
-  const semantic = legacyNotificationSemantic(item);
-  if (semantic === 'ADMIN_BROADCAST') return broadcastVisibleToRole(item, role);
-  if (role === Role.STORE_OWNER) return STORE_DEDICATED_EVENTS.has(semantic);
-  if (role === Role.RIDER) return RIDER_DEDICATED_EVENTS.has(semantic);
-  return true;
-}
-
-function legacyVisibleToRole(item: InboxItem, role: Role) {
+export function isLegacyNotificationVisibleToRole(item: InboxItem, role: Role) {
   // Customer support and rating history are case-management data, not Partner
   // operational alerts. They previously leaked because legacy fallback was scoped
   // only by whether the Rider/Store happened to be attached to the order.
@@ -136,11 +101,12 @@ export function scopeNotificationInboxForActor<T extends InboxItem>(
 ): InboxPayload<T> {
   if (role !== Role.RIDER && role !== Role.STORE_OWNER) return inbox;
 
-  const visibleDedicated = inbox.items.filter((item) => (
-    Boolean(item.recipientId) && dedicatedVisibleToRole(item, role)
-  ));
+  // Dedicated rows have already been filtered by NotificationRecipient.recipientRole.
+  // Only legacy OrderStatusHistory fallback still needs audience inference.
   const dedicatedKeys = new Set(
-    visibleDedicated.map((item) => `${item.orderId || ''}:${legacyNotificationSemantic(item)}`),
+    inbox.items
+      .filter((item) => Boolean(item.recipientId))
+      .map((item) => `${item.orderId || ''}:${legacyNotificationSemantic(item)}`),
   );
 
   const seenSingletons = new Set<string>();
@@ -148,16 +114,14 @@ export function scopeNotificationInboxForActor<T extends InboxItem>(
     const semantic = legacyNotificationSemantic(item);
     const key = `${item.orderId || ''}:${semantic}`;
 
-    if (item.recipientId) {
-      if (!dedicatedVisibleToRole(item, role)) return false;
-    } else {
-      if (!legacyVisibleToRole(item, role)) return false;
-      if (dedicatedKeys.has(key)) return false;
+    if (!item.recipientId) {
+      if (!isLegacyNotificationVisibleToRole(item, role)) return false;
+      // Exact migrated source IDs are removed before this stage. Semantic
+      // suppression is intentionally limited to singleton lifecycle events so a
+      // later failure/reassignment attempt is never hidden by an earlier one.
+      if (SINGLETON_ORDER_EVENTS.has(semantic) && dedicatedKeys.has(key)) return false;
     }
 
-    // Reassignments and retries are intentionally repeatable. Only final/singleton
-    // order events are collapsed when rolling migration produced more than one
-    // durable/legacy representation of the same semantic event.
     if (item.orderId && SINGLETON_ORDER_EVENTS.has(semantic)) {
       if (seenSingletons.has(key)) return false;
       seenSingletons.add(key);
@@ -173,12 +137,4 @@ export function scopeNotificationInboxForActor<T extends InboxItem>(
       ? 'DEDICATED_WITH_SCOPED_LEGACY_FALLBACK'
       : 'DEDICATED',
   };
-}
-
-export function actorCanAccessInboxItem(inbox: InboxPayload, notificationOrSourceId: string) {
-  return inbox.items.some((item) => (
-    item.id === notificationOrSourceId
-    || item.recipientId === notificationOrSourceId
-    || item.sourceHistoryId === notificationOrSourceId
-  ));
 }
