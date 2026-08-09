@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -10,6 +10,12 @@ import { navigate } from './src/navigation/navigationRef';
 import { DeliveryOtpModal } from './src/components/orders/DeliveryOtpModal';
 
 const queryClient = new QueryClient();
+
+type DeliveryOtpRequest = {
+  deliveryJobId: string;
+  ownerUserId: string;
+  revision: number;
+};
 
 function deliveryJobFromMessage(message: any) {
   const data = message?.data || {};
@@ -64,18 +70,41 @@ function PushLifecycle({ onDeliveryOtp }: { onDeliveryOtp: (deliveryJobId: strin
 }
 
 function App() {
-  const [deliveryOtpJobId, setDeliveryOtpJobId] = useState<string | null>(null);
+  const userId = useAuthStore((state) => state.user?.id || null);
+  const [deliveryOtp, setDeliveryOtp] = useState<DeliveryOtpRequest | null>(null);
+
+  const showDeliveryOtp = useCallback((deliveryJobId: string) => {
+    if (!userId) return;
+    // Always create a new request object. Reissuing an OTP for the same job
+    // remounts the modal immediately instead of waiting for its polling interval.
+    setDeliveryOtp({ deliveryJobId, ownerUserId: userId, revision: Date.now() });
+  }, [userId]);
+
+  useEffect(() => {
+    // OTP state is account-scoped. Signing out or switching customers must make
+    // the previous account's delivery code impossible to render on this device.
+    setDeliveryOtp(null);
+  }, [userId]);
+
   useEffect(() => { void checkForAppUpdate(); }, []);
+
+  const visibleDeliveryOtp = Boolean(
+    userId
+    && deliveryOtp
+    && deliveryOtp.ownerUserId === userId,
+  );
+
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" />
-        <PushLifecycle onDeliveryOtp={setDeliveryOtpJobId} />
+        <PushLifecycle onDeliveryOtp={showDeliveryOtp} />
         <RootNavigator />
         <DeliveryOtpModal
-          deliveryJobId={deliveryOtpJobId}
-          visible={Boolean(deliveryOtpJobId)}
-          onClose={() => setDeliveryOtpJobId(null)}
+          key={deliveryOtp ? `${deliveryOtp.deliveryJobId}:${deliveryOtp.revision}` : 'delivery-otp-closed'}
+          deliveryJobId={visibleDeliveryOtp ? deliveryOtp!.deliveryJobId : null}
+          visible={visibleDeliveryOtp}
+          onClose={() => setDeliveryOtp(null)}
         />
         <CustomerToast />
       </SafeAreaProvider>
