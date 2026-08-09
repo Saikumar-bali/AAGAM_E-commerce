@@ -8,8 +8,6 @@ import { NotificationService } from './notification.service';
 
 type PartnerActor = { id: string; role: Role };
 
-type LegacyPage = Awaited<ReturnType<PartnerNotificationInboxService['legacyPage']>>;
-
 @Injectable()
 export class PartnerNotificationInboxService {
   constructor(private readonly notifications: NotificationService) {}
