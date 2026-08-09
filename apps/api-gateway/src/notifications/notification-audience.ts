@@ -1,7 +1,7 @@
 import { Role } from '@aagam/database';
 import { NotificationEventTypeType } from '@aagam/types';
 
-export type PartnerInboxRole = Role.RIDER | Role.STORE_OWNER;
+export type PartnerInboxRole = 'RIDER' | 'STORE_OWNER';
 
 type UserWithRoles = {
   role?: Role | string | null;
