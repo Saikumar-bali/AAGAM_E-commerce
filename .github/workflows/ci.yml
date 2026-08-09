@@ -314,7 +314,7 @@ jobs:
           DISPATCH_STORE_PASS: ${{ env.CI_TEST_PASSWORD }}
           DISPATCH_RIDER_PASS: ${{ env.CI_TEST_PASSWORD }}
           NOTIF_ADMIN_PASS: ${{ env.CI_TEST_PASSWORD }}
-          NOTIF_CUSTOMER_PASS: ${{ env.CI_CUSTOMER_EMAIL }}
+          NOTIF_CUSTOMER_PASS: ${{ env.CI_TEST_PASSWORD }}
           NOTIF_STORE_PASS: ${{ env.CI_TEST_PASSWORD }}
           NOTIF_RIDER_PASS: ${{ env.CI_TEST_PASSWORD }}
           NOTIF_FALLBACK_PASS: ${{ env.CI_TEST_PASSWORD }}
