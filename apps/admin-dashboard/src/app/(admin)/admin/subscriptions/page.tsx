@@ -684,6 +684,41 @@ export default function AdminSubscriptionsPage() {
 }
 
 function Plans({ plans, onEdit, onLifecycle }: any) {
+  const groups = new Map<string, any[]>();
+  plans.forEach((plan: any) => {
+    const productName = plan.items?.[0]?.product?.name || plan.name.replace(/\s+-\s+(One-time|Weekly|Monthly).*$/i, '').replace(/\s+\d+\s+Days.*$/i, '').trim();
+    groups.set(productName, [...(groups.get(productName) || []), plan]);
+  });
+  const variant = (rows: any[], type: string) => rows.find((plan) => type === 'ONE_TIME'
+    ? plan.durationDays === 1
+    : type === 'WEEKLY' ? plan.fundingCycle === 'WEEKLY' : plan.durationDays === 30 && plan.fundingCycle === 'FULL_PLAN');
+  return (
+    <div className="space-y-5">
+      {[...groups.entries()].map(([productName, rows]) => (
+        <article key={productName} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-4 border-b border-slate-100 bg-emerald-50/60 p-5">
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-emerald-50">
+              {rows[0]?.imageUrl ? <img src={rows[0].imageUrl} alt="" className="h-full w-full object-contain" /> : <CalendarDays className="h-7 w-7 text-emerald-700" />}
+            </div>
+            <div><p className="text-xs font-black uppercase tracking-wider text-emerald-700">Product plan family</p><h2 className="mt-1 text-xl font-black text-slate-900">{productName}</h2></div>
+          </div>
+          <div className="grid gap-3 p-5 md:grid-cols-3">
+            {([['ONE_TIME', 'One-time', '1 delivery'], ['WEEKLY', 'Weekly', '7 days'], ['MONTHLY', 'Monthly', '30 days']] as const).map(([type, label, copy]) => {
+              const plan = variant(rows, type);
+              return <div key={type} className="rounded-2xl border border-slate-200 p-4">
+                <div className="flex items-center justify-between"><div><p className="font-black text-slate-900">{label}</p><p className="text-xs font-bold text-slate-400">{copy}</p></div>{plan ? <span className={`rounded-full px-2 py-1 text-[10px] font-black ${plan.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{plan.status}</span> : null}</div>
+                {plan ? <><p className="mt-4 text-2xl font-black text-slate-900">{formatPaise(plan.pricePaise)}</p><p className="text-xs font-bold text-slate-400">MRP {formatPaise(plan.mrpPaise)}</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => onEdit(plan)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black">Edit</button><button onClick={() => onLifecycle(plan, 'archive')} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-600">Archive</button></div></> : <p className="mt-5 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-800">Not created yet</p>}
+              </div>;
+            })}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+/* Legacy card layout retained below for archived-plan compatibility. */
+function LegacyPlans({ plans, onEdit, onLifecycle }: any) {
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       {plans.map((plan: any) => (
