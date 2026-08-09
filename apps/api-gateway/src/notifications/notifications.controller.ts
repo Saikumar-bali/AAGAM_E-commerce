@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Headers,
   Param,
@@ -23,7 +24,11 @@ import {
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { resolvePartnerInboxRole } from './notification-audience';
+import {
+  collectUserRoles,
+  PartnerInboxRole,
+  resolvePartnerInboxRole,
+} from './notification-audience';
 import { NotificationService } from './notification.service';
 import { NotificationWorkerService } from './notification-worker.service';
 import { OutboxService } from './outbox.service';
@@ -39,9 +44,6 @@ export function getFirebaseWebPushConfig() {
     messagingSenderId: process.env.FIREBASE_WEB_MESSAGING_SENDER_ID || '',
     appId: process.env.FIREBASE_WEB_APP_ID || '',
   };
-  // Firebase expects an unpadded URL-safe Base64 VAPID key. Environment values
-  // are frequently copied with visual wrapping/whitespace, which breaks the
-  // padding calculation inside Firebase Messaging before it calls window.atob().
   const vapidKey = (process.env.FIREBASE_WEB_VAPID_KEY || '').replace(/\s+/g, '');
   const blank = (value: string) => value.trim().length === 0;
   const enabled = [
@@ -90,23 +92,46 @@ export class NotificationsController {
     return parsed.data as T;
   }
 
+  private partnerRole(user: any, requested?: string): PartnerInboxRole | null {
+    const normalized = String(requested || '').trim().toUpperCase();
+    if (normalized === Role.RIDER || normalized === Role.STORE_OWNER) {
+      if (!collectUserRoles(user).has(normalized as Role)) {
+        throw new ForbiddenException('The requested Partner role is no longer available');
+      }
+      return normalized as PartnerInboxRole;
+    }
+    return resolvePartnerInboxRole(user);
+  }
+
   @Get('inbox')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
-  inbox(@Req() req: any, @Query('limit') limit?: string) {
-    const partnerRole = resolvePartnerInboxRole(req.user);
+  inbox(@Req() req: any, @Query('limit') limit?: string, @Query('role') role?: string) {
+    const partnerRole = this.partnerRole(req.user, role);
     if (partnerRole) return this.partnerInbox.list(req.user.id, partnerRole, limit);
     return this.notifications.listInbox(req.user, limit);
   }
 
   @Patch(':notificationId/read')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
-  markRead(@Param('notificationId') notificationId: string, @Req() req: any) {
+  markRead(
+    @Param('notificationId') notificationId: string,
+    @Req() req: any,
+    @Query('role') role?: string,
+  ) {
+    const partnerRole = this.partnerRole(req.user, role);
+    if (partnerRole) return this.partnerInbox.markRead(req.user.id, partnerRole, notificationId);
     return this.notifications.markRead(req.user, notificationId);
   }
 
   @Patch(':recipientId/opened')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
-  markOpened(@Param('recipientId') recipientId: string, @Req() req: any) {
+  markOpened(
+    @Param('recipientId') recipientId: string,
+    @Req() req: any,
+    @Query('role') role?: string,
+  ) {
+    const partnerRole = this.partnerRole(req.user, role);
+    if (partnerRole) return this.partnerInbox.markOpened(req.user.id, partnerRole, recipientId);
     return this.notifications.markOpened(req.user, recipientId);
   }
 

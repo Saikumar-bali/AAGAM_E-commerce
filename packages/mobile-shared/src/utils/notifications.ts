@@ -24,6 +24,9 @@ const PUSH_TOKEN_KEY = 'aagam:push:token';
 const PUSH_SYNCED_AT_KEY = 'aagam:push:synced-at';
 const PUSH_SERVER_REVERIFY_MS = 24 * 60 * 60 * 1000;
 
+let registrationWritesSuspended = false;
+const activeRegistrationWrites = new Set<Promise<unknown>>();
+
 function getMessaging(): FirebaseMessaging | null {
   try {
     // Lazy loading keeps local builds usable when google-services.json is not installed.
@@ -113,35 +116,63 @@ export async function getFCMToken() {
   }
 }
 
-async function persistSubscription(token: string, deviceName?: string) {
-  const response = await apiClient.post('/notifications/push/subscriptions', {
-    provider: 'FCM_MOBILE',
-    token,
-    userAgent: `ReactNative/${Platform.OS}/${String(Platform.Version)}`,
-    deviceName: deviceName || `AAGAM ${Platform.OS}`,
-  });
+function trackRegistrationWrite<T>(operation: () => Promise<T>): Promise<T | null> {
+  if (registrationWritesSuspended) return Promise.resolve(null);
+  let tracked: Promise<T | null>;
+  tracked = Promise.resolve()
+    .then(() => (registrationWritesSuspended ? null : operation()))
+    .finally(() => activeRegistrationWrites.delete(tracked));
+  activeRegistrationWrites.add(tracked);
+  return tracked;
+}
 
-  const subscriptionId = response.data?.id || response.data?.subscriptionId;
-  if (subscriptionId) await AsyncStorage.setItem(SUBSCRIPTION_ID_KEY, String(subscriptionId));
-  await AsyncStorage.multiSet([
-    [PUSH_TOKEN_KEY, token],
-    [PUSH_SYNCED_AT_KEY, String(Date.now())],
-  ]);
-  return response.data;
+export function resumeMobilePushRegistration() {
+  registrationWritesSuspended = false;
+}
+
+export async function quiesceMobilePushRegistration() {
+  registrationWritesSuspended = true;
+  while (activeRegistrationWrites.size > 0) {
+    await Promise.all(
+      Array.from(activeRegistrationWrites).map((pending) => pending.catch(() => undefined)),
+    );
+  }
+}
+
+async function persistSubscription(token: string, deviceName?: string) {
+  return trackRegistrationWrite(async () => {
+    const response = await apiClient.post('/notifications/push/subscriptions', {
+      provider: 'FCM_MOBILE',
+      token,
+      userAgent: `ReactNative/${Platform.OS}/${String(Platform.Version)}`,
+      deviceName: deviceName || `AAGAM ${Platform.OS}`,
+    });
+
+    const subscriptionId = response.data?.id || response.data?.subscriptionId;
+    if (subscriptionId) await AsyncStorage.setItem(SUBSCRIPTION_ID_KEY, String(subscriptionId));
+    await AsyncStorage.multiSet([
+      [PUSH_TOKEN_KEY, token],
+      [PUSH_SYNCED_AT_KEY, String(Date.now())],
+    ]);
+    return response.data;
+  });
 }
 
 export async function registerDeviceToken(deviceName?: string) {
+  if (registrationWritesSuspended) return { enabled: false, reason: 'SESSION_ENDING' };
   const hasPermission = await requestUserPermission();
   if (!hasPermission) return { enabled: false, reason: 'PERMISSION_NOT_GRANTED' };
   const token = await getFCMToken();
   if (!token) return { enabled: false, reason: 'TOKEN_UNAVAILABLE' };
   const subscription = await persistSubscription(token, deviceName);
+  if (!subscription) return { enabled: false, reason: 'SESSION_ENDING' };
   return { enabled: true, token, subscription };
 }
 
 // Repairs the authenticated account's server binding without ever opening an OS
 // permission prompt. This is safe to call from app foreground/timer recovery.
 export async function reverifyDeviceTokenBinding(deviceName?: string) {
+  if (registrationWritesSuspended) return { enabled: false, reason: 'SESSION_ENDING' };
   const messaging = getMessaging();
   if (!messaging) return { enabled: false, reason: 'MESSAGING_UNAVAILABLE' };
   if (!(await hasExistingNotificationPermission(messaging))) {
@@ -150,11 +181,12 @@ export async function reverifyDeviceTokenBinding(deviceName?: string) {
   const token = await getFCMToken();
   if (!token) return { enabled: false, reason: 'TOKEN_UNAVAILABLE' };
   const subscription = await persistSubscription(token, deviceName);
+  if (!subscription) return { enabled: false, reason: 'SESSION_ENDING' };
   return { enabled: true, token, subscription };
 }
 
 export async function registerRefreshedToken(token: string, deviceName?: string) {
-  if (!token) return;
+  if (!token || registrationWritesSuspended) return;
   const [[, previousToken], [, syncedAt], [, subscriptionId]] = await AsyncStorage.multiGet([
     PUSH_TOKEN_KEY,
     PUSH_SYNCED_AT_KEY,
@@ -167,8 +199,6 @@ export async function registerRefreshedToken(token: string, deviceName?: string)
     && Date.now() - lastSync < PUSH_SERVER_REVERIFY_MS,
   );
 
-  // FCM may return the same token after the server subscription was pruned or
-  // disabled. Re-upsert it periodically instead of trusting local equality forever.
   if (previousToken === token && serverRegistrationIsFresh) return;
   await persistSubscription(token, deviceName);
 }
@@ -181,6 +211,8 @@ export async function startMobilePushLifecycle(
   const messaging = getMessaging();
   if (!messaging) return () => undefined;
 
+  // A fresh authenticated lifecycle re-enables registration after logout quiesced it.
+  resumeMobilePushRegistration();
   await registerDeviceToken(deviceName).catch((error) => {
     if (__DEV__) console.warn('[FCM] Device registration failed.', error?.message || error);
   });
@@ -216,6 +248,10 @@ export async function startMobilePushLifecycle(
 }
 
 export async function disableCurrentMobilePushSubscription() {
+  // Block any new initial/reverify/token-refresh POST, then wait for all existing
+  // writes before disabling the final server binding. A late refresh can no longer
+  // resurrect a Store/Rider token after logout.
+  await quiesceMobilePushRegistration();
   const subscriptionId = await AsyncStorage.getItem(SUBSCRIPTION_ID_KEY);
   try {
     if (subscriptionId) {
