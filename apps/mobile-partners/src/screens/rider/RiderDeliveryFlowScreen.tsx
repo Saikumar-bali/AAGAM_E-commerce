@@ -133,7 +133,7 @@ export const RiderDeliveryFlowScreen = () => {
   const nextAction = activeJob ? nextActionForStatus(activeJob.status) : null;
   const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
   const expectedCod = Number(summary?.cod?.expectedAmountPaise || 0);
-  const returningToStore = activeJob?.status === 'RETURNING_TO_STORE';
+  const returningToStore = Boolean(activeJob && ['DELIVERY_FAILED', 'RETURNING_TO_STORE'].includes(activeJob.status));
   const headingToStore = Boolean(activeJob && (returningToStore || ['RIDER_ASSIGNED', 'RIDER_EN_ROUTE_TO_STORE'].includes(activeJob.status)));
   const customerName = activeJob?.order.customer?.name || activeJob?.order.addressSnapshot?.recipientName || 'Customer';
   const destinationName = headingToStore ? activeJob?.order.store?.name || 'Pickup store' : customerName;
@@ -183,7 +183,7 @@ export const RiderDeliveryFlowScreen = () => {
         });
       }
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Private contact unavailable', text2: errorMessage(error) });
+      Toast.show({ type: 'error', text1: 'Contact unavailable', text2: errorMessage(error) });
     } finally {
       setBusy(null);
     }
@@ -304,7 +304,7 @@ export const RiderDeliveryFlowScreen = () => {
         </View>
 
         <View style={styles.contactCard}>
-          <View style={styles.contactHeader}><PhoneCall size={20} color="#0F766E" /><View style={styles.flex}><Text style={styles.contactTitle}>Delivery contact</Text><Text style={styles.contactText}>{headingToStore ? 'Call or message the store contact for this active pickup.' : 'Call or message the phone number saved with the customer delivery address.'}</Text></View></View>
+          <View style={styles.contactHeader}><PhoneCall size={20} color="#0F766E" /><View style={styles.flex}><Text style={styles.contactTitle}>Delivery contact</Text><Text style={styles.contactText}>{returningToStore ? 'Call or message the store contact for this parcel return.' : headingToStore ? 'Call or message the store contact for this active pickup.' : 'Call or message the phone number saved with the customer delivery address.'}</Text></View></View>
           <View style={styles.contactActions}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Call ${targetRole.toLowerCase()} delivery contact`} style={styles.contactButton} disabled={Boolean(busy)} onPress={() => void requestPrivateContact('CALL')}>{busy === 'contact-CALL' ? <ActivityIndicator color="#0F766E" /> : <PhoneCall size={19} color="#0F766E" />}<Text style={styles.contactButtonText}>Call</Text></TouchableOpacity>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Message ${targetRole.toLowerCase()} delivery contact`} style={styles.contactButton} disabled={Boolean(busy)} onPress={() => void requestPrivateContact('MESSAGE')}>{busy === 'contact-MESSAGE' ? <ActivityIndicator color="#0F766E" /> : <MessageCircle size={19} color="#0F766E" />}<Text style={styles.contactButtonText}>Message</Text></TouchableOpacity>
