@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import DashboardLayout from '@/components/DashboardLayout';
-import { InternalPartnerCreateButton } from '@/components/InternalPartnerOnboarding';
+import { InternalPartnerCreateButton } from '@/components/InternalPartnerOnboardingSimple';
 import { useToast, getToastErrorMessage } from '@/components/ToastProvider';
 import { apiClient } from '@aagam/utils';
 import {
@@ -14,7 +14,6 @@ import {
   Package,
   RotateCcw,
   Search,
-  ShieldCheck,
   Store as StoreIcon,
   Trash2,
   User,
@@ -167,11 +166,6 @@ export default function AdminStoresPage() {
             <p className="text-gray-500">Manage approved stores and create new Store Owner access through the Admin onboarding workflow.</p>
           </div>
           <InternalPartnerCreateButton fixedType="STORE" buttonLabel="Add New Store" onCreated={continueInternalOnboarding} />
-        </div>
-
-        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm font-semibold text-teal-900">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
-          <div><p className="font-black">One Store creation path</p><p className="mt-1 text-xs leading-5 text-teal-800">New stores now use Partner Applications for profile completion, private documents and Admin approval. No OTP is required when the account is created by Admin.</p></div>
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
