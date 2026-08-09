@@ -21,18 +21,18 @@ class PartnerAlertToneModule(
     handler.post {
       try {
         activeRingtone?.stop()
-        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
           ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         activeRingtone = RingtoneManager.getRingtone(reactContext, uri)?.also { ringtone ->
           if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
             ringtone.isLooping = false
-            ringtone.volume = 0.85f
+            ringtone.volume = 1.0f
           }
           ringtone.play()
           handler.postDelayed({
             ringtone.stop()
             if (activeRingtone === ringtone) activeRingtone = null
-          }, 4500)
+          }, 3200)
         }
       } catch (_error: Throwable) {
         // Notification delivery must never fail because a device has no audible tone.
