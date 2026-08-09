@@ -14,6 +14,8 @@ type FirebaseMessaging = {
   getToken: () => Promise<string>;
   onTokenRefresh: (handler: (token: string) => void | Promise<void>) => () => void;
   onMessage?: (handler: (remoteMessage: RemoteMessage) => void | Promise<void>) => () => void;
+  onNotificationOpenedApp?: (handler: (remoteMessage: RemoteMessage) => void | Promise<void>) => () => void;
+  getInitialNotification?: () => Promise<RemoteMessage | null>;
   setBackgroundMessageHandler: (handler: (remoteMessage: RemoteMessage) => Promise<void>) => void;
 };
 
@@ -174,6 +176,7 @@ export async function registerRefreshedToken(token: string, deviceName?: string)
 export async function startMobilePushLifecycle(
   deviceName?: string,
   onForegroundMessage?: (remoteMessage: RemoteMessage) => void | Promise<void>,
+  onOpenedMessage?: (remoteMessage: RemoteMessage) => void | Promise<void>,
 ) {
   const messaging = getMessaging();
   if (!messaging) return () => undefined;
@@ -190,10 +193,25 @@ export async function startMobilePushLifecycle(
   const unsubscribeForeground = onForegroundMessage && messaging.onMessage
     ? messaging.onMessage(onForegroundMessage)
     : () => undefined;
+  const unsubscribeOpened = onOpenedMessage && messaging.onNotificationOpenedApp
+    ? messaging.onNotificationOpenedApp(onOpenedMessage)
+    : () => undefined;
+
+  if (onOpenedMessage && messaging.getInitialNotification) {
+    void messaging.getInitialNotification()
+      .then((remoteMessage) => {
+        if (remoteMessage) return onOpenedMessage(remoteMessage);
+        return undefined;
+      })
+      .catch((error) => {
+        if (__DEV__) console.warn('[FCM] Initial notification read failed.', error?.message || error);
+      });
+  }
 
   return () => {
     unsubscribeRefresh?.();
     unsubscribeForeground?.();
+    unsubscribeOpened?.();
   };
 }
 

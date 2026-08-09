@@ -13,6 +13,19 @@ function ratingValue(value: unknown, field: string) {
   return Number(value);
 }
 
+function snapshotObject(value: unknown): Record<string, any> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : {};
+}
+
+function supportItem(value: any) {
+  return {
+    id: value?.id || value?.orderItemId || value?.productId || null,
+    productId: value?.productId || value?.product?.id || null,
+    name: value?.name || value?.productName || value?.product?.name || 'Item',
+    quantity: Number(value?.quantity || value?.qty || 1),
+  };
+}
+
 @Injectable()
 export class PostDeliveryService {
   constructor(private readonly orderService: OrderService) {}
@@ -94,18 +107,43 @@ export class PostDeliveryService {
     if (actor.role !== Role.ADMIN) throw new ForbiddenException('Only admin can view support queue');
     const rows = await prisma.orderStatusHistory.findMany({
       where: { note: 'Customer opened support ticket.' },
-      include: { order: { include: { customer: { select: { name: true, email: true, phone: true } }, store: { select: { name: true } } } } },
+      include: {
+        order: {
+          include: {
+            customer: { select: { name: true, email: true, phone: true } },
+            store: { select: { name: true } },
+            items: { include: { product: { select: { id: true, name: true } } } },
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
-    return rows.map((row) => ({
-      id: row.id,
-      orderId: row.orderId,
-      createdAt: row.createdAt,
-      customer: row.order.customer,
-      store: row.order.store,
-      metadata: row.metadata,
-    }));
+    return rows.map((row) => {
+      const customerSnapshot = snapshotObject(row.order.customerSnapshot);
+      const addressSnapshot = snapshotObject(row.order.addressSnapshot);
+      const phone = row.order.customer.phone
+        || customerSnapshot.phoneE164
+        || customerSnapshot.phone
+        || addressSnapshot.phoneE164
+        || addressSnapshot.phone
+        || null;
+      const snapshotItems = Array.isArray(row.order.itemsSnapshot) ? row.order.itemsSnapshot : [];
+      // Prefer the immutable checkout snapshot so support sees exactly what the
+      // customer ordered even if a product is renamed later.
+      const items = snapshotItems.length > 0
+        ? snapshotItems.map(supportItem)
+        : row.order.items.map(supportItem);
+      return {
+        id: row.id,
+        orderId: row.orderId,
+        createdAt: row.createdAt,
+        customer: { ...row.order.customer, phone },
+        store: row.order.store,
+        items,
+        metadata: row.metadata,
+      };
+    });
   }
 
   private async postDeliveryPayload(orderId: string) {

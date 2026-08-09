@@ -31,7 +31,7 @@ test.describe('Phase 3: Delivery operations UI', () => {
   test('customer delivery code route keeps the code customer-scoped', async ({ page }) => {
     await loginWithCookieSession(page, 'CUSTOMER');
     await page.goto('/shop/delivery-code/non-existent-proof-job');
-    await expect(page.getByRole('heading', { name: 'Delivery verification' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Delivery verification', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Customer-only delivery code' })).toBeVisible();
     await expect(page.getByText(/The rider cannot retrieve it from their account/i)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Refresh code' })).toBeVisible();

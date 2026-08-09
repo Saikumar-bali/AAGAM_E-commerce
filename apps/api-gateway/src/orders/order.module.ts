@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { PaymentsModule } from '../payments/payments.module';
+import { UploadModule } from '../upload/upload.module';
 import { AuditedDispatchService } from './audited-dispatch.service';
 import { AutoDispatchService } from './auto-dispatch.service';
 import { CodSettlementFacadeService } from './cod-settlement-facade.service';
@@ -9,6 +10,8 @@ import { DeliveryEventService } from './delivery-event.service';
 import { DeliveryJobService } from './delivery-job.service';
 import { DeliveryOperationsController } from './delivery-operations.controller';
 import { DeliveryOperationsService } from './delivery-operations.service';
+import { DeliveryPhotoProofController } from './delivery-photo-proof.controller';
+import { DeliveryPhotoProofService } from './delivery-photo-proof.service';
 import { DeliveryWorkflowService } from './delivery-workflow.service';
 import { DispatchAssignmentService } from './dispatch-assignment.service';
 import { DispatchController } from './dispatch.controller';
@@ -25,13 +28,14 @@ import { StoreFulfillmentController } from './store-fulfillment.controller';
 import { StoreFulfillmentService } from './store-fulfillment.service';
 
 @Module({
-  imports: [PaymentsModule],
+  imports: [PaymentsModule, UploadModule],
   controllers: [
     OrderController,
     StoreFulfillmentController,
     DispatchController,
     PostDeliveryController,
     DeliveryOperationsController,
+    DeliveryPhotoProofController,
     CustomerDeliveryContextController,
     PickupReadinessController,
   ],
@@ -47,6 +51,7 @@ import { StoreFulfillmentService } from './store-fulfillment.service';
       useClass: AuditedDispatchService,
     },
     DeliveryOperationsService,
+    DeliveryPhotoProofService,
     CodSettlementFacadeService,
     PostDeliveryService,
     AutoDispatchService,

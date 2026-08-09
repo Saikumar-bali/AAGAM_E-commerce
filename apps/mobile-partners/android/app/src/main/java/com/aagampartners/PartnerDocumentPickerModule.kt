@@ -90,6 +90,25 @@ class PartnerDocumentPickerModule(
     }
   }
 
+  /**
+   * Delivery evidence is uploaded immediately and must not remain in the public
+   * MediaStore gallery. Only camera URIs created by this module are passed here.
+   */
+  @ReactMethod
+  fun deleteCapturedImage(uriValue: String, promise: Promise) {
+    try {
+      val uri = Uri.parse(uriValue)
+      if (uri.scheme != "content" || uri.authority != MediaStore.AUTHORITY) {
+        promise.reject("CAMERA_URI_INVALID", "Only captured MediaStore images can be deleted")
+        return
+      }
+      val deleted = reactContext.contentResolver.delete(uri, null, null)
+      promise.resolve(deleted > 0)
+    } catch (error: Exception) {
+      promise.reject("CAMERA_DELETE_FAILED", "Captured image could not be removed", error)
+    }
+  }
+
   private fun beginRequest(mode: String, promise: Promise): Boolean {
     if (pendingPromise != null) {
       promise.reject("DOCUMENT_PICKER_BUSY", "Another document action is already open")

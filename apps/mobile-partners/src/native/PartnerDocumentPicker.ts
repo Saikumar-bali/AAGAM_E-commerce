@@ -11,6 +11,7 @@ export type PartnerPickedDocument = {
 type NativePicker = {
   pickDocument: () => Promise<PartnerPickedDocument>;
   captureImage: () => Promise<PartnerPickedDocument>;
+  deleteCapturedImage: (uri: string) => Promise<boolean>;
 };
 
 const nativePicker = NativeModules.AagamPartnerDocumentPicker as NativePicker | undefined;
@@ -25,4 +26,5 @@ function requirePicker(): NativePicker {
 export const PartnerDocumentPicker = {
   pickDocument: () => requirePicker().pickDocument(),
   captureImage: () => requirePicker().captureImage(),
+  deleteCapturedImage: (uri: string) => requirePicker().deleteCapturedImage(uri),
 };

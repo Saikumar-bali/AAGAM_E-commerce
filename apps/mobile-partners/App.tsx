@@ -7,6 +7,7 @@ import { checkForAppUpdate } from '@aagam/mobile-shared';
 import RootNavigator from './src/navigation/RootNavigator';
 import { hydrateCachedRiderWorkspace } from './src/api/riderService';
 import { PartnerPushCoordinator } from './src/notifications/PartnerPushCoordinator';
+import { RiderPhotoProofFallback } from './src/components/RiderPhotoProofFallback';
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ function App() {
           <>
             <PartnerPushCoordinator queryClient={queryClient} />
             <RootNavigator />
+            <RiderPhotoProofFallback />
           </>
         ) : (
           <View style={styles.loading}>
