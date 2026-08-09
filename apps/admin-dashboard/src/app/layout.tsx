@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/components/ToastProvider";
 import TenDigitPhoneGuard from "@/components/TenDigitPhoneGuard";
+import CustomerDeliveryOtpListener from "@/components/customer/CustomerDeliveryOtpListener";
 
 export const metadata: Metadata = {
   title: "Aagaam Commerce",
@@ -23,6 +24,7 @@ export default function RootLayout({
       <body className="antialiased">
         <ToastProvider>
           <TenDigitPhoneGuard />
+          <CustomerDeliveryOtpListener />
           {children}
         </ToastProvider>
       </body>
