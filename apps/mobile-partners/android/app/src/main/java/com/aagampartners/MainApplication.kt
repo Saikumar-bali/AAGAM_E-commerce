@@ -38,21 +38,23 @@ class MainApplication : Application(), ReactApplication {
   private fun createOperationsNotificationChannel() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
 
-    // A versioned channel is intentional: Android channel sound settings are immutable
-    // after creation, so existing installations receive the new partner alert profile.
-    val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+    // Android freezes a channel's sound after first creation. v3 intentionally
+    // moves existing Rider/Store installs away from the old TYPE_ALARM profile.
+    // Background/killed-state pushes use the device's notification stream, while
+    // foreground alerts use our short multi-tone PartnerAlertTone pattern.
+    val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
     val audioAttributes = AudioAttributes.Builder()
       .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
       .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
       .build()
     val channel = NotificationChannel(
       OPERATIONS_CHANNEL_ID,
-      "Aagaam priority operations",
+      "Aagaam urgent operations",
       NotificationManager.IMPORTANCE_HIGH,
     ).apply {
-      description = "New orders, rider offers, pickup updates and delivery exceptions"
+      description = "High-priority new orders, rider offers, pickup updates and delivery exceptions"
       enableVibration(true)
-      vibrationPattern = longArrayOf(0, 180, 100, 180, 100, 280)
+      vibrationPattern = longArrayOf(0, 320, 120, 320, 120, 520, 180, 320)
       enableLights(true)
       lightColor = Color.rgb(13, 148, 136)
       setSound(soundUri, audioAttributes)
@@ -65,6 +67,6 @@ class MainApplication : Application(), ReactApplication {
   }
 
   companion object {
-    const val OPERATIONS_CHANNEL_ID = "aagam_priority_operations_v2"
+    const val OPERATIONS_CHANNEL_ID = "aagam_priority_operations_v3"
   }
 }
