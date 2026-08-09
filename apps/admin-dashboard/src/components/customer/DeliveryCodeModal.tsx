@@ -2,7 +2,7 @@
 
 import { apiClient } from '@aagam/utils';
 import { Clock3, KeyRound, RefreshCw, ShieldCheck, X } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 type Props = {
   deliveryJobId?: string | null;
@@ -32,34 +32,48 @@ export default function DeliveryCodeModal({ deliveryJobId, open, onClose }: Prop
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [remaining, setRemaining] = useState(0);
+  const requestSequence = useRef(0);
 
-  const load = async () => {
-    if (!deliveryJobId || !open) return;
+  const load = async (jobId = deliveryJobId) => {
+    if (!jobId || !open) return;
+    const requestId = ++requestSequence.current;
     setLoading(true);
     setError(null);
     try {
       const res = await apiClient.get(
-        `/orders/delivery-operations/jobs/${encodeURIComponent(deliveryJobId)}/otp/customer`,
+        `/orders/delivery-operations/jobs/${encodeURIComponent(jobId)}/otp/customer`,
       );
+      if (requestId !== requestSequence.current) return;
       setCode(String(res.data?.code || ''));
       setExpiresAt(res.data?.expiresAt || null);
     } catch (err: any) {
+      if (requestId !== requestSequence.current) return;
       setCode(null);
       setExpiresAt(null);
       setError(errorMessage(err));
     } finally {
-      setLoading(false);
+      if (requestId === requestSequence.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !deliveryJobId) {
+      requestSequence.current += 1;
+      setLoading(false);
+      return;
+    }
+    const activeJobId = deliveryJobId;
+    requestSequence.current += 1;
     setCode(null);
     setExpiresAt(null);
     setError(null);
-    void load();
-    const timer = window.setInterval(load, 15_000);
-    return () => window.clearInterval(timer);
+    setLoading(false);
+    void load(activeJobId);
+    const timer = window.setInterval(() => void load(activeJobId), 15_000);
+    return () => {
+      requestSequence.current += 1;
+      window.clearInterval(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, deliveryJobId]);
 
@@ -132,7 +146,7 @@ export default function DeliveryCodeModal({ deliveryJobId, open, onClose }: Prop
 
           <div className="mt-5 flex items-center justify-between">
             <button
-              onClick={() => void load()}
+              onClick={() => void load(deliveryJobId)}
               disabled={loading}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
             >
