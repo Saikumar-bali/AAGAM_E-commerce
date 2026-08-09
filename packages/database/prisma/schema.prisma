@@ -418,6 +418,7 @@ enum DeliveryVerificationMethod {
   CUSTOMER_OTP_PIN
   TRUSTED_DROP
   SECURITY_RECEPTION
+  RIDER_PHOTO_EVIDENCE
 }
 
 enum CodSettlementStatus {
