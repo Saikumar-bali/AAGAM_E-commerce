@@ -1,3 +1,4 @@
+import { resolvePartnerOperationalRole, useAuthStore } from '@aagam/mobile-shared';
 import { apiClient } from './client';
 
 export type PartnerNotification = {
@@ -69,9 +70,15 @@ function normalizePreferences(value: unknown): NotificationPreference[] {
   return normalized.filter((item: NotificationPreference) => Boolean(item.eventType));
 }
 
+function activePartnerRole() {
+  return resolvePartnerOperationalRole(useAuthStore.getState().user as any) || undefined;
+}
+
 export const notificationService = {
   getInbox: async (limit = 50): Promise<PartnerNotificationInbox> => {
-    const response = await apiClient.get('/notifications/inbox', { params: { limit } });
+    const response = await apiClient.get('/notifications/inbox', {
+      params: { limit, role: activePartnerRole() },
+    });
     return {
       items: Array.isArray(response.data?.items) ? response.data.items : [],
       unreadCount: Number(response.data?.unreadCount || 0),
@@ -80,7 +87,11 @@ export const notificationService = {
   },
 
   markRead: async (notificationId: string) => {
-    const response = await apiClient.patch(`/notifications/${encodeURIComponent(notificationId)}/read`);
+    const response = await apiClient.patch(
+      `/notifications/${encodeURIComponent(notificationId)}/read`,
+      undefined,
+      { params: { role: activePartnerRole() } },
+    );
     return response.data;
   },
 
