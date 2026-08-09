@@ -38,15 +38,20 @@ describe('Partners notification delivery contracts', () => {
     expect(toneModule).toContain('3200');
   });
 
-  it('keeps a durable inbox fallback and repairs Store/Rider FCM registration', () => {
+  it('keeps a durable inbox fallback and repairs Store/Rider FCM registration without permission prompts', () => {
     const coordinator = read('notifications/PartnerPushCoordinator.tsx');
+    const sharedPush = read('../../packages/mobile-shared/src/utils/notifications.ts');
     const routing = read('domain/partnerNotifications.ts');
     expect(coordinator).toContain('notificationService.getInbox(50)');
     expect(coordinator).toContain('INBOX_POLL_MS = 10_000');
     expect(coordinator).toContain('PUSH_REPAIR_MS = 2 * 60 * 1000');
-    expect(coordinator).toContain('registerDeviceToken(deviceName)');
+    expect(coordinator).toContain('repairDeviceToken(deviceName)');
     expect(coordinator).toContain("if (state === 'active')");
     expect(coordinator).toContain('repairPushRegistration()');
+    expect(coordinator).toContain('if (repairPromise) await repairPromise');
+    expect(sharedPush).toContain('PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS)');
+    expect(sharedPush).toContain('export async function repairDeviceToken');
+    expect(sharedPush).not.toContain('repairDeviceToken(deviceName?: string) {\n  const hasPermission = await requestUserPermission()');
     expect(coordinator).toContain('Push setup unavailable');
     expect(coordinator).toContain('notificationDedupeKey(payload)}:opened');
     expect(routing).toContain("['partner-store-orders']");
