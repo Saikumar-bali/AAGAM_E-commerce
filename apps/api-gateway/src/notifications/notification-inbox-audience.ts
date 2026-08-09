@@ -42,6 +42,12 @@ const RIDER_LEGACY_EVENTS = new Set([
   'ORDER_DELIVERED',
 ]);
 
+const SINGLETON_ORDER_EVENTS = new Set([
+  'ORDER_PLACED',
+  'DELIVERY_COMPLETED',
+  'DELIVERY_CANCELLED',
+]);
+
 function upper(value: unknown) {
   return typeof value === 'string' ? value.trim().toUpperCase() : '';
 }
@@ -64,6 +70,7 @@ export function legacyNotificationSemantic(item: InboxItem) {
   }
 
   const type = upper(item.type);
+  if (type === 'ORDER_CONFIRMED') return 'ORDER_PLACED';
   if (type === 'ORDER_DELIVERED') return 'DELIVERY_COMPLETED';
   if (type === 'ORDER_CANCELLED') return 'DELIVERY_CANCELLED';
   if (type === 'ORDER_RIDER_ASSIGNED') return 'ASSIGNMENT_ACCEPTED';
@@ -99,7 +106,7 @@ export function scopeNotificationInboxForActor<T extends InboxItem>(
       .map((item) => `${item.orderId || ''}:${legacyNotificationSemantic(item)}`),
   );
 
-  const seen = new Set<string>();
+  const seenSingletons = new Set<string>();
   const items = inbox.items.filter((item) => {
     const semantic = legacyNotificationSemantic(item);
     const key = `${item.orderId || ''}:${semantic}`;
@@ -109,12 +116,12 @@ export function scopeNotificationInboxForActor<T extends InboxItem>(
       if (dedicatedKeys.has(key)) return false;
     }
 
-    // Duplicate durable events can exist during rolling migration. Prefer the
-    // first (newest) item returned by the service for the same order + semantic
-    // event so the Partner sees one operational alert, not multiple copies.
-    if (item.orderId && semantic) {
-      if (seen.has(key)) return false;
-      seen.add(key);
+    // Reassignments and retries are intentionally repeatable. Only final/singleton
+    // order events are collapsed when rolling migration produced more than one
+    // durable/legacy representation of the same semantic event.
+    if (item.orderId && SINGLETON_ORDER_EVENTS.has(semantic)) {
+      if (seenSingletons.has(key)) return false;
+      seenSingletons.add(key);
     }
     return true;
   });
