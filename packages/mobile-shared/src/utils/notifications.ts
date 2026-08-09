@@ -59,6 +59,15 @@ async function requestAndroidNotificationPermission() {
   return result === PermissionsAndroid.RESULTS.GRANTED;
 }
 
+async function hasExistingAndroidNotificationPermission() {
+  if (Platform.OS !== 'android' || Number(Platform.Version) < 33) return true;
+  try {
+    return await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+  } catch {
+    return false;
+  }
+}
+
 export async function requestUserPermission() {
   const messaging = getMessaging();
   if (!messaging) return false;
@@ -113,6 +122,21 @@ async function persistSubscription(token: string, deviceName?: string) {
 export async function registerDeviceToken(deviceName?: string) {
   const hasPermission = await requestUserPermission();
   if (!hasPermission) return { enabled: false, reason: 'PERMISSION_NOT_GRANTED' };
+  const token = await getFCMToken();
+  if (!token) return { enabled: false, reason: 'TOKEN_UNAVAILABLE' };
+  const subscription = await persistSubscription(token, deviceName);
+  return { enabled: true, token, subscription };
+}
+
+/**
+ * Repairs the server-side token binding without displaying a permission prompt.
+ * This is safe for lifecycle/timer retries after the user has already made their
+ * notification-permission choice.
+ */
+export async function repairDeviceToken(deviceName?: string) {
+  if (!(await hasExistingAndroidNotificationPermission())) {
+    return { enabled: false, reason: 'PERMISSION_NOT_GRANTED' };
+  }
   const token = await getFCMToken();
   if (!token) return { enabled: false, reason: 'TOKEN_UNAVAILABLE' };
   const subscription = await persistSubscription(token, deviceName);
