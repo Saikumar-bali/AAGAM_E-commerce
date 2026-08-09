@@ -40,7 +40,7 @@ describe('Partners notification delivery contracts', () => {
 
   it('keeps a durable inbox fallback and repairs Store/Rider FCM registration without permission prompts', () => {
     const coordinator = read('notifications/PartnerPushCoordinator.tsx');
-    const sharedPush = read('../../packages/mobile-shared/src/utils/notifications.ts');
+    const sharedPush = read('../../../packages/mobile-shared/src/utils/notifications.ts');
     const routing = read('domain/partnerNotifications.ts');
     expect(coordinator).toContain('notificationService.getInbox(50)');
     expect(coordinator).toContain('INBOX_POLL_MS = 10_000');
