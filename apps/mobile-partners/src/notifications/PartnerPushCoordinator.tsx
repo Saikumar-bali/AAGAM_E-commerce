@@ -1,8 +1,8 @@
 import messaging from '@react-native-firebase/messaging';
 import {
   partnerOperationalSessionKey,
-  registerDeviceToken,
   registerMobileSessionCleanup,
+  repairDeviceToken,
   resolvePartnerOperationalRole,
   startMobilePushLifecycle,
   useAuthStore,
@@ -95,12 +95,13 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     if (!user || (role !== 'RIDER' && role !== 'STORE_OWNER')) return;
 
     let disposed = false;
+    let sessionEnding = false;
     let pushCleanup: () => void = () => undefined;
     let openedCleanup: () => void = () => undefined;
     let interval: ReturnType<typeof setInterval> | undefined;
     let pushRepairInterval: ReturnType<typeof setInterval> | undefined;
     let polling = false;
-    let repairingPush = false;
+    let repairPromise: Promise<void> | null = null;
 
     const remember = (key: string) => {
       if (!key) return false;
@@ -177,7 +178,7 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     };
 
     const pollInbox = async () => {
-      if (disposed || polling) return;
+      if (disposed || sessionEnding || polling) return;
       polling = true;
       try {
         const inbox = await notificationService.getInbox(50);
@@ -204,20 +205,18 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     };
 
     const deviceName = role === 'RIDER' ? 'Aagaam Rider' : 'Aagaam Store Partner';
-    const repairPushRegistration = async () => {
-      if (disposed || repairingPush) return;
-      repairingPush = true;
-      try {
-        // Re-upserting is intentional. It repairs a Store/Rider subscription after
-        // a transient API failure, server cleanup, token reassignment, or account
-        // switch even when Firebase has not emitted an onTokenRefresh callback.
-        await registerDeviceToken(deviceName);
-      } catch {
-        // Durable inbox polling remains the fallback; retry on the next foreground
-        // transition or repair interval without interrupting Partner operations.
-      } finally {
-        repairingPush = false;
-      }
+    const repairPushRegistration = () => {
+      if (disposed || sessionEnding) return Promise.resolve();
+      if (repairPromise) return repairPromise;
+
+      const currentRepair = repairDeviceToken(deviceName)
+        .then(() => undefined)
+        .catch(() => undefined)
+        .finally(() => {
+          if (repairPromise === currentRepair) repairPromise = null;
+        });
+      repairPromise = currentRepair;
+      return currentRepair;
     };
 
     void startMobilePushLifecycle(deviceName, (message) => {
@@ -227,7 +226,7 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
         message.notification?.body || String(message.data?.body || ''),
       ).then(pollInbox);
     }).then((cleanup) => {
-      if (disposed) cleanup();
+      if (disposed || sessionEnding) cleanup();
       else pushCleanup = cleanup;
     }).catch(() => {
       Toast.show({
@@ -261,7 +260,9 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
         void pollInbox();
       }
     });
-    const unregisterCleanup = registerMobileSessionCleanup(() => {
+    const unregisterCleanup = registerMobileSessionCleanup(async () => {
+      sessionEnding = true;
+      if (repairPromise) await repairPromise.catch(() => undefined);
       pendingNavigation.current = [];
       seen.current.clear();
       PartnerAlertTone?.stop?.();
@@ -269,6 +270,7 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
 
     return () => {
       disposed = true;
+      sessionEnding = true;
       PartnerAlertTone?.stop?.();
       pushCleanup();
       openedCleanup();
