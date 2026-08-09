@@ -445,11 +445,16 @@ export default function AdminSubscriptionsPage() {
                   <Field label="Plan name">
                     <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="e.g. Daily Milk - 30 Days" />
                   </Field>
-                  <Field label="Customer pays">
+                  <Field label="Payment cadence">
                     <select value={form.fundingCycle} onChange={(event) => setForm({ ...form, fundingCycle: event.target.value })}>
-                      <option value="FULL_PLAN">Full plan amount</option>
-                      <option value="WEEKLY">Weekly</option>
+                      <option value="FULL_PLAN">Pay in full · best value</option>
+                      <option value="WEEKLY">Weekly installments</option>
                     </select>
+                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                      {form.fundingCycle === 'WEEKLY'
+                        ? 'Customers are charged weekly while deliveries continue on the selected schedule.'
+                        : 'Customers pay once for the complete plan and receive every scheduled delivery.'}
+                    </p>
                   </Field>
                   <div className="lg:col-span-2">
                     <Field label="Description (optional)">
