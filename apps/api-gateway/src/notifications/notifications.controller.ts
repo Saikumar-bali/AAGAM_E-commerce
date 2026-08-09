@@ -3,9 +3,9 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Headers,
-  NotFoundException,
   Param,
   Patch,
   Post,
@@ -24,7 +24,6 @@ import {
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { actorCanAccessInboxItem } from './notification-inbox-audience';
 import { NotificationService } from './notification.service';
 import { NotificationWorkerService } from './notification-worker.service';
 import { OutboxService } from './outbox.service';
@@ -97,10 +96,10 @@ export class NotificationsController {
       user.role,
       ...(Array.isArray(user.roles) ? user.roles : []),
     ]);
-    if (
-      (requestedRole === Role.RIDER || requestedRole === Role.STORE_OWNER)
-      && memberships.has(requestedRole as Role)
-    ) {
+    if (requestedRole === Role.RIDER || requestedRole === Role.STORE_OWNER) {
+      if (!memberships.has(requestedRole as Role)) {
+        throw new ForbiddenException('The requested Partner role is no longer available');
+      }
       return requestedRole as Role;
     }
     return user.role as Role;
@@ -139,10 +138,7 @@ export class NotificationsController {
     const role = this.inboxRole(req.user, requestedRole);
     const actor = { ...req.user, role };
     if (this.isPartnerRole(role)) {
-      const inbox = await this.partnerInbox.listInbox(actor, 100);
-      if (!actorCanAccessInboxItem(inbox, notificationId)) {
-        throw new NotFoundException('Notification not found');
-      }
+      return this.partnerInbox.markRead(actor, notificationId);
     }
     return this.notifications.markRead(actor, notificationId);
   }
@@ -157,10 +153,7 @@ export class NotificationsController {
     const role = this.inboxRole(req.user, requestedRole);
     const actor = { ...req.user, role };
     if (this.isPartnerRole(role)) {
-      const inbox = await this.partnerInbox.listInbox(actor, 100);
-      if (!actorCanAccessInboxItem(inbox, recipientId)) {
-        throw new NotFoundException('Notification not found');
-      }
+      return this.partnerInbox.markOpened(actor, recipientId);
     }
     return this.notifications.markOpened(actor, recipientId);
   }
