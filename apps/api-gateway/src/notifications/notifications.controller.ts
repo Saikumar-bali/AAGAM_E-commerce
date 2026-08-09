@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Headers,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -23,6 +24,10 @@ import {
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import {
+  actorCanAccessInboxItem,
+  scopeNotificationInboxForActor,
+} from './notification-inbox-audience';
 import { NotificationService } from './notification.service';
 import { NotificationWorkerService } from './notification-worker.service';
 import { OutboxService } from './outbox.service';
@@ -89,13 +94,23 @@ export class NotificationsController {
 
   @Get('inbox')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
-  inbox(@Req() req: any, @Query('limit') limit?: string) {
-    return this.notifications.listInbox(req.user, limit);
+  async inbox(@Req() req: any, @Query('limit') limit?: string) {
+    const inbox = await this.notifications.listInbox(req.user, limit);
+    return scopeNotificationInboxForActor(inbox, req.user.role);
   }
 
   @Patch(':notificationId/read')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
-  markRead(@Param('notificationId') notificationId: string, @Req() req: any) {
+  async markRead(@Param('notificationId') notificationId: string, @Req() req: any) {
+    if (req.user.role === Role.RIDER || req.user.role === Role.STORE_OWNER) {
+      const inbox = scopeNotificationInboxForActor(
+        await this.notifications.listInbox(req.user, 500),
+        req.user.role,
+      );
+      if (!actorCanAccessInboxItem(inbox, notificationId)) {
+        throw new NotFoundException('Notification not found');
+      }
+    }
     return this.notifications.markRead(req.user, notificationId);
   }
 
