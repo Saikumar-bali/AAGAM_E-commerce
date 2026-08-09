@@ -45,10 +45,15 @@ describe('partner notification inbox scoping', () => {
     );
   });
 
-  it('keeps only canonical events plus store-relevant support history for store owners', () => {
+  it('never exposes legacy support or lifecycle rows to store owners', () => {
     const scoped = scopePartnerInbox(Role.STORE_OWNER, mixedInbox);
-    expect(scoped.items.map((item: any) => item.id)).toEqual(['offer', 'completed', 'support']);
-    expect(scoped.unreadCount).toBe(3);
+    expect(scoped.items.map((item: any) => item.id)).toEqual(['offer', 'completed']);
+    expect(scoped.unreadCount).toBe(2);
+  });
+
+  it('rejects migrated legacy lifecycle rows even when they already have a recipient id', () => {
+    const scoped = scopePartnerInbox(Role.RIDER, mixedInbox);
+    expect(scoped.items.some((item: any) => item.id === 'migrated')).toBe(false);
   });
 
   it('does not alter customer or admin inboxes', () => {
