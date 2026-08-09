@@ -19,6 +19,7 @@
       }
     ],
     "paths": {
+      "@/components/InternalPartnerOnboarding": ["./src/components/InternalPartnerOnboardingSimple.tsx"],
       "@/*": ["./src/*"]
     }
   },
