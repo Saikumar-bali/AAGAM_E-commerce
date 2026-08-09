@@ -26,6 +26,9 @@ describe('Rider active-delivery contact and toast UI contract', () => {
     expect(screen).toContain('phone number saved with the customer delivery address');
     expect(screen).toContain('>Call</Text>');
     expect(screen).toContain('>Message</Text>');
+    expect(screen).toContain("['DELIVERY_FAILED', 'RETURNING_TO_STORE'].includes(activeJob.status)");
+    expect(screen).toContain('Call or message the store contact for this parcel return.');
+    expect(screen).toContain("text1: 'Contact unavailable'");
     expect(app).toContain('useSafeAreaInsets');
     expect(app).toContain('topOffset={insets.top + 8}');
     expect(app).toContain('<PartnerToastHost />');
