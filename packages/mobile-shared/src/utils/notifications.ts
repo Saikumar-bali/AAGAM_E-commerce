@@ -133,7 +133,9 @@ export function resumeMobilePushRegistration() {
 export async function quiesceMobilePushRegistration() {
   registrationWritesSuspended = true;
   while (activeRegistrationWrites.size > 0) {
-    await Promise.allSettled(Array.from(activeRegistrationWrites));
+    await Promise.all(
+      Array.from(activeRegistrationWrites).map((pending) => pending.catch(() => undefined)),
+    );
   }
 }
 
