@@ -413,7 +413,7 @@ export default function AdminSubscriptionsPage() {
               <div className="space-y-6 p-5">
                 <section className="grid gap-5 lg:grid-cols-2">
                   <Field label="Plan name"><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="e.g. Daily Milk - 30 Days" /></Field>
-                  <Field label="Payment cadence">
+                  <Field label="Payment cadence" group>
                     <div className="grid grid-cols-3 gap-2">
                       {([['ONE_TIME', 'One-time', '1 delivery'], ['WEEKLY', 'Weekly', '7 days'], ['MONTHLY', 'Monthly', '30 days']] as const).map(([mode, label, copy]) => {
                         const active = mode === 'ONE_TIME' ? form.durationDays === '1' && form.fundingCycle === 'FULL_PLAN' : mode === 'WEEKLY' ? form.fundingCycle === 'WEEKLY' && form.durationDays === '7' : form.fundingCycle === 'FULL_PLAN' && form.durationDays === '30';
@@ -461,8 +461,8 @@ export default function AdminSubscriptionsPage() {
                 <details className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                   <summary className="cursor-pointer text-sm font-black text-slate-800">Availability & customer options <span className="font-semibold text-slate-400">(optional)</span></summary>
                   <div className="mt-5 grid gap-5 lg:grid-cols-2">
-                    <Field label="Limit to stores"><Multi rows={stores} selected={form.storeIds} onChange={(storeIds) => setForm({ ...form, storeIds })} /></Field>
-                    <Field label="Limit to zones"><Multi rows={zones} selected={form.zoneIds} onChange={(zoneIds) => setForm({ ...form, zoneIds })} /></Field>
+                    <Field label="Limit to stores" group><Multi rows={stores} selected={form.storeIds} onChange={(storeIds) => setForm({ ...form, storeIds })} /></Field>
+                    <Field label="Limit to zones" group><Multi rows={zones} selected={form.zoneIds} onChange={(zoneIds) => setForm({ ...form, zoneIds })} /></Field>
                     <div className="lg:col-span-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{([['allowPause', 'Allow pause'], ['allowSkip', 'Allow skip'], ['allowTrustedDrop', 'Trusted drop'], ['allowPersonalHandover', 'Personal handover'], ['allowSecurityHandover', 'Security handover']] as const).map(([key, optionLabel]) => <label key={key} className="flex min-h-12 items-center gap-3 rounded-xl bg-white px-4 font-bold text-slate-700"><input type="checkbox" checked={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.checked })} />{optionLabel}</label>)}</div>
                   </div>
                 </details>
@@ -553,7 +553,7 @@ function Analytics({ data }: any) {
 }
 
 function AnalyticsGroup({ title, headers, rows }: { title: string; headers: string[]; rows: any[][] }) {
-  return <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white"><div className="border-b border-slate-100 px-5 py-4"><h3 className="font-black text-slate-900">{title}</h3></div><TableBare headers={headers} rows={rows} empty="No data yet." /></div>;
+  return <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white"><div className="border-b border-slate-100 px-5 py-4"><h3 className="font-black text-slate-900">{title}</h3></div><TableBare headers={headers} rows={rows} empty="No data yet." /></div>;
 }
 
 function Table({ headers, rows, empty }: { headers: string[]; rows: any[][]; empty: string }) {
@@ -578,8 +578,10 @@ function EmptyState({ title, copy }: { title: string; copy: string }) {
   return <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-12 text-center"><h2 className="text-lg font-black text-slate-800">{title}</h2><p className="mt-2 text-sm font-semibold text-slate-500">{copy}</p></div>;
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="block text-sm font-black text-slate-700"><span>{label}</span><div className="mt-2 [&_input]:min-h-12 [&_input]:w-full [&_input]:rounded-xl [&_input]:border [&_input]:border-slate-200 [&_input]:px-4 [&_select]:min-h-12 [&_select]:w-full [&_select]:rounded-xl [&_select]:border [&_select]:border-slate-200 [&_select]:px-4 [&_textarea]:min-h-24 [&_textarea]:w-full [&_textarea]:rounded-xl [&_textarea]:border [&_textarea]:border-slate-200 [&_textarea]:p-4">{children}</div></div>;
+function Field({ label, children, group = false }: { label: string; children: ReactNode; group?: boolean }) {
+  const content = <><span>{label}</span><div className="mt-2 [&_input]:min-h-12 [&_input]:w-full [&_input]:rounded-xl [&_input]:border [&_input]:border-slate-200 [&_input]:px-4 [&_select]:min-h-12 [&_select]:w-full [&_select]:rounded-xl [&_select]:border [&_select]:border-slate-200 [&_select]:px-4 [&_textarea]:min-h-24 [&_textarea]:w-full [&_textarea]:rounded-xl [&_textarea]:border [&_textarea]:border-slate-200 [&_textarea]:p-4">{children}</div></>;
+  if (group) return <div role="group" aria-label={label} className="block text-sm font-black text-slate-700">{content}</div>;
+  return <label className="block text-sm font-black text-slate-700">{content}</label>;
 }
 
 function Multi({ rows, selected, onChange }: { rows: any[]; selected: string[]; onChange: (ids: string[]) => void }) {
