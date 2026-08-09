@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CalendarDays, CheckCircle2, ShieldCheck, WalletCards } from 'lucide-react';
+import { CalendarDays } from 'lucide-react';
 
 export const formatPaise = (paise: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(paise || 0) / 100);
 export const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -21,7 +21,6 @@ export default function SubscriptionPlanCard({ plan, compact = false }: { plan: 
     <div className="p-5">
       <div className="flex flex-wrap gap-2">{(plan.items || []).slice(0, compact ? 2 : 4).map((item: any) => <span key={item.productId} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700">{item.quantityPerDelivery}× {item.product?.name || item.name}</span>)}</div>
       <div className="mt-5 flex flex-wrap items-baseline gap-3"><span className="text-2xl font-black text-slate-900">{formatPaise(plan.pricePaise)}</span>{Number(plan.mrpPaise) > Number(plan.pricePaise) ? <span className="font-bold text-slate-400 line-through">{formatPaise(plan.mrpPaise)}</span> : null}{savings > 0 ? <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700">Save {formatPaise(savings)}</span> : null}</div>
-      <div className="mt-4 grid gap-2 text-xs font-bold text-slate-600 sm:grid-cols-2"><span className="flex items-center gap-2"><WalletCards className="h-4 w-4 text-amber-600" />{plan.fundingCycle === 'WEEKLY' ? 'Weekly cash funding' : 'Cash on first verified delivery'}</span><span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-700" />OTP/proof controlled</span><span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-700" />Skip and pause policy</span></div>
       <Link href={`/shop/subscribe/${encodeURIComponent(plan.id)}`} className="mt-5 flex min-h-12 items-center justify-center rounded-2xl bg-emerald-700 px-5 font-black text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-200">Choose plan</Link>
     </div>
   </article>;
