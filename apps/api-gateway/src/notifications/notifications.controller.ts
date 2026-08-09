@@ -69,20 +69,14 @@ export function getFirebaseWebPushConfig() {
 export function scopePartnerInbox(role: Role, inbox: any) {
   if (role !== Role.RIDER && role !== Role.STORE_OWNER) return inbox;
 
+  // Partner operational alerts must be backed by NotificationRecipient. That row
+  // proves the durable routing matrix addressed the event to this exact user.
+  // OrderStatusHistory is a business audit log, not an audience definition; using
+  // it as a Partner fallback leaked support/customer-only events and duplicated
+  // lifecycle cards such as OUT_FOR_DELIVERY and DELIVERED.
   const items = (Array.isArray(inbox?.items) ? inbox.items : []).filter((item: any) => {
     const metadata = item?.metadata || {};
-    const isCanonicalRecipient = Boolean(item?.recipientId) && metadata.migratedFromOrderHistory !== true;
-    if (isCanonicalRecipient) return true;
-
-    // Support/rating rows predate the outbox and are still useful to the owning
-    // Store. They are never Rider notifications. All order/delivery lifecycle
-    // rows must come from NotificationRecipient so the documented role matrix is
-    // enforced and legacy OrderStatusHistory cannot leak unrelated events.
-    if (role === Role.STORE_OWNER) {
-      return item?.type === 'CUSTOMER_SUPPORT_TICKET_OPENED'
-        || item?.type === 'CUSTOMER_RATING_SUBMITTED';
-    }
-    return false;
+    return Boolean(item?.recipientId) && metadata.migratedFromOrderHistory !== true;
   });
 
   return {
