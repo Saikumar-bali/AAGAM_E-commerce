@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Camera, CheckCircle2, MapPin, ShieldCheck, X } from 'lucide-react';
 import { apiClient } from '@aagam/utils';
@@ -36,9 +36,6 @@ export default function RiderPhotoProofFallback() {
   const [file, setFile] = useState<File | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const preview = useMemo(() => file ? URL.createObjectURL(file) : '', [file]);
-
-  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
   useEffect(() => {
     if (!activePage) return;
@@ -108,8 +105,8 @@ export default function RiderPhotoProofFallback() {
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">Use this only when the customer cannot provide the OTP. A fresh photo and your GPS location are stored with the delivery audit.</p>
 
             <label className="mt-5 block cursor-pointer rounded-2xl border-2 border-dashed border-teal-200 bg-teal-50/50 p-4 text-center">
-              {preview ? <img src={preview} alt="Delivery proof preview" className="mx-auto max-h-56 rounded-xl object-contain" /> : <Camera className="mx-auto h-9 w-9 text-teal-700" />}
-              <span className="mt-2 block text-sm font-black text-teal-800">{file ? 'Retake or choose another photo' : 'Take delivery photo'}</span>
+              <Camera className="mx-auto h-9 w-9 text-teal-700" />
+              <span className="mt-2 block text-sm font-black text-teal-800">{file ? 'Photo selected — tap to retake or choose another' : 'Take delivery photo'}</span>
               <span className="mt-1 block text-xs font-semibold text-slate-500">JPG, PNG or WebP · up to 10 MB</span>
               <input
                 type="file"
