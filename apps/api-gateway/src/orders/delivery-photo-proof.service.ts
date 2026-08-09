@@ -96,10 +96,13 @@ export class DeliveryPhotoProofService {
 
     const { storageKey } = await this.uploads.uploadEvidence(file, actor.id);
     try {
-      return await prisma.$transaction(async (tx) => {
+      const outcome = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-photo-proof:${deliveryJobId}`}))`);
-        const { job } = await this.assertRiderJob(tx, deliveryJobId, actor);
-        if (job.status === DeliveryJobStatus.DELIVERED) return job;
+        const current = await this.assertRiderJob(tx, deliveryJobId, actor);
+        if (current.delivered || current.job.status === DeliveryJobStatus.DELIVERED) {
+          return { job: current.job, unusedUpload: true };
+        }
+        const job = current.job;
         if (!job.currentRiderId) throw new BadRequestException('Delivery has no assigned Rider');
 
         const now = new Date();
@@ -109,9 +112,7 @@ export class DeliveryPhotoProofService {
             orderId: job.orderId,
             riderId: job.currentRiderId,
             customerUserId: job.order.customerId,
-            // SECURITY_RECEPTION is the existing non-OTP verification bucket. The
-            // authoritative photo mode is recorded in proofReference + timeline metadata.
-            verificationMethod: 'SECURITY_RECEPTION',
+            verificationMethod: 'RIDER_PHOTO_EVIDENCE',
             proofReference: storageKey,
             riderConfirmedAt: now,
             verifiedAt: now,
@@ -121,6 +122,17 @@ export class DeliveryPhotoProofService {
             accuracyMetres: input.accuracyMetres,
           },
         });
+
+        // A photo fallback completes the same handoff that an OTP would have
+        // completed. Any still-active code must stop looking valid immediately.
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE "DeliveryOperation"
+          SET "status" = 'SUPERSEDED'::"DeliveryOperationStatus",
+              "updatedAt" = CURRENT_TIMESTAMP
+          WHERE "deliveryJobId" = ${deliveryJobId}
+            AND "type" = 'OTP_ISSUED'::"DeliveryOperationType"
+            AND "status" = 'PENDING'::"DeliveryOperationStatus"
+        `);
 
         const delivered = await this.workflow.transitionWithinTransaction(
           tx,
@@ -145,8 +157,13 @@ export class DeliveryPhotoProofService {
           where: { deliveryJobId, status: 'IN_PROGRESS' },
           data: { status: 'COMPLETED', appliedByUserId: actor.id, appliedAt: now },
         });
-        return delivered;
+        return { job: delivered, unusedUpload: false };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+      if (outcome.unusedUpload) {
+        await this.uploads.deleteEvidence(storageKey).catch(() => undefined);
+      }
+      return outcome.job;
     } catch (error) {
       await this.uploads.deleteEvidence(storageKey).catch(() => undefined);
       throw error;
