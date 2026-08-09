@@ -12,9 +12,11 @@ describe('Rider active-delivery contact and toast UI contract', () => {
     expect(source).toContain('`tel:${targetPhone}`');
     expect(source).toContain('`sms:${targetPhone}`');
     expect(source).not.toContain('RIDER_CONTACT_RELAY_NUMBER');
+
     const secure = read('apps/api-gateway/src/riders/rider-portal-secure.service.ts');
     expect(secure).toContain('return this.read.contact(userId, deliveryJobId, input);');
     expect(secure).not.toContain('RIDER_CONTACT_RELAY_UNAVAILABLE');
+    expect(secure).not.toContain('ServiceUnavailableException');
   });
 
   it('shows direct Call/Message controls and keeps toasts below the device safe area', () => {
