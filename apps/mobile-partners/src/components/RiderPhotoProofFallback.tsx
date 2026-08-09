@@ -4,6 +4,8 @@ import {
   Alert,
   Image,
   Modal,
+  PermissionsAndroid,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -38,6 +40,20 @@ function captureLocation() {
   });
 }
 
+async function requestCameraPermission() {
+  if (Platform.OS !== 'android') return true;
+  const result = await PermissionsAndroid.request(
+    PermissionsAndroid.PERMISSIONS.CAMERA,
+    {
+      title: 'Delivery photo',
+      message: 'Allow camera access to capture delivery proof when the customer OTP is unavailable.',
+      buttonPositive: 'Allow camera',
+      buttonNegative: 'Not now',
+    },
+  );
+  return result === PermissionsAndroid.RESULTS.GRANTED;
+}
+
 export function RiderPhotoProofFallback() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user) as any;
@@ -63,6 +79,11 @@ export function RiderPhotoProofFallback() {
 
   const takePhoto = async () => {
     try {
+      const cameraAllowed = await requestCameraPermission();
+      if (!cameraAllowed) {
+        Alert.alert('Camera permission required', 'Allow camera access in Android settings to use delivery photo proof.');
+        return;
+      }
       const selected = await PartnerDocumentPicker.captureImage();
       if (!selected.type.startsWith('image/')) throw new Error('Take a JPG, PNG, or WebP photo');
       if (selected.size > 10 * 1024 * 1024) throw new Error('Photo must be smaller than 10 MB');
