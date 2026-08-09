@@ -1,4 +1,4 @@
-import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
 import { RiderPortalSecureService } from './rider-portal-secure.service';
 
@@ -135,20 +135,52 @@ describe('RiderPortalSecureService', () => {
     expect(serialized).not.toContain('deliveryJob');
   });
 
-  it('disables unbound private contact while retaining safety escalation', async () => {
+  it('delegates active-delivery call, message, and safety contact to the checked read service', async () => {
+    read.contact
+      .mockResolvedValueOnce({ status: 'READY', uri: 'tel:+919999999999', source: 'DELIVERY_ADDRESS' })
+      .mockResolvedValueOnce({ status: 'READY', uri: 'sms:+919999999999', source: 'DELIVERY_ADDRESS' })
+      .mockResolvedValueOnce({ status: 'ESCALATED', supportTicketId: 'ticket-1' });
+
     await expect(
       service.contact('user-owned', 'job-1', {
         targetRole: 'CUSTOMER',
         channel: 'CALL',
       }),
-    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    ).resolves.toEqual({
+      status: 'READY',
+      uri: 'tel:+919999999999',
+      source: 'DELIVERY_ADDRESS',
+    });
 
-    read.contact.mockResolvedValue({ status: 'ESCALATED' });
+    await expect(
+      service.contact('user-owned', 'job-1', {
+        targetRole: 'CUSTOMER',
+        channel: 'MESSAGE',
+      }),
+    ).resolves.toEqual({
+      status: 'READY',
+      uri: 'sms:+919999999999',
+      source: 'DELIVERY_ADDRESS',
+    });
+
     await expect(
       service.contact('user-owned', 'job-1', {
         targetRole: 'CUSTOMER',
         channel: 'SAFETY_ESCALATION',
       }),
-    ).resolves.toEqual({ status: 'ESCALATED' });
+    ).resolves.toEqual({ status: 'ESCALATED', supportTicketId: 'ticket-1' });
+
+    expect(read.contact).toHaveBeenNthCalledWith(1, 'user-owned', 'job-1', {
+      targetRole: 'CUSTOMER',
+      channel: 'CALL',
+    });
+    expect(read.contact).toHaveBeenNthCalledWith(2, 'user-owned', 'job-1', {
+      targetRole: 'CUSTOMER',
+      channel: 'MESSAGE',
+    });
+    expect(read.contact).toHaveBeenNthCalledWith(3, 'user-owned', 'job-1', {
+      targetRole: 'CUSTOMER',
+      channel: 'SAFETY_ESCALATION',
+    });
   });
 });
