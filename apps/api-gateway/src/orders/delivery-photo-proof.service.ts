@@ -112,9 +112,7 @@ export class DeliveryPhotoProofService {
             orderId: job.orderId,
             riderId: job.currentRiderId,
             customerUserId: job.order.customerId,
-            // Kept in the legacy non-OTP enum bucket until the dedicated
-            // verification-method migration lands; proofType below remains authoritative.
-            verificationMethod: 'SECURITY_RECEPTION',
+            verificationMethod: 'RIDER_PHOTO_EVIDENCE',
             proofReference: storageKey,
             riderConfirmedAt: now,
             verifiedAt: now,
