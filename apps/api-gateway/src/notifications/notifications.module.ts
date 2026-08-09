@@ -5,6 +5,7 @@ import { NotificationService } from './notification.service';
 import { NotificationWorkerService } from './notification-worker.service';
 import { NotificationsController } from './notifications.controller';
 import { OutboxService } from './outbox.service';
+import { PartnerNotificationInboxService } from './partner-notification-inbox.service';
 import { PushSubscriptionService } from './push-subscription.service';
 import { WebPushService } from './web-push.service';
 
@@ -18,6 +19,7 @@ import { WebPushService } from './web-push.service';
     NotificationRoutingService,
     NotificationDeliveryService,
     NotificationService,
+    PartnerNotificationInboxService,
     NotificationWorkerService,
   ],
   exports: [
@@ -25,6 +27,7 @@ import { WebPushService } from './web-push.service';
     PushSubscriptionService,
     OutboxService,
     NotificationService,
+    PartnerNotificationInboxService,
     NotificationWorkerService,
   ],
 })
