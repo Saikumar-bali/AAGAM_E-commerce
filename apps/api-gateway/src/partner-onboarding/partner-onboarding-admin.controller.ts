@@ -25,13 +25,17 @@ import {
   ReviewPartnerDocumentDto,
   VerifyAllPartnerDocumentsDto,
 } from './dto/partner-onboarding.dto';
+import { PartnerApplicationPurgeService } from './partner-application-purge.service';
 import { PartnerOnboardingAdminService } from './partner-onboarding-admin.service';
 
 @Controller('admin/partner-onboarding')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
 export class PartnerOnboardingAdminController {
-  constructor(private readonly onboarding: PartnerOnboardingAdminService) {}
+  constructor(
+    private readonly onboarding: PartnerOnboardingAdminService,
+    private readonly purge: PartnerApplicationPurgeService,
+  ) {}
 
   @Get('applications')
   list(@Query() query: AdminPartnerListQueryDto) {
@@ -109,6 +113,11 @@ export class PartnerOnboardingAdminController {
   @Post('applications/:id/restore')
   restoreDraft(@Param('id') id: string, @Req() req: any) {
     return this.onboarding.restoreDraft(id, req.user.id);
+  }
+
+  @Delete('applications/:id/permanent')
+  permanentlyDelete(@Param('id') id: string, @Req() req: any) {
+    return this.purge.permanentlyDelete(id, req.user.id);
   }
 
   @Post('applications/:id/request-changes')
