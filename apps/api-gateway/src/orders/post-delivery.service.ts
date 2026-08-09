@@ -21,7 +21,7 @@ function supportItem(value: any) {
   return {
     id: value?.id || value?.orderItemId || value?.productId || null,
     productId: value?.productId || value?.product?.id || null,
-    name: value?.product?.name || value?.name || value?.productName || 'Item',
+    name: value?.name || value?.productName || value?.product?.name || 'Item',
     quantity: Number(value?.quantity || value?.qty || 1),
   };
 }
@@ -129,9 +129,11 @@ export class PostDeliveryService {
         || addressSnapshot.phone
         || null;
       const snapshotItems = Array.isArray(row.order.itemsSnapshot) ? row.order.itemsSnapshot : [];
-      const items = row.order.items.length > 0
-        ? row.order.items.map(supportItem)
-        : snapshotItems.map(supportItem);
+      // Prefer the immutable checkout snapshot so support sees exactly what the
+      // customer ordered even if a product is renamed later.
+      const items = snapshotItems.length > 0
+        ? snapshotItems.map(supportItem)
+        : row.order.items.map(supportItem);
       return {
         id: row.id,
         orderId: row.orderId,
