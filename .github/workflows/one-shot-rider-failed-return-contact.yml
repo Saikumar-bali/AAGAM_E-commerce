@@ -1,0 +1,49 @@
+name: One-shot failed-delivery return contact fix
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'fix/rider-direct-contact-toast-placement' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+      - name: Route failed-delivery contact to store
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          screen = Path('apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx')
+          text = screen.read_text()
+          old = """  const returningToStore = activeJob?.status === 'RETURNING_TO_STORE';\n  const headingToStore = Boolean(activeJob && (returningToStore || ['RIDER_ASSIGNED', 'RIDER_EN_ROUTE_TO_STORE'].includes(activeJob.status)));"""
+          new = """  const returningToStore = Boolean(activeJob && ['DELIVERY_FAILED', 'RETURNING_TO_STORE'].includes(activeJob.status));\n  const headingToStore = Boolean(activeJob && (returningToStore || ['RIDER_ASSIGNED', 'RIDER_EN_ROUTE_TO_STORE'].includes(activeJob.status)));"""
+          if old not in text:
+              raise SystemExit('Expected return/store heading block not found')
+          text = text.replace(old, new, 1)
+
+          old_copy = """<Text style={styles.contactText}>{headingToStore ? 'Call or message the store contact for this active pickup.' : 'Call or message the phone number saved with the customer delivery address.'}</Text>"""
+          new_copy = """<Text style={styles.contactText}>{returningToStore ? 'Call or message the store contact for this parcel return.' : headingToStore ? 'Call or message the store contact for this active pickup.' : 'Call or message the phone number saved with the customer delivery address.'}</Text>"""
+          if old_copy not in text:
+              raise SystemExit('Expected delivery contact copy not found')
+          text = text.replace(old_copy, new_copy, 1)
+          text = text.replace("text1: 'Private contact unavailable'", "text1: 'Contact unavailable'", 1)
+          screen.write_text(text)
+          PY
+
+          git rm .github/workflows/one-shot-rider-failed-return-contact.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx
+          git commit -m 'fix(rider): target store contact after failed delivery'
+          git push origin HEAD:${{ github.head_ref }}
