@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -36,33 +36,47 @@ export function DeliveryOtpModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [now, setNow] = useState(Date.now());
+  const requestSequence = useRef(0);
   const remaining = useMemo(() => secondsUntilExpiry(data?.expiresAt, now), [data?.expiresAt, now]);
 
-  const load = async () => {
-    if (!deliveryJobId || !visible || loading) return;
+  const load = async (jobId = deliveryJobId) => {
+    if (!jobId || !visible) return;
+    const requestId = ++requestSequence.current;
     setLoading(true);
     setError('');
     try {
       const response = await apiClient.get(
-        `/orders/delivery-operations/jobs/${encodeURIComponent(deliveryJobId)}/otp/customer`,
+        `/orders/delivery-operations/jobs/${encodeURIComponent(jobId)}/otp/customer`,
       );
+      if (requestId !== requestSequence.current) return;
       setData(response.data as DeliveryOtp);
       setNow(Date.now());
     } catch (err: any) {
+      if (requestId !== requestSequence.current) return;
       setData(null);
       setError(message(err));
     } finally {
-      setLoading(false);
+      if (requestId === requestSequence.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!visible || !deliveryJobId) return;
+    if (!visible || !deliveryJobId) {
+      requestSequence.current += 1;
+      setLoading(false);
+      return;
+    }
+    const activeJobId = deliveryJobId;
+    requestSequence.current += 1;
     setData(null);
     setError('');
-    void load();
-    const refresh = setInterval(() => void load(), 15_000);
-    return () => clearInterval(refresh);
+    setLoading(false);
+    void load(activeJobId);
+    const refresh = setInterval(() => void load(activeJobId), 15_000);
+    return () => {
+      requestSequence.current += 1;
+      clearInterval(refresh);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, deliveryJobId]);
 
@@ -98,7 +112,7 @@ export function DeliveryOtpModal({
             </View>
           )}
 
-          <TouchableOpacity accessibilityRole="button" style={styles.refresh} disabled={loading} onPress={() => void load()}>
+          <TouchableOpacity accessibilityRole="button" style={styles.refresh} disabled={loading} onPress={() => void load(deliveryJobId)}>
             {loading ? <ActivityIndicator color="#0F766E" /> : <RefreshCw size={18} color="#0F766E" />}
             <Text style={styles.refreshText}>Refresh code</Text>
           </TouchableOpacity>
