@@ -1,0 +1,79 @@
+name: One-shot Rider contact and toast UI fix
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'fix/rider-direct-contact-toast-placement' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+      - name: Apply Rider direct-contact and toast placement fixes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # API: dial the actual active delivery contact. The order address snapshot
+          # is authoritative for the delivery recipient phone.
+          api = Path('apps/api-gateway/src/riders/rider-portal-read.service.ts')
+          text = api.read_text()
+          old = '''    const targetPhone =\n      input.targetRole === "STORE"\n        ? job.order.store.owner.phone\n        : job.order.customer.phone ||\n          String((job.order.addressSnapshot as any)?.phoneE164 || "");\n    if (!targetPhone)\n      throw new NotFoundException("Contact is unavailable for this delivery");\n\n    const relayNumber = String(\n      process.env.RIDER_CONTACT_RELAY_NUMBER || ""\n    ).trim();\n    if (!relayNumber) {\n      throw new ServiceUnavailableException(\n        "Privacy contact relay is not configured"\n      );\n    }\n    const reference = `AAGAM-${job.id.slice(-8).toUpperCase()}`;\n    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);\n    const uri =\n      input.channel === "CALL"\n        ? `tel:${relayNumber}`\n        : `sms:${relayNumber}?body=${encodeURIComponent(\n            `${reference} ${input.targetRole}`\n          )}`;\n    return {\n      channel: input.channel,\n      targetRole: input.targetRole,\n      status: "READY",\n      reference,\n      expiresAt,\n      uri,\n    };'''
+          new = '''    const addressPhone = String(\n      (job.order.addressSnapshot as any)?.phoneE164 ||\n      (job.order.addressSnapshot as any)?.alternatePhoneE164 ||\n      ""\n    ).trim();\n    const targetPhone = String(\n      input.targetRole === "STORE"\n        ? job.order.store.owner.phone || ""\n        : addressPhone || job.order.customer.phone || ""\n    ).trim();\n    if (!targetPhone)\n      throw new NotFoundException("Contact number is unavailable for this delivery");\n\n    const uri =\n      input.channel === "CALL"\n        ? `tel:${targetPhone}`\n        : `sms:${targetPhone}`;\n    return {\n      channel: input.channel,\n      targetRole: input.targetRole,\n      status: "READY",\n      uri,\n      source: input.targetRole === "CUSTOMER" && addressPhone\n        ? "DELIVERY_ADDRESS"\n        : "ACCOUNT_CONTACT",\n    };'''
+          if old not in text:
+              raise SystemExit('Expected Rider contact relay block not found')
+          text = text.replace(old, new, 1)
+          text = text.replace('  ServiceUnavailableException,\n', '', 1)
+          api.write_text(text)
+
+          # Rider UI: stop describing a relay that is no longer used and give
+          # clear call/message success copy.
+          screen = Path('apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx')
+          text = screen.read_text()
+          text = text.replace(
+            '''        Toast.show({ type: 'success', text1: channel === 'CALL' ? 'Private relay ready' : 'Private message relay ready', text2: `Reference ${result.reference || 'created'} expires automatically.` });''',
+            '''        Toast.show({\n          type: 'success',\n          text1: channel === 'CALL' ? 'Opening customer call' : 'Opening customer message',\n          text2: result.source === 'DELIVERY_ADDRESS'\n            ? 'Using the phone number saved with this delivery address.'\n            : 'Using the contact number saved for this delivery.',\n        });''',
+            1,
+          )
+          text = text.replace(
+            '''          <View style={styles.contactHeader}><ShieldAlert size={20} color="#0F766E" /><View style={styles.flex}><Text style={styles.contactTitle}>Privacy-safe contact</Text><Text style={styles.contactText}>The raw customer and store phone numbers are never shown or dialled.</Text></View></View>''',
+            '''          <View style={styles.contactHeader}><PhoneCall size={20} color="#0F766E" /><View style={styles.flex}><Text style={styles.contactTitle}>Delivery contact</Text><Text style={styles.contactText}>{headingToStore ? 'Call or message the store contact for this active pickup.' : 'Call or message the phone number saved with the customer delivery address.'}</Text></View></View>''',
+            1,
+          )
+          text = text.replace('accessibilityLabel={`Call ${targetRole.toLowerCase()} through private relay`}', 'accessibilityLabel={`Call ${targetRole.toLowerCase()} delivery contact`}', 1)
+          text = text.replace('<Text style={styles.contactButtonText}>Private call</Text>', '<Text style={styles.contactButtonText}>Call</Text>', 1)
+          text = text.replace('accessibilityLabel={`Message ${targetRole.toLowerCase()} through private relay`}', 'accessibilityLabel={`Message ${targetRole.toLowerCase()} delivery contact`}', 1)
+          text = text.replace('<Text style={styles.contactButtonText}>Private message</Text>', '<Text style={styles.contactButtonText}>Message</Text>', 1)
+          screen.write_text(text)
+
+          # Global Partners toast: keep transient alerts out of the content center.
+          app = Path('apps/mobile-partners/App.tsx')
+          text = app.read_text()
+          text = text.replace(
+            '''        <Toast />''',
+            '''        <Toast position="top" topOffset={8} />''',
+            1,
+          )
+          app.write_text(text)
+
+          # Regression contract for the exact bug and UI requirements.
+          contract = Path('apps/mobile-partners/src/rider-contact-ui.contract.spec.ts')
+          contract.write_text('''import fs from 'fs';\nimport path from 'path';\n\nconst repoRoot = path.resolve(__dirname, '../../..');\n\nfunction read(relative: string) {\n  return fs.readFileSync(path.join(repoRoot, relative), 'utf8');\n}\n\ndescribe('Rider active-delivery contact and toast UI contract', () => {\n  it('uses the delivery-address phone directly without requiring a relay env', () => {\n    const source = read('apps/api-gateway/src/riders/rider-portal-read.service.ts');\n    expect(source).toContain('(job.order.addressSnapshot as any)?.phoneE164');\n    expect(source).toContain('addressPhone || job.order.customer.phone');\n    expect(source).toContain('`tel:${targetPhone}`');\n    expect(source).toContain('`sms:${targetPhone}`');\n    expect(source).not.toContain('RIDER_CONTACT_RELAY_NUMBER');\n  });\n\n  it('shows direct Call/Message controls and pins toasts at the top edge', () => {\n    const screen = read('apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx');\n    const app = read('apps/mobile-partners/App.tsx');\n    expect(screen).toContain('Delivery contact');\n    expect(screen).toContain('phone number saved with the customer delivery address');\n    expect(screen).toContain('>Call</Text>');\n    expect(screen).toContain('>Message</Text>');\n    expect(app).toContain('<Toast position="top" topOffset={8} />');\n  });\n});\n''')
+          PY
+
+          git rm .github/workflows/one-shot-rider-contact-toast.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/api-gateway/src/riders/rider-portal-read.service.ts apps/mobile-partners/App.tsx apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx apps/mobile-partners/src/rider-contact-ui.contract.spec.ts
+          git commit -m 'fix(rider): call delivery contact and move toasts to top'
+          git push origin HEAD:${{ github.head_ref }}
