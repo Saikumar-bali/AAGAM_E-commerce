@@ -94,6 +94,7 @@ contains(application, 'add(PartnerAlertTonePackage())', 'The foreground tone mod
 contains(manifest, 'android:value="aagam_priority_operations_v3"', 'Firebase must use the internal AAGAM partner alert channel id.');
 excludes(manifest, 'android:value="aagaam_priority_operations_v3"', 'Firebase identifiers must not be renamed for display branding.');
 contains(pushSender, "channelId: 'aagam_priority_operations_v3'", 'Background FCM pushes must target the versioned partner alert channel.');
+contains(pushSender, 'defaultVibrateTimings: true', 'Pre-channel Android devices must retain notification vibration.');
 excludes(pushSender, "channelId: 'high_priority_orders'", 'Background FCM pushes must not bypass the new sound profile.');
 contains(foregroundTone, 'AudioManager.STREAM_NOTIFICATION', 'Foreground notifications must use the notification audio stream.');
 contains(foregroundTone, 'ToneGenerator.TONE_PROP_BEEP2', 'Foreground notifications must use the distinctive multi-tone alert.');
@@ -102,8 +103,10 @@ contains(partnerApp, '<PartnerPushCoordinator queryClient={queryClient} />', 'Th
 contains(partnerPushCoordinator, 'PartnerAlertTone?.play?.()', 'Foreground FCM and inbox alerts must invoke the native tone.');
 contains(partnerPushCoordinator, 'PartnerAlertTone?.stop?.()', 'The alert tone must stop during lifecycle cleanup.');
 contains(partnerPushCoordinator, 'startMobilePushLifecycle', 'One coordinator must own mobile push registration and foreground delivery.');
-contains(partnerPushCoordinator, 'registerDeviceToken', 'The active partner session must be able to repair a missing Store/Rider FCM registration.');
+contains(partnerPushCoordinator, 'reverifyDeviceTokenBinding', 'The active partner session must repair an existing Store/Rider FCM binding without reopening permission prompts.');
+excludes(partnerPushCoordinator, 'registerDeviceToken', 'Automatic partner recovery must not call the permission-requesting registration helper.');
 contains(partnerPushCoordinator, 'PUSH_REVERIFY_MS = 5 * 60_000', 'Partner FCM registration must be periodically re-verified.');
+contains(partnerPushCoordinator, 'registerMobileSessionCleanup(async () =>', 'Logout must await in-flight push rebind work before disabling the subscription.');
 excludes(read('apps/mobile-partners/src/screens/rider/RiderDashboard.tsx'), 'startMobilePushLifecycle', 'Rider screens must not create duplicate push lifecycles.');
 
 const welcome = read('apps/mobile-partners/src/screens/PartnerWelcomeScreen.tsx');
