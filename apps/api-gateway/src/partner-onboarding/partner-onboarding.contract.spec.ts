@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Role } from '@aagam/database';
 import { ROLES_KEY } from '../auth/decorators/roles.decorator';
 import { SignupDto } from '../auth/dto/signup.dto';
+import { PartnerApplicationPurgeService } from './partner-application-purge.service';
 import { PartnerOnboardingAdminController } from './partner-onboarding-admin.controller';
 import { PartnerOnboardingSecurity } from './partner-onboarding.security';
 import {
@@ -56,6 +57,11 @@ describe('Professional partner onboarding contracts', () => {
     expect(Reflect.getMetadata(ROLES_KEY, PartnerOnboardingAdminController)).toEqual([
       Role.ADMIN,
     ]);
+  });
+
+  it('exposes permanent deletion only through the guarded Admin onboarding surface', () => {
+    expect(typeof PartnerOnboardingAdminController.prototype.permanentlyDelete).toBe('function');
+    expect(typeof PartnerApplicationPurgeService.prototype.permanentlyDelete).toBe('function');
   });
 
   it('uses vehicle-dependent Rider document requirements', () => {
