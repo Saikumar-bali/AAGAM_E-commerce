@@ -183,7 +183,9 @@ export class WebPushService implements OnModuleInit {
           channelId: 'aagam_priority_operations_v3',
           tag: data.recipientId || data.notificationId || data.eventType || 'aagam-notification',
           visibility: 'public',
-          defaultVibrateTimings: false,
+          // API 26+ uses the v3 channel's custom vibration pattern. API 24-25
+          // has no notification channels, so keep FCM's default vibration there.
+          defaultVibrateTimings: true,
           defaultSound: false,
         },
       },
