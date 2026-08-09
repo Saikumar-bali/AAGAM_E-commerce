@@ -24,13 +24,11 @@ import {
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import {
-  actorCanAccessInboxItem,
-  scopeNotificationInboxForActor,
-} from './notification-inbox-audience';
+import { actorCanAccessInboxItem } from './notification-inbox-audience';
 import { NotificationService } from './notification.service';
 import { NotificationWorkerService } from './notification-worker.service';
 import { OutboxService } from './outbox.service';
+import { PartnerNotificationInboxService } from './partner-notification-inbox.service';
 import { PushSubscriptionService } from './push-subscription.service';
 
 export function getFirebaseWebPushConfig() {
@@ -76,6 +74,7 @@ export function getFirebaseWebPushConfig() {
 export class NotificationsController {
   constructor(
     private readonly notifications: NotificationService,
+    private readonly partnerInbox: PartnerNotificationInboxService,
     private readonly subscriptions: PushSubscriptionService,
     private readonly worker: NotificationWorkerService,
     private readonly outbox: OutboxService,
@@ -111,6 +110,10 @@ export class NotificationsController {
     return Math.min(100, Math.max(1, Number(value || 50)));
   }
 
+  private isPartnerRole(role: Role) {
+    return role === Role.RIDER || role === Role.STORE_OWNER;
+  }
+
   @Get('inbox')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
   async inbox(
@@ -119,21 +122,11 @@ export class NotificationsController {
     @Query('role') requestedRole?: string,
   ) {
     const role = this.inboxRole(req.user, requestedRole);
-    const requestedLimit = this.inboxLimit(limit);
     const actor = { ...req.user, role };
-    // Partner workspaces over-fetch before role filtering so unrelated customer
-    // history cannot consume the visible page during the legacy migration window.
-    const fetchLimit = role === Role.RIDER || role === Role.STORE_OWNER ? 100 : requestedLimit;
-    const inbox = scopeNotificationInboxForActor(
-      await this.notifications.listInbox(actor, fetchLimit),
-      role,
-    );
-    const items = inbox.items.slice(0, requestedLimit);
-    return {
-      ...inbox,
-      items,
-      unreadCount: items.filter((item: any) => !item.readAt).length,
-    };
+    if (this.isPartnerRole(role)) {
+      return this.partnerInbox.listInbox(actor, this.inboxLimit(limit));
+    }
+    return this.notifications.listInbox(actor, this.inboxLimit(limit));
   }
 
   @Patch(':notificationId/read')
@@ -144,23 +137,32 @@ export class NotificationsController {
     @Query('role') requestedRole?: string,
   ) {
     const role = this.inboxRole(req.user, requestedRole);
-    if (role === Role.RIDER || role === Role.STORE_OWNER) {
-      const actor = { ...req.user, role };
-      const inbox = scopeNotificationInboxForActor(
-        await this.notifications.listInbox(actor, 100),
-        role,
-      );
+    const actor = { ...req.user, role };
+    if (this.isPartnerRole(role)) {
+      const inbox = await this.partnerInbox.listInbox(actor, 100);
       if (!actorCanAccessInboxItem(inbox, notificationId)) {
         throw new NotFoundException('Notification not found');
       }
     }
-    return this.notifications.markRead({ ...req.user, role }, notificationId);
+    return this.notifications.markRead(actor, notificationId);
   }
 
   @Patch(':recipientId/opened')
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
-  markOpened(@Param('recipientId') recipientId: string, @Req() req: any) {
-    return this.notifications.markOpened(req.user, recipientId);
+  async markOpened(
+    @Param('recipientId') recipientId: string,
+    @Req() req: any,
+    @Query('role') requestedRole?: string,
+  ) {
+    const role = this.inboxRole(req.user, requestedRole);
+    const actor = { ...req.user, role };
+    if (this.isPartnerRole(role)) {
+      const inbox = await this.partnerInbox.listInbox(actor, 100);
+      if (!actorCanAccessInboxItem(inbox, recipientId)) {
+        throw new NotFoundException('Notification not found');
+      }
+    }
+    return this.notifications.markOpened(actor, recipientId);
   }
 
   @Post('push/subscriptions')
