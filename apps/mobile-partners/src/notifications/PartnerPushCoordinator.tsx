@@ -1,6 +1,7 @@
 import messaging from '@react-native-firebase/messaging';
 import {
   partnerOperationalSessionKey,
+  registerDeviceToken,
   registerMobileSessionCleanup,
   resolvePartnerOperationalRole,
   startMobilePushLifecycle,
@@ -29,6 +30,8 @@ const NOTIFICATION_KEY = ['partner-notifications'] as const;
 const PartnerAlertTone = NativeModules.PartnerAlertTone as { play?: () => void; stop?: () => void } | undefined;
 const MAX_DEDUPE_ENTRIES = 500;
 const INBOX_POLL_MS = 10_000;
+const PUSH_REVERIFY_MS = 5 * 60_000;
+const PUSH_STARTUP_RETRY_MS = 30_000;
 
 type Props = {
   queryClient: QueryClient;
@@ -96,6 +99,8 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     let pushCleanup: () => void = () => undefined;
     let openedCleanup: () => void = () => undefined;
     let interval: ReturnType<typeof setInterval> | undefined;
+    let pushReverifyInterval: ReturnType<typeof setInterval> | undefined;
+    let pushStartupRetry: ReturnType<typeof setTimeout> | undefined;
     let polling = false;
 
     const remember = (key: string) => {
@@ -200,6 +205,13 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     };
 
     const deviceName = role === 'RIDER' ? 'Aagaam Rider' : 'Aagaam Store Partner';
+    const reverifyPushRegistration = () => {
+      if (disposed) return;
+      void registerDeviceToken(deviceName).catch((error) => {
+        if (__DEV__) console.warn('[FCM] Partner push re-registration failed.', error?.message || error);
+      });
+    };
+
     void startMobilePushLifecycle(deviceName, (message) => {
       void showForeground(
         dataFromRemoteMessage(message),
@@ -218,6 +230,13 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
       });
     });
 
+    // A transient API/token failure at login previously left a fresh Store account
+    // with only inbox polling and no background/killed-state FCM delivery. Rebind
+    // the token shortly after startup, whenever the app returns to foreground, and
+    // periodically while the operational session stays active.
+    pushStartupRetry = setTimeout(reverifyPushRegistration, PUSH_STARTUP_RETRY_MS);
+    pushReverifyInterval = setInterval(reverifyPushRegistration, PUSH_REVERIFY_MS);
+
     try {
       openedCleanup = messaging().onNotificationOpenedApp((message) => {
         void routeOpened(dataFromRemoteMessage(message));
@@ -234,6 +253,7 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         flushNavigation();
+        reverifyPushRegistration();
         void pollInbox();
       }
     });
@@ -251,6 +271,8 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
       unregisterCleanup();
       appState.remove();
       if (interval) clearInterval(interval);
+      if (pushReverifyInterval) clearInterval(pushReverifyInterval);
+      if (pushStartupRetry) clearTimeout(pushStartupRetry);
     };
   }, [queryClient, user]);
 
