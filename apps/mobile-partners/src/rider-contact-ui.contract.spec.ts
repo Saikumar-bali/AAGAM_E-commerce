@@ -14,13 +14,15 @@ describe('Rider active-delivery contact and toast UI contract', () => {
     expect(source).not.toContain('RIDER_CONTACT_RELAY_NUMBER');
   });
 
-  it('shows direct Call/Message controls and keeps toasts at the top edge', () => {
+  it('shows direct Call/Message controls and keeps toasts below the device safe area', () => {
     const screen = read('apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx');
     const app = read('apps/mobile-partners/App.tsx');
     expect(screen).toContain('Delivery contact');
     expect(screen).toContain('phone number saved with the customer delivery address');
     expect(screen).toContain('>Call</Text>');
     expect(screen).toContain('>Message</Text>');
-    expect(app).toContain('<Toast position="top" topOffset={8} />');
+    expect(app).toContain('useSafeAreaInsets');
+    expect(app).toContain('topOffset={insets.top + 8}');
+    expect(app).toContain('<PartnerToastHost />');
   });
 });
