@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { prisma, Role } from '@aagam/database';
+import { isNotificationForRole, mobileSubscriptionRole } from './notification-audience';
 import { WebPushService } from './web-push.service';
 
 @Injectable()
@@ -34,9 +35,17 @@ export class NotificationDeliveryService {
     if (!recipient) throw new NotFoundException('Notification recipient not found');
     if (['READ', 'OPENED'].includes(recipient.status)) return recipient;
 
-    const subscriptions = await prisma.pushSubscription.findMany({
+    const notificationData = (recipient.notification.data || {}) as any;
+    const allSubscriptions = await prisma.pushSubscription.findMany({
       where: { userId: recipient.userId, isActive: true },
       orderBy: { lastSeenAt: 'desc' },
+    });
+    const subscriptions = allSubscriptions.filter((subscription) => {
+      const subscriptionRole = mobileSubscriptionRole(subscription.deviceName);
+      // Unknown/web/legacy device labels remain compatible. Current mobile apps
+      // register explicit Customer/Rider/Store labels and are strictly scoped.
+      return !subscriptionRole
+        || isNotificationForRole(subscriptionRole, recipient.notification.eventType, notificationData);
     });
 
     if (!(await this.pushEnabled(recipient.userId, recipient.notification.eventType))) {
@@ -57,13 +66,14 @@ export class NotificationDeliveryService {
     let skippedCount = 0;
     const failures: string[] = [];
     const skippedReasons: string[] = [];
-    const deepLink = this.recipientDeepLink(
-      recipient.user.role,
-      recipient.notification.orderId,
-      recipient.notification.deepLink,
-    );
 
     for (const subscription of subscriptions) {
+      const subscriptionRole = mobileSubscriptionRole(subscription.deviceName) || recipient.user.role;
+      const deepLink = this.recipientDeepLink(
+        subscriptionRole,
+        recipient.notification.orderId,
+        recipient.notification.deepLink,
+      );
       const previousAttempts = await prisma.notificationDeliveryAttempt.count({
         where: { recipientId: recipient.id, subscriptionId: subscription.id },
       });
@@ -75,7 +85,7 @@ export class NotificationDeliveryService {
           body: recipient.notification.body,
           deepLink,
           data: {
-            ...(recipient.notification.data as any || {}),
+            ...notificationData,
             notificationId: recipient.notification.id,
             recipientId: recipient.id,
             eventType: recipient.notification.eventType,
