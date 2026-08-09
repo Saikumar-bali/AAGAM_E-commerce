@@ -203,6 +203,7 @@ export class NotificationRoutingService {
         deliveryJobId,
         assignmentId: payload.assignmentId || null,
         riderUserId: payload.riderUserId || assignment?.riderProfile?.userId || order?.rider?.userId || null,
+        ...(eventType === 'ADMIN_BROADCAST' ? { audience: payload.audience || 'ALL_USERS' } : {}),
         ...(payload.metadata || {}),
       },
       recipients,
