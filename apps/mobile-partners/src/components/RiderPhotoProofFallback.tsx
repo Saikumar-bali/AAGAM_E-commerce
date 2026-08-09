@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -54,6 +54,15 @@ async function requestCameraPermission() {
   return result === PermissionsAndroid.RESULTS.GRANTED;
 }
 
+async function removeCapturedMedia(photo?: PartnerPickedDocument | null) {
+  if (!photo || photo.source !== 'CAMERA') return;
+  try {
+    await PartnerDocumentPicker.deleteCapturedImage(photo.uri);
+  } catch {
+    // Evidence is already protected server-side. A later cleanup attempt should not block delivery UX.
+  }
+}
+
 export function RiderPhotoProofFallback() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user) as any;
@@ -70,10 +79,34 @@ export function RiderPhotoProofFallback() {
   const available = Boolean(job?.id && job?.status === 'RIDER_AT_CUSTOMER');
   const [open, setOpen] = useState(false);
   const [photo, setPhoto] = useState<PartnerPickedDocument | null>(null);
+  const photoRef = useRef<PartnerPickedDocument | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const orderLabel = useMemo(() => job?.order?.id ? `#${String(job.order.id).slice(-8).toUpperCase()}` : '', [job?.order?.id]);
+  const proofContext = `${user?.id || 'signed-out'}:${job?.id || 'no-job'}:${job?.status || 'none'}`;
+
+  const selectPhoto = (next: PartnerPickedDocument | null) => {
+    photoRef.current = next;
+    setPhoto(next);
+  };
+
+  const discardProof = async (close = true) => {
+    const current = photoRef.current;
+    selectPhoto(null);
+    setConfirmed(false);
+    if (close) setOpen(false);
+    await removeCapturedMedia(current);
+  };
+
+  useEffect(() => {
+    const current = photoRef.current;
+    photoRef.current = null;
+    setPhoto(null);
+    setConfirmed(false);
+    setOpen(false);
+    if (current) void removeCapturedMedia(current);
+  }, [proofContext]);
 
   if (!isRider || !available) return null;
 
@@ -85,9 +118,17 @@ export function RiderPhotoProofFallback() {
         return;
       }
       const selected = await PartnerDocumentPicker.captureImage();
-      if (!selected.type.startsWith('image/')) throw new Error('Take a JPG, PNG, or WebP photo');
-      if (selected.size > 10 * 1024 * 1024) throw new Error('Photo must be smaller than 10 MB');
-      setPhoto(selected);
+      if (!selected.type.startsWith('image/')) {
+        await removeCapturedMedia(selected);
+        throw new Error('Take a JPG, PNG, or WebP photo');
+      }
+      if (selected.size > 10 * 1024 * 1024) {
+        await removeCapturedMedia(selected);
+        throw new Error('Photo must be smaller than 10 MB');
+      }
+      const previous = photoRef.current;
+      selectPhoto(selected);
+      if (previous && previous.uri !== selected.uri) void removeCapturedMedia(previous);
     } catch (error: any) {
       if (error?.code === 'DOCUMENT_PICKER_CANCELLED') return;
       Alert.alert('Camera unavailable', error?.message || 'Could not capture the delivery photo.');
@@ -120,9 +161,7 @@ export function RiderPhotoProofFallback() {
       if (user?.id) await riderService.cacheLastCompletedJob(user.id, job.id);
       await queryClient.invalidateQueries({ queryKey: RIDER_WORKSPACE_QUERY_KEY });
       Toast.show({ type: 'success', text1: 'Delivery completed', text2: 'Photo and GPS proof were stored securely.' });
-      setOpen(false);
-      setPhoto(null);
-      setConfirmed(false);
+      await discardProof(true);
     } catch (error: any) {
       Toast.show({ type: 'error', text1: 'Photo proof failed', text2: errorMessage(error) });
     } finally {
@@ -142,10 +181,10 @@ export function RiderPhotoProofFallback() {
         <Text style={styles.floatingText}>OTP unavailable? Photo proof</Text>
       </TouchableOpacity>
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => !submitting && setOpen(false)}>
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => { if (!submitting) void discardProof(true); }}>
         <View style={styles.overlay}>
           <View style={styles.sheet}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close photo proof" style={styles.close} disabled={submitting} onPress={() => setOpen(false)}><X size={20} color="#475569" /></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close photo proof" style={styles.close} disabled={submitting} onPress={() => void discardProof(true)}><X size={20} color="#475569" /></TouchableOpacity>
             <View style={styles.icon}><ShieldCheck size={26} color="#0F766E" /></View>
             <Text style={styles.eyebrow}>DELIVERY FALLBACK · {orderLabel}</Text>
             <Text style={styles.title}>Use a delivery photo</Text>
