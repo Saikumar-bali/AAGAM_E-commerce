@@ -26,7 +26,9 @@ function PushLifecycle({ onDeliveryOtp }: { onDeliveryOtp: (deliveryJobId: strin
     if (!user) return;
     let disposed = false;
     let unsubscribe: () => void = () => undefined;
-    void startMobilePushLifecycle('Aagaam Customer', (message) => {
+
+    const handleMessage = (message: any) => {
+      if (disposed) return;
       const title = message.notification?.title || message.data?.title || 'Aagaam update';
       const body = message.notification?.body || message.data?.body || 'Your order has an update.';
       notify.info(title, body);
@@ -43,10 +45,12 @@ function PushLifecycle({ onDeliveryOtp }: { onDeliveryOtp: (deliveryJobId: strin
       const orderId = message.data?.orderId;
       if (orderId) {
         setTimeout(() => {
-          navigate('OrderDetail', { orderId });
+          if (!disposed) navigate('OrderDetail', { orderId });
         }, 500);
       }
-    }).then((cleanup) => {
+    };
+
+    void startMobilePushLifecycle('Aagaam Customer', handleMessage, handleMessage).then((cleanup) => {
       if (disposed) cleanup();
       else unsubscribe = cleanup;
     });
