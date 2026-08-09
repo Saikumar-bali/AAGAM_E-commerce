@@ -24,7 +24,10 @@ test('admin sees simple rupee plan setup plus subscribers, runs and cash control
   await loginWithCookieSession(page, 'ADMIN');
   await page.goto('/admin/subscriptions');
   await expect(page.getByRole('heading', { name: 'Subscriptions, runs & cash' })).toBeVisible();
-  await expect(page.getByText('Buffalo Milk 1 L · 7 Days')).toBeVisible();
+  await expect(page.getByText('Buffalo Milk 1 L', { exact: true })).toBeVisible();
+  await expect(page.getByText('Weekly', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('7 days', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/₹490(?:\.00)?/).first()).toBeVisible();
   await page.getByRole('button', { name: 'New plan' }).click();
 
   await expect(page.getByRole('heading', { name: 'Create subscription plan' })).toBeVisible();
