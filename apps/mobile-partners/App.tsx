@@ -39,7 +39,7 @@ function App() {
             <Text style={styles.loadingText}>Restoring partner workspace…</Text>
           </View>
         )}
-        <Toast />
+        <Toast position="top" topOffset={8} />
       </SafeAreaProvider>
     </QueryClientProvider>
   );
