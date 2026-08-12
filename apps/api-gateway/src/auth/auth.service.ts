@@ -22,6 +22,7 @@ import {
   VerifyCustomerPhoneOtpDto,
 } from './dto/phone-auth.dto';
 import { ConfirmPasswordResetDto } from './dto/password-reset.dto';
+import { VerifyEmailSignupOtpDto } from './dto/email-signup.dto';
 
 @Injectable()
 export class AuthService {
@@ -149,6 +150,40 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
     await this.assertAccountActive(user.id);
+    return this.buildAuthResponse(user);
+  }
+
+  async requestEmailSignupOtp(emailInput: string) {
+    const email = normalizeEmail(emailInput);
+    if (await prisma.user.findUnique({ where: { email } })) {
+      throw new ConflictException('An account already uses this email address. Sign in instead.');
+    }
+    const [local, domain] = email.split('@');
+    const masked = `${local.slice(0, Math.min(2, local.length))}${'*'.repeat(Math.max(1, Math.min(6, local.length - 2)))}@${domain}`;
+    return this.contactOtp.request({
+      purpose: 'CUSTOMER_SIGNUP',
+      channel: 'EMAIL',
+      destination: email,
+      masked,
+      reference: 'Customer account creation',
+      metadata: { email },
+    });
+  }
+
+  async verifyEmailSignupOtp(dto: VerifyEmailSignupOtpDto) {
+    if (dto.password !== dto.confirmPassword) throw new BadRequestException('Passwords do not match');
+    const email = normalizeEmail(dto.email);
+    await this.contactOtp.verify({ purpose: 'CUSTOMER_SIGNUP', channel: 'EMAIL', destination: email, code: dto.code });
+    if (await prisma.user.findUnique({ where: { email } })) {
+      throw new ConflictException('An account already uses this email address');
+    }
+    const user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: { email, name: dto.name.trim(), password: await bcrypt.hash(dto.password, 12), role: Role.CUSTOMER, emailVerified: true },
+      });
+      await grantUserRole(tx as any, created.id, Role.CUSTOMER, 'EMAIL_CUSTOMER_SIGNUP');
+      return created;
+    });
     return this.buildAuthResponse(user);
   }
 
