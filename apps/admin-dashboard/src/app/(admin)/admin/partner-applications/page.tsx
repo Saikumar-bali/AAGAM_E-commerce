@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { InternalPartnerCreateButton, InternalPartnerDraftControls } from '@/components/InternalPartnerOnboarding';
+import { InternalPartnerCreateButton, InternalPartnerDraftControls } from '@/components/InternalPartnerOnboardingSimple';
 import { useToast } from '@/components/ToastProvider';
 import { apiClient } from '@aagam/utils';
 import {

@@ -1,17 +1,21 @@
 import React, { useMemo } from 'react';
 import { ActivityIndicator, FlatList, Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, CalendarDays, CheckCircle2, PackageCheck, ShieldCheck } from 'lucide-react-native';
 import { subscriptionService, type SubscriptionPlan, type SubscriptionPlanItem } from '../../api/subscriptionService';
 import type { CustomerStackParamList } from '../../navigation/customerNavigationTypes';
 
 const money = (paise: number) => `₹${(Number(paise || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+const bottomNavScrollClearance = 132;
 
 export const SubscriptionPlansScreen = () => {
   const navigation = useNavigation<NavigationProp<CustomerStackParamList>>();
   const route = useRoute<RouteProp<CustomerStackParamList, 'SubscriptionPlans'>>();
+  const insets = useSafeAreaInsets();
   const productId = route.params?.productId;
+  const listBottomInset = bottomNavScrollClearance + Math.max(insets.bottom, 8);
   const query = useQuery({ queryKey: ['subscription-plans'], queryFn: subscriptionService.plans, staleTime: 60_000 });
   const plans = useMemo(() => {
     const rows = Array.isArray(query.data) ? query.data : [];
@@ -35,7 +39,8 @@ export const SubscriptionPlansScreen = () => {
       <FlatList
         data={plans}
         keyExtractor={(item: SubscriptionPlan) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: listBottomInset }]}
+        scrollIndicatorInsets={{ bottom: listBottomInset }}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }: { item: SubscriptionPlan }) => {
           const savings = Math.max(0, Number(item.mrpPaise || 0) - Number(item.pricePaise || 0));
