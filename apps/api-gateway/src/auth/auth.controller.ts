@@ -13,6 +13,7 @@ import {
   RequestCustomerPhoneOtpDto,
   VerifyCustomerPhoneOtpDto,
 } from './dto/phone-auth.dto';
+import { ConfirmPasswordResetDto, RequestPasswordResetDto } from './dto/password-reset.dto';
 
 const IS_PLAYWRIGHT_QA = process.env.PLAYWRIGHT_QA === 'true';
 const AUTH_LIMIT = IS_PLAYWRIGHT_QA ? 500 : 3;
@@ -97,6 +98,18 @@ export class AuthController {
     const result = await this.authService.signIn(this.loginIdentifier(loginDto), loginDto.password);
     this.setSessionCookie(response, result.session.access_token);
     return { message: 'Logged in successfully', user: result.user };
+  }
+
+  @Post('password/forgot')
+  @Throttle({ short: { limit: OTP_REQUEST_LIMIT, ttl: 60000 } })
+  requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+    return this.authService.requestPasswordReset(dto.email);
+  }
+
+  @Post('password/reset')
+  @Throttle({ short: { limit: OTP_VERIFY_LIMIT, ttl: 60000 } })
+  resetPassword(@Body() dto: ConfirmPasswordResetDto) {
+    return this.authService.resetPassword(dto);
   }
 
   @Post('mobile/login')

@@ -21,6 +21,7 @@ import {
   CustomerPhoneOtpPurpose,
   VerifyCustomerPhoneOtpDto,
 } from './dto/phone-auth.dto';
+import { ConfirmPasswordResetDto } from './dto/password-reset.dto';
 
 @Injectable()
 export class AuthService {
@@ -149,6 +150,45 @@ export class AuthService {
     }
     await this.assertAccountActive(user.id);
     return this.buildAuthResponse(user);
+  }
+
+  async requestPasswordReset(emailInput: string) {
+    const email = normalizeEmail(emailInput);
+    const user = await prisma.user.findUnique({ where: { email } });
+    // Keep the response identical whether the account exists or not.
+    if (user && !email.endsWith('@phone.aagam.local')) {
+      await this.contactOtp.request({
+        purpose: 'PASSWORD_RESET',
+        channel: 'EMAIL',
+        destination: email,
+        masked: email,
+        targetId: user.id,
+        reference: 'Password recovery',
+      });
+    }
+    return { message: 'If an account exists for that email, a reset code has been sent.' };
+  }
+
+  async resetPassword(dto: ConfirmPasswordResetDto) {
+    if (dto.password !== dto.confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+    const email = normalizeEmail(dto.email);
+    const challenge = await this.contactOtp.verify({
+      purpose: 'PASSWORD_RESET',
+      channel: 'EMAIL',
+      destination: email,
+      code: dto.code,
+    });
+    const user = challenge.targetId
+      ? await prisma.user.findUnique({ where: { id: challenge.targetId } })
+      : null;
+    if (!user || user.email !== email) throw new BadRequestException('Reset code is invalid or expired');
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: await bcrypt.hash(dto.password, 12) },
+    });
+    return { message: 'Password reset successfully. You can now sign in.' };
   }
 
   async requestPhoneOtp(phoneInput: string, purpose: CustomerPhoneOtpPurpose) {
