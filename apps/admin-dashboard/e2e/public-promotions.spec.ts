@@ -118,14 +118,15 @@ test.describe('Public promotions placement rendering', () => {
     expect(JSON.stringify(await publicFeed.json())).not.toContain(title);
   });
 
-  test('login page renders LOGIN_SIDEBAR campaign', async ({ page, request }) => {
+  test('login page keeps LOGIN_SIDEBAR campaigns behind the focused auth layout', async ({ page, request }) => {
     const suffix = ts();
     const title = `PW Login Campaign ${suffix}`;
     const campaign = await createCampaign(request, token, 'LOGIN_SIDEBAR', title);
     campaignIds.push(campaign.id);
 
     await page.goto('/login');
-    await expect(page.getByText(title).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Sign in to Aagaam' })).toBeVisible();
+    await expect(page.getByText(title)).toHaveCount(0);
     await page.screenshot({
       path: path.join(PROOF_DIR, '01-login-sidebar-campaign.png'),
       fullPage: true,

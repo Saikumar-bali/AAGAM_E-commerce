@@ -46,7 +46,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
 
   test('01 — Login page', async ({ page }) => {
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('text=Sign in to your workspace', { timeout: 15000 });
+    await page.waitForSelector('text=Sign in to Aagaam', { timeout: 15000 });
     await page.waitForTimeout(2000);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/01-login-page.png`, fullPage: true });
   });
