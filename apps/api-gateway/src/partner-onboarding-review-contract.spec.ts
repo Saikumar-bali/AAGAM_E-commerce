@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 describe('partner onboarding review contracts', () => {
-  it('keeps public web signup customer-only with phone OTP and no bearer-token storage', () => {
+  it('keeps public web signup customer-only with email OTP and no bearer-token storage', () => {
     const source = readFileSync(
       path.resolve(
         __dirname,
@@ -11,9 +11,9 @@ describe('partner onboarding review contracts', () => {
       'utf8',
     );
 
-    expect(source).toContain("apiClient.post('/auth/phone/request'");
-    expect(source).toContain("apiClient.post('/auth/phone/verify'");
-    expect(source).toContain("purpose: 'SIGNUP'");
+    expect(source).toContain("apiClient.post('/auth/email/signup/request'");
+    expect(source).toContain("apiClient.post('/auth/email/signup/verify'");
+    expect(source).toContain('confirmPassword');
     expect(source).not.toContain("role: 'CUSTOMER'");
     expect(source).not.toContain("localStorage.setItem('access_token'");
     expect(source).not.toContain("apiClient.post('/auth/signup'");

@@ -5,9 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Script from 'next/script';
 import { apiClient } from '@aagam/utils';
-import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, Phone, Sparkles } from 'lucide-react';
+import { ArrowRight, Loader2, Lock, Mail, Package, Phone, ShieldCheck } from 'lucide-react';
 import AagamLogo from '@/components/AagamLogo';
-import { normalizePromotionPlacements } from '@/lib/promotion-normalizer';
 import { customerAuthHref, safeCustomerReturnPath } from '@/lib/customer-return-path';
 
 const DEFAULT_GOOGLE_WEB_CLIENT_ID = '416380795567-5de3kea0pbb9ibke91rl5pre0sdu82vo.apps.googleusercontent.com';
@@ -55,7 +54,6 @@ function LoginPageContent() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [loginCampaign, setLoginCampaign] = useState<any>(null);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID;
 
   const routeUser = (user: any) => {
@@ -70,16 +68,6 @@ function LoginPageContent() {
     else if (roles.includes('STORE_OWNER')) router.push('/store');
     else router.push(customerReturnPath);
   };
-
-  useEffect(() => {
-    apiClient.get('/public/promotions/active', { params: { placement: 'LOGIN_SIDEBAR' } })
-      .then((response) => {
-        const placements = normalizePromotionPlacements(response.data);
-        const campaigns = placements['LOGIN_SIDEBAR'] || [];
-        setLoginCampaign(Array.isArray(campaigns) ? campaigns[0] || null : null);
-      })
-      .catch(() => setLoginCampaign(null));
-  }, []);
 
   useEffect(() => {
     // Keep phone OTP as the production default. Automated browser suites retain
@@ -166,30 +154,35 @@ function LoginPageContent() {
     if (window.google) window.setTimeout(initializeGoogle, 0);
   }, [googleClientId]);
 
-  return <main className="relative min-h-screen overflow-hidden px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
+  return <main className="relative h-[100dvh] overflow-hidden bg-[#03151c] px-4 py-3 text-white sm:px-6 lg:px-10">
     <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={initializeGoogle} />
-    <div className="pointer-events-none absolute inset-0 enterprise-subtle-grid opacity-60" />
-    <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center">
-      <div className="grid w-full gap-8 lg:grid-cols-[.95fr_1.05fr] lg:items-center">
-        <section className="relative hidden min-h-[680px] overflow-hidden rounded-[2.5rem] border border-white/70 bg-slate-950 shadow-2xl lg:block">
-          {loginCampaign?.imageUrl ? <img src={loginCampaign.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" /> : <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(20,184,166,.6),transparent_32%),radial-gradient(circle_at_80%_75%,rgba(245,158,11,.35),transparent_35%)]" />}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
-          <div className="relative flex h-full min-h-[680px] flex-col justify-between p-10 text-white">
-            <AagamLogo inverse label="Commerce Network" />
-            <div>
-              <p className="enterprise-kicker border-white/20 bg-white/10 text-teal-100"><Sparkles className="mr-2 h-3.5 w-3.5" /> {loginCampaign?.badgeText || 'Verified commerce access'}</p>
-              <h1 className="mt-5 max-w-xl text-5xl font-black tracking-[-.06em]">{loginCampaign?.title || 'One verified identity. Every local-commerce operation.'}</h1>
-              <p className="mt-4 max-w-lg text-base font-semibold leading-7 text-slate-200">{loginCampaign?.subtitle || loginCampaign?.description || 'Shop, fulfil, and deliver through one accountable platform built for customers, stores, and riders.'}</p>
-              <div className="mt-8 grid max-w-lg gap-3">{['Single-use OTP codes', 'HttpOnly browser sessions', 'Role-aware routing'].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-4 font-bold backdrop-blur"><CheckCircle2 className="h-5 w-5 text-teal-300" />{item}</div>)}</div>
-            </div>
-          </div>
-        </section>
-        <section className="enterprise-panel mx-auto w-full max-w-md p-6 sm:p-8">
-          <div className="mb-7"><p className="enterprise-kicker">Welcome back</p><h2 className="mt-3 text-3xl font-black">Sign in to Aagaam</h2><p className="mt-1 text-sm font-bold text-slate-500">Sign in to your workspace</p><p className="mt-2 text-sm font-semibold text-slate-500">New customer? <Link href={customerAuthHref('/signup', customerReturnPath)} className="text-teal-700">Create account</Link></p></div>
+    <img src="/generated/aagaam-commerce-3d-login-v1.png" alt="A 3D farm-to-store local commerce landscape" className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center opacity-95" />
+    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(2,16,22,.06)_0%,rgba(2,16,22,.02)_45%,rgba(2,16,22,.48)_70%,rgba(2,16,22,.9)_100%)]" />
+    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_25%,rgba(45,212,191,.13),transparent_28%),linear-gradient(0deg,rgba(2,12,18,.58),transparent_45%)]" />
+    <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.05)_1px,transparent_1px)] [background-size:64px_64px] [mask-image:linear-gradient(to_left,black,transparent_70%)]" />
+    <div aria-hidden="true" className="delivery-story pointer-events-none absolute inset-0 z-10 hidden overflow-hidden lg:block">
+      <div className="delivery-run__trail" />
+      <img src="/generated/aagaam-delivery-rider-v1.png" alt="" className="delivery-run__rider" />
+      {[
+        ['Organic milk', 'Fresh from local dairy farmers.'],
+        ['Farm-fresh vegetables', 'Picked today by nearby growers.'],
+        ['Free-range eggs', 'Sourced from trusted local farms.'],
+        ['Seasonal fruits', 'Harvested by neighbourhood farmers.'],
+      ].map(([title, copy], index) => <div key={title} className="delivery-run__drop" style={{ '--delivery-delay': `${index * 8}s` } as React.CSSProperties}><span className="delivery-run__parcel"><Package className="h-4 w-4" /></span><span className="delivery-run__copy"><strong>{title}</strong><small>{copy}</small></span></div>)}
+    </div>
+    <div className="relative z-20 mx-auto flex h-full max-w-[1440px] flex-col">
+      <header className="flex shrink-0 items-center py-1"><AagamLogo inverse label="Fresh, Quality & Trust" /></header>
+      <div className="grid min-h-0 flex-1 items-center gap-8 py-2 lg:grid-cols-[1fr_450px]">
+        <section className="hidden lg:block" aria-hidden="true" />
+        <section className="relative mx-auto w-full max-w-[450px] rounded-[1.75rem] border border-white/20 bg-white/[.88] p-5 text-slate-950 shadow-[0_40px_120px_-30px_rgba(0,0,0,.9),inset_0_1px_0_rgba(255,255,255,.8)] backdrop-blur-2xl sm:p-7 [@media(max-height:760px)]:scale-[.9] [@media(max-height:760px)]:origin-center">
+          <div className="pointer-events-none absolute -inset-px -z-10 rounded-[2rem] bg-gradient-to-br from-teal-300/60 via-transparent to-amber-200/40 blur-sm" />
+          <div className="mb-4 flex items-start justify-between"><div><p className="enterprise-kicker">Welcome back</p><h2 className="mt-2 text-3xl font-black">Sign in to Aagaam</h2></div><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-500 text-white shadow-lg shadow-teal-700/25"><ShieldCheck className="h-5 w-5" /></div></div>
+          <p className="mb-4 text-sm font-semibold text-slate-500">New customer? <Link href={customerAuthHref('/signup', customerReturnPath)} className="font-black text-teal-700">Create account</Link></p>
           {error ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{String(error)}</div> : null}
           <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1"><button type="button" onClick={() => setMode('PHONE')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-black ${mode === 'PHONE' ? 'bg-teal-700 text-white' : 'text-slate-600'}`}><Phone className="h-4 w-4" /> Phone OTP</button><button type="button" onClick={() => setMode('PASSWORD')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-black ${mode === 'PASSWORD' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}><Lock className="h-4 w-4" /> Password</button></div>
           {mode === 'PHONE' && masked && newCustomer ? <div className="mb-4 space-y-3 rounded-2xl border border-teal-100 bg-teal-50 p-4"><p className="text-sm font-black text-teal-900">Complete your new customer profile</p><p className="text-xs font-semibold text-teal-800">The verified mobile number creates your account automatically.</p><input value={profileName} onChange={(event) => setProfileName(event.target.value)} className="enterprise-input bg-white" placeholder="Full name" autoComplete="name" /><input value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} className="enterprise-input bg-white" placeholder="Email (optional)" type="email" autoComplete="email" /></div> : null}
           {mode === 'PHONE' ? !masked ? <div className="space-y-4"><label className="block"><span className="mb-2 block text-sm font-black">Mobile number</span><span className="relative block"><Phone className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-teal-700" /><input value={phone} onChange={(event) => setPhone(event.target.value.replace(/\D/g, '').slice(0, 10))} className="enterprise-input pl-12" placeholder="10-digit mobile number" inputMode="numeric" autoComplete="tel-national" maxLength={10} /></span></label><button onClick={requestCode} disabled={loading || phone.length !== 10} className="enterprise-button w-full gap-2 disabled:cursor-not-allowed disabled:opacity-50">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Send OTP <ArrowRight className="h-4 w-4" /></>}</button></div> : <div className="space-y-4"><p className="text-center text-sm font-bold text-slate-600">Code sent to {masked}</p><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} className="enterprise-input text-center text-2xl font-black tracking-[.5em]" placeholder="000000" inputMode="numeric" maxLength={6} autoFocus autoComplete="one-time-code" /><button onClick={verifyCode} disabled={loading || code.length !== 6} className="enterprise-button w-full">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Verify and sign in'}</button><button onClick={() => countdown === 0 ? requestCode() : undefined} disabled={countdown > 0} className="w-full text-sm font-black text-teal-700 disabled:text-slate-400">{countdown > 0 ? `Resend in 00:${String(countdown).padStart(2, '0')}` : 'Resend OTP'}</button><button onClick={() => { setMasked(''); setCode(''); }} className="w-full text-xs font-bold text-slate-500">Change mobile number</button></div> : <form className="space-y-4" onSubmit={passwordLogin} noValidate={automationPasswordMode}><label className="block"><span className="mb-2 block text-sm font-black">Phone number or email</span><span className="relative block"><Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" /><input type={automationPasswordMode ? 'email' : 'text'} aria-label={automationPasswordMode ? 'Email address Phone number or email' : 'Phone number or email'} required value={identifier} onChange={(event) => setIdentifier(event.target.value)} className="enterprise-input pl-12" placeholder="Phone or email" inputMode={automationPasswordMode ? 'email' : 'text'} autoComplete="username" /></span></label><label className="block"><span className="mb-2 block text-sm font-black">Password</span><span className="relative block"><Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" /><input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="enterprise-input pl-12" autoComplete="current-password" /></span></label><button type="submit" disabled={loading} className="enterprise-button w-full">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Continue'}</button></form>}
+          <div className="mt-4 text-center"><Link href="/forgot-password" className="text-sm font-black text-teal-700 hover:text-teal-800">Forgot your password?</Link></div>
           <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-[.2em] text-slate-400"><span className="h-px flex-1 bg-slate-200" />or<span className="h-px flex-1 bg-slate-200" /></div><div id="google-signin-button" className="flex min-h-[44px] items-center justify-center" />{googleLoading ? <p className="mt-2 text-center text-xs font-semibold text-slate-500">Verifying Google sign-in…</p> : null}
         </section>
       </div>

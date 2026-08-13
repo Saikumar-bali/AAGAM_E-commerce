@@ -2,7 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { WhatsAppCloudService } from '../whatsapp-webhook/whatsapp-cloud.service';
 
 export type ContactOtpChannel = 'PHONE' | 'EMAIL';
-export type ContactOtpPurpose = 'CUSTOMER_LOGIN' | 'CUSTOMER_SIGNUP' | 'PARTNER_RESUME';
+export type ContactOtpPurpose = 'CUSTOMER_LOGIN' | 'CUSTOMER_SIGNUP' | 'PARTNER_RESUME' | 'PASSWORD_RESET';
 
 export type ContactDeliveryInput = {
   channel: ContactOtpChannel;
@@ -194,7 +194,7 @@ export class ContactDeliveryService {
         body: JSON.stringify({
           from,
           to: [input.destination],
-          subject: 'Your AAGAM verification code',
+          subject: input.purpose === 'PASSWORD_RESET' ? 'Reset your AAGAM password' : 'Your AAGAM verification code',
           text: this.text(input),
           html: this.html(input),
         }),
@@ -220,7 +220,9 @@ export class ContactDeliveryService {
   private text(input: ContactDeliveryInput) {
     const minutes = Math.max(1, Math.ceil((input.expiresAt.getTime() - Date.now()) / 60_000));
     const action =
-      input.purpose === 'PARTNER_RESUME'
+      input.purpose === 'PASSWORD_RESET'
+        ? 'reset your AAGAM password'
+        : input.purpose === 'PARTNER_RESUME'
         ? 'resume your Partner application'
         : input.purpose === 'CUSTOMER_SIGNUP'
           ? 'create your Customer account'
