@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Bell,
   Box,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -80,6 +81,13 @@ function createdTime(value?: string | null) {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+function deliveryWindow(order: any) {
+  if (!order?.deliveryWindowStart || !order?.deliveryWindowEnd) return null;
+  const start = new Date(order.deliveryWindowStart);
+  const end = new Date(order.deliveryWindowEnd);
+  return `${start.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · ${start.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}–${end.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`;
 }
 
 function groupedCount(
@@ -365,6 +373,7 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
     (sum: number, item: any) => sum + Number(item.quantity || 0),
     0,
   );
+  const scheduledWindow = deliveryWindow(order);
 
   return (
     <TouchableOpacity
@@ -382,6 +391,8 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
       </View>
       <Text style={styles.customerName}>{orderCustomerName(order)}</Text>
       <Text style={styles.customerPhone}>{phone || 'Contact unavailable'}</Text>
+
+      {scheduledWindow ? <View style={styles.scheduleBanner}><CalendarClock size={18} color="#087B5A"/><View style={styles.flex}><Text style={styles.scheduleLabel}>SCHEDULED DELIVERY</Text><Text style={styles.scheduleTime}>{scheduledWindow}</Text></View></View> : null}
 
       {items.length ? (
         <View style={styles.itemsPreview}>
@@ -410,7 +421,7 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FAFBFA' },
+  screen: { flex: 1, backgroundColor: '#FAFBFA' }, flex: { flex: 1 },
   header: { height: 115, paddingTop: 50, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF' },
   headerIcon: { width: 50, height: 50, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, textAlign: 'center', color: '#11131A', fontSize: 25, fontWeight: '900' },
@@ -442,6 +453,9 @@ const styles = StyleSheet.create({
   orderTime: { color: '#5D6570', fontSize: 13 },
   customerName: { color: '#11131A', fontSize: 17, fontWeight: '900', marginTop: 13 },
   customerPhone: { color: '#5D6570', fontSize: 15, marginTop: 4 },
+  scheduleBanner: { marginTop: 13, borderRadius: 13, borderWidth: 1, borderColor: '#B8E5D5', backgroundColor: '#ECFDF5', padding: 11, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  scheduleLabel: { color: '#087B5A', fontSize: 9, fontWeight: '900', letterSpacing: 0.7 },
+  scheduleTime: { color: '#12352A', fontSize: 12, fontWeight: '800', marginTop: 2 },
   itemsPreview: { borderRadius: 11, backgroundColor: '#F7F9F8', paddingHorizontal: 11, paddingVertical: 7, marginTop: 13 },
   previewRow: { minHeight: 27, flexDirection: 'row', alignItems: 'center' },
   previewName: { flex: 1, color: '#4B535C', fontSize: 11, fontWeight: '700' },

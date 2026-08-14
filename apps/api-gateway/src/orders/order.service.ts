@@ -526,6 +526,13 @@ export class OrderService {
       if (!ownerAllowedNext.includes(nextStatus)) {
         throw new ForbiddenException(`Store transition not allowed: ${currentStatus} -> ${nextStatus}`);
       }
+      if (
+        order.deliveryWindowStart &&
+        ([OrderStatus.PICKING, OrderStatus.PACKED] as OrderStatus[]).includes(nextStatus) &&
+        Date.now() < order.deliveryWindowStart.getTime() - 2 * 60 * 60_000
+      ) {
+        throw new BadRequestException('Scheduled orders can be prepared from two hours before the delivery window');
+      }
     }
 
     // Admin can do all transitions (no additional restrictions)

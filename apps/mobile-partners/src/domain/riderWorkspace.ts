@@ -37,6 +37,9 @@ export type RiderOrder = {
   id: string;
   status?: string;
   deliveredAt?: string | null;
+  scheduledDeliveryDate?: string | null;
+  deliveryWindowStart?: string | null;
+  deliveryWindowEnd?: string | null;
   grandTotal?: number;
   deliveryLat?: number | null;
   deliveryLng?: number | null;

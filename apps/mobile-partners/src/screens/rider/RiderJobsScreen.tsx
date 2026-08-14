@@ -1,6 +1,6 @@
 import { useAuthStore } from '@aagam/mobile-shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BriefcaseBusiness, FileCheck2, MapPin, Menu, SlidersHorizontal } from 'lucide-react-native';
+import { BriefcaseBusiness, CalendarClock, FileCheck2, MapPin, Menu, SlidersHorizontal } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -166,9 +166,12 @@ function State({ loading, title, text }: { loading?: boolean; title: string; tex
 
 function JobCard({ item, onPress }: { item: RiderJobListItem; onPress: () => void }) {
   const visual = statusVisual(item.status);
+  const windowStart = item.deliveryWindowStart ? new Date(item.deliveryWindowStart) : null;
+  const windowEnd = item.deliveryWindowEnd ? new Date(item.deliveryWindowEnd) : null;
   return (
     <TouchableOpacity accessibilityRole="button" testID="rider_jobs_card" activeOpacity={0.78} style={styles.jobCard} onPress={onPress}>
       <View style={styles.cardTopRow}><View style={[styles.timelineDot, { backgroundColor: visual.dot }]} /><Text style={styles.timeText}>{jobTime(item.time)}</Text><Text style={styles.orderId}>#J-{shortPartnerOrderId(item.orderId)}</Text><View style={[styles.statusPill, { backgroundColor: visual.background }]}><Text style={[styles.statusPillText, { color: visual.color }]}>{visual.label}</Text></View></View>
+      {windowStart && windowEnd ? <View style={styles.deliveryWindow}><CalendarClock size={17} color="#0F766E"/><View><Text style={styles.deliveryWindowLabel}>PROMISED DELIVERY WINDOW</Text><Text style={styles.deliveryWindowText}>{windowStart.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · {windowStart.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}–{windowEnd.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</Text></View></View> : null}
       <View style={styles.routeRow}>
         <View style={styles.routeTimeline}><MapPin size={20} color="#078D32" /><View style={styles.routeLine} /><MapPin size={20} color="#078D32" /></View>
         <View style={styles.routeCopy}><View><Text style={styles.routeLabel}>Pickup</Text><Text style={styles.routeName}>{item.pickupName}</Text><Text style={styles.routeAddress}>{item.pickupAddress}</Text></View><View><Text style={styles.routeLabel}>Delivery</Text><Text style={styles.routeName}>{item.deliveryAddress}</Text></View></View>
@@ -190,6 +193,8 @@ const styles = StyleSheet.create({
   receiptBanner: { borderRadius: 17, backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#99F6E4', padding: 14, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   receiptTitle: { color: '#0F172A', fontSize: 13, fontWeight: '900' }, receiptText: { color: '#475569', fontSize: 11, lineHeight: 16, marginTop: 2 }, receiptOpen: { color: '#0F766E', fontWeight: '900' },
   jobCard: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E4E3', padding: 15, marginBottom: 12 },
+  deliveryWindow: { marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: '#99F6E4', backgroundColor: '#ECFDF5', padding: 10, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  deliveryWindowLabel: { color: '#0F766E', fontSize: 8, fontWeight: '900', letterSpacing: 0.6 }, deliveryWindowText: { color: '#134E4A', fontSize: 11, fontWeight: '800', marginTop: 2 },
   cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 9 }, timelineDot: { width: 8, height: 8, borderRadius: 4 }, timeText: { color: '#424A50', fontSize: 12 }, orderId: { color: '#111111', fontSize: 13, fontWeight: '900', flex: 1 },
   statusPill: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 }, statusPillText: { fontSize: 10, fontWeight: '900' },
   routeRow: { flexDirection: 'row', marginTop: 14, minHeight: 108 }, routeTimeline: { width: 38, alignItems: 'center', paddingVertical: 3 }, routeLine: { width: 1, flex: 1, borderLeftWidth: 1, borderStyle: 'dashed', borderColor: '#B7C2BC' },

@@ -9,6 +9,15 @@ import { PromotionsService } from '../promotions/promotions.service';
 import { OrderCreationService } from '../orders/order-creation.service';
 
 const logger = new Logger('CheckoutService');
+const PREORDER_MIN_LEAD_MINUTES = Math.max(30, Number(process.env.PREORDER_MIN_LEAD_MINUTES || 60));
+const PREORDER_HORIZON_DAYS = Math.min(30, Math.max(1, Number(process.env.PREORDER_HORIZON_DAYS || 7)));
+const PREORDER_SLOT_CAPACITY = Math.max(1, Number(process.env.PREORDER_SLOT_CAPACITY || 30));
+const DEFAULT_PREORDER_SLOTS = [
+  { label: 'Morning', startMinute: 6 * 60, endMinute: 9 * 60 },
+  { label: 'Mid-morning', startMinute: 9 * 60, endMinute: 12 * 60 },
+  { label: 'Afternoon', startMinute: 12 * 60, endMinute: 16 * 60 },
+  { label: 'Evening', startMinute: 16 * 60, endMinute: 20 * 60 },
+];
 
 function isOrderCreationService(
   value: OrderCreationService | PromotionsService | undefined,
@@ -201,6 +210,67 @@ export class CheckoutService {
     };
   }
 
+  async deliverySlots(userId: string, addressId: string) {
+    if (!addressId) throw new BadRequestException('addressId is required');
+    const address = await prisma.customerAddress.findFirst({ where: { id: addressId, userId } });
+    if (!address) throw new NotFoundException('Address not found');
+    const resolved = await this.resolveStoreForLocation(address.latitude, address.longitude);
+    const now = new Date();
+    const earliest = new Date(now.getTime() + PREORDER_MIN_LEAD_MINUTES * 60_000);
+    const horizon = new Date(now.getTime() + PREORDER_HORIZON_DAYS * 86_400_000);
+    const slots: Array<Record<string, unknown>> = [];
+
+    for (let offset = 0; offset <= PREORDER_HORIZON_DAYS; offset += 1) {
+      const day = new Date(now);
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() + offset);
+      for (const template of DEFAULT_PREORDER_SLOTS) {
+        const start = new Date(day);
+        start.setMinutes(template.startMinute);
+        const end = new Date(day);
+        end.setMinutes(template.endMinute);
+        if (start < earliest || start > horizon) continue;
+        const reserved = await prisma.order.count({
+          where: {
+            storeId: resolved.store.id,
+            status: { notIn: ['CANCELLED', 'PAYMENT_FAILED'] as any },
+            deliveryWindowStart: start,
+            deliveryWindowEnd: end,
+          },
+        });
+        slots.push({
+          id: `${start.toISOString()}_${end.toISOString()}`,
+          label: template.label,
+          windowStart: start.toISOString(),
+          windowEnd: end.toISOString(),
+          remainingCapacity: Math.max(0, PREORDER_SLOT_CAPACITY - reserved),
+          available: reserved < PREORDER_SLOT_CAPACITY,
+        });
+      }
+    }
+    return { timezone: 'Asia/Kolkata', store: resolved.store, minimumLeadMinutes: PREORDER_MIN_LEAD_MINUTES, horizonDays: PREORDER_HORIZON_DAYS, slots };
+  }
+
+  private validateDeliveryWindow(dto: CheckoutPlaceOrderDto) {
+    if (!dto.deliveryWindowStart && !dto.deliveryWindowEnd) return null;
+    if (!dto.deliveryWindowStart || !dto.deliveryWindowEnd) {
+      throw new BadRequestException('Both delivery window start and end are required');
+    }
+    const start = new Date(dto.deliveryWindowStart);
+    const end = new Date(dto.deliveryWindowEnd);
+    const now = Date.now();
+    if (start.getTime() < now + PREORDER_MIN_LEAD_MINUTES * 60_000) {
+      throw new BadRequestException(`Scheduled delivery requires at least ${PREORDER_MIN_LEAD_MINUTES} minutes lead time`);
+    }
+    if (start.getTime() > now + PREORDER_HORIZON_DAYS * 86_400_000) {
+      throw new BadRequestException(`Scheduled delivery can be booked only ${PREORDER_HORIZON_DAYS} days ahead`);
+    }
+    if (end <= start || end.getTime() - start.getTime() > 6 * 60 * 60_000) {
+      throw new BadRequestException('Invalid delivery window');
+    }
+    return { start, end };
+  }
+
   async quote(userId: string, dto: CheckoutQuoteDto) {
     if (!dto.items?.length) throw new BadRequestException('No items');
     const normalizedItems = normalizeItems(dto.items);
@@ -332,6 +402,7 @@ export class CheckoutService {
   }
 
   async placeOrder(userId: string, dto: CheckoutPlaceOrderDto, idempotencyKey?: string) {
+    const deliveryWindow = this.validateDeliveryWindow(dto);
     for (const item of dto.items) {
       if (!Number.isInteger(item.quantity) || item.quantity < 1) {
         throw new BadRequestException(`Invalid quantity for product ${item.productId}: must be a positive integer`);
@@ -422,6 +493,17 @@ export class CheckoutService {
 
     try {
       const committedOrder = await prisma.$transaction(async (tx) => {
+      if (deliveryWindow) {
+        const reserved = await tx.order.count({
+          where: {
+            storeId,
+            status: { notIn: ['CANCELLED', 'PAYMENT_FAILED'] as any },
+            deliveryWindowStart: deliveryWindow.start,
+            deliveryWindowEnd: deliveryWindow.end,
+          },
+        });
+        if (reserved >= PREORDER_SLOT_CAPACITY) throw new ConflictException('The selected delivery window is full');
+      }
       const transactionPromotionPricing = this.promotionsService
         ? await this.promotionsService.calculateDiscount(
             {
@@ -507,7 +589,15 @@ export class CheckoutService {
         grandTotalPaise: quote.invoice.grandTotalPaise,
         deliveryLat: address.latitude,
         deliveryLng: address.longitude,
-        reservationNote: 'Checkout inventory reservation',
+        scheduledDeliveryDate: deliveryWindow?.start ?? null,
+        deliveryWindowStart: deliveryWindow?.start ?? null,
+        deliveryWindowEnd: deliveryWindow?.end ?? null,
+        reservationNote: deliveryWindow ? `Scheduled checkout inventory reservation for ${deliveryWindow.start.toISOString()}` : 'Checkout inventory reservation',
+        outboxMetadata: deliveryWindow ? {
+          fulfillmentType: 'SCHEDULED',
+          deliveryWindowStart: deliveryWindow.start.toISOString(),
+          deliveryWindowEnd: deliveryWindow.end.toISOString(),
+        } : { fulfillmentType: 'IMMEDIATE' },
       });
 
       if (transactionPromotionPricing.coupon) {
