@@ -10,6 +10,8 @@ import AagamLogo from '@/components/AagamLogo';
 import { customerAuthHref, safeCustomerReturnPath } from '@/lib/customer-return-path';
 
 const DEFAULT_GOOGLE_WEB_CLIENT_ID = '416380795567-5de3kea0pbb9ibke91rl5pre0sdu82vo.apps.googleusercontent.com';
+// Keep phone OTP code available for reuse when SMS/WhatsApp providers return.
+const PHONE_AUTH_ENABLED = false;
 
 declare global {
   interface Window {
@@ -40,8 +42,8 @@ function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerReturnPath = safeCustomerReturnPath(searchParams.get('returnTo'));
-  const [mode, setMode] = useState<'PHONE' | 'PASSWORD'>('PHONE');
-  const [automationPasswordMode, setAutomationPasswordMode] = useState(false);
+  const [mode, setMode] = useState<'PHONE' | 'PASSWORD'>('PASSWORD');
+  const automationPasswordMode = false;
   const [phone, setPhone] = useState('');
   const [masked, setMasked] = useState('');
   const [code, setCode] = useState('');
@@ -68,15 +70,6 @@ function LoginPageContent() {
     else if (roles.includes('STORE_OWNER')) router.push('/store');
     else router.push(customerReturnPath);
   };
-
-  useEffect(() => {
-    // Keep phone OTP as the production default. Automated browser suites retain
-    // access to the password fallback without weakening or bypassing auth.
-    if (window.navigator.webdriver) {
-      setAutomationPasswordMode(true);
-      setMode('PASSWORD');
-    }
-  }, []);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -179,7 +172,7 @@ function LoginPageContent() {
           <div className="mb-4 flex items-start justify-between"><div><p className="enterprise-kicker">Welcome back</p><h2 className="mt-2 text-3xl font-black">Sign in to Aagaam</h2></div><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-500 text-white shadow-lg shadow-teal-700/25"><ShieldCheck className="h-5 w-5" /></div></div>
           <p className="mb-4 text-sm font-semibold text-slate-500">New customer? <Link href={customerAuthHref('/signup', customerReturnPath)} className="font-black text-teal-700">Create account</Link></p>
           {error ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{String(error)}</div> : null}
-          <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1"><button type="button" onClick={() => setMode('PHONE')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-black ${mode === 'PHONE' ? 'bg-teal-700 text-white' : 'text-slate-600'}`}><Phone className="h-4 w-4" /> Phone OTP</button><button type="button" onClick={() => setMode('PASSWORD')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-black ${mode === 'PASSWORD' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}><Lock className="h-4 w-4" /> Password</button></div>
+          {PHONE_AUTH_ENABLED ? <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1"><button type="button" onClick={() => setMode('PHONE')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-black ${mode === 'PHONE' ? 'bg-teal-700 text-white' : 'text-slate-600'}`}><Phone className="h-4 w-4" /> Phone OTP</button><button type="button" onClick={() => setMode('PASSWORD')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-black ${mode === 'PASSWORD' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}><Lock className="h-4 w-4" /> Password</button></div> : null}
           {mode === 'PHONE' && masked && newCustomer ? <div className="mb-4 space-y-3 rounded-2xl border border-teal-100 bg-teal-50 p-4"><p className="text-sm font-black text-teal-900">Complete your new customer profile</p><p className="text-xs font-semibold text-teal-800">The verified mobile number creates your account automatically.</p><input value={profileName} onChange={(event) => setProfileName(event.target.value)} className="enterprise-input bg-white" placeholder="Full name" autoComplete="name" /><input value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} className="enterprise-input bg-white" placeholder="Email (optional)" type="email" autoComplete="email" /></div> : null}
           {mode === 'PHONE' ? !masked ? <div className="space-y-4"><label className="block"><span className="mb-2 block text-sm font-black">Mobile number</span><span className="relative block"><Phone className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-teal-700" /><input value={phone} onChange={(event) => setPhone(event.target.value.replace(/\D/g, '').slice(0, 10))} className="enterprise-input pl-12" placeholder="10-digit mobile number" inputMode="numeric" autoComplete="tel-national" maxLength={10} /></span></label><button onClick={requestCode} disabled={loading || phone.length !== 10} className="enterprise-button w-full gap-2 disabled:cursor-not-allowed disabled:opacity-50">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Send OTP <ArrowRight className="h-4 w-4" /></>}</button></div> : <div className="space-y-4"><p className="text-center text-sm font-bold text-slate-600">Code sent to {masked}</p><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} className="enterprise-input text-center text-2xl font-black tracking-[.5em]" placeholder="000000" inputMode="numeric" maxLength={6} autoFocus autoComplete="one-time-code" /><button onClick={verifyCode} disabled={loading || code.length !== 6} className="enterprise-button w-full">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Verify and sign in'}</button><button onClick={() => countdown === 0 ? requestCode() : undefined} disabled={countdown > 0} className="w-full text-sm font-black text-teal-700 disabled:text-slate-400">{countdown > 0 ? `Resend in 00:${String(countdown).padStart(2, '0')}` : 'Resend OTP'}</button><button onClick={() => { setMasked(''); setCode(''); }} className="w-full text-xs font-bold text-slate-500">Change mobile number</button></div> : <form className="space-y-4" onSubmit={passwordLogin} noValidate={automationPasswordMode}><label className="block"><span className="mb-2 block text-sm font-black">Phone number or email</span><span className="relative block"><Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" /><input type={automationPasswordMode ? 'email' : 'text'} aria-label={automationPasswordMode ? 'Email address Phone number or email' : 'Phone number or email'} required value={identifier} onChange={(event) => setIdentifier(event.target.value)} className="enterprise-input pl-12" placeholder="Phone or email" inputMode={automationPasswordMode ? 'email' : 'text'} autoComplete="username" /></span></label><label className="block"><span className="mb-2 block text-sm font-black">Password</span><span className="relative block"><Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" /><input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="enterprise-input pl-12" autoComplete="current-password" /></span></label><button type="submit" disabled={loading} className="enterprise-button w-full">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Continue'}</button></form>}
           <div className="mt-4 text-center"><Link href="/forgot-password" className="text-sm font-black text-teal-700 hover:text-teal-800">Forgot your password?</Link></div>
