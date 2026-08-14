@@ -361,7 +361,7 @@ export class OrderService {
             status: true,
           },
         },
-        deliveryJob: { select: { status: true } },
+        deliveryJob: { select: { id: true, status: true } },
       },
       orderBy: {
         createdAt: 'desc'
