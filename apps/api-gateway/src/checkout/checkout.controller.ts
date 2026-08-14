@@ -20,6 +20,12 @@ export class CheckoutController {
     return this.checkoutService.serviceability(userId, addressId);
   }
 
+  @Get('delivery-slots')
+  async deliverySlots(@Req() req: Request, @Query('addressId') addressId: string) {
+    const userId = (req as any).user?.id as string;
+    return this.checkoutService.deliverySlots(userId, addressId);
+  }
+
   @Post('quote')
   async quote(@Req() req: Request, @Body() dto: CheckoutQuoteDto) {
     const userId = (req as any).user?.id as string;

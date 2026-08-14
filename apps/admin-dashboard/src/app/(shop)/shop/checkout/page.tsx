@@ -8,7 +8,9 @@ import {
   ArrowLeft,
   BadgePercent,
   Banknote,
+  CalendarDays,
   CheckCircle2,
+  Clock3,
   CreditCard,
   Edit2,
   Loader2,
@@ -77,6 +79,15 @@ type QuoteResponse = {
   } | null;
 };
 
+type DeliverySlot = {
+  id: string;
+  label: string;
+  windowStart: string;
+  windowEnd: string;
+  remainingCapacity: number;
+  available: boolean;
+};
+
 const emptyDraft = () => ({
   label: 'Home',
   recipientName: '',
@@ -116,10 +127,34 @@ export default function CheckoutPage() {
   const [appliedCouponCode, setAppliedCouponCode] = useState('');
   const [couponError, setCouponError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('COD');
+  const [fulfillmentType, setFulfillmentType] = useState<'IMMEDIATE' | 'SCHEDULED'>('IMMEDIATE');
+  const [deliverySlots, setDeliverySlots] = useState<DeliverySlot[]>([]);
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const idemKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedAddressId || orderId) {
+      setDeliverySlots([]);
+      setSelectedSlotId(null);
+      return;
+    }
+    let active = true;
+    setLoadingSlots(true);
+    apiClient.get('/checkout/delivery-slots', { params: { addressId: selectedAddressId } })
+      .then((response) => {
+        if (!active) return;
+        const slots = (response.data?.slots || []) as DeliverySlot[];
+        setDeliverySlots(slots);
+        setSelectedSlotId((current) => current && slots.some((slot) => slot.id === current) ? current : null);
+      })
+      .catch((cause) => active && setError(cause?.response?.data?.message || 'Could not load delivery windows.'))
+      .finally(() => active && setLoadingSlots(false));
+    return () => { active = false; };
+  }, [orderId, selectedAddressId]);
 
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get('coupon');
@@ -329,6 +364,11 @@ export default function CheckoutPage() {
 
   const placeOrder = async () => {
     if (!selectedAddressId || !quote || !quote.serviceable || itemsPayload.length === 0) return;
+    const selectedSlot = deliverySlots.find((slot) => slot.id === selectedSlotId);
+    if (fulfillmentType === 'SCHEDULED' && !selectedSlot) {
+      setError('Choose an available delivery window.');
+      return;
+    }
     setPlacingOrder(true);
     setError(null);
     try {
@@ -342,6 +382,8 @@ export default function CheckoutPage() {
           addressId: selectedAddressId,
           paymentMethod,
           couponCode: appliedCouponCode || undefined,
+          deliveryWindowStart: selectedSlot?.windowStart,
+          deliveryWindowEnd: selectedSlot?.windowEnd,
         },
         { headers: { 'Idempotency-Key': idempotencyKey } },
       );
@@ -471,6 +513,19 @@ export default function CheckoutPage() {
               ) : null}
             </section>
 
+            <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+              <div className="bg-gradient-to-r from-slate-950 to-teal-950 p-5 text-white">
+                <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-white/10"><CalendarDays className="h-5 w-5" /></span><div><h2 className="font-black">Choose delivery time</h2><p className="text-xs font-semibold text-teal-100">Get it now or reserve a convenient window.</p></div></div>
+              </div>
+              <div className="p-5">
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => { setFulfillmentType('IMMEDIATE'); setSelectedSlotId(null); }} className={`rounded-2xl border p-4 text-left transition ${fulfillmentType === 'IMMEDIATE' ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-200'}`}><Clock3 className="h-5 w-5 text-teal-700"/><p className="mt-2 text-sm font-black text-slate-950">Deliver now</p><p className="mt-1 text-xs text-slate-500">Fastest available delivery</p></button>
+                  <button type="button" onClick={() => setFulfillmentType('SCHEDULED')} className={`rounded-2xl border p-4 text-left transition ${fulfillmentType === 'SCHEDULED' ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-200'}`}><CalendarDays className="h-5 w-5 text-teal-700"/><p className="mt-2 text-sm font-black text-slate-950">Schedule delivery</p><p className="mt-1 text-xs text-slate-500">Reserve up to 7 days ahead</p></button>
+                </div>
+                {fulfillmentType === 'SCHEDULED' ? <div className="mt-5"><div className="mb-3 flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-500">Available windows</p>{loadingSlots ? <Loader2 className="h-4 w-4 animate-spin text-teal-700"/> : null}</div><div className="grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">{deliverySlots.filter((slot) => slot.available).map((slot) => { const start = new Date(slot.windowStart); const end = new Date(slot.windowEnd); const active = selectedSlotId === slot.id; return <button type="button" key={slot.id} onClick={() => setSelectedSlotId(slot.id)} className={`rounded-2xl border p-3 text-left transition ${active ? 'border-teal-500 bg-teal-50' : 'border-slate-200 hover:border-teal-300'}`}><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-black text-slate-950">{start.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</p><p className="mt-1 text-xs font-bold text-teal-700">{slot.label} · {start.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}–{end.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</p></div>{active ? <CheckCircle2 className="h-5 w-5 shrink-0 text-teal-600"/> : null}</div><p className="mt-2 text-[11px] font-semibold text-slate-400">{slot.remainingCapacity <= 5 ? `Only ${slot.remainingCapacity} windows left` : 'Available'}</p></button>; })}</div>{!loadingSlots && deliverySlots.filter((slot) => slot.available).length === 0 ? <p className="rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">No scheduled windows are available for this address.</p> : null}</div> : null}
+              </div>
+            </section>
+
             <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
               <h2 className="font-black text-slate-950">Payment method</h2>
               <div className="mt-4 grid grid-cols-2 gap-3">
@@ -515,7 +570,7 @@ export default function CheckoutPage() {
               {orderId ? (
                 <div className="text-center"><CheckCircle2 className="mx-auto h-12 w-12 text-teal-600" /><h3 className="mt-3 text-lg font-black text-slate-950">Order placed</h3><p className="mt-1 text-xs text-slate-500">#{orderId.slice(-8).toUpperCase()}</p><button onClick={() => router.push('/shop/orders')} className="mt-4 w-full rounded-xl bg-slate-950 py-3 text-sm font-black text-white">View order</button></div>
               ) : (
-                <button onClick={() => void placeOrder()} disabled={placingOrder || !quote?.serviceable} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 py-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{placingOrder ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}{placingOrder ? 'Placing order…' : paymentMethod === 'COD' ? 'Place COD order' : 'Continue to pay'}</button>
+                <button onClick={() => void placeOrder()} disabled={placingOrder || !quote?.serviceable || (fulfillmentType === 'SCHEDULED' && !selectedSlotId)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 py-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{placingOrder ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}{placingOrder ? 'Placing order…' : fulfillmentType === 'SCHEDULED' ? 'Reserve delivery window' : paymentMethod === 'COD' ? 'Place COD order' : 'Continue to pay'}</button>
               )}
               {selectedAddress ? <p className="mt-3 text-center text-xs text-slate-500">Deliver to <span className="font-black text-slate-800">{selectedAddress.recipientName}</span></p> : null}
             </section>

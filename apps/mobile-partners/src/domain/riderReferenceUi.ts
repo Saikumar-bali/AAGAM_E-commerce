@@ -26,6 +26,8 @@ export type RiderJobListItem = {
   job: RiderDeliveryJob | null;
   offer: RiderAssignmentOffer | null;
   payout: number | null;
+  deliveryWindowStart?: string | null;
+  deliveryWindowEnd?: string | null;
 };
 
 export type RiderWeekSummary = {
@@ -168,6 +170,8 @@ function listItemFromJob(job: RiderDeliveryJob): RiderJobListItem {
     job,
     offer: null,
     payout: payoutAmount(null, job),
+    deliveryWindowStart: job.order.deliveryWindowStart || null,
+    deliveryWindowEnd: job.order.deliveryWindowEnd || null,
   };
 }
 
@@ -185,6 +189,8 @@ function listItemFromAssignment(assignment: RiderAssignmentOffer): RiderJobListI
     job,
     offer: assignment,
     payout: payoutAmount(assignment, job),
+    deliveryWindowStart: job.order.deliveryWindowStart || null,
+    deliveryWindowEnd: job.order.deliveryWindowEnd || null,
   };
 }
 
