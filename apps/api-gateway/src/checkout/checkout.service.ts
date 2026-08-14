@@ -13,10 +13,8 @@ const PREORDER_MIN_LEAD_MINUTES = Math.max(30, Number(process.env.PREORDER_MIN_L
 const PREORDER_HORIZON_DAYS = Math.min(30, Math.max(1, Number(process.env.PREORDER_HORIZON_DAYS || 7)));
 const PREORDER_SLOT_CAPACITY = Math.max(1, Number(process.env.PREORDER_SLOT_CAPACITY || 30));
 const DEFAULT_PREORDER_SLOTS = [
-  { label: 'Morning', startMinute: 6 * 60, endMinute: 9 * 60 },
-  { label: 'Mid-morning', startMinute: 9 * 60, endMinute: 12 * 60 },
-  { label: 'Afternoon', startMinute: 12 * 60, endMinute: 16 * 60 },
-  { label: 'Evening', startMinute: 16 * 60, endMinute: 20 * 60 },
+  { label: 'Morning', startMinute: 6 * 60, endMinute: 9 * 60 + 30 },
+  { label: 'Evening', startMinute: 15 * 60, endMinute: 19 * 60 },
 ];
 
 function isOrderCreationService(

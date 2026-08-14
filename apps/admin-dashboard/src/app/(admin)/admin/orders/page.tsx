@@ -22,6 +22,8 @@ interface Order {
   deliveryLng: number | null;
   riderId: string | null;
   createdAt: string;
+  deliveryWindowStart?: string | null;
+  deliveryWindowEnd?: string | null;
   addressSnapshot?: {
     recipientName?: string;
     phoneE164?: string;
@@ -47,6 +49,8 @@ interface Order {
 }
 
 const statusOptions = ['PENDING', 'CONFIRMED', 'PICKING', 'PACKED', 'RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
+
+const deliveryWindow = (order: Order) => order.deliveryWindowStart && order.deliveryWindowEnd ? `${new Date(order.deliveryWindowStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })} · ${new Date(order.deliveryWindowStart).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}–${new Date(order.deliveryWindowEnd).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}` : null;
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -428,7 +432,7 @@ export default function AdminOrdersPage() {
                         {isAtRisk ? `At Risk • ${ageMinutes}m` : `Healthy • ${ageMinutes}m`}
                       </span>
                     </td>
-                    <td className="px-6 py-4"><div className="flex items-center text-sm text-gray-500"><Calendar className="h-4 w-4 mr-2 text-gray-400" />{new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div></td>
+                    <td className="px-6 py-4"><div className="flex items-center text-sm text-gray-500"><Calendar className="h-4 w-4 mr-2 text-gray-400" />{new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>{deliveryWindow(order) && <div className="mt-1 text-[11px] font-black text-emerald-700">Scheduled · {deliveryWindow(order)}</div>}</td>
                     <td className="px-6 py-4 text-right"><div className="flex justify-end space-x-1.5"><button aria-label={`View order ${order.id.substring(0, 8)}`} title="View order details" onClick={() => { setSelectedOrder(order); fetchOrderTracking(order.id); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"><Eye className="h-4 w-4" /></button><button aria-label={`Update status for order ${order.id.substring(0, 8)}`} title="Update order status" onClick={() => { setSelectedOrder(order); setShowStatusModal(true); }} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"><ChevronDown className="h-4 w-4" /></button></div></td>
                   </tr>
                 );

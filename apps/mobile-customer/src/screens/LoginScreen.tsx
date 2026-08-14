@@ -30,6 +30,8 @@ const googleClientConfigured =
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 10);
 const phoneForApi = (value: string) => `+91${digitsOnly(value)}`;
+// Keep phone OTP implementation intact for reuse when SMS/WhatsApp returns.
+const PHONE_AUTH_ENABLED = false;
 
 export const LoginScreen = () => {
   const login = useAuthStore((state) => state.login);
@@ -244,7 +246,7 @@ export const LoginScreen = () => {
                   ? 'Use your 10-digit mobile number to continue.'
                   : 'Use your phone number or email to continue.'}
             </Text>
-            {!masked ? <View style={styles.tabs}>
+            {!masked && PHONE_AUTH_ENABLED ? <View style={styles.tabs}>
               <TouchableOpacity onPress={() => setMode('PHONE')} style={[styles.tab, mode === 'PHONE' && styles.tabActive]}><Phone size={17} color={mode === 'PHONE' ? '#fff' : '#64748B'} /><Text style={[styles.tabText, mode === 'PHONE' && styles.tabTextActive]}>Phone OTP</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => setMode('PASSWORD')} style={[styles.tab, mode === 'PASSWORD' && styles.tabActive]}><Lock size={17} color={mode === 'PASSWORD' ? '#fff' : '#64748B'} /><Text style={[styles.tabText, mode === 'PASSWORD' && styles.tabTextActive]}>Password</Text></TouchableOpacity>
             </View> : null}
