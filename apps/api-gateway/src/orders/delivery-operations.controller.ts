@@ -14,6 +14,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { CodSettlementFacadeService } from "./cod-settlement-facade.service";
 import {
+  AdminForceCompleteDeliveryDto,
   CollectCodDto,
   CompleteDeliveryOperationDto,
   ConfirmStoreHandoffDto,
@@ -205,6 +206,22 @@ export class DeliveryOperationsController {
     @Headers("idempotency-key") idempotencyKey?: string
   ) {
     return this.operations.completeDelivery(
+      deliveryJobId,
+      req.user,
+      body,
+      idempotencyKey
+    );
+  }
+
+  @Post("jobs/:deliveryJobId/admin-force-complete")
+  @Roles(Role.ADMIN)
+  adminForceComplete(
+    @Param("deliveryJobId") deliveryJobId: string,
+    @Body() body: AdminForceCompleteDeliveryDto,
+    @Req() req: any,
+    @Headers("idempotency-key") idempotencyKey?: string
+  ) {
+    return this.operations.adminForceCompleteDelivery(
       deliveryJobId,
       req.user,
       body,

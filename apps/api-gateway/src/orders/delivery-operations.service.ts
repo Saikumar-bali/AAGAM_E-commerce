@@ -31,6 +31,7 @@ import {
 import { OutboxService } from "../notifications/outbox.service";
 import { calculateDistance } from "@aagam/utils";
 import {
+  AdminForceCompleteDeliveryDto,
   CollectCodDto,
   CompleteDeliveryOperationDto,
   ConfirmStoreHandoffDto,
@@ -1187,6 +1188,100 @@ export class DeliveryOperationsService {
       throw new BadRequestException(outcome.otpError.reason);
     }
     return outcome.job;
+  }
+
+  async adminForceCompleteDelivery(
+    deliveryJobId: string,
+    actor: Actor,
+    input: AdminForceCompleteDeliveryDto,
+    idempotencyKey?: string
+  ) {
+    if (actor.role !== Role.ADMIN) {
+      throw new ForbiddenException("Only an administrator can force-complete a delivery");
+    }
+    const reason = input.reason.trim();
+    const key = idempotencyKey || `admin-force-complete:${deliveryJobId}`;
+    return prisma.$transaction(async (tx) => {
+      await this.lock(tx, `delivery-complete:${deliveryJobId}`);
+      const job = await this.job(tx, deliveryJobId);
+      if (job.status === DeliveryJobStatus.DELIVERED) return job;
+      if ([DeliveryJobStatus.CANCELLED, DeliveryJobStatus.RETURNED_TO_STORE].includes(job.status)) {
+        throw new BadRequestException(`Cannot force-complete delivery from ${job.status}`);
+      }
+      if (!job.currentRiderId) throw new BadRequestException("Delivery has no assigned Rider");
+
+      const payment = job.order.payment;
+      if (payment?.method === PaymentMethod.COD) {
+        if (input.codAmountPaise !== payment.amountPaise) {
+          throw new BadRequestException(`COD amount must equal ${payment.amountPaise} paise`);
+        }
+        const ledger = await this.ensureCodLedger(tx, job, actor);
+        if (ledger.collectedAmountPaise === 0) {
+          const collectedAt = new Date();
+          if (payment.status === PaymentStatus.PENDING_COD) {
+            await tx.payment.update({ where: { id: payment.id }, data: { status: PaymentStatus.CAPTURED, verifiedAt: collectedAt } });
+          } else if (payment.status !== PaymentStatus.CAPTURED) {
+            throw new BadRequestException(`COD payment cannot be collected from status ${payment.status}`);
+          }
+          await tx.codLedger.update({
+            where: { id: ledger.id },
+            data: {
+              riderId: job.currentRiderId,
+              collectedAmountPaise: input.codAmountPaise,
+              collectionTimestamp: collectedAt,
+              riderHoldingBalancePaise: input.codAmountPaise,
+              variancePaise: 0,
+              status: CodSettlementStatus.HELD_BY_RIDER,
+            },
+          });
+          await tx.codLedgerEntry.create({
+            data: {
+              codLedgerId: ledger.id,
+              type: CodLedgerEntryType.COLLECTED,
+              amountPaise: input.codAmountPaise,
+              holdingAfterPaise: input.codAmountPaise,
+              depositedAfterPaise: 0,
+              actorUserId: actor.id,
+              actorRole: actor.role,
+              reference: "ADMIN_FORCE_COMPLETE",
+              idempotencyKey: `cod-ledger-collection:${key}`,
+              metadata: { adminOverride: true, reason, collectedAt: collectedAt.toISOString() },
+            },
+          });
+        } else if (ledger.collectedAmountPaise !== input.codAmountPaise) {
+          throw new ConflictException("Existing COD collection does not match the override amount");
+        }
+      } else if (input.codAmountPaise !== 0) {
+        throw new BadRequestException("COD amount must be zero for a non-COD order");
+      }
+
+      const now = new Date();
+      const proof = job.deliveryProof || await tx.deliveryProof.create({
+        data: {
+          deliveryJobId,
+          orderId: job.orderId,
+          riderId: job.currentRiderId,
+          customerUserId: job.order.customerId,
+          verificationMethod: "SECURITY_RECEPTION",
+          proofReference: key,
+          riderConfirmedAt: now,
+          verifiedAt: now,
+          note: `ADMIN OVERRIDE: ${reason}`,
+        },
+      });
+      await this.createOperation(tx, {
+        deliveryJobId,
+        orderId: job.orderId,
+        type: "DELIVERY_PROOF_RECORDED",
+        actor,
+        idempotencyKey: key,
+        details: { adminOverride: true, reason, deliveryProofId: proof.id, codAmountPaise: input.codAmountPaise },
+      });
+      return this.workflow.transitionWithinTransaction(tx, deliveryJobId, DeliveryJobStatus.DELIVERED, actor, {
+        allowAdminOverride: true,
+        metadata: { adminOverride: true, reason, deliveryProofId: proof.id, codAmountPaise: input.codAmountPaise },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   async completeCodDelivery(

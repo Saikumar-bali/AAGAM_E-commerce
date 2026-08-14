@@ -4,6 +4,7 @@ import path from "path";
 import { DeliveryResolutionAction } from "@aagam/database";
 import { decideFailureResolution } from "./orders/delivery-failure-policy";
 import {
+  AdminForceCompleteDeliveryDto,
   CompleteDeliveryOperationDto,
   DeliveryFailureReason,
   IssuePickupChallengeDto,
@@ -95,6 +96,34 @@ describe("Phase 5 pickup, delivery proof, COD, and failed-delivery gate", () => 
         metatype: CompleteDeliveryOperationDto,
       } as any)
     ).rejects.toBeDefined();
+  });
+
+  it("requires an explicit audited reason and exact COD amount for Admin force completion", async () => {
+    await expect(
+      pipe.transform(
+        { reason: "Customer receipt and COD collection independently confirmed", codAmountPaise: 2830 },
+        { type: "body", metatype: AdminForceCompleteDeliveryDto } as any
+      )
+    ).resolves.toMatchObject({ codAmountPaise: 2830 });
+    await expect(
+      pipe.transform(
+        { reason: "too short", codAmountPaise: 2830 },
+        { type: "body", metatype: AdminForceCompleteDeliveryDto } as any
+      )
+    ).rejects.toBeDefined();
+  });
+
+  it("keeps Admin force completion role-scoped, auditable, and routed through the canonical workflow", () => {
+    const controller = api("orders/delivery-operations.controller.ts");
+    const operations = api("orders/delivery-operations.service.ts");
+    const workflow = api("orders/delivery-workflow.service.ts");
+    expect(controller).toContain('@Post("jobs/:deliveryJobId/admin-force-complete")');
+    expect(controller).toContain("@Roles(Role.ADMIN)");
+    expect(operations).toContain("adminForceCompleteDelivery");
+    expect(operations).toContain("ADMIN_FORCE_COMPLETE");
+    expect(operations).toContain("CodLedgerEntryType.COLLECTED");
+    expect(operations).toContain("allowAdminOverride: true");
+    expect(workflow).toContain("options.allowAdminOverride === true");
   });
 
   it("rejects uncontrolled failure strings at the API boundary", async () => {
