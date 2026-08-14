@@ -28,6 +28,8 @@ import { AagamMark } from '../components/AagamMark';
 const BRAND_GREEN = '#057A55';
 const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 10);
 const phoneForApi = (value: string) => `+91${digitsOnly(value)}`;
+// Keep phone OTP implementation intact for reuse when SMS/WhatsApp returns.
+const PHONE_AUTH_ENABLED = false;
 const errorMessage = (error: any, fallback: string) => {
   const raw = error?.response?.data?.message ?? error?.message;
   return Array.isArray(raw) ? raw.join(', ') : typeof raw === 'string' && raw.trim() ? raw : fallback;
@@ -148,7 +150,7 @@ const LoginScreen = ({ navigation }: any) => {
           <Text style={styles.subtitle}>Sign in to access your partner account.</Text>
         </View>
 
-        <View style={styles.tabs}>
+        {PHONE_AUTH_ENABLED ? <View style={styles.tabs}>
           <TouchableOpacity
             testID="partner_login_phone_tab"
             accessibilityRole="button"
@@ -167,7 +169,7 @@ const LoginScreen = ({ navigation }: any) => {
             <Lock size={18} color={mode === 'PASSWORD' ? '#FFFFFF' : '#6A7789'} />
             <Text style={[styles.tabText, mode === 'PASSWORD' && styles.tabTextActive]}>Email & Password</Text>
           </TouchableOpacity>
-        </View>
+        </View> : null}
 
         <View style={styles.form}>
           {mode === 'PHONE' ? (
