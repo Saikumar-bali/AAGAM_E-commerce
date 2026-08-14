@@ -174,8 +174,8 @@ export class ContactDeliveryService {
 
   private async sendResend(input: ContactDeliveryInput): Promise<ContactDeliveryResult> {
     const apiKey = process.env.RESEND_API_KEY?.trim();
-    const from = process.env.PARTNER_VERIFICATION_FROM_EMAIL?.trim();
-    if (!apiKey || !from) {
+    const sender = this.sender();
+    if (!apiKey || !sender) {
       throw new ServiceUnavailableException({
         message: 'Email verification is not configured',
         code: 'RESEND_UNCONFIGURED',
@@ -192,7 +192,7 @@ export class ContactDeliveryService {
           'Idempotency-Key': input.correlationId,
         },
         body: JSON.stringify({
-          from,
+          from: sender.Name ? `${sender.Name} <${sender.Email}>` : sender.Email,
           to: [input.destination],
           subject: input.purpose === 'PASSWORD_RESET' ? 'Reset your AAGAM password' : 'Your AAGAM verification code',
           text: this.text(input),
