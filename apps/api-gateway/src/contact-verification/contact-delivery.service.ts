@@ -208,12 +208,6 @@ export class ContactDeliveryService {
     }
     const payload = (await response.json().catch(() => ({}))) as Record<string, any>;
     if (!response.ok) {
-      console.error('[ContactDeliveryService] Resend rejected email', {
-        status: response.status,
-        code: payload.code || payload.name,
-        message: payload.message,
-        correlationId: input.correlationId,
-      });
       throw new ServiceUnavailableException({
         message: 'Email verification could not be delivered',
         code: this.safeCode(payload.code || payload.name, 'RESEND_REJECTED'),
