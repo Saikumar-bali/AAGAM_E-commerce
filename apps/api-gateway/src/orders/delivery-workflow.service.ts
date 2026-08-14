@@ -21,6 +21,7 @@ type TransitionOptions = {
   assignedRiderId?: string | null;
   skipRoleCheck?: boolean;
   metadata?: Record<string, unknown>;
+  allowAdminOverride?: boolean;
 };
 
 const TRANSITIONS: Record<DeliveryJobStatusType, DeliveryJobStatusType[]> = {
@@ -227,10 +228,14 @@ export class DeliveryWorkflowService {
     if (currentStatus === nextStatus) return job;
 
     const allowed = TRANSITIONS[currentStatus] || [];
-    if (!allowed.includes(nextStatus)) {
+    const adminOverride = options.allowAdminOverride === true && actor.role === Role.ADMIN;
+    if (!allowed.includes(nextStatus) && !adminOverride) {
       throw new BadRequestException(
         `Cannot transition delivery from ${currentStatus} to ${nextStatus}`
       );
+    }
+    if (options.allowAdminOverride && !adminOverride) {
+      throw new ForbiddenException("Only an administrator can override delivery transitions");
     }
     if (!options.skipRoleCheck) {
       await this.assertRole(job, nextStatus, actor, tx);

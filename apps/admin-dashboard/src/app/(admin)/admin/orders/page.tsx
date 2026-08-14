@@ -43,7 +43,7 @@ interface Order {
     depositedAmountPaise: number;
     status: string;
   } | null;
-  deliveryJob?: { status?: string | null } | null;
+  deliveryJob?: { id?: string | null; status?: string | null } | null;
 }
 
 const statusOptions = ['PENDING', 'CONFIRMED', 'PICKING', 'PACKED', 'RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
@@ -68,6 +68,7 @@ export default function AdminOrdersPage() {
   const [riders, setRiders] = useState<any[]>([]);
   const [reassignUserId, setReassignUserId] = useState('');
   const [reassigning, setReassigning] = useState(false);
+  const [forceCompleting, setForceCompleting] = useState(false);
 
   const getAddressText = (order: Order) => {
     const a = order.addressSnapshot;
@@ -275,6 +276,28 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const handleForceComplete = async () => {
+    if (!selectedOrder?.deliveryJob?.id) return;
+    const reason = window.prompt('Audit reason for force-completing this delivery:');
+    if (!reason || reason.trim().length < 10) return;
+    if (!window.confirm(`Force-complete ${selectedOrder.id.slice(0, 8)} and record the full COD amount as collected?`)) return;
+    setForceCompleting(true);
+    try {
+      await apiClient.post(
+        `/orders/delivery-operations/jobs/${selectedOrder.deliveryJob.id}/admin-force-complete`,
+        { reason: reason.trim(), codAmountPaise: selectedOrder.payment?.method === 'COD' ? Number(selectedOrder.payment.amountPaise || Math.round(selectedOrder.totalAmount * 100)) : 0 },
+        { headers: { 'idempotency-key': `admin-force-complete:${selectedOrder.deliveryJob.id}` } },
+      );
+      setSelectedOrder(null);
+      setTrackingDetail(null);
+      await fetchOrders();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Force completion failed');
+    } finally {
+      setForceCompleting(false);
+    }
+  };
+
   const handleReassignRider = async () => {
     if (!selectedOrder || !reassignUserId) return;
     setReassigning(true);
@@ -476,6 +499,9 @@ export default function AdminOrdersPage() {
               <button onClick={() => setShowStatusModal(true)} className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all">Update Status</button>
               {selectedOrder.status !== 'CANCELLED' && selectedOrder.status !== 'DELIVERED' && (
                 <button onClick={() => { setShowForceCancelModal(true); setForceCancelReason(''); }} className="px-4 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all">Force Cancel</button>
+              )}
+              {selectedOrder.deliveryJob?.id && !['DELIVERED', 'CANCELLED', 'RETURNED_TO_STORE'].includes(String(selectedOrder.deliveryJob.status)) && (
+                <button onClick={() => void handleForceComplete()} disabled={forceCompleting} className="px-4 py-2.5 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 disabled:opacity-50">{forceCompleting ? 'Completing...' : 'Admin Force Complete'}</button>
               )}
               <button onClick={() => { fetchRiders(); setReassignUserId(''); setShowReassignModal(true); }} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all">Reassign Rider</button>
             </div>

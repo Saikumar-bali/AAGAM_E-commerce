@@ -148,6 +148,17 @@ export class CompleteDeliveryOperationDto {
   accuracyMetres?: number;
 }
 
+export class AdminForceCompleteDeliveryDto {
+  @IsString()
+  @MinLength(10)
+  @MaxLength(500)
+  reason!: string;
+
+  @IsInt()
+  @Min(0)
+  codAmountPaise!: number;
+}
+
 export class CollectCodDto {
   @IsInt()
   @Min(1)
