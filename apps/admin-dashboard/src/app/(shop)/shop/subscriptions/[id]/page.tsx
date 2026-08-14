@@ -24,6 +24,16 @@ import {
 } from "lucide-react";
 import { useToast, getToastErrorMessage } from "@/components/ToastProvider";
 
+const minuteTime = (minute?: number | null) => {
+  if (minute == null || !Number.isFinite(Number(minute))) return "—";
+  const hours = Math.floor(Number(minute) / 60) % 24;
+  const minutes = Number(minute) % 60;
+  return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
 export default function SubscriptionDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
