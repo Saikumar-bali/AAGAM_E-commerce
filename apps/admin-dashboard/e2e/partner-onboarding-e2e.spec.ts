@@ -4,11 +4,12 @@ import { APIRequestContext, Browser, Page, expect, test } from '@playwright/test
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
 const WEB_BASE = 'http://localhost:3001';
-const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-phone-primary');
+const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-email-verification');
 const adminEmail = process.env.ADMIN_EMAIL;
 const adminPassword = process.env.ADMIN_PASSWORD;
 
 const qaPhone = (offset = 0) => `+919${String(Date.now() + offset).slice(-9).padStart(9, '0')}`;
+const qaEmail = (suffix: string) => `qa.${suffix.replace(/[^a-zA-Z0-9.-]/g, '.')}@example.com`.toLowerCase();
 
 type Applicant = {
   applicationId: string;
@@ -17,7 +18,7 @@ type Applicant = {
   type: 'RIDER' | 'STORE';
   name: string;
   phone: string;
-  email?: string;
+  email: string;
   requiredDocuments: string[];
 };
 
@@ -28,7 +29,7 @@ async function startApplication(
   type: 'RIDER' | 'STORE',
   suffix: string,
   phone: string,
-  email?: string,
+  email: string,
 ) {
   const name = type === 'RIDER' ? `QA Rider ${suffix}` : `QA Store ${suffix}`;
   const response = await request.post(`${API_BASE}/partner-onboarding/applications`, {
@@ -37,12 +38,14 @@ async function startApplication(
       applicantName: name,
       phoneE164: phone,
       email,
+      // Deliberately request the retired channel to prove the API, not just the app UI,
+      // enforces email verification for every newly-created Partner application.
       verificationChannel: 'PHONE',
     },
   });
   expect(response.ok(), await response.text()).toBeTruthy();
   const body = await response.json();
-  expect(body.verification?.channel).toBe('PHONE');
+  expect(body.verification?.channel).toBe('EMAIL');
   expect(body.verification?.code).toMatch(/^\d{6}$/);
   return { body, name };
 }
@@ -52,7 +55,7 @@ async function submittedApplication(
   type: 'RIDER' | 'STORE',
   suffix: string,
   phone: string,
-  email?: string,
+  email: string,
 ): Promise<Applicant> {
   const started = await startApplication(request, type, suffix, phone, email);
   const applicant: Applicant = {
@@ -74,7 +77,9 @@ async function submittedApplication(
     { headers: headers(applicant), data: { code: started.body.verification.code } },
   );
   expect(verify.ok(), await verify.text()).toBeTruthy();
-  expect((await verify.json()).application.phoneVerifiedAt).toBeTruthy();
+  const verifiedApplication = (await verify.json()).application;
+  expect(verifiedApplication.emailVerifiedAt).toBeTruthy();
+  expect(verifiedApplication.phoneVerifiedAt).toBeFalsy();
 
   const payload = type === 'RIDER'
     ? {
@@ -120,7 +125,7 @@ async function submittedApplication(
   const submit = await request.post(
     `${API_BASE}/partner-onboarding/applications/${applicant.applicationId}/submit`,
     {
-      headers: { ...headers(applicant), 'Idempotency-Key': `phone-${type}-${suffix}` },
+      headers: { ...headers(applicant), 'Idempotency-Key': `email-${type}-${suffix}` },
       data: {},
     },
   );
@@ -172,7 +177,7 @@ async function approve(page: Page, applicant: Applicant) {
   await approveButton.click();
   await expect(page.locator('header').getByText('APPROVED')).toBeVisible();
   await page.screenshot({
-    path: path.join(SCREENSHOT_DIR, `phone-primary-${applicant.type.toLowerCase()}-approved.png`),
+    path: path.join(SCREENSHOT_DIR, `email-verified-${applicant.type.toLowerCase()}-approved.png`),
     fullPage: true,
   });
 }
@@ -191,40 +196,53 @@ async function phoneLogin(request: APIRequestContext, phone: string) {
   return verify.json();
 }
 
-test.describe.serial('Phone-primary identity and Partner recovery E2E', () => {
+test.describe.serial('Email-first identity and Partner recovery E2E', () => {
   test.beforeAll(() => mkdirSync(SCREENSHOT_DIR, { recursive: true }));
 
-  test('Customer signs up and signs in using phone OTP without a password', async ({ request }) => {
-    const phone = qaPhone(1);
-    const signupChallenge = await request.post(`${API_BASE}/auth/phone/request`, {
-      data: { phoneE164: phone, purpose: 'SIGNUP' },
+  test('Customer creates a mobile account with verified email and can sign in with the same credentials', async ({ request }) => {
+    const suffix = `${Date.now()}-customer`;
+    const email = qaEmail(suffix);
+    const password = 'EmailQa#2026';
+    const signupChallenge = await request.post(`${API_BASE}/auth/email/signup/request`, {
+      data: { email },
     });
     expect(signupChallenge.ok(), await signupChallenge.text()).toBeTruthy();
     const challenge = await signupChallenge.json();
-    const signup = await request.post(`${API_BASE}/auth/mobile/phone/verify`, {
+    expect(challenge.channel).toBe('EMAIL');
+    expect(challenge.code).toMatch(/^\d{6}$/);
+
+    const signup = await request.post(`${API_BASE}/auth/mobile/email/signup/verify`, {
       data: {
-        phoneE164: phone,
-        purpose: 'SIGNUP',
+        email,
         code: challenge.code,
-        name: 'Phone Customer QA',
+        name: 'Email Customer QA',
+        password,
+        confirmPassword: password,
       },
     });
     expect(signup.ok(), await signup.text()).toBeTruthy();
     const signupSession = await signup.json();
-    expect(signupSession.user.phone).toBe(phone);
-    expect(signupSession.user.email).toBeNull();
+    expect(signupSession.access_token).toBeTruthy();
+    expect(signupSession.user.email).toBe(email);
+    expect(signupSession.user.phone).toBeNull();
     expect(signupSession.user.roles).toContain('CUSTOMER');
-    const loginSession = await phoneLogin(request, phone);
-    expect(loginSession.user.phone).toBe(phone);
+
+    const login = await request.post(`${API_BASE}/auth/mobile/login`, {
+      data: { identifier: email, password },
+    });
+    expect(login.ok(), await login.text()).toBeTruthy();
+    const loginSession = await login.json();
+    expect(loginSession.user.email).toBe(email);
     expect(loginSession.user.roles).toContain('CUSTOMER');
   });
 
   test('Partner application recovery rotates the secret and restores the complete saved state', async ({ request }) => {
     const suffix = `${Date.now()}-recovery`;
     const phone = qaPhone(2);
-    const applicant = await submittedApplication(request, 'RIDER', suffix, phone, `recover.${suffix}@example.com`);
+    const applicant = await submittedApplication(request, 'RIDER', suffix, phone, qaEmail(`recover.${suffix}`));
     const oldToken = applicant.accessToken;
 
+    // Recovery remains an independent existing flow. The application itself was email-verified above.
     const recoveryRequest = await request.post(`${API_BASE}/partner-onboarding/resume/request`, {
       data: { identifier: phone },
     });
@@ -238,6 +256,7 @@ test.describe.serial('Phone-primary identity and Partner recovery E2E', () => {
     expect(recoveryVerify.ok(), await recoveryVerify.text()).toBeTruthy();
     const recovered = await recoveryVerify.json();
     expect(recovered.application.status).toBe('SUBMITTED');
+    expect(recovered.application.emailVerifiedAt).toBeTruthy();
     expect(recovered.application.applicantPayload.vehicleType).toBe('WALKER');
     expect(recovered.documents.length).toBe(applicant.requiredDocuments.length);
     expect(recovered.accessToken).not.toBe(oldToken);
@@ -258,7 +277,8 @@ test.describe.serial('Phone-primary identity and Partner recovery E2E', () => {
   test('Admin Delete draft button uses reliable action endpoint and restore works', async ({ browser, request }) => {
     const suffix = `${Date.now()}-delete`;
     const phone = qaPhone(3);
-    const started = await startApplication(request, 'RIDER', suffix, phone);
+    const email = qaEmail(`delete.${suffix}`);
+    const started = await startApplication(request, 'RIDER', suffix, phone, email);
     const draft: Applicant = {
       applicationId: started.body.applicationId,
       accessToken: started.body.accessToken,
@@ -266,6 +286,7 @@ test.describe.serial('Phone-primary identity and Partner recovery E2E', () => {
       type: 'RIDER',
       name: started.name,
       phone,
+      email,
       requiredDocuments: [],
     };
     const page = await adminPage(browser);
@@ -293,8 +314,20 @@ test.describe.serial('Phone-primary identity and Partner recovery E2E', () => {
 
   test('approved Rider and Store sign in directly with verified phone OTP', async ({ browser, request }) => {
     const suffix = `${Date.now()}-approval`;
-    const rider = await submittedApplication(request, 'RIDER', `${suffix}-rider`, qaPhone(4));
-    const store = await submittedApplication(request, 'STORE', `${suffix}-store`, qaPhone(5));
+    const rider = await submittedApplication(
+      request,
+      'RIDER',
+      `${suffix}-rider`,
+      qaPhone(4),
+      qaEmail(`${suffix}.rider`),
+    );
+    const store = await submittedApplication(
+      request,
+      'STORE',
+      `${suffix}-store`,
+      qaPhone(5),
+      qaEmail(`${suffix}.store`),
+    );
     const page = await adminPage(browser);
     try {
       await approve(page, rider);
