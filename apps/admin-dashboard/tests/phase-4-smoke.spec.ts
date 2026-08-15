@@ -6,8 +6,8 @@ const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-4');
 
 async function loginViaForm(page: Page, email: string, password: string) {
   await page.goto('/login');
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-  await page.fill('input[type="email"]', email);
+  await page.waitForSelector('input[autocomplete="username"]', { timeout: 15000 });
+  await page.fill('input[autocomplete="username"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
   await page.waitForFunction(() => localStorage.getItem('user_role') !== null, { timeout: 15000 });

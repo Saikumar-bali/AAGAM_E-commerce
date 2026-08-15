@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { MapPin, CheckCircle2, XCircle, Clock, Truck, ChevronDown } from 'lucide-react';
 
 type Address = { id: string; label?: string | null; line1: string; city: string; pincode: string; latitude: number; longitude: number; isDefault: boolean };
-type Serviceability = { serviceable: boolean; distanceKm: number | null; deliveryFee: number; estimatedMinutes: number | null; store: { id: string; name: string | null } | null };
+type Serviceability = { serviceable: boolean; distanceKm: number | null; deliveryFee: number; etaMinutes: number | null; deliveryPricing?: { ratePaisePerKm: number }; store: { id: string; name: string | null } | null };
 
 type Props = {
   address: Address;
@@ -47,10 +47,10 @@ export default function ServiceabilityBanner({ address, serviceability, onAddres
                   </span>
                   <span className="flex items-center gap-1 text-xs font-bold text-emerald-700">
                     <Clock className="h-3 w-3" />
-                    ~{serviceability.estimatedMinutes} min
+                    ~{serviceability.etaMinutes} min
                   </span>
                   <span className="text-xs font-bold text-emerald-700">
-                    Delivery {serviceability.deliveryFee === 0 ? 'FREE' : `₹${serviceability.deliveryFee}`}
+                    Delivery ₹{((serviceability.deliveryPricing?.ratePaisePerKm ?? 150) / 100).toFixed(2)}/km · {serviceability.deliveryFee === 0 ? 'FREE' : `₹${serviceability.deliveryFee.toFixed(2)}`}
                   </span>
                 </>
               ) : (

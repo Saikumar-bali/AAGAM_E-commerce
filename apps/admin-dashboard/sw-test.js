@@ -10,8 +10,8 @@ const { chromium } = require('@playwright/test');
 
   // Navigate to login and sign in
   await page.goto('/login');
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-  await page.fill('input[type="email"]', process.env.ADMIN_EMAIL);
+  await page.waitForSelector('input[autocomplete="username"]', { timeout: 15000 });
+  await page.fill('input[autocomplete="username"]', process.env.ADMIN_EMAIL);
   await page.fill('input[type="password"]', process.env.ADMIN_PASSWORD);
   await page.click('button[type="submit"]');
   await page.waitForFunction(() => localStorage.getItem('access_token') !== null, { timeout: 15000 });

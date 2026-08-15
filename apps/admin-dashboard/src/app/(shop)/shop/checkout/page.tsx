@@ -53,6 +53,15 @@ type QuoteResponse = {
   serviceable: boolean;
   distanceKm: number | null;
   store: { id: string; name: string | null } | null;
+  deliveryPricing: {
+    serviceable: boolean;
+    ratePaisePerKm: number;
+    freeDeliveryMinimumPaise: number;
+    maximumDistanceKm: number;
+    distanceFeePaise: number;
+    waivedByThreshold: boolean;
+    payableFeePaise: number;
+  } | null;
   invoice: {
     items: Array<{
       productId: string;
@@ -553,6 +562,8 @@ export default function CheckoutPage() {
               grandTotal={grandTotal}
               storeName={quote?.store?.name}
               distanceKm={quote?.distanceKm}
+              deliveryPricing={quote?.deliveryPricing}
+              showDeliveryOffer
               loading={loadingQuote && !quote}
             />
 
