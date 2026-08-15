@@ -57,7 +57,7 @@ type QuoteResponse = {
     serviceable: boolean;
     ratePaisePerKm: number;
     freeDeliveryMinimumPaise: number;
-    maximumDistanceKm: number | null;
+    maximumDistanceKm: number;
     distanceFeePaise: number;
     waivedByThreshold: boolean;
     payableFeePaise: number;
