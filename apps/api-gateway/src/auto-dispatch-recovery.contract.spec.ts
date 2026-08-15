@@ -148,16 +148,23 @@ describe('auto-dispatch recovery contracts', () => {
     const dashboard = read(
       'apps/mobile-partners/src/screens/rider/RiderDashboard.tsx',
     );
+    const availability = read(
+      'apps/mobile-partners/src/services/RiderAvailabilityController.ts',
+    );
     const diagnostics = read(
       'apps/mobile-partners/src/screens/rider/RiderTrackingDiagnosticsScreen.tsx',
     );
     expect(dashboard).toContain('RiderOnlineService.stop().catch');
-    expect(dashboard).toContain('PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION');
-    expect(dashboard).toContain('PermissionsAndroid.request(background');
-    expect(dashboard).toContain('Linking.openSettings()');
     expect(dashboard).toContain('permissionMissing');
-    expect(dashboard).toContain('requestRiderLocationPermission');
+    expect(dashboard).toContain('ensureRiderOnlineService');
+    expect(dashboard).toContain('performRiderOnlineTransition');
     expect(dashboard).toContain("navigation?.navigate?.('TrackingDiagnostics')");
+    expect(availability).toContain('PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION');
+    expect(availability).toContain('PermissionsAndroid.request(background');
+    expect(availability).toContain('Linking.openSettings()');
+    expect(availability).toContain('requestRiderLocationPermission');
+    expect(availability).toContain('maximumAge: CACHED_LOCATION_MAX_AGE_MS');
+    expect(availability).toContain("riderService.sendAvailabilityHeartbeat");
     expect(diagnostics).toContain('Open location permissions');
     expect(diagnostics).toContain('Open battery optimisation');
     expect(diagnostics).toContain('Retry health check');

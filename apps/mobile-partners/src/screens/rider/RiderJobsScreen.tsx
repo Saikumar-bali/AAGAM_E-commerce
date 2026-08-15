@@ -22,7 +22,10 @@ import {
   shortPartnerOrderId,
   summarizeTodayJobs,
 } from '../../domain/riderReferenceUi';
-import { RiderOnlineService } from '../../services/RiderOnlineService';
+import {
+  performRiderOfflineTransition,
+  performRiderOnlineTransition,
+} from '../../services/RiderAvailabilityController';
 
 function statusVisual(status: RiderJobListItem['status']) {
   if (status === 'COMPLETED') return { label: 'Completed', color: '#128A35', background: '#E8F8E8', dot: '#15A83B' };
@@ -85,13 +88,8 @@ export const RiderJobsScreen = ({
 
   const availabilityMutation = useMutation({
     mutationFn: async () => {
-      if (isOnline) {
-        await RiderOnlineService.stop().catch(() => false);
-        return riderService.updateMyStatus('OFFLINE');
-      }
-      const result = await riderService.updateMyStatus('ONLINE');
-      await RiderOnlineService.start(user?.name || 'Aagaam Rider');
-      return result;
+      if (isOnline) return performRiderOfflineTransition();
+      return performRiderOnlineTransition(user?.name || 'Aagaam Rider');
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: RIDER_WORKSPACE_QUERY_KEY });
