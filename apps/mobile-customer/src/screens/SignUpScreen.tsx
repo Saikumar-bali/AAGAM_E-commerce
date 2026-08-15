@@ -11,30 +11,24 @@ import {
   View,
 } from 'react-native';
 import { useAuthStore } from '@aagam/mobile-shared';
-import { ChevronLeft, Mail, Phone, ShieldCheck, User } from 'lucide-react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { createAsyncRequestLock, resendCustomerPhoneOtp } from '../auth/customerPhoneOtpFlow';
+import { ChevronLeft, KeyRound, Lock, Mail, ShieldCheck, User } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import { createAsyncRequestLock } from '../auth/customerPhoneOtpFlow';
 import { getUserSafeError, notify } from '../ui/notify';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const phoneForApi = (value: string) => {
-  const compact = value.replace(/[\s().-]/g, '');
-  if (/^\d{10}$/.test(compact)) return `+91${compact}`;
-  if (/^91\d{10}$/.test(compact)) return `+${compact}`;
-  return compact;
-};
 
 export const SignUpScreen = () => {
   const navigation = useNavigation<any>();
-  const route = useRoute<any>();
-  const requestPhoneOtp = useAuthStore((state) => state.requestPhoneOtp);
-  const verifyPhoneOtp = useAuthStore((state) => state.verifyPhoneOtp);
+  const requestEmailSignup = useAuthStore((state) => state.requestEmailSignup);
+  const verifyEmailSignup = useAuthStore((state) => state.verifyEmailSignup);
   const inputRef = useRef<TextInput>(null);
   const requestLock = useRef(createAsyncRequestLock()).current;
   const verificationLock = useRef(createAsyncRequestLock()).current;
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState(String(route.params?.phone || ''));
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [masked, setMasked] = useState('');
   const [code, setCode] = useState('');
   const [countdown, setCountdown] = useState(0);
@@ -48,43 +42,47 @@ export const SignUpScreen = () => {
   }, [countdown]);
 
   const validateDetails = (showFeedback = true) => {
-    const normalized = phoneForApi(phone);
+    const normalizedEmail = email.trim().toLowerCase();
     if (name.trim().length < 2) {
       if (showFeedback) notify.warning('Full name required', 'Enter at least 2 characters.');
       return null;
     }
-    if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
-      if (showFeedback) notify.warning('Valid mobile required', 'Enter a 10-digit Indian mobile number or a valid E.164 number.');
+    if (!emailPattern.test(normalizedEmail)) {
+      if (showFeedback) notify.warning('Valid email required', 'Enter a valid email address.');
       return null;
     }
-    if (email.trim() && !emailPattern.test(email.trim())) {
-      if (showFeedback) notify.warning('Invalid email', 'Enter a valid email address or leave it blank.');
+    if (password.length < 8) {
+      if (showFeedback) notify.warning('Password too short', 'Use at least 8 characters for your password.');
       return null;
     }
-    return normalized;
+    if (password !== confirmPassword) {
+      if (showFeedback) notify.warning('Passwords do not match', 'Enter the same password in both fields.');
+      return null;
+    }
+    return normalizedEmail;
   };
 
   const requestCode = async (isResend = false) => {
-    const normalized = validateDetails();
-    if (!normalized || (isResend && countdown > 0)) return;
+    const normalizedEmail = validateDetails();
+    if (!normalizedEmail || (isResend && countdown > 0)) return;
 
     await requestLock.run(async () => {
       setRequesting(true);
       try {
-        const result = await resendCustomerPhoneOtp(requestPhoneOtp, normalized, 'SIGNUP');
-        setPhone(normalized);
+        const result = await requestEmailSignup(normalizedEmail);
+        setEmail(normalizedEmail);
         setMasked(result.maskedDestination);
         setCode('');
         setCountdown(30);
-        notify.success(isResend ? 'OTP resent' : 'OTP sent', `Code sent to ${result.maskedDestination}.`);
+        notify.success(isResend ? 'Email code resent' : 'Verification email sent', `Code sent to ${result.maskedDestination}.`);
         setTimeout(() => inputRef.current?.focus(), 180);
       } catch (error) {
         const status = (error as any)?.status ?? (error as any)?.response?.status;
         if (status === 409) {
-          notify.info('Account already exists', 'Sign in with this mobile number instead.');
+          notify.info('Account already exists', 'Sign in with this email address instead.');
           navigation.goBack();
         } else {
-          notify.error('Could not send OTP', getUserSafeError(error, 'Please try again.'));
+          notify.error('Could not send email code', getUserSafeError(error, 'Please try again.'));
         }
       } finally {
         setRequesting(false);
@@ -93,23 +91,23 @@ export const SignUpScreen = () => {
   };
 
   const verifyCode = async (candidate = code) => {
-    const normalized = validateDetails();
-    if (!normalized || !/^\d{6}$/.test(candidate)) return;
+    const normalizedEmail = validateDetails();
+    if (!normalizedEmail || !/^\d{6}$/.test(candidate)) return;
 
     await verificationLock.run(async () => {
       setVerifying(true);
       try {
-        await verifyPhoneOtp({
-          phoneE164: normalized,
-          purpose: 'SIGNUP',
-          code: candidate,
+        await verifyEmailSignup({
+          email: normalizedEmail,
           name: name.trim(),
-          email: email.trim() || undefined,
+          password,
+          confirmPassword,
+          code: candidate,
         });
-        notify.success('Account created successfully', 'Welcome to Aagaam.');
+        notify.success('Account created successfully', 'Your email is verified. Welcome to Aagaam.');
       } catch (error) {
         setCode('');
-        notify.error('Code not verified', getUserSafeError(error, 'The OTP is wrong or expired. Request a new code and try again.'));
+        notify.error('Code not verified', getUserSafeError(error, 'The code is wrong or expired. Request a new email code and try again.'));
         setTimeout(() => inputRef.current?.focus(), 100);
       } finally {
         setVerifying(false);
@@ -142,21 +140,23 @@ export const SignUpScreen = () => {
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.header}><TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}><ChevronLeft size={24} color="#1E293B" /></TouchableOpacity><Text style={styles.headerTitle}>Create account</Text></View>
         <View style={styles.content}>
-          <View style={styles.hero}><View style={styles.icon}><Phone size={28} color="#0F766E" /></View><Text style={styles.title}>Simple phone signup</Text><Text style={styles.subtitle}>Your verified mobile number becomes your primary Aagaam login. Email is optional.</Text></View>
+          <View style={styles.hero}><View style={styles.icon}><Mail size={28} color="#0F766E" /></View><Text style={styles.title}>Create your account</Text><Text style={styles.subtitle}>We verify your email with a single-use code, just like Aagaam on the web.</Text></View>
           {!masked ? <View style={styles.card}>
-            <Field icon={<User size={20} color="#64748B" />} value={name} onChangeText={setName} placeholder="Full name" autoCapitalize="words" />
-            <Field icon={<Phone size={20} color="#0F766E" />} value={phone} onChangeText={setPhone} placeholder="10-digit mobile number" keyboardType="phone-pad" />
-            <Field icon={<Mail size={20} color="#64748B" />} value={email} onChangeText={setEmail} placeholder="Email (optional)" keyboardType="email-address" autoCapitalize="none" />
-            <TouchableOpacity style={styles.primary} onPress={() => void requestCode()} disabled={requesting}>{requesting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Send OTP</Text>}</TouchableOpacity>
+            <Field icon={<User size={20} color="#64748B" />} value={name} onChangeText={setName} placeholder="Full name" autoCapitalize="words" autoComplete="name" />
+            <Field icon={<Mail size={20} color="#0F766E" />} value={email} onChangeText={setEmail} placeholder="Email address" keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+            <Field icon={<Lock size={20} color="#64748B" />} value={password} onChangeText={setPassword} placeholder="Password (at least 8 characters)" secureTextEntry autoCapitalize="none" autoComplete="new-password" />
+            <Field icon={<Lock size={20} color="#64748B" />} value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Confirm password" secureTextEntry autoCapitalize="none" autoComplete="new-password" />
+            <TouchableOpacity style={styles.primary} onPress={() => void requestCode()} disabled={requesting}>{requesting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Email verification code</Text>}</TouchableOpacity>
           </View> : <View style={styles.card}>
-            <Text style={styles.sent}>Enter the code sent to {masked}</Text>
+            <View style={styles.verifyIcon}><KeyRound size={22} color="#0F766E" /></View>
+            <Text style={styles.sent}>Enter the six-digit code sent to {masked}</Text>
             <TouchableOpacity style={styles.otpRow} onPress={() => inputRef.current?.focus()}>{Array.from({ length: 6 }).map((_, index) => <View key={index} style={[styles.otpCell, code.length === index && styles.otpActive]}><Text style={styles.otpDigit}>{code[index] || ''}</Text></View>)}</TouchableOpacity>
-            <TextInput ref={inputRef} value={code} onChangeText={updateCode} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="sms-otp" maxLength={6} autoFocus style={styles.hidden} />
+            <TextInput ref={inputRef} value={code} onChangeText={updateCode} keyboardType="number-pad" textContentType="oneTimeCode" maxLength={6} autoFocus style={styles.hidden} accessibilityLabel="Six-digit email verification code" />
             <TouchableOpacity style={styles.primary} onPress={() => void verifyCode()} disabled={busy || code.length !== 6}>{verifying ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Verify and create account</Text>}</TouchableOpacity>
-            <TouchableOpacity disabled={countdown > 0 || requesting} onPress={() => void requestCode(true)}><Text style={[styles.link, (countdown > 0 || requesting) && styles.linkDisabled]}>{countdown > 0 ? `Resend in 00:${String(countdown).padStart(2, '0')}` : requesting ? 'Sending…' : 'Resend OTP'}</Text></TouchableOpacity>
-            <TouchableOpacity disabled={busy} onPress={editDetails}><Text style={styles.secondaryLink}>Edit details</Text></TouchableOpacity>
+            <TouchableOpacity disabled={countdown > 0 || requesting} onPress={() => void requestCode(true)}><Text style={[styles.link, (countdown > 0 || requesting) && styles.linkDisabled]}>{countdown > 0 ? `Resend in 00:${String(countdown).padStart(2, '0')}` : requesting ? 'Sending…' : 'Resend email code'}</Text></TouchableOpacity>
+            <TouchableOpacity disabled={busy} onPress={editDetails}><Text style={styles.secondaryLink}>Edit account details</Text></TouchableOpacity>
           </View>}
-          <View style={styles.security}><ShieldCheck size={17} color="#15803D" /><Text style={styles.securityText}>No password is required. The OTP is single-use and expires after 10 minutes.</Text></View>
+          <View style={styles.security}><ShieldCheck size={17} color="#15803D" /><Text style={styles.securityText}>Your account is created only after the email code is verified. The code is single-use and expires automatically.</Text></View>
           <View style={styles.footer}><Text style={styles.footerText}>Already have an account? </Text><TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.loginText}>Sign in</Text></TouchableOpacity></View>
         </View>
       </ScrollView>
@@ -170,6 +170,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F1F5F9' }, header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 22, paddingTop: 54, paddingBottom: 14 }, back: { padding: 9, borderRadius: 12, backgroundColor: '#fff', marginRight: 14 }, headerTitle: { fontSize: 20, fontWeight: '900', color: '#0F172A' }, content: { padding: 22 },
   hero: { alignItems: 'center', marginBottom: 24 }, icon: { width: 66, height: 66, borderRadius: 22, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, title: { marginTop: 14, fontSize: 25, fontWeight: '900', color: '#0F172A' }, subtitle: { marginTop: 7, color: '#64748B', fontSize: 13, lineHeight: 19, textAlign: 'center', fontWeight: '700' },
   card: { backgroundColor: '#fff', borderRadius: 26, padding: 20, gap: 14, elevation: 3 }, field: { minHeight: 56, borderRadius: 15, borderWidth: 1, borderColor: '#E2E8F0', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 }, input: { flex: 1, marginLeft: 10, fontSize: 15, color: '#0F172A' }, primary: { minHeight: 56, borderRadius: 16, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' }, primaryText: { color: '#fff', fontSize: 16, fontWeight: '900' },
-  sent: { textAlign: 'center', color: '#475569', fontWeight: '800' }, otpRow: { flexDirection: 'row', gap: 6, justifyContent: 'space-between' }, otpCell: { flex: 1, height: 54, borderRadius: 13, borderWidth: 1.5, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }, otpActive: { borderColor: '#14B8A6', backgroundColor: '#F0FDFA' }, otpDigit: { fontSize: 22, fontWeight: '900', color: '#0F172A' }, hidden: { position: 'absolute', width: 1, height: 1, opacity: 0 }, link: { textAlign: 'center', color: '#0F766E', fontWeight: '900' }, linkDisabled: { color: '#94A3B8' }, secondaryLink: { textAlign: 'center', color: '#64748B', fontWeight: '800' },
+  verifyIcon: { alignSelf: 'center', width: 48, height: 48, borderRadius: 16, backgroundColor: '#F0FDFA', alignItems: 'center', justifyContent: 'center' }, sent: { textAlign: 'center', color: '#475569', fontWeight: '800' }, otpRow: { flexDirection: 'row', gap: 6, justifyContent: 'space-between' }, otpCell: { flex: 1, height: 54, borderRadius: 13, borderWidth: 1.5, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }, otpActive: { borderColor: '#14B8A6', backgroundColor: '#F0FDFA' }, otpDigit: { fontSize: 22, fontWeight: '900', color: '#0F172A' }, hidden: { position: 'absolute', width: 1, height: 1, opacity: 0 }, link: { textAlign: 'center', color: '#0F766E', fontWeight: '900' }, linkDisabled: { color: '#94A3B8' }, secondaryLink: { textAlign: 'center', color: '#64748B', fontWeight: '800' },
   security: { marginTop: 18, borderRadius: 15, backgroundColor: '#F0FDF4', padding: 13, flexDirection: 'row', gap: 9 }, securityText: { flex: 1, color: '#166534', fontSize: 11, lineHeight: 17, fontWeight: '700' }, footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 22, marginBottom: 36 }, footerText: { color: '#64748B' }, loginText: { color: '#0F766E', fontWeight: '900' },
 });
