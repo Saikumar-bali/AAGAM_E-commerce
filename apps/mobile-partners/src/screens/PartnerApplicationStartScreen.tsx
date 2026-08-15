@@ -19,7 +19,6 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function phoneForApi(value: string) {
   const compact = value.replace(/[\s().-]/g, '');
-  if (!compact) return '';
   if (/^\d{10}$/.test(compact)) return `+91${compact}`;
   if (/^91\d{10}$/.test(compact)) return `+${compact}`;
   return compact;
@@ -44,8 +43,8 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
       return;
     }
     const normalizedPhone = phoneForApi(phone);
-    if (normalizedPhone && !/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
-      Alert.alert('Invalid mobile number', 'Enter a valid mobile number or leave it blank. Indian 10-digit numbers are accepted.');
+    if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
+      Alert.alert('Mobile number required', 'Enter a valid mobile number. Indian 10-digit numbers are accepted.');
       return;
     }
 
@@ -53,7 +52,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
       type,
       applicantName: name.trim(),
       email: normalizedEmail,
-      phoneE164: normalizedPhone || undefined,
+      phoneE164: normalizedPhone,
       verificationChannel: 'EMAIL',
     };
 
@@ -75,7 +74,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
   return (
     <OnboardingShell
       title={type === 'RIDER' ? 'Start Rider application' : 'Start Store application'}
-      subtitle="Your email must be verified before you continue. Your mobile number is an optional operational contact and is not used for this verification step."
+      subtitle="Your email must be verified before you continue. Your mobile number remains the operational contact, but no phone OTP is required for this application step."
       onBack={() => navigation.goBack()}
     >
       <Section title="Applicant identity" subtitle="Use details that match your submitted documents.">
@@ -91,15 +90,15 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
           placeholder="name@example.com"
           hint="We send a six-digit verification code to this email. Verification is required before the application can continue."
         />
-        <Text style={styles.optionalLabel}><Phone size={15} color={palette.muted} /> Optional operational contact</Text>
+        <Text style={styles.contactLabel}><Phone size={15} color={palette.muted} /> Operational contact</Text>
         <FormField
           testID="application_start_phone_input"
-          label="Mobile number (optional)"
+          label="Mobile number"
           value={phone}
           onChangeText={setPhone}
           keyboardType="phone-pad"
           placeholder="10-digit number or +91..."
-          hint="Used for operational contact when provided. No phone OTP is required for a new application."
+          hint="Required for partner operations and contact after approval. This number is not the verification channel for a new application."
         />
       </Section>
 
@@ -111,6 +110,6 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   primaryLabel: { color: palette.teal, fontSize: 12, fontWeight: '900', flexDirection: 'row' },
-  optionalLabel: { color: palette.muted, fontSize: 12, fontWeight: '900' },
+  contactLabel: { color: palette.muted, fontSize: 12, fontWeight: '900' },
   consent: { color: '#64748B', fontSize: 11, lineHeight: 17, textAlign: 'center', paddingHorizontal: 8 },
 });
