@@ -264,6 +264,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     try {
+      // Stop app-owned foreground/background services while the bearer token is
+      // still available, then unregister push and close the backend session.
       await runMobileSessionCleanup();
       await disableCurrentMobilePushSubscription().catch(() => undefined);
       await apiClient.post('/auth/logout').catch(() => undefined);
@@ -301,6 +303,7 @@ export const useAuthStore = create<AuthState>((set) => ({
             await invalidateMobileSession();
             set({ user: null, token: null, isLoading: false });
           } else {
+            // Keep the local session for network errors and other transient validation failures.
             set({ user: stored.user, token: stored.token, isLoading: false });
           }
         }
