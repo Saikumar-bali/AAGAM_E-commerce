@@ -70,6 +70,7 @@ type Workspace = {
     };
   };
   pendingOffers: Assignment[];
+  activeJobs?: DeliveryJob[];
   activeJob: DeliveryJob | null;
   assignmentHistory: Array<{
     id: string;
@@ -223,10 +224,11 @@ export default function RiderDashboard() {
   }, [fetchWorkspace]);
 
   const pendingOffer = workspace.pendingOffers[0] || null;
-  const activeJob = workspace.activeJob;
-  const meta = activeJob ? statusMeta[activeJob.status] : null;
-  const nextAction = activeJob ? riderActions[activeJob.status] : undefined;
-  const NextActionIcon = nextAction?.icon;
+  const activeJobs = workspace.activeJobs?.length
+    ? workspace.activeJobs
+    : workspace.activeJob
+      ? [workspace.activeJob]
+      : [];
 
   const completedOffers = useMemo(
     () =>
@@ -301,12 +303,6 @@ export default function RiderDashboard() {
       addressValue(pendingOffer.deliveryJob.order.addressSnapshot, "line1") ||
       "Customer address provided after acceptance"
     : "";
-  const activeAddress = activeJob
-    ? addressValue(activeJob.order.addressSnapshot, "line1") ||
-      addressValue(activeJob.order.addressSnapshot, "city") ||
-      "Address available in order details"
-    : "";
-
   return (
     <DashboardLayout allowedRole="RIDER">
       <div className="space-y-6">
@@ -376,7 +372,7 @@ export default function RiderDashboard() {
               Active delivery
             </p>
             <p className="mt-2 text-3xl font-black text-indigo-700">
-              {activeJob ? 1 : 0}
+              {activeJobs.length}
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -389,7 +385,7 @@ export default function RiderDashboard() {
           </div>
         </section>
 
-        {pendingOffer && !activeJob && (
+        {pendingOffer && (
           <section className="overflow-hidden rounded-[2rem] border border-violet-200 bg-white shadow-lg">
             <div className="flex items-center justify-between bg-violet-600 px-5 py-4 text-white">
               <div>
@@ -472,8 +468,17 @@ export default function RiderDashboard() {
           </section>
         )}
 
-        {activeJob ? (
-          <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+        {activeJobs.length ? (
+          <div className="space-y-5">
+          {activeJobs.map((activeJob) => {
+            const meta = statusMeta[activeJob.status] || null;
+            const nextAction = riderActions[activeJob.status];
+            const NextActionIcon = nextAction?.icon;
+            const activeAddress =
+              addressValue(activeJob.order.addressSnapshot, "line1") ||
+              addressValue(activeJob.order.addressSnapshot, "city") ||
+              "Address available in order details";
+            return <section key={activeJob.id} className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-wider text-slate-400">
@@ -604,7 +609,9 @@ export default function RiderDashboard() {
                 </button>
               </div>
             )}
-          </section>
+          </section>;
+          })}
+          </div>
         ) : !pendingOffer && !loading ? (
           <section className="rounded-[2rem] border border-dashed border-slate-300 bg-white p-12 text-center">
             <Bike className="mx-auto h-10 w-10 text-slate-400" />

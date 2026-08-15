@@ -32,6 +32,7 @@ import { DeliveryOperationsService } from "./delivery-operations.service";
 import { ConfirmStoreHandoffDto } from "./delivery-operations.dto";
 import { DeliveryWorkflowService } from "./delivery-workflow.service";
 import { DispatchService } from "./dispatch.service";
+import { canAddOrderFromStore } from "./same-store-multi-order";
 
 type Actor = { id: string; role: Role };
 
@@ -108,21 +109,27 @@ export class DispatchController {
               "Replacement rider is already assigned to this delivery"
             );
           }
-          if (rider.status !== "ONLINE") {
-            throw new ConflictException("Rider must be online and available");
+          if (rider.status !== "ONLINE" && rider.status !== "BUSY") {
+            throw new ConflictException("Rider must be online or carrying orders from this store");
           }
 
-          const activeJob = await tx.deliveryJob.findFirst({
+          const activeJobs = await tx.deliveryJob.findMany({
             where: {
               id: { not: job.id },
               currentRiderId: rider.id,
               status: { in: ACTIVE_JOB_STATUSES as any },
             },
-            select: { id: true },
+            select: { status: true, order: { select: { storeId: true } } },
           });
-          if (activeJob) {
+          if (!canAddOrderFromStore(
+            activeJobs.map((activeJob) => ({
+              storeId: activeJob.order.storeId,
+              status: activeJob.status,
+            })),
+            job.order.storeId,
+          )) {
             throw new ConflictException(
-              `Rider already has active delivery ${activeJob.id}`
+              "Rider can only receive additional pre-pickup orders from the same store"
             );
           }
 

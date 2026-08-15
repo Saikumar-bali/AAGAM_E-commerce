@@ -216,6 +216,26 @@ async function acceptedDelivery() {
   return { api, data, job, offer };
 }
 
+async function createAdditionalPackedOrder(data: Awaited<ReturnType<typeof seed>>, suffix: string, storeId = data.store.id) {
+  return prisma.order.create({
+    data: {
+      customerId: data.customer.id,
+      storeId,
+      status: OrderStatus.PACKED,
+      totalAmount: 100,
+      subtotal: 100,
+      grandTotal: 100,
+      subtotalPaise: 10000,
+      grandTotalPaise: 10000,
+      packedAt: new Date(),
+      deliveryLat: 17.72,
+      deliveryLng: 83.32,
+      addressSnapshot: { line1: `Test address ${suffix}`, city: 'Visakhapatnam', pincode: '530001' },
+      items: { create: [{ productId: data.product.id, quantity: 1, price: 100, unitPricePaise: 10000, lineTotalPaise: 10000 }] },
+    },
+  });
+}
+
 describe('Phase 2B mobile delivery and live tracking', () => {
   beforeEach(async () => cleanup());
   afterAll(async () => {
@@ -272,6 +292,51 @@ describe('Phase 2B mobile delivery and live tracking', () => {
     expect(workspace.activeJob?.status).toBe(DeliveryJobStatus.RIDER_ASSIGNED);
     expect(workspace.activeJob?.currentRiderId).toBe(data.riderA.id);
     expect((await prisma.riderProfile.findUnique({ where: { id: data.riderA.id } }))?.status).toBe('BUSY');
+  });
+
+  it('accepts every sequentially offered order from the same store and keeps all jobs active', async () => {
+    const api = services();
+    const data = await seed();
+    const orders = [
+      data.order,
+      await createAdditionalPackedOrder(data, 'two'),
+      await createAdditionalPackedOrder(data, 'three'),
+    ];
+
+    for (const order of orders) {
+      const job = await api.jobs.createForPackedOrder(order.id, { id: data.admin.id, role: Role.ADMIN });
+      const offer = await api.assignments.offer(job.id, data.riderUserA.id, { id: data.admin.id, role: Role.ADMIN });
+      await api.assignments.accept(offer.id, data.riderUserA.id);
+    }
+
+    const workspace = await api.dispatch.getRiderWorkspace(data.riderUserA.id);
+    expect(workspace.activeJobs).toHaveLength(3);
+    expect(new Set(workspace.activeJobs.map((job) => job.order.storeId))).toEqual(new Set([data.store.id]));
+    expect((await prisma.riderProfile.findUnique({ where: { id: data.riderA.id } }))?.status).toBe('BUSY');
+  });
+
+  it('rejects another store and keeps the rider busy while any same-store job remains', async () => {
+    const api = services();
+    const data = await seed();
+    const firstJob = await api.jobs.createForPackedOrder(data.order.id, { id: data.admin.id, role: Role.ADMIN });
+    const firstOffer = await api.assignments.offer(firstJob.id, data.riderUserA.id, { id: data.admin.id, role: Role.ADMIN });
+    await api.assignments.accept(firstOffer.id, data.riderUserA.id);
+
+    const sameStoreOrder = await createAdditionalPackedOrder(data, 'same-store');
+    const sameStoreJob = await api.jobs.createForPackedOrder(sameStoreOrder.id, { id: data.admin.id, role: Role.ADMIN });
+    const sameStoreOffer = await api.assignments.offer(sameStoreJob.id, data.riderUserA.id, { id: data.admin.id, role: Role.ADMIN });
+    await api.assignments.accept(sameStoreOffer.id, data.riderUserA.id);
+
+    await api.workflow.transition(firstJob.id, DeliveryJobStatus.CANCELLED, { id: data.admin.id, role: Role.ADMIN });
+    expect((await prisma.riderProfile.findUnique({ where: { id: data.riderA.id } }))?.status).toBe('BUSY');
+
+    const otherStore = await prisma.store.create({
+      data: { name: `${PREFIX}other_store_${Date.now()}`, address: 'Other', latitude: 17.8, longitude: 83.4, ownerId: data.owner.id },
+    });
+    await prisma.inventory.create({ data: { storeId: otherStore.id, productId: data.product.id, quantity: 10 } });
+    const otherOrder = await createAdditionalPackedOrder(data, 'other-store', otherStore.id);
+    const otherJob = await api.jobs.createForPackedOrder(otherOrder.id, { id: data.admin.id, role: Role.ADMIN });
+    await expect(api.assignments.offer(otherJob.id, data.riderUserA.id, { id: data.admin.id, role: Role.ADMIN })).rejects.toThrow('same store');
   });
 
   it('keeps tracking start/stop neutral and deduplicates mobile retries', async () => {

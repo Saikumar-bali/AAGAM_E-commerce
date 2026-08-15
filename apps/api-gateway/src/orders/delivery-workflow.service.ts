@@ -12,6 +12,7 @@ import {
   DeliveryJobStatusType,
 } from "@aagam/types";
 import { DeliveryEventService } from "./delivery-event.service";
+import { reconcileRiderOperationalStatus } from "../riders/rider-operational-status";
 
 type DbClient = typeof prisma | any;
 type Actor = { id: string; role: Role };
@@ -315,10 +316,7 @@ export class DeliveryWorkflowService {
       nextStatus === DeliveryJobStatus.CANCELLED
     ) {
       if (job.currentRiderId) {
-        await tx.riderProfile.updateMany({
-          where: { id: job.currentRiderId },
-          data: { status: "ONLINE" },
-        });
+        await reconcileRiderOperationalStatus(tx, job.currentRiderId);
       }
     }
 
