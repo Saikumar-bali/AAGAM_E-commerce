@@ -133,7 +133,7 @@ test.describe('Public promotions placement rendering', () => {
     });
   });
 
-  test('landing page renders LANDING_HERO and LANDING_BANNER', async ({ page, request }) => {
+  test('landing campaigns stay available while the entry route redirects to login', async ({ page, request }) => {
     const suffix = ts();
     const heroTitle = `PW Hero ${suffix}`;
     const bannerTitle = `PW Banner ${suffix}`;
@@ -144,21 +144,15 @@ test.describe('Public promotions placement rendering', () => {
     const banner = await createCampaign(request, token, 'LANDING_BANNER', bannerTitle);
     campaignIds.push(banner.id);
 
+    const publicFeed = await request.get(`${API_BASE}/promotions/active`);
+    expect(publicFeed.ok(), `Public promotion feed failed: ${await publicFeed.text()}`).toBeTruthy();
+    const feedBody = JSON.stringify(await publicFeed.json());
+    expect(feedBody).toContain(heroTitle);
+    expect(feedBody).toContain(bannerTitle);
+
     await page.goto('/');
-    await expect(page.getByText(heroTitle).first()).toBeVisible({ timeout: 15000 });
-    await page.screenshot({
-      path: path.join(PROOF_DIR, '02-landing-hero-campaign.png'),
-      fullPage: true,
-    });
-
-    const bannerEl = page.getByText(bannerTitle).first();
-    await expect(bannerEl).toBeVisible({ timeout: 15000 });
-    await page.screenshot({
-      path: path.join(PROOF_DIR, '03-landing-banner-campaign.png'),
-      fullPage: true,
-    });
-
-    const bannerLink = bannerEl.locator('xpath=ancestor::a');
-    await expect(bannerLink).toHaveAttribute('href', '/shop/deals');
+    await expect(page).toHaveURL(/\/login(?:\?|$)/);
+    await expect(page.getByText(heroTitle)).toHaveCount(0);
+    await expect(page.getByText(bannerTitle)).toHaveCount(0);
   });
 });
