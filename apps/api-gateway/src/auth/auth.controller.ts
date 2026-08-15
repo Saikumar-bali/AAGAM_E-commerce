@@ -115,6 +115,17 @@ export class AuthController {
     return { message: 'Email verified and account created', user: result.user };
   }
 
+  @Post('mobile/email/signup/verify')
+  @Throttle({ short: { limit: OTP_VERIFY_LIMIT, ttl: 60000 } })
+  async mobileVerifyEmailSignupOtp(@Body() dto: VerifyEmailSignupOtpDto) {
+    const result = await this.authService.verifyEmailSignupOtp(dto);
+    return {
+      message: 'Email verified and account created',
+      user: result.user,
+      access_token: result.session.access_token,
+    };
+  }
+
   @Post('password/forgot')
   @Throttle({ short: { limit: OTP_REQUEST_LIMIT, ttl: 60000 } })
   requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
