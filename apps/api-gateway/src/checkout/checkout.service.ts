@@ -8,6 +8,7 @@ import { NotificationService } from '../notifications/notification.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { OrderCreationService } from '../orders/order-creation.service';
 import { calculateDeliveryPricing } from './delivery-pricing';
+import { DEFAULT_PREORDER_SLOTS, DELIVERY_TIME_ZONE, istCalendarDate, istSlotInstant } from './delivery-slots';
 
 export { applyFreeDeliveryThreshold, FREE_DELIVERY_MINIMUM_PAISE } from './delivery-pricing';
 
@@ -15,11 +16,6 @@ const logger = new Logger('CheckoutService');
 const PREORDER_MIN_LEAD_MINUTES = Math.max(30, Number(process.env.PREORDER_MIN_LEAD_MINUTES || 60));
 const PREORDER_HORIZON_DAYS = Math.min(30, Math.max(1, Number(process.env.PREORDER_HORIZON_DAYS || 7)));
 const PREORDER_SLOT_CAPACITY = Math.max(1, Number(process.env.PREORDER_SLOT_CAPACITY || 30));
-const DEFAULT_PREORDER_SLOTS = [
-  { label: 'Morning', startMinute: 6 * 60, endMinute: 9 * 60 + 30 },
-  { label: 'Evening', startMinute: 15 * 60, endMinute: 19 * 60 },
-];
-
 function isOrderCreationService(
   value: OrderCreationService | PromotionsService | undefined,
 ): value is OrderCreationService {
@@ -207,17 +203,13 @@ export class CheckoutService {
     const now = new Date();
     const earliest = new Date(now.getTime() + PREORDER_MIN_LEAD_MINUTES * 60_000);
     const horizon = new Date(now.getTime() + PREORDER_HORIZON_DAYS * 86_400_000);
+    const todayInIst = istCalendarDate(now);
     const slots: Array<Record<string, unknown>> = [];
 
     for (let offset = 0; offset <= PREORDER_HORIZON_DAYS; offset += 1) {
-      const day = new Date(now);
-      day.setHours(0, 0, 0, 0);
-      day.setDate(day.getDate() + offset);
       for (const template of DEFAULT_PREORDER_SLOTS) {
-        const start = new Date(day);
-        start.setMinutes(template.startMinute);
-        const end = new Date(day);
-        end.setMinutes(template.endMinute);
+        const start = istSlotInstant(todayInIst, offset, template.startMinute);
+        const end = istSlotInstant(todayInIst, offset, template.endMinute);
         if (start < earliest || start > horizon) continue;
         const reserved = await prisma.order.count({
           where: {
@@ -237,7 +229,7 @@ export class CheckoutService {
         });
       }
     }
-    return { timezone: 'Asia/Kolkata', store: resolved.store, minimumLeadMinutes: PREORDER_MIN_LEAD_MINUTES, horizonDays: PREORDER_HORIZON_DAYS, slots };
+    return { timezone: DELIVERY_TIME_ZONE, store: resolved.store, minimumLeadMinutes: PREORDER_MIN_LEAD_MINUTES, horizonDays: PREORDER_HORIZON_DAYS, slots };
   }
 
   private validateDeliveryWindow(dto: CheckoutPlaceOrderDto) {
@@ -263,6 +255,14 @@ export class CheckoutService {
   async quote(userId: string, dto: CheckoutQuoteDto) {
     if (!dto.items?.length) throw new BadRequestException('No items');
     const normalizedItems = normalizeItems(dto.items);
+    const priorOrder = await prisma.order.findFirst({
+      where: {
+        customerId: userId,
+        status: { notIn: ['CANCELLED', 'PAYMENT_FAILED'] as any },
+      },
+      select: { id: true },
+    });
+    const firstOrderEligible = !priorOrder;
 
     const address = dto.addressId
       ? await prisma.customerAddress.findFirst({ where: { id: dto.addressId, userId } })
@@ -342,7 +342,7 @@ export class CheckoutService {
     const subtotalPaise = items.reduce((sum, it) => sum + it.lineTotalPaise, 0);
     const deliveryPricing = distanceKm === null
       ? null
-      : calculateDeliveryPricing(distanceKm, subtotalPaise);
+      : calculateDeliveryPricing(distanceKm, subtotalPaise, firstOrderEligible);
     const deliveryFeePaise = deliveryPricing?.payableFeePaise ?? 0;
     const deliveryFee = deliveryFeePaise / 100;
     const promotionPricing = storeId && this.promotionsService
@@ -485,6 +485,17 @@ export class CheckoutService {
 
     try {
       const committedOrder = await prisma.$transaction(async (tx) => {
+      const transactionPriorOrder = await tx.order.findFirst({
+        where: {
+          customerId: userId,
+          status: { notIn: ['CANCELLED', 'PAYMENT_FAILED'] as any },
+        },
+        select: { id: true },
+      });
+      const transactionFirstOrderEligible = !transactionPriorOrder;
+      if (transactionFirstOrderEligible !== Boolean(quote.deliveryPricing?.waivedByFirstOrder)) {
+        throw new ConflictException('First-order delivery offer changed. Refresh checkout and try again.');
+      }
       if (deliveryWindow) {
         const reserved = await tx.order.count({
           where: {

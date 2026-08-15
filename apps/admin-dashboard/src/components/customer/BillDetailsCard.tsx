@@ -31,6 +31,7 @@ type BillDetailsCardProps = {
     freeDeliveryMinimumPaise: number;
     distanceFeePaise: number;
     waivedByThreshold: boolean;
+    waivedByFirstOrder?: boolean;
   } | null;
   showDeliveryOffer?: boolean;
   loading?: boolean;
@@ -69,7 +70,8 @@ export default function BillDetailsCard({
   const subtotalPaise = Math.round(subtotal * 100);
   const freeDeliveryRemainingPaise = Math.max(0, freeDeliveryMinimumPaise - subtotalPaise);
   const freeDeliveryUnlocked = freeDeliveryRemainingPaise === 0;
-  const ratePerKm = (deliveryPricing?.ratePaisePerKm ?? 150) / 100;
+  const ratePerKm = (deliveryPricing?.ratePaisePerKm ?? 200) / 100;
+  const firstOrderFreeDelivery = Boolean(deliveryPricing?.waivedByFirstOrder);
 
   return (
     <div className="rounded-2xl border border-slate-100 bg-white overflow-hidden">
@@ -81,9 +83,9 @@ export default function BillDetailsCard({
       </div>
 
       <div className="p-5">
-        {showDeliveryOffer ? <div className={`mb-4 rounded-xl border px-3 py-3 ${freeDeliveryUnlocked ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
-          <p className={`text-xs font-black ${freeDeliveryUnlocked ? 'text-emerald-800' : 'text-amber-900'}`}>{freeDeliveryUnlocked ? 'Free delivery unlocked' : `Add ${formatINR(freeDeliveryRemainingPaise / 100)} for free delivery`}</p>
-          <p className="mt-1 text-[11px] font-semibold text-slate-600">Delivery at {formatINR(ratePerKm)}/km. Free on orders of {formatINR(freeDeliveryMinimumPaise / 100)} or more.</p>
+        {showDeliveryOffer ? <div className={`mb-4 rounded-xl border px-3 py-3 ${firstOrderFreeDelivery || freeDeliveryUnlocked ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+          <p className={`text-xs font-black ${firstOrderFreeDelivery || freeDeliveryUnlocked ? 'text-emerald-800' : 'text-amber-900'}`}>{firstOrderFreeDelivery ? 'First order — FREE delivery' : freeDeliveryUnlocked ? 'Free delivery unlocked' : `Add ${formatINR(freeDeliveryRemainingPaise / 100)} for free delivery`}</p>
+          <p className="mt-1 text-[11px] font-semibold text-slate-600">{firstOrderFreeDelivery ? 'Welcome to Aagaam! Your delivery fee is waived on this order.' : `Delivery at ${formatINR(ratePerKm)}/km. Free on orders of ${formatINR(freeDeliveryMinimumPaise / 100)} or more.`}</p>
         </div> : null}
         {storeName && (
           <div className="flex items-center gap-2 rounded-xl bg-teal-50 border border-teal-100 px-3 py-2 mb-4">
@@ -115,7 +117,7 @@ export default function BillDetailsCard({
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-slate-500 font-semibold">
               <Truck className="h-3.5 w-3.5" />
-              Delivery fee
+              {firstOrderFreeDelivery ? 'Delivery fee · First order free' : 'Delivery fee'}
             </span>
             <span className={`font-black ${deliveryFee === 0 ? 'text-teal-600' : 'text-slate-950'}`}>
               {deliveryFee === 0 ? 'FREE' : formatINR(deliveryFee)}

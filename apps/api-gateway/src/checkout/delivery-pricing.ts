@@ -1,4 +1,4 @@
-export const DELIVERY_RATE_PAISE_PER_KM = 150;
+export const DELIVERY_RATE_PAISE_PER_KM = 200;
 export const FREE_DELIVERY_MINIMUM_PAISE = 9_900;
 export const DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM = 15;
 
@@ -9,12 +9,14 @@ export type DeliveryPricing = {
   maximumDistanceKm: number;
   distanceFeePaise: number;
   waivedByThreshold: boolean;
+  waivedByFirstOrder: boolean;
   payableFeePaise: number;
 };
 
 export function calculateDeliveryPricing(
   distanceKm: number,
   subtotalPaise?: number,
+  firstOrderEligible = false,
 ): DeliveryPricing {
   const configuredMaximum = Number(process.env.DELIVERY_MAX_DISTANCE_KM);
   const maximumDistanceKm = Number.isFinite(configuredMaximum) && configuredMaximum > 0
@@ -29,6 +31,7 @@ export function calculateDeliveryPricing(
   const waivedByThreshold = serviceable
     && Number.isFinite(subtotalPaise)
     && Number(subtotalPaise) >= FREE_DELIVERY_MINIMUM_PAISE;
+  const waivedByFirstOrder = serviceable && firstOrderEligible;
 
   return {
     serviceable,
@@ -37,7 +40,8 @@ export function calculateDeliveryPricing(
     maximumDistanceKm,
     distanceFeePaise,
     waivedByThreshold,
-    payableFeePaise: waivedByThreshold ? 0 : distanceFeePaise,
+    waivedByFirstOrder,
+    payableFeePaise: waivedByThreshold || waivedByFirstOrder ? 0 : distanceFeePaise,
   };
 }
 

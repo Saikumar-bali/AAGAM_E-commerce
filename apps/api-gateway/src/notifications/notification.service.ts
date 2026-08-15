@@ -13,6 +13,7 @@ import {
 } from '@aagam/types';
 import { randomUUID } from 'crypto';
 import { NotificationDeliveryService } from './notification-delivery.service';
+import { shouldCreateNotificationRecipient } from './notification-preferences';
 import { NotificationRoutingService } from './notification-routing.service';
 import { OutboxService } from './outbox.service';
 import { WebPushService } from './web-push.service';
@@ -244,7 +245,9 @@ export class NotificationService {
           });
           const specific = preferences.find((preference: any) => preference.eventType === outboxEvent.eventType);
           const fallback = preferences.find((preference: any) => preference.eventType === '*');
-          if ((specific || fallback)?.inAppEnabled === false) continue;
+          // NotificationRecipient is shared infrastructure for both the inbox and
+          // FCM delivery. Disabling the inbox must not silently disable push.
+          if (!shouldCreateNotificationRecipient(specific || fallback)) continue;
 
           await tx.notificationRecipient.create({
             data: {

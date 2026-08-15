@@ -60,6 +60,7 @@ type QuoteResponse = {
     maximumDistanceKm: number;
     distanceFeePaise: number;
     waivedByThreshold: boolean;
+    waivedByFirstOrder: boolean;
     payableFeePaise: number;
   } | null;
   invoice: {
@@ -96,6 +97,8 @@ type DeliverySlot = {
   remainingCapacity: number;
   available: boolean;
 };
+
+const DELIVERY_TIME_ZONE = 'Asia/Kolkata';
 
 const emptyDraft = () => ({
   label: 'Home',
@@ -531,7 +534,7 @@ export default function CheckoutPage() {
                   <button type="button" onClick={() => { setFulfillmentType('IMMEDIATE'); setSelectedSlotId(null); }} className={`rounded-2xl border p-4 text-left transition ${fulfillmentType === 'IMMEDIATE' ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-200'}`}><Clock3 className="h-5 w-5 text-teal-700"/><p className="mt-2 text-sm font-black text-slate-950">Deliver now</p><p className="mt-1 text-xs text-slate-500">Fastest available delivery</p></button>
                   <button type="button" onClick={() => setFulfillmentType('SCHEDULED')} className={`rounded-2xl border p-4 text-left transition ${fulfillmentType === 'SCHEDULED' ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-200'}`}><CalendarDays className="h-5 w-5 text-teal-700"/><p className="mt-2 text-sm font-black text-slate-950">Schedule delivery</p><p className="mt-1 text-xs text-slate-500">Reserve up to 7 days ahead</p></button>
                 </div>
-                {fulfillmentType === 'SCHEDULED' ? <div className="mt-5"><div className="mb-3 flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-500">Available windows</p>{loadingSlots ? <Loader2 className="h-4 w-4 animate-spin text-teal-700"/> : null}</div><div className="grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">{deliverySlots.filter((slot) => slot.available).map((slot) => { const start = new Date(slot.windowStart); const end = new Date(slot.windowEnd); const active = selectedSlotId === slot.id; return <button type="button" key={slot.id} onClick={() => setSelectedSlotId(slot.id)} className={`rounded-2xl border p-3 text-left transition ${active ? 'border-teal-500 bg-teal-50' : 'border-slate-200 hover:border-teal-300'}`}><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-black text-slate-950">{start.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</p><p className="mt-1 text-xs font-bold text-teal-700">{slot.label} · {start.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}–{end.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</p></div>{active ? <CheckCircle2 className="h-5 w-5 shrink-0 text-teal-600"/> : null}</div><p className="mt-2 text-[11px] font-semibold text-slate-400">{slot.remainingCapacity <= 5 ? `Only ${slot.remainingCapacity} windows left` : 'Available'}</p></button>; })}</div>{!loadingSlots && deliverySlots.filter((slot) => slot.available).length === 0 ? <p className="rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">No scheduled windows are available for this address.</p> : null}</div> : null}
+                {fulfillmentType === 'SCHEDULED' ? <div className="mt-5"><div className="mb-3 flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-500">Available windows</p>{loadingSlots ? <Loader2 className="h-4 w-4 animate-spin text-teal-700"/> : null}</div><div className="grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">{deliverySlots.filter((slot) => slot.available).map((slot) => { const start = new Date(slot.windowStart); const end = new Date(slot.windowEnd); const active = selectedSlotId === slot.id; return <button type="button" key={slot.id} onClick={() => setSelectedSlotId(slot.id)} className={`rounded-2xl border p-3 text-left transition ${active ? 'border-teal-500 bg-teal-50' : 'border-slate-200 hover:border-teal-300'}`}><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-black text-slate-950">{start.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: DELIVERY_TIME_ZONE })}</p><p className="mt-1 text-xs font-bold text-teal-700">{slot.label} · {start.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: DELIVERY_TIME_ZONE })}–{end.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: DELIVERY_TIME_ZONE })}</p></div>{active ? <CheckCircle2 className="h-5 w-5 shrink-0 text-teal-600"/> : null}</div><p className="mt-2 text-[11px] font-semibold text-slate-400">{slot.remainingCapacity <= 5 ? `Only ${slot.remainingCapacity} windows left` : 'Available'}</p></button>; })}</div>{!loadingSlots && deliverySlots.filter((slot) => slot.available).length === 0 ? <p className="rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">No scheduled windows are available for this address.</p> : null}</div> : null}
               </div>
             </section>
 

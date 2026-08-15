@@ -5,6 +5,8 @@ describe('checkout order notification routing contract', () => {
   const checkoutSource = fs.readFileSync(path.join(__dirname, 'checkout/checkout.service.ts'), 'utf8');
   const orderCreationSource = fs.readFileSync(path.join(__dirname, 'orders/order-creation.service.ts'), 'utf8');
   const routingSource = fs.readFileSync(path.join(__dirname, 'notifications/notification-routing.service.ts'), 'utf8');
+  const notificationSource = fs.readFileSync(path.join(__dirname, 'notifications/notification.service.ts'), 'utf8');
+  const pushSource = fs.readFileSync(path.join(__dirname, 'notifications/web-push.service.ts'), 'utf8');
 
   it('enqueues ORDER_PLACED atomically through the shared order transaction', () => {
     expect(checkoutSource).toContain('this.orderCreation.createWithinTransaction(tx, {');
@@ -36,5 +38,12 @@ describe('checkout order notification routing contract', () => {
     expect(offeredBlock).toContain('payload.riderUserId');
     expect(offeredBlock).toContain('riderProfile');
     expect(offeredBlock).toContain('add(');
+  });
+
+  it('keeps Store background push independent from the in-app notification preference', () => {
+    expect(notificationSource).toContain('shouldCreateNotificationRecipient(specific || fallback)');
+    expect(pushSource).toContain("channelId: 'aagam_priority_operations_v3'");
+    expect(pushSource).toContain("priority: 'high'");
+    expect(pushSource).toContain('notification: {');
   });
 });
