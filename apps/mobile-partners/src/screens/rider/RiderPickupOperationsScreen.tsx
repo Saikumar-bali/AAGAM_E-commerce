@@ -19,6 +19,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -224,12 +226,38 @@ export const RiderPickupOperationsScreen = ({ navigation, deliveryJobId }: { nav
   const busy = verifyChecklist.isPending || verifyPin.isPending || verifyQr.isPending || reportProblem.isPending;
   const pickupPinValid = /^\d{6}$/.test(pickupPin);
 
+  const handoffCard = checklistVerified ? (
+    <View style={[styles.card, styles.handoffCard]}>
+      <View style={styles.sectionHeader}><Store size={22} color="#0F766E" /><View style={styles.flex}><Text style={styles.sectionTitle}>Secure store handoff</Text><Text style={styles.sectionText}>Ask the store for its current six-digit pickup PIN, or scan the expiring QR.</Text></View></View>
+      <View style={styles.completedChecklist}><CheckCircle2 size={18} color="#15803D" /><Text style={styles.completedChecklistText}>{totalExpected} items checked · checklist complete</Text></View>
+      <View style={styles.fieldGroup}>
+        <Text style={styles.fieldLabel}>Number of sealed parcels</Text>
+        <TextInput accessibilityLabel="Number of sealed parcels" value={parcelCount} onChangeText={(value) => setParcelCount(value.replace(/\D/g, '').slice(0, 3))} placeholder="Example: 1" placeholderTextColor="#94A3B8" keyboardType="number-pad" returnKeyType="done" selectTextOnFocus style={styles.input} />
+        <Text style={styles.fieldHelp}>Count the bags or boxes physically handed over by the store.</Text>
+      </View>
+      <View style={styles.fieldGroup}>
+        <View style={styles.fieldLabelRow}><Text style={styles.fieldLabel}>Store pickup PIN</Text><Text style={[styles.inputProgress, pickupPinValid && styles.inputProgressReady]}>{pickupPin.length}/6 digits</Text></View>
+        <TextInput accessibilityLabel="Six-digit store pickup PIN" value={pickupPin} onChangeText={(value) => setPickupPin(value.replace(/\D/g, '').slice(0, 6))} placeholder="Enter 6-digit PIN" placeholderTextColor="#94A3B8" keyboardType="number-pad" returnKeyType="done" maxLength={6} style={[styles.input, styles.pinInput, pickupPinValid && styles.inputReady]} />
+        <Text style={styles.fieldHelp}>Enter the PIN visible in the Store Partner app. The digits remain visible so you can confirm them before submitting.</Text>
+      </View>
+      <View style={styles.handoffActions}>
+        <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: !pickupPinValid || busy }} disabled={!pickupPinValid || busy} style={[styles.handoffButton, (!pickupPinValid || busy) && styles.disabled]} onPress={() => verifyPin.mutate()}>{verifyPin.isPending ? <ActivityIndicator color="#FFFFFF" /> : <KeyRound size={19} color="#FFFFFF" />}<Text style={styles.buttonText}>{pickupPinValid ? 'Verify store PIN' : 'Enter all 6 digits'}</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} style={[styles.qrButton, busy && styles.disabled]} onPress={() => verifyQr.mutate()}>{verifyQr.isPending ? <ActivityIndicator color="#0F766E" /> : <QrCode size={21} color="#0F766E" />}<Text style={styles.qrText}>Scan QR</Text></TouchableOpacity>
+      </View>
+      <View style={styles.infoCard}><ShieldCheck size={18} color="#0F766E" /><Text style={styles.infoText}>Verification immediately locks the pickup and opens navigation to the customer.</Text></View>
+    </View>
+  ) : null;
+
   return (
-    <ScrollView
-      style={styles.page}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
-      refreshControl={<RefreshControl refreshing={pickupQuery.isRefetching || workspaceQuery.isRefetching} onRefresh={() => void refresh()} />}
-    >
+    <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={insets.top}>
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+        refreshControl={<RefreshControl refreshing={pickupQuery.isRefetching || workspaceQuery.isRefetching} onRefresh={() => void refresh()} />}
+      >
       <View style={styles.hero}>
         <View style={styles.flex}><Text style={styles.eyebrow}>RIDER PICKUP</Text><Text style={styles.title}>Verify exact handoff</Text><Text style={styles.subtitle}>Count every unit, then verify the owning store.</Text></View>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh pickup" style={styles.refreshButton} onPress={() => void refresh()}><RefreshCw size={20} color="#FFFFFF" /></TouchableOpacity>
@@ -248,7 +276,9 @@ export const RiderPickupOperationsScreen = ({ navigation, deliveryJobId }: { nav
             <View style={[styles.badge, checklistVerified ? styles.badgeReady : exactQuantities ? styles.badgeReady : styles.badgePending]}><Text style={styles.badgeText}>{checklistVerified ? 'VERIFIED' : `${totalReceived}/${totalExpected}`}</Text></View>
           </View>
 
-          <View style={styles.card}>
+          {handoffCard}
+
+          {!checklistVerified ? <View style={styles.card}>
             <View style={styles.sectionHeader}><ClipboardCheck size={22} color="#0F766E" /><View style={styles.flex}><Text style={styles.sectionTitle}>Exact item quantities</Text><Text style={styles.sectionText}>Use + and − to record what is physically received.</Text></View></View>
             {checklist.map((item: any) => {
               const expected = Number(item.expectedQuantity || 0);
@@ -266,32 +296,15 @@ export const RiderPickupOperationsScreen = ({ navigation, deliveryJobId }: { nav
               );
             })}
             <TextInput value={parcelCode} onChangeText={setParcelCode} editable={!checklistVerified && !busy} placeholder="Optional parcel or seal code" placeholderTextColor="#94A3B8" maxLength={100} style={styles.input} />
-            {checklistVerified ? (
-              <View style={styles.successCard}><ShieldCheck size={20} color="#15803D" /><Text style={styles.successText}>Exact quantities are locked and verified.</Text></View>
-            ) : (
-              <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: !exactQuantities || busy }} disabled={!exactQuantities || busy} style={[styles.primaryButton, (!exactQuantities || busy) && styles.disabled]} onPress={() => Alert.alert('Verify exact quantities?', `Expected ${totalExpected} and received ${totalReceived}.`, [{ text: 'Back', style: 'cancel' }, { text: 'Verify', onPress: () => verifyChecklist.mutate() }])}>{verifyChecklist.isPending ? <ActivityIndicator color="#FFFFFF" /> : <CheckCircle2 size={18} color="#FFFFFF" />}<Text style={styles.buttonText}>Verify exact checklist</Text></TouchableOpacity>
-            )}
-          </View>
-
-          {checklistVerified ? (
-            <View style={styles.card}>
-              <View style={styles.sectionHeader}><Store size={22} color="#0F766E" /><View style={styles.flex}><Text style={styles.sectionTitle}>Secure store handoff</Text><Text style={styles.sectionText}>Use the store-issued PIN or scan its expiring QR challenge.</Text></View></View>
-              <TextInput value={parcelCount} onChangeText={(value) => setParcelCount(value.replace(/\D/g, '').slice(0, 3))} placeholder="Parcel count" placeholderTextColor="#94A3B8" keyboardType="number-pad" style={styles.input} />
-              <TextInput value={pickupPin} onChangeText={(value) => setPickupPin(value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit store PIN" placeholderTextColor="#94A3B8" keyboardType="number-pad" maxLength={6} style={[styles.input, styles.pinInput]} />
-              <View style={styles.handoffActions}>
-                <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: !pickupPinValid || busy }} disabled={!pickupPinValid || busy} style={[styles.handoffButton, (!pickupPinValid || busy) && styles.disabled]} onPress={() => verifyPin.mutate()}>{verifyPin.isPending ? <ActivityIndicator color="#FFFFFF" /> : <KeyRound size={19} color="#FFFFFF" />}<Text style={styles.buttonText}>Verify PIN</Text></TouchableOpacity>
-                <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} style={[styles.qrButton, busy && styles.disabled]} onPress={() => verifyQr.mutate()}>{verifyQr.isPending ? <ActivityIndicator color="#0F766E" /> : <QrCode size={21} color="#0F766E" />}<Text style={styles.qrText}>Scan QR</Text></TouchableOpacity>
-              </View>
-              <View style={styles.infoCard}><RefreshCw size={18} color="#0F766E" /><Text style={styles.infoText}>Store-confirmed handoff is checked automatically every five seconds. The route changes directly to customer delivery after canonical verification.</Text></View>
-            </View>
-          ) : null}
+            <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: !exactQuantities || busy }} disabled={!exactQuantities || busy} style={[styles.primaryButton, (!exactQuantities || busy) && styles.disabled]} onPress={() => Alert.alert('Verify exact quantities?', `Expected ${totalExpected} and received ${totalReceived}.`, [{ text: 'Back', style: 'cancel' }, { text: 'Verify', onPress: () => verifyChecklist.mutate() }])}>{verifyChecklist.isPending ? <ActivityIndicator color="#FFFFFF" /> : <CheckCircle2 size={18} color="#FFFFFF" />}<Text style={styles.buttonText}>Verify exact checklist</Text></TouchableOpacity>
+          </View> : null}
 
           <View style={styles.problemCard}>
             <TouchableOpacity accessibilityRole="button" style={styles.problemHeader} onPress={() => setShowProblem((value) => !value)}><XCircle size={20} color="#B91C1C" /><View style={styles.flex}><Text style={styles.problemTitle}>Quantity or parcel mismatch?</Text><Text style={styles.problemText}>Attach image or PDF evidence before pickup.</Text></View><Text style={styles.problemLink}>{showProblem ? 'Close' : 'Report'}</Text></TouchableOpacity>
             {showProblem ? (
               <View style={styles.problemBody}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.problemTypes}>{PROBLEM_TYPES.map(([value, problemLabel]) => <TouchableOpacity key={value} accessibilityRole="button" accessibilityState={{ selected: problemType === value }} style={[styles.problemChip, problemType === value && styles.problemChipActive]} onPress={() => setProblemType(value)}><Text style={[styles.problemChipText, problemType === value && styles.problemChipTextActive]}>{problemLabel}</Text></TouchableOpacity>)}</ScrollView>
-                <TextInput value={problemNote} onChangeText={setProblemNote} placeholder="Describe what is missing, damaged, or incorrect" placeholderTextColor="#94A3B8" multiline maxLength={500} style={[styles.input, styles.multiline]} />
+                <View style={styles.fieldGroup}><View style={styles.fieldLabelRow}><Text style={styles.fieldLabel}>Problem details</Text><Text style={styles.inputProgress}>{problemNote.length}/500</Text></View><TextInput accessibilityLabel="Pickup problem details" value={problemNote} onChangeText={setProblemNote} placeholder="Example: One milk packet is missing from bag 2" placeholderTextColor="#94A3B8" multiline maxLength={500} style={[styles.input, styles.multiline]} /><Text style={styles.fieldHelp}>Describe exactly what is missing, damaged, unsealed, or incorrect.</Text></View>
                 <View style={styles.evidenceActions}><TouchableOpacity accessibilityRole="button" style={styles.evidenceButton} onPress={() => void pickEvidence('CAMERA')}><Camera size={18} color="#0F766E" /><Text style={styles.evidenceText}>Photo</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.evidenceButton} onPress={() => void pickEvidence('DOCUMENT')}><FilePlus2 size={18} color="#0F766E" /><Text style={styles.evidenceText}>Image/PDF</Text></TouchableOpacity></View>
                 {evidence.map((file, index) => <TouchableOpacity key={`${file.uri}-${index}`} accessibilityRole="button" accessibilityLabel={`Remove ${file.name}`} style={styles.fileRow} onPress={() => setEvidence((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Text numberOfLines={1} style={styles.fileName}>{file.name}</Text><Text style={styles.remove}>Remove</Text></TouchableOpacity>)}
                 <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} style={[styles.dangerButton, busy && styles.disabled]} onPress={() => reportProblem.mutate()}>{reportProblem.isPending ? <ActivityIndicator color="#FFFFFF" /> : <AlertTriangle size={18} color="#FFFFFF" />}<Text style={styles.buttonText}>Submit evidence report</Text></TouchableOpacity>
@@ -300,7 +313,8 @@ export const RiderPickupOperationsScreen = ({ navigation, deliveryJobId }: { nav
           </View>
         </>
       )}
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -313,6 +327,8 @@ const styles = StyleSheet.create({
   hero: { backgroundColor: '#0F172A', paddingTop: 24, paddingHorizontal: 18, paddingBottom: 22, flexDirection: 'row', alignItems: 'center', gap: 12 }, eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '900', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 23, fontWeight: '900', marginTop: 2 }, subtitle: { color: '#CBD5E1', fontSize: 11, marginTop: 4 }, refreshButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   summaryCard: { margin: 14, marginBottom: 0, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 15, flexDirection: 'row', alignItems: 'center' }, orderCode: { color: '#0F766E', fontSize: 10, fontWeight: '900' }, storeName: { color: '#0F172A', fontSize: 17, fontWeight: '900', marginTop: 3 }, summaryText: { color: '#64748B', fontSize: 10, marginTop: 4 }, badge: { borderRadius: 11, paddingHorizontal: 10, paddingVertical: 7 }, badgeReady: { backgroundColor: '#DCFCE7' }, badgePending: { backgroundColor: '#FEF3C7' }, badgeText: { color: '#0F172A', fontSize: 10, fontWeight: '900' },
   card: { margin: 14, marginBottom: 0, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 15 }, sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 9 }, sectionTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900' }, sectionText: { color: '#64748B', fontSize: 10, lineHeight: 15, marginTop: 3 },
+  handoffCard: { borderColor: '#5EEAD4', backgroundColor: '#FCFFFE' }, completedChecklist: { marginTop: 12, borderRadius: 12, backgroundColor: '#F0FDF4', paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, completedChecklistText: { flex: 1, color: '#166534', fontSize: 11, fontWeight: '900' },
+  fieldGroup: { marginTop: 13 }, fieldLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, fieldLabel: { color: '#334155', fontSize: 11, fontWeight: '900' }, fieldHelp: { color: '#64748B', fontSize: 9, lineHeight: 14, marginTop: 5 }, inputProgress: { color: '#64748B', fontSize: 9, fontWeight: '800' }, inputProgressReady: { color: '#15803D' }, inputReady: { borderColor: '#22C55E', backgroundColor: '#F0FDF4' },
   itemCard: { minHeight: 72, borderRadius: 14, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', padding: 12, marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 9 }, itemMatched: { backgroundColor: '#F0FDF4', borderColor: '#86EFAC' }, itemName: { color: '#0F172A', fontSize: 12, fontWeight: '900' }, itemMeta: { color: '#15803D', fontSize: 10, fontWeight: '800', marginTop: 4 }, mismatch: { color: '#B45309' }, counter: { flexDirection: 'row', alignItems: 'center', gap: 8 }, counterButton: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, counterValue: { minWidth: 28, color: '#0F172A', fontSize: 17, fontWeight: '900', textAlign: 'center' },
   input: { minHeight: 50, borderRadius: 13, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', paddingHorizontal: 12, color: '#0F172A', marginTop: 10 }, pinInput: { letterSpacing: 8, fontSize: 18, textAlign: 'center' }, multiline: { minHeight: 110, paddingTop: 12, textAlignVertical: 'top' },
   successCard: { borderRadius: 13, backgroundColor: '#F0FDF4', padding: 12, marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, successText: { flex: 1, color: '#166534', fontSize: 11, fontWeight: '800' }, primaryButton: { minHeight: 50, borderRadius: 14, backgroundColor: '#067B5C', marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, buttonText: { color: '#FFFFFF', fontWeight: '900' }, disabled: { opacity: 0.45 },
