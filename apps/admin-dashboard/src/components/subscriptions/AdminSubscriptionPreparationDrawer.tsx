@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@aagam/utils';
-import { AlertTriangle, CalendarClock, CheckCircle2, MapPin, Phone, RefreshCw, Route, Store, X } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CheckCircle2, MapPin, Phone, RefreshCw, Route, Save, Store, X } from 'lucide-react';
 import { getToastErrorMessage, useToast } from '@/components/ToastProvider';
 
 type PreparationRow = {
@@ -48,12 +48,21 @@ export default function AdminSubscriptionPreparationDrawer() {
   const [loading, setLoading] = useState(false);
   const [overview, setOverview] = useState<Overview>({ minimumPreparationHours: 24, finalAssignmentHoursBefore: 2, rows: [], plans: [] });
   const [workingPlan, setWorkingPlan] = useState('');
+  const [planHours, setPlanHours] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await apiClient.get('/admin/subscriptions/preparation', { params: { days: 3 } });
-      setOverview(response.data || { minimumPreparationHours: 24, finalAssignmentHoursBefore: 2, rows: [], plans: [] });
+      const next: Overview = response.data || { minimumPreparationHours: 24, finalAssignmentHoursBefore: 2, rows: [], plans: [] };
+      setOverview(next);
+      setPlanHours((current) => {
+        const merged = { ...current };
+        next.plans.forEach((plan) => {
+          if (merged[plan.id] == null) merged[plan.id] = String(plan.orderGenerationHoursBefore);
+        });
+        return merged;
+      });
     } catch (error) {
       toast.error(getToastErrorMessage(error, 'Tomorrow subscription operations could not be loaded.'));
     } finally {
@@ -71,14 +80,20 @@ export default function AdminSubscriptionPreparationDrawer() {
   const pending = overview.rows.filter((row) => row.readiness.status === 'PENDING').length;
   const belowPolicy = overview.plans.filter((plan) => plan.orderGenerationHoursBefore < overview.minimumPreparationHours);
 
-  const applyPolicy = async (plan: PlanPolicy) => {
+  const savePolicy = async (plan: PlanPolicy) => {
+    const hours = Number(planHours[plan.id] ?? plan.orderGenerationHoursBefore);
+    if (!Number.isInteger(hours) || hours < overview.minimumPreparationHours || hours > 72) {
+      toast.warning(`Choose a whole-number preparation lead from ${overview.minimumPreparationHours} to 72 hours.`);
+      return;
+    }
     setWorkingPlan(plan.id);
     try {
       await apiClient.patch(`/admin/subscriptions/preparation/plans/${encodeURIComponent(plan.id)}/policy`, {
-        orderGenerationHoursBefore: overview.minimumPreparationHours,
-        reason: `Set operational D-1 preparation lead to ${overview.minimumPreparationHours} hours`,
+        orderGenerationHoursBefore: hours,
+        reason: `Admin set operational order-generation lead to ${hours} hours`,
       });
-      toast.success(`${plan.name} now generates orders ${overview.minimumPreparationHours} hours before the delivery window.`);
+      toast.success(`${plan.name} will materialize each real order ${hours} hours before its delivery window.`);
+      setPlanHours((current) => ({ ...current, [plan.id]: String(hours) }));
       await load();
     } catch (error) {
       toast.error(getToastErrorMessage(error, 'Preparation policy could not be updated.'));
@@ -118,12 +133,25 @@ export default function AdminSubscriptionPreparationDrawer() {
             </header>
 
             <div className="flex-1 space-y-4 overflow-y-auto p-5">
-              {belowPolicy.length ? (
-                <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-5 w-5 text-amber-700" /><div className="flex-1"><p className="font-black text-amber-950">Plans below the D-1 lead</p><p className="mt-1 text-sm font-semibold text-amber-800">These plans still use a shorter order-generation lead. Apply the production policy before relying on tomorrow preparation.</p></div></div>
-                  <div className="mt-3 space-y-2">{belowPolicy.map((plan) => <div key={plan.id} className="flex items-center justify-between gap-3 rounded-xl bg-white p-3"><div><p className="font-black text-slate-900">{plan.name}</p><p className="text-xs font-semibold text-slate-500">Current: {plan.orderGenerationHoursBefore}h · required: {overview.minimumPreparationHours}h</p></div><button disabled={workingPlan === plan.id} onClick={() => void applyPolicy(plan)} className="min-h-10 rounded-xl bg-amber-700 px-3 text-sm font-black text-white disabled:opacity-50">Apply {overview.minimumPreparationHours}h</button></div>)}</div>
-                </section>
-              ) : null}
+              <section className={`rounded-2xl border p-4 ${belowPolicy.length ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+                <div className="flex items-start gap-3">
+                  {belowPolicy.length ? <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-700" /> : <CalendarClock className="mt-0.5 h-5 w-5 text-emerald-700" />}
+                  <div className="flex-1">
+                    <p className={`font-black ${belowPolicy.length ? 'text-amber-950' : 'text-slate-950'}`}>Order materialization lead</p>
+                    <p className={`mt-1 text-sm font-semibold ${belowPolicy.length ? 'text-amber-800' : 'text-slate-500'}`}>Configure each plan from {overview.minimumPreparationHours}–72 hours. This controls when one real occurrence reserves inventory; it never bulk-reserves the full subscription.</p>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {overview.plans.map((plan) => (
+                    <div key={plan.id} className="grid gap-3 rounded-xl bg-white p-3 ring-1 ring-slate-200 sm:grid-cols-[1fr_100px_auto] sm:items-center">
+                      <div><p className="font-black text-slate-900">{plan.name}</p><p className="text-xs font-semibold text-slate-500">Current {plan.orderGenerationHoursBefore}h · {humanize(plan.status)}</p></div>
+                      <label className="text-xs font-black text-slate-600">Hours<input aria-label={`${plan.name} order generation lead hours`} type="number" min={overview.minimumPreparationHours} max={72} step={1} value={planHours[plan.id] ?? String(plan.orderGenerationHoursBefore)} onChange={(event) => setPlanHours((current) => ({ ...current, [plan.id]: event.target.value }))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-black text-slate-900" /></label>
+                      <button disabled={workingPlan === plan.id || Number(planHours[plan.id] ?? plan.orderGenerationHoursBefore) === plan.orderGenerationHoursBefore} onClick={() => void savePolicy(plan)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"><Save className="h-4 w-4" /> Save</button>
+                    </div>
+                  ))}
+                  {!overview.plans.length ? <p className="rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-500">No active subscription plan policies to configure.</p> : null}
+                </div>
+              </section>
 
               {overview.rows.length ? overview.rows.map((row) => (
                 <article key={row.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
