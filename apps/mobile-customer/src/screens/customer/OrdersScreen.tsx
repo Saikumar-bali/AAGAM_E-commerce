@@ -12,6 +12,10 @@ import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@aagam/mobile-shared";
 import { AagamBrand } from "../../components/AagamBrand";
+import {
+  customerOrderAmountSummary,
+  formatOrderAmount,
+} from "../../domain/orderPresentation";
 
 const deliveryWindow = (order: any) => {
   if (!order?.deliveryWindowStart || !order?.deliveryWindowEnd) return null;
@@ -101,34 +105,40 @@ export const OrdersScreen = () => {
             </Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.orderCard}
-            onPress={() =>
-              navigation.navigate("OrderDetail", { orderId: item.id })
-            }
-          >
-            <View style={styles.orderHeader}>
-              <Text style={styles.orderId}>
-                Order #{item.id.slice(-8).toUpperCase()}
+        renderItem={({ item }) => {
+          const amount = customerOrderAmountSummary(item);
+          return (
+            <TouchableOpacity
+              style={styles.orderCard}
+              onPress={() =>
+                navigation.navigate("OrderDetail", { orderId: item.id })
+              }
+            >
+              <View style={styles.orderHeader}>
+                <Text style={styles.orderId}>
+                  Order #{item.id.slice(-8).toUpperCase()}
+                </Text>
+                <Text style={styles.statusText}>{item.status}</Text>
+              </View>
+              <Text style={styles.orderMeta}>
+                {item.store?.name || "Assigned Store"}
               </Text>
-              <Text style={styles.statusText}>{item.status}</Text>
-            </View>
-            <Text style={styles.orderMeta}>
-              {item.store?.name || "Assigned Store"}
-            </Text>
-            <Text style={styles.orderMeta}>
-              {new Date(item.createdAt).toLocaleString()}
-            </Text>
-            {deliveryWindow(item) ? <Text style={styles.scheduleText}>Scheduled delivery · {deliveryWindow(item)}</Text> : null}
-            <View style={styles.orderFooter}>
-              <Text style={styles.totalText}>
-                ₹{item.grandTotal ?? item.totalAmount}
+              <Text style={styles.orderMeta}>
+                {new Date(item.createdAt).toLocaleString()}
               </Text>
-              <Text style={styles.chevron}>View Details</Text>
-            </View>
-          </TouchableOpacity>
-        )}
+              {deliveryWindow(item) ? <Text style={styles.scheduleText}>Scheduled delivery · {deliveryWindow(item)}</Text> : null}
+              <View style={styles.orderFooter}>
+                <View>
+                  <Text style={styles.amountLabel}>{amount.label}</Text>
+                  <Text style={styles.totalText}>
+                    {formatOrderAmount(amount.amountRupees)}{amount.label === "Funded delivery" ? " due" : ""}
+                  </Text>
+                </View>
+                <Text style={styles.chevron}>View Details</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        }}
       />
     </View>
   );
@@ -187,10 +197,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-end",
   },
+  amountLabel: { color: "#64748B", fontSize: 10, fontWeight: "800", marginBottom: 2 },
   totalText: { fontSize: 20, fontWeight: "800", color: "#0F172A" },
-  chevron: { color: "#0F766E", fontWeight: "800" },
+  chevron: { color: "#0F766E", fontWeight: "800", paddingBottom: 2 },
   emptyContainer: { paddingTop: 60, alignItems: "center" },
   emptyTitle: { fontSize: 20, fontWeight: "800", color: "#0F172A" },
   emptyText: {
