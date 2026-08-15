@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { DeliveryRunStatus, NotificationEventType, Prisma, prisma } from '@aagam/database';
+import { DeliveryRunStatus, Role, prisma } from '@aagam/database';
+import { enqueueOutboxEvent } from '../notifications/outbox.service';
 
 @Injectable()
 export class SubscriptionRiderCapacityNotificationService implements OnModuleInit, OnModuleDestroy {
@@ -72,32 +73,29 @@ export class SubscriptionRiderCapacityNotificationService implements OnModuleIni
 
         for (const rider of eligible) {
           const id = `subscription-capacity:${run.id}:${rider.user.id}`;
-          try {
-            await prisma.notification.create({
-              data: {
-                id,
-                eventType: NotificationEventType.ADMIN_BROADCAST,
-                title: 'Tomorrow delivery capacity notice',
-                body: `${run.store.name} has a ${run.totalStopCount}-stop subscription route in your scheduled shift. This is advance planning, not final assignment; stay available near the slot.`,
-                deepLink: '/rider/runs',
-                data: {
-                  kind: 'SUBSCRIPTION_RIDER_CAPACITY_NOTICE',
-                  deliveryRunId: run.id,
-                  routeCode: run.routeCode,
-                  serviceDate: run.serviceDate.toISOString(),
-                  slotStart: run.slotStart.toISOString(),
-                  slotEnd: run.slotEnd.toISOString(),
-                  finalAssignmentHoursBefore: finalAssignmentHours,
-                  finalAssignmentPending: true,
-                } as Prisma.InputJsonValue,
-                recipients: {
-                  create: [{ userId: rider.user.id, dedupeKey: `${id}:${rider.user.id}` }],
-                },
+          await enqueueOutboxEvent(prisma, {
+            eventType: 'ADMIN_BROADCAST',
+            aggregateType: 'SYSTEM',
+            aggregateId: run.id,
+            idempotencyKey: id,
+            payload: {
+              title: 'Tomorrow delivery capacity notice',
+              body: `${run.store.name} has a ${run.totalStopCount}-stop subscription route in your scheduled shift. This is advance planning, not final assignment; stay available near the slot.`,
+              audience: 'TARGETED',
+              deepLink: '/rider/runs',
+              targetRecipients: [{ userId: rider.user.id, role: Role.RIDER }],
+              metadata: {
+                kind: 'SUBSCRIPTION_RIDER_CAPACITY_NOTICE',
+                deliveryRunId: run.id,
+                routeCode: run.routeCode,
+                serviceDate: run.serviceDate.toISOString(),
+                slotStart: run.slotStart.toISOString(),
+                slotEnd: run.slotEnd.toISOString(),
+                finalAssignmentHoursBefore: finalAssignmentHours,
+                finalAssignmentPending: true,
               },
-            });
-          } catch (error: unknown) {
-            if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
-          }
+            },
+          });
         }
       }
     } catch (error: unknown) {
