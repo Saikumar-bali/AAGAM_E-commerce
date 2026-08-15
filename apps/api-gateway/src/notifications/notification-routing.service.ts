@@ -168,7 +168,7 @@ export class NotificationRoutingService {
         // still using the durable outbox/retry/push pipeline. The public Admin
         // broadcast API does not accept targetRecipients, so this cannot be
         // used by a client to manufacture arbitrary cross-role recipients.
-        const requestedTargets = Array.isArray(payload.targetRecipients)
+        const requestedTargets: Array<{ userId: string; role: string }> = Array.isArray(payload.targetRecipients)
           ? payload.targetRecipients
               .map((target: any) => ({
                 userId: String(target?.userId || '').trim(),
@@ -178,13 +178,13 @@ export class NotificationRoutingService {
           : [];
 
         if (requestedTargets.length) {
-          const userIds = [...new Set(requestedTargets.map((target: { userId: string }) => target.userId))];
+          const userIds: string[] = [...new Set(requestedTargets.map((target) => target.userId))];
           const activeUsers = await prisma.user.findMany({
             where: { id: { in: userIds }, isActive: true },
             select: { id: true },
           });
           const activeIds = new Set(activeUsers.map((user) => user.id));
-          requestedTargets.forEach((target: { userId: string; role: string }) => {
+          requestedTargets.forEach((target) => {
             if (activeIds.has(target.userId)) add({ id: target.userId }, target.role as Role);
           });
           break;
