@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text } from 'react-native';
-import { Mail, Phone } from 'lucide-react-native';
 import {
   FormField,
   OnboardingShell,
@@ -79,7 +78,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
     >
       <Section title="Applicant identity" subtitle="Use details that match your submitted documents.">
         <FormField testID="application_start_name_input" label="Full legal name" value={name} onChangeText={setName} autoCapitalize="words" placeholder="Enter full name" />
-        <Text style={styles.primaryLabel}><Mail size={15} color={palette.teal} /> Mandatory verification</Text>
+        <Text style={styles.primaryLabel}>Mandatory email verification</Text>
         <FormField
           testID="application_start_email_input"
           label="Email address"
@@ -90,7 +89,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
           placeholder="name@example.com"
           hint="We send a six-digit verification code to this email. Verification is required before the application can continue."
         />
-        <Text style={styles.contactLabel}><Phone size={15} color={palette.muted} /> Operational contact</Text>
+        <Text style={styles.contactLabel}>Operational contact</Text>
         <FormField
           testID="application_start_phone_input"
           label="Mobile number"
@@ -109,7 +108,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
 }
 
 const styles = StyleSheet.create({
-  primaryLabel: { color: palette.teal, fontSize: 12, fontWeight: '900', flexDirection: 'row' },
+  primaryLabel: { color: palette.teal, fontSize: 12, fontWeight: '900' },
   contactLabel: { color: palette.muted, fontSize: 12, fontWeight: '900' },
   consent: { color: '#64748B', fontSize: 11, lineHeight: 17, textAlign: 'center', paddingHorizontal: 8 },
 });
