@@ -108,22 +108,36 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
     const documents = await this.phoneRepository.documents(id, true);
     this.phoneRepository.validateForSubmission(application, documents, true);
 
-    const emailOnly =
+    const emailOnlyFallback =
       (process.env.PARTNER_PHONE_VERIFICATION_MODE || 'SMS_ONLY')
         .trim()
         .toUpperCase() === 'EMAIL_ONLY';
-    if (!emailOnly && (!application.phoneE164 || !application.phoneVerifiedAt)) {
+    const verificationChannel =
+      application.verificationChannel === 'EMAIL' ||
+      application.verificationChannel === 'PHONE'
+        ? application.verificationChannel
+        : emailOnlyFallback
+          ? 'EMAIL'
+          : 'PHONE';
+    const requestedEmail =
+      (dto.ownerEmail || application.email || '').trim().toLowerCase() || null;
+
+    if (verificationChannel === 'EMAIL') {
+      if (!requestedEmail || !application.emailVerifiedAt) {
+        throw new BadRequestException(
+          'Verified primary email is required before approval',
+        );
+      }
+    } else if (!application.phoneE164 || !application.phoneVerifiedAt) {
       throw new BadRequestException(
         'Verified primary phone is required before approval',
       );
     }
-    const requestedEmail =
-      (dto.ownerEmail || application.email || '').trim().toLowerCase() || null;
-    if (emailOnly && (!requestedEmail || !application.emailVerifiedAt)) {
-      throw new BadRequestException(
-        'Verified email is required while phone verification is disabled',
-      );
-    }
+
+    const approvalIdentityVerified =
+      verificationChannel === 'EMAIL'
+        ? Boolean(requestedEmail && application.emailVerifiedAt)
+        : Boolean(application.phoneE164 && application.phoneVerifiedAt);
     const accountEmail =
       requestedEmail || this.syntheticEmail(application.phoneE164!);
     const existingUser = await this.findExistingOperationalUser(
@@ -176,8 +190,12 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
       application.type === PartnerApplicationType.RIDER
         ? application.applicationNumber.replace('AAG-', '')
         : `OWN-${application.applicationNumber.replace('AAG-STR-', '')}`;
+    // Approval activates the operational account once the application's required
+    // identity channel is verified. Phone possession is still challenged by OTP
+    // on every phone-login attempt; email-first applications must not be forced
+    // through the retired phone-verification step just to become usable.
     const directPhoneLogin = Boolean(
-      application.phoneE164 && application.phoneVerifiedAt,
+      application.phoneE164 && approvalIdentityVerified,
     );
 
     try {
@@ -355,7 +373,7 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
             fromStatus: application.status,
             toStatus: PartnerApplicationStatus.APPROVED,
             message: directPhoneLogin
-              ? 'Application approved. Sign in directly with your verified phone number.'
+              ? 'Application approved. Sign in with your phone OTP.'
               : 'Application approved. Account activation is available.',
           },
         );
@@ -373,6 +391,7 @@ export class PhonePrimaryPartnerOnboardingAdminService extends PartnerOnboarding
               storeId,
               role: targetRole,
               operationalCode,
+              verificationChannel,
               directPhoneLogin,
               initialPasswordApplied: Boolean(
                 adminInitialPasswordHash && !existingUser,

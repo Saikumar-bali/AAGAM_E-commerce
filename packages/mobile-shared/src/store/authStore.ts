@@ -17,6 +17,20 @@ type PhoneRequestResult = {
   correlationId?: string;
   code?: string;
 };
+type EmailSignupRequestResult = {
+  channel: 'EMAIL';
+  maskedDestination: string;
+  expiresAt: string;
+  correlationId?: string;
+  code?: string;
+};
+type EmailSignupVerifyInput = {
+  email: string;
+  name: string;
+  password: string;
+  confirmPassword: string;
+  code: string;
+};
 
 type MobileSessionCleanup = () => void | Promise<void>;
 const mobileSessionCleanupHandlers = new Set<MobileSessionCleanup>();
@@ -44,6 +58,8 @@ interface AuthState {
   login: (identifier: string, pass: string) => Promise<void>;
   requestPhoneOtp: (phoneE164: string, purpose: PhonePurpose) => Promise<PhoneRequestResult>;
   verifyPhoneOtp: (input: { phoneE164: string; purpose: PhonePurpose; code: string; name?: string; email?: string }) => Promise<void>;
+  requestEmailSignup: (email: string) => Promise<EmailSignupRequestResult>;
+  verifyEmailSignup: (input: EmailSignupVerifyInput) => Promise<void>;
   googleLogin: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
@@ -174,6 +190,37 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error: any) {
       set({ isLoading: false });
       throw mobileAuthError(error, 'Phone verification failed', 'backend-api');
+    }
+  },
+
+  requestEmailSignup: async (email) => {
+    try {
+      set({ isLoading: true });
+      const normalizedEmail = email.trim().toLowerCase();
+      const response = await apiClient.post('/auth/email/signup/request', { email: normalizedEmail });
+      set({ isLoading: false });
+      return response.data as EmailSignupRequestResult;
+    } catch (error: any) {
+      set({ isLoading: false });
+      throw mobileAuthError(error, 'Verification email could not be sent', 'backend-api');
+    }
+  },
+
+  verifyEmailSignup: async (input) => {
+    try {
+      set({ isLoading: true });
+      const response = await apiClient.post('/auth/mobile/email/signup/verify', {
+        ...input,
+        email: input.email.trim().toLowerCase(),
+        name: input.name.trim(),
+      });
+      const { user, access_token } = response.data;
+      if (!access_token) throw new Error('Email verification did not return a mobile session');
+      await persistAuth(user, access_token);
+      set({ user, token: access_token, isLoading: false });
+    } catch (error: any) {
+      set({ isLoading: false });
+      throw mobileAuthError(error, 'Email verification failed', 'backend-api');
     }
   },
 

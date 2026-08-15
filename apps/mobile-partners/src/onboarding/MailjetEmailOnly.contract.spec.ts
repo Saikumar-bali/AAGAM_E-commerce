@@ -6,30 +6,29 @@ const screen = fs.readFileSync(
   'utf8',
 );
 
-describe('Mailjet email-only onboarding contracts', () => {
-  it('loads backend verification capabilities before offering phone verification', () => {
-    expect(screen).toMatch(
-      /apiClient\s*\.get\('\/partner-onboarding\/verification-capabilities'\)/,
-    );
-    expect(screen).toContain("data?.mode !== 'EMAIL_ONLY'");
-    expect(screen).toContain("data?.phone?.available !== false");
+describe('mandatory partner email verification contracts', () => {
+  it('does not branch new applications back to phone verification capabilities', () => {
+    expect(screen).not.toContain("apiClient.get('/partner-onboarding/verification-capabilities')");
+    expect(screen).not.toContain('phoneAvailable');
+    expect(screen).not.toContain("verificationChannel: 'PHONE'");
   });
 
-  it('fails closed to email when capabilities cannot be loaded', () => {
-    expect(screen).toContain('useState<boolean | null>(null)');
-    expect(screen).toContain('setPhoneAvailable(false)');
-    expect(screen).toContain("verificationChannel: phoneAvailable === false ? 'EMAIL' : 'PHONE'");
+  it('requires a valid email and always creates new applications with email verification', () => {
+    expect(screen).toContain('if (!EMAIL_PATTERN.test(normalizedEmail))');
+    expect(screen).toContain('Valid email required');
+    expect(screen).toContain("verificationChannel: 'EMAIL'");
+    expect(screen).toContain('Send email verification code');
   });
 
-  it('does not render or require the phone field when phone verification is disabled', () => {
-    expect(screen).toContain('{phoneAvailable !== false ? (');
-    expect(screen).toContain('Phone verification is unavailable on this deployment. Email verification will be used.');
-    expect(screen).toContain("if (phoneAvailable === false && !email.trim())");
+  it('keeps a valid mobile number required only as the operational contact', () => {
+    expect(screen).toContain("if (!/^\\+[1-9]\\d{7,14}$/.test(normalizedPhone))");
+    expect(screen).toContain('Mobile number required');
+    expect(screen).toContain('phoneE164: normalizedPhone');
+    expect(screen).toContain('This number is not the verification channel for a new application.');
   });
 
-  it('requires a valid phone before creating a phone-primary application', () => {
-    expect(screen).toContain('if (phoneAvailable !== false && !/^\\+[1-9]\\d{7,14}$/.test(normalizedPhone))');
-    expect(screen).toContain('phoneE164: phoneAvailable === false ? undefined : normalizedPhone');
-    expect(screen).toContain("verificationChannel: phoneAvailable === false ? 'EMAIL' : 'PHONE'");
+  it('communicates that phone OTP is not part of new partner application verification', () => {
+    expect(screen).toContain('Mandatory email verification');
+    expect(screen).toContain('no phone OTP is required for this application step');
   });
 });

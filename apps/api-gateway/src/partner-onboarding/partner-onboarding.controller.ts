@@ -28,6 +28,7 @@ import {
 } from './dto/partner-onboarding.dto';
 import { PartnerOnboardingService } from './partner-onboarding.service';
 import { PartnerVerificationService } from './partner-verification.service';
+import { PartnerContactChannel } from './partner-onboarding.types';
 
 const applicationDocumentUpload = {
   storage: memoryStorage(),
@@ -55,6 +56,11 @@ export class PartnerOnboardingController {
     return header.slice('Application '.length).trim();
   }
 
+  private async applicationForVerification(id: string, token: string) {
+    const response = await this.onboarding.getApplication(id, token);
+    return response?.application;
+  }
+
   @Get('verification-capabilities')
   capabilities() {
     return this.verification.capabilities();
@@ -63,19 +69,35 @@ export class PartnerOnboardingController {
   @Post('applications')
   @Throttle({ short: { limit: 5, ttl: 60000 } })
   create(@Body() dto: CreatePartnerApplicationDto) {
-    return this.onboarding.createApplication(dto);
+    const email = dto.email?.trim().toLowerCase();
+    if (!email) {
+      throw new BadRequestException('Email is required for Partner onboarding verification');
+    }
+    return this.onboarding.createApplication({
+      ...dto,
+      email,
+      verificationChannel: PartnerContactChannel.EMAIL,
+    });
   }
 
   @Post('applications/:id/contact-code')
   @Throttle({ short: { limit: 5, ttl: 60000 } })
-  requestVerification(
+  async requestVerification(
     @Param('id') id: string,
     @Req() req: any,
     @Body() dto: RequestPartnerVerificationDto,
   ) {
+    const token = this.applicationToken(req);
+    const application = await this.applicationForVerification(id, token);
+    if (
+      application?.verificationChannel !== PartnerContactChannel.PHONE &&
+      dto.channel === PartnerContactChannel.PHONE
+    ) {
+      throw new BadRequestException('Email verification is mandatory for new Partner applications');
+    }
     return this.verification.requestContactCode(
       id,
-      this.applicationToken(req),
+      token,
       dto.channel,
       dto.fallbackFrom === 'FIREBASE_PNV',
     );
@@ -93,18 +115,28 @@ export class PartnerOnboardingController {
 
   @Post('applications/:id/phone-pnv/challenge')
   @Throttle({ short: { limit: 5, ttl: 60000 } })
-  phonePnvChallenge(@Param('id') id: string, @Req() req: any) {
-    return this.verification.createPnvChallenge(id, this.applicationToken(req));
+  async phonePnvChallenge(@Param('id') id: string, @Req() req: any) {
+    const token = this.applicationToken(req);
+    const application = await this.applicationForVerification(id, token);
+    if (application?.verificationChannel !== PartnerContactChannel.PHONE) {
+      throw new BadRequestException('Email verification is mandatory for this Partner application');
+    }
+    return this.verification.createPnvChallenge(id, token);
   }
 
   @Post('applications/:id/phone-pnv/verify')
   @Throttle({ short: { limit: 8, ttl: 60000 } })
-  phonePnvVerify(
+  async phonePnvVerify(
     @Param('id') id: string,
     @Req() req: any,
     @Body() dto: VerifyPartnerPnvDto,
   ) {
-    return this.verification.verifyPnv(id, this.applicationToken(req), dto.token);
+    const token = this.applicationToken(req);
+    const application = await this.applicationForVerification(id, token);
+    if (application?.verificationChannel !== PartnerContactChannel.PHONE) {
+      throw new BadRequestException('Email verification is mandatory for this Partner application');
+    }
+    return this.verification.verifyPnv(id, token, dto.token);
   }
 
   @Get('applications/:id')
@@ -151,16 +183,20 @@ export class PartnerOnboardingController {
   }
 
   @Post('applications/:id/submit')
-  submit(
+  async submit(
     @Param('id') id: string,
     @Req() req: any,
     @Headers('idempotency-key') idempotencyKey: string,
   ) {
-    return this.onboarding.submitApplication(
-      id,
-      this.applicationToken(req),
-      idempotencyKey,
-    );
+    const token = this.applicationToken(req);
+    const application = await this.applicationForVerification(id, token);
+    if (
+      application?.verificationChannel === PartnerContactChannel.EMAIL &&
+      !application?.emailVerifiedAt
+    ) {
+      throw new BadRequestException('Verify your email before submitting the Partner application');
+    }
+    return this.onboarding.submitApplication(id, token, idempotencyKey);
   }
 
   @Post('applications/:id/withdraw')

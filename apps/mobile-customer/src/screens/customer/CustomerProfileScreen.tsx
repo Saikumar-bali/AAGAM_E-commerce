@@ -59,6 +59,26 @@ const emptyDraft = {
   isDefault: false,
 };
 
+type AddressDraftKey = keyof typeof emptyDraft;
+type AddressErrorKey = 'recipientName' | 'phoneE164' | 'alternatePhoneE164' | 'line1' | 'city' | 'state' | 'pincode' | 'latitude' | 'longitude';
+type AddressErrors = Partial<Record<AddressErrorKey, string>>;
+
+const addressFields: Array<{ key: AddressDraftKey; label: string; required?: boolean }> = [
+  { key: 'label', label: 'Label' },
+  { key: 'recipientName', label: 'Recipient Name', required: true },
+  { key: 'phoneE164', label: 'Phone', required: true },
+  { key: 'alternatePhoneE164', label: 'Alternate Phone' },
+  { key: 'line1', label: 'Address Line 1', required: true },
+  { key: 'line2', label: 'Address Line 2' },
+  { key: 'landmark', label: 'Landmark' },
+  { key: 'city', label: 'City', required: true },
+  { key: 'state', label: 'State', required: true },
+  { key: 'pincode', label: 'Pincode', required: true },
+  { key: 'instructions', label: 'Instructions' },
+  { key: 'latitude', label: 'Latitude', required: true },
+  { key: 'longitude', label: 'Longitude', required: true },
+];
+
 const draftFromAddress = (address: any) => ({
   ...emptyDraft,
   label: String(address?.label || emptyDraft.label),
@@ -78,6 +98,11 @@ const draftFromAddress = (address: any) => ({
   isDefault: Boolean(address?.isDefault),
 });
 
+function validPhone(value: string) {
+  const compact = value.trim().replace(/[\s().-]/g, '');
+  return /^(\+?[1-9]\d{7,14}|\d{10})$/.test(compact);
+}
+
 export const CustomerProfileScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -85,6 +110,7 @@ export const CustomerProfileScreen = () => {
   const { user, logout } = useAuthStore();
   const [showForm, setShowForm] = useState(false);
   const [draft, setDraft] = useState(emptyDraft);
+  const [addressErrors, setAddressErrors] = useState<AddressErrors>({});
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -92,6 +118,7 @@ export const CustomerProfileScreen = () => {
     const address = route.params.address;
     setEditingAddressId(address?.id || null);
     setDraft(address ? draftFromAddress(address) : emptyDraft);
+    setAddressErrors({});
     setShowForm(true);
     navigation.setParams({ openAddressForm: undefined, address: undefined });
   }, [navigation, route.params?.openAddressForm, route.params?.address?.id]);
@@ -144,6 +171,7 @@ export const CustomerProfileScreen = () => {
     },
     onSuccess: async () => {
       setDraft(emptyDraft);
+      setAddressErrors({});
       setShowForm(false);
       setEditingAddressId(null);
       await queryClient.invalidateQueries({ queryKey: CUSTOMER_ADDRESSES_QUERY_KEY });
@@ -167,6 +195,35 @@ export const CustomerProfileScreen = () => {
     },
     onError: (error: unknown) => notify.error('Could not update address', getUserSafeError(error, 'Please try again.')),
   });
+
+  const clearAddressError = (key: AddressDraftKey) => {
+    setAddressErrors((current) => ({ ...current, [key]: undefined }));
+  };
+
+  const validateAddress = () => {
+    const next: AddressErrors = {};
+    if (draft.recipientName.trim().length < 2) next.recipientName = 'Recipient name is required (at least 2 characters).';
+    if (!validPhone(draft.phoneE164)) next.phoneE164 = 'Enter a valid required phone number.';
+    if (draft.alternatePhoneE164.trim() && !validPhone(draft.alternatePhoneE164)) next.alternatePhoneE164 = 'Enter a valid alternate phone number or leave it blank.';
+    if (draft.line1.trim().length < 3) next.line1 = 'Address Line 1 is required (at least 3 characters).';
+    if (draft.city.trim().length < 2) next.city = 'City is required.';
+    if (draft.state.trim().length < 2) next.state = 'State is required.';
+    if (!/^\d{6}$/.test(draft.pincode.trim())) next.pincode = 'A valid 6 digit pincode is required.';
+    const latitude = Number(draft.latitude);
+    const longitude = Number(draft.longitude);
+    if (!draft.latitude.trim() || !Number.isFinite(latitude) || latitude < -90 || latitude > 90) next.latitude = 'Pin or enter a valid latitude.';
+    if (!draft.longitude.trim() || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) next.longitude = 'Pin or enter a valid longitude.';
+    setAddressErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const saveAddress = () => {
+    if (!validateAddress()) {
+      notify.warning('Complete required address fields', 'Fields marked in red must be corrected before saving.');
+      return;
+    }
+    saveAddressMutation.mutate();
+  };
 
   const requestLocationPermission = async () => {
     if (Platform.OS !== 'android') return true;
@@ -202,6 +259,8 @@ export const CustomerProfileScreen = () => {
   };
 
   const setPinnedLocation = async (latitude: number, longitude: number) => {
+    clearAddressError('latitude');
+    clearAddressError('longitude');
     setDraft((previous) => ({ ...previous, latitude: String(latitude), longitude: String(longitude) }));
     await reverseGeocode(latitude, longitude);
   };
@@ -231,6 +290,7 @@ export const CustomerProfileScreen = () => {
   const editAddress = (address: any) => {
     setEditingAddressId(address.id);
     setDraft(draftFromAddress(address));
+    setAddressErrors({});
     setShowForm(true);
   };
 
@@ -265,6 +325,7 @@ export const CustomerProfileScreen = () => {
   const avatarUrl = displayProfile?.avatarUrl;
   const profileInitial = (displayProfile?.name || displayProfile?.email || 'C').slice(0, 1).toUpperCase();
   const isGoogleProfile = Boolean(avatarUrl);
+  const locationHasError = Boolean(addressErrors.latitude || addressErrors.longitude);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -298,10 +359,10 @@ export const CustomerProfileScreen = () => {
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Saved Addresses</Text>
-        <TouchableOpacity style={styles.linkButton} onPress={() => { if (showForm) { setEditingAddressId(null); setDraft(emptyDraft); } setShowForm((value) => !value); }}><Plus size={16} color="#0F766E" /><Text style={styles.linkButtonText}>{showForm ? 'Close' : 'Add New'}</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.linkButton} onPress={() => { if (showForm) { setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); } setShowForm((value) => !value); }}><Plus size={16} color="#0F766E" /><Text style={styles.linkButtonText}>{showForm ? 'Close' : 'Add New'}</Text></TouchableOpacity>
       </View>
 
-      {isLoading ? <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View> : addresses.length === 0 ? <TouchableOpacity style={styles.emptyCard} onPress={() => setShowForm(true)}><View style={styles.emptyAddressIcon}><MapPinIcon /></View><View style={styles.emptyAddressCopy}><Text style={styles.emptyTitle}>No saved address yet</Text><Text style={styles.emptyText}>Add a delivery address before checkout for faster order delivery.</Text></View><ChevronRight size={20} color="#64748B" /></TouchableOpacity> : addresses.slice(0, 2).map((address: any) => (
+      {isLoading ? <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View> : addresses.length === 0 ? <TouchableOpacity style={styles.emptyCard} onPress={() => { setAddressErrors({}); setShowForm(true); }}><View style={styles.emptyAddressIcon}><MapPinIcon /></View><View style={styles.emptyAddressCopy}><Text style={styles.emptyTitle}>No saved address yet</Text><Text style={styles.emptyText}>Add a delivery address before checkout for faster order delivery.</Text></View><ChevronRight size={20} color="#64748B" /></TouchableOpacity> : addresses.slice(0, 2).map((address: any) => (
         <View key={address.id} style={styles.addressCard}>
           <View style={styles.addressTop}><View style={styles.addressLabelRow}><BriefcaseBusiness size={18} color="#0F766E" /><Text style={styles.addressLabel}>{address.label || 'Address'} {address.isDefault ? '• Default' : ''}</Text></View>{!address.isDefault ? <TouchableOpacity onPress={() => setDefaultMutation.mutate(address.id)}><Text style={styles.smallAction}>Make default</Text></TouchableOpacity> : null}</View>
           <Text style={styles.addressName}>{address.recipientName}</Text>
@@ -315,16 +376,28 @@ export const CustomerProfileScreen = () => {
 
       {showForm ? <View style={styles.formCard}>
         <Text style={styles.formTitle}>{editingAddressId ? 'Edit Address' : 'Add Address'}</Text>
-        <View style={styles.locationPanel}>
+        <View style={[styles.locationPanel, locationHasError && styles.locationPanelError]}>
           <TouchableOpacity style={styles.locationButton} onPress={() => void useCurrentLocation()}><Text style={styles.locationButtonText}>Use current location</Text></TouchableOpacity>
           <LeafletMap latitude={pinnedLatitude} longitude={pinnedLongitude} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude)} />
-          <Text style={styles.locationHelp}>{hasPinnedLocation ? `Pinned: ${pinnedLatitude.toFixed(5)}, ${pinnedLongitude.toFixed(5)}` : 'Tap the map or use current location to pin delivery point.'}</Text>
+          <Text style={[styles.locationHelp, locationHasError && styles.locationHelpError]}>{locationHasError ? 'A valid pinned delivery location is required.' : hasPinnedLocation ? `Pinned: ${pinnedLatitude.toFixed(5)}, ${pinnedLongitude.toFixed(5)}` : 'Tap the map or use current location to pin delivery point.'}</Text>
         </View>
-        {[
-          ['label', 'Label'], ['recipientName', 'Recipient Name'], ['phoneE164', 'Phone'], ['alternatePhoneE164', 'Alternate Phone'], ['line1', 'Address Line 1'], ['line2', 'Address Line 2'], ['landmark', 'Landmark'], ['city', 'City'], ['state', 'State'], ['pincode', 'Pincode'], ['instructions', 'Instructions'], ['latitude', 'Latitude'], ['longitude', 'Longitude'],
-        ].map(([key, label]) => <TextInput key={key} value={(draft as any)[key]} onChangeText={(value) => setDraft((previous) => ({ ...previous, [key]: value }))} placeholder={label} placeholderTextColor="#94A3B8" style={styles.input} />)}
+        {addressFields.map(({ key, label, required }) => {
+          const error = addressErrors[key as AddressErrorKey];
+          return <View key={key} style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, error && styles.inputLabelError]}>{label}{required ? ' *' : ''}</Text>
+            <TextInput
+              value={String((draft as any)[key] ?? '')}
+              onChangeText={(value) => { clearAddressError(key); setDraft((previous) => ({ ...previous, [key]: value })); }}
+              placeholder={required ? `${label} (required)` : label}
+              placeholderTextColor="#94A3B8"
+              style={[styles.input, error && styles.inputError]}
+              accessibilityLabel={label}
+            />
+            {error ? <Text style={styles.inputErrorText}>{error}</Text> : null}
+          </View>;
+        })}
         <View style={styles.switchRow}><Text style={styles.switchText}>Set as default</Text><Switch value={draft.isDefault} onValueChange={(value) => setDraft((previous) => ({ ...previous, isDefault: value }))} /></View>
-        <TouchableOpacity disabled={saveAddressMutation.isPending} style={[styles.saveButton, saveAddressMutation.isPending && styles.disabled]} onPress={() => saveAddressMutation.mutate()}><Text style={styles.saveButtonText}>{saveAddressMutation.isPending ? 'Saving...' : editingAddressId ? 'Update Address' : 'Save Address'}</Text></TouchableOpacity>
+        <TouchableOpacity disabled={saveAddressMutation.isPending} style={[styles.saveButton, saveAddressMutation.isPending && styles.disabled]} onPress={saveAddress}><Text style={styles.saveButtonText}>{saveAddressMutation.isPending ? 'Saving...' : editingAddressId ? 'Update Address' : 'Save Address'}</Text></TouchableOpacity>
       </View> : null}
     </ScrollView>
   );
@@ -348,6 +421,6 @@ const styles = StyleSheet.create({
   sectionHeader: { marginTop: 22, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, sectionTitle: { fontSize: 20, fontWeight: '900', color: '#0F172A' }, linkButton: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: '#CCFBF1' }, linkButtonText: { color: '#115E59', fontWeight: '900' },
   emptyCard: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#99F6E4', backgroundColor: '#FFFFFF', padding: 14 }, emptyAddressIcon: { width: 62, height: 62, borderRadius: 22, backgroundColor: '#E6FFFA', alignItems: 'center', justifyContent: 'center' }, emptyAddressCopy: { flex: 1 }, emptyTitle: { color: '#0F172A', fontWeight: '900' }, emptyText: { marginTop: 4, color: '#64748B', lineHeight: 18 },
   addressCard: { marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', padding: 14 }, addressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }, addressLabelRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7 }, addressLabel: { fontSize: 12, fontWeight: '900', color: '#0F766E', textTransform: 'uppercase' }, smallAction: { color: '#0F766E', fontWeight: '900', fontSize: 12 }, addressName: { marginTop: 7, fontSize: 16, fontWeight: '900', color: '#0F172A' }, addressText: { marginTop: 4, color: '#475569' }, deleteLink: { marginTop: 10, alignSelf: 'flex-start' }, deleteText: { color: '#DC2626', fontWeight: '900', fontSize: 12 }, addressActions: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 10 }, addressAction: { flexDirection: 'row', alignItems: 'center', gap: 4 }, deliverHere: { flex: 1, alignItems: 'center', borderRadius: 999, backgroundColor: '#0F766E', paddingVertical: 9 }, deliverHereText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' }, viewAddresses: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 }, viewAddressesText: { color: '#0F766E', fontWeight: '900', fontSize: 12 },
-  formCard: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' }, formTitle: { fontSize: 18, fontWeight: '900', color: '#0F172A', marginBottom: 12 }, locationPanel: { borderRadius: 18, backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#CCFBF1', padding: 10, marginBottom: 12 }, locationButton: { alignItems: 'center', borderRadius: 14, backgroundColor: '#0F766E', paddingVertical: 12, marginBottom: 10 }, locationButtonText: { color: '#FFFFFF', fontWeight: '900' }, locationHelp: { marginTop: 8, color: '#115E59', fontWeight: '700', fontSize: 12, textAlign: 'center' },
-  input: { borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, color: '#0F172A', marginBottom: 10 }, switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 12 }, switchText: { color: '#0F172A', fontWeight: '700' }, saveButton: { backgroundColor: '#0F766E', borderRadius: 16, paddingVertical: 15, alignItems: 'center' }, saveButtonText: { color: '#FFFFFF', fontWeight: '900' },
+  formCard: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' }, formTitle: { fontSize: 18, fontWeight: '900', color: '#0F172A', marginBottom: 12 }, locationPanel: { borderRadius: 18, backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#CCFBF1', padding: 10, marginBottom: 12 }, locationPanelError: { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' }, locationButton: { alignItems: 'center', borderRadius: 14, backgroundColor: '#0F766E', paddingVertical: 12, marginBottom: 10 }, locationButtonText: { color: '#FFFFFF', fontWeight: '900' }, locationHelp: { marginTop: 8, color: '#115E59', fontWeight: '700', fontSize: 12, textAlign: 'center' }, locationHelpError: { color: '#B91C1C' },
+  inputGroup: { marginBottom: 10 }, inputLabel: { marginBottom: 5, color: '#475569', fontSize: 12, fontWeight: '900' }, inputLabelError: { color: '#B91C1C' }, input: { borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, color: '#0F172A' }, inputError: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' }, inputErrorText: { marginTop: 5, color: '#B91C1C', fontSize: 11, lineHeight: 16, fontWeight: '800' }, switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 12 }, switchText: { color: '#0F172A', fontWeight: '700' }, saveButton: { backgroundColor: '#0F766E', borderRadius: 16, paddingVertical: 15, alignItems: 'center' }, saveButtonText: { color: '#FFFFFF', fontWeight: '900' },
 });
