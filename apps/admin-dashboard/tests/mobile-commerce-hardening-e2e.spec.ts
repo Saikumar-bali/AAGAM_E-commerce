@@ -23,7 +23,7 @@ async function login(
   const context = await browser.newContext({ baseURL: WEB_BASE });
   const page = await context.newPage();
   await page.goto('/login');
-  await page.getByLabel('Email address').fill(requiredEnv(`${upper}_EMAIL`));
+  await page.getByLabel('Phone number or email').fill(requiredEnv(`${upper}_EMAIL`));
   await page.getByLabel('Password').fill(requiredEnv(`${upper}_PASSWORD`));
   await Promise.all([
     page.waitForURL(role === 'admin' ? '**/admin**' : '**/shop**'),
