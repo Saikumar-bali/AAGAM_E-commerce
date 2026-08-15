@@ -1,4 +1,5 @@
 import React from 'react';
+import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
@@ -13,6 +14,7 @@ import {
 import { StoreDashboard } from '../screens/store/StoreDashboard';
 import { StoreDeliveryOperationsScreen } from '../screens/store/StoreDeliveryOperationsScreen';
 import { StoreSubscriptionOperationsScreen } from '../screens/store/StoreSubscriptionOperationsScreen';
+import { StoreSubscriptionPreparationFab } from '../screens/store/StoreSubscriptionPreparationFab';
 import { StoreInventoryScreen } from '../screens/store/StoreInventoryScreen';
 import { StoreOrdersNavigator } from './StoreOrdersNavigator';
 import { StoreSettingsScreen } from '../screens/store/StoreSettingsScreen';
@@ -154,11 +156,14 @@ const StoreTabs = () => {
 };
 
 export const StoreNavigator = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FAFBFA' }, animation: 'slide_from_right' }}>
-    <Stack.Screen name="StoreTabs" component={StoreTabs} />
-    <Stack.Screen name="StorePickupVerification" component={StorePickupVerificationEntryScreen} />
-    <Stack.Screen name="StorePickupSuccess" component={StorePickupSuccessEntryScreen} />
-    <Stack.Screen name="StoreReturnsCod" component={StoreDeliveryOperationsScreen} />
-    <Stack.Screen name="StoreSubscriptionOperations" component={StoreSubscriptionOperationsScreen} />
-  </Stack.Navigator>
+  <View style={{ flex: 1 }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FAFBFA' }, animation: 'slide_from_right' }}>
+      <Stack.Screen name="StoreTabs" component={StoreTabs} />
+      <Stack.Screen name="StorePickupVerification" component={StorePickupVerificationEntryScreen} />
+      <Stack.Screen name="StorePickupSuccess" component={StorePickupSuccessEntryScreen} />
+      <Stack.Screen name="StoreReturnsCod" component={StoreDeliveryOperationsScreen} />
+      <Stack.Screen name="StoreSubscriptionOperations" component={StoreSubscriptionOperationsScreen} />
+    </Stack.Navigator>
+    <StoreSubscriptionPreparationFab />
+  </View>
 );
