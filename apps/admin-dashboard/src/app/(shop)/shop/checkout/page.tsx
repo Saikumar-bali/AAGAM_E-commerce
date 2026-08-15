@@ -60,6 +60,7 @@ type QuoteResponse = {
     maximumDistanceKm: number;
     distanceFeePaise: number;
     waivedByThreshold: boolean;
+    waivedByFirstOrder: boolean;
     payableFeePaise: number;
   } | null;
   invoice: {

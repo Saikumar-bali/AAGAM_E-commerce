@@ -255,6 +255,14 @@ export class CheckoutService {
   async quote(userId: string, dto: CheckoutQuoteDto) {
     if (!dto.items?.length) throw new BadRequestException('No items');
     const normalizedItems = normalizeItems(dto.items);
+    const priorOrder = await prisma.order.findFirst({
+      where: {
+        customerId: userId,
+        status: { notIn: ['CANCELLED', 'PAYMENT_FAILED'] as any },
+      },
+      select: { id: true },
+    });
+    const firstOrderEligible = !priorOrder;
 
     const address = dto.addressId
       ? await prisma.customerAddress.findFirst({ where: { id: dto.addressId, userId } })
@@ -334,7 +342,7 @@ export class CheckoutService {
     const subtotalPaise = items.reduce((sum, it) => sum + it.lineTotalPaise, 0);
     const deliveryPricing = distanceKm === null
       ? null
-      : calculateDeliveryPricing(distanceKm, subtotalPaise);
+      : calculateDeliveryPricing(distanceKm, subtotalPaise, firstOrderEligible);
     const deliveryFeePaise = deliveryPricing?.payableFeePaise ?? 0;
     const deliveryFee = deliveryFeePaise / 100;
     const promotionPricing = storeId && this.promotionsService
@@ -477,6 +485,17 @@ export class CheckoutService {
 
     try {
       const committedOrder = await prisma.$transaction(async (tx) => {
+      const transactionPriorOrder = await tx.order.findFirst({
+        where: {
+          customerId: userId,
+          status: { notIn: ['CANCELLED', 'PAYMENT_FAILED'] as any },
+        },
+        select: { id: true },
+      });
+      const transactionFirstOrderEligible = !transactionPriorOrder;
+      if (transactionFirstOrderEligible !== Boolean(quote.deliveryPricing?.waivedByFirstOrder)) {
+        throw new ConflictException('First-order delivery offer changed. Refresh checkout and try again.');
+      }
       if (deliveryWindow) {
         const reserved = await tx.order.count({
           where: {
