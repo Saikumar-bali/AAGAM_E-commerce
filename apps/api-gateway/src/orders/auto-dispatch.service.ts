@@ -298,6 +298,7 @@ export class AutoDispatchService {
     const candidates = await prisma.$queryRaw<Array<{
       id: string;
       userId: string;
+      status: 'ONLINE' | 'BUSY';
       name: string | null;
       latitude: number;
       longitude: number;
@@ -306,6 +307,7 @@ export class AutoDispatchService {
       SELECT
         rider."id",
         rider."userId",
+        rider."status",
         account."name",
         location."latitude",
         location."longitude",
@@ -351,7 +353,13 @@ export class AutoDispatchService {
     ]);
 
     const unavailableRiderIds = new Set<string>();
+    const activeJobsByRider = new Map<string, typeof activeJobs>();
     for (const activeJob of activeJobs) {
+      if (activeJob.currentRiderId) {
+        const riderJobs = activeJobsByRider.get(activeJob.currentRiderId) || [];
+        riderJobs.push(activeJob);
+        activeJobsByRider.set(activeJob.currentRiderId, riderJobs);
+      }
       if (
         activeJob.currentRiderId &&
         (activeJob.order.storeId !== job.order.storeId ||
@@ -366,9 +374,24 @@ export class AutoDispatchService {
       unavailableRiderIds.add(openOffer.riderProfileId);
     }
 
+    const eligibleCandidates = candidates
+      .filter((candidate) => {
+        if (unavailableRiderIds.has(candidate.id)) return false;
+        // BUSY is eligible only when it is derived from compatible, pre-pickup
+        // work at this store. A bare BUSY status may be an administrator hold.
+        return candidate.status === 'ONLINE' ||
+          (activeJobsByRider.get(candidate.id)?.length || 0) > 0;
+      });
+    if (eligibleCandidates.length === 0) {
+      return {
+        deliveryJobId,
+        offered: false,
+        reason: 'NO_FRESH_AVAILABLE_RIDER',
+      };
+    }
+
     const maxPickupKm = this.maxPickupKm();
-    const ranked = candidates
-      .filter((candidate) => !unavailableRiderIds.has(candidate.id))
+    const ranked = eligibleCandidates
       .map((rider) => ({
         rider,
         distanceKm: calculateDistance(
@@ -552,7 +575,11 @@ export class AutoDispatchService {
             DeliveryJobStatus.RIDER_AT_STORE,
           ].includes(activeJob.status as any)
         );
-        if (incompatibleJob || otherOpenOffer) return null;
+        if (
+          incompatibleJob ||
+          otherOpenOffer ||
+          (rider.status === 'BUSY' && activeJobs.length === 0)
+        ) return null;
 
         const currentDistance = calculateDistance(
           input.expectedStoreLat,
