@@ -28,7 +28,7 @@ describe('distance delivery pricing', () => {
   });
 
   it('recalculates the distance fee when the cart drops below ₹99', () => {
-    expect(DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM).toBe(8);
+    expect(DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM).toBe(15);
     expect(calculateDeliveryPricing(35.7, 12_000)).toMatchObject({
       serviceable: false,
       distanceFeePaise: 5_355,
@@ -40,6 +40,14 @@ describe('distance delivery pricing', () => {
       distanceFeePaise: 5_355,
       waivedByThreshold: false,
       payableFeePaise: 5_355,
+    });
+  });
+
+  it('uses a 15 kilometre default service radius', () => {
+    expect(calculateDeliveryPricing(15, 6_000).serviceable).toBe(true);
+    expect(calculateDeliveryPricing(15.001, 6_000)).toMatchObject({
+      serviceable: false,
+      maximumDistanceKm: 15,
     });
   });
 
