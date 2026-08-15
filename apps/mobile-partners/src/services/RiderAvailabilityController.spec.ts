@@ -1,7 +1,26 @@
-import {
+jest.mock('react-native-geolocation-service', () => ({
+  __esModule: true,
+  default: { getCurrentPosition: jest.fn() },
+}));
+
+jest.mock('../api/riderService', () => ({
+  riderService: {
+    updateMyStatus: jest.fn(),
+    sendAvailabilityHeartbeat: jest.fn(),
+  },
+}));
+
+jest.mock('./RiderOnlineService', () => ({
+  RiderOnlineService: {
+    start: jest.fn(),
+    stop: jest.fn(),
+  },
+}));
+
+const {
   acquireRiderAvailabilityLocation,
   performRiderOnlineTransition,
-} from './RiderAvailabilityController';
+} = require('./RiderAvailabilityController') as typeof import('./RiderAvailabilityController');
 
 describe('RiderAvailabilityController', () => {
   it('falls back from a fast cached/network timeout to a longer high-accuracy fix', async () => {
