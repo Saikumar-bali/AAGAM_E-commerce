@@ -1,6 +1,6 @@
 export const DELIVERY_RATE_PAISE_PER_KM = 150;
 export const FREE_DELIVERY_MINIMUM_PAISE = 9_900;
-export const DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM = 8;
+export const DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM = 15;
 
 export type DeliveryPricing = {
   serviceable: boolean;
