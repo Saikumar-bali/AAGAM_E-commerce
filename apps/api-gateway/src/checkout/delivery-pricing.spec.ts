@@ -2,7 +2,6 @@ import {
   calculateDeliveryPricing,
   DELIVERY_RATE_PAISE_PER_KM,
   FREE_DELIVERY_MINIMUM_PAISE,
-  MAXIMUM_DELIVERY_DISTANCE_KM,
 } from './delivery-pricing';
 
 describe('distance delivery pricing', () => {
@@ -27,14 +26,34 @@ describe('distance delivery pricing', () => {
     });
   });
 
-  it('retains the eight kilometre service boundary', () => {
-    expect(MAXIMUM_DELIVERY_DISTANCE_KM).toBe(8);
-    expect(calculateDeliveryPricing(8, 7_000).serviceable).toBe(true);
-    expect(calculateDeliveryPricing(8.001, 7_000)).toMatchObject({
-      serviceable: false,
-      distanceFeePaise: 0,
+  it('recalculates the distance fee when the cart drops below ₹99', () => {
+    expect(calculateDeliveryPricing(35.7, 12_000)).toMatchObject({
+      serviceable: true,
+      waivedByThreshold: true,
       payableFeePaise: 0,
     });
+    expect(calculateDeliveryPricing(35.7, 6_000)).toMatchObject({
+      serviceable: true,
+      distanceFeePaise: 5_355,
+      waivedByThreshold: false,
+      payableFeePaise: 5_355,
+    });
+  });
+
+  it('supports an optional operational distance limit without mislabeling the fee as free', () => {
+    const previous = process.env.DELIVERY_MAX_DISTANCE_KM;
+    process.env.DELIVERY_MAX_DISTANCE_KM = '8';
+    try {
+      expect(calculateDeliveryPricing(8.001, 7_000)).toMatchObject({
+        serviceable: false,
+        maximumDistanceKm: 8,
+        distanceFeePaise: 1_200,
+        payableFeePaise: 1_200,
+      });
+    } finally {
+      if (previous === undefined) delete process.env.DELIVERY_MAX_DISTANCE_KM;
+      else process.env.DELIVERY_MAX_DISTANCE_KM = previous;
+    }
   });
 
   it('rejects invalid distances', () => {
