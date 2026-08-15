@@ -117,6 +117,7 @@ describe("Phase 5 pickup, delivery proof, COD, and failed-delivery gate", () => 
     const controller = api("orders/delivery-operations.controller.ts");
     const operations = api("orders/delivery-operations.service.ts");
     const workflow = api("orders/delivery-workflow.service.ts");
+    const orders = api("orders/order.service.ts");
     expect(controller).toContain('@Post("jobs/:deliveryJobId/admin-force-complete")');
     expect(controller).toContain("@Roles(Role.ADMIN)");
     expect(operations).toContain("adminForceCompleteDelivery");
@@ -124,6 +125,7 @@ describe("Phase 5 pickup, delivery proof, COD, and failed-delivery gate", () => 
     expect(operations).toContain("CodLedgerEntryType.COLLECTED");
     expect(operations).toContain("allowAdminOverride: true");
     expect(workflow).toContain("options.allowAdminOverride === true");
+    expect(orders).toContain("deliveryJob: { select: { id: true, status: true } }");
   });
 
   it("rejects uncontrolled failure strings at the API boundary", async () => {

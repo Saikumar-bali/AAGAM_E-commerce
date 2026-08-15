@@ -6,7 +6,7 @@ const AUTH_FILE = path.join(__dirname, '../.auth/store-owner.json');
 setup('authenticate as store owner', async ({ page }) => {
   await page.goto('/login');
   await page
-    .getByRole('textbox', { name: /email address/i })
+    .getByRole('textbox', { name: /phone number or email/i })
     .fill(process.env.STORE_OWNER_QA_EMAIL ?? 'store@aagam.com');
   await page
     .getByLabel('Password', { exact: true })

@@ -8,7 +8,7 @@ const PASSWORD = process.env.QA_CUSTOMER_PASSWORD || process.env.CUSTOMER_PASSWO
 
 setup('login as customer and save auth state', async ({ page }) => {
   await page.goto('/login');
-  await page.getByRole('textbox', { name: /email address/i }).fill(EMAIL);
+  await page.getByRole('textbox', { name: /phone number or email/i }).fill(EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.waitForURL('**/shop**', { timeout: 20000 });
