@@ -21,3 +21,19 @@ export function subscriptionSegmentCounts(
     { Active: 0, Upcoming: 0, Paused: 0, Completed: 0 } as Record<SubscriptionSegment, number>,
   );
 }
+
+export function subscriptionTotalDeliveries(subscription: {
+  planVersion?: { totalDeliveries?: number | null } | null;
+  plan?: { totalDeliveries?: number | null } | null;
+  deliveries?: unknown[] | null;
+  completedDeliveries?: number | null;
+  remainingFundedDeliveries?: number | null;
+}) {
+  const candidates = [
+    Number(subscription.planVersion?.totalDeliveries || 0),
+    Number(subscription.plan?.totalDeliveries || 0),
+    Array.isArray(subscription.deliveries) ? subscription.deliveries.length : 0,
+    Number(subscription.completedDeliveries || 0) + Number(subscription.remainingFundedDeliveries || 0),
+  ];
+  return Math.max(1, ...candidates.filter((value) => Number.isFinite(value) && value > 0));
+}
