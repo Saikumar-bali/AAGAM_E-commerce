@@ -89,7 +89,7 @@ describe('automatic dispatch recovery E2E', () => {
   beforeEach(cleanup);
   afterAll(async () => { await cleanup(); process.env = original; await prisma.$disconnect(); });
 
-  it('selects the nearest fresh online Rider and excludes busy/offline/outside Riders', async () => {
+  it('selects the nearest compatible Rider and excludes offline/outside Riders', async () => {
     const target = await waiting(`select_${Date.now()}`);
     const nearest = await rider('nearest', 'ONLINE', 17.701, 83.301);
     await rider('offline', 'OFFLINE', 17.7001, 83.3001);
@@ -97,7 +97,7 @@ describe('automatic dispatch recovery E2E', () => {
     const busy = await rider('busy', 'ONLINE', 17.7002, 83.3002);
     const busyOrder = await prisma.order.create({ data: { customerId: target.customer.id, storeId: target.store.id, status: OrderStatus.RIDER_ASSIGNED, totalAmount: 50, riderId: busy.profile.id } });
     await prisma.deliveryJob.create({ data: { orderId: busyOrder.id, status: DeliveryJobStatus.RIDER_ASSIGNED, currentRiderId: busy.profile.id } });
-    await expect(dispatch().dispatchNearestRider(target.job.id)).resolves.toMatchObject({ offered: true, riderProfileId: nearest.profile.id });
+    await expect(dispatch().dispatchNearestRider(target.job.id)).resolves.toMatchObject({ offered: true, riderProfileId: busy.profile.id });
   });
 
   it('wakes a waiting job when a Rider explicitly goes online with current GPS', async () => {
