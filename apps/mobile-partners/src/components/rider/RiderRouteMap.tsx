@@ -15,6 +15,7 @@ export type RiderRouteMapProps = {
   destinationLabel: string;
   active?: boolean;
   riderLocation?: Coordinate | null;
+  expanded?: boolean;
 };
 
 const validCoordinate = (point?: Coordinate | null): point is Coordinate => Boolean(
@@ -25,7 +26,7 @@ const validCoordinate = (point?: Coordinate | null): point is Coordinate => Bool
   && Math.abs(point.longitude) <= 180,
 );
 
-export const RiderRouteMap = ({ destination, destinationLabel, active = true, riderLocation }: RiderRouteMapProps) => {
+export const RiderRouteMap = ({ destination, destinationLabel, active = true, riderLocation, expanded = false }: RiderRouteMapProps) => {
   const webView = useRef<any>(null);
   const [hasFix, setHasFix] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -55,12 +56,12 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
   );
 
   return (
-    <View testID="rider_live_route_map" style={styles.card}>
+    <View testID="rider_live_route_map" style={[styles.card, expanded && styles.expandedCard]}>
       <View style={styles.header}>
         <View style={styles.titleRow}><View style={styles.liveDot} /><Text style={styles.title}>LIVE ROUTE</Text></View>
         <Text style={styles.provider}>OpenStreetMap</Text>
       </View>
-      <View style={styles.mapClip}>
+      <View style={[styles.mapClip, expanded && styles.expandedMap]}>
         <CompatibleWebView
           ref={webView}
           testID="rider_route_webview"
@@ -98,12 +99,14 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
 
 const styles = StyleSheet.create({
   card: { marginTop: 16, borderRadius: 20, borderWidth: 1, borderColor: '#B7E4D7', overflow: 'hidden', backgroundColor: '#FFFFFF' },
+  expandedCard: { flex: 1, marginTop: 0, borderRadius: 18 },
   header: { height: 42, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#16A34A' },
   title: { color: '#006B52', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
   provider: { color: '#64748B', fontSize: 9, fontWeight: '700' },
   mapClip: { height: 210, backgroundColor: '#E8F3EF' },
+  expandedMap: { flex: 1, height: undefined, minHeight: 320 },
   footer: { padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   footerCopy: { flex: 1 },
   destination: { color: '#0F172A', fontSize: 12, fontWeight: '900' },

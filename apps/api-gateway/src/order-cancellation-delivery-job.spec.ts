@@ -200,7 +200,8 @@ describe('Order cancellation delivery-job cleanup', () => {
     expect(storedJob?.currentRiderId).toBeNull();
 
     const storedAssignment = await prisma.dispatchAssignment.findUnique({ where: { id: offer.id } });
-    expect(storedAssignment?.status).toBe(DispatchAssignmentStatus.ACCEPTED);
+    expect(storedAssignment?.status).toBe(DispatchAssignmentStatus.CANCELLED);
+    expect(storedAssignment?.respondedAt).not.toBeNull();
 
     const secondOrder = await prisma.order.create({
       data: {
