@@ -71,6 +71,19 @@ describe('rider reference UI helpers', () => {
     });
   });
 
+  it('lists all active jobs independently', () => {
+    const first = job('RIDER_ASSIGNED', 'first');
+    const second = job('RIDER_EN_ROUTE_TO_STORE', 'second');
+    const workspace: RiderWorkspace = {
+      rider: { id: 'rider-1', status: 'BUSY' },
+      activeJobs: [first, second],
+      activeJob: first,
+      pendingOffers: [],
+      assignmentHistory: [],
+    };
+    expect(buildTodayJobList(workspace)).toHaveLength(2);
+  });
+
   it('maps terminal delivery states and formats addresses', () => {
     expect(visualStatusForJob(job('RETURNED_TO_STORE', 'returned'))).toBe('RETURNED');
     expect(visualStatusForJob(job('DELIVERY_FAILED', 'failed'))).toBe('CANCELLED');

@@ -94,7 +94,7 @@ function deliveryAddress(job: any) {
   ].filter(Boolean).join(', ') || 'Delivery address unavailable';
 }
 
-export const RiderDeliveryFlowScreen = () => {
+export const RiderDeliveryFlowScreen = ({ deliveryJobId }: { deliveryJobId: string }) => {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -113,7 +113,7 @@ export const RiderDeliveryFlowScreen = () => {
     refetchInterval: 8_000,
     retry: 1,
   });
-  const activeJob = workspaceQuery.data?.activeJob || null;
+  const activeJob = workspaceQuery.data?.activeJobs?.find((job) => job.id === deliveryJobId) || null;
   const summaryQuery = useQuery({
     queryKey: [...SUMMARY_KEY, activeJob?.id],
     queryFn: () => deliveryOperationsService.getSummary(activeJob!.id),

@@ -108,7 +108,7 @@ export async function readCachedRiderStatus(): Promise<CachedRiderStatus | null>
 }
 export async function hydrateCachedRiderWorkspace(queryClient: { setQueryData: (key: readonly unknown[], value: any) => void }) {
   const status = await readCachedRiderStatus();
-  if (status) queryClient.setQueryData(RIDER_WORKSPACE_QUERY_KEY, normalizeRiderWorkspace({ rider: { status }, pendingOffers: [], activeJob: null, assignmentHistory: [] }));
+  if (status) queryClient.setQueryData(RIDER_WORKSPACE_QUERY_KEY, normalizeRiderWorkspace({ rider: { status }, pendingOffers: [], activeJobs: [], activeJob: null, assignmentHistory: [] }));
 }
 
 export const riderService = {

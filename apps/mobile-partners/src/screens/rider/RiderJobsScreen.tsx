@@ -48,7 +48,7 @@ export const RiderJobsScreen = ({
   onOpenDashboard,
   onOpenReceipt,
 }: {
-  onOpenActive: () => void;
+  onOpenActive: (deliveryJobId: string) => void;
   onOpenHistory: () => void;
   onOpenDashboard: () => void;
   onOpenReceipt: (deliveryJobId: string) => void;
@@ -101,7 +101,7 @@ export const RiderJobsScreen = ({
   });
 
   const openJob = (item: RiderJobListItem) => {
-    if (workspace?.activeJob?.id && item.job?.id === workspace.activeJob.id) return onOpenActive();
+    if (item.job?.id && workspace?.activeJobs?.some((job) => job.id === item.job?.id)) return onOpenActive(item.job.id);
     if (item.offer?.status === 'OFFERED') return onOpenDashboard();
     onOpenHistory();
   };

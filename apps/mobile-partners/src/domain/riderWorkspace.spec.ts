@@ -29,10 +29,18 @@ describe('rider workspace domain', () => {
     expect(normalizeRiderWorkspace(null)).toEqual({
       rider: null,
       pendingOffers: [],
+      activeJobs: [],
       activeJob: null,
       assignmentHistory: [],
     });
     expect(normalizeRiderWorkspace({ pendingOffers: 'invalid' }).pendingOffers).toEqual([]);
+  });
+
+  it('normalizes every active delivery while preserving the legacy primary job', () => {
+    const jobs = [offer('', 'ACCEPTED').deliveryJob, { ...offer('', 'ACCEPTED').deliveryJob, id: 'job-2' }];
+    const workspace = normalizeRiderWorkspace({ activeJobs: jobs });
+    expect(workspace.activeJobs).toHaveLength(2);
+    expect(workspace.activeJob?.id).toBe('job-1');
   });
 
   it('expires offers deterministically and never enables answered offers', () => {

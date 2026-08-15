@@ -49,6 +49,11 @@ export const pickupOperationsService = {
     return response.data || null;
   },
 
+  getRiderPickups: async (): Promise<RiderPickupPayload[]> => {
+    const response = await apiClient.get('/riders/portal/pickups');
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
   verifyChecklist: async (
     deliveryJobId: string,
     input: { lines: Array<{ orderItemId: string; checkedQuantity: number }>; parcelCode?: string },

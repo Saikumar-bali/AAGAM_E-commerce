@@ -6,13 +6,13 @@ import { RiderNavigationPanel } from '../../components/rider/RiderNavigationPane
 import type { RiderWorkspace } from '../../domain/riderWorkspace';
 import { RiderDeliveryFlowScreen } from './RiderDeliveryFlowScreen';
 
-export const RiderDeliveryFlowCoordinator = () => {
+export const RiderDeliveryFlowCoordinator = ({ deliveryJobId }: { deliveryJobId: string }) => {
   const workspaceQuery = useQuery<RiderWorkspace>({
     queryKey: RIDER_WORKSPACE_QUERY_KEY,
     queryFn: riderService.getWorkspace,
     refetchInterval: 8_000,
   });
-  const activeJob = workspaceQuery.data?.activeJob || null;
+  const activeJob = workspaceQuery.data?.activeJobs?.find((job) => job.id === deliveryJobId) || null;
   const rider = workspaceQuery.data?.rider;
   const workspaceLocation = typeof rider?.latitude === 'number' && typeof rider?.longitude === 'number'
     ? { latitude: rider.latitude, longitude: rider.longitude }
@@ -21,7 +21,7 @@ export const RiderDeliveryFlowCoordinator = () => {
   return (
     <View style={styles.screen}>
       {activeJob ? <RiderNavigationPanel job={activeJob} workspaceLocation={workspaceLocation} /> : null}
-      <View style={styles.flow}><RiderDeliveryFlowScreen /></View>
+      <View style={styles.flow}><RiderDeliveryFlowScreen deliveryJobId={deliveryJobId} /></View>
     </View>
   );
 };

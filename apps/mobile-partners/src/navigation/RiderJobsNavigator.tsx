@@ -13,7 +13,7 @@ const Stack = createNativeStackNavigator<RiderJobsStackParamList>();
 function Jobs({ navigation }: { navigation: any }) {
   return (
     <RiderJobsScreen
-      onOpenActive={() => navigation.navigate('RiderActiveJob', { deliveryJobId: 'current' })}
+      onOpenActive={(deliveryJobId: string) => navigation.navigate('RiderActiveJob', { deliveryJobId })}
       onOpenHistory={() => navigation.navigate('RiderJobHistory')}
       onOpenDashboard={() => navigation.getParent()?.navigate('Dashboard')}
       onOpenReceipt={(deliveryJobId: string) => navigation.navigate('RiderReceipt', { deliveryJobId })}

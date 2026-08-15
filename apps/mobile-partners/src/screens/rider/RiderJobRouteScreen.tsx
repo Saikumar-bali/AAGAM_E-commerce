@@ -17,7 +17,10 @@ export const RiderJobRouteScreen = ({ route, navigation, expected: _expected }: 
     refetchInterval: 8_000,
     retry: 1,
   });
-  const activeJob = workspaceQuery.data?.activeJob || null;
+  const activeJobs = workspaceQuery.data?.activeJobs || [];
+  const activeJob = (requestedId === 'current'
+    ? activeJobs[0]
+    : activeJobs.find((job) => job.id === requestedId)) || workspaceQuery.data?.activeJob || null;
   const exact = requestedId === 'current' || activeJob?.id === requestedId;
 
   if (workspaceQuery.isLoading) {
@@ -52,7 +55,7 @@ export const RiderJobRouteScreen = ({ route, navigation, expected: _expected }: 
     );
   }
 
-  return <RiderDeliveryFlowCoordinator />;
+  return <RiderDeliveryFlowCoordinator deliveryJobId={activeJob.id} />;
 };
 
 const styles = StyleSheet.create({

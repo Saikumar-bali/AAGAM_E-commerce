@@ -17,6 +17,7 @@ export type RiderPortalHome = {
   rider: RiderWorkspace['rider'];
   pendingOffers: number;
   activeJob: RiderDeliveryJob | null;
+  activeJobs?: RiderDeliveryJob[];
   completedToday: number;
   currentBreak?: { id: string; reason?: string | null; startedAt?: string } | null;
   unreadCount: number;
@@ -24,7 +25,7 @@ export type RiderPortalHome = {
 };
 
 export type RiderPortalOffer = RiderAssignmentOffer;
-export type RiderPortalDelivery = (RiderDeliveryJob & { operations?: unknown[] }) | null;
+export type RiderPortalDelivery = RiderDeliveryJob & { operations?: unknown[] };
 
 export const RIDER_PORTAL_HOME_QUERY_KEY = ['rider', 'portal', 'home'] as const;
 export const RIDER_PORTAL_OFFERS_QUERY_KEY = ['rider', 'portal', 'offers'] as const;
@@ -47,13 +48,14 @@ function historyAssignment(job: RiderDeliveryJob): RiderAssignmentOffer {
 export function normalizeRiderPortalWorkspace(input: {
   home: RiderPortalHome;
   offers: RiderPortalOffer[];
-  delivery: RiderPortalDelivery;
+  deliveries: RiderPortalDelivery[];
   history?: RiderDeliveryJob[];
 }): RiderWorkspace {
   return {
     rider: input.home?.rider || null,
     pendingOffers: Array.isArray(input.offers) ? input.offers : [],
-    activeJob: input.delivery || input.home?.activeJob || null,
+    activeJobs: Array.isArray(input.deliveries) ? input.deliveries : [],
+    activeJob: input.deliveries?.[0] || input.home?.activeJob || null,
     assignmentHistory: Array.isArray(input.history)
       ? input.history.map(historyAssignment)
       : [],
