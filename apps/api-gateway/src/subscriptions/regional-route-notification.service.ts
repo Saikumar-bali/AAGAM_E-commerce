@@ -9,6 +9,7 @@ import {
 } from '@aagam/database';
 
 const ROUTE_NOTIFICATION_EVENTS: DeliveryRouteEventType[] = [
+  DeliveryRouteEventType.ROUTE_CLUSTER_CREATED,
   DeliveryRouteEventType.DELIVERY_RUN_ASSIGNED,
   DeliveryRouteEventType.DELIVERY_RUN_REASSIGNED,
   DeliveryRouteEventType.DELIVERY_RUN_SPLIT,
@@ -93,6 +94,7 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
     const customerIds = [...new Set(run.stops.map((stop) => stop.subscriptionDelivery.subscription.customerId))];
     const zone = run.deliveryZone?.name || 'your service area';
     const routeLabel = `${run.routeCode} · ${zone}`;
+    const planned = event.eventType === DeliveryRouteEventType.ROUTE_CLUSTER_CREATED;
     const reassigned = REASSIGNMENT_EVENTS.has(event.eventType);
     const interrupted = event.eventType === DeliveryRouteEventType.DELIVERY_RUN_INTERRUPTED;
     const cancelled = event.eventType === DeliveryRouteEventType.DELIVERY_RUN_CANCELLED;
@@ -100,15 +102,19 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
     const messages: AudienceMessage[] = [
       {
         key: 'admin',
-        title: title(event.eventType),
-        body: `${routeLabel} was updated. Review route ownership, capacity, timing and cash warnings.`,
+        title: planned ? 'Tomorrow route planned' : title(event.eventType),
+        body: planned
+          ? `${routeLabel} has ${run.totalStopCount} scheduled stop${run.totalStopCount === 1 ? '' : 's'}. Rider dispatch remains pending until the live-assignment window.`
+          : `${routeLabel} was updated. Review route ownership, capacity, timing and cash warnings.`,
         deepLink: '/admin/route-planning',
         userIds: admins.map((admin) => admin.id),
       },
       {
         key: 'store',
-        title: 'Preparation route updated',
-        body: `${routeLabel} changed. Refresh bag labels, route readiness and rider handoff details.`,
+        title: planned ? 'Tomorrow preparation route ready' : 'Preparation route updated',
+        body: planned
+          ? `${routeLabel} is ready for stock preparation. Confirm stock readiness now; packing and handoff stay day-of custody actions.`
+          : `${routeLabel} changed. Refresh bag labels, route readiness and rider handoff details.`,
         deepLink: '/store/subscriptions',
         userIds: [run.store.owner.id],
       },
@@ -117,18 +123,28 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
         title: reassigned ? 'Your delivery run changed' : 'Morning run assigned',
         body: `${routeLabel} has ${run.totalStopCount} stops. Refresh before continuing; your active stop is never removed silently.`,
         deepLink: '/rider/runs',
-        userIds: run.rider?.user.id ? [run.rider.user.id] : [],
+        userIds: planned ? [] : run.rider?.user.id ? [run.rider.user.id] : [],
       },
       {
         key: 'customer',
-        title: interrupted ? 'Delivery update' : reassigned ? 'Your delivery was reassigned' : cancelled ? 'Delivery schedule update' : 'Your rider has been assigned',
-        body: interrupted
-          ? 'Your delivery may be delayed. We will keep the delivery window and ETA updated.'
-          : reassigned
-            ? 'Your delivery has been reassigned. The delivery window is unchanged unless we notify you separately.'
-            : cancelled
-              ? 'Your delivery route is being replanned. Your subscription remains safe.'
-              : 'Your delivery is scheduled and a rider has been assigned.',
+        title: planned
+          ? 'Delivery route planned'
+          : interrupted
+            ? 'Delivery update'
+            : reassigned
+              ? 'Your delivery was reassigned'
+              : cancelled
+                ? 'Delivery schedule update'
+                : 'Your rider has been assigned',
+        body: planned
+          ? 'Your upcoming subscription delivery is in the preparation plan. Rider details will appear after final live assignment.'
+          : interrupted
+            ? 'Your delivery may be delayed. We will keep the delivery window and ETA updated.'
+            : reassigned
+              ? 'Your delivery has been reassigned. The delivery window is unchanged unless we notify you separately.'
+              : cancelled
+                ? 'Your delivery route is being replanned. Your subscription remains safe.'
+                : 'Your delivery is scheduled and a rider has been assigned.',
         deepLink: '/shop/subscriptions',
         userIds: customerIds,
       },
@@ -152,6 +168,7 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
               zoneId: run.deliveryZoneId,
               zoneName: zone,
               version: run.version,
+              plannedOnly: planned,
             } as Prisma.InputJsonValue,
             recipients: {
               create: [...new Set(message.userIds)].map((userId) => ({
