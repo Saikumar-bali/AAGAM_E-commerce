@@ -109,6 +109,7 @@ export class RiderPortalService {
       where: {
         currentRiderId: riderProfileId,
         status: { in: ACTIVE_STATUSES as any },
+        order: { status: { notIn: ['CANCELLED', 'PAYMENT_FAILED', 'DELIVERED'] as any } },
       },
       include: jobInclude,
       orderBy: { updatedAt: "desc" },
@@ -120,6 +121,7 @@ export class RiderPortalService {
       where: {
         currentRiderId: riderProfileId,
         status: { in: ACTIVE_STATUSES as any },
+        order: { status: { notIn: ['CANCELLED', 'PAYMENT_FAILED', 'DELIVERED'] as any } },
       },
       include: jobInclude,
       orderBy: [{ order: { deliveryWindowEnd: "asc" } }, { createdAt: "asc" }],
@@ -226,6 +228,10 @@ export class RiderPortalService {
         riderProfileId: rider.id,
         status: "OFFERED",
         OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        deliveryJob: {
+          status: 'WAITING_FOR_DISPATCH' as any,
+          order: { status: { notIn: ['CANCELLED', 'PAYMENT_FAILED', 'DELIVERED'] as any } },
+        },
       },
       include: { deliveryJob: { include: jobInclude } },
       orderBy: { offeredAt: "asc" },
@@ -294,6 +300,7 @@ export class RiderPortalService {
       where: {
         currentRiderId: rider.id,
         status: { in: ["RIDER_AT_STORE", "PICKUP_VERIFIED"] as any },
+        order: { status: { notIn: ['CANCELLED', 'PAYMENT_FAILED', 'DELIVERED'] as any } },
       },
       include: jobInclude,
       orderBy: [{ order: { deliveryWindowEnd: "asc" } }, { createdAt: "asc" }],

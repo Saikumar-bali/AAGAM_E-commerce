@@ -144,9 +144,14 @@ export class NotificationRoutingService {
         addAdmins();
         break;
       case 'DELIVERY_FAILED':
+        addCustomer();
+        addStore();
+        addAdmins();
+        break;
       case 'DELIVERY_CANCELLED':
         addCustomer();
         addStore();
+        addRider();
         addAdmins();
         break;
       case 'ROUTE_ASSIGNED':

@@ -220,6 +220,20 @@ export class DeliveryWorkflowService {
     });
     if (!job) throw new NotFoundException("Delivery job not found");
 
+    const terminalOrderStatuses: OrderStatus[] = [
+      OrderStatus.CANCELLED,
+      OrderStatus.PAYMENT_FAILED,
+      OrderStatus.DELIVERED,
+    ];
+    if (
+      terminalOrderStatuses.includes(job.order.status as OrderStatus)
+      && nextStatus !== DeliveryJobStatus.CANCELLED
+    ) {
+      throw new ConflictException(
+        `Order is ${job.order.status}; delivery processing is closed`
+      );
+    }
+
     const currentStatus = job.status as DeliveryJobStatusType;
     if (options.expectedStatus && currentStatus !== options.expectedStatus) {
       throw new ConflictException(

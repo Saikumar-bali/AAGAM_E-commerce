@@ -64,24 +64,26 @@ export class OrderService {
       where: { orderId },
     });
 
-    if (!deliveryJob || ['DELIVERED', 'RETURNED_TO_STORE', 'CANCELLED'].includes(deliveryJob.status)) {
+    if (!deliveryJob || ['DELIVERED', 'RETURNED_TO_STORE'].includes(deliveryJob.status)) {
       return;
     }
 
     const respondedAt = new Date();
 
-    await tx.deliveryJob.update({
-      where: { id: deliveryJob.id },
-      data: {
-        status: 'CANCELLED',
-        currentRiderId: null,
-      },
-    });
+    if (deliveryJob.status !== 'CANCELLED' || deliveryJob.currentRiderId) {
+      await tx.deliveryJob.update({
+        where: { id: deliveryJob.id },
+        data: {
+          status: 'CANCELLED',
+          currentRiderId: null,
+        },
+      });
+    }
 
     await tx.dispatchAssignment.updateMany({
       where: {
         deliveryJobId: deliveryJob.id,
-        status: { in: ['CREATED', 'OFFERED'] },
+        status: { in: ['CREATED', 'OFFERED', 'ACCEPTED'] },
       },
       data: { status: 'CANCELLED', respondedAt },
     });

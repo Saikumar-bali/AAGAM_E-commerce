@@ -126,7 +126,7 @@ describe('Phase 1 notification routing matrix and offer expiry', () => {
       ['RIDER_AT_CUSTOMER', [data.customer.id], [data.owner.id, data.admin.id, data.riderUser.id, data.otherRiderUser.id]],
       ['DELIVERY_COMPLETED', [data.customer.id, data.owner.id, data.admin.id, data.riderUser.id], [data.otherRiderUser.id]],
       ['DELIVERY_FAILED', [data.customer.id, data.owner.id, data.admin.id], [data.riderUser.id, data.otherRiderUser.id]],
-      ['DELIVERY_CANCELLED', [data.customer.id, data.owner.id, data.admin.id], [data.riderUser.id, data.otherRiderUser.id]],
+      ['DELIVERY_CANCELLED', [data.customer.id, data.owner.id, data.admin.id, data.riderUser.id], [data.otherRiderUser.id]],
     ];
 
     for (const [eventType, included, excluded] of cases) {
