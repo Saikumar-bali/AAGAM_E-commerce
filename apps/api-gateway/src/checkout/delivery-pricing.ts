@@ -23,7 +23,7 @@ export function calculateDeliveryPricing(
   const validDistance = Number.isFinite(distanceKm) && distanceKm >= 0;
   const serviceable = validDistance
     && distanceKm <= maximumDistanceKm;
-  const distanceFeePaise = serviceable
+  const distanceFeePaise = validDistance
     ? Math.max(0, Math.round(distanceKm * DELIVERY_RATE_PAISE_PER_KM))
     : 0;
   const waivedByThreshold = serviceable
