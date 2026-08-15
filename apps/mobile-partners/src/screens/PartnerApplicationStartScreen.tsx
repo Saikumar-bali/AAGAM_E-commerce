@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Alert, StyleSheet, Text } from 'react-native';
-import { apiClient } from '@aagam/mobile-shared';
 import { Mail, Phone } from 'lucide-react-native';
 import {
   FormField,
@@ -16,8 +15,11 @@ import {
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 import { PartnerApplicationType } from '../onboarding/types';
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function phoneForApi(value: string) {
   const compact = value.replace(/[\s().-]/g, '');
+  if (!compact) return '';
   if (/^\d{10}$/.test(compact)) return `+91${compact}`;
   if (/^91\d{10}$/.test(compact)) return `+${compact}`;
   return compact;
@@ -30,43 +32,29 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [phoneAvailable, setPhoneAvailable] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    apiClient
-      .get('/partner-onboarding/verification-capabilities')
-      .then(({ data }) => {
-        if (!active) return;
-        setPhoneAvailable(data?.mode !== 'EMAIL_ONLY' && data?.phone?.available !== false);
-      })
-      .catch(() => {
-        if (active) setPhoneAvailable(false);
-      });
-    return () => { active = false; };
-  }, []);
 
   const submit = async () => {
     if (!name.trim()) {
       Alert.alert('Full name required', 'Enter the legal name that matches your documents.');
       return;
     }
-    const normalizedPhone = phoneForApi(phone);
-    if (phoneAvailable !== false && !/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
-      Alert.alert('Mobile number required', 'Enter a valid mobile number. Indian 10-digit numbers are accepted.');
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+      Alert.alert('Valid email required', 'Enter a valid email address. A verification code will be sent there.');
       return;
     }
-    if (phoneAvailable === false && !email.trim()) {
-      Alert.alert('Email required', 'Phone verification is unavailable, so enter an email address.');
+    const normalizedPhone = phoneForApi(phone);
+    if (normalizedPhone && !/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
+      Alert.alert('Invalid mobile number', 'Enter a valid mobile number or leave it blank. Indian 10-digit numbers are accepted.');
       return;
     }
 
     const application: PartnerApplicationStartInput = {
       type,
       applicantName: name.trim(),
-      phoneE164: phoneAvailable === false ? undefined : normalizedPhone,
-      email: email.trim() || undefined,
-      verificationChannel: phoneAvailable === false ? 'EMAIL' : 'PHONE',
+      email: normalizedEmail,
+      phoneE164: normalizedPhone || undefined,
+      verificationChannel: 'EMAIL',
     };
 
     try {
@@ -87,41 +75,35 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
   return (
     <OnboardingShell
       title={type === 'RIDER' ? 'Start Rider application' : 'Start Store application'}
-      subtitle="Your verified mobile number protects the application and becomes your primary Aagaam login after approval."
+      subtitle="Your email must be verified before you continue. Your mobile number is an optional operational contact and is not used for this verification step."
       onBack={() => navigation.goBack()}
     >
       <Section title="Applicant identity" subtitle="Use details that match your submitted documents.">
         <FormField testID="application_start_name_input" label="Full legal name" value={name} onChangeText={setName} autoCapitalize="words" placeholder="Enter full name" />
-        {phoneAvailable !== false ? (
-          <>
-            <Text style={styles.primaryLabel}><Phone size={15} color={palette.teal} /> Primary login</Text>
-            <FormField
-              testID="application_start_phone_input"
-              label="Mobile number"
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              placeholder="10-digit number or +91..."
-              hint="We send a six-digit SMS code. This number becomes your login after approval."
-            />
-          </>
-        ) : null}
-        <Text style={styles.optionalLabel}><Mail size={15} color={palette.muted} /> Optional recovery contact</Text>
+        <Text style={styles.primaryLabel}><Mail size={15} color={palette.teal} /> Mandatory verification</Text>
         <FormField
           testID="application_start_email_input"
-          label={phoneAvailable === false ? 'Email address' : 'Email address (optional)'}
+          label="Email address"
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
           placeholder="name@example.com"
-          hint="Used for review updates and account recovery when provided."
+          hint="We send a six-digit verification code to this email. Verification is required before the application can continue."
+        />
+        <Text style={styles.optionalLabel}><Phone size={15} color={palette.muted} /> Optional operational contact</Text>
+        <FormField
+          testID="application_start_phone_input"
+          label="Mobile number (optional)"
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+          placeholder="10-digit number or +91..."
+          hint="Used for operational contact when provided. No phone OTP is required for a new application."
         />
       </Section>
 
-      {phoneAvailable === null ? <Text style={styles.availability}>Checking verification availability…</Text> : null}
-      {phoneAvailable === false ? <Text style={styles.warning}>Phone verification is unavailable on this deployment. Email verification will be used.</Text> : null}
-      <PrimaryButton testID="application_start_submit_button" label={phoneAvailable === false ? 'Continue with email' : 'Send SMS code'} onPress={submit} loading={loading} />
+      <PrimaryButton testID="application_start_submit_button" label="Send email verification code" onPress={submit} loading={loading} />
       <Text style={styles.consent}>Continuing records onboarding consent, application events and document review history. It does not guarantee approval.</Text>
     </OnboardingShell>
   );
@@ -130,7 +112,5 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
 const styles = StyleSheet.create({
   primaryLabel: { color: palette.teal, fontSize: 12, fontWeight: '900', flexDirection: 'row' },
   optionalLabel: { color: palette.muted, fontSize: 12, fontWeight: '900' },
-  availability: { color: '#64748B', fontSize: 12, textAlign: 'center' },
-  warning: { color: '#B45309', backgroundColor: '#FFFBEB', borderRadius: 14, padding: 12, fontSize: 12, lineHeight: 18, fontWeight: '700' },
   consent: { color: '#64748B', fontSize: 11, lineHeight: 17, textAlign: 'center', paddingHorizontal: 8 },
 });
