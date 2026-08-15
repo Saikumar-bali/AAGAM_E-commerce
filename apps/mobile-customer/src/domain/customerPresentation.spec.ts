@@ -1,5 +1,5 @@
 import { customerOrderAmountSummary, formatOrderAmount } from './orderPresentation';
-import { subscriptionSegmentCounts } from './subscriptionPresentation';
+import { subscriptionSegmentCounts, subscriptionTotalDeliveries } from './subscriptionPresentation';
 
 describe('customer subscription presentation', () => {
   it('shows the full cash obligation for a subscription order instead of occurrence accounting value', () => {
@@ -78,5 +78,14 @@ describe('customer subscription presentation', () => {
       Paused: 1,
       Completed: 2,
     });
+  });
+
+  it('uses the plan delivery count for pending cash subscriptions before any funding exists', () => {
+    expect(subscriptionTotalDeliveries({
+      planVersion: null,
+      plan: { totalDeliveries: 30 },
+      completedDeliveries: 0,
+      remainingFundedDeliveries: 0,
+    })).toBe(30);
   });
 });
