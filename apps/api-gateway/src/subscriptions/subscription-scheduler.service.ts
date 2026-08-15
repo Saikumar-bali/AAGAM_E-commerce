@@ -117,7 +117,10 @@ export class SubscriptionSchedulerService implements OnModuleInit, OnModuleDestr
 
   private async executeCycle(correlationId: string) {
     const generated = await this.generator.generateDue(new Date(), 250, correlationId);
-    const regionalPlanning = await this.runPlanning.planGeneratedDeliveries(1000, { assignRiders: true });
+    // D-1 route planning is intentionally separated from live rider dispatch. The
+    // preparation service performs final live rider assignment close to the slot,
+    // after rechecking online state, location, shift, overlap and cash exposure.
+    const regionalPlanning = await this.runPlanning.planGeneratedDeliveries(1000, { assignRiders: false });
     if (generated.generated.length || generated.failures.length || regionalPlanning.runs.length || regionalPlanning.deferred.length) {
       this.logger.log(
         `subscription-worker correlation=${correlationId} generated=${generated.generated.length} deferred-generation=${generated.failures.length} regional-runs=${regionalPlanning.runs.length} deferred-routing=${regionalPlanning.deferred.length}`,
