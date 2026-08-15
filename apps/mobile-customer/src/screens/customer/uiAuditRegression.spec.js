@@ -45,6 +45,18 @@ describe('customer mobile UI audit regressions', () => {
 
   it('does not promise unavailable customer actions', () => {
     expect(source('CartScreen.tsx')).not.toContain('Choose your slot at checkout');
-    expect(source('../LoginScreen.tsx')).not.toContain('Forgot password?');
+  });
+
+  it('exposes complete customer account recovery and registration paths', () => {
+    const login = source('../LoginScreen.tsx');
+    const navigator = source('../../navigation/RootNavigator.tsx');
+    const reset = source('../ResetPasswordScreen.tsx');
+    expect(login).toContain('Forgot password?');
+    expect(login).toContain('Create account');
+    expect(login).toContain("navigation.navigate('ResetPassword')");
+    expect(login).toContain("navigation.navigate('SignUp')");
+    expect(navigator).toContain('name="ResetPassword"');
+    expect(reset).toContain("apiClient.post('/auth/password/forgot'");
+    expect(reset).toContain("apiClient.post('/auth/password/reset'");
   });
 });

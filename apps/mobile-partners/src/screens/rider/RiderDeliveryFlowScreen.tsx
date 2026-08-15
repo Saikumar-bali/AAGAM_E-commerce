@@ -21,6 +21,7 @@ import {
   Store,
 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -95,7 +96,7 @@ function deliveryAddress(job: any) {
   ].filter(Boolean).join(', ') || 'Delivery address unavailable';
 }
 
-export const RiderDeliveryFlowScreen = ({ deliveryJobId }: { deliveryJobId: string }) => {
+export const RiderDeliveryFlowScreen = ({ deliveryJobId, navigationPanel }: { deliveryJobId: string; navigationPanel?: ReactNode }) => {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -286,6 +287,8 @@ export const RiderDeliveryFlowScreen = ({ deliveryJobId }: { deliveryJobId: stri
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh active delivery" style={styles.headerButton} onPress={() => void refresh()}><RefreshCw size={20} color="#FFFFFF" /></TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${unreadCount} unread Rider alerts`} style={styles.headerButton} onPress={() => navigation.getParent()?.navigate('Alerts')}><Bell size={22} color="#FFFFFF" />{unreadCount > 0 ? <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View> : null}</TouchableOpacity>
       </View>
+
+      {navigationPanel}
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}

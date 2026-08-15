@@ -13,6 +13,7 @@ import {
 import { useAuthStore } from '@aagam/mobile-shared';
 import { ArrowRight, Eye, Lock, Mail, Phone, ShieldCheck, User } from 'lucide-react-native';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { useNavigation } from '@react-navigation/native';
 import { GOOGLE_WEB_CLIENT_ID } from '@env';
 import type { CustomerPhoneOtpPurpose } from '../auth/customerPhoneOtpFlow';
 import {
@@ -34,6 +35,7 @@ const phoneForApi = (value: string) => `+91${digitsOnly(value)}`;
 const PHONE_AUTH_ENABLED = false;
 
 export const LoginScreen = () => {
+  const navigation = useNavigation<any>();
   const login = useAuthStore((state) => state.login);
   const requestPhoneOtp = useAuthStore((state) => state.requestPhoneOtp);
   const verifyPhoneOtp = useAuthStore((state) => state.verifyPhoneOtp);
@@ -268,8 +270,11 @@ export const LoginScreen = () => {
             </> : <>
               <Text style={styles.label}>Phone number or email</Text><View style={styles.inputWrapper}><Mail size={19} color="#64748B" /><TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} placeholder="Phone number or email" autoCapitalize="none" placeholderTextColor="#94A3B8" /></View>
               <Text style={styles.label}>Password</Text><View style={styles.inputWrapper}><Lock size={19} color="#64748B" /><TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry={!showPassword} placeholderTextColor="#94A3B8" /><TouchableOpacity onPress={() => setShowPassword((value) => !value)} accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}><Eye size={21} color="#64748B" /></TouchableOpacity></View>
+              <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('ResetPassword')}><Text style={styles.forgot}>Forgot password?</Text></TouchableOpacity>
               <TouchableOpacity style={[styles.primary, passwordLoading && styles.buttonDisabled]} onPress={passwordLogin} disabled={passwordLoading}>{passwordLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Continue</Text>}</TouchableOpacity>
             </>}
+
+            {!masked ? <View style={styles.accountPrompt}><Text style={styles.accountPromptText}>New to Aagaam?</Text><TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('SignUp')}><Text style={styles.accountPromptLink}>Create account</Text></TouchableOpacity></View> : null}
 
             {!masked ? <><View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>or</Text><View style={styles.line} /></View><TouchableOpacity style={[styles.google, !googleClientConfigured && styles.buttonDisabled]} onPress={handleGoogleLogin} disabled={googleLoading || !googleClientConfigured}>{googleLoading ? <ActivityIndicator /> : <><GoogleG size={22} /><Text style={styles.googleText}>Continue with Google</Text></>}</TouchableOpacity></> : null}
           </View>
@@ -307,6 +312,9 @@ const styles = StyleSheet.create({
   countryCodeText: { color: '#0F766E', fontWeight: '900' },
   input: { flex: 1, color: '#0F172A', fontSize: 15, fontWeight: '700' },
   forgot: { marginTop: -5, textAlign: 'right', color: '#0F766E', fontSize: 13, fontWeight: '900' },
+  accountPrompt: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  accountPromptText: { color: '#64748B', fontSize: 13, fontWeight: '700' },
+  accountPromptLink: { color: '#0F766E', fontSize: 13, fontWeight: '900' },
   primary: { minHeight: 58, borderRadius: 17, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9, shadowColor: '#0F766E', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 15, elevation: 4 },
   primaryText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
   buttonDisabled: { opacity: 0.5 },

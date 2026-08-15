@@ -20,8 +20,12 @@ export const RiderDeliveryFlowCoordinator = ({ deliveryJobId }: { deliveryJobId:
 
   return (
     <View style={styles.screen}>
-      {activeJob ? <RiderNavigationPanel job={activeJob} workspaceLocation={workspaceLocation} /> : null}
-      <View style={styles.flow}><RiderDeliveryFlowScreen deliveryJobId={deliveryJobId} /></View>
+      <View style={styles.flow}>
+        <RiderDeliveryFlowScreen
+          deliveryJobId={deliveryJobId}
+          navigationPanel={activeJob ? <RiderNavigationPanel job={activeJob} workspaceLocation={workspaceLocation} /> : null}
+        />
+      </View>
     </View>
   );
 };

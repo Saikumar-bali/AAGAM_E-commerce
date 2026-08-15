@@ -7,6 +7,7 @@ describe('compact Rider active workspace', () => {
   const navigationPanel = read('../../components/rider/RiderNavigationPanel.tsx');
   const routeMap = read('../../components/rider/RiderRouteMap.tsx');
   const delivery = read('RiderDeliveryFlowScreen.tsx');
+  const coordinator = read('RiderDeliveryFlowCoordinator.tsx');
   const navigator = read('../../navigation/RiderNavigator.tsx');
 
   it('keeps the map off the main vertical flow and opens it on demand', () => {
@@ -29,5 +30,10 @@ describe('compact Rider active workspace', () => {
     expect(delivery).toContain('Back to Rider jobs');
     expect(delivery).toContain('>Support</Text>');
     expect(delivery).toContain('>Safety</Text>');
+  });
+
+  it('keeps the active delivery status above route navigation', () => {
+    expect(delivery.indexOf('styles.header')).toBeLessThan(delivery.indexOf('{navigationPanel}'));
+    expect(coordinator).toContain('navigationPanel={activeJob ? <RiderNavigationPanel');
   });
 });

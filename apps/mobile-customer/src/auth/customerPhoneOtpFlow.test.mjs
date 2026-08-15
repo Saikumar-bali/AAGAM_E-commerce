@@ -202,7 +202,7 @@ test('customer login renders a production-ready profile and ten-digit OTP flow',
   assert.match(loginSource, /`\+91\$\{digitsOnly\(value\)\}`/);
   assert.doesNotMatch(loginSource, /New customers receive a signup OTP automatically/);
   assert.doesNotMatch(loginSource, /NEW CUSTOMER|EXISTING CUSTOMER/);
-  assert.doesNotMatch(loginSource, /navigation\.navigate\('SignUp'/);
+  assert.match(loginSource, /navigation\.navigate\('SignUp'/);
 });
 
 test('customer navigator never unmounts auth screens for request loading', () => {
