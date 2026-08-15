@@ -15,6 +15,7 @@ import {
   StoreSubscriptionPreparationController,
 } from './subscription-preparation.controller';
 import { SubscriptionPreparationService } from './subscription-preparation.service';
+import { SubscriptionRiderCapacityNotificationService } from './subscription-rider-capacity-notification.service';
 import { SubscriptionAdminReportingService } from './subscription-admin-reporting.service';
 import { SubscriptionCalendarService } from './subscription-calendar.service';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
@@ -56,6 +57,7 @@ import {
     RegionalRouteOperationsService,
     RegionalRouteNotificationService,
     SubscriptionPreparationService,
+    SubscriptionRiderCapacityNotificationService,
     SubscriptionServiceabilityService,
     TrustedDropService,
     SubscriptionCashFundingService,
