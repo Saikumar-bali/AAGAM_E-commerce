@@ -64,7 +64,7 @@ beforeEach(() => {
 function mockPortalWorkspace(input?: {
   home?: Record<string, unknown>;
   offers?: unknown[];
-  delivery?: unknown;
+  deliveries?: unknown[];
   history?: unknown[];
 }) {
   const values = input || {};
@@ -85,8 +85,8 @@ function mockPortalWorkspace(input?: {
     if (url === '/riders/portal/offers') {
       return Promise.resolve({ data: values.offers || [] });
     }
-    if (url === '/riders/portal/delivery') {
-      return Promise.resolve({ data: values.delivery ?? null });
+    if (url === '/riders/portal/deliveries') {
+      return Promise.resolve({ data: values.deliveries || [] });
     }
     if (url === '/riders/portal/history') {
       return Promise.resolve({ data: values.history || [] });
@@ -101,11 +101,12 @@ describe('riderService.getWorkspace', () => {
     const workspace = await riderService.getWorkspace();
     expect(get).toHaveBeenCalledWith('/riders/portal/home');
     expect(get).toHaveBeenCalledWith('/riders/portal/offers');
-    expect(get).toHaveBeenCalledWith('/riders/portal/delivery');
+    expect(get).toHaveBeenCalledWith('/riders/portal/deliveries');
     expect(get).not.toHaveBeenCalledWith('/riders/portal/history');
     expect(get).toHaveBeenCalledTimes(3);
     expect(workspace.rider).toEqual({ id: 'r1', status: 'ONLINE' });
     expect(workspace.pendingOffers).toEqual([]);
+    expect(workspace.activeJobs).toEqual([]);
     expect(workspace.activeJob).toBeNull();
     expect(storage.setItem).toHaveBeenCalledWith('aagam:partners:rider-status:v1', 'ONLINE');
   });

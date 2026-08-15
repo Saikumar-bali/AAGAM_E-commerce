@@ -152,7 +152,8 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
   }, []);
 
   const workspace = workspaceQuery.data;
-  const activeJob = workspace?.activeJob || null;
+  const activeJobs = workspace?.activeJobs || [];
+  const activeJob = activeJobs[0] || workspace?.activeJob || null;
   const riderStatus = workspace?.rider?.status || 'OFFLINE';
   const isOnline = riderStatus !== 'OFFLINE';
   const pendingOffers = useMemo(
@@ -263,16 +264,16 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
     onSettled: () => setOfferBusy(null),
   });
 
-  const openActive = () => {
-    if (!activeJob) return;
-    const screen = activeJob.status === 'RIDER_AT_STORE'
+  const openActive = (job = activeJob) => {
+    if (!job) return;
+    const screen = job.status === 'RIDER_AT_STORE'
       ? 'RiderPickup'
-      : activeJob.status === 'DELIVERY_FAILED' || activeJob.status === 'RETURNING_TO_STORE'
+      : job.status === 'DELIVERY_FAILED' || job.status === 'RETURNING_TO_STORE'
         ? 'RiderReturn'
         : 'RiderActiveJob';
     navigation?.navigate?.('Operations', {
       screen,
-      params: { deliveryJobId: activeJob.id },
+      params: { deliveryJobId: job.id },
     });
   };
 
@@ -332,19 +333,24 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
           <View style={styles.errorCard}><XCircle size={28} color="#B91C1C" /><View style={styles.flex}><Text style={styles.errorTitle}>Workspace unavailable</Text><Text style={styles.errorText}>{errorMessage(workspaceQuery.error)}</Text></View><TouchableOpacity onPress={() => void refresh()}><RefreshCw size={21} color="#B91C1C" /></TouchableOpacity></View>
         ) : (
           <>
-            {activeJob ? (
-              <TouchableOpacity testID="rider_active_job_card" style={styles.activeCard} onPress={openActive}>
+            {activeJobs.length ? (
+              <View>
+                <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Active deliveries</Text><Text style={styles.sectionText}>{activeJobs.length} from your current pickup store</Text></View></View>
+                {activeJobs.map((job) => (
+              <TouchableOpacity key={job.id} testID="rider_active_job_card" style={styles.activeCard} onPress={() => openActive(job)}>
                 <View style={styles.cardHeader}>
                   <View style={styles.activeIcon}><Bike size={24} color="#FFFFFF" /></View>
-                  <View style={styles.flex}><Text style={styles.cardEyebrow}>ACTIVE DELIVERY</Text><Text style={styles.cardTitle}>{deliveryStatusLabel(activeJob.status)}</Text><Text style={styles.cardText}>Order #{shortId(activeJob.order.id)}</Text></View>
+                  <View style={styles.flex}><Text style={styles.cardEyebrow}>ACTIVE DELIVERY</Text><Text style={styles.cardTitle}>{deliveryStatusLabel(job.status)}</Text><Text style={styles.cardText}>Order #{shortId(job.order.id)}</Text></View>
                   <CheckCircle2 size={24} color="#0F766E" />
                 </View>
                 <View style={styles.routeRow}>
-                  <View style={styles.routeItem}><Store size={18} color="#0F766E" /><Text style={styles.routeText}>{activeJob.order.store?.name || 'Pickup store'}</Text></View>
-                  <View style={styles.routeItem}><MapPin size={18} color="#0F766E" /><Text style={styles.routeText}>{activeJob.order.addressSnapshot?.city || 'Customer destination'}</Text></View>
+                  <View style={styles.routeItem}><Store size={18} color="#0F766E" /><Text style={styles.routeText}>{job.order.store?.name || 'Pickup store'}</Text></View>
+                  <View style={styles.routeItem}><MapPin size={18} color="#0F766E" /><Text style={styles.routeText}>{job.order.addressSnapshot?.city || 'Customer destination'}</Text></View>
                 </View>
-                <View style={styles.openButton}><Text style={styles.openButtonText}>Open exact active job</Text><Package size={19} color="#FFFFFF" /></View>
+                <View style={styles.openButton}><Text style={styles.openButtonText}>Open this delivery</Text><Package size={19} color="#FFFFFF" /></View>
               </TouchableOpacity>
+                ))}
+              </View>
             ) : null}
 
             <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Delivery offers</Text><Text style={styles.sectionText}>{isOnline ? `${pendingOffers.length} waiting` : 'Go online to receive offers'}</Text></View><TouchableOpacity onPress={() => void refresh()}><RefreshCw size={20} color="#0F766E" /></TouchableOpacity></View>

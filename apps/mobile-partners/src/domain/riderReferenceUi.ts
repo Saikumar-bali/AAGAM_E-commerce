@@ -204,7 +204,8 @@ export function buildTodayJobList(workspace?: RiderWorkspace | null, now = new D
     result.push(item);
   };
 
-  if (workspace.activeJob) add(listItemFromJob(workspace.activeJob));
+  (workspace.activeJobs?.length ? workspace.activeJobs : workspace.activeJob ? [workspace.activeJob] : [])
+    .forEach((job) => add(listItemFromJob(job)));
   workspace.pendingOffers.forEach((offer) => add(listItemFromAssignment(offer)));
   workspace.assignmentHistory
     .filter((assignment) => sameLocalDay(assignmentTimestamp(assignment), now))

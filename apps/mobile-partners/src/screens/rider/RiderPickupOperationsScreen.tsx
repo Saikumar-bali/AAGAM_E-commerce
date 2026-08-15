@@ -82,8 +82,11 @@ export const RiderPickupOperationsScreen = ({ navigation, deliveryJobId }: { nav
   const [evidence, setEvidence] = useState<PartnerPickedDocument[]>([]);
 
   const pickupQuery = useQuery({
-    queryKey: PICKUP_KEY,
-    queryFn: pickupOperationsService.getRiderPickup,
+    queryKey: [...PICKUP_KEY, deliveryJobId],
+    queryFn: async () => {
+      const pickups = await pickupOperationsService.getRiderPickups();
+      return pickups.find((entry) => entry.job?.id === deliveryJobId) || null;
+    },
     refetchInterval: 5_000,
     retry: 1,
   });
@@ -95,7 +98,7 @@ export const RiderPickupOperationsScreen = ({ navigation, deliveryJobId }: { nav
   });
 
   const payload = pickupQuery.data;
-  const job = payload?.job || workspaceQuery.data?.activeJob || null;
+  const job = payload?.job || workspaceQuery.data?.activeJobs?.find((entry) => entry.id === deliveryJobId) || null;
   const task = payload?.task || null;
   const checklist: any[] = Array.isArray(task?.checklist) ? task.checklist : [];
   const checklistVerified = task?.status === 'VERIFIED';

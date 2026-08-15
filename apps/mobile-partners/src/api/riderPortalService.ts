@@ -46,7 +46,12 @@ export const riderPortalService = {
     return Array.isArray(response.data) ? response.data.map(stripRawContact) : [];
   },
 
-  getCurrentDelivery: async (): Promise<RiderPortalDelivery> => stripRawContact((await apiClient.get('/riders/portal/delivery')).data || null),
+  getCurrentDelivery: async (): Promise<RiderPortalDelivery | null> => stripRawContact((await apiClient.get('/riders/portal/delivery')).data || null),
+
+  getCurrentDeliveries: async (): Promise<RiderPortalDelivery[]> => {
+    const response = await apiClient.get('/riders/portal/deliveries');
+    return Array.isArray(response.data) ? response.data.map(stripRawContact) : [];
+  },
 
   getHistory: async (): Promise<RiderDeliveryJob[]> => {
     const response = await apiClient.get('/riders/portal/history', { params: { page: 1, pageSize: 20, status: 'ALL' } });
@@ -74,12 +79,12 @@ export const riderPortalService = {
 
   getWorkspace: async (): Promise<RiderWorkspace> => {
     try {
-      const [home, offers, delivery] = await Promise.all([
+      const [home, offers, deliveries] = await Promise.all([
         riderPortalService.getHome(),
         riderPortalService.getOffers(),
-        riderPortalService.getCurrentDelivery(),
+        riderPortalService.getCurrentDeliveries(),
       ]);
-      return normalizeRiderPortalWorkspace({ home, offers, delivery, history: [] });
+      return normalizeRiderPortalWorkspace({ home, offers, deliveries, history: [] });
     } catch (error) {
       if (!shouldUseLegacyRiderWorkspace(error)) throw error;
       const response = await apiClient.get('/orders/dispatch/rider/workspace');

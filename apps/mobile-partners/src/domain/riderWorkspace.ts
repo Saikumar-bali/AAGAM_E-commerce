@@ -96,6 +96,7 @@ export type RiderWorkspace = {
     user?: { id?: string; name?: string | null; phone?: string | null } | null;
   } | null;
   pendingOffers: RiderAssignmentOffer[];
+  activeJobs?: RiderDeliveryJob[];
   activeJob: RiderDeliveryJob | null;
   assignmentHistory: RiderAssignmentOffer[];
 };
@@ -158,10 +159,16 @@ const TERMINAL_STATUSES = new Set<DeliveryJobStatus>([
 
 export function normalizeRiderWorkspace(input: unknown): RiderWorkspace {
   const value = input && typeof input === 'object' ? (input as any) : {};
+  const activeJobs = Array.isArray(value.activeJobs)
+    ? value.activeJobs
+    : value.activeJob
+      ? [value.activeJob]
+      : [];
   return {
     rider: value.rider || null,
     pendingOffers: Array.isArray(value.pendingOffers) ? value.pendingOffers : [],
-    activeJob: value.activeJob || null,
+    activeJobs,
+    activeJob: value.activeJob || activeJobs[0] || null,
     assignmentHistory: Array.isArray(value.assignmentHistory) ? value.assignmentHistory : [],
   };
 }
