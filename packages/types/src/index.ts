@@ -290,6 +290,8 @@ export interface NotificationOutboxPayloadDto {
   body?: string;
   audience?: string;
   deepLink?: string;
+  /** Internal server-originated exact recipients for durable operational alerts. */
+  targetRecipients?: Array<{ userId: string; role: RoleType }>;
   metadata?: Record<string, unknown>;
 }
 

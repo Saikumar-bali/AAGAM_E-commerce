@@ -164,6 +164,32 @@ export class NotificationRoutingService {
         addAdmins();
         break;
       case 'ADMIN_BROADCAST': {
+        // Server-originated operational workflows can target exact users while
+        // still using the durable outbox/retry/push pipeline. The public Admin
+        // broadcast API does not accept targetRecipients, so this cannot be
+        // used by a client to manufacture arbitrary cross-role recipients.
+        const requestedTargets: Array<{ userId: string; role: string }> = Array.isArray(payload.targetRecipients)
+          ? payload.targetRecipients
+              .map((target: any) => ({
+                userId: String(target?.userId || '').trim(),
+                role: String(target?.role || '').trim().toUpperCase(),
+              }))
+              .filter((target: { userId: string; role: string }) => target.userId && Object.values(Role).includes(target.role as Role))
+          : [];
+
+        if (requestedTargets.length) {
+          const userIds: string[] = [...new Set(requestedTargets.map((target) => target.userId))];
+          const activeUsers = await prisma.user.findMany({
+            where: { id: { in: userIds }, isActive: true },
+            select: { id: true },
+          });
+          const activeIds = new Set(activeUsers.map((user) => user.id));
+          requestedTargets.forEach((target) => {
+            if (activeIds.has(target.userId)) add({ id: target.userId }, target.role as Role);
+          });
+          break;
+        }
+
         const audience = String(payload.audience || 'ALL_USERS').toUpperCase();
         if (audience === 'RIDERS') {
           const profiles = await prisma.riderProfile.findMany({ select: { userId: true } });
@@ -211,6 +237,7 @@ export class NotificationRoutingService {
       deepLink: payload.deepLink || this.deepLink(user.role, orderId),
     }));
 
+    const hasTargetRecipients = Array.isArray(payload.targetRecipients) && payload.targetRecipients.length > 0;
     return {
       title: template.title,
       body: template.body,
@@ -223,7 +250,7 @@ export class NotificationRoutingService {
         deliveryJobId,
         assignmentId: payload.assignmentId || null,
         riderUserId: payload.riderUserId || assignment?.riderProfile?.userId || order?.rider?.userId || null,
-        ...(eventType === 'ADMIN_BROADCAST' ? { audience: payload.audience || 'ALL_USERS' } : {}),
+        ...(eventType === 'ADMIN_BROADCAST' ? { audience: hasTargetRecipients ? 'TARGETED' : payload.audience || 'ALL_USERS' } : {}),
         ...(payload.metadata || {}),
       },
       recipients,

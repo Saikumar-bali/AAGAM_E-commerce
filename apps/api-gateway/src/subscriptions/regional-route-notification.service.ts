@@ -2,15 +2,17 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import {
   DeliveryRouteEvent,
   DeliveryRouteEventType,
-  NotificationEventType,
-  Prisma,
   Role,
   prisma,
 } from '@aagam/database';
+import { enqueueOutboxEvent } from '../notifications/outbox.service';
 
+// Assignment/removal notifications are already emitted directly by the
+// authoritative rider-assignment transaction as ROUTE_ASSIGNED/ROUTE_REMOVED.
+// This worker handles planning/recovery events for Admin, Store and Customer so
+// it does not duplicate or falsely imply a Rider assignment.
 const ROUTE_NOTIFICATION_EVENTS: DeliveryRouteEventType[] = [
-  DeliveryRouteEventType.DELIVERY_RUN_ASSIGNED,
-  DeliveryRouteEventType.DELIVERY_RUN_REASSIGNED,
+  DeliveryRouteEventType.ROUTE_CLUSTER_CREATED,
   DeliveryRouteEventType.DELIVERY_RUN_SPLIT,
   DeliveryRouteEventType.DELIVERY_RUN_MERGED,
   DeliveryRouteEventType.RUN_STOP_MOVED,
@@ -20,14 +22,9 @@ const ROUTE_NOTIFICATION_EVENTS: DeliveryRouteEventType[] = [
   DeliveryRouteEventType.DELIVERY_RUN_CANCELLED,
 ];
 
-const REASSIGNMENT_EVENTS = new Set<DeliveryRouteEventType>([
-  DeliveryRouteEventType.DELIVERY_RUN_REASSIGNED,
-  DeliveryRouteEventType.RUN_STOP_MOVED,
-  DeliveryRouteEventType.RECOVERY_RUN_CREATED,
-]);
-
 type AudienceMessage = {
-  key: 'rider' | 'store' | 'admin' | 'customer';
+  key: 'store' | 'admin' | 'customer';
+  role: Role;
   title: string;
   body: string;
   deepLink: string;
@@ -77,7 +74,6 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
       where: { id: event.deliveryRunId },
       include: {
         deliveryZone: true,
-        rider: { include: { user: { select: { id: true } } } },
         store: { include: { owner: { select: { id: true } } } },
         stops: {
           include: {
@@ -93,77 +89,79 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
     const customerIds = [...new Set(run.stops.map((stop) => stop.subscriptionDelivery.subscription.customerId))];
     const zone = run.deliveryZone?.name || 'your service area';
     const routeLabel = `${run.routeCode} · ${zone}`;
-    const reassigned = REASSIGNMENT_EVENTS.has(event.eventType);
+    const planned = event.eventType === DeliveryRouteEventType.ROUTE_CLUSTER_CREATED;
     const interrupted = event.eventType === DeliveryRouteEventType.DELIVERY_RUN_INTERRUPTED;
     const cancelled = event.eventType === DeliveryRouteEventType.DELIVERY_RUN_CANCELLED;
 
     const messages: AudienceMessage[] = [
       {
         key: 'admin',
-        title: title(event.eventType),
-        body: `${routeLabel} was updated. Review route ownership, capacity, timing and cash warnings.`,
+        role: Role.ADMIN,
+        title: planned ? 'Tomorrow route planned' : title(event.eventType),
+        body: planned
+          ? `${routeLabel} has ${run.totalStopCount} scheduled stop${run.totalStopCount === 1 ? '' : 's'}. Rider dispatch remains pending until the live-assignment window.`
+          : `${routeLabel} was updated. Review route ownership, capacity, timing and cash warnings.`,
         deepLink: '/admin/route-planning',
         userIds: admins.map((admin) => admin.id),
       },
       {
         key: 'store',
-        title: 'Preparation route updated',
-        body: `${routeLabel} changed. Refresh bag labels, route readiness and rider handoff details.`,
+        role: Role.STORE_OWNER,
+        title: planned ? 'Tomorrow preparation route ready' : 'Preparation route updated',
+        body: planned
+          ? `${routeLabel} is ready for stock preparation. Confirm stock readiness now; packing and handoff stay day-of custody actions.`
+          : `${routeLabel} changed. Refresh bag labels, route readiness and handoff details.`,
         deepLink: '/store/subscriptions',
         userIds: [run.store.owner.id],
       },
       {
-        key: 'rider',
-        title: reassigned ? 'Your delivery run changed' : 'Morning run assigned',
-        body: `${routeLabel} has ${run.totalStopCount} stops. Refresh before continuing; your active stop is never removed silently.`,
-        deepLink: '/rider/runs',
-        userIds: run.rider?.user.id ? [run.rider.user.id] : [],
-      },
-      {
         key: 'customer',
-        title: interrupted ? 'Delivery update' : reassigned ? 'Your delivery was reassigned' : cancelled ? 'Delivery schedule update' : 'Your rider has been assigned',
-        body: interrupted
-          ? 'Your delivery may be delayed. We will keep the delivery window and ETA updated.'
-          : reassigned
-            ? 'Your delivery has been reassigned. The delivery window is unchanged unless we notify you separately.'
+        role: Role.CUSTOMER,
+        title: planned
+          ? 'Delivery route planned'
+          : interrupted
+            ? 'Delivery update'
+            : cancelled
+              ? 'Delivery schedule update'
+              : 'Delivery plan updated',
+        body: planned
+          ? 'Your upcoming subscription delivery is in the preparation plan. Rider details will appear after final live assignment.'
+          : interrupted
+            ? 'Your delivery may be delayed. We will keep the delivery window and ETA updated.'
             : cancelled
               ? 'Your delivery route is being replanned. Your subscription remains safe.'
-              : 'Your delivery is scheduled and a rider has been assigned.',
+              : 'Your upcoming subscription route was updated. The delivery window is unchanged unless we notify you separately.',
         deepLink: '/shop/subscriptions',
         userIds: customerIds,
       },
     ];
 
     for (const message of messages) {
-      if (!message.userIds.length) continue;
+      const userIds = [...new Set(message.userIds.filter(Boolean))];
+      if (!userIds.length) continue;
       const notificationId = `route-${event.id}-${message.key}`;
-      try {
-        await prisma.notification.create({
-          data: {
-            id: notificationId,
-            eventType: NotificationEventType.ADMIN_BROADCAST,
-            title: message.title,
-            body: message.body,
-            deepLink: message.deepLink,
-            data: {
-              routeEventType: event.eventType,
-              deliveryRunId: run.id,
-              routeCode: run.routeCode,
-              zoneId: run.deliveryZoneId,
-              zoneName: zone,
-              version: run.version,
-            } as Prisma.InputJsonValue,
-            recipients: {
-              create: [...new Set(message.userIds)].map((userId) => ({
-                userId,
-                dedupeKey: `route-event:${event.id}:${message.key}:${userId}`,
-              })),
-            },
+      await enqueueOutboxEvent(prisma, {
+        eventType: 'ADMIN_BROADCAST',
+        aggregateType: 'SYSTEM',
+        aggregateId: run.id,
+        idempotencyKey: notificationId,
+        payload: {
+          title: message.title,
+          body: message.body,
+          audience: 'TARGETED',
+          deepLink: message.deepLink,
+          targetRecipients: userIds.map((userId) => ({ userId, role: message.role })),
+          metadata: {
+            routeEventType: event.eventType,
+            deliveryRunId: run.id,
+            routeCode: run.routeCode,
+            zoneId: run.deliveryZoneId,
+            zoneName: zone,
+            version: run.version,
+            plannedOnly: planned,
           },
-        });
-      } catch (error: unknown) {
-        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
-      }
+        },
+      });
     }
   }
 }

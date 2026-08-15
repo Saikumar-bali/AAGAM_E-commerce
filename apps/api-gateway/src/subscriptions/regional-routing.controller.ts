@@ -73,9 +73,14 @@ export class AdminRegionalRoutingController {
 
   @Post('plan')
   plan(@Body() body: PlanRegionalRoutesDto) {
+    // Route construction is a D-1 planning action, not a dispatch action. Even
+    // older clients that still send assignRiders=true cannot bypass the final
+    // live eligibility pass. Admin can still explicitly reassign an existing
+    // run through the audited reassign endpoint when an operational override is
+    // required.
     return this.planner.planGeneratedDeliveries(body.limit ?? 1000, {
       serviceDate: body.serviceDate ? new Date(body.serviceDate) : undefined,
-      assignRiders: body.assignRiders ?? true,
+      assignRiders: false,
     });
   }
 
