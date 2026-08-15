@@ -11,6 +11,23 @@ import {
 import { AdminSubscriptionCorrectionDto, ResolveSubscriptionIssueDto } from './subscriptions.dto';
 import { isOneOf } from '../common/enum-membership';
 
+function deliveryContact(snapshot: Prisma.JsonValue) {
+  const address = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)
+    ? snapshot as Record<string, Prisma.JsonValue>
+    : {};
+  const text = (value: Prisma.JsonValue | undefined) => typeof value === 'string' && value.trim() ? value.trim() : null;
+  const parts = [address.line1, address.line2, address.landmark, address.city, address.state, address.pincode]
+    .map(text)
+    .filter((value): value is string => Boolean(value));
+  return {
+    recipientName: text(address.recipientName),
+    phone: text(address.phoneE164) || text(address.phone),
+    alternatePhone: text(address.alternatePhoneE164),
+    formattedAddress: parts.join(', ') || null,
+    instructions: text(address.instructions),
+  };
+}
+
 @Injectable()
 export class SubscriptionAdminReportingService {
   subscribers(status?: CustomerSubscriptionStatus, planId?: string) {
@@ -25,7 +42,20 @@ export class SubscriptionAdminReportingService {
         _count: { select: { deliveries: true, issues: true } },
       },
       take: 500,
-    });
+    }).then((rows) => rows.map((row) => {
+      const contact = deliveryContact(row.addressSnapshot);
+      return {
+        ...row,
+        customer: {
+          ...row.customer,
+          // Delivery operations must not show a blank phone just because the
+          // account-level phone is null. The immutable subscription address is
+          // the authoritative recipient contact for this contract.
+          phone: row.customer.phone || contact.phone,
+        },
+        deliveryContact: contact,
+      };
+    }));
   }
 
   async subscription(id: string) {
@@ -51,7 +81,7 @@ export class SubscriptionAdminReportingService {
     });
     if (!subscription) throw new NotFoundException('Subscription not found');
     const { dropPointTokenHash: _privateTokenHash, ...output } = subscription;
-    return output;
+    return { ...output, deliveryContact: deliveryContact(subscription.addressSnapshot) };
   }
 
   deliveryCalendar(from?: string, to?: string) {
