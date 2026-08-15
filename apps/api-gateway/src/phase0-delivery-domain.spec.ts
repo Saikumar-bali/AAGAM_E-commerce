@@ -177,7 +177,7 @@ describe('Phase 0 delivery domain and state-machine foundation', () => {
     ).rejects.toThrow('your active delivery');
   });
 
-  it('prevents duplicate offers and keeps one active delivery per rider', async () => {
+  it('prevents duplicate offers and permits another pre-pickup order from the same store', async () => {
     const api = services();
     const data = await seed();
     const firstJob = await api.jobs.createForPackedOrder(data.order.id, { id: data.admin.id, role: Role.ADMIN });
@@ -193,7 +193,10 @@ describe('Phase 0 delivery domain and state-machine foundation', () => {
     const secondJob = await api.jobs.createForPackedOrder(secondOrder.id, { id: data.admin.id, role: Role.ADMIN });
     await expect(
       api.assignments.offer(secondJob.id, data.riderUserA.id, { id: data.admin.id, role: Role.ADMIN }),
-    ).rejects.toThrow(/online and available|active delivery/);
+    ).resolves.toMatchObject({
+      deliveryJobId: secondJob.id,
+      riderProfileId: data.riderA.id,
+    });
   });
 
   it('allows only one winner during concurrent two-rider acceptance attempts', async () => {
