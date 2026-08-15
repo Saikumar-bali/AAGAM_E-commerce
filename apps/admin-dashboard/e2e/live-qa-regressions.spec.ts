@@ -38,7 +38,7 @@ test.describe('Live QA regression protections', () => {
     });
 
     await page.goto('/login');
-    await page.getByLabel('Email address Phone number or email').fill('qa-store@example.invalid');
+    await page.getByLabel('Phone number or email').fill('qa-store@example.invalid');
     await page.getByLabel('Password').fill('not-a-real-password');
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
 

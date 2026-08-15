@@ -28,13 +28,14 @@ export function qaCredentials(role: QaRole) {
 export async function loginWithCookieSession(page: Page, role: QaRole) {
   const { email, password } = qaCredentials(role);
   await page.goto('/login');
-  // The login page defaults to phone mode; switch to password mode
+  // Older deployments defaulted to phone mode; current deployments render
+  // password login directly. Keep this optional for backward compatibility.
   const passwordTab = page.getByRole('button', { name: 'Password', exact: true });
   if (await passwordTab.isVisible({ timeout: 5000 }).catch(() => false)) {
     await passwordTab.click();
   }
   // Fill credentials using flexible selectors
-  const emailInput = page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i], input[placeholder*="phone" i]').first();
+  const emailInput = page.locator('input[autocomplete="username"], input[name="email"], input[placeholder*="email" i], input[placeholder*="phone" i]').first();
   await emailInput.waitFor({ timeout: 10000 });
   await emailInput.fill(email);
   const passwordInput = page.locator('input[type="password"], input[name="password"]').first();

@@ -7,6 +7,9 @@ import { TrackingGateway } from '../tracking.gateway';
 import { NotificationService } from '../notifications/notification.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { OrderCreationService } from '../orders/order-creation.service';
+import { calculateDeliveryPricing } from './delivery-pricing';
+
+export { applyFreeDeliveryThreshold, FREE_DELIVERY_MINIMUM_PAISE } from './delivery-pricing';
 
 const logger = new Logger('CheckoutService');
 const PREORDER_MIN_LEAD_MINUTES = Math.max(30, Number(process.env.PREORDER_MIN_LEAD_MINUTES || 60));
@@ -28,21 +31,8 @@ function isOrderCreationService(
 }
 
 const haversineKm = calculateDistance;
-export const FREE_DELIVERY_MINIMUM_PAISE = 19900;
-
-export function applyFreeDeliveryThreshold(deliveryFee: number, subtotalPaise: number): number {
-  return subtotalPaise >= FREE_DELIVERY_MINIMUM_PAISE ? 0 : deliveryFee;
-}
 
 type CartItem = { productId: string; quantity: number };
-
-function computeDeliveryFee(distanceKm: number): { serviceable: boolean; deliveryFee: number } {
-  if (!Number.isFinite(distanceKm)) return { serviceable: false, deliveryFee: 0 };
-  if (distanceKm <= 3) return { serviceable: true, deliveryFee: 19 };
-  if (distanceKm <= 6) return { serviceable: true, deliveryFee: 29 };
-  if (distanceKm <= 8) return { serviceable: true, deliveryFee: 49 };
-  return { serviceable: false, deliveryFee: 0 };
-}
 
 function computeEtaMinutes(distanceKm: number | null): number | null {
   if (distanceKm === null || !Number.isFinite(distanceKm)) return null;
@@ -183,10 +173,10 @@ export class CheckoutService {
     if (!address) throw new NotFoundException('Address not found');
 
     const resolved = await this.resolveStoreForLocation(address.latitude, address.longitude);
-    const fee = computeDeliveryFee(resolved.distanceKm);
+    const deliveryPricing = calculateDeliveryPricing(resolved.distanceKm);
 
     return {
-      serviceable: fee.serviceable,
+      serviceable: deliveryPricing.serviceable,
       address: {
         id: address.id,
         label: address.label,
@@ -202,8 +192,9 @@ export class CheckoutService {
         name: resolved.store.name,
       },
       distanceKm: resolved.distanceKm,
-      deliveryFee: fee.deliveryFee,
-      deliveryFeePaise: Math.round(fee.deliveryFee * 100),
+      deliveryFee: deliveryPricing.payableFeePaise / 100,
+      deliveryFeePaise: deliveryPricing.payableFeePaise,
+      deliveryPricing,
       etaMinutes: computeEtaMinutes(resolved.distanceKm),
     };
   }
@@ -295,7 +286,6 @@ export class CheckoutService {
     let storeId: string | null = null;
     let storeName: string | null = null;
     let distanceKm: number | null = null;
-    let deliveryFee = 0;
     let serviceable = true;
 
     if (address) {
@@ -303,9 +293,8 @@ export class CheckoutService {
       storeId = resolved.store.id;
       storeName = resolved.store.name;
       distanceKm = resolved.distanceKm;
-      const fee = computeDeliveryFee(resolved.distanceKm);
-      serviceable = fee.serviceable;
-      deliveryFee = fee.deliveryFee;
+      const deliveryPricing = calculateDeliveryPricing(resolved.distanceKm);
+      serviceable = deliveryPricing.serviceable;
     } else {
       const store = await prisma.store.findFirst({ where: { isActive: true, deletedAt: null }, select: { id: true, name: true } });
       if (store) {
@@ -351,8 +340,11 @@ export class CheckoutService {
 
     const subtotal = items.reduce((sum, it) => sum + it.lineTotal, 0);
     const subtotalPaise = items.reduce((sum, it) => sum + it.lineTotalPaise, 0);
-    deliveryFee = applyFreeDeliveryThreshold(deliveryFee, subtotalPaise);
-    const deliveryFeePaise = Math.round(deliveryFee * 100);
+    const deliveryPricing = distanceKm === null
+      ? null
+      : calculateDeliveryPricing(distanceKm, subtotalPaise);
+    const deliveryFeePaise = deliveryPricing?.payableFeePaise ?? 0;
+    const deliveryFee = deliveryFeePaise / 100;
     const promotionPricing = storeId && this.promotionsService
       ? await this.promotionsService.calculateDiscount({
           userId,
@@ -376,6 +368,7 @@ export class CheckoutService {
       store: storeId ? { id: storeId, name: storeName } : null,
       distanceKm,
       etaMinutes: computeEtaMinutes(distanceKm),
+      deliveryPricing,
       invoice: {
         items,
         subtotal,
@@ -481,6 +474,7 @@ export class CheckoutService {
       calculatedAt: new Date().toISOString(),
       etaMinutes: quote.etaMinutes,
       distanceKm: quote.distanceKm,
+      deliveryPricing: quote.deliveryPricing,
       coupon: quote.appliedCoupon
         ? {
             ...quote.appliedCoupon,

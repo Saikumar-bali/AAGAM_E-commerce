@@ -15,10 +15,10 @@ test.describe('Login All Roles - Local', () => {
       console.log(`\n[${user.role}] Testing login...`);
       
       await page.goto(`${BASE_URL}/login`);
-      await page.waitForSelector('input[type="email"]', { timeout: 15000 });
+      await page.waitForSelector('input[autocomplete="username"]', { timeout: 15000 });
       console.log(`[${user.role}] Login page loaded`);
 
-      await page.fill('input[type="email"]', user.email);
+      await page.fill('input[autocomplete="username"]', user.email);
       await page.fill('input[type="password"]', user.password);
       await page.click('button[type="submit"]');
 

@@ -18,6 +18,8 @@ import { LeafletMap, apiClient, useAuthStore } from '@aagam/mobile-shared';
 import { useCartStore } from '../../store/cartStore';
 import { getUserSafeError, notify } from '../../ui/notify';
 
+const formatCheckoutMoney = (value: number) => `₹${Number(value || 0).toFixed(2)}`;
+
 export const CheckoutScreen = () => {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
@@ -192,7 +194,9 @@ export const CheckoutScreen = () => {
   const quoteFailure = quoteError && !appliedCouponCode ? getUserSafeError(quoteError, 'Failed to calculate the latest total.') : '';
   const orderDisabled = !selectedAddressId || loadingQuote || placeOrderMutation.isPending || quote?.serviceable === false || Boolean(quoteFailure);
   const quotedSubtotal = Number(quote?.invoice?.subtotal ?? total());
-  const freeDeliveryRemaining = Math.max(0, 199 - quotedSubtotal);
+  const freeDeliveryMinimumPaise = Number(quote?.deliveryPricing?.freeDeliveryMinimumPaise ?? 9_900);
+  const deliveryRatePaisePerKm = Number(quote?.deliveryPricing?.ratePaisePerKm ?? 150);
+  const freeDeliveryRemainingPaise = Math.max(0, freeDeliveryMinimumPaise - Math.round(quotedSubtotal * 100));
   const leaveCheckout = () => {
     if (navigation.canGoBack?.()) navigation.goBack();
     else navigation.navigate('MainTabs', { screen: 'Cart' });
@@ -224,13 +228,13 @@ export const CheckoutScreen = () => {
 
       <Text style={styles.sectionTitle}>Order Summary</Text>
       <View style={styles.summaryCard}>
-        <View style={[styles.freeDeliveryCard, freeDeliveryRemaining === 0 && styles.freeDeliveryUnlocked]}><Text style={styles.freeDeliveryTitle}>{freeDeliveryRemaining === 0 ? 'Free delivery unlocked' : `Add ₹${Math.ceil(freeDeliveryRemaining)} for free delivery`}</Text><Text style={styles.freeDeliveryText}>Free delivery on orders of ₹199 or more.</Text></View>
+        <View style={[styles.freeDeliveryCard, freeDeliveryRemainingPaise === 0 && styles.freeDeliveryUnlocked]}><Text style={styles.freeDeliveryTitle}>{freeDeliveryRemainingPaise === 0 ? 'Free delivery unlocked' : `Add ${formatCheckoutMoney(freeDeliveryRemainingPaise / 100)} for free delivery`}</Text><Text style={styles.freeDeliveryText}>Delivery at {formatCheckoutMoney(deliveryRatePaisePerKm / 100)}/km. Free on orders of {formatCheckoutMoney(freeDeliveryMinimumPaise / 100)} or more.</Text></View>
         {items.map((item) => <View key={item.product.id} style={styles.summaryRow}><Text style={styles.summaryText}>{item.product.name} x {item.quantity}</Text><Text style={styles.summaryAmount}>₹{item.product.price * item.quantity}</Text></View>)}
         <View style={styles.summaryDivider} />
-        <View style={styles.summaryRow}><Text style={styles.summaryText}>Subtotal</Text><Text style={styles.summaryAmount}>₹{quote?.invoice?.subtotal ?? total()}</Text></View>
-        <View style={styles.summaryRow}><Text style={styles.summaryText}>Delivery Fee</Text><Text style={[styles.summaryAmount, (quote?.invoice?.deliveryFee ?? 0) === 0 && styles.freeDeliveryValue]}>{(quote?.invoice?.deliveryFee ?? 0) === 0 ? 'FREE' : `₹${quote?.invoice?.deliveryFee}`}</Text></View>
-        {discountAmount > 0 ? <View style={styles.summaryRow}><Text style={styles.discountLabel}>Offer discount</Text><Text style={styles.discountValue}>-₹{discountAmount}</Text></View> : null}
-        <View style={styles.summaryRow}><Text style={styles.totalLabel}>Grand Total</Text><Text style={styles.totalValue}>₹{quote?.invoice?.grandTotal ?? total()}</Text></View>
+        <View style={styles.summaryRow}><Text style={styles.summaryText}>Subtotal</Text><Text style={styles.summaryAmount}>{formatCheckoutMoney(Number(quote?.invoice?.subtotal ?? total()))}</Text></View>
+        <View style={styles.summaryRow}><Text style={styles.summaryText}>Delivery Fee{quote?.distanceKm != null ? ` · ${Number(quote.distanceKm).toFixed(1)} km` : ''}</Text><Text style={[styles.summaryAmount, (quote?.invoice?.deliveryFee ?? 0) === 0 && styles.freeDeliveryValue]}>{(quote?.invoice?.deliveryFee ?? 0) === 0 ? 'FREE' : formatCheckoutMoney(Number(quote?.invoice?.deliveryFee || 0))}</Text></View>
+        {discountAmount > 0 ? <View style={styles.summaryRow}><Text style={styles.discountLabel}>Offer discount</Text><Text style={styles.discountValue}>-{formatCheckoutMoney(discountAmount)}</Text></View> : null}
+        <View style={styles.summaryRow}><Text style={styles.totalLabel}>Grand Total</Text><Text style={styles.totalValue}>{formatCheckoutMoney(Number(quote?.invoice?.grandTotal ?? total()))}</Text></View>
         {quote && quote.serviceable === false ? <Text style={styles.errorText}>This address is currently outside the delivery radius.</Text> : null}
         {quoteFailure ? <Text style={styles.errorText}>{quoteFailure}</Text> : null}
       </View>

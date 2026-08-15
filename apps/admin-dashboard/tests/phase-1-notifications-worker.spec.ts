@@ -14,8 +14,8 @@ const PASSWORDS: Record<string, string> = {
 
 async function login(page: Page, email: string, password = PASSWORDS[email] || (process.env.NOTIF_FALLBACK_PASS ?? 'Test@1234')) {
   await page.goto('/login');
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-  await page.fill('input[type="email"]', email);
+  await page.waitForSelector('input[autocomplete="username"]', { timeout: 15000 });
+  await page.fill('input[autocomplete="username"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
   await page.waitForFunction(() => localStorage.getItem('user_role') !== null, { timeout: 15000 });

@@ -17,8 +17,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
 
 async function loginAsStore(page: Page, email = STORE_EMAIL, password = STORE_PASS) {
   await page.goto('/login');
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-  await page.fill('input[type="email"]', email);
+  await page.waitForSelector('input[autocomplete="username"]', { timeout: 15000 });
+  await page.fill('input[autocomplete="username"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
   await page.waitForFunction(() => localStorage.getItem('user_role') !== null, { timeout: 15000 });

@@ -145,7 +145,6 @@ async function adminPage(browser: Browser) {
   const context = await browser.newContext({ baseURL: WEB_BASE });
   const page = await context.newPage();
   await page.goto('/login');
-  await page.getByRole('button', { name: 'Password' }).click();
   await page.getByLabel('Phone number or email').fill(adminEmail!);
   await page.getByLabel('Password').fill(adminPassword!);
   await Promise.all([
