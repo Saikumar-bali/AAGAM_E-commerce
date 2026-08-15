@@ -75,7 +75,9 @@ export class AdminRegionalRoutingController {
   plan(@Body() body: PlanRegionalRoutesDto) {
     return this.planner.planGeneratedDeliveries(body.limit ?? 1000, {
       serviceDate: body.serviceDate ? new Date(body.serviceDate) : undefined,
-      assignRiders: body.assignRiders ?? true,
+      // Planning is allowed a day ahead; final rider dispatch must happen only
+      // after live eligibility/location/cash checks close to the slot.
+      assignRiders: body.assignRiders ?? false,
     });
   }
 
