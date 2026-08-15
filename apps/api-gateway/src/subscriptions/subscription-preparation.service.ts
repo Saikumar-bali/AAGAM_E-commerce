@@ -10,7 +10,6 @@ import {
 import {
   CustomerSubscriptionStatus,
   DeliveryRunStatus,
-  NotificationEventType,
   Prisma,
   Role,
   SubscriptionDeliveryStatus,
@@ -18,6 +17,7 @@ import {
   prisma,
 } from '@aagam/database';
 import { randomUUID } from 'crypto';
+import { enqueueOutboxEvent } from '../notifications/outbox.service';
 import { RegionalRoutePlanningService } from './regional-route-planning.service';
 import {
   StoreStockReadinessDecision,
@@ -144,31 +144,29 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
     title: string;
     body: string;
     deepLink: string;
-    userIds: string[];
-    data: Prisma.InputJsonValue;
+    recipients: Array<{ userId: string; role: Role }>;
+    data: Record<string, unknown>;
   }) {
-    const userIds = [...new Set(input.userIds.filter(Boolean))];
-    if (!userIds.length) return;
-    try {
-      await prisma.notification.create({
-        data: {
-          id: input.id,
-          eventType: NotificationEventType.ADMIN_BROADCAST,
-          title: input.title,
-          body: input.body,
-          deepLink: input.deepLink,
-          data: input.data,
-          recipients: {
-            create: userIds.map((userId) => ({
-              userId,
-              dedupeKey: `${input.id}:${userId}`,
-            })),
-          },
-        },
-      });
-    } catch (error: unknown) {
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
-    }
+    const recipients = [...new Map(
+      input.recipients
+        .filter((recipient) => Boolean(recipient.userId))
+        .map((recipient) => [`${recipient.userId}:${recipient.role}`, recipient]),
+    ).values()];
+    if (!recipients.length) return;
+    return enqueueOutboxEvent(prisma, {
+      eventType: 'ADMIN_BROADCAST',
+      aggregateType: 'SYSTEM',
+      aggregateId: input.id,
+      idempotencyKey: input.id,
+      payload: {
+        title: input.title,
+        body: input.body,
+        audience: 'TARGETED',
+        deepLink: input.deepLink,
+        targetRecipients: recipients,
+        metadata: input.data,
+      },
+    });
   }
 
   private async notifyNewSubscriptions() {
@@ -195,14 +193,14 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
         planId: subscription.planId,
         storeId: subscription.homeStoreId,
         nextDeliveryDate: subscription.nextDeliveryDate?.toISOString() || null,
-      } as Prisma.InputJsonValue;
+      };
       if (subscription.homeStore?.ownerId) {
         await this.createNotification({
           id: `subscription-forecast:${subscription.id}:store`,
           title: 'New subscription demand',
           body: `${subscription.plan.name} starts ${date}. Review future demand and confirm stock readiness before the delivery day.`,
           deepLink: '/store/subscriptions',
-          userIds: [subscription.homeStore.ownerId],
+          recipients: [{ userId: subscription.homeStore.ownerId, role: Role.STORE_OWNER }],
           data: metadata,
         });
       }
@@ -211,7 +209,7 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
         title: 'New subscription scheduled',
         body: `${subscription.customer.name || 'Customer'} · ${subscription.plan.name} · ${storeName} · first delivery ${date}.`,
         deepLink: '/admin/subscriptions',
-        userIds: admins.map((admin) => admin.id),
+        recipients: admins.map((admin) => ({ userId: admin.id, role: Role.ADMIN })),
         data: metadata,
       });
       await this.createNotification({
@@ -219,7 +217,7 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
         title: 'Subscription scheduled',
         body: `${subscription.plan.name} is scheduled. We will keep preparation, rider and delivery status updated.`,
         deepLink: '/shop/subscriptions',
-        userIds: [subscription.customerId],
+        recipients: [{ userId: subscription.customerId, role: Role.CUSTOMER }],
         data: metadata,
       });
     }
@@ -267,14 +265,14 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
         storeId: store?.id || null,
         deliveryRunId: delivery.runStop?.deliveryRun.id || null,
         routeCode,
-      } as Prisma.InputJsonValue;
+      };
       if (store?.ownerId) {
         await this.createNotification({
           id: `subscription-d1:${delivery.id}:store`,
           title: `${when}: subscription stock check`,
           body: `${delivery.subscription.plan.name} needs preparation for ${delivery.subscription.customer.name || 'a customer'}. Confirm stock readiness or report a shortage now.`,
           deepLink: '/store/subscriptions',
-          userIds: [store.ownerId],
+          recipients: [{ userId: store.ownerId, role: Role.STORE_OWNER }],
           data: metadata,
         });
       }
@@ -283,7 +281,7 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
         title: `${when}: subscription operations`,
         body: `${delivery.subscription.plan.name} · ${store?.name || 'store unresolved'}${routeCode ? ` · ${routeCode}` : ' · route pending'}.`,
         deepLink: '/admin/route-planning',
-        userIds: admins.map((admin) => admin.id),
+        recipients: admins.map((admin) => ({ userId: admin.id, role: Role.ADMIN })),
         data: metadata,
       });
       await this.createNotification({
@@ -291,7 +289,7 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
         title: `${when}: delivery preparation`,
         body: `${delivery.subscription.plan.name} is being prepared for your scheduled delivery.`,
         deepLink: '/shop/subscriptions',
-        userIds: [delivery.subscription.customerId],
+        recipients: [{ userId: delivery.subscription.customerId, role: Role.CUSTOMER }],
         data: metadata,
       });
     }
@@ -498,22 +496,22 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
       });
       if (decision === StoreStockReadinessDecision.SHORTAGE) {
         const admins = await tx.user.findMany({ where: { role: Role.ADMIN, isActive: true }, select: { id: true } });
-        const notificationId = `subscription-shortage:${audit.id}`;
-        await tx.notification.create({
-          data: {
-            id: notificationId,
-            eventType: NotificationEventType.ADMIN_BROADCAST,
+        await enqueueOutboxEvent(tx, {
+          eventType: 'ADMIN_BROADCAST',
+          aggregateType: 'SYSTEM',
+          aggregateId: delivery.id,
+          idempotencyKey: `subscription-shortage:${audit.id}`,
+          payload: {
             title: 'Subscription stock shortage',
             body: `${delivery.subscription.plan.name} needs intervention before ${delivery.serviceDate.toISOString().slice(0, 10)}. ${reason}`.slice(0, 500),
+            audience: 'TARGETED',
             deepLink: '/admin/subscriptions',
-            data: {
+            targetRecipients: admins.map((admin) => ({ userId: admin.id, role: Role.ADMIN })),
+            metadata: {
               kind: 'SUBSCRIPTION_STOCK_SHORTAGE',
               subscriptionId: delivery.subscriptionId,
               subscriptionDeliveryId: delivery.id,
               serviceDate: delivery.serviceDate.toISOString(),
-            },
-            recipients: {
-              create: admins.map((admin) => ({ userId: admin.id, dedupeKey: `${notificationId}:${admin.id}` })),
             },
           },
         });
