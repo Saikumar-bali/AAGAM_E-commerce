@@ -1,4 +1,5 @@
 import React from 'react';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useQuery } from '@tanstack/react-query';
 import { BarChart3, Bell, BriefcaseBusiness, House, Route, UserRound } from 'lucide-react-native';
@@ -80,14 +81,17 @@ export const RiderNavigator = () => {
       <Tab.Screen
         name="Operations"
         component={RiderOperationsRouterScreen}
-        options={{
+        options={({ route }) => ({
           title: 'Jobs',
           tabBarButtonTestID: 'tab_deliveries',
           tabBarAccessibilityLabel: 'Rider jobs and deliveries',
           tabBarIcon: ({ color, size, focused }) => (
             <BriefcaseBusiness size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.5 : 2} />
           ),
-        }}
+          tabBarStyle: ['RiderActiveJob', 'RiderPickup', 'RiderDelivery', 'RiderReturn'].includes(getFocusedRouteNameFromRoute(route) || 'RiderJobs')
+            ? { display: 'none' }
+            : undefined,
+        })}
       />
       <Tab.Screen
         name="Runs"
