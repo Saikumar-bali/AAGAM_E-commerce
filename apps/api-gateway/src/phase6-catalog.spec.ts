@@ -158,7 +158,8 @@ describe('Phase 6 catalog, serviceability, substitutes', () => {
   test('non-serviceable address is reported before checkout', async () => {
     const result = await checkoutService.serviceability(customer.id, farAddress.id);
     expect(result.serviceable).toBe(false);
-    expect(result.deliveryFee).toBe(0);
+    expect(result.deliveryFee).toBeGreaterThan(0);
+    expect(result.deliveryFeePaise).toBe(result.deliveryPricing.distanceFeePaise);
   });
 
   test('catalog search excludes inactive/deleted products and attaches stock state', async () => {
