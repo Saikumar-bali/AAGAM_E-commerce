@@ -94,7 +94,7 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
 
   onModuleInit() {
     if (process.env.NODE_ENV === 'test') return;
-    const intervalMs = Math.max(60_000, Number(process.env.SUBSCRIPTION_PREPARATION_INTERVAL_MS || 5 * 60_000));
+    const intervalMs = Math.max(60_000, Number(process.env.SUBSCRIPTION_PREPARATION_INTERVAL_MS || 60_000));
     this.timer = setInterval(() => void this.flush(), intervalMs);
     this.timer.unref?.();
     void this.flush();
@@ -424,7 +424,7 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
           updatedAt: readiness?.createdAt || null,
         },
         inventoryReservation: delivery.order ? 'RESERVED_BY_ORDER' : 'FORECAST_ONLY',
-        packingAvailableNow: Boolean(run && startOfUtcDay(run.serviceDate).getTime() <= from.getTime()),
+        packingAvailableNow: Boolean(run && startOfUtcDay(delivery.serviceDate).getTime() <= from.getTime()),
       };
     });
   }
