@@ -7,6 +7,7 @@ import { subscriptionService, type CustomerSubscription } from '../../api/subscr
 import {
   subscriptionSegmentCounts,
   subscriptionStatusGroups,
+  subscriptionTotalDeliveries,
   type SubscriptionSegment,
 } from '../../domain/subscriptionPresentation';
 import type { CustomerStackParamList } from '../../navigation/customerNavigationTypes';
@@ -23,7 +24,7 @@ export const MySubscriptionsScreen = () => {
   const rows = useMemo(() => subscriptions.filter((item) => subscriptionStatusGroups[segment].includes(item.status)), [subscriptions, segment]);
 
   const renderSubscription = ({ item }: { item: CustomerSubscription }) => {
-    const total = Number(item.planVersion?.totalDeliveries || item.completedDeliveries + item.remainingFundedDeliveries || 1);
+    const total = subscriptionTotalDeliveries(item);
     const progress = Math.min(100, Math.round(Number(item.completedDeliveries || 0) / total * 100));
     const imageUri = item.plan.mobileImageUrl || item.plan.imageUrl;
     return <Pressable style={styles.card} onPress={() => navigation.navigate('SubscriptionDetail', { subscriptionId: item.id })}>
