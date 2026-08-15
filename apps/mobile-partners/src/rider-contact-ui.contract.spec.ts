@@ -19,15 +19,18 @@ describe('Rider active-delivery contact and toast UI contract', () => {
     expect(secure).not.toContain('ServiceUnavailableException');
   });
 
-  it('shows direct Call/Message controls and keeps toasts below the device safe area', () => {
+  it('shows compact delivery actions and keeps toasts below the device safe area', () => {
     const screen = read('apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx');
     const app = read('apps/mobile-partners/App.tsx');
-    expect(screen).toContain('Delivery contact');
-    expect(screen).toContain('phone number saved with the customer delivery address');
+    expect(screen).toContain('QUICK ACTIONS');
+    expect(screen).toContain('Call ${targetRole.toLowerCase()} delivery contact');
+    expect(screen).toContain('Message ${targetRole.toLowerCase()} delivery contact');
     expect(screen).toContain('>Call</Text>');
     expect(screen).toContain('>Message</Text>');
+    expect(screen).toContain('>Support</Text>');
+    expect(screen).toContain('>Safety</Text>');
     expect(screen).toContain("['DELIVERY_FAILED', 'RETURNING_TO_STORE'].includes(activeJob.status)");
-    expect(screen).toContain('Call or message the store contact for this parcel return.');
+    expect(screen).toContain("const targetRole: 'CUSTOMER' | 'STORE' = headingToStore ? 'STORE' : 'CUSTOMER'");
     expect(screen).toContain("text1: 'Contact unavailable'");
     expect(app).toContain('useSafeAreaInsets');
     expect(app).toContain('topOffset={insets.top + 8}');
