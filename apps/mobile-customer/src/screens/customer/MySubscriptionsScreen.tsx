@@ -3,30 +3,24 @@ import { ActivityIndicator, FlatList, Image, Pressable, SafeAreaView, StyleSheet
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, CalendarClock, ChevronRight, PauseCircle, Plus, WalletCards } from 'lucide-react-native';
-import { subscriptionService, type CustomerSubscription, type SubscriptionStatus } from '../../api/subscriptionService';
+import { subscriptionService, type CustomerSubscription } from '../../api/subscriptionService';
+import {
+  subscriptionSegmentCounts,
+  subscriptionStatusGroups,
+  type SubscriptionSegment,
+} from '../../domain/subscriptionPresentation';
 import type { CustomerStackParamList } from '../../navigation/customerNavigationTypes';
 
-const groups: Record<string, SubscriptionStatus[]> = {
-  Active: ['ACTIVE', 'PAYMENT_DUE', 'GRACE_PERIOD'],
-  Upcoming: ['PENDING_CASH_COLLECTION'],
-  Paused: ['PAUSED'],
-  Completed: ['COMPLETED', 'CANCELLED'],
-};
 const date = (value?: string | null) => value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
 const money = (paise: number) => `₹${(Number(paise || 0) / 100).toLocaleString('en-IN')}`;
 
 export const MySubscriptionsScreen = () => {
   const navigation = useNavigation<NavigationProp<CustomerStackParamList>>();
-  const [segment, setSegment] = useState('Active');
+  const [segment, setSegment] = useState<SubscriptionSegment>('Active');
   const query = useQuery({ queryKey: ['my-subscriptions'], queryFn: subscriptionService.mine, refetchOnMount: 'always' });
   const subscriptions = useMemo(() => query.data ?? [], [query.data]);
-  const counts = useMemo(() => Object.fromEntries(
-    Object.entries(groups).map(([group, statuses]) => [
-      group,
-      subscriptions.filter((item) => statuses.includes(item.status)).length,
-    ]),
-  ) as Record<string, number>, [subscriptions]);
-  const rows = useMemo(() => subscriptions.filter((item) => groups[segment].includes(item.status)), [subscriptions, segment]);
+  const counts = useMemo(() => subscriptionSegmentCounts(subscriptions), [subscriptions]);
+  const rows = useMemo(() => subscriptions.filter((item) => subscriptionStatusGroups[segment].includes(item.status)), [subscriptions, segment]);
 
   const renderSubscription = ({ item }: { item: CustomerSubscription }) => {
     const total = Number(item.planVersion?.totalDeliveries || item.completedDeliveries + item.remainingFundedDeliveries || 1);
@@ -40,9 +34,9 @@ export const MySubscriptionsScreen = () => {
   };
 
   return <SafeAreaView style={styles.screen}><View style={styles.header}><Pressable onPress={() => navigation.goBack()} style={styles.icon}><ArrowLeft size={22} color="#173D32" /></Pressable><View style={styles.flex}><Text style={styles.eyebrow}>YOUR ROUTINE</Text><Text style={styles.title}>My subscriptions</Text></View><Pressable style={styles.add} onPress={() => navigation.navigate('SubscriptionPlans')}><Plus size={18} color="#FFFFFF" /></Pressable></View>
-    <View style={styles.segments}>{Object.keys(groups).map((item) => {
+    <View style={styles.segments}>{(Object.keys(subscriptionStatusGroups) as SubscriptionSegment[]).map((item) => {
       const selected = item === segment;
-      const count = counts[item] ?? 0;
+      const count = counts[item];
       return <Pressable
         key={item}
         accessibilityRole="button"
