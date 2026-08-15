@@ -374,15 +374,24 @@ export class AutoDispatchService {
       unavailableRiderIds.add(openOffer.riderProfileId);
     }
 
-    const maxPickupKm = this.maxPickupKm();
-    const ranked = candidates
+    const eligibleCandidates = candidates
       .filter((candidate) => {
         if (unavailableRiderIds.has(candidate.id)) return false;
         // BUSY is eligible only when it is derived from compatible, pre-pickup
         // work at this store. A bare BUSY status may be an administrator hold.
         return candidate.status === 'ONLINE' ||
           (activeJobsByRider.get(candidate.id)?.length || 0) > 0;
-      })
+      });
+    if (eligibleCandidates.length === 0) {
+      return {
+        deliveryJobId,
+        offered: false,
+        reason: 'NO_FRESH_AVAILABLE_RIDER',
+      };
+    }
+
+    const maxPickupKm = this.maxPickupKm();
+    const ranked = eligibleCandidates
       .map((rider) => ({
         rider,
         distanceKm: calculateDistance(
