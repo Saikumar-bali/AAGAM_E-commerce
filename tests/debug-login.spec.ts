@@ -26,10 +26,10 @@ test('debug login - capture ALL network', async ({ page }) => {
   });
 
   await page.goto(`${LIVE_SITE}/login`);
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
+  await page.waitForSelector('input[autocomplete="username"]', { timeout: 15000 });
   console.log('Login page loaded');
 
-  await page.fill('input[type="email"]', 'admin@aagam.com');
+  await page.fill('input[autocomplete="username"]', 'admin@aagam.com');
   await page.fill('input[type="password"]', 'TestPass123!');
   
   console.log('Clicking submit...');

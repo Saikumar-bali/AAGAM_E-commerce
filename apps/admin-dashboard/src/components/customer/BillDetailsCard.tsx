@@ -1,8 +1,14 @@
 'use client';
 
 import React from 'react';
-import { formatINR } from '@/lib/currency';
 import { Truck, ShieldCheck, Tag, Receipt } from 'lucide-react';
+
+const formatINR = (amount: number) => new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+}).format(Number.isFinite(amount) ? amount : 0);
 
 type BillItem = {
   name: string;
@@ -20,6 +26,13 @@ type BillDetailsCardProps = {
   grandTotal: number;
   storeName?: string | null;
   distanceKm?: number | null;
+  deliveryPricing?: {
+    ratePaisePerKm: number;
+    freeDeliveryMinimumPaise: number;
+    distanceFeePaise: number;
+    waivedByThreshold: boolean;
+  } | null;
+  showDeliveryOffer?: boolean;
   loading?: boolean;
 };
 
@@ -32,6 +45,8 @@ export default function BillDetailsCard({
   grandTotal,
   storeName,
   distanceKm,
+  deliveryPricing,
+  showDeliveryOffer = false,
   loading,
 }: BillDetailsCardProps) {
   if (loading) {
@@ -50,6 +65,12 @@ export default function BillDetailsCard({
     );
   }
 
+  const freeDeliveryMinimumPaise = deliveryPricing?.freeDeliveryMinimumPaise ?? 9_900;
+  const subtotalPaise = Math.round(subtotal * 100);
+  const freeDeliveryRemainingPaise = Math.max(0, freeDeliveryMinimumPaise - subtotalPaise);
+  const freeDeliveryUnlocked = freeDeliveryRemainingPaise === 0;
+  const ratePerKm = (deliveryPricing?.ratePaisePerKm ?? 150) / 100;
+
   return (
     <div className="rounded-2xl border border-slate-100 bg-white overflow-hidden">
       <div className="bg-gradient-to-r from-slate-950 to-slate-800 px-5 py-4">
@@ -60,10 +81,10 @@ export default function BillDetailsCard({
       </div>
 
       <div className="p-5">
-        <div className={`mb-4 rounded-xl border px-3 py-3 ${subtotal >= 199 ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
-          <p className={`text-xs font-black ${subtotal >= 199 ? 'text-emerald-800' : 'text-amber-900'}`}>{subtotal >= 199 ? 'Free delivery unlocked' : `Add ${formatINR(199 - subtotal)} for free delivery`}</p>
-          <p className="mt-1 text-[11px] font-semibold text-slate-600">Free delivery on orders of ₹199 or more.</p>
-        </div>
+        {showDeliveryOffer ? <div className={`mb-4 rounded-xl border px-3 py-3 ${freeDeliveryUnlocked ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+          <p className={`text-xs font-black ${freeDeliveryUnlocked ? 'text-emerald-800' : 'text-amber-900'}`}>{freeDeliveryUnlocked ? 'Free delivery unlocked' : `Add ${formatINR(freeDeliveryRemainingPaise / 100)} for free delivery`}</p>
+          <p className="mt-1 text-[11px] font-semibold text-slate-600">Delivery at {formatINR(ratePerKm)}/km. Free on orders of {formatINR(freeDeliveryMinimumPaise / 100)} or more.</p>
+        </div> : null}
         {storeName && (
           <div className="flex items-center gap-2 rounded-xl bg-teal-50 border border-teal-100 px-3 py-2 mb-4">
             <span className="text-xs font-bold text-teal-800">

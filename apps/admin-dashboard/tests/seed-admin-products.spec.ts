@@ -72,8 +72,8 @@ function buildDetails(data: any): Record<string, string> {
 
 async function login(page: Page) {
   await page.goto('/login');
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-  await page.fill('input[type="email"]', ADMIN_EMAIL);
+  await page.waitForSelector('input[autocomplete="username"]', { timeout: 15000 });
+  await page.fill('input[autocomplete="username"]', ADMIN_EMAIL);
   await page.fill('input[type="password"]', ADMIN_PASSWORD);
   await page.click('button[type="submit"]');
   await page.waitForURL('**/admin**', { timeout: 20000 });

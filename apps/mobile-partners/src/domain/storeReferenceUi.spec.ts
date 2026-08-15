@@ -1,5 +1,6 @@
 import {
   buildStorePickupReceipt,
+  formatStoreMoney,
   orderPaymentMethod,
   orderStatusTab,
   pickupStatusTab,
@@ -58,5 +59,10 @@ describe('store reference UI helpers', () => {
     expect(orderPaymentMethod({ payment: { method: 'COD' } })).toBe('COD');
     expect(orderPaymentMethod({ payment: { method: 'CARD' } })).toBe('Prepaid');
     expect(shortStoreOrderId('order-ABCDEFGH')).toBe('ABCDEFGH');
+  });
+
+  it('preserves fractional server-priced delivery fees for store Android', () => {
+    expect(formatStoreMoney(4.88)).toBe('₹4.88');
+    expect(formatStoreMoney(0)).toBe('₹0');
   });
 });
