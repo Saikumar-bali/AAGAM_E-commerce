@@ -314,7 +314,7 @@ export class AutoDispatchService {
       JOIN "User" AS account ON account."id" = rider."userId"
       JOIN "RiderAvailabilityLocation" AS location
         ON location."riderProfileId" = rider."id"
-      WHERE rider."status" = 'ONLINE'::"RiderStatus"
+      WHERE rider."status" IN ('ONLINE'::"RiderStatus", 'BUSY'::"RiderStatus")
         AND location."capturedAt" >= ${locationFreshAfter}
         ${recentRiderFilter}
     `);
@@ -337,7 +337,7 @@ export class AutoDispatchService {
           currentRiderId: { in: candidateIds },
           status: { in: ACTIVE_JOB_STATUSES as any },
         },
-        select: { currentRiderId: true },
+        select: { currentRiderId: true, status: true, order: { select: { storeId: true } } },
       }),
       prisma.dispatchAssignment.findMany({
         where: {
@@ -352,7 +352,15 @@ export class AutoDispatchService {
 
     const unavailableRiderIds = new Set<string>();
     for (const activeJob of activeJobs) {
-      if (activeJob.currentRiderId) unavailableRiderIds.add(activeJob.currentRiderId);
+      if (
+        activeJob.currentRiderId &&
+        (activeJob.order.storeId !== job.order.storeId ||
+          ![
+            DeliveryJobStatus.RIDER_ASSIGNED,
+            DeliveryJobStatus.RIDER_EN_ROUTE_TO_STORE,
+            DeliveryJobStatus.RIDER_AT_STORE,
+          ].includes(activeJob.status as any))
+      ) unavailableRiderIds.add(activeJob.currentRiderId);
     }
     for (const openOffer of openOffers) {
       unavailableRiderIds.add(openOffer.riderProfileId);
@@ -391,6 +399,7 @@ export class AutoDispatchService {
         riderUserId: candidate.rider.userId,
         expectedStoreLat: storeLat,
         expectedStoreLng: storeLng,
+        expectedStoreId: job.order.storeId,
         locationFreshAfter,
         maxPickupKm,
       }).catch((error: any) => {
@@ -420,6 +429,7 @@ export class AutoDispatchService {
     riderUserId: string;
     expectedStoreLat: number;
     expectedStoreLng: number;
+    expectedStoreId: string;
     locationFreshAfter: Date;
     maxPickupKm: number;
   }): Promise<AutoDispatchOutcome | null> {
@@ -427,7 +437,7 @@ export class AutoDispatchService {
       async (tx) => {
         const currentJob = await tx.deliveryJob.findUnique({
           where: { id: input.deliveryJobId },
-          select: { status: true, currentRiderId: true },
+          select: { status: true, currentRiderId: true, order: { select: { storeId: true } } },
         });
         if (
           !currentJob ||
@@ -455,7 +465,7 @@ export class AutoDispatchService {
           where: { id: input.riderProfileId },
           select: { id: true, userId: true, status: true },
         });
-        if (!rider || rider.status !== 'ONLINE') return null;
+        if (!rider || !['ONLINE', 'BUSY'].includes(rider.status)) return null;
 
         const locations = await tx.$queryRaw<Array<{
           latitude: number;
@@ -518,12 +528,12 @@ export class AutoDispatchService {
           );
         }
 
-        const activeJob = await tx.deliveryJob.findFirst({
+        const activeJobs = await tx.deliveryJob.findMany({
           where: {
             currentRiderId: rider.id,
             status: { in: ACTIVE_JOB_STATUSES as any },
           },
-          select: { id: true },
+          select: { id: true, status: true, order: { select: { storeId: true } } },
         });
         const otherOpenOffer = await tx.dispatchAssignment.findFirst({
           where: {
@@ -534,7 +544,15 @@ export class AutoDispatchService {
           },
           select: { id: true },
         });
-        if (activeJob || otherOpenOffer) return null;
+        const incompatibleJob = activeJobs.find((activeJob) =>
+          activeJob.order.storeId !== input.expectedStoreId ||
+          ![
+            DeliveryJobStatus.RIDER_ASSIGNED,
+            DeliveryJobStatus.RIDER_EN_ROUTE_TO_STORE,
+            DeliveryJobStatus.RIDER_AT_STORE,
+          ].includes(activeJob.status as any)
+        );
+        if (incompatibleJob || otherOpenOffer) return null;
 
         const currentDistance = calculateDistance(
           input.expectedStoreLat,

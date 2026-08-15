@@ -351,11 +351,25 @@ export class DeliveryJobService {
     });
 
     const activeCounts = new Map<string, number>();
+    const activeStoreIds = new Map<string, Set<string>>();
+    const addOnEligibleByRider = new Map<string, boolean>();
     for (const job of jobs) {
       if (job.currentRiderId && ACTIVE_JOB_STATUSES.includes(job.status)) {
         activeCounts.set(
           job.currentRiderId,
           (activeCounts.get(job.currentRiderId) || 0) + 1
+        );
+        const stores = activeStoreIds.get(job.currentRiderId) || new Set<string>();
+        stores.add(job.order.store.id);
+        activeStoreIds.set(job.currentRiderId, stores);
+        const eligibleStatus = [
+          DeliveryJobStatus.RIDER_ASSIGNED,
+          DeliveryJobStatus.RIDER_EN_ROUTE_TO_STORE,
+          DeliveryJobStatus.RIDER_AT_STORE,
+        ].includes(job.status as any);
+        addOnEligibleByRider.set(
+          job.currentRiderId,
+          (addOnEligibleByRider.get(job.currentRiderId) ?? true) && eligibleStatus
         );
       }
     }
@@ -384,11 +398,18 @@ export class DeliveryJobService {
       ),
       riders: riders.map((rider) => {
         const activeJobCount = activeCounts.get(rider.id) || 0;
+        const stores = [...(activeStoreIds.get(rider.id) || new Set<string>())];
+        const acceptingSameStoreOrders =
+          activeJobCount > 0 && stores.length === 1 && addOnEligibleByRider.get(rider.id) === true;
         return {
           ...rider,
           activeJobCount,
           activeOrderCount: activeJobCount,
-          available: rider.status === "ONLINE" && activeJobCount === 0,
+          activeStoreId: stores.length === 1 ? stores[0] : null,
+          acceptingSameStoreOrders,
+          available:
+            (rider.status === "ONLINE" && activeJobCount === 0) ||
+            (rider.status === "BUSY" && acceptingSameStoreOrders),
         };
       }),
       // Compatibility fields retained while clients move to delivery-job DTOs.
@@ -423,7 +444,7 @@ export class DeliveryJobService {
       data: { status: DispatchAssignmentStatus.EXPIRED, respondedAt: now },
     });
 
-    const [pendingOffers, activeJob, assignmentHistory] = await Promise.all([
+    const [pendingOffers, activeJobs, assignmentHistory] = await Promise.all([
       prisma.dispatchAssignment.findMany({
         where: {
           riderProfileId: rider.id,
@@ -435,13 +456,13 @@ export class DeliveryJobService {
         },
         orderBy: { offeredAt: "asc" },
       }),
-      prisma.deliveryJob.findFirst({
+      prisma.deliveryJob.findMany({
         where: {
           currentRiderId: rider.id,
           status: { in: ACTIVE_JOB_STATUSES as any },
         },
         include: jobInclude,
-        orderBy: { updatedAt: "desc" },
+        orderBy: [{ order: { deliveryWindowEnd: "asc" } }, { createdAt: "asc" }],
       }),
       prisma.dispatchAssignment.findMany({
         where: {
@@ -494,7 +515,8 @@ export class DeliveryJobService {
     return {
       rider,
       pendingOffers,
-      activeJob,
+      activeJobs,
+      activeJob: activeJobs[0] || null,
       assignmentHistory,
     };
   }

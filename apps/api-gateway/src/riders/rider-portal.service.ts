@@ -115,6 +115,17 @@ export class RiderPortalService {
     });
   }
 
+  private activeJobs(riderProfileId: string) {
+    return prisma.deliveryJob.findMany({
+      where: {
+        currentRiderId: riderProfileId,
+        status: { in: ACTIVE_STATUSES as any },
+      },
+      include: jobInclude,
+      orderBy: [{ order: { deliveryWindowEnd: "asc" } }, { createdAt: "asc" }],
+    });
+  }
+
   private encryptSensitive(value: string) {
     const secret = process.env.RIDER_BANK_ENCRYPTION_KEY;
     if (!secret || secret.length < 24)
@@ -148,7 +159,7 @@ export class RiderPortalService {
     });
     const [
       pendingOffers,
-      activeJob,
+      activeJobs,
       completedToday,
       alerts,
       unreadCount,
@@ -161,7 +172,7 @@ export class RiderPortalService {
           OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
         },
       }),
-      this.activeJob(rider.id),
+      this.activeJobs(rider.id),
       prisma.deliveryJob.count({
         where: {
           currentRiderId: rider.id,
@@ -183,7 +194,8 @@ export class RiderPortalService {
     return {
       rider: this.safeProfile(rider),
       pendingOffers,
-      activeJob,
+      activeJobs,
+      activeJob: activeJobs[0] || null,
       completedToday,
       currentBreak,
       unreadCount,
@@ -222,7 +234,8 @@ export class RiderPortalService {
 
   async currentDelivery(userId: string) {
     const rider = await this.rider(userId);
-    const job = await this.activeJob(rider.id);
+    const jobs = await this.activeJobs(rider.id);
+    const job = jobs[0];
     if (!job) return null;
     const operations = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT "id", "type"::text, "status"::text, "actorUserId", "actorRole"::text,
@@ -233,6 +246,22 @@ export class RiderPortalService {
       FROM "DeliveryOperation" WHERE "deliveryJobId" = ${job.id} ORDER BY "createdAt" ASC
     `);
     return { ...job, operations };
+  }
+
+  async currentDeliveries(userId: string) {
+    const rider = await this.rider(userId);
+    const jobs = await this.activeJobs(rider.id);
+    return Promise.all(jobs.map(async (job) => {
+      const operations = await prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT "id", "type"::text, "status"::text, "actorUserId", "actorRole"::text,
+               CASE WHEN "type" = 'OTP_ISSUED'::"DeliveryOperationType"
+                 THEN "details" - 'nonce' - 'salt' - 'codeHash'
+                 ELSE "details" END AS "details",
+               "createdAt"
+        FROM "DeliveryOperation" WHERE "deliveryJobId" = ${job.id} ORDER BY "createdAt" ASC
+      `);
+      return { ...job, operations };
+    }));
   }
 
   async history(userId: string, query: RiderHistoryQueryDto) {
@@ -255,32 +284,36 @@ export class RiderPortalService {
   }
 
   async pickup(userId: string) {
+    const tasks = await this.pickups(userId);
+    return tasks[0] || null;
+  }
+
+  async pickups(userId: string) {
     const rider = await this.rider(userId);
-    const job = await prisma.deliveryJob.findFirst({
+    const jobs = await prisma.deliveryJob.findMany({
       where: {
         currentRiderId: rider.id,
         status: { in: ["RIDER_AT_STORE", "PICKUP_VERIFIED"] as any },
       },
       include: jobInclude,
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ order: { deliveryWindowEnd: "asc" } }, { createdAt: "asc" }],
     });
-    if (!job) return null;
-    const existing = await prisma.riderPickupTask.findUnique({
-      where: { deliveryJobId: job.id },
-    });
-    const checklist = job.order.items.map((item: any) => ({
-      orderItemId: item.id,
-      productId: item.productId,
-      name: item.product.name,
-      expectedQuantity: item.quantity,
-      checkedQuantity: 0,
-    }));
-    const task =
-      existing ||
-      (await prisma.riderPickupTask.create({
+    return Promise.all(jobs.map(async (job) => {
+      const existing = await prisma.riderPickupTask.findUnique({
+        where: { deliveryJobId: job.id },
+      });
+      const checklist = job.order.items.map((item: any) => ({
+        orderItemId: item.id,
+        productId: item.productId,
+        name: item.product.name,
+        expectedQuantity: item.quantity,
+        checkedQuantity: 0,
+      }));
+      const task = existing || (await prisma.riderPickupTask.create({
         data: { riderProfileId: rider.id, deliveryJobId: job.id, checklist },
       }));
-    return { job, task };
+      return { job, task };
+    }));
   }
 
   async verifyPickup(

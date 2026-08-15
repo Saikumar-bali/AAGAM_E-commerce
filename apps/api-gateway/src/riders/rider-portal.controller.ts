@@ -63,6 +63,11 @@ export class RiderPortalController {
     return this.portal.currentDelivery(req.user.id);
   }
 
+  @Get("deliveries")
+  deliveries(@Req() req: any) {
+    return this.portal.currentDeliveries(req.user.id);
+  }
+
   @Get("history")
   history(@Req() req: any, @Query() query: RiderHistoryQueryDto) {
     return this.secure.history(req.user.id, query);
@@ -87,6 +92,11 @@ export class RiderPortalController {
   @Get("pickup")
   pickup(@Req() req: any) {
     return this.portal.pickup(req.user.id);
+  }
+
+  @Get("pickups")
+  pickups(@Req() req: any) {
+    return this.portal.pickups(req.user.id);
   }
 
   @Post("pickup/:deliveryJobId/verify")

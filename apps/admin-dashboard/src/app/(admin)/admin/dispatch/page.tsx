@@ -19,6 +19,8 @@ type Rider = {
   status: string;
   available?: boolean;
   activeOrderCount?: number;
+  activeStoreId?: string | null;
+  acceptingSameStoreOrders?: boolean;
   user?: {
     name?: string | null;
     phone?: string | null;
@@ -36,7 +38,7 @@ type Order = {
   grandTotal?: number;
   createdAt: string;
   customer?: { name?: string | null; phone?: string | null };
-  store?: { name?: string | null; address?: string | null };
+  store?: { id?: string; name?: string | null; address?: string | null };
   rider?: { user?: { name?: string | null } };
   items?: Array<{
     id: string;
@@ -138,6 +140,16 @@ export default function AdminDispatchPage() {
     [board.riders, riderIdsWithOpenOffer],
   );
 
+  const availableRidersForOrder = useCallback(
+    (order: Order) =>
+      availableRiders.filter(
+        (rider) =>
+          !rider.activeStoreId ||
+          (rider.acceptingSameStoreOrders && rider.activeStoreId === order.store?.id),
+      ),
+    [availableRiders],
+  );
+
   const openOfferByJob = useMemo(
     () =>
       new Map(
@@ -149,7 +161,7 @@ export default function AdminDispatchPage() {
   const assignRider = async (order: Order) => {
     const riderUserId = selectedRiders[order.id];
     const deliveryJobId = order.deliveryJob?.id;
-    const selectedRiderIsAvailable = availableRiders.some(
+    const selectedRiderIsAvailable = availableRidersForOrder(order).some(
       (rider) => rider.userId === riderUserId,
     );
     if (
@@ -332,11 +344,14 @@ export default function AdminDispatchPage() {
                         className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
                       >
                         <option value="">Select available rider</option>
-                        {availableRiders.map((rider) => (
+                        {availableRidersForOrder(order).map((rider) => (
                           <option key={rider.userId} value={rider.userId}>
                             {rider.user?.name ||
                               rider.user?.email ||
                               rider.userId.slice(0, 8)}
+                            {rider.activeOrderCount
+                              ? ` · ${rider.activeOrderCount} from this store`
+                              : ''}
                           </option>
                         ))}
                       </select>

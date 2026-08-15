@@ -19,6 +19,8 @@ import {
   ACTIVE_JOB_STATUSES,
 } from "./delivery-job.service";
 import { DeliveryWorkflowService } from "./delivery-workflow.service";
+import { reconcileRiderOperationalStatus } from "../riders/rider-operational-status";
+import { canAddOrderFromStore } from "./same-store-multi-order";
 
 type Actor = { id: string; role: Role };
 
@@ -94,20 +96,27 @@ export class DispatchAssignmentService {
             where: { userId: riderUserId },
           });
           if (!rider) throw new NotFoundException("Rider profile not found");
-          if (rider.status !== "ONLINE") {
-            throw new ConflictException("Rider must be online and available");
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`same-store-rider:${rider.id}`}))`;
+          if (!["ONLINE", "BUSY"].includes(rider.status)) {
+            throw new ConflictException("Rider must be online or actively collecting from this store");
           }
 
-          const activeJob = await tx.deliveryJob.findFirst({
+          const activeJobs = await tx.deliveryJob.findMany({
             where: {
               currentRiderId: rider.id,
               status: { in: ACTIVE_JOB_STATUSES as any },
             },
-            select: { id: true, orderId: true, status: true },
+            select: { id: true, orderId: true, status: true, order: { select: { storeId: true } } },
           });
-          if (activeJob) {
+          if (!canAddOrderFromStore(
+            activeJobs.map((activeJob) => ({
+              storeId: activeJob.order.storeId,
+              status: activeJob.status,
+            })),
+            job.order.storeId,
+          )) {
             throw new ConflictException(
-              `Rider already has active delivery ${activeJob.id}`
+              "Rider can add orders only from the same store before pickup"
             );
           }
 
@@ -277,20 +286,27 @@ export class DispatchAssignmentService {
           throw new ConflictException("Assignment offer has expired");
         }
 
-        const activeJob = await tx.deliveryJob.findFirst({
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`same-store-rider:${assignment.riderProfileId}`}))`;
+
+        const activeJobs = await tx.deliveryJob.findMany({
           where: {
             currentRiderId: assignment.riderProfileId,
             id: { not: assignment.deliveryJobId },
             status: { in: ACTIVE_JOB_STATUSES as any },
           },
-          select: { id: true },
+          select: { id: true, status: true, order: { select: { storeId: true } } },
         });
-        if (activeJob) {
+        if (!canAddOrderFromStore(
+          activeJobs.map((activeJob) => ({
+            storeId: activeJob.order.storeId,
+            status: activeJob.status,
+          })),
+          assignment.deliveryJob.order.storeId,
+        )) {
           throw new ConflictException(
-            `Complete active delivery ${activeJob.id} before accepting another`
+            "Only same-store orders can be added before pickup"
           );
         }
-
         const accepted = await tx.dispatchAssignment.updateMany({
           where: {
             id: assignment.id,
@@ -427,10 +443,7 @@ export class DispatchAssignmentService {
               metadata: { assignmentId: assignment.id, reason: reason || null },
             }
           );
-          await tx.riderProfile.update({
-            where: { id: assignment.riderProfileId },
-            data: { status: "ONLINE" },
-          });
+          await reconcileRiderOperationalStatus(tx, assignment.riderProfileId);
         }
 
         await this.events.record(
