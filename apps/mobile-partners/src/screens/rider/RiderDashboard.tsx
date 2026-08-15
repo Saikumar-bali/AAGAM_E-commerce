@@ -22,9 +22,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
-  PermissionsAndroid,
-  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -47,6 +44,11 @@ import {
   isTrackableDeliveryStatus,
   offerSecondsRemaining,
 } from '../../domain/riderWorkspace';
+import {
+  ensureRiderOnlineService,
+  performRiderOfflineTransition,
+  performRiderOnlineTransition,
+} from '../../services/RiderAvailabilityController';
 import { RiderOnlineService } from '../../services/RiderOnlineService';
 import { RiderTrackingManager } from '../../services/RiderTrackingManager';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
@@ -55,55 +57,6 @@ function errorMessage(error: any) {
   const value = error?.response?.data?.message;
   if (Array.isArray(value)) return value.join(', ');
   return value || error?.message || 'The rider operation could not be completed.';
-}
-
-function currentLocation() {
-  return new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
-    Geolocation.getCurrentPosition(
-      (position) => resolve({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      }),
-      (error) => reject(new Error(error?.message || 'Enable precise GPS and try again.')),
-      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5_000 },
-    );
-  });
-}
-
-async function requestRiderLocationPermission() {
-  if (Platform.OS !== 'android') return true;
-  const fine = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
-  const fineResult = await PermissionsAndroid.check(fine)
-    ? PermissionsAndroid.RESULTS.GRANTED
-    : await PermissionsAndroid.request(fine, {
-        title: 'Allow rider location',
-        message: 'Aagaam Partners uses precise location while you are online and fulfilling deliveries.',
-        buttonPositive: 'Allow',
-        buttonNegative: 'Not now',
-      });
-  if (fineResult !== PermissionsAndroid.RESULTS.GRANTED) return false;
-  if (Number(Platform.Version) < 29) return true;
-
-  const background = PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION;
-  if (await PermissionsAndroid.check(background)) return true;
-  const result = await PermissionsAndroid.request(background, {
-    title: 'Allow background rider location',
-    message: 'Choose Allow all the time so dispatch can keep your availability fresh.',
-    buttonPositive: 'Continue',
-    buttonNegative: 'Not now',
-  });
-  if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
-  if (Number(Platform.Version) >= 30) {
-    Alert.alert(
-      'Allow background location',
-      'Open App permissions → Location and choose Allow all the time.',
-      [
-        { text: 'Not now', style: 'cancel' },
-        { text: 'Open settings', onPress: () => Linking.openSettings().catch(() => undefined) },
-      ],
-    );
-  }
-  return false;
 }
 
 function shortId(value?: string | null) {
@@ -185,16 +138,13 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
       return;
     }
     let cancelled = false;
-    void requestRiderLocationPermission().then(async (permitted) => {
-      if (cancelled) return;
-      if (!permitted) {
-        setPermissionMissing(true);
-        await RiderOnlineService.stop().catch(() => undefined);
-        return;
-      }
-      await RiderOnlineService.start(user?.name || 'Rider').catch(() => undefined);
-      if (!cancelled) setPermissionMissing(false);
-    });
+    void ensureRiderOnlineService(user?.name || 'Rider')
+      .then((ready) => {
+        if (!cancelled) setPermissionMissing(!ready);
+      })
+      .catch(() => {
+        if (!cancelled) setPermissionMissing(true);
+      });
     return () => { cancelled = true; };
   }, [riderStatus, user?.name]);
 
@@ -212,24 +162,11 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
     setStatusBusy(true);
     try {
       if (online) {
-        const permitted = await requestRiderLocationPermission();
-        if (!permitted) {
-          setPermissionMissing(true);
-          throw new Error('Background location is required before going online.');
-        }
-        await currentLocation();
-        await riderService.updateMyStatus('ONLINE');
-        try {
-          await RiderOnlineService.start(user?.name || 'Rider');
-        } catch (serviceError) {
-          await riderService.updateMyStatus('OFFLINE').catch(() => undefined);
-          throw serviceError;
-        }
+        await performRiderOnlineTransition(user?.name || 'Rider');
         setPermissionMissing(false);
       } else {
         await trackingManager.stop('RIDER_OFFLINE');
-        await RiderOnlineService.stop().catch(() => undefined);
-        await riderService.updateMyStatus('OFFLINE');
+        await performRiderOfflineTransition();
         setPermissionMissing(false);
       }
       await queryClient.invalidateQueries({ queryKey: RIDER_WORKSPACE_QUERY_KEY });
@@ -239,7 +176,11 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
         text2: online ? 'Dispatch can now send delivery offers.' : 'Offers and location heartbeats are paused.',
       });
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Availability update failed', text2: errorMessage(error) });
+      const message = errorMessage(error);
+      if (/background location|required.*location permission|location permission.*required/i.test(message)) {
+        setPermissionMissing(true);
+      }
+      Toast.show({ type: 'error', text1: 'Availability update failed', text2: message });
     } finally {
       statusBusyRef.current = false;
       setStatusBusy(false);
