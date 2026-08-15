@@ -130,7 +130,7 @@ function LoginPageContent() {
     if (!target) return;
     target.innerHTML = '';
     window.google.accounts.id.initialize({ client_id: googleClientId, callback: window.handleGoogleCredentialResponse, auto_select: false });
-    window.google.accounts.id.renderButton(target, { type: 'standard', shape: 'pill', theme: 'outline', text: 'continue_with', size: 'large', width: 360 });
+    window.google.accounts.id.renderButton(target, { type: 'standard', shape: 'pill', theme: 'outline', text: 'continue_with', size: 'large', width: Math.min(360, target.clientWidth || 360) });
   };
 
   useEffect(() => {
@@ -176,11 +176,48 @@ function LoginPageContent() {
           {mode === 'PHONE' && masked && newCustomer ? <div className="mb-4 space-y-3 rounded-2xl border border-teal-100 bg-teal-50 p-4"><p className="text-sm font-black text-teal-900">Complete your new customer profile</p><p className="text-xs font-semibold text-teal-800">The verified mobile number creates your account automatically.</p><input value={profileName} onChange={(event) => setProfileName(event.target.value)} className="enterprise-input bg-white" placeholder="Full name" autoComplete="name" /><input value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} className="enterprise-input bg-white" placeholder="Email (optional)" type="email" autoComplete="email" /></div> : null}
           {mode === 'PHONE' ? !masked ? <div className="space-y-4"><label className="block"><span className="mb-2 block text-sm font-black">Mobile number</span><span className="relative block"><Phone className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-teal-700" /><input value={phone} onChange={(event) => setPhone(event.target.value.replace(/\D/g, '').slice(0, 10))} className="enterprise-input pl-12" placeholder="10-digit mobile number" inputMode="numeric" autoComplete="tel-national" maxLength={10} /></span></label><button onClick={requestCode} disabled={loading || phone.length !== 10} className="enterprise-button w-full gap-2 disabled:cursor-not-allowed disabled:opacity-50">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Send OTP <ArrowRight className="h-4 w-4" /></>}</button></div> : <div className="space-y-4"><p className="text-center text-sm font-bold text-slate-600">Code sent to {masked}</p><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} className="enterprise-input text-center text-2xl font-black tracking-[.5em]" placeholder="000000" inputMode="numeric" maxLength={6} autoFocus autoComplete="one-time-code" /><button onClick={verifyCode} disabled={loading || code.length !== 6} className="enterprise-button w-full">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Verify and sign in'}</button><button onClick={() => countdown === 0 ? requestCode() : undefined} disabled={countdown > 0} className="w-full text-sm font-black text-teal-700 disabled:text-slate-400">{countdown > 0 ? `Resend in 00:${String(countdown).padStart(2, '0')}` : 'Resend OTP'}</button><button onClick={() => { setMasked(''); setCode(''); }} className="w-full text-xs font-bold text-slate-500">Change mobile number</button></div> : <form className="space-y-4" onSubmit={passwordLogin} noValidate={automationPasswordMode}><label className="block"><span className="mb-2 block text-sm font-black">Phone number or email</span><span className="relative block"><Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" /><input type={automationPasswordMode ? 'email' : 'text'} aria-label={automationPasswordMode ? 'Email address Phone number or email' : 'Phone number or email'} required value={identifier} onChange={(event) => setIdentifier(event.target.value)} className="enterprise-input pl-12" placeholder="Phone or email" inputMode={automationPasswordMode ? 'email' : 'text'} autoComplete="username" /></span></label><label className="block"><span className="mb-2 block text-sm font-black">Password</span><span className="relative block"><Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" /><input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="enterprise-input pl-12" autoComplete="current-password" /></span></label><button type="submit" disabled={loading} className="enterprise-button w-full">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Continue'}</button></form>}
           <div className="mt-4 text-center"><Link href="/forgot-password" className="text-sm font-black text-teal-700 hover:text-teal-800">Forgot your password?</Link></div>
-          <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-[.2em] text-slate-400"><span className="h-px flex-1 bg-slate-200" />or<span className="h-px flex-1 bg-slate-200" /></div><div id="google-signin-button" className="flex min-h-[44px] items-center justify-center" />{googleLoading ? <p className="mt-2 text-center text-xs font-semibold text-slate-500">Verifying Google sign-in…</p> : null}
+          <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-[.2em] text-slate-400"><span className="h-px flex-1 bg-slate-200" />or<span className="h-px flex-1 bg-slate-200" /></div>
+          <div className="relative h-11 w-full">
+            <button type="button" onClick={() => { if (!window.google) setError('Google sign-in is still loading. Please check your connection and try again.'); }} className="flex h-11 w-full items-center justify-center gap-3 rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
+              <GoogleIcon />Continue with Google
+            </button>
+            <div id="google-signin-button" className="pointer-events-none absolute inset-0 z-10 flex h-11 w-full items-center justify-center overflow-hidden opacity-[.01] [&>div]:pointer-events-auto" />
+          </div>
+          {googleLoading ? <p className="mt-2 text-center text-xs font-semibold text-slate-500">Verifying Google sign-in…</p> : null}
         </section>
+      </div>
+      <div className="shrink-0 pb-1 pt-2 lg:absolute lg:bottom-5 lg:left-10 lg:pb-0 lg:pt-0">
+        <div className="flex items-center justify-center gap-1 rounded-2xl border border-white/15 bg-slate-950/40 px-2 py-1.5 text-white shadow-xl backdrop-blur-xl lg:justify-start">
+          <SocialLink href="https://www.instagram.com/aagaam" label="Instagram"><BrandIcon name="instagram" /></SocialLink>
+          <SocialLink href="https://www.facebook.com/aagaam" label="Facebook"><BrandIcon name="facebook" /></SocialLink>
+          <SocialLink href="https://www.youtube.com/@aagaam" label="YouTube"><BrandIcon name="youtube" /></SocialLink>
+          <span className="mx-1 h-4 w-px bg-white/15" />
+          <a href="tel:+918340064486" aria-label="Call Aagaam at 83400 64486" className="inline-flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-extrabold text-white/85 transition hover:bg-white/10 hover:text-teal-200">
+            <Phone className="h-4 w-4" /><span>+91 83400 64486</span>
+          </a>
+        </div>
       </div>
     </div>
   </main>;
+}
+
+function SocialLink({ href, label, children }: { href: string; label: string; children: React.ReactNode }) {
+  return <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`Follow Aagaam on ${label}`} title={label} className="grid h-10 w-10 place-items-center rounded-xl text-white transition hover:-translate-y-0.5 hover:bg-white/15 hover:text-teal-200">{children}</a>;
+}
+
+function BrandIcon({ name }: { name: 'instagram' | 'facebook' | 'youtube' }) {
+  if (name === 'instagram') return <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-none stroke-current stroke-[2]"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" className="fill-current stroke-none"/></svg>;
+  if (name === 'facebook') return <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M18.77 7.46H14.5v-1.9c0-.9.6-1.11 1.02-1.11h3.18V.02L14.33 0C9.97 0 9 3.32 9 5.45v2.01H6.23V12H9v12h5.5V12h3.72l.55-4.54Z"/></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.65 4.6 12 4.6 12 4.6s-5.65 0-7.5.5a3 3 0 0 0-2.1 2.1A31 31 0 0 0 1.9 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.85.5 7.5.5 7.5.5s5.65 0 7.5-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8ZM10 15.2V8.8l5.5 3.2-5.5 3.2Z"/></svg>;
+}
+
+function GoogleIcon() {
+  return <svg viewBox="0 0 48 48" aria-hidden="true" className="h-5 w-5 shrink-0">
+    <path fill="#FFC107" d="M43.61 20.08H42V20H24v8h11.3C33.65 32.66 29.22 36 24 36c-6.63 0-12-5.37-12-12s5.37-12 12-12c3.06 0 5.84 1.15 7.96 3.04l5.66-5.66A19.92 19.92 0 0 0 24 4C12.95 4 4 12.95 4 24s8.95 20 20 20 20-8.95 20-20c0-1.34-.14-2.65-.39-3.92Z"/>
+    <path fill="#FF3D00" d="m6.31 14.69 6.57 4.82A12 12 0 0 1 24 12c3.06 0 5.86 1.15 7.98 3.04l5.66-5.66A19.9 19.9 0 0 0 24 4 20 20 0 0 0 6.31 14.69Z"/>
+    <path fill="#4CAF50" d="M24 44c5.3 0 10.13-2.03 13.76-5.35l-6.35-5.38A11.9 11.9 0 0 1 24 36a12 12 0 0 1-11.1-7.45l-6.52 5.02A20 20 0 0 0 24 44Z"/>
+    <path fill="#1976D2" d="M43.61 20.08H42V20H24v8h11.3a12.04 12.04 0 0 1-3.9 5.27l6.36 5.38C37.31 39.06 44 34 44 24c0-1.31-.14-2.65-.39-3.92Z"/>
+  </svg>;
 }
 
 export default function LoginPage() {
