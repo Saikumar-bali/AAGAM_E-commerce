@@ -1,5 +1,12 @@
+import fs from 'fs';
+import path from 'path';
 import { customerOrderAmountSummary, formatOrderAmount } from './orderPresentation';
 import { subscriptionSegmentCounts, subscriptionTotalDeliveries } from './subscriptionPresentation';
+
+const orderDetailSource = fs.readFileSync(
+  path.resolve(__dirname, '../screens/customer/OrderDetailScreen.tsx'),
+  'utf8',
+);
 
 describe('customer subscription presentation', () => {
   it('shows the full cash obligation for a subscription order instead of occurrence accounting value', () => {
@@ -87,5 +94,15 @@ describe('customer subscription presentation', () => {
       completedDeliveries: 0,
       remainingFundedDeliveries: 0,
     })).toBe(30);
+  });
+
+  it('keeps the order-detail hero, items and bill summary subscription-aware', () => {
+    expect(orderDetailSource).toContain('customerOrderAmountSummary({');
+    expect(orderDetailSource).toContain('payment: trackingPayload?.payment');
+    expect(orderDetailSource).toContain('{amountSummary.label}');
+    expect(orderDetailSource).toContain('formatOrderAmount(amountSummary.amountRupees)');
+    expect(orderDetailSource).toContain('Included in plan');
+    expect(orderDetailSource).toContain('subscription delivery');
+    expect(orderDetailSource).not.toContain('<Text style={styles.totalText}>{money(pricing.grandTotal)}</Text>');
   });
 });

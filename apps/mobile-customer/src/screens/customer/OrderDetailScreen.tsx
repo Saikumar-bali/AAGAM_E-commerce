@@ -13,6 +13,10 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient, TrackingMap, useSocket } from "@aagam/mobile-shared";
 import { normalizeOrderLine, normalizeOrderPricing } from "@aagam/utils";
 import { DeliveryCodeCard } from "../../components/orders/DeliveryCodeCard";
+import {
+  customerOrderAmountSummary,
+  formatOrderAmount,
+} from "../../domain/orderPresentation";
 
 const money = (value: number) =>
   `₹${value.toLocaleString("en-IN", {
@@ -22,9 +26,24 @@ const money = (value: number) =>
 
 const deliveryWindow = (order: any) => {
   if (!order?.deliveryWindowStart || !order?.deliveryWindowEnd) return null;
-  const start = new Date(order.deliveryWindowStart); const end = new Date(order.deliveryWindowEnd);
-  const date = start.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
-  return `${date} · ${start.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}–${end.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}`;
+  const start = new Date(order.deliveryWindowStart);
+  const end = new Date(order.deliveryWindowEnd);
+  const date = start.toLocaleDateString("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  });
+  return `${date} · ${start.toLocaleTimeString("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Kolkata",
+  })}–${end.toLocaleTimeString("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Kolkata",
+  })}`;
 };
 
 const TrackingStateBanner = ({
@@ -40,9 +59,7 @@ const TrackingStateBanner = ({
         <View style={styles.bannerContainer}>
           <View style={[styles.banner, styles.bannerWaiting]}>
             <View style={styles.bannerDot} />
-            <Text style={styles.bannerText}>
-              Waiting for rider assignment...
-            </Text>
+            <Text style={styles.bannerText}>Waiting for rider assignment...</Text>
           </View>
         </View>
       );
@@ -76,9 +93,7 @@ const TrackingStateBanner = ({
         <View style={styles.bannerContainer}>
           <View style={[styles.banner, styles.bannerDelivered]}>
             <View style={[styles.bannerDot, { backgroundColor: "#10B981" }]} />
-            <Text style={[styles.bannerText, { color: "#065F46" }]}>
-              Order delivered!
-            </Text>
+            <Text style={[styles.bannerText, { color: "#065F46" }]}>Order delivered!</Text>
           </View>
         </View>
       );
@@ -87,9 +102,7 @@ const TrackingStateBanner = ({
         <View style={styles.bannerContainer}>
           <View style={[styles.banner, styles.bannerCancelled]}>
             <View style={[styles.bannerDot, { backgroundColor: "#EF4444" }]} />
-            <Text style={[styles.bannerText, { color: "#991B1B" }]}>
-              Order was cancelled
-            </Text>
+            <Text style={[styles.bannerText, { color: "#991B1B" }]}>Order was cancelled</Text>
           </View>
         </View>
       );
@@ -163,6 +176,7 @@ export const OrderDetailScreen = () => {
   const etaMinutes = liveTracking?.etaMinutes ?? tracking?.etaMinutes;
   const distanceKm = liveTracking?.distanceKm ?? tracking?.distanceKm;
   const lastPingAt = latestLocation?.createdAt || tracking?.lastPingAt;
+
   const buildMarkers = () => {
     const markers: Array<{
       latitude: number;
@@ -170,41 +184,45 @@ export const OrderDetailScreen = () => {
       type: "store" | "delivery" | "rider";
       label?: string;
     }> = [];
-    if (trackingPayload?.store?.latitude && trackingPayload?.store?.longitude)
+    if (trackingPayload?.store?.latitude && trackingPayload?.store?.longitude) {
       markers.push({
         latitude: trackingPayload.store.latitude,
         longitude: trackingPayload.store.longitude,
         type: "store",
         label: trackingPayload.store.name || "Store",
       });
+    }
     const deliveryLat = order?.deliveryLat ?? order?.addressSnapshot?.latitude;
     const deliveryLng = order?.deliveryLng ?? order?.addressSnapshot?.longitude;
-    if (typeof deliveryLat === "number" && typeof deliveryLng === "number")
+    if (typeof deliveryLat === "number" && typeof deliveryLng === "number") {
       markers.push({
         latitude: deliveryLat,
         longitude: deliveryLng,
         type: "delivery",
         label: "Delivery",
       });
-    if (latestLocation?.latitude && latestLocation?.longitude)
+    }
+    if (latestLocation?.latitude && latestLocation?.longitude) {
       markers.push({
         latitude: latestLocation.latitude,
         longitude: latestLocation.longitude,
         type: "rider",
         label: trackingPayload?.rider?.name || "Rider",
       });
-    else if (
+    } else if (
       trackingPayload?.rider?.latitude &&
       trackingPayload?.rider?.longitude
-    )
+    ) {
       markers.push({
         latitude: trackingPayload.rider.latitude,
         longitude: trackingPayload.rider.longitude,
         type: "rider",
         label: trackingPayload?.rider?.name || "Rider",
       });
+    }
     return markers;
   };
+
   const buildRoutePath = () =>
     !tracking?.routePath || tracking.routePath.length < 2
       ? []
@@ -212,6 +230,7 @@ export const OrderDetailScreen = () => {
           latitude: point.latitude,
           longitude: point.longitude,
         }));
+
   const getPingAgeText = () => {
     if (!lastPingAt) return "No location data";
     const ageSeconds = Math.floor(
@@ -222,18 +241,20 @@ export const OrderDetailScreen = () => {
       : `${Math.floor(ageSeconds / 60)}m ago`;
   };
 
-  if (isLoading)
+  if (isLoading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#0F766E" />
       </View>
     );
-  if (error || !order)
+  }
+  if (error || !order) {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorText}>Unable to load order details.</Text>
       </View>
     );
+  }
 
   const address = order.addressSnapshot;
   const currentItems = Array.isArray(trackingPayload?.items)
@@ -255,26 +276,46 @@ export const OrderDetailScreen = () => {
       : order,
     orderItems
   );
+  const amountSummary = customerOrderAmountSummary({
+    ...order,
+    payment: trackingPayload?.payment,
+  });
+  const isSubscription = amountSummary.isSubscription;
   const canReview = order.status === "DELIVERED";
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.heroCard}>
-        <Text style={styles.orderId}>
-          Order #{order.id.slice(-8).toUpperCase()}
-        </Text>
+        <Text style={styles.orderId}>Order #{order.id.slice(-8).toUpperCase()}</Text>
         <Text style={styles.statusText}>{order.status.replace(/_/g, " ")}</Text>
-        <Text style={styles.metaText}>
-          {new Date(order.createdAt).toLocaleString()}
-        </Text>
-        <Text style={styles.totalText}>{money(pricing.grandTotal)}</Text>
+        <Text style={styles.metaText}>{new Date(order.createdAt).toLocaleString()}</Text>
+        <Text style={styles.amountLabel}>{amountSummary.label}</Text>
+        <Text style={styles.totalText}>{formatOrderAmount(amountSummary.amountRupees)}</Text>
+        {isSubscription ? (
+          <Text style={styles.subscriptionHeroNote}>
+            {amountSummary.amountRupees > 0
+              ? "This cash collection funds your subscription. The delivery item value is not an extra charge."
+              : "This delivery is already funded by your subscription."}
+          </Text>
+        ) : null}
       </View>
-      {deliveryWindow(order) ? <View style={styles.scheduleCard}><Text style={styles.scheduleTitle}>Scheduled delivery</Text><Text style={styles.scheduleValue}>{deliveryWindow(order)}</Text><Text style={styles.scheduleHelp}>Your store prepares this order within the scheduled delivery window.</Text></View> : null}
+
+      {deliveryWindow(order) ? (
+        <View style={styles.scheduleCard}>
+          <Text style={styles.scheduleTitle}>Scheduled delivery</Text>
+          <Text style={styles.scheduleValue}>{deliveryWindow(order)}</Text>
+          <Text style={styles.scheduleHelp}>
+            Your store prepares this order within the scheduled delivery window.
+          </Text>
+        </View>
+      ) : null}
+
       <TrackingStateBanner
         state={trackingState}
         riderName={trackingPayload?.rider?.name}
       />
       <DeliveryCodeCard orderId={order.id} />
+
       {["LIVE", "STALE", "ASSIGNED_NO_LOCATION"].includes(trackingState) ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Live Tracking</Text>
@@ -313,9 +354,7 @@ export const OrderDetailScreen = () => {
                 <TouchableOpacity
                   testID="order_detail_call_rider"
                   style={styles.callBtn}
-                  onPress={() =>
-                    Linking.openURL(`tel:${trackingPayload.rider.phone}`)
-                  }
+                  onPress={() => Linking.openURL(`tel:${trackingPayload.rider.phone}`)}
                 >
                   <Text style={styles.callBtnText}>Call Rider</Text>
                 </TouchableOpacity>
@@ -324,6 +363,7 @@ export const OrderDetailScreen = () => {
           ) : null}
         </View>
       ) : null}
+
       {canReview ? (
         <TouchableOpacity
           testID="order_detail_review_button"
@@ -333,6 +373,7 @@ export const OrderDetailScreen = () => {
           <Text style={styles.reviewButtonText}>Review order</Text>
         </TouchableOpacity>
       ) : null}
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Timeline</Text>
         {(trackingPayload.timeline || []).map((event: any) => (
@@ -355,13 +396,12 @@ export const OrderDetailScreen = () => {
               <Text style={styles.bodyText}>
                 {new Date(event.createdAt).toLocaleString()}
               </Text>
-              {event.note ? (
-                <Text style={styles.bodyText}>{event.note}</Text>
-              ) : null}
+              {event.note ? <Text style={styles.bodyText}>{event.note}</Text> : null}
             </View>
           </View>
         ))}
       </View>
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Delivery Address</Text>
         {address ? (
@@ -380,6 +420,7 @@ export const OrderDetailScreen = () => {
           <Text style={styles.bodyText}>Address snapshot unavailable.</Text>
         )}
       </View>
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Items</Text>
         {orderItems.map((item: any, index: number) => {
@@ -391,39 +432,79 @@ export const OrderDetailScreen = () => {
                   {item.name || item.product?.name || "Item"}
                 </Text>
                 <Text style={styles.bodyText}>
-                  {line.quantity} × {money(line.unitPrice)}
+                  {isSubscription
+                    ? `${line.quantity} × subscription delivery`
+                    : `${line.quantity} × ${money(line.unitPrice)}`}
                 </Text>
               </View>
-              <Text style={styles.boldText}>{money(line.lineTotal)}</Text>
+              <Text style={styles.boldText}>
+                {isSubscription ? "Included" : money(line.lineTotal)}
+              </Text>
             </View>
           );
         })}
-      </View>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Bill Summary</Text>
-        <View style={styles.summaryRow}>
-          <Text style={styles.bodyText}>Subtotal</Text>
-          <Text style={styles.boldText}>{money(pricing.subtotal)}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.bodyText}>Delivery fee</Text>
-          <Text style={styles.boldText}>
-            {pricing.deliveryFee === 0 ? "FREE" : money(pricing.deliveryFee)}
-          </Text>
-        </View>
-        {pricing.discountAmount > 0 ? (
-          <View style={styles.summaryRow}>
-            <Text style={styles.bodyText}>Discount</Text>
-            <Text style={styles.discountText}>
-              -{money(pricing.discountAmount)}
+        {isSubscription ? (
+          <View style={styles.subscriptionInfoBox}>
+            <Text style={styles.subscriptionInfoTitle}>Subscription pricing</Text>
+            <Text style={styles.subscriptionInfoText}>
+              The item above is part of your recurring plan. Your payable amount for this delivery is shown in Cash due, not as a separate item charge.
             </Text>
           </View>
         ) : null}
-        <View style={[styles.summaryRow, styles.totalRow]}>
-          <Text style={styles.totalLabel}>Grand Total</Text>
-          <Text style={styles.totalValue}>{money(pricing.grandTotal)}</Text>
-        </View>
       </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Bill Summary</Text>
+        {isSubscription ? (
+          <>
+            <View style={styles.summaryRow}>
+              <Text style={styles.bodyText}>Subscription delivery</Text>
+              <Text style={styles.boldText}>Included in plan</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.bodyText}>Delivery fee</Text>
+              <Text style={styles.boldText}>
+                {pricing.deliveryFee === 0 ? "FREE" : money(pricing.deliveryFee)}
+              </Text>
+            </View>
+            <View style={[styles.summaryRow, styles.totalRow]}>
+              <Text style={styles.totalLabel}>{amountSummary.label}</Text>
+              <Text style={styles.totalValue}>
+                {formatOrderAmount(amountSummary.amountRupees)}
+              </Text>
+            </View>
+            <Text style={styles.billHelpText}>
+              {amountSummary.amountRupees > 0
+                ? "This is the amount to collect for the subscription funding event."
+                : "No cash should be collected for this funded delivery."}
+            </Text>
+          </>
+        ) : (
+          <>
+            <View style={styles.summaryRow}>
+              <Text style={styles.bodyText}>Subtotal</Text>
+              <Text style={styles.boldText}>{money(pricing.subtotal)}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.bodyText}>Delivery fee</Text>
+              <Text style={styles.boldText}>
+                {pricing.deliveryFee === 0 ? "FREE" : money(pricing.deliveryFee)}
+              </Text>
+            </View>
+            {pricing.discountAmount > 0 ? (
+              <View style={styles.summaryRow}>
+                <Text style={styles.bodyText}>Discount</Text>
+                <Text style={styles.discountText}>-{money(pricing.discountAmount)}</Text>
+              </View>
+            ) : null}
+            <View style={[styles.summaryRow, styles.totalRow]}>
+              <Text style={styles.totalLabel}>Grand Total</Text>
+              <Text style={styles.totalValue}>{money(pricing.grandTotal)}</Text>
+            </View>
+          </>
+        )}
+      </View>
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Payment</Text>
         <Text style={styles.bodyText}>
@@ -432,6 +513,11 @@ export const OrderDetailScreen = () => {
         <Text style={styles.bodyText}>
           Status: {trackingPayload.payment?.status || "N/A"}
         </Text>
+        {isSubscription ? (
+          <Text style={styles.paymentAmountText}>
+            {amountSummary.label}: {formatOrderAmount(amountSummary.amountRupees)}
+          </Text>
+        ) : null}
         <Text style={styles.bodyText}>
           Store: {trackingPayload.store?.name || "Assigned Store"}
         </Text>
@@ -458,11 +544,26 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   metaText: { marginTop: 6, color: "#E6FFFA" },
-  totalText: {
+  amountLabel: {
     marginTop: 14,
+    color: "#99F6E4",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  totalText: {
+    marginTop: 3,
     color: "#FFFFFF",
     fontSize: 30,
     fontWeight: "800",
+  },
+  subscriptionHeroNote: {
+    marginTop: 8,
+    color: "#CCFBF1",
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 16,
   },
   card: {
     marginTop: 16,
@@ -472,10 +573,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  scheduleCard: { marginTop: 12, borderRadius: 16, backgroundColor: "#ECFDF5", padding: 14, borderWidth: 1, borderColor: "#A7F3D0" },
-  scheduleTitle: { color: "#047857", fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
-  scheduleValue: { marginTop: 4, color: "#064E3B", fontSize: 15, fontWeight: "900" },
-  scheduleHelp: { marginTop: 4, color: "#047857", fontSize: 11, fontWeight: "700" },
+  scheduleCard: {
+    marginTop: 12,
+    borderRadius: 16,
+    backgroundColor: "#ECFDF5",
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  scheduleTitle: {
+    color: "#047857",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  scheduleValue: {
+    marginTop: 4,
+    color: "#064E3B",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  scheduleHelp: {
+    marginTop: 4,
+    color: "#047857",
+    fontSize: 11,
+    fontWeight: "700",
+  },
   cardTitle: {
     fontSize: 18,
     fontWeight: "800",
@@ -567,7 +690,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#94A3B8",
   },
-  bannerText: { fontSize: 13, fontWeight: "700", color: "#475569", flex: 1 },
+  bannerText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#475569",
+    flex: 1,
+  },
   bannerWaiting: {
     backgroundColor: "#F1F5F9",
     borderWidth: 1,
@@ -606,6 +734,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 6,
+    gap: 12,
   },
   discountText: { color: "#047857", fontWeight: "900" },
   totalRow: {
@@ -616,4 +745,38 @@ const styles = StyleSheet.create({
   },
   totalLabel: { color: "#0F172A", fontSize: 16, fontWeight: "900" },
   totalValue: { color: "#0F766E", fontSize: 20, fontWeight: "900" },
+  subscriptionInfoBox: {
+    marginTop: 4,
+    borderRadius: 14,
+    backgroundColor: "#F0FDFA",
+    borderWidth: 1,
+    borderColor: "#99F6E4",
+    padding: 12,
+  },
+  subscriptionInfoTitle: {
+    color: "#115E59",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  subscriptionInfoText: {
+    marginTop: 4,
+    color: "#0F766E",
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "600",
+  },
+  billHelpText: {
+    marginTop: 10,
+    color: "#64748B",
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "600",
+  },
+  paymentAmountText: {
+    marginTop: 8,
+    color: "#0F766E",
+    fontSize: 14,
+    fontWeight: "900",
+  },
 });
