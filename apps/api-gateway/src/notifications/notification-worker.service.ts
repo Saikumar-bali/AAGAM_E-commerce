@@ -1,7 +1,11 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import { prisma } from '@aagam/database';
+import { DeliveryJobStatus, prisma } from '@aagam/database';
 import { AutoDispatchService } from '../orders/auto-dispatch.service';
+import {
+  failureRiderReleaseAfterMs,
+  reconcileRiderOperationalStatus,
+} from '../riders/rider-operational-status';
 import { NotificationService } from './notification.service';
 import { OutboxService } from './outbox.service';
 
@@ -12,6 +16,7 @@ export type NotificationBatchResult = {
   skipped: boolean;
   expiredAssignments: number;
   backfilledExpiryEvents: number;
+  releasedBusyRiders: number;
 };
 
 @Injectable()
@@ -97,6 +102,29 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
     }
   }
 
+  private async reconcileBusyRiderStatuses(limit = 50) {
+    const cutoff = new Date(Date.now() - failureRiderReleaseAfterMs());
+    const staleJobs = await prisma.deliveryJob.findMany({
+      where: {
+        status: DeliveryJobStatus.DELIVERY_FAILED,
+        currentRider: { status: 'BUSY' },
+        failureDecisions: {
+          some: { status: 'DECIDED', appliedAt: null, createdAt: { lt: cutoff } },
+        },
+      },
+      select: { currentRiderId: true },
+      distinct: ['currentRiderId'],
+      take: Math.max(1, Math.min(100, limit)),
+    });
+    let released = 0;
+    for (const { currentRiderId } of staleJobs) {
+      if (!currentRiderId) continue;
+      const next = await reconcileRiderOperationalStatus(prisma, currentRiderId);
+      if (next === 'ONLINE') released += 1;
+    }
+    return released;
+  }
+
   private async reconcileExpiredAssignments(limit = 100) {
     const now = new Date();
     let expiredNow = 0;
@@ -175,6 +203,7 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
         skipped: true,
         expiredAssignments: 0,
         backfilledExpiryEvents: 0,
+        releasedBusyRiders: 0,
       };
     }
 
@@ -200,6 +229,24 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
         });
       }
 
+      // Release Riders pinned BUSY by DELIVERY_FAILED jobs whose resolution
+      // decisions went stale without action. Without this sweep such a Rider
+      // stays unactionable in the app (switch disabled, no retryable job) and
+      // never returns to dispatch rotation.
+      let releasedBusyRiders = 0;
+      if (this.autoDispatch) {
+        releasedBusyRiders = await this.reconcileBusyRiderStatuses().catch(
+          (error) => {
+            this.logger.warn(
+              `Busy Rider reconcile sweep failed: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+            return 0;
+          },
+        );
+      }
+
       const events = await this.outbox.claimBatch(limit);
       for (const event of events) {
         try {
@@ -219,6 +266,7 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
         skipped: false,
         expiredAssignments: expiry.expiredNow,
         backfilledExpiryEvents: expiry.backfilled,
+        releasedBusyRiders: releasedBusyRiders,
       };
     } finally {
       this.running = false;

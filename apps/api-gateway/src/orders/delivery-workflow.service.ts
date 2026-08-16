@@ -324,6 +324,7 @@ export class DeliveryWorkflowService {
     );
 
     if (
+      nextStatus === DeliveryJobStatus.DELIVERY_FAILED ||
       nextStatus === DeliveryJobStatus.WAITING_FOR_DISPATCH ||
       nextStatus === DeliveryJobStatus.DELIVERED ||
       nextStatus === DeliveryJobStatus.RETURNED_TO_STORE ||

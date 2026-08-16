@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Role, prisma } from '@aagam/database';
+import { Prisma, Role, prisma, DeliveryJobStatus } from '@aagam/database';
 import * as bcrypt from 'bcrypt';
 import { activeUserRoles } from '../auth/user-roles';
 import {
@@ -13,7 +13,7 @@ import {
   normalizePhoneE164,
 } from '../contact-verification/contact-otp.service';
 import { AutoDispatchService } from '../orders/auto-dispatch.service';
-import { ACTIVE_JOB_STATUSES } from '../orders/delivery-job.service';
+import { isOccupyingDeliveryJob } from './rider-operational-status';
 import {
   AdminUpdateRiderStatusDto,
   UpdateMyRiderStatusDto,
@@ -404,14 +404,35 @@ export class RiderService {
     return { latitude: data.latitude!, longitude: data.longitude! };
   }
 
-  private activeJob(tx: DbClient, riderProfileId: string) {
-    return tx.deliveryJob.findFirst({
+  private async activeJob(tx: DbClient, riderProfileId: string) {
+    const candidates = await tx.deliveryJob.findMany({
       where: {
         currentRiderId: riderProfileId,
-        status: { in: ACTIVE_JOB_STATUSES as any },
+        status: {
+          notIn: [
+            DeliveryJobStatus.DELIVERED,
+            DeliveryJobStatus.RETURNED_TO_STORE,
+            DeliveryJobStatus.CANCELLED,
+          ] as any,
+        },
       },
-      select: { id: true, status: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 5,
+      select: {
+        id: true,
+        status: true,
+        failureDecisions: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            status: true,
+            createdAt: true,
+            appliedAt: true,
+          },
+        },
+      },
     });
+    return candidates.find((job) => isOccupyingDeliveryJob(job)) || null;
   }
 
   private lockStatus(tx: DbClient, riderUserId: string) {
