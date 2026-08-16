@@ -41,6 +41,7 @@ type Order = {
   rider?: RiderInfo | null;
   subscriptionId?: string | null;
   subscriptionSequence?: number | null;
+  subscription?: { id: string; planVersion?: { pricePaise?: number | null } } | null;
 };
 
 function scheduledWindow(order: Order) {
@@ -398,7 +399,9 @@ export default function OrdersPage() {
                       {Number(
                         order.payment?.method === "COD" &&
                           order.payment?.amountPaise
-                          ? order.payment.amountPaise
+                          ? order.payment.amountPaise / 100
+                          : order.subscription?.planVersion?.pricePaise
+                          ? order.subscription.planVersion.pricePaise / 100
                           : order.grandTotal
                       ).toLocaleString("en-IN")}
                     </p>
@@ -417,7 +420,7 @@ export default function OrdersPage() {
                         {order.payment.method} · {order.payment.status}
                         {order.payment.method === "COD" &&
                           order.payment.amountPaise
-                          ? ` · ₹${Number(order.payment.amountPaise).toLocaleString("en-IN")} collect`
+                          ? ` · ₹${Number(order.payment.amountPaise / 100).toLocaleString("en-IN")} collect`
                           : ""}
                       </p>
                     )}
@@ -426,6 +429,9 @@ export default function OrdersPage() {
                         Subscription
                         {order.subscriptionSequence
                           ? ` · Day ${order.subscriptionSequence}`
+                          : ""}
+                        {order.subscription?.planVersion?.pricePaise
+                          ? ` · ₹${Number(order.subscription.planVersion.pricePaise / 100).toLocaleString("en-IN")} value`
                           : ""}
                       </p>
                     )}

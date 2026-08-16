@@ -492,6 +492,12 @@ export class OrderService {
             user: { select: { name: true } },
           },
         },
+        subscription: {
+          select: {
+            id: true,
+            planVersion: { select: { pricePaise: true } },
+          },
+        },
         statusHistory: { orderBy: { createdAt: 'desc' }, take: 5 },
       },
       orderBy: { createdAt: 'desc' },
