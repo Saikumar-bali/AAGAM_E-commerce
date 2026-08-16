@@ -375,6 +375,61 @@ export class StoreService {
     return deleted;
   }
 
+  async permanentDelete(id: string) {
+    const store = await prisma.store.findUnique({
+      where: { id },
+      select: { id: true, name: true, ownerId: true, deletedAt: true },
+    });
+    if (!store) throw new NotFoundException('Store not found');
+    if (!store.deletedAt) {
+      throw new BadRequestException('Only deleted stores can be permanently deleted. Soft-delete the store first.');
+    }
+
+    const [orderCount, inventoryCount, ledgerCount, deliveryRunCount, depositBatchCount] = await prisma.$transaction([
+      prisma.order.count({ where: { storeId: id } }),
+      prisma.inventory.count({ where: { storeId: id } }),
+      prisma.inventoryLedger.count({ where: { storeId: id } }),
+      prisma.deliveryRun.count({ where: { storeId: id } }),
+      prisma.cashDepositBatch.count({ where: { storeId: id } }),
+    ]);
+    const blockers: string[] = [];
+    if (orderCount > 0) blockers.push(`${orderCount} orders`);
+    if (inventoryCount > 0) blockers.push(`${inventoryCount} inventory items`);
+    if (ledgerCount > 0) blockers.push(`${ledgerCount} inventory ledger entries`);
+    if (deliveryRunCount > 0) blockers.push(`${deliveryRunCount} delivery runs`);
+    if (depositBatchCount > 0) blockers.push(`${depositBatchCount} cash deposit batches`);
+    if (blockers.length > 0) {
+      throw new ConflictException(
+        `Store "${store.name}" cannot be permanently deleted: it still has ${blockers.join(', ')}. Restore the store and clean up its operational records first.`,
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.inventoryLedger.deleteMany({ where: { storeId: id } });
+      await tx.inventory.deleteMany({ where: { storeId: id } });
+
+      const otherStores = await tx.store.count({
+        where: { ownerId: store.ownerId, id: { not: id } },
+      });
+      if (otherStores === 0) {
+        await tx.$executeRawUnsafe(
+          `UPDATE "UserRoleMembership"
+           SET "status" = 'REVOKED', "revokedAt" = CURRENT_TIMESTAMP
+           WHERE "userId" = $1 AND "role" = 'STORE_OWNER' AND "status" = 'ACTIVE'`,
+          store.ownerId,
+        );
+        await tx.user.update({
+          where: { id: store.ownerId },
+          data: { isActive: false, deactivatedAt: new Date(), deactivationReason: 'Store permanently deleted by admin' },
+        });
+      }
+
+      await tx.store.delete({ where: { id } });
+    });
+    await this.invalidateCommerceCache();
+    return { id, name: store.name, permanentlyDeleted: true };
+  }
+
   async updateInventory(
     storeId: string,
     productId: string,

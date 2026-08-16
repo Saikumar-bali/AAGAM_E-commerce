@@ -108,6 +108,13 @@ export class StoreController {
     return this.storeService.restore(id);
   }
 
+  @Delete(':id/permanent')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async permanentDelete(@Param('id') id: string) {
+    return this.storeService.permanentDelete(id);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.storeService.findOne(id);

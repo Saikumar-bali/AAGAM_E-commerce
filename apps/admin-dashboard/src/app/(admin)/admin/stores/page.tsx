@@ -7,6 +7,7 @@ import { InternalPartnerCreateButton } from '@/components/InternalPartnerOnboard
 import { useToast, getToastErrorMessage } from '@/components/ToastProvider';
 import { apiClient } from '@aagam/utils';
 import {
+  AlertTriangle,
   CheckCircle,
   Edit,
   Loader2,
@@ -61,6 +62,9 @@ export default function AdminStoresPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<EditForm>({ name: '', address: '', latitude: null, longitude: null, isActive: true });
+  const [permanentDeleteStore, setPermanentDeleteStore] = useState<StoreRecord | null>(null);
+  const [permanentConfirmText, setPermanentConfirmText] = useState('');
+  const [permanentDeleting, setPermanentDeleting] = useState(false);
 
   const fetchStores = async () => {
     try {
@@ -156,6 +160,22 @@ export default function AdminStoresPage() {
     }
   };
 
+  const permanentDelete = async () => {
+    if (!permanentDeleteStore) return;
+    setPermanentDeleting(true);
+    try {
+      await apiClient.delete(`/stores/${permanentDeleteStore.id}/permanent`);
+      toast.success('Store permanently deleted.');
+      setPermanentDeleteStore(null);
+      setPermanentConfirmText('');
+      await fetchStores();
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'Store could not be permanently deleted.'));
+    } finally {
+      setPermanentDeleting(false);
+    }
+  };
+
   return (
     <DashboardLayout allowedRole="ADMIN">
       <div className="mb-8">
@@ -196,7 +216,7 @@ export default function AdminStoresPage() {
                 <td className="px-6 py-4"><div className="max-w-xs"><p className="truncate text-sm font-semibold text-gray-700">{store.address}</p><p className="mt-1 flex items-center gap-1 text-xs text-gray-400"><MapPin className="h-3 w-3" />{Number(store.latitude).toFixed(4)}, {Number(store.longitude).toFixed(4)}</p></div></td>
                 <td className="px-6 py-4">{store.deletedAt ? <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700">Deleted</span> : store.isActive ? <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">Active</span> : <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">Inactive</span>}</td>
                 <td className="px-6 py-4"><span className="inline-flex items-center gap-1 text-sm font-bold text-gray-700"><Package className="h-4 w-4 text-purple-500" />{store.inventory?.length || 0} products</span></td>
-                <td className="px-6 py-4 text-right">{store.deletedAt ? <button onClick={() => void restore(store)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700"><RotateCcw className="h-4 w-4" /> Restore</button> : <div className="flex justify-end gap-1"><button onClick={() => openEdit(store)} className="rounded-lg p-2 text-gray-400 hover:bg-blue-50 hover:text-blue-600" title="Edit store"><Edit className="h-4 w-4" /></button><button onClick={() => void remove(store)} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600" title="Delete store"><Trash2 className="h-4 w-4" /></button></div>}</td>
+                <td className="px-6 py-4 text-right">{store.deletedAt ? <div className="flex justify-end gap-1"><button onClick={() => void restore(store)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700"><RotateCcw className="h-4 w-4" /> Restore</button><button onClick={() => { setPermanentConfirmText(''); setPermanentDeleteStore(store); }} className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-3 py-2 text-xs font-black text-red-700"><Trash2 className="h-4 w-4" /> Delete permanently</button></div> : <div className="flex justify-end gap-1"><button onClick={() => openEdit(store)} className="rounded-lg p-2 text-gray-400 hover:bg-blue-50 hover:text-blue-600" title="Edit store"><Edit className="h-4 w-4" /></button><button onClick={() => void remove(store)} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600" title="Delete store"><Trash2 className="h-4 w-4" /></button></div>}</td>
               </tr>)}
             </tbody>
           </table>
@@ -213,6 +233,25 @@ export default function AdminStoresPage() {
               <StoreLocationPicker apiClient={apiClient} compact coords={{ lat: form.latitude, lng: form.longitude }} onCoordsChange={(latitude, longitude) => setForm((current) => ({ ...current, latitude, longitude }))} onAddressChange={(address) => setForm((current) => ({ ...current, address: address.address || current.address }))} searchPlaceholder="Search store location..." />
               <label className="flex items-center gap-3 rounded-xl bg-gray-50 p-4 text-sm font-black text-gray-700"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} /> Store is active</label>
               <button onClick={() => void saveEdit()} disabled={saving} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 font-black text-white disabled:opacity-50">{saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle className="h-5 w-5" />} Save store</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {permanentDeleteStore ? (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-start gap-4 border-b border-red-100 bg-red-50/60 p-5">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-red-100 text-red-600"><AlertTriangle className="h-6 w-6" /></div>
+              <div><p className="text-xs font-black uppercase tracking-widest text-red-600">Irreversible action</p><h2 className="mt-1 text-xl font-black text-gray-900">Permanently delete {permanentDeleteStore.name}?</h2></div>
+            </div>
+            <div className="space-y-4 p-5">
+              <p className="text-sm font-semibold leading-relaxed text-gray-600">This removes the store from the platform forever, including its inventory and assortment. It cannot be restored. If the store has orders, delivery runs, cash deposits or ledger history, the delete will be blocked to protect financial records.</p>
+              <label className="block text-sm font-black text-gray-700">Type <span className="rounded bg-red-100 px-1.5 py-0.5 font-mono text-red-700">DELETE</span> to confirm<input value={permanentConfirmText} onChange={(event) => setPermanentConfirmText(event.target.value)} placeholder="DELETE" className="mt-2 min-h-12 w-full rounded-xl border border-red-200 px-4 font-mono text-sm font-black uppercase tracking-widest focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-300" /></label>
+              <div className="flex gap-3">
+                <button onClick={() => { setPermanentDeleteStore(null); setPermanentConfirmText(''); }} disabled={permanentDeleting} className="min-h-12 flex-1 rounded-xl border border-gray-200 bg-white px-4 font-black text-gray-700 disabled:opacity-50">Cancel</button>
+                <button onClick={() => void permanentDelete()} disabled={permanentDeleting || permanentConfirmText.trim().toUpperCase() !== 'DELETE'} className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 font-black text-white disabled:opacity-40">{permanentDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />} Delete permanently</button>
+              </div>
             </div>
           </div>
         </div>
