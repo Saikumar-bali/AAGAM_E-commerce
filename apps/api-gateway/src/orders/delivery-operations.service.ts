@@ -12,6 +12,7 @@ import {
   CodSettlementStatus,
   DeliveryResolutionAction,
   DeliveryResolutionStatus,
+  OrderStatus,
   PaymentMethod,
   PaymentStatus,
   PickupChallengeStatus,
@@ -21,6 +22,7 @@ import {
   prisma,
 } from "@aagam/database";
 import { DeliveryJobStatus, NotificationEventTypeType } from "@aagam/types";
+import { reconcileRiderOperationalStatus } from "../riders/rider-operational-status";
 import {
   createHash,
   createHmac,
@@ -34,6 +36,7 @@ import { calculateDistance } from "@aagam/utils";
 import {
   AdminForceCompleteDeliveryDto,
   CollectCodDto,
+  AdminReconcileOrderDto,
   CompleteDeliveryOperationDto,
   ConfirmStoreHandoffDto,
   DeliveryFailureReason,
@@ -1324,6 +1327,86 @@ export class DeliveryOperationsService {
       });
       await this.reconcileSubscriptionAfterDelivery(tx, job, actor);
       return delivered;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  /**
+   * Reconciles a delivery job left non-terminal because its order was already
+   * closed as DELIVERED through the plain order-status path while the job was
+   * still active (for example when an administrator marks an order delivered
+   * from the orders dashboard). Completes the job, cancels outstanding
+   * assignments, records an admin delivery proof, and releases the rider so
+   * dispatch capacity is not pinned BUSY by a finished order.
+   */
+  async adminReconcileDeliveredOrder(
+    deliveryJobId: string,
+    actor: Actor,
+    input: AdminReconcileOrderDto,
+    idempotencyKey?: string,
+  ) {
+    if (actor.role !== Role.ADMIN) {
+      throw new ForbiddenException("Only an administrator can reconcile a delivery job");
+    }
+    const reason = input.reason.trim();
+    const key = idempotencyKey || `admin-reconcile-job:${deliveryJobId}`;
+    return prisma.$transaction(async (tx) => {
+      await this.lock(tx, `delivery-reconcile:${deliveryJobId}`);
+      const job = await this.job(tx, deliveryJobId);
+      if (job.status === DeliveryJobStatus.DELIVERED) {
+        await this.reconcileSubscriptionAfterDelivery(tx, job, actor);
+        return job;
+      }
+      if ([DeliveryJobStatus.CANCELLED, DeliveryJobStatus.RETURNED_TO_STORE].includes(job.status)) {
+        throw new ConflictException(`Cannot reconcile delivery from ${job.status}`);
+      }
+      if (job.order.status !== OrderStatus.DELIVERED) {
+        throw new ConflictException(`Order is ${job.order.status}; use admin force-complete to deliver it`);
+      }
+      if (!job.currentRiderId) {
+        throw new BadRequestException("Delivery has no assigned Rider");
+      }
+
+      const now = new Date();
+      await tx.dispatchAssignment.updateMany({
+        where: {
+          deliveryJobId,
+          status: { in: ["CREATED", "OFFERED", "ACCEPTED"] },
+        },
+        data: { status: "CANCELLED", respondedAt: now },
+      });
+      const proof = job.deliveryProof || await tx.deliveryProof.create({
+        data: {
+          deliveryJobId,
+          orderId: job.orderId,
+          riderId: job.currentRiderId,
+          customerUserId: job.order.customerId,
+          verificationMethod: "SECURITY_RECEPTION",
+          proofReference: key,
+          riderConfirmedAt: now,
+          verifiedAt: now,
+          note: `ADMIN RECONCILE: ${reason}`,
+        },
+      });
+      await this.createOperation(tx, {
+        deliveryJobId,
+        orderId: job.orderId,
+        type: "DELIVERY_PROOF_RECORDED",
+        actor,
+        idempotencyKey: key,
+        details: { adminOverride: true, reconcile: true, reason, deliveryProofId: proof.id },
+      });
+      const changed = await tx.deliveryJob.updateMany({
+        where: { id: deliveryJobId, status: job.status, version: job.version },
+        data: { status: DeliveryJobStatus.DELIVERED, version: { increment: 1 } },
+      });
+      if (changed.count !== 1) {
+        throw new ConflictException("Delivery job was updated by another request");
+      }
+      if (job.currentRiderId) {
+        await reconcileRiderOperationalStatus(tx, job.currentRiderId);
+      }
+      await this.reconcileSubscriptionAfterDelivery(tx, job, actor);
+      return tx.deliveryJob.findUnique({ where: { id: deliveryJobId } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 

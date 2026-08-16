@@ -159,6 +159,13 @@ export class AdminForceCompleteDeliveryDto {
   codAmountPaise!: number;
 }
 
+export class AdminReconcileOrderDto {
+  @IsString()
+  @MinLength(10)
+  @MaxLength(500)
+  reason!: string;
+}
+
 export class CollectCodDto {
   @IsInt()
   @Min(1)

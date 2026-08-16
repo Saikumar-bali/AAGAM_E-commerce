@@ -15,6 +15,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { CodSettlementFacadeService } from "./cod-settlement-facade.service";
 import {
   AdminForceCompleteDeliveryDto,
+  AdminReconcileOrderDto,
   CollectCodDto,
   CompleteDeliveryOperationDto,
   ConfirmStoreHandoffDto,
@@ -222,6 +223,22 @@ export class DeliveryOperationsController {
     @Headers("idempotency-key") idempotencyKey?: string
   ) {
     return this.operations.adminForceCompleteDelivery(
+      deliveryJobId,
+      req.user,
+      body,
+      idempotencyKey
+    );
+  }
+
+  @Post("jobs/:deliveryJobId/admin-reconcile-order")
+  @Roles(Role.ADMIN)
+  adminReconcileOrder(
+    @Param("deliveryJobId") deliveryJobId: string,
+    @Body() body: AdminReconcileOrderDto,
+    @Req() req: any,
+    @Headers("idempotency-key") idempotencyKey?: string
+  ) {
+    return this.operations.adminReconcileDeliveredOrder(
       deliveryJobId,
       req.user,
       body,

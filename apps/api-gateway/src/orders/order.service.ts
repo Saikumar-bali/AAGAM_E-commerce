@@ -60,6 +60,34 @@ export class OrderService {
     });
   }
 
+  private async completeAssociatedDeliveryJob(orderId: string, tx: any) {
+    const deliveryJob = await tx.deliveryJob.findUnique({
+      where: { orderId },
+    });
+
+    if (!deliveryJob || deliveryJob.status === 'DELIVERED') {
+      return;
+    }
+
+    const terminalStatuses = ['CANCELLED', 'RETURNED_TO_STORE'];
+    if (terminalStatuses.includes(deliveryJob.status)) {
+      return;
+    }
+
+    await tx.deliveryJob.update({
+      where: { id: deliveryJob.id },
+      data: { status: 'DELIVERED', version: { increment: 1 } },
+    });
+
+    await tx.dispatchAssignment.updateMany({
+      where: {
+        deliveryJobId: deliveryJob.id,
+        status: { in: ['CREATED', 'OFFERED', 'ACCEPTED'] },
+      },
+      data: { status: 'CANCELLED', respondedAt: new Date() },
+    });
+  }
+
   private async cancelAssociatedDeliveryJob(orderId: string, tx: any) {
     const deliveryJob = await tx.deliveryJob.findUnique({
       where: { orderId },
@@ -587,6 +615,7 @@ export class OrderService {
       }
 
       if (nextStatus === OrderStatus.DELIVERED) {
+        await this.completeAssociatedDeliveryJob(id, tx);
         const orderItems = await tx.orderItem.findMany({ where: { orderId: id } });
         for (const item of orderItems) {
           const existing = await tx.inventory.findUnique({
@@ -614,10 +643,7 @@ export class OrderService {
     });
 
     if (updated.riderId && nextStatus === OrderStatus.DELIVERED) {
-      await prisma.riderProfile.update({
-        where: { id: updated.riderId },
-        data: { status: 'ONLINE' },
-      }).catch(() => null);
+      await reconcileRiderOperationalStatus(prisma, updated.riderId).catch(() => null);
     }
 
     if (updated.riderId && nextStatus === OrderStatus.CANCELLED) {
