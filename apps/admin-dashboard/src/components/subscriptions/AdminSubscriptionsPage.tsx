@@ -394,7 +394,7 @@ export default function AdminSubscriptionsPage() {
           <main>
             {tab === 'subscribers' ? <Subscribers rows={subscribers} />
               : tab === 'plans' ? <Plans plans={plans} onEdit={openEdit} onLifecycle={lifecycle} />
-              : tab === 'calendar' ? <Calendar rows={calendar} />
+              : tab === 'calendar' ? <Calendar rows={calendar} onReload={load} />
               : tab === 'runs' ? <Runs rows={runs} />
               : tab === 'cash' ? <Cash rows={cash} />
               : tab === 'exceptions' ? <Exceptions data={exceptions} />
@@ -501,8 +501,43 @@ function Subscribers({ rows }: any) {
   return <section className="space-y-3"><div><h2 className="text-xl font-black text-slate-900">Customer subscriptions</h2><p className="mt-1 text-sm font-semibold text-slate-500">These are the actual customer subscription records, not plan templates.</p></div><Table headers={['Customer', 'Phone', 'Plan', 'Status', 'Progress', 'Collected / due', 'Next delivery']} rows={rows.map((item: any) => [item.customer?.name || item.customer?.email, item.customer?.phone || '—', item.plan?.name, <StatusPill key={item.id} status={item.status} />, `${item.completedDeliveries}/${item.planVersion?.totalDeliveries || '—'}`, `${formatPaise(item.amountCollectedPaise)} / ${formatPaise(item.amountDuePaise)}`, formatDate(item.nextDeliveryDate)])} empty="No customer subscriptions yet." /></section>;
 }
 
-function Calendar({ rows }: any) {
-  return <Table headers={['Service date', 'Plan / customer', 'Sequence', 'Status', 'Store', 'Cash due']} rows={rows.map((item: any) => [formatDate(item.serviceDate), `${item.subscription?.plan?.name || ''} · ${item.subscription?.customer?.name || item.subscription?.customer?.email || ''}`, `Day ${item.sequenceNumber}`, humanize(item.status), item.store?.name || 'Unresolved', formatPaise(item.cashDuePaise)])} empty="No scheduled subscription deliveries in this range." />;
+function Calendar({ rows, onReload }: { rows: any[]; onReload?: () => void }) {
+  const toast = useToast();
+  const [working, setWorking] = useState('');
+  const needsReconciliation = (item: any) =>
+    item?.status === 'ORDER_GENERATED' && item?.order?.status === 'DELIVERED';
+  const reconcile = async (item: any) => {
+    setWorking(item.id);
+    try {
+      await apiClient.post(`/admin/subscriptions/deliveries/${item.id}/reconcile`, {}, { headers: { 'Idempotency-Key': `admin-reconcile:${item.id}` } });
+      toast.success(`Subscription delivery for ${item.subscription?.customer?.name || 'the customer'} was reconciled and advanced.`);
+      onReload?.();
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'The subscription delivery could not be reconciled.'));
+    } finally {
+      setWorking('');
+    }
+  };
+  const headers = ['Service date', 'Plan / customer', 'Sequence', 'Status', 'Store', 'Cash due', 'Action'];
+  const mapped = rows.map((item: any) => [
+    formatDate(item.serviceDate),
+    `${item.subscription?.plan?.name || ''} · ${item.subscription?.customer?.name || item.subscription?.customer?.email || ''}`,
+    `Day ${item.sequenceNumber}`,
+    humanize(item.status),
+    item.store?.name || 'Unresolved',
+    formatPaise(item.cashDuePaise),
+    needsReconciliation(item) ? (
+      <button
+        key={item.id}
+        disabled={working === item.id}
+        onClick={() => reconcile(item)}
+        className="rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-black text-white hover:bg-emerald-800 disabled:opacity-60"
+      >
+        {working === item.id ? 'Reconciling…' : 'Reconcile'}
+      </button>
+    ) : null,
+  ]);
+  return <Table headers={headers} rows={mapped} empty="No scheduled subscription deliveries in this range." />;
 }
 
 function Runs({ rows }: any) {

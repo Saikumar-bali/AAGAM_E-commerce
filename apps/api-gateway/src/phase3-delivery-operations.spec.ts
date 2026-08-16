@@ -17,6 +17,7 @@ import {
 import { DeliveryOperationsService } from "./orders/delivery-operations.service";
 import { DeliveryWorkflowService } from "./orders/delivery-workflow.service";
 import { DispatchAssignmentService } from "./orders/dispatch-assignment.service";
+import { SubscriptionCashFundingService } from "./subscriptions/subscription-cash-funding.service";
 
 const PREFIX = "_test_phase3_operations_";
 
@@ -26,7 +27,10 @@ function services() {
   const workflow = new DeliveryWorkflowService(events);
   const assignments = new DispatchAssignmentService(jobs, workflow, events);
   const outbox = new OutboxService();
-  const operations = new DeliveryOperationsService(workflow, outbox);
+  const funding = {
+    reconcileDeliveredWithinTransaction: jest.fn(),
+  } as unknown as SubscriptionCashFundingService;
+  const operations = new DeliveryOperationsService(workflow, outbox, funding);
   return { jobs, workflow, assignments, operations };
 }
 

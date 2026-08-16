@@ -20,7 +20,7 @@ type OrderItem = {
   quantity: number;
   product?: { name: string; image: string | null } | null;
 };
-type Payment = { id: string; status: string; method: string };
+type Payment = { id: string; status: string; method: string; amountPaise?: number | null };
 type RiderInfo = { id: string; user: { name: string } };
 type ProductOption = {
   id: string;
@@ -39,6 +39,8 @@ type Order = {
   items?: OrderItem[];
   payment?: Payment | null;
   rider?: RiderInfo | null;
+  subscriptionId?: string | null;
+  subscriptionSequence?: number | null;
 };
 
 function scheduledWindow(order: Order) {
@@ -392,7 +394,13 @@ export default function OrdersPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-black text-slate-950">
-                      ₹{Number(order.grandTotal).toLocaleString("en-IN")}
+                      ₹
+                      {Number(
+                        order.payment?.method === "COD" &&
+                          order.payment?.amountPaise
+                          ? order.payment.amountPaise
+                          : order.grandTotal
+                      ).toLocaleString("en-IN")}
                     </p>
                     <p className="text-xs text-slate-500">
                       {order.items?.length || 0} line item
@@ -407,6 +415,18 @@ export default function OrdersPage() {
                         }`}
                       >
                         {order.payment.method} · {order.payment.status}
+                        {order.payment.method === "COD" &&
+                          order.payment.amountPaise
+                          ? ` · ₹${Number(order.payment.amountPaise).toLocaleString("en-IN")} collect`
+                          : ""}
+                      </p>
+                    )}
+                    {order.subscriptionId && (
+                      <p className="mt-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                        Subscription
+                        {order.subscriptionSequence
+                          ? ` · Day ${order.subscriptionSequence}`
+                          : ""}
                       </p>
                     )}
                   </div>

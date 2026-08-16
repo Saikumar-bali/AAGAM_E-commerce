@@ -29,6 +29,7 @@ import {
   timingSafeEqual,
 } from "crypto";
 import { OutboxService } from "../notifications/outbox.service";
+import { SubscriptionCashFundingService } from "../subscriptions/subscription-cash-funding.service";
 import { calculateDistance } from "@aagam/utils";
 import {
   AdminForceCompleteDeliveryDto,
@@ -117,7 +118,8 @@ const PICKUP_MAX_ATTEMPTS = 5;
 export class DeliveryOperationsService {
   constructor(
     private readonly workflow: DeliveryWorkflowService,
-    private readonly outbox: OutboxService
+    private readonly outbox: OutboxService,
+    private readonly subscriptionFunding: SubscriptionCashFundingService
   ) {}
 
   private enabled(name: string) {
@@ -356,6 +358,40 @@ export class DeliveryOperationsService {
       throw new ForbiddenException(
         "Only the order customer can access this handoff code"
       );
+    }
+  }
+
+  /**
+   * Reconciles a subscription occurrence after a delivery job completed through
+   * the plain order flow. Never fails the already-completed delivery: any
+   * reconciliation problem is recorded as a subscription audit entry so it
+   * surfaces in subscription reporting instead of blocking delivery.
+   */
+  private async reconcileSubscriptionAfterDelivery(tx: DbClient, job: any, actor: Actor) {
+    const deliveryId = job.order?.subscriptionDeliveryId;
+    if (!deliveryId) return;
+    const delivery = await tx.subscriptionDelivery.findUnique({
+      where: { deliveryJobId: job.id },
+      select: { id: true, subscriptionId: true },
+    });
+    if (!delivery) return;
+    try {
+      await this.subscriptionFunding.reconcileDeliveredWithinTransaction(tx, job, actor);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await tx.subscriptionAuditEntry
+        .create({
+          data: {
+            subscriptionId: delivery.subscriptionId,
+            actorUserId: actor.id,
+            actorRole: actor.role,
+            action: "SUBSCRIPTION_RECONCILIATION_FAILED",
+            reason: `Reconciliation after order delivery failed: ${message}`,
+            metadata: { subscriptionDeliveryId: delivery.id, deliveryJobId: job.id },
+            idempotencyKey: `reconcile-failed:${delivery.id}:${job.id}`,
+          },
+        })
+        .catch(() => undefined);
     }
   }
 
@@ -1071,6 +1107,7 @@ export class DeliveryOperationsService {
         const job = await this.job(tx, deliveryJobId);
         this.assertRiderOrAdmin(job, actor);
         if (job.status === DeliveryJobStatus.DELIVERED) {
+          await this.reconcileSubscriptionAfterDelivery(tx, job, actor);
           if (afterDelivery) await afterDelivery(tx);
           return { job };
         }
@@ -1172,6 +1209,7 @@ export class DeliveryOperationsService {
           }
         );
         await this.completeActiveFailureDecisions(tx, deliveryJobId, actor);
+        await this.reconcileSubscriptionAfterDelivery(tx, job, actor);
         if (afterDelivery) await afterDelivery(tx);
         return { job: delivered };
       },
@@ -1204,7 +1242,10 @@ export class DeliveryOperationsService {
     return prisma.$transaction(async (tx) => {
       await this.lock(tx, `delivery-complete:${deliveryJobId}`);
       const job = await this.job(tx, deliveryJobId);
-      if (job.status === DeliveryJobStatus.DELIVERED) return job;
+      if (job.status === DeliveryJobStatus.DELIVERED) {
+        await this.reconcileSubscriptionAfterDelivery(tx, job, actor);
+        return job;
+      }
       if ([DeliveryJobStatus.CANCELLED, DeliveryJobStatus.RETURNED_TO_STORE].includes(job.status)) {
         throw new BadRequestException(`Cannot force-complete delivery from ${job.status}`);
       }
@@ -1277,10 +1318,12 @@ export class DeliveryOperationsService {
         idempotencyKey: key,
         details: { adminOverride: true, reason, deliveryProofId: proof.id, codAmountPaise: input.codAmountPaise },
       });
-      return this.workflow.transitionWithinTransaction(tx, deliveryJobId, DeliveryJobStatus.DELIVERED, actor, {
+      const delivered = await this.workflow.transitionWithinTransaction(tx, deliveryJobId, DeliveryJobStatus.DELIVERED, actor, {
         allowAdminOverride: true,
         metadata: { adminOverride: true, reason, deliveryProofId: proof.id, codAmountPaise: input.codAmountPaise },
       });
+      await this.reconcileSubscriptionAfterDelivery(tx, job, actor);
+      return delivered;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
@@ -1299,6 +1342,7 @@ export class DeliveryOperationsService {
         const job = await this.job(tx, deliveryJobId);
         this.assertRiderOrAdmin(job, actor);
         if (job.status === DeliveryJobStatus.DELIVERED) {
+          await this.reconcileSubscriptionAfterDelivery(tx, job, actor);
           if (afterDelivery) await afterDelivery(tx);
           return { job };
         }
@@ -1477,6 +1521,7 @@ export class DeliveryOperationsService {
           }
         );
         await this.completeActiveFailureDecisions(tx, deliveryJobId, actor);
+        await this.reconcileSubscriptionAfterDelivery(tx, job, actor);
         if (afterDelivery) await afterDelivery(tx);
         return { job: delivered };
       },
@@ -1513,6 +1558,7 @@ export class DeliveryOperationsService {
         const job = await this.job(tx, deliveryJobId);
         this.assertRiderOrAdmin(job, actor);
         if (job.status === DeliveryJobStatus.DELIVERED) {
+          await this.reconcileSubscriptionAfterDelivery(tx, job, actor);
           if (afterDelivery) await afterDelivery(tx);
           return job;
         }
@@ -1597,6 +1643,7 @@ export class DeliveryOperationsService {
           { proofType: "TRUSTED_DROP", trustedDropEvidenceId: evidence.id }
         );
         await this.completeActiveFailureDecisions(tx, deliveryJobId, actor);
+        await this.reconcileSubscriptionAfterDelivery(tx, job, actor);
         if (afterDelivery) await afterDelivery(tx);
         return delivered;
       },

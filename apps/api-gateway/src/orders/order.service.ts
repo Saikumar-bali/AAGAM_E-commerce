@@ -3,6 +3,7 @@ import { CouponRedemptionStatus, OrderStatus, PaymentStatus, Role, prisma } from
 import { calculateDistance } from '@aagam/utils';
 import { TrackingGateway } from '../tracking.gateway';
 import { RefundsService } from '../payments/refunds.service';
+import { reconcileRiderOperationalStatus } from '../riders/rider-operational-status';
 
 const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ['CONFIRMED', 'CANCELLED'],
@@ -582,6 +583,7 @@ export class OrderService {
 
       if (nextStatus === OrderStatus.CANCELLED) {
         await this.releaseCouponRedemption(id, 'ORDER_CANCELLED', tx);
+        await this.cancelAssociatedDeliveryJob(id, tx);
       }
 
       if (nextStatus === OrderStatus.DELIVERED) {
@@ -616,6 +618,10 @@ export class OrderService {
         where: { id: updated.riderId },
         data: { status: 'ONLINE' },
       }).catch(() => null);
+    }
+
+    if (updated.riderId && nextStatus === OrderStatus.CANCELLED) {
+      await reconcileRiderOperationalStatus(prisma, updated.riderId).catch(() => null);
     }
 
     await this.emitTrackingUpdate(id);

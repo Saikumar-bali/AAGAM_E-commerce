@@ -480,6 +480,15 @@ export class AdminSubscriptionsController {
     return this.reporting.correctSubscription(id, body, req.user.id, key);
   }
 
+  @Post('deliveries/:deliveryId/reconcile')
+  reconcile(
+    @Param('deliveryId') deliveryId: string,
+    @Req() req: AuthenticatedRequest,
+    @Headers('idempotency-key') key?: string,
+  ) {
+    return this.reporting.reconcileDeliveredDelivery(deliveryId, req.user.id, key);
+  }
+
   @Post('issues/:issueId/resolve')
   resolveIssue(@Param('issueId') issueId: string, @Body() body: ResolveSubscriptionIssueDto, @Req() req: AuthenticatedRequest) {
     return this.reporting.resolveIssue(issueId, body, req.user.id);

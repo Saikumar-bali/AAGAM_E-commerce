@@ -8,7 +8,9 @@ import {
   SubscriptionIssueStatus,
   prisma,
 } from '@aagam/database';
+import { DeliveryJobStatus } from '@aagam/types';
 import { AdminSubscriptionCorrectionDto, ResolveSubscriptionIssueDto } from './subscriptions.dto';
+import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 import { isOneOf } from '../common/enum-membership';
 
 function deliveryContact(snapshot: Prisma.JsonValue) {
@@ -30,6 +32,47 @@ function deliveryContact(snapshot: Prisma.JsonValue) {
 
 @Injectable()
 export class SubscriptionAdminReportingService {
+  constructor(private readonly funding: SubscriptionCashFundingService) {}
+
+  async reconcileDeliveredDelivery(deliveryId: string, actorId: string, idempotencyKey?: string) {
+    return prisma.$transaction(async (tx) => {
+      const delivery = await tx.subscriptionDelivery.findUnique({
+        where: { id: deliveryId },
+        include: {
+          deliveryJob: { include: { order: { include: { payment: true } } } },
+        },
+      });
+      if (!delivery) throw new NotFoundException('Subscription delivery not found');
+      if (delivery.status === SubscriptionDeliveryStatus.DELIVERED) return delivery;
+      if (!delivery.deliveryJob) {
+        throw new ConflictException('Subscription delivery has no delivery job');
+      }
+      if (delivery.deliveryJob.status !== DeliveryJobStatus.DELIVERED) {
+        throw new ConflictException('Delivery job is not DELIVERED — reconciliation requires a completed delivery');
+      }
+      const key = idempotencyKey || `admin-reconcile:${delivery.id}`;
+      const existingAudit = await tx.subscriptionAuditEntry.findUnique({ where: { idempotencyKey: key } });
+      if (existingAudit) return delivery;
+      await this.funding.reconcileDeliveredWithinTransaction(
+        tx,
+        delivery.deliveryJob,
+        { id: actorId, role: Role.ADMIN },
+      );
+      await tx.subscriptionAuditEntry.create({
+        data: {
+          subscriptionId: delivery.subscriptionId,
+          actorUserId: actorId,
+          actorRole: Role.ADMIN,
+          action: 'DELIVERY_RECONCILED_BY_ADMIN',
+          reason: 'Delivery job was completed through the order flow; subscription reconciled manually',
+          metadata: { subscriptionDeliveryId: delivery.id, deliveryJobId: delivery.deliveryJob.id },
+          idempotencyKey: key,
+        },
+      });
+      return tx.subscriptionDelivery.findUnique({ where: { id: delivery.id } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
   subscribers(status?: CustomerSubscriptionStatus, planId?: string) {
     return prisma.customerSubscription.findMany({
       where: { ...(status ? { status } : {}), ...(planId ? { planId } : {}) },

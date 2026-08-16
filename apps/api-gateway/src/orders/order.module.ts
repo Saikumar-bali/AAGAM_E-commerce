@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { PaymentsModule } from '../payments/payments.module';
 import { UploadModule } from '../upload/upload.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AuditedDispatchService } from './audited-dispatch.service';
 import { AutoDispatchService } from './auto-dispatch.service';
 import { CodSettlementFacadeService } from './cod-settlement-facade.service';
@@ -28,7 +29,7 @@ import { StoreFulfillmentController } from './store-fulfillment.controller';
 import { StoreFulfillmentService } from './store-fulfillment.service';
 
 @Module({
-  imports: [PaymentsModule, UploadModule],
+  imports: [PaymentsModule, UploadModule, forwardRef(() => SubscriptionsModule)],
   controllers: [
     OrderController,
     StoreFulfillmentController,

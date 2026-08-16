@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { OrderModule } from '../orders/order.module';
 import { UploadModule } from '../upload/upload.module';
 import { CashDepositBatchService } from './cash-deposit-batch.service';
@@ -33,7 +33,7 @@ import {
 } from './subscriptions.controller';
 
 @Module({
-  imports: [OrderModule, UploadModule],
+  imports: [forwardRef(() => OrderModule), UploadModule],
   controllers: [
     SubscriptionPlanPublicController,
     CustomerSubscriptionsController,

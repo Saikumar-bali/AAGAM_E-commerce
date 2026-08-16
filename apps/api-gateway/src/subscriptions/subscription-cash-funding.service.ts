@@ -7,6 +7,7 @@ import {
 import {
   CodSettlementStatus,
   CustomerSubscriptionStatus,
+  DeliveryRunStopStatus,
   PaymentMethod,
   PaymentStatus,
   Prisma,
@@ -51,6 +52,8 @@ export class SubscriptionCashFundingService {
       throw new ConflictException('Collected cash does not match the subscription funding amount');
     }
     const key = idempotencyKey || `subscription-funding:${delivery.id}:${ledger.id}`;
+    const existingForLedger = await tx.subscriptionFundingAllocation.findUnique({ where: { codLedgerId: ledger.id } });
+    if (existingForLedger) return existingForLedger;
     const existing = await tx.subscriptionFundingAllocation.findUnique({ where: { idempotencyKey: key } });
     if (existing) return existing;
 
@@ -215,6 +218,68 @@ export class SubscriptionCashFundingService {
       (tx) => this.consumeDeliveredWithinTransaction(tx, subscriptionDeliveryId, actor, idempotencyKey),
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+  }
+
+  /**
+   * Reconciles a subscription occurrence after its delivery job was completed
+   * through the plain order flow (store pickup PIN + customer OTP) rather than
+   * through the subscription run flow. Advances funding allocation, consumes
+   * the delivered entitlement, and finalizes the linked run stop so the
+   * subscription record (progress, cash due/collected) stays consistent no
+   * matter which delivery path completed the order.
+   *
+   * Every step is idempotent: funding allocation is keyed to the unique COD
+   * ledger, entitlement consumption exits when the delivery is already
+   * DELIVERED, and run stop finalization exits when the stop is already
+   * DELIVERED. Safe to call from both the order flow and the run flow.
+   */
+  async reconcileDeliveredWithinTransaction(
+    tx: TransactionClient,
+    job: {
+      id: string;
+      order: {
+        subscriptionDeliveryId?: string | null;
+        payment?: { method: PaymentMethod; status: PaymentStatus } | null;
+      };
+    },
+    actor: Actor,
+  ) {
+    const deliveryId = job.order?.subscriptionDeliveryId;
+    if (!deliveryId) return null;
+    const delivery = await tx.subscriptionDelivery.findUnique({ where: { id: deliveryId } });
+    if (!delivery) return null;
+    if (delivery.status === SubscriptionDeliveryStatus.DELIVERED) return delivery;
+
+    const payment = job.order?.payment;
+    if (payment?.method === PaymentMethod.COD) {
+      await this.allocateAfterCodCollectionWithinTransaction(
+        tx, job.id, actor, `funding:order-delivery:${delivery.id}`,
+      );
+    }
+    await this.consumeDeliveredWithinTransaction(
+      tx, delivery.id, actor, `entitlement:order-delivery:${delivery.id}`,
+    );
+
+    const stop = await tx.deliveryRunStop.findUnique({ where: { deliveryJobId: job.id } });
+    if (stop && stop.status !== DeliveryRunStopStatus.DELIVERED) {
+      await tx.deliveryRunStop.update({
+        where: { id: stop.id },
+        data: {
+          status: DeliveryRunStopStatus.DELIVERED,
+          deliveredAt: new Date(),
+          version: { increment: 1 },
+        },
+      });
+      await tx.deliveryRun.update({
+        where: { id: stop.deliveryRunId },
+        data: {
+          completedStopCount: { increment: 1 },
+          collectedCashPaise: { increment: stop.cashDuePaise },
+          version: { increment: 1 },
+        },
+      });
+    }
+    return tx.subscriptionDelivery.findUnique({ where: { id: delivery.id } });
   }
 
   async recordFailure(
