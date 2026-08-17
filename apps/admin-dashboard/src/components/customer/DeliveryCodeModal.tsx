@@ -125,7 +125,7 @@ export default function DeliveryCodeModal({ deliveryJobId, open, onClose }: Prop
           {code ? (
             <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-6 text-center shadow-sm">
               <p className="text-[10px] font-black uppercase tracking-[0.25em] text-violet-500">Delivery OTP</p>
-              <p className="mt-3 font-mono text-5xl font-black tracking-[0.3em] text-slate-950">{formatCode(code)}</p>
+              <p className="mt-3 font-mono text-3xl font-black tracking-[0.22em] text-slate-950 sm:text-5xl sm:tracking-[0.3em]">{formatCode(code)}</p>
               {remaining > 0 ? (
                 <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-slate-500">
                   <Clock3 className="h-3.5 w-3.5" /> Expires in {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}

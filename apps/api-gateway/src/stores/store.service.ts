@@ -385,17 +385,13 @@ export class StoreService {
       throw new BadRequestException('Only deleted stores can be permanently deleted. Soft-delete the store first.');
     }
 
-    const [orderCount, inventoryCount, ledgerCount, deliveryRunCount, depositBatchCount] = await prisma.$transaction([
+    const [orderCount, deliveryRunCount, depositBatchCount] = await prisma.$transaction([
       prisma.order.count({ where: { storeId: id } }),
-      prisma.inventory.count({ where: { storeId: id } }),
-      prisma.inventoryLedger.count({ where: { storeId: id } }),
       prisma.deliveryRun.count({ where: { storeId: id } }),
       prisma.cashDepositBatch.count({ where: { storeId: id } }),
     ]);
     const blockers: string[] = [];
     if (orderCount > 0) blockers.push(`${orderCount} orders`);
-    if (inventoryCount > 0) blockers.push(`${inventoryCount} inventory items`);
-    if (ledgerCount > 0) blockers.push(`${ledgerCount} inventory ledger entries`);
     if (deliveryRunCount > 0) blockers.push(`${deliveryRunCount} delivery runs`);
     if (depositBatchCount > 0) blockers.push(`${depositBatchCount} cash deposit batches`);
     if (blockers.length > 0) {
