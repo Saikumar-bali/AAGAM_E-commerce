@@ -16,8 +16,25 @@ type NominatimAddress = {
 };
 
 type NominatimResponse = {
+  lat?: string;
+  lon?: string;
   display_name?: string;
   address?: NominatimAddress;
+};
+
+type ForwardAddressInput = {
+  line1: string;
+  line2?: string | null;
+  landmark?: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  country?: string | null;
+};
+
+const NOMINATIM_HEADERS = {
+  'User-Agent': 'AagamEcommerce/1.0 (delivery address geocoding)',
+  Accept: 'application/json',
 };
 
 @Injectable()
@@ -36,11 +53,7 @@ export class GeoService {
           addressdetails: 1,
         },
         timeout: 15000,
-        headers: {
-          // Nominatim usage policy asks for an identifying UA.
-          'User-Agent': 'AagamEcommerce/1.0 (checkout reverse geocode)',
-          Accept: 'application/json',
-        },
+        headers: NOMINATIM_HEADERS,
         validateStatus: () => true,
       });
       res = { status: r.status, data: r.data };
@@ -85,5 +98,57 @@ export class GeoService {
         country,
       },
     };
+  }
+
+  async forward(input: ForwardAddressInput) {
+    const query = [
+      input.line1,
+      input.line2,
+      input.landmark,
+      input.city,
+      input.state,
+      input.pincode,
+      (input.country || 'IN').toUpperCase() === 'IN' ? 'India' : input.country,
+    ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .map((value) => value.trim())
+      .join(', ');
+
+    try {
+      const response = await axios.get<NominatimResponse[]>('https://nominatim.openstreetmap.org/search', {
+        params: {
+          format: 'jsonv2',
+          q: query,
+          addressdetails: 1,
+          countrycodes: 'in',
+          limit: 1,
+        },
+        timeout: 15000,
+        headers: NOMINATIM_HEADERS,
+        validateStatus: () => true,
+      });
+      if (response.status < 200 || response.status >= 300) {
+        return { ok: false as const, source: 'nominatim', status: response.status };
+      }
+      const result = response.data?.[0];
+      const latitude = Number(result?.lat);
+      const longitude = Number(result?.lon);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return { ok: false as const, source: 'nominatim', status: response.status, message: 'Address was not found' };
+      }
+      return {
+        ok: true as const,
+        source: 'nominatim',
+        latitude,
+        longitude,
+        displayName: result?.display_name || null,
+      };
+    } catch (error: any) {
+      return {
+        ok: false as const,
+        source: 'nominatim',
+        status: 0,
+        message: error?.message || 'Forward geocode failed',
+      };
+    }
   }
 }

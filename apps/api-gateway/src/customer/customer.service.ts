@@ -1,6 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
 
+import { GeoService } from '../geo/geo.service';
+import {
+  AddressLocationEvidence,
+  AddressLocationSource,
+  attachAddressLocationEvidence,
+  readAddressLocationEvidence,
+  upsertAddressLocationEvidence,
+} from './address-location-evidence';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
 
@@ -12,17 +20,158 @@ function normalizePhoneE164(input: string): string {
   if (raw.startsWith('+')) {
     return raw;
   }
-  // Allow "+<digits>" or "<digits>" from the DTO pattern.
   return `+${raw}`;
 }
 
+type AddressLocationInput = {
+  line1: string;
+  line2?: string | null;
+  landmark?: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  country?: string | null;
+  latitude?: number;
+  longitude?: number;
+  locationSource?: 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED';
+  locationAccuracyMetres?: number;
+  locationCapturedAt?: string;
+};
+
+type ResolvedAddressLocation = {
+  latitude: number;
+  longitude: number;
+  evidence: AddressLocationEvidence;
+};
+
 @Injectable()
 export class CustomerService {
+  constructor(private readonly geo: GeoService) {}
+
+  private assertCoordinatePair(latitude?: number, longitude?: number) {
+    if ((latitude == null) !== (longitude == null)) {
+      throw new BadRequestException('Latitude and longitude must be provided together');
+    }
+  }
+
+  private verifiedCoordinates(input: AddressLocationInput, source: 'LIVE_GPS' | 'MAP_PIN'): ResolvedAddressLocation {
+    this.assertCoordinatePair(input.latitude, input.longitude);
+    if (input.latitude == null || input.longitude == null) {
+      throw new BadRequestException(`${source === 'LIVE_GPS' ? 'Live GPS' : 'Map pin'} coordinates are required`);
+    }
+    if (source === 'LIVE_GPS') {
+      if (
+        typeof input.locationAccuracyMetres !== 'number'
+        || !Number.isFinite(input.locationAccuracyMetres)
+        || input.locationAccuracyMetres <= 0
+      ) {
+        throw new BadRequestException('GPS accuracy is required for a live-location address');
+      }
+      if (!input.locationCapturedAt || !Number.isFinite(new Date(input.locationCapturedAt).getTime())) {
+        throw new BadRequestException('A valid GPS capture timestamp is required for a live-location address');
+      }
+    }
+    return {
+      latitude: Number(input.latitude),
+      longitude: Number(input.longitude),
+      evidence: {
+        source,
+        accuracyMetres: source === 'LIVE_GPS' ? input.locationAccuracyMetres! : null,
+        capturedAt: source === 'LIVE_GPS' ? new Date(input.locationCapturedAt!) : null,
+      },
+    };
+  }
+
+  private async geocodedCoordinates(input: AddressLocationInput): Promise<ResolvedAddressLocation> {
+    const geocoded = await this.geo.forward({
+      line1: input.line1,
+      line2: input.line2,
+      landmark: input.landmark,
+      city: input.city,
+      state: input.state,
+      pincode: input.pincode,
+      country: input.country,
+    });
+    if (!geocoded.ok) {
+      throw new BadRequestException(
+        'We could not place this manual address on the delivery map. Use current location or pin the delivery point on the map.',
+      );
+    }
+    return {
+      latitude: geocoded.latitude,
+      longitude: geocoded.longitude,
+      evidence: { source: 'GEOCODED', accuracyMetres: null, capturedAt: null },
+    };
+  }
+
+  private async resolveNewLocation(input: AddressLocationInput): Promise<ResolvedAddressLocation> {
+    this.assertCoordinatePair(input.latitude, input.longitude);
+    if (input.locationSource === 'LIVE_GPS' || input.locationSource === 'MAP_PIN') {
+      return this.verifiedCoordinates(input, input.locationSource);
+    }
+    if (input.locationSource === 'GEOCODED' || (input.latitude == null && input.longitude == null)) {
+      return this.geocodedCoordinates(input);
+    }
+    return {
+      latitude: Number(input.latitude),
+      longitude: Number(input.longitude),
+      evidence: { source: 'LEGACY_UNKNOWN', accuracyMetres: null, capturedAt: null },
+    };
+  }
+
+  private addressTextChanged(dto: UpdateAddressDto) {
+    return ['line1', 'line2', 'landmark', 'city', 'state', 'pincode', 'country']
+      .some((key) => Object.prototype.hasOwnProperty.call(dto, key));
+  }
+
+  private async resolveUpdatedLocation(existing: any, dto: UpdateAddressDto): Promise<ResolvedAddressLocation> {
+    const evidence = await readAddressLocationEvidence(prisma, existing.id);
+    const merged: AddressLocationInput = {
+      line1: dto.line1 ?? existing.line1,
+      line2: dto.line2 === undefined ? existing.line2 : dto.line2,
+      landmark: dto.landmark === undefined ? existing.landmark : dto.landmark,
+      city: dto.city ?? existing.city,
+      state: dto.state ?? existing.state,
+      pincode: dto.pincode ?? existing.pincode,
+      country: dto.country ?? existing.country,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      locationSource: dto.locationSource,
+      locationAccuracyMetres: dto.locationAccuracyMetres,
+      locationCapturedAt: dto.locationCapturedAt,
+    };
+
+    const coordinatesTouched = dto.latitude !== undefined || dto.longitude !== undefined;
+    if (dto.locationSource) {
+      return this.resolveNewLocation(merged);
+    }
+    if (coordinatesTouched) {
+      this.assertCoordinatePair(dto.latitude, dto.longitude);
+      if (dto.latitude == null || dto.longitude == null) {
+        throw new BadRequestException('Latitude and longitude must be provided together');
+      }
+      return {
+        latitude: Number(dto.latitude),
+        longitude: Number(dto.longitude),
+        evidence: { source: 'LEGACY_UNKNOWN', accuracyMetres: null, capturedAt: null },
+      };
+    }
+    if (evidence.source === 'GEOCODED' && this.addressTextChanged(dto)) {
+      return this.geocodedCoordinates(merged);
+    }
+    return {
+      latitude: existing.latitude,
+      longitude: existing.longitude,
+      evidence,
+    };
+  }
+
   async listAddresses(userId: string) {
-    return prisma.customerAddress.findMany({
+    const addresses = await prisma.customerAddress.findMany({
       where: { userId },
       orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
     });
+    return Promise.all(addresses.map((address) => attachAddressLocationEvidence(prisma, address)));
   }
 
   async createAddress(userId: string, dto: CreateAddressDto) {
@@ -33,6 +182,7 @@ export class CustomerService {
     if (country !== 'IN') {
       throw new BadRequestException('Only IN addresses are supported currently');
     }
+    const location = await this.resolveNewLocation({ ...dto, country });
 
     return prisma.$transaction(async (tx) => {
       if (dto.isDefault) {
@@ -42,7 +192,7 @@ export class CustomerService {
         });
       }
 
-      return tx.customerAddress.create({
+      const created = await tx.customerAddress.create({
         data: {
           userId,
           label: dto.label,
@@ -56,12 +206,19 @@ export class CustomerService {
           state: dto.state,
           pincode: dto.pincode,
           country,
-          latitude: dto.latitude,
-          longitude: dto.longitude,
+          latitude: location.latitude,
+          longitude: location.longitude,
           instructions: dto.instructions,
           isDefault: Boolean(dto.isDefault),
         },
       });
+      await upsertAddressLocationEvidence(tx, created.id, location.evidence);
+      return {
+        ...created,
+        locationSource: location.evidence.source as AddressLocationSource,
+        locationAccuracyMetres: location.evidence.accuracyMetres,
+        locationCapturedAt: location.evidence.capturedAt?.toISOString() ?? null,
+      };
     });
   }
 
@@ -81,6 +238,7 @@ export class CustomerService {
       : dto.alternatePhoneE164 === '' || dto.alternatePhoneE164 === null
         ? null
         : undefined;
+    const location = await this.resolveUpdatedLocation(existing, { ...dto, ...(country ? { country } : {}) });
 
     return prisma.$transaction(async (tx) => {
       if (dto.isDefault) {
@@ -90,7 +248,7 @@ export class CustomerService {
         });
       }
 
-      return tx.customerAddress.update({
+      const updated = await tx.customerAddress.update({
         where: { id: addressId },
         data: {
           label: dto.label,
@@ -104,12 +262,19 @@ export class CustomerService {
           state: dto.state,
           pincode: dto.pincode,
           country,
-          latitude: dto.latitude,
-          longitude: dto.longitude,
+          latitude: location.latitude,
+          longitude: location.longitude,
           instructions: dto.instructions,
           isDefault: dto.isDefault,
         },
       });
+      await upsertAddressLocationEvidence(tx, addressId, location.evidence);
+      return {
+        ...updated,
+        locationSource: location.evidence.source as AddressLocationSource,
+        locationAccuracyMetres: location.evidence.accuracyMetres,
+        locationCapturedAt: location.evidence.capturedAt?.toISOString() ?? null,
+      };
     });
   }
 

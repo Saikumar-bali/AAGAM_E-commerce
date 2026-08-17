@@ -1,4 +1,18 @@
-import { IsBoolean, IsLatitude, IsLongitude, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsIn,
+  IsLatitude,
+  IsLongitude,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class CreateAddressDto {
   @IsOptional()
@@ -55,11 +69,29 @@ export class CreateAddressDto {
   @MaxLength(2)
   country?: string;
 
+  // Coordinates are optional for a text/manual address. The server forward
+  // geocodes that address for routing while preserving GEOCODED provenance.
+  @IsOptional()
   @IsLatitude()
-  latitude!: number;
+  latitude?: number;
 
+  @IsOptional()
   @IsLongitude()
-  longitude!: number;
+  longitude?: number;
+
+  @IsOptional()
+  @IsIn(['LIVE_GPS', 'MAP_PIN', 'GEOCODED'])
+  locationSource?: 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED';
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  @Max(10000)
+  locationAccuracyMetres?: number;
+
+  @IsOptional()
+  @IsDateString()
+  locationCapturedAt?: string;
 
   @IsOptional()
   @IsString()
