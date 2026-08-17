@@ -98,6 +98,12 @@ type DeliverySlot = {
   available: boolean;
 };
 
+type StoreStatus = {
+  storeOpen: boolean;
+  nextOpenAt: string | null;
+  timezone: string;
+};
+
 const DELIVERY_TIME_ZONE = 'Asia/Kolkata';
 
 const emptyDraft = () => ({
@@ -142,6 +148,7 @@ export default function CheckoutPage() {
   const [fulfillmentType, setFulfillmentType] = useState<'IMMEDIATE' | 'SCHEDULED'>('IMMEDIATE');
   const [deliverySlots, setDeliverySlots] = useState<DeliverySlot[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [storeStatus, setStoreStatus] = useState<StoreStatus | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -152,6 +159,7 @@ export default function CheckoutPage() {
     if (!selectedAddressId || orderId) {
       setDeliverySlots([]);
       setSelectedSlotId(null);
+      setStoreStatus(null);
       return;
     }
     let active = true;
@@ -162,11 +170,22 @@ export default function CheckoutPage() {
         const slots = (response.data?.slots || []) as DeliverySlot[];
         setDeliverySlots(slots);
         setSelectedSlotId((current) => current && slots.some((slot) => slot.id === current) ? current : null);
+        setStoreStatus({
+          storeOpen: response.data?.storeOpen !== false,
+          nextOpenAt: response.data?.nextOpenAt ?? null,
+          timezone: response.data?.timezone || DELIVERY_TIME_ZONE,
+        });
       })
       .catch((cause) => active && setError(cause?.response?.data?.message || 'Could not load delivery windows.'))
       .finally(() => active && setLoadingSlots(false));
     return () => { active = false; };
   }, [orderId, selectedAddressId]);
+
+  useEffect(() => {
+    if (storeStatus && !storeStatus.storeOpen) {
+      setFulfillmentType('SCHEDULED');
+    }
+  }, [storeStatus]);
 
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get('coupon');
@@ -527,14 +546,29 @@ export default function CheckoutPage() {
 
             <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
               <div className="bg-gradient-to-r from-slate-950 to-teal-950 p-5 text-white">
-                <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-white/10"><CalendarDays className="h-5 w-5" /></span><div><h2 className="font-black">Choose delivery time</h2><p className="text-xs font-semibold text-teal-100">Get it now or reserve a convenient window.</p></div></div>
+                <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-white/10"><CalendarDays className="h-5 w-5" /></span><div><h2 className="font-black">Choose delivery time</h2><p className="text-xs font-semibold text-teal-100">{storeStatus && !storeStatus.storeOpen ? 'This store is closed right now — reserve the next open window.' : 'Get it now or reserve a convenient window.'}</p></div></div>
               </div>
               <div className="p-5">
-                <div className="grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => { setFulfillmentType('IMMEDIATE'); setSelectedSlotId(null); }} className={`rounded-2xl border p-4 text-left transition ${fulfillmentType === 'IMMEDIATE' ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-200'}`}><Clock3 className="h-5 w-5 text-teal-700"/><p className="mt-2 text-sm font-black text-slate-950">Deliver now</p><p className="mt-1 text-xs text-slate-500">Fastest available delivery</p></button>
-                  <button type="button" onClick={() => setFulfillmentType('SCHEDULED')} className={`rounded-2xl border p-4 text-left transition ${fulfillmentType === 'SCHEDULED' ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-200'}`}><CalendarDays className="h-5 w-5 text-teal-700"/><p className="mt-2 text-sm font-black text-slate-950">Schedule delivery</p><p className="mt-1 text-xs text-slate-500">Reserve up to 7 days ahead</p></button>
+                {storeStatus && !storeStatus.storeOpen ? (
+                  <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+                    <div>
+                      <p className="text-sm font-black text-amber-900">Store is closed</p>
+                      <p className="mt-1 text-xs font-semibold leading-5 text-amber-800">
+                        {storeStatus.nextOpenAt
+                          ? <>Instant delivery is paused. Pre-order now for delivery from <span className="font-black">{new Date(storeStatus.nextOpenAt).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: storeStatus.timezone })}</span>.</>
+                          : 'Instant delivery is paused. Pre-order for the next open window.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+                <div className={`grid gap-3 ${storeStatus && !storeStatus.storeOpen ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                  {!(storeStatus && !storeStatus.storeOpen) ? (
+                    <button type="button" onClick={() => { setFulfillmentType('IMMEDIATE'); setSelectedSlotId(null); }} className={`rounded-2xl border p-4 text-left transition ${fulfillmentType === 'IMMEDIATE' ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-200'}`}><Clock3 className="h-5 w-5 text-teal-700"/><p className="mt-2 text-sm font-black text-slate-950">Deliver now</p><p className="mt-1 text-xs text-slate-500">Fastest available delivery</p></button>
+                  ) : null}
+                  <button type="button" onClick={() => setFulfillmentType('SCHEDULED')} className={`rounded-2xl border p-4 text-left transition ${fulfillmentType === 'SCHEDULED' ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-200'}`}><CalendarDays className="h-5 w-5 text-teal-700"/><p className="mt-2 text-sm font-black text-slate-950">{storeStatus && !storeStatus.storeOpen ? 'Pre-order delivery' : 'Schedule delivery'}</p><p className="mt-1 text-xs text-slate-500">Reserve up to 7 days ahead</p></button>
                 </div>
-                {fulfillmentType === 'SCHEDULED' ? <div className="mt-5"><div className="mb-3 flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-500">Available windows</p>{loadingSlots ? <Loader2 className="h-4 w-4 animate-spin text-teal-700"/> : null}</div><div className="grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">{deliverySlots.filter((slot) => slot.available).map((slot) => { const start = new Date(slot.windowStart); const end = new Date(slot.windowEnd); const active = selectedSlotId === slot.id; return <button type="button" key={slot.id} onClick={() => setSelectedSlotId(slot.id)} className={`rounded-2xl border p-3 text-left transition ${active ? 'border-teal-500 bg-teal-50' : 'border-slate-200 hover:border-teal-300'}`}><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-black text-slate-950">{start.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: DELIVERY_TIME_ZONE })}</p><p className="mt-1 text-xs font-bold text-teal-700">{slot.label} · {start.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: DELIVERY_TIME_ZONE })}–{end.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: DELIVERY_TIME_ZONE })}</p></div>{active ? <CheckCircle2 className="h-5 w-5 shrink-0 text-teal-600"/> : null}</div><p className="mt-2 text-[11px] font-semibold text-slate-400">{slot.remainingCapacity <= 5 ? `Only ${slot.remainingCapacity} windows left` : 'Available'}</p></button>; })}</div>{!loadingSlots && deliverySlots.filter((slot) => slot.available).length === 0 ? <p className="rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">No scheduled windows are available for this address.</p> : null}</div> : null}
+                {fulfillmentType === 'SCHEDULED' ? <div className="mt-5"><div className="mb-3 flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-500">Available windows</p>{loadingSlots ? <Loader2 className="h-4 w-4 animate-spin text-teal-700"/> : null}</div><div className="grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">{deliverySlots.filter((slot) => slot.available).map((slot) => { const start = new Date(slot.windowStart); const end = new Date(slot.windowEnd); const active = selectedSlotId === slot.id; return <button type="button" key={slot.id} onClick={() => setSelectedSlotId(slot.id)} className={`rounded-2xl border p-3 text-left transition ${active ? 'border-teal-500 bg-teal-50' : 'border-slate-200 hover:border-teal-300'}`}><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-black text-slate-950">{start.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: storeStatus?.timezone || DELIVERY_TIME_ZONE })}</p><p className="mt-1 text-xs font-bold text-teal-700">{slot.label} · {start.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: storeStatus?.timezone || DELIVERY_TIME_ZONE })}–{end.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: storeStatus?.timezone || DELIVERY_TIME_ZONE })}</p></div>{active ? <CheckCircle2 className="h-5 w-5 shrink-0 text-teal-600"/> : null}</div><p className="mt-2 text-[11px] font-semibold text-slate-400">{slot.remainingCapacity <= 5 ? `Only ${slot.remainingCapacity} windows left` : 'Available'}</p></button>; })}</div>{!loadingSlots && deliverySlots.filter((slot) => slot.available).length === 0 ? <p className="rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">No scheduled windows are available for this address.</p> : null}</div> : null}
               </div>
             </section>
 

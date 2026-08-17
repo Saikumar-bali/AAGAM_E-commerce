@@ -8,7 +8,15 @@ import { NotificationService } from '../notifications/notification.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { OrderCreationService } from '../orders/order-creation.service';
 import { calculateDeliveryPricing } from './delivery-pricing';
-import { DEFAULT_PREORDER_SLOTS, DELIVERY_TIME_ZONE, istCalendarDate, istSlotInstant } from './delivery-slots';
+import { DEFAULT_PREORDER_SLOTS, DELIVERY_TIME_ZONE } from './delivery-slots';
+import {
+  formatInstantInZone,
+  isOpenAt,
+  nextOpenAt,
+  windowWithinOpenHours,
+  zonedCalendarDate,
+  zonedSlotInstant,
+} from '../stores/operating-hours';
 
 export { applyFreeDeliveryThreshold, FREE_DELIVERY_MINIMUM_PAISE } from './delivery-pricing';
 
@@ -29,6 +37,15 @@ function isOrderCreationService(
 const haversineKm = calculateDistance;
 
 type CartItem = { productId: string; quantity: number };
+
+type ResolvedStore = {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  operatingHours: unknown;
+  timezone: string | null;
+};
 
 function computeEtaMinutes(distanceKm: number | null): number | null {
   if (distanceKm === null || !Number.isFinite(distanceKm)) return null;
@@ -68,7 +85,7 @@ export class CheckoutService {
     this.promotionsService = orderCreationOrPromotions ?? promotionsService;
   }
 
-  private nearestStore(lat: number, lng: number, stores: Array<{ id: string; name: string; latitude: number; longitude: number }>) {
+  private nearestStore(lat: number, lng: number, stores: ResolvedStore[]) {
     let best = stores[0];
     let bestDistance = haversineKm(lat, lng, best.latitude, best.longitude);
     for (const store of stores.slice(1)) {
@@ -131,7 +148,14 @@ export class CheckoutService {
   private async resolveStoreForLocation(lat: number, lng: number, requiredItems: CartItem[] = []) {
     const stores = await prisma.store.findMany({
       where: { isActive: true, deletedAt: null },
-      select: { id: true, name: true, latitude: true, longitude: true },
+      select: {
+        id: true,
+        name: true,
+        latitude: true,
+        longitude: true,
+        operatingHours: true,
+        timezone: true,
+      },
     });
     if (stores.length === 0) {
       throw new NotFoundException('No active stores available');
@@ -170,9 +194,14 @@ export class CheckoutService {
 
     const resolved = await this.resolveStoreForLocation(address.latitude, address.longitude);
     const deliveryPricing = calculateDeliveryPricing(resolved.distanceKm);
+    const now = new Date();
+    const openNow = isOpenAt(resolved.store, now);
+    const nextOpen = nextOpenAt(resolved.store, now);
 
     return {
       serviceable: deliveryPricing.serviceable,
+      storeOpen: openNow,
+      nextOpenAt: nextOpen ? nextOpen.toISOString() : null,
       address: {
         id: address.id,
         label: address.label,
@@ -201,16 +230,20 @@ export class CheckoutService {
     if (!address) throw new NotFoundException('Address not found');
     const resolved = await this.resolveStoreForLocation(address.latitude, address.longitude);
     const now = new Date();
+    const timezone = resolved.store.timezone || DELIVERY_TIME_ZONE;
+    const openNow = isOpenAt(resolved.store, now);
+    const nextOpen = nextOpenAt(resolved.store, now);
     const earliest = new Date(now.getTime() + PREORDER_MIN_LEAD_MINUTES * 60_000);
     const horizon = new Date(now.getTime() + PREORDER_HORIZON_DAYS * 86_400_000);
-    const todayInIst = istCalendarDate(now);
+    const todayInStoreTz = zonedCalendarDate(now, timezone);
     const slots: Array<Record<string, unknown>> = [];
 
     for (let offset = 0; offset <= PREORDER_HORIZON_DAYS; offset += 1) {
       for (const template of DEFAULT_PREORDER_SLOTS) {
-        const start = istSlotInstant(todayInIst, offset, template.startMinute);
-        const end = istSlotInstant(todayInIst, offset, template.endMinute);
+        const start = zonedSlotInstant(todayInStoreTz, offset, template.startMinute, timezone);
+        const end = zonedSlotInstant(todayInStoreTz, offset, template.endMinute, timezone);
         if (start < earliest || start > horizon) continue;
+        if (!windowWithinOpenHours(resolved.store, start, end)) continue;
         const reserved = await prisma.order.count({
           where: {
             storeId: resolved.store.id,
@@ -229,7 +262,20 @@ export class CheckoutService {
         });
       }
     }
-    return { timezone: DELIVERY_TIME_ZONE, store: resolved.store, minimumLeadMinutes: PREORDER_MIN_LEAD_MINUTES, horizonDays: PREORDER_HORIZON_DAYS, slots };
+    return {
+      timezone,
+      store: {
+        id: resolved.store.id,
+        name: resolved.store.name,
+        operatingHours: resolved.store.operatingHours ?? null,
+        timezone,
+      },
+      storeOpen: openNow,
+      nextOpenAt: nextOpen ? nextOpen.toISOString() : null,
+      minimumLeadMinutes: PREORDER_MIN_LEAD_MINUTES,
+      horizonDays: PREORDER_HORIZON_DAYS,
+      slots,
+    };
   }
 
   private validateDeliveryWindow(dto: CheckoutPlaceOrderDto) {
@@ -446,6 +492,31 @@ export class CheckoutService {
 
     const storeId = quote.store?.id;
     if (!storeId) throw new NotFoundException('No store available');
+
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { id: true, name: true, operatingHours: true, timezone: true },
+    });
+    if (!store) throw new NotFoundException('Store not available');
+    const storeTimezone = store.timezone || DELIVERY_TIME_ZONE;
+    const now = new Date();
+    if (deliveryWindow) {
+      if (!windowWithinOpenHours(store, deliveryWindow.start, deliveryWindow.end)) {
+        const nextOpen = nextOpenAt(store, now);
+        throw new BadRequestException(
+          nextOpen
+            ? `The selected window falls outside ${store.name}'s operating hours. The store opens ${formatInstantInZone(nextOpen, storeTimezone)}.`
+            : `The selected window falls outside ${store.name}'s operating hours.`,
+        );
+      }
+    } else if (!isOpenAt(store, now)) {
+      const nextOpen = nextOpenAt(store, now);
+      throw new BadRequestException(
+        nextOpen
+          ? `${store.name} is closed right now. Pre-order instead for delivery from ${formatInstantInZone(nextOpen, storeTimezone)}.`
+          : `${store.name} is closed right now. Please check back later.`,
+      );
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId },

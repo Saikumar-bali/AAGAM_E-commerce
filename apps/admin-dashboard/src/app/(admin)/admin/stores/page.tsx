@@ -9,6 +9,7 @@ import { apiClient } from '@aagam/utils';
 import {
   AlertTriangle,
   CheckCircle,
+  Clock,
   Edit,
   Loader2,
   MapPin,
@@ -42,6 +43,30 @@ interface StoreRecord {
   deletedAt?: string | null;
   owner?: { name: string | null; email: string | null; phone: string | null };
   inventory?: { id: string; quantity: number; product?: { name: string; price: number } }[];
+  operatingHours?: OperatingDay[] | null;
+  timezone?: string | null;
+}
+
+type OperatingWindow = { openMinute: number; closeMinute: number };
+type OperatingDay = { dayOfWeek: number; windows: OperatingWindow[] };
+
+const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function minutesToTime(minute: number): string {
+  const h = Math.floor(minute / 60) % 24;
+  const m = minute % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function timeToMinutes(value: string): number {
+  const [h, m] = value.split(':').map(Number);
+  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+}
+
+function hoursSummary(store: StoreRecord): string {
+  const hours = store.operatingHours || [];
+  if (hours.length === 0) return '24×7';
+  return `${hours.reduce((count, day) => count + day.windows.length, 0)} windows / ${hours.length} days`;
 }
 
 type EditForm = {
@@ -50,6 +75,8 @@ type EditForm = {
   latitude: number | null;
   longitude: number | null;
   isActive: boolean;
+  operatingHours: OperatingDay[];
+  timezone: string;
 };
 
 export default function AdminStoresPage() {
@@ -61,7 +88,7 @@ export default function AdminStoresPage() {
   const [selectedStore, setSelectedStore] = useState<StoreRecord | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<EditForm>({ name: '', address: '', latitude: null, longitude: null, isActive: true });
+  const [form, setForm] = useState<EditForm>({ name: '', address: '', latitude: null, longitude: null, isActive: true, operatingHours: [], timezone: 'Asia/Kolkata' });
   const [permanentDeleteStore, setPermanentDeleteStore] = useState<StoreRecord | null>(null);
   const [permanentConfirmText, setPermanentConfirmText] = useState('');
   const [permanentDeleting, setPermanentDeleting] = useState(false);
@@ -109,6 +136,11 @@ export default function AdminStoresPage() {
       latitude: Number(store.latitude),
       longitude: Number(store.longitude),
       isActive: store.isActive,
+      operatingHours: (store.operatingHours || []).map((day) => ({
+        dayOfWeek: day.dayOfWeek,
+        windows: day.windows.map((window) => ({ openMinute: window.openMinute, closeMinute: window.closeMinute })),
+      })),
+      timezone: store.timezone || 'Asia/Kolkata',
     });
     setEditOpen(true);
   };
@@ -127,6 +159,8 @@ export default function AdminStoresPage() {
         latitude: form.latitude,
         longitude: form.longitude,
         isActive: form.isActive,
+        operatingHours: form.operatingHours,
+        timezone: form.timezone,
       });
       toast.success('Store updated.');
       setEditOpen(false);
@@ -206,15 +240,16 @@ export default function AdminStoresPage() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead><tr className="border-b border-gray-100 bg-gray-50/40"><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Store</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Owner</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Location</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Status</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Inventory</th><th className="px-6 py-4 text-right text-xs font-black uppercase tracking-wide text-gray-500">Actions</th></tr></thead>
+            <thead><tr className="border-b border-gray-100 bg-gray-50/40"><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Store</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Owner</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Location</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Status</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Hours</th><th className="px-6 py-4 text-xs font-black uppercase tracking-wide text-gray-500">Inventory</th><th className="px-6 py-4 text-right text-xs font-black uppercase tracking-wide text-gray-500">Actions</th></tr></thead>
             <tbody className="divide-y divide-gray-50">
-              {loading ? [1, 2, 3].map((index) => <tr key={index}><td colSpan={6} className="px-6 py-5"><div className="h-10 animate-pulse rounded bg-gray-100" /></td></tr>) : filteredStores.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-16 text-center"><StoreIcon className="mx-auto mb-3 h-12 w-12 text-gray-300" /><p className="font-bold text-gray-500">No stores found</p></td></tr>
+              {loading ? [1, 2, 3].map((index) => <tr key={index}><td colSpan={7} className="px-6 py-5"><div className="h-10 animate-pulse rounded bg-gray-100" /></td></tr>) : filteredStores.length === 0 ? (
+                <tr><td colSpan={7} className="px-6 py-16 text-center"><StoreIcon className="mx-auto mb-3 h-12 w-12 text-gray-300" /><p className="font-bold text-gray-500">No stores found</p></td></tr>
               ) : filteredStores.map((store) => <tr key={store.id} className={`group hover:bg-gray-50 ${store.deletedAt ? 'opacity-60' : ''}`}>
                 <td className="px-6 py-4"><div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><StoreIcon className="h-5 w-5" /></div><div><p className="font-black text-gray-900">{store.name}</p><p className="text-xs font-semibold text-gray-400">{store.id.slice(0, 8)}</p></div></div></td>
                 <td className="px-6 py-4"><div className="flex items-start gap-2"><User className="mt-0.5 h-4 w-4 text-gray-400" /><div><p className="text-sm font-bold text-gray-700">{store.owner?.name || 'Owner'}</p><p className="text-xs text-gray-500">{store.owner?.email || 'No email'}</p><p className="text-xs text-gray-500">{store.owner?.phone || 'No phone'}</p></div></div></td>
                 <td className="px-6 py-4"><div className="max-w-xs"><p className="truncate text-sm font-semibold text-gray-700">{store.address}</p><p className="mt-1 flex items-center gap-1 text-xs text-gray-400"><MapPin className="h-3 w-3" />{Number(store.latitude).toFixed(4)}, {Number(store.longitude).toFixed(4)}</p></div></td>
                 <td className="px-6 py-4">{store.deletedAt ? <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700">Deleted</span> : store.isActive ? <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">Active</span> : <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">Inactive</span>}</td>
+                <td className="px-6 py-4"><span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-3 py-1 text-xs font-black text-slate-600"><Clock className="h-3.5 w-3.5" />{hoursSummary(store)}</span></td>
                 <td className="px-6 py-4"><span className="inline-flex items-center gap-1 text-sm font-bold text-gray-700"><Package className="h-4 w-4 text-purple-500" />{store.inventory?.length || 0} products</span></td>
                 <td className="px-6 py-4 text-right">{store.deletedAt ? <div className="flex justify-end gap-1"><button onClick={() => void restore(store)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700"><RotateCcw className="h-4 w-4" /> Restore</button><button onClick={() => { setPermanentConfirmText(''); setPermanentDeleteStore(store); }} className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-3 py-2 text-xs font-black text-red-700"><Trash2 className="h-4 w-4" /> Delete permanently</button></div> : <div className="flex justify-end gap-1"><button onClick={() => openEdit(store)} className="rounded-lg p-2 text-gray-400 hover:bg-blue-50 hover:text-blue-600" title="Edit store"><Edit className="h-4 w-4" /></button><button onClick={() => void remove(store)} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600" title="Delete store"><Trash2 className="h-4 w-4" /></button></div>}</td>
               </tr>)}
@@ -232,6 +267,40 @@ export default function AdminStoresPage() {
               <label className="block text-sm font-black text-gray-700">Address<input value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 px-4" /></label>
               <StoreLocationPicker apiClient={apiClient} compact coords={{ lat: form.latitude, lng: form.longitude }} onCoordsChange={(latitude, longitude) => setForm((current) => ({ ...current, latitude, longitude }))} onAddressChange={(address) => setForm((current) => ({ ...current, address: address.address || current.address }))} searchPlaceholder="Search store location..." />
               <label className="flex items-center gap-3 rounded-xl bg-gray-50 p-4 text-sm font-black text-gray-700"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} /> Store is active</label>
+              <div className="rounded-2xl border border-gray-100 bg-gray-50/40 p-4">
+                <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-emerald-700" /><p className="text-sm font-black text-gray-800">Operating hours</p><p className="ml-auto text-xs font-semibold text-gray-400">Closed = no instant orders, pre-order only</p></div>
+                <div className="mt-3 grid gap-1.5">
+                  {DAY_LABELS.map((label, dayOfWeek) => {
+                    const day = form.operatingHours.find((entry) => entry.dayOfWeek === dayOfWeek);
+                    const open = Boolean(day && day.windows.length > 0);
+                    const windows = day?.windows || [];
+                    return (
+                      <div key={dayOfWeek} className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 ${open ? 'border-emerald-200 bg-white' : 'border-gray-100 bg-white/60'}`}>
+                        <label className="flex w-32 cursor-pointer items-center gap-2 text-xs font-black text-gray-700"><input type="checkbox" checked={open} onChange={(event) => setForm((current) => ({
+                          ...current,
+                          operatingHours: event.target.checked
+                            ? [...current.operatingHours, { dayOfWeek, windows: [{ openMinute: 6 * 60, closeMinute: 21 * 60 }] }]
+                            : current.operatingHours.filter((entry) => entry.dayOfWeek !== dayOfWeek),
+                        }))} className="h-4 w-4 accent-emerald-700" />{label}</label>
+                        {open ? (
+                          <>
+                            {windows.map((window, index) => (
+                              <span key={index} className="flex items-center gap-2">
+                                <input type="time" value={minutesToTime(window.openMinute)} onChange={(event) => setForm((current) => ({ ...current, operatingHours: current.operatingHours.map((entry) => entry.dayOfWeek !== dayOfWeek ? entry : { ...entry, windows: entry.windows.map((win, i) => i === index ? { ...win, openMinute: timeToMinutes(event.target.value) } : win) }) }))} className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-bold text-gray-900" />
+                                <span className="text-[10px] font-black text-gray-400">to</span>
+                                <input type="time" value={minutesToTime(window.closeMinute)} onChange={(event) => setForm((current) => ({ ...current, operatingHours: current.operatingHours.map((entry) => entry.dayOfWeek !== dayOfWeek ? entry : { ...entry, windows: entry.windows.map((win, i) => i === index ? { ...win, closeMinute: timeToMinutes(event.target.value) } : win) }) }))} className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-bold text-gray-900" />
+                                {windows.length > 1 ? <button type="button" onClick={() => setForm((current) => ({ ...current, operatingHours: current.operatingHours.map((entry) => entry.dayOfWeek !== dayOfWeek ? entry : { ...entry, windows: entry.windows.filter((_, i) => i !== index) }) }))} className="rounded-md bg-red-50 px-1.5 py-1 text-[10px] font-black text-red-600">Remove</button> : null}
+                              </span>
+                            ))}
+                            {windows.length < 2 ? <button type="button" onClick={() => setForm((current) => ({ ...current, operatingHours: current.operatingHours.map((entry) => entry.dayOfWeek !== dayOfWeek ? entry : { ...entry, windows: [...entry.windows, { openMinute: 16 * 60, closeMinute: 20 * 60 }] }) }))} className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">+ Window</button> : null}
+                          </>
+                        ) : <span className="text-[10px] font-black text-gray-400">Closed</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+                <label className="mt-3 block text-xs font-black text-gray-700">Timezone<select value={form.timezone} onChange={(event) => setForm({ ...form, timezone: event.target.value })} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-800"><option value="Asia/Kolkata">Asia/Kolkata</option><option value="Asia/Dubai">Asia/Dubai</option><option value="Asia/Karachi">Asia/Karachi</option><option value="Asia/Kathmandu">Asia/Kathmandu</option><option value="Asia/Dhaka">Asia/Dhaka</option><option value="UTC">UTC</option></select></label>
+              </div>
               <button onClick={() => void saveEdit()} disabled={saving} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 font-black text-white disabled:opacity-50">{saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle className="h-5 w-5" />} Save store</button>
             </div>
           </div>

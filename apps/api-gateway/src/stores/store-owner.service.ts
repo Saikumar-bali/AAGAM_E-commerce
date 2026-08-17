@@ -1,6 +1,13 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, prisma } from '@aagam/database';
 import { UpdateOwnedStoreProfileDto } from './dto/update-owned-store-profile.dto';
+import { UpdateOperatingHoursDto } from './dto/update-operating-hours.dto';
+import {
+  isOpenAt,
+  nextOpenAt,
+  normalizeOperatingHours,
+} from './operating-hours';
+import { validateIanaTimezone } from '../subscriptions/subscription-timezone';
 
 @Injectable()
 export class StoreOwnerService {
@@ -86,5 +93,38 @@ export class StoreOwnerService {
 
     const stores = await this.listDashboardStores(ownerId);
     return stores.find((store) => store.id === storeId);
+  }
+
+  async getOperatingHours(storeId: string, ownerId: string) {
+    await this.assertOwnedStore(storeId, ownerId);
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { operatingHours: true, timezone: true },
+    });
+    if (!store) throw new NotFoundException('Store not found for this owner');
+    const operatingHours = normalizeOperatingHours(store.operatingHours);
+    const now = new Date();
+    const openNow = isOpenAt(store, now);
+    const nextOpen = nextOpenAt(store, now);
+    return {
+      operatingHours,
+      timezone: store.timezone,
+      openNow,
+      nextOpenAt: nextOpen ? nextOpen.toISOString() : null,
+    };
+  }
+
+  async updateOperatingHours(storeId: string, ownerId: string, dto: UpdateOperatingHoursDto) {
+    await this.assertOwnedStore(storeId, ownerId);
+    const timezone = dto.timezone ? validateIanaTimezone(dto.timezone) : 'Asia/Kolkata';
+    const operatingHours = normalizeOperatingHours(dto.operatingHours ?? []);
+    await prisma.store.update({
+      where: { id: storeId },
+      data: {
+        operatingHours: operatingHours.length ? (operatingHours as any) : null,
+        timezone,
+      },
+    });
+    return this.getOperatingHours(storeId, ownerId);
   }
 }

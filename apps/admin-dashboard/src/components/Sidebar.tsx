@@ -28,6 +28,7 @@ import {
   CalendarDays,
   Route,
   Menu,
+  Clock,
   X,
 } from "lucide-react";
 
@@ -100,6 +101,7 @@ const menuItems: Record<Role, MenuItem[]> = {
     { name: "Subscription Runs", href: "/store/subscriptions", icon: CalendarDays },
     { name: "Inventory", href: "/store/inventory", icon: Package },
     { name: "My Stores", href: "/store/stores", icon: Store },
+    { name: "Settings", href: "/store/settings", icon: Clock },
   ],
 };
 

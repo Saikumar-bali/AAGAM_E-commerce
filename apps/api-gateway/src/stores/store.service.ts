@@ -8,6 +8,8 @@ import { UpdateStoreDto } from './dto/update-store.dto';
 import { AddStoreProductDto } from './dto/add-store-product.dto';
 import { StoreCatalogQueryDto } from './dto/store-catalog-query.dto';
 import { grantUserRole } from '../auth/user-roles';
+import { normalizeOperatingHours } from './operating-hours';
+import { validateIanaTimezone } from '../subscriptions/subscription-timezone';
 
 const SAFE_STORE_OWNER_SELECT = {
   id: true,
@@ -324,6 +326,8 @@ export class StoreService {
       latitude?: number;
       longitude?: number;
       isActive?: boolean;
+      operatingHours?: any;
+      timezone?: string;
     } = {};
 
     if (data.name !== undefined) updateData.name = data.name.trim();
@@ -331,6 +335,13 @@ export class StoreService {
     if (data.latitude !== undefined) updateData.latitude = data.latitude;
     if (data.longitude !== undefined) updateData.longitude = data.longitude;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.operatingHours !== undefined) {
+      const normalized = normalizeOperatingHours(data.operatingHours ?? []);
+      updateData.operatingHours = normalized.length ? (normalized as any) : null;
+    }
+    if (data.timezone !== undefined) {
+      updateData.timezone = validateIanaTimezone(data.timezone);
+    }
 
     if (Object.keys(updateData).length === 0) {
       throw new BadRequestException('No supported store fields were provided');

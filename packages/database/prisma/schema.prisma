@@ -68,6 +68,8 @@ model Store {
   deletedAt DateTime?
   ownerId   String
   owner     User      @relation("StoreOwner", fields: [ownerId], references: [id])
+  operatingHours Json?
+  timezone   String   @default("Asia/Kolkata")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
