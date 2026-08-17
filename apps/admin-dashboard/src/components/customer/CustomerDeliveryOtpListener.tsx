@@ -14,6 +14,7 @@ type InboxItem = {
   body?: string;
   type?: string;
   readAt?: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 const HANDLED_OTP_KEY = 'aagam:auto-opened-delivery-otps';
@@ -26,6 +27,7 @@ function jobIdFromDeepLink(value: unknown) {
 }
 
 function isOtpNotice(item: InboxItem) {
+  if (item.metadata && (item.metadata as any).operationType === 'OTP_ISSUED') return true;
   const text = `${item.title || ''} ${item.body || ''}`.toLowerCase();
   return text.includes('delivery verification code')
     || text.includes('verification code for order')
