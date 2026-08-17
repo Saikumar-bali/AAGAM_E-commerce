@@ -86,7 +86,10 @@ describe('customer, Partner onboarding and catalog continuation contracts', () =
     expect(shop).toContain('catalogReady');
     expect(shop).toContain('availableProductCount');
     expect(detail).toContain('{productQuantity}</Text>');
-    expect(profile).toContain('alternatePhoneE164: alternatePhoneE164.trim() || null');
+    expect(profile).toContain('alternatePhoneE164: draft.alternatePhoneE164.trim() || null');
+    expect(profile).toContain("basePayload.locationSource = 'LIVE_GPS'");
+    expect(profile).toContain("basePayload.locationSource = 'MAP_PIN'");
+    expect(profile).toContain("basePayload.locationSource = 'GEOCODED'");
     expect(addressDto).toContain('alternatePhoneE164?: string | null');
     expect(customerService).toContain('dto.alternatePhoneE164 === null');
     expect(cart).toContain('subtotalBeforeSavings');
