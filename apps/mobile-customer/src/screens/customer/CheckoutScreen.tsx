@@ -21,6 +21,7 @@ import { getUserSafeError, notify } from '../../ui/notify';
 const formatCheckoutMoney = (value: number) => `₹${Number(value || 0).toFixed(2)}`;
 type CheckoutAddressField = 'recipientName' | 'phoneE164' | 'line1' | 'city' | 'state' | 'pincode' | 'latitude' | 'longitude';
 type CheckoutAddressErrors = Partial<Record<CheckoutAddressField, string>>;
+type CheckoutAddressLocationSource = 'LIVE_GPS' | 'MAP_PIN';
 
 function isValidPhone(value: string) {
   const compact = value.trim().replace(/[\s().-]/g, '');
@@ -40,7 +41,22 @@ export const CheckoutScreen = () => {
   const [couponError, setCouponError] = useState('');
   const [couponApplying, setCouponApplying] = useState(false);
   const [showAddressForm, setShowAddressForm] = useState(false);
-  const [addressDraft, setAddressDraft] = useState({ label: 'Home', recipientName: user?.name || '', phoneE164: user?.phone || '', line1: '', city: '', state: '', pincode: '', latitude: '', longitude: '', country: 'IN', isDefault: true });
+  const [addressDraft, setAddressDraft] = useState({
+    label: 'Home',
+    recipientName: user?.name || '',
+    phoneE164: user?.phone || '',
+    line1: '',
+    city: '',
+    state: '',
+    pincode: '',
+    latitude: '',
+    longitude: '',
+    locationSource: 'MAP_PIN' as CheckoutAddressLocationSource,
+    locationAccuracyMetres: null as number | null,
+    locationCapturedAt: null as string | null,
+    country: 'IN',
+    isDefault: true,
+  });
   const [addressErrors, setAddressErrors] = useState<CheckoutAddressErrors>({});
   const idempotencyKey = useRef(`mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const lastRequestedCoupon = useRef('');
@@ -86,10 +102,26 @@ export const CheckoutScreen = () => {
 
   const clearAddressError = (field: CheckoutAddressField) => setAddressErrors((current) => ({ ...current, [field]: undefined }));
 
-  const setPinnedLocation = async (latitude: number, longitude: number) => {
+  const setPinnedLocation = async (
+    latitude: number,
+    longitude: number,
+    locationSource: CheckoutAddressLocationSource = 'MAP_PIN',
+    accuracyMetres?: number,
+  ) => {
     clearAddressError('latitude');
     clearAddressError('longitude');
-    setAddressDraft((current) => ({ ...current, latitude: String(latitude), longitude: String(longitude) }));
+    const hasLiveAccuracy = locationSource === 'LIVE_GPS'
+      && typeof accuracyMetres === 'number'
+      && Number.isFinite(accuracyMetres)
+      && accuracyMetres > 0;
+    setAddressDraft((current) => ({
+      ...current,
+      latitude: String(latitude),
+      longitude: String(longitude),
+      locationSource,
+      locationAccuracyMetres: hasLiveAccuracy ? accuracyMetres : null,
+      locationCapturedAt: locationSource === 'LIVE_GPS' ? new Date().toISOString() : null,
+    }));
     try {
       const response = await apiClient.get('/geo/reverse', { params: { lat: latitude, lng: longitude } });
       const address = response.data?.address;
@@ -108,7 +140,12 @@ export const CheckoutScreen = () => {
       }
     }
     Geolocation.getCurrentPosition(
-      (position) => void setPinnedLocation(position.coords.latitude, position.coords.longitude),
+      (position) => void setPinnedLocation(
+        position.coords.latitude,
+        position.coords.longitude,
+        'LIVE_GPS',
+        position.coords.accuracy,
+      ),
       () => notify.error('Location unavailable', 'Turn on precise location or tap the map to pin manually.'),
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
     );
@@ -131,7 +168,20 @@ export const CheckoutScreen = () => {
   };
 
   const saveAddress = useMutation({
-    mutationFn: async () => (await apiClient.post('/customer/addresses', { ...addressDraft, latitude: Number(addressDraft.latitude), longitude: Number(addressDraft.longitude) })).data,
+    mutationFn: async () => (await apiClient.post('/customer/addresses', {
+      ...addressDraft,
+      latitude: Number(addressDraft.latitude),
+      longitude: Number(addressDraft.longitude),
+      ...(addressDraft.locationSource === 'LIVE_GPS'
+        ? {
+            locationAccuracyMetres: addressDraft.locationAccuracyMetres,
+            locationCapturedAt: addressDraft.locationCapturedAt,
+          }
+        : {
+            locationAccuracyMetres: undefined,
+            locationCapturedAt: undefined,
+          }),
+    })).data,
     onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: ['addresses'] });
       setSelectedAddressId(saved.id);
@@ -255,7 +305,7 @@ export const CheckoutScreen = () => {
       })}
       {addresses.length === 0 ? <View style={styles.noticeCard}><Text style={styles.noticeTitle}>No saved address yet</Text><Text style={styles.noticeText}>Add and pin a delivery address without leaving checkout.</Text><TouchableOpacity testID="checkout_inline_address_button" style={styles.inlineAddressButton} onPress={() => { setAddressErrors({}); setShowAddressForm(true); }}><Text style={styles.inlineAddressButtonText}>Add delivery address</Text></TouchableOpacity></View> : null}
       {addresses.length > 0 ? <TouchableOpacity testID="checkout_add_another_address" style={styles.addAnotherButton} onPress={() => { setAddressErrors({}); setShowAddressForm((value) => !value); }}><Text style={styles.addAnotherText}>{showAddressForm ? 'Close address form' : '+ Add another address'}</Text></TouchableOpacity> : null}
-      {showAddressForm ? <View style={[styles.addressForm, locationError && styles.addressFormError]}><Text style={styles.addressFormTitle}>Pin delivery location *</Text><TouchableOpacity testID="checkout_use_live_location" style={styles.locationButton} onPress={() => void useCurrentLocation()}><Text style={styles.locationButtonText}>Use live location</Text></TouchableOpacity><LeafletMap latitude={Number(addressDraft.latitude) || 17.385} longitude={Number(addressDraft.longitude) || 78.4867} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude)} />{locationError ? <Text style={styles.addressErrorText}>A valid pinned delivery location is required.</Text> : null}{(['recipientName', 'phoneE164', 'line1', 'city', 'state', 'pincode'] as CheckoutAddressField[]).map((key) => { const labels: Record<string, string> = { recipientName: 'Recipient name', phoneE164: 'Phone number', line1: 'House, street and area', city: 'City', state: 'State', pincode: 'Pincode' }; const fieldError = addressErrors[key]; return <View key={key}><TextInput testID={`checkout_address_input_${key}`} value={(addressDraft as any)[key]} onChangeText={(value) => { clearAddressError(key); setAddressDraft((current) => ({ ...current, [key]: value })); }} placeholder={`${labels[key]} (required)`} placeholderTextColor="#94A3B8" style={[styles.addressInput, fieldError && styles.addressInputError]} accessibilityLabel={labels[key]} />{fieldError ? <Text style={styles.addressErrorText}>{fieldError}</Text> : null}</View>; })}<TouchableOpacity testID="checkout_save_address_button" disabled={saveAddress.isPending} style={[styles.saveAddressButton, saveAddress.isPending && styles.placeOrderButtonDisabled]} onPress={submitAddress}><Text style={styles.saveAddressText}>{saveAddress.isPending ? 'Saving…' : 'Save and use this address'}</Text></TouchableOpacity></View> : null}
+      {showAddressForm ? <View style={[styles.addressForm, locationError && styles.addressFormError]}><Text style={styles.addressFormTitle}>Pin delivery location *</Text><TouchableOpacity testID="checkout_use_live_location" style={styles.locationButton} onPress={() => void useCurrentLocation()}><Text style={styles.locationButtonText}>Use live location</Text></TouchableOpacity><LeafletMap latitude={Number(addressDraft.latitude) || 17.385} longitude={Number(addressDraft.longitude) || 78.4867} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')} />{locationError ? <Text style={styles.addressErrorText}>A valid pinned delivery location is required.</Text> : null}{(['recipientName', 'phoneE164', 'line1', 'city', 'state', 'pincode'] as CheckoutAddressField[]).map((key) => { const labels: Record<string, string> = { recipientName: 'Recipient name', phoneE164: 'Phone number', line1: 'House, street and area', city: 'City', state: 'State', pincode: 'Pincode' }; const fieldError = addressErrors[key]; return <View key={key}><TextInput testID={`checkout_address_input_${key}`} value={(addressDraft as any)[key]} onChangeText={(value) => { clearAddressError(key); setAddressDraft((current) => ({ ...current, [key]: value })); }} placeholder={`${labels[key]} (required)`} placeholderTextColor="#94A3B8" style={[styles.addressInput, fieldError && styles.addressInputError]} accessibilityLabel={labels[key]} />{fieldError ? <Text style={styles.addressErrorText}>{fieldError}</Text> : null}</View>; })}<TouchableOpacity testID="checkout_save_address_button" disabled={saveAddress.isPending} style={[styles.saveAddressButton, saveAddress.isPending && styles.placeOrderButtonDisabled]} onPress={submitAddress}><Text style={styles.saveAddressText}>{saveAddress.isPending ? 'Saving…' : 'Save and use this address'}</Text></TouchableOpacity></View> : null}
 
       <Text style={styles.sectionTitle}>Payment Method</Text>
       <View style={styles.paymentRow}><TouchableOpacity testID="checkout_payment_cod" style={[styles.paymentButton, styles.paymentButtonActive]} accessibilityState={{ selected: true }}><Text style={[styles.paymentLabel, styles.paymentLabelActive]}>Cash on Delivery</Text><Text style={styles.paymentMeta}>Pay when the order arrives</Text></TouchableOpacity><TouchableOpacity testID="checkout_payment_online" disabled accessibilityState={{ disabled: true }} style={[styles.paymentButton, { opacity: 0.55, backgroundColor: '#F8FAFC' }]}><Text style={[styles.paymentLabel, { color: '#94A3B8' }]}>Pay Online</Text><Text style={styles.paymentMeta}>Currently unavailable</Text></TouchableOpacity></View>
