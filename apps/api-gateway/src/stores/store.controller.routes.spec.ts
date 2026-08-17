@@ -11,4 +11,13 @@ describe('StoreController owner store routes', () => {
 
     expect(path).toEqual(['my-stores', 'mine']);
   });
+
+  it('registers the admin orphaned-owner purge route', () => {
+    const path = Reflect.getMetadata(
+      PATH_METADATA,
+      StoreController.prototype.purgeOrphanedOwners,
+    );
+
+    expect(path).toEqual('admin/purge-orphaned-owners');
+  });
 });

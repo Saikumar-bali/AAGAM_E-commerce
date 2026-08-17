@@ -101,6 +101,13 @@ export class StoreController {
     return this.storeService.findAllAdmin();
   }
 
+  @Post('admin/purge-orphaned-owners')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async purgeOrphanedOwners() {
+    return this.storeService.purgeOrphanedStoreOwners();
+  }
+
   @Post(':id/restore')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)

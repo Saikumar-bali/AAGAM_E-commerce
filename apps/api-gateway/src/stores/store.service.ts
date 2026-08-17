@@ -252,6 +252,10 @@ export class StoreService {
         where: { id: store.ownerId },
         data: { isActive: true, deactivatedAt: null, deactivationReason: null },
       }),
+      prisma.$executeRawUnsafe(
+        `UPDATE "User" SET "accountStatus" = 'ACTIVE'::"PartnerAccountStatus" WHERE "id" = $1`,
+        store.ownerId,
+      ),
     ]);
     await this.invalidateCommerceCache();
     return restored;
@@ -372,18 +376,127 @@ export class StoreService {
     const store = await prisma.store.findUnique({ where: { id } });
     if (!store) throw new NotFoundException('Store not found');
 
-    const [deleted] = await prisma.$transaction([
-      prisma.store.update({
+    const [deleted] = await prisma.$transaction(async (tx) => {
+      const otherStores = await tx.store.count({
+        where: { ownerId: store.ownerId, id: { not: id }, deletedAt: null },
+      });
+      const updated = await tx.store.update({
         where: { id },
         data: { deletedAt: new Date(), isActive: false },
-      }),
-      prisma.user.update({
-        where: { id: store.ownerId },
-        data: { isActive: false, deactivatedAt: new Date(), deactivationReason: 'Store deleted by admin' },
-      }),
-    ]);
+      });
+      if (otherStores === 0) {
+        await tx.user.update({
+          where: { id: store.ownerId },
+          data: { isActive: false, deactivatedAt: new Date(), deactivationReason: 'Store deleted by admin' },
+        });
+      }
+      return [updated];
+    });
     await this.invalidateCommerceCache();
     return deleted;
+  }
+
+  private async purgeOwnerAccount(userId: string) {
+    const [
+      orders,
+      addresses,
+      riderProfiles,
+      campaigns,
+      coupons,
+      redemptions,
+      subscriptions,
+      subscriptionIssues,
+      subscriptionAudits,
+      subscriptionPlans,
+      subscriptionPlanVersions,
+      cashDepositAudits,
+      remainingStores,
+    ] = await prisma.$transaction([
+      prisma.order.count({ where: { customerId: userId } }),
+      prisma.customerAddress.count({ where: { userId } }),
+      prisma.riderProfile.count({ where: { userId } }),
+      prisma.promotionCampaign.count({ where: { createdByUserId: userId } }),
+      prisma.coupon.count({ where: { createdByUserId: userId } }),
+      prisma.couponRedemption.count({ where: { customerId: userId } }),
+      prisma.customerSubscription.count({ where: { customerId: userId } }),
+      prisma.subscriptionIssueReport.count({ where: { customerId: userId } }),
+      prisma.subscriptionAuditEntry.count({ where: { actorUserId: userId } }),
+      prisma.subscriptionPlan.count({
+        where: { OR: [{ createdById: userId }, { updatedById: userId }] },
+      }),
+      prisma.subscriptionPlanVersion.count({ where: { createdById: userId } }),
+      prisma.cashDepositAuditEntry.count({ where: { actorUserId: userId } }),
+      prisma.store.count({ where: { ownerId: userId } }),
+    ]);
+    const dependent =
+      orders +
+      addresses +
+      riderProfiles +
+      campaigns +
+      coupons +
+      redemptions +
+      subscriptions +
+      subscriptionIssues +
+      subscriptionAudits +
+      subscriptionPlans +
+      subscriptionPlanVersions +
+      cashDepositAudits +
+      remainingStores;
+
+    if (dependent > 0) {
+      await prisma.$transaction([
+        prisma.$executeRawUnsafe(
+          `UPDATE "UserRoleMembership"
+           SET "status" = 'REVOKED', "revokedAt" = CURRENT_TIMESTAMP
+           WHERE "userId" = $1 AND "status" = 'ACTIVE'`,
+          userId,
+        ),
+        prisma.user.update({
+          where: { id: userId },
+          data: {
+            isActive: false,
+            deactivatedAt: new Date(),
+            deactivationReason: 'Store permanently deleted by admin',
+          },
+        }),
+        prisma.$executeRawUnsafe(
+          `UPDATE "User" SET "accountStatus" = 'CLOSED'::"PartnerAccountStatus" WHERE "id" = $1`,
+          userId,
+        ),
+      ]);
+      return { deleted: false, reason: `account kept deactivated: ${dependent} dependent record(s)` };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        'UPDATE "PartnerApplication" SET "provisionedUserId" = NULL WHERE "provisionedUserId" = $1',
+        userId,
+      );
+      await tx.user.delete({ where: { id: userId } });
+    });
+    return { deleted: true };
+  }
+
+  async purgeOrphanedStoreOwners() {
+    const orphans = await prisma.$queryRawUnsafe<
+      { id: string; email: string; phone: string | null }[]
+    >(
+      `SELECT u."id", u."email", u."phone"
+       FROM "User" u
+       WHERE u."role" = 'STORE_OWNER'
+         AND NOT EXISTS (SELECT 1 FROM "Store" s WHERE s."ownerId" = u."id")`,
+    );
+    const purged: { email: string; phone: string | null }[] = [];
+    const kept: { email: string; phone: string | null; reason: string }[] = [];
+    for (const orphan of orphans) {
+      const result = await this.purgeOwnerAccount(orphan.id);
+      if (result.deleted) {
+        purged.push({ email: orphan.email, phone: orphan.phone });
+      } else {
+        kept.push({ email: orphan.email, phone: orphan.phone, reason: result.reason ?? '' });
+      }
+    }
+    return { total: orphans.length, purged, kept };
   }
 
   async permanentDelete(id: string) {
@@ -411,12 +524,13 @@ export class StoreService {
       );
     }
 
+    let otherStores = 0;
     await prisma.$transaction(async (tx) => {
       await tx.inventoryLedger.deleteMany({ where: { storeId: id } });
       await tx.inventory.deleteMany({ where: { storeId: id } });
 
-      const otherStores = await tx.store.count({
-        where: { ownerId: store.ownerId, id: { not: id } },
+      otherStores = await tx.store.count({
+        where: { ownerId: store.ownerId, id: { not: id }, deletedAt: null },
       });
       if (otherStores === 0) {
         await tx.$executeRawUnsafe(
@@ -433,8 +547,16 @@ export class StoreService {
 
       await tx.store.delete({ where: { id } });
     });
+
+    let ownerAccount: { deleted: boolean; reason?: string } = {
+      deleted: false,
+      reason: 'owner still has other active stores',
+    };
+    if (otherStores === 0) {
+      ownerAccount = await this.purgeOwnerAccount(store.ownerId);
+    }
     await this.invalidateCommerceCache();
-    return { id, name: store.name, permanentlyDeleted: true };
+    return { id, name: store.name, permanentlyDeleted: true, ownerAccount };
   }
 
   async updateInventory(
