@@ -283,6 +283,21 @@ export class CustomerService {
     if (!existing) throw new NotFoundException('Address not found');
     if (existing.userId !== userId) throw new ForbiddenException('Not allowed');
 
+    if (existing.isDefault) {
+      const addressCount = await prisma.customerAddress.count({ where: { userId } });
+      if (addressCount === 1) {
+        throw new BadRequestException('Cannot delete your only address. Add another address first.');
+      }
+      throw new BadRequestException('Cannot delete your default address. Please set another address as default first.');
+    }
+
+    const subscriptionCount = await prisma.customerSubscription.count({
+      where: { addressId, status: { in: ['ACTIVE', 'PAUSED', 'PAYMENT_DUE', 'GRACE_PERIOD'] } },
+    });
+    if (subscriptionCount > 0) {
+      throw new BadRequestException('This address is linked to active subscriptions and cannot be deleted. Cancel or update the subscription first.');
+    }
+
     await prisma.customerAddress.delete({ where: { id: addressId } });
     return { success: true };
   }
