@@ -260,8 +260,23 @@ jobs:
             turbo-${{ runner.os }}-
 
       - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
+        shell: bash
         working-directory: apps/admin-dashboard
+        run: |
+          # apt-based dep install occasionally hangs on ubuntu-24.04 runners
+          # (dpkg lock / slow apt). Timeout each attempt and retry so a single
+          # infrastructure flake cannot cancel the whole CI job.
+          for attempt in 1 2 3; do
+            echo "playwright install attempt $attempt/3"
+            if timeout 480 npx playwright install chromium --with-deps; then
+              echo "playwright install succeeded"
+              exit 0
+            fi
+            echo "attempt $attempt timed out or failed; retrying"
+            sleep 5
+          done
+          echo "playwright install failed after 3 attempts"
+          exit 1
 
       - name: Build API gateway and dashboard
         run: |
