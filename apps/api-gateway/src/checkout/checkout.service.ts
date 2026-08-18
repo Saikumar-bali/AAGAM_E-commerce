@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { CouponRedemptionStatus, OrderSource, PaymentMethod, PaymentStatus, Prisma, Role, prisma } from '@aagam/database';
+import type { DeliveryFeeRule } from '@aagam/database';
 import { calculateDistance } from '@aagam/utils';
 
 import { CheckoutPlaceOrderDto, CheckoutQuoteDto } from './dto/checkout.dto';
@@ -9,6 +10,7 @@ import { PromotionsService } from '../promotions/promotions.service';
 import { OrderCreationService } from '../orders/order-creation.service';
 import { calculateDeliveryPricing } from './delivery-pricing';
 import { DEFAULT_PREORDER_SLOTS, DELIVERY_TIME_ZONE } from './delivery-slots';
+import { DeliveryFeeRulesService } from '../stores/delivery-fee-rules.service';
 import {
   formatInstantInZone,
   isOpenAt,
@@ -65,6 +67,7 @@ function normalizeItems(items: Array<{ productId: string; quantity: number }>) {
 export class CheckoutService {
   private readonly orderCreation: OrderCreationService;
   private readonly promotionsService: PromotionsService | undefined;
+  private readonly deliveryFeeRules: DeliveryFeeRulesService;
 
   constructor(
     private readonly trackingGateway: TrackingGateway,
@@ -72,17 +75,18 @@ export class CheckoutService {
     @Inject(OrderCreationService)
     orderCreationOrPromotions?: OrderCreationService | PromotionsService,
     @Optional() promotionsService?: PromotionsService,
+    @Optional() deliveryFeeRulesService?: DeliveryFeeRulesService,
   ) {
     if (isOrderCreationService(orderCreationOrPromotions)) {
       this.orderCreation = orderCreationOrPromotions;
       this.promotionsService = promotionsService;
-      return;
+    } else {
+      // Preserve direct unit-test construction from before OrderCreationService was extracted.
+      // Nest still injects OrderCreationService explicitly through @Inject in production.
+      this.orderCreation = new OrderCreationService();
+      this.promotionsService = orderCreationOrPromotions ?? promotionsService;
     }
-
-    // Preserve direct unit-test construction from before OrderCreationService was extracted.
-    // Nest still injects OrderCreationService explicitly through @Inject in production.
-    this.orderCreation = new OrderCreationService();
-    this.promotionsService = orderCreationOrPromotions ?? promotionsService;
+    this.deliveryFeeRules = deliveryFeeRulesService ?? new DeliveryFeeRulesService();
   }
 
   private nearestStore(lat: number, lng: number, stores: ResolvedStore[]) {
@@ -193,7 +197,13 @@ export class CheckoutService {
     if (!address) throw new NotFoundException('Address not found');
 
     const resolved = await this.resolveStoreForLocation(address.latitude, address.longitude);
-    const deliveryPricing = calculateDeliveryPricing(resolved.distanceKm);
+    const rule = await this.deliveryFeeRules.resolve(address, resolved.store.id);
+    const deliveryPricing = calculateDeliveryPricing(
+      resolved.distanceKm,
+      undefined,
+      false,
+      rule ? this.deliveryFeeRules.toOverrides(rule) : {},
+    );
     const now = new Date();
     const openNow = isOpenAt(resolved.store, now);
     const nextOpen = nextOpenAt(resolved.store, now);
@@ -333,13 +343,20 @@ export class CheckoutService {
     let storeName: string | null = null;
     let distanceKm: number | null = null;
     let serviceable = true;
+    let deliveryFeeRule: DeliveryFeeRule | null = null;
 
     if (address) {
       const resolved = await this.resolveStoreForLocation(address.latitude, address.longitude, normalizedItems);
       storeId = resolved.store.id;
       storeName = resolved.store.name;
       distanceKm = resolved.distanceKm;
-      const deliveryPricing = calculateDeliveryPricing(resolved.distanceKm);
+      deliveryFeeRule = await this.deliveryFeeRules.resolve(address, resolved.store.id);
+      const deliveryPricing = calculateDeliveryPricing(
+        resolved.distanceKm,
+        undefined,
+        false,
+        deliveryFeeRule ? this.deliveryFeeRules.toOverrides(deliveryFeeRule) : {},
+      );
       serviceable = deliveryPricing.serviceable;
     } else {
       const store = await prisma.store.findFirst({ where: { isActive: true, deletedAt: null }, select: { id: true, name: true } });
@@ -388,7 +405,12 @@ export class CheckoutService {
     const subtotalPaise = items.reduce((sum, it) => sum + it.lineTotalPaise, 0);
     const deliveryPricing = distanceKm === null
       ? null
-      : calculateDeliveryPricing(distanceKm, subtotalPaise, firstOrderEligible);
+      : calculateDeliveryPricing(
+          distanceKm,
+          subtotalPaise,
+          firstOrderEligible,
+          deliveryFeeRule ? this.deliveryFeeRules.toOverrides(deliveryFeeRule) : {},
+        );
     const deliveryFeePaise = deliveryPricing?.payableFeePaise ?? 0;
     const deliveryFee = deliveryFeePaise / 100;
     const promotionPricing = storeId && this.promotionsService

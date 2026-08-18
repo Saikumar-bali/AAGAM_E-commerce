@@ -87,4 +87,56 @@ describe('distance delivery pricing', () => {
     expect(calculateDeliveryPricing(Number.NaN, 7_000).serviceable).toBe(false);
     expect(calculateDeliveryPricing(-1, 7_000).serviceable).toBe(false);
   });
+
+  it('applies a locality rate override while keeping the default fallback intact', () => {
+    const pricing = calculateDeliveryPricing(5, 7_000, false, {
+      ruleId: 'rule-thummapala',
+      ruleName: 'Thummapala',
+      matchType: 'KEYWORD',
+      ratePaisePerKm: 300,
+    });
+    expect(pricing.ratePaisePerKm).toBe(300);
+    expect(pricing.distanceFeePaise).toBe(1_500);
+    expect(pricing.payableFeePaise).toBe(1_500);
+    expect(pricing.appliedRule).toEqual({
+      id: 'rule-thummapala',
+      name: 'Thummapala',
+      matchType: 'KEYWORD',
+    });
+    // default path is unchanged when no override is provided
+    expect(calculateDeliveryPricing(5, 7_000).payableFeePaise).toBe(1_000);
+  });
+
+  it('uses a flat fee instead of per-kilometre rate when the rule sets one', () => {
+    const pricing = calculateDeliveryPricing(9, 7_000, false, {
+      ruleId: 'rule-flat',
+      ruleName: 'Flat locality',
+      matchType: 'PINCODE',
+      flatFeePaise: 4_000,
+      ratePaisePerKm: 200,
+    });
+    expect(pricing.flatFeePaise).toBe(4_000);
+    expect(pricing.distanceFeePaise).toBe(4_000);
+    expect(pricing.payableFeePaise).toBe(4_000);
+  });
+
+  it('honours rule-level free delivery and maximum distance overrides', () => {
+    const below = calculateDeliveryPricing(6, 5_000, false, {
+      ruleId: 'rule-free',
+      ruleName: 'Free locality',
+      matchType: 'CITY',
+      freeDeliveryMinimumPaise: 4_900,
+    });
+    expect(below.waivedByThreshold).toBe(true);
+    expect(below.payableFeePaise).toBe(0);
+
+    const capped = calculateDeliveryPricing(12, 6_000, false, {
+      ruleId: 'rule-cap',
+      ruleName: 'Near locality',
+      matchType: 'DEFAULT',
+      maximumDistanceKm: 10,
+    });
+    expect(capped.serviceable).toBe(false);
+    expect(capped.maximumDistanceKm).toBe(10);
+  });
 });
