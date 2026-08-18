@@ -83,6 +83,36 @@ model Store {
   deliveryRuns DeliveryRun[]
   cashDepositBatches CashDepositBatch[]
   deliveryZoneLinks DeliveryZoneStore[]
+  deliveryFeeRules DeliveryFeeRule[]
+}
+
+enum DeliveryFeeMatchType {
+  PINCODE
+  CITY
+  KEYWORD
+  DEFAULT
+}
+
+model DeliveryFeeRule {
+  id              String               @id @default(cuid())
+  name            String
+  matchType       DeliveryFeeMatchType
+  pincode         String?
+  city            String?
+  keywords        String[]
+  storeId         String?
+  store           Store?               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  ratePaisePerKm  Int                  @default(200)
+  flatFeePaise    Int?
+  freeDeliveryMinimumPaise Int?
+  maximumDistanceKm Float?
+  priority        Int                  @default(100)
+  isActive        Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([storeId])
+  @@index([matchType])
 }
 
 model Category {
