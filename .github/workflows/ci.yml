@@ -263,12 +263,24 @@ jobs:
         shell: bash
         working-directory: apps/admin-dashboard
         run: |
-          # apt-based dep install occasionally hangs on ubuntu-24.04 runners
-          # (dpkg lock / slow apt). Timeout each attempt and retry so a single
-          # infrastructure flake cannot cancel the whole CI job.
+          # apt-based dep install occasionally hangs or fails on ubuntu-24.04
+          # runners (dpkg lock / slow apt). Timeout each attempt, and fall back
+          # to a browser-only install (the runner image ships the Chromium
+          # system deps) so a single infrastructure flake cannot cancel CI.
+          install_browser() {
+            echo "installing playwright chromium with system deps"
+            if timeout 480 npx playwright install --with-deps chromium; then
+              return 0
+            fi
+            echo "with-deps install failed; falling back to browser-only install"
+            if timeout 240 npx playwright install chromium; then
+              return 0
+            fi
+            return 1
+          }
           for attempt in 1 2 3; do
             echo "playwright install attempt $attempt/3"
-            if timeout 480 npx playwright install chromium --with-deps; then
+            if install_browser; then
               echo "playwright install succeeded"
               exit 0
             fi

@@ -184,11 +184,12 @@ test.describe('Responsive role navigation', () => {
 
     const desktopNavigation = page.getByRole('navigation', { name: 'Admin navigation' });
     await expect(desktopNavigation).toBeVisible();
-    await expect(desktopNavigation.locator('a')).toHaveCount(17);
+    await expect(desktopNavigation.locator('a')).toHaveCount(18);
     await expect(desktopNavigation.locator('a[href="/admin/customers"]')).toBeVisible();
     await expect(desktopNavigation.locator('a[href="/admin/subscriptions"]')).toBeVisible();
     await expect(desktopNavigation.locator('a[href="/admin/route-planning"]')).toBeVisible();
     await expect(desktopNavigation.locator('a[href="/admin/live-tracking"]')).toBeVisible();
+    await expect(desktopNavigation.locator('a[href="/admin/delivery-fee-rules"]')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open all navigation' })).toBeHidden();
 
     await page.screenshot({
