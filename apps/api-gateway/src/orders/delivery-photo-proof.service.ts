@@ -14,6 +14,11 @@ import {
 import { DeliveryJobStatus } from '@aagam/types';
 import { randomUUID } from 'crypto';
 import { UploadService } from '../upload/upload.service';
+import {
+  addressLocationSourceFromSnapshot,
+  distanceMetresBetween,
+  riderArrivalPolicy,
+} from './rider-arrival-evidence';
 import { DeliveryWorkflowService } from './delivery-workflow.service';
 
 type Actor = { id: string; role: Role };
@@ -39,6 +44,64 @@ export class DeliveryPhotoProofService {
     if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
       throw new BadRequestException('A valid delivery longitude is required for photo proof');
     }
+  }
+
+  private photoLocationDecision(job: any, input: PhotoCompletionInput) {
+    const locationSource = addressLocationSourceFromSnapshot(job.order.addressSnapshot);
+    const targetLatitude = Number(job.order.deliveryLat);
+    const targetLongitude = Number(job.order.deliveryLng);
+    const hasTarget = Number.isFinite(targetLatitude)
+      && Number.isFinite(targetLongitude)
+      && targetLatitude >= -90
+      && targetLatitude <= 90
+      && targetLongitude >= -180
+      && targetLongitude <= 180;
+    const policy = riderArrivalPolicy('CUSTOMER');
+
+    if (locationSource === 'LIVE_GPS') {
+      const accuracy = Number(input.accuracyMetres);
+      if (!Number.isFinite(accuracy) || accuracy <= 0) {
+        throw new BadRequestException('Fresh GPS accuracy is required for photo proof at a GPS-verified address');
+      }
+      if (accuracy > policy.maxAccuracyMetres) {
+        throw new BadRequestException(
+          `GPS accuracy must be within ${policy.maxAccuracyMetres} metres for photo proof`,
+        );
+      }
+      if (!hasTarget) {
+        throw new BadRequestException('The GPS-verified customer destination is unavailable');
+      }
+      const distanceMetres = Math.round(distanceMetresBetween(
+        { latitude: input.latitude, longitude: input.longitude },
+        { latitude: targetLatitude, longitude: targetLongitude },
+      ));
+      if (distanceMetres > policy.radiusMetres) {
+        throw new BadRequestException(
+          `Photo proof is ${distanceMetres} metres from the customer. Move within ${policy.radiusMetres} metres and retry.`,
+        );
+      }
+      return {
+        locationSource,
+        verificationMode: 'HARD_GEOFENCE',
+        decision: 'PASS',
+        distanceMetres,
+        radiusMetres: policy.radiusMetres,
+      };
+    }
+
+    const distanceMetres = hasTarget
+      ? Math.round(distanceMetresBetween(
+          { latitude: input.latitude, longitude: input.longitude },
+          { latitude: targetLatitude, longitude: targetLongitude },
+        ))
+      : null;
+    return {
+      locationSource,
+      verificationMode: 'SOFT_AUDIT',
+      decision: 'RECORDED',
+      distanceMetres,
+      radiusMetres: policy.radiusMetres,
+    };
   }
 
   private async assertRiderJob(client: typeof prisma | Prisma.TransactionClient, deliveryJobId: string, actor: Actor) {
@@ -94,13 +157,11 @@ export class DeliveryPhotoProofService {
 
     const preflight = await this.assertRiderJob(prisma, deliveryJobId, actor);
     if (preflight.delivered) return preflight.job;
+    this.photoLocationDecision(preflight.job, input);
 
     const { storageKey } = await this.uploads.uploadEvidence(file, actor.id);
     try {
       const outcome = await prisma.$transaction(async (tx) => {
-        // Use the canonical delivery-completion lock. Under READ COMMITTED the
-        // recheck after waiting sees the winner's committed state, so a second
-        // photo submission can return success and clean up its unused upload.
         await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-complete:${deliveryJobId}`}))`);
         const current = await this.assertRiderJob(tx, deliveryJobId, actor);
         if (current.delivered || current.job.status === DeliveryJobStatus.DELIVERED) {
@@ -108,6 +169,7 @@ export class DeliveryPhotoProofService {
         }
         const job = current.job;
         if (!job.currentRiderId) throw new BadRequestException('Delivery has no assigned Rider');
+        const locationDecision = this.photoLocationDecision(job, input);
 
         const now = new Date();
         const proof = await tx.deliveryProof.create({
@@ -139,6 +201,7 @@ export class DeliveryPhotoProofService {
           latitude: input.latitude,
           longitude: input.longitude,
           accuracyMetres: input.accuracyMetres ?? null,
+          locationDecision,
           otpFallback: true,
         });
         await tx.$executeRaw(Prisma.sql`
@@ -157,8 +220,6 @@ export class DeliveryPhotoProofService {
           ON CONFLICT ("idempotencyKey") DO NOTHING
         `);
 
-        // A photo fallback completes the same handoff that an OTP would have
-        // completed. Any still-active code must stop looking valid immediately.
         await tx.$executeRaw(Prisma.sql`
           UPDATE "DeliveryOperation"
           SET "status" = 'SUPERSEDED'::"DeliveryOperationStatus",
@@ -181,6 +242,11 @@ export class DeliveryPhotoProofService {
               proofReference: storageKey,
               riderConfirmed: true,
               coordinatesRecorded: true,
+              addressLocationSource: locationDecision.locationSource,
+              photoLocationVerificationMode: locationDecision.verificationMode,
+              photoLocationDecision: locationDecision.decision,
+              photoDistanceMetres: locationDecision.distanceMetres,
+              photoAllowedRadiusMetres: locationDecision.radiusMetres,
               completionIdempotencyKey: idempotencyKey || null,
               otpFallback: true,
             },

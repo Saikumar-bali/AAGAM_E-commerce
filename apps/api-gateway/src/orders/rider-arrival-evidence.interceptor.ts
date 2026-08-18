@@ -10,8 +10,10 @@ import { prisma } from '@aagam/database';
 import { Observable } from 'rxjs';
 import {
   ArrivalEvidenceInput,
+  addressLocationSourceFromSnapshot,
   riderArrivalPolicy,
   riderTransitionEvidencePolicy,
+  validateCustomerArrivalEvidence,
   validateRiderArrivalEvidence,
   validateRiderTransitionEvidence,
 } from './rider-arrival-evidence';
@@ -59,20 +61,25 @@ export class RiderArrivalEvidenceInterceptor implements NestInterceptor {
 
     const evidence = request.body as ArrivalEvidenceInput;
     const validated = transition.geofence
-      ? validateRiderArrivalEvidence({
-          evidence,
-          destination: transition.destinationType === 'STORE'
-            ? {
-                latitude: Number(job.order.store?.latitude),
-                longitude: Number(job.order.store?.longitude),
-              }
-            : {
-                latitude: Number(job.order.deliveryLat),
-                longitude: Number(job.order.deliveryLng),
-              },
-          destinationType: transition.destinationType,
-          policy: riderArrivalPolicy(transition.destinationType),
-        })
+      ? transition.destinationType === 'STORE'
+        ? validateRiderArrivalEvidence({
+            evidence,
+            destination: {
+              latitude: Number(job.order.store?.latitude),
+              longitude: Number(job.order.store?.longitude),
+            },
+            destinationType: 'STORE',
+            policy: riderArrivalPolicy('STORE'),
+          })
+        : validateCustomerArrivalEvidence({
+            evidence,
+            destination: {
+              latitude: Number(job.order.deliveryLat),
+              longitude: Number(job.order.deliveryLng),
+            },
+            locationSource: addressLocationSourceFromSnapshot(job.order.addressSnapshot),
+            policy: riderArrivalPolicy('CUSTOMER'),
+          })
       : {
           ...validateRiderTransitionEvidence({
             evidence,

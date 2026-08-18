@@ -8,6 +8,7 @@ import {
   Role,
   prisma,
 } from '@aagam/database';
+import { freezeAddressLocationEvidence } from '../customer/address-location-evidence';
 import { enqueueOutboxEvent } from '../notifications/outbox.service';
 import { requiredJson } from '../common/prisma-json';
 
@@ -108,6 +109,10 @@ export class OrderCreationService {
       throw new BadRequestException('Order grand total is inconsistent');
     }
 
+    // Freeze the saved-address provenance into the order snapshot. Future
+    // customer address edits must never change this delivery's proof policy.
+    const addressSnapshot = await freezeAddressLocationEvidence(tx, input.addressSnapshot);
+
     const created = await tx.order.create({
       data: {
         customerId: input.customerId,
@@ -137,7 +142,7 @@ export class OrderCreationService {
         deliveryLng: input.deliveryLng ?? null,
         idempotencyKey: input.idempotencyKey,
         customerSnapshot: requiredJson(input.customerSnapshot, 'customerSnapshot'),
-        addressSnapshot: requiredJson(input.addressSnapshot, 'addressSnapshot'),
+        addressSnapshot: requiredJson(addressSnapshot, 'addressSnapshot'),
         itemsSnapshot: input.lines.map((line) => ({
           productId: line.productId,
           name: line.name,

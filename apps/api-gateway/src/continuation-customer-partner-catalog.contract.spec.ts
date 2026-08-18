@@ -86,7 +86,10 @@ describe('customer, Partner onboarding and catalog continuation contracts', () =
     expect(shop).toContain('catalogReady');
     expect(shop).toContain('availableProductCount');
     expect(detail).toContain('{productQuantity}</Text>');
-    expect(profile).toContain('alternatePhoneE164: alternatePhoneE164.trim() || null');
+    expect(profile).toContain('alternatePhoneE164: draft.alternatePhoneE164.trim() || null');
+    expect(profile).toContain("basePayload.locationSource = 'LIVE_GPS'");
+    expect(profile).toContain("basePayload.locationSource = 'MAP_PIN'");
+    expect(profile).toContain("basePayload.locationSource = 'GEOCODED'");
     expect(addressDto).toContain('alternatePhoneE164?: string | null');
     expect(customerService).toContain('dto.alternatePhoneE164 === null');
     expect(cart).toContain('subtotalBeforeSavings');
@@ -97,13 +100,18 @@ describe('customer, Partner onboarding and catalog continuation contracts', () =
     expect(promotions).toContain('Hero campaign draft saved.');
   });
 
-  test('mobile checkout creates and selects a pinned address inline', () => {
+  test('mobile checkout creates and selects a provenance-aware pinned address inline', () => {
     const checkout = read('apps/mobile-customer/src/screens/customer/CheckoutScreen.tsx');
     expect(checkout).toContain('Add delivery address');
     expect(checkout).toContain('<LeafletMap');
     expect(checkout).toContain('PermissionsAndroid.request');
     expect(checkout).toContain("apiClient.post('/customer/addresses'");
     expect(checkout).toContain('setSelectedAddressId(saved.id)');
+    expect(checkout).toContain("locationSource: 'MAP_PIN' as CheckoutAddressLocationSource");
+    expect(checkout).toContain("'LIVE_GPS',");
+    expect(checkout).toContain('position.coords.accuracy');
+    expect(checkout).toContain("setPinnedLocation(latitude, longitude, 'MAP_PIN')");
+    expect(checkout).toContain('locationCapturedAt');
     expect(checkout).not.toContain('Open the Profile tab to add your delivery address first.');
   });
 });

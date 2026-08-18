@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { AddressLocationSource, isAddressLocationSource } from '../customer/address-location-evidence';
 
 export type ArrivalCoordinate = {
   latitude: number;
@@ -43,6 +44,12 @@ function validCoordinate(point: ArrivalCoordinate) {
     && finite(point.longitude)
     && Math.abs(point.latitude) <= 90
     && Math.abs(point.longitude) <= 180;
+}
+
+export function addressLocationSourceFromSnapshot(snapshot: unknown): AddressLocationSource {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return 'LEGACY_UNKNOWN';
+  const source = (snapshot as Record<string, unknown>).locationSource;
+  return isAddressLocationSource(source) ? source : 'LEGACY_UNKNOWN';
 }
 
 export function distanceMetresBetween(from: ArrivalCoordinate, to: ArrivalCoordinate) {
@@ -152,6 +159,80 @@ export function validateRiderArrivalEvidence(input: {
     ...transition,
     destinationType: input.destinationType,
     distanceMetres: Math.round(distanceMetres),
+  };
+}
+
+export function validateCustomerArrivalEvidence(input: {
+  evidence: ArrivalEvidenceInput;
+  destination: ArrivalCoordinate;
+  locationSource: AddressLocationSource;
+  policy: ArrivalEvidencePolicy;
+  now?: Date;
+}) {
+  const transition = validateRiderTransitionEvidence({
+    evidence: input.evidence,
+    policy: input.policy,
+    now: input.now,
+  });
+
+  if (input.locationSource === 'LIVE_GPS') {
+    if (transition.overridden) {
+      throw new BadRequestException(
+        'This customer address was saved from live GPS. Current Rider GPS is required at the verified delivery location.',
+      );
+    }
+    if (!validCoordinate(input.destination)) {
+      throw new BadRequestException('customer coordinates are unavailable');
+    }
+    const distanceMetres = distanceMetresBetween(
+      { latitude: transition.latitude!, longitude: transition.longitude! },
+      input.destination,
+    );
+    if (distanceMetres > input.policy.radiusMetres) {
+      throw new BadRequestException(
+        `You are ${Math.round(distanceMetres)} metres from the customer. Move within ${input.policy.radiusMetres} metres and retry.`,
+      );
+    }
+    return {
+      ...transition,
+      destinationType: 'CUSTOMER' as const,
+      locationSource: input.locationSource,
+      verificationMode: 'HARD_GEOFENCE' as const,
+      decision: 'PASS' as const,
+      geofenceRequired: true,
+      distanceMetres: Math.round(distanceMetres),
+      radiusMetres: input.policy.radiusMetres,
+    };
+  }
+
+  if (transition.overridden) {
+    return {
+      ...transition,
+      destinationType: 'CUSTOMER' as const,
+      locationSource: input.locationSource,
+      verificationMode: 'SOFT_AUDIT' as const,
+      decision: 'OVERRIDE_RECORDED' as const,
+      geofenceRequired: false,
+      distanceMetres: null,
+      radiusMetres: input.policy.radiusMetres,
+    };
+  }
+
+  const distanceMetres = validCoordinate(input.destination)
+    ? Math.round(distanceMetresBetween(
+        { latitude: transition.latitude!, longitude: transition.longitude! },
+        input.destination,
+      ))
+    : null;
+  return {
+    ...transition,
+    destinationType: 'CUSTOMER' as const,
+    locationSource: input.locationSource,
+    verificationMode: 'SOFT_AUDIT' as const,
+    decision: 'RECORDED' as const,
+    geofenceRequired: false,
+    distanceMetres,
+    radiusMetres: input.policy.radiusMetres,
   };
 }
 

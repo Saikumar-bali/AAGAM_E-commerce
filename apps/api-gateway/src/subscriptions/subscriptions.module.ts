@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { OrderModule } from '../orders/order.module';
 import { UploadModule } from '../upload/upload.module';
 import { CashDepositBatchService } from './cash-deposit-batch.service';
@@ -23,6 +24,7 @@ import { SubscriptionOrderGenerator } from './subscription-order-generator.servi
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { SubscriptionSchedulerService } from './subscription-scheduler.service';
 import { SubscriptionServiceabilityService } from './subscription-serviceability.service';
+import { TrustedDropAddressPolicyInterceptor } from './trusted-drop-address-policy.interceptor';
 import { TrustedDropService } from './trusted-drop.service';
 import {
   AdminSubscriptionsController,
@@ -60,6 +62,11 @@ import {
     SubscriptionRiderCapacityNotificationService,
     SubscriptionServiceabilityService,
     TrustedDropService,
+    TrustedDropAddressPolicyInterceptor,
+    {
+      provide: APP_INTERCEPTOR,
+      useExisting: TrustedDropAddressPolicyInterceptor,
+    },
     SubscriptionCashFundingService,
     CashDepositBatchService,
     SubscriptionAdminReportingService,

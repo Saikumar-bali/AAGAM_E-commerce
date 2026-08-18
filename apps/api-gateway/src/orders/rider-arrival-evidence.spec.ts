@@ -1,5 +1,7 @@
 import {
+  addressLocationSourceFromSnapshot,
   distanceMetresBetween,
+  validateCustomerArrivalEvidence,
   validateRiderArrivalEvidence,
 } from './rider-arrival-evidence';
 
@@ -67,7 +69,7 @@ describe('Rider arrival evidence', () => {
     })).toThrow(/stale/);
   });
 
-  it('allows only an explicit audited exception', () => {
+  it('allows only an explicit audited exception for the existing generic/store path', () => {
     const result = validateRiderArrivalEvidence({
       evidence: {
         override: {
@@ -114,6 +116,112 @@ describe('Rider arrival evidence', () => {
       policy,
       now,
     })).toThrow(/accuracy is required/);
+  });
+
+  it('hard-geofences LIVE_GPS customer addresses and rejects the Rider override', () => {
+    const passed = validateCustomerArrivalEvidence({
+      evidence: {
+        latitude: 17.7301,
+        longitude: 83.3101,
+        accuracyMetres: 12,
+        capturedAt: '2026-08-04T00:59:30.000Z',
+      },
+      destination,
+      locationSource: 'LIVE_GPS',
+      policy,
+      now,
+    });
+    expect(passed).toMatchObject({
+      verified: true,
+      locationSource: 'LIVE_GPS',
+      verificationMode: 'HARD_GEOFENCE',
+      decision: 'PASS',
+      geofenceRequired: true,
+    });
+
+    expect(() => validateCustomerArrivalEvidence({
+      evidence: {
+        override: {
+          reason: 'GPS_UNAVAILABLE',
+          note: 'Location hardware is temporarily unavailable.',
+        },
+        capturedAt: '2026-08-04T00:59:30.000Z',
+      },
+      destination,
+      locationSource: 'LIVE_GPS',
+      policy,
+      now,
+    })).toThrow(/live GPS/i);
+  });
+
+  it('rejects LIVE_GPS customer arrival outside the saved geofence', () => {
+    expect(() => validateCustomerArrivalEvidence({
+      evidence: {
+        latitude: 17.7400,
+        longitude: 83.3200,
+        accuracyMetres: 20,
+        capturedAt: '2026-08-04T00:59:30.000Z',
+      },
+      destination,
+      locationSource: 'LIVE_GPS',
+      policy,
+      now,
+    })).toThrow(/Move within 250 metres/);
+  });
+
+  it.each(['MAP_PIN', 'GEOCODED', 'LEGACY_UNKNOWN'] as const)(
+    'records distance without rejecting %s customer addresses',
+    (locationSource) => {
+      const result = validateCustomerArrivalEvidence({
+        evidence: {
+          latitude: 17.7400,
+          longitude: 83.3200,
+          accuracyMetres: 20,
+          capturedAt: '2026-08-04T00:59:30.000Z',
+        },
+        destination,
+        locationSource,
+        policy,
+        now,
+      });
+      expect(result).toMatchObject({
+        verified: true,
+        locationSource,
+        verificationMode: 'SOFT_AUDIT',
+        decision: 'RECORDED',
+        geofenceRequired: false,
+      });
+      expect((result as any).distanceMetres).toBeGreaterThan(250);
+    },
+  );
+
+  it('allows an audited GPS exception only for non-live customer address sources', () => {
+    const result = validateCustomerArrivalEvidence({
+      evidence: {
+        override: {
+          reason: 'PERMISSION_DENIED',
+          note: 'Customer confirmed delivery but location permission is denied.',
+        },
+        capturedAt: '2026-08-04T00:59:30.000Z',
+      },
+      destination,
+      locationSource: 'GEOCODED',
+      policy,
+      now,
+    });
+    expect(result).toMatchObject({
+      overridden: true,
+      locationSource: 'GEOCODED',
+      verificationMode: 'SOFT_AUDIT',
+      decision: 'OVERRIDE_RECORDED',
+      geofenceRequired: false,
+    });
+  });
+
+  it('treats snapshots without provenance as legacy instead of GPS verified', () => {
+    expect(addressLocationSourceFromSnapshot({ latitude: 17.73, longitude: 83.31 })).toBe('LEGACY_UNKNOWN');
+    expect(addressLocationSourceFromSnapshot({ locationSource: 'LIVE_GPS' })).toBe('LIVE_GPS');
+    expect(addressLocationSourceFromSnapshot({ locationSource: 'SOMETHING_ELSE' })).toBe('LEGACY_UNKNOWN');
   });
 
   it('computes distance deterministically', () => {
