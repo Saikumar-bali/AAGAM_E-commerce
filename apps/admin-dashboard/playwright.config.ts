@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const AUTH_FILE = './.auth/customer.json';
-const workers = Number.parseInt(process.env.PLAYWRIGHT_WORKERS || '4', 10);
+const workers = Number.parseInt(process.env.PLAYWRIGHT_WORKERS || '3', 10);
 
 export default defineConfig({
   // Keep setup fixtures under tests/ while also executing product lifecycle
@@ -55,7 +55,7 @@ export default defineConfig({
   ],
   webServer: {
     // CI already creates a production build. Serving that immutable build keeps
-    // four concurrent workers away from Next.js Fast Refresh/compiler races.
+    // concurrent workers away from Next.js Fast Refresh/compiler races.
     command: process.env.CI ? 'npm run start' : 'npm run dev',
     port: 3001,
     timeout: 120000,
