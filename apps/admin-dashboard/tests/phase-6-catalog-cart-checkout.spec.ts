@@ -14,22 +14,22 @@ async function loginViaForm(page: Page, email: string, password: string) {
 
 async function waitForDashboard(page: Page, urlFragment: string, timeout = 20000) {
   await page.waitForURL(`**${urlFragment}**`, { timeout });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(2000);
 }
 
 async function waitForStyles(page: Page) {
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1500);
 }
 
 test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quick-Commerce UX', () => {
 
-  test('01 — Serviceable address shows catalog with availability', async ({ page }) => {
+  test('01 â€” Serviceable address shows catalog with availability', async ({ page }) => {
     await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'customer@2026!'));
     await page.goto('/shop/phase6');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     const banner = page.locator('text=Serviceable').first();
@@ -42,7 +42,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
     await page.screenshot({ path: `${SCREENSHOT_DIR}/01-serviceable-address-catalog.png`, fullPage: true });
   });
 
-  test('02 — Non-serviceable address shows blocked state', async ({ page }) => {
+  test('02 â€” Non-serviceable address shows blocked state', async ({ page }) => {
     await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'customer@2026!'));
     await waitForDashboard(page, '/shop');
     await page.waitForTimeout(3000);
@@ -51,19 +51,19 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
     await page.screenshot({ path: `${SCREENSHOT_DIR}/02-non-serviceable-address-state.png`, fullPage: true });
   });
 
-  test('03 — Search results show matching products', async ({ page }) => {
+  test('03 â€” Search results show matching products', async ({ page }) => {
     await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'customer@2026!'));
     await page.goto('/shop/phase6');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(2000);
     await expect(page.locator('text=Serviceable')).toBeVisible({ timeout: 10000 });
     await page.screenshot({ path: `${SCREENSHOT_DIR}/03-search-results.png`, fullPage: true });
   });
 
-  test('04 — Category filter shows filtered products', async ({ page }) => {
+  test('04 â€” Category filter shows filtered products', async ({ page }) => {
     await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'customer@2026!'));
     await page.goto('/shop/phase6');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(2000);
 
     const categoryButtons = page.locator('button').filter({ hasText: /Groceries|Dairy|Snacks|Beverages|Fruits|Vegetables/ });
@@ -77,10 +77,10 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
     await page.screenshot({ path: `${SCREENSHOT_DIR}/04-category-filter.png`, fullPage: true });
   });
 
-  test('05 — Cart with items shows subtotal and checkout', async ({ page }) => {
+  test('05 â€” Cart with items shows subtotal and checkout', async ({ page }) => {
     await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'customer@2026!'));
     await page.goto('/shop/phase6');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(2000);
 
     const addButton = page.locator('button').filter({ hasText: /^Add$/i }).first();
@@ -97,7 +97,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
     await page.screenshot({ path: `${SCREENSHOT_DIR}/05-cart-with-items.png`, fullPage: true });
   });
 
-  test('06 — Out of stock product shows substitute suggestion', async ({ page }) => {
+  test('06 â€” Out of stock product shows substitute suggestion', async ({ page }) => {
     await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'customer@2026!'));
     await waitForDashboard(page, '/shop');
     await page.waitForTimeout(3000);
@@ -117,7 +117,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
     await page.screenshot({ path: `${SCREENSHOT_DIR}/06-out-of-stock-substitutes.png`, fullPage: true });
   });
 
-  test('07 — Checkout quote shows bill details and store info', async ({ page }) => {
+  test('07 â€” Checkout quote shows bill details and store info', async ({ page }) => {
     await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'customer@2026!'));
     await waitForDashboard(page, '/shop');
     await page.waitForTimeout(2000);
@@ -131,7 +131,7 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
 
     // Navigate to checkout
     await page.goto('/shop/checkout');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     // Check bill details card
@@ -144,14 +144,14 @@ test.describe('Phase 6: Catalog, Search, Cart, Serviceability, Substitutes, Quic
     await page.screenshot({ path: `${SCREENSHOT_DIR}/07-checkout-quote.png`, fullPage: true });
   });
 
-  test('08 — Order created clears cart (seeded order verification)', async ({ page }) => {
+  test('08 â€” Order created clears cart (seeded order verification)', async ({ page }) => {
     await loginViaForm(page, 'customer@aagam.com', (process.env.P6_DEMO_PASS ?? 'customer@2026!'));
     await waitForDashboard(page, '/shop');
     await page.waitForTimeout(2000);
 
     // Navigate to orders to verify existing orders
     await page.goto('/shop/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     await waitForStyles(page);

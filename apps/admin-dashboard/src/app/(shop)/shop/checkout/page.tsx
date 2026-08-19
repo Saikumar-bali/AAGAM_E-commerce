@@ -49,6 +49,17 @@ type Address = {
   isDefault: boolean;
 };
 
+type LocalityOption = {
+  id: string;
+  name: string;
+  aliases: string[];
+  city: string;
+  state: string;
+  pincode: string;
+  latitude: number | null;
+  longitude: number | null;
+};
+
 type QuoteResponse = {
   currency: 'INR';
   serviceable: boolean;
@@ -157,6 +168,55 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const idemKeyRef = useRef<string | null>(null);
   const [defaultMapCenter, setDefaultMapCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [localities, setLocalities] = useState<LocalityOption[]>([]);
+  const [localitiesLoading, setLocalitiesLoading] = useState(false);
+  const [selectedLocalityId, setSelectedLocalityId] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    setLocalitiesLoading(true);
+    apiClient
+      .get('/localities')
+      .then((response) => {
+        if (active) setLocalities(Array.isArray(response.data) ? response.data : []);
+      })
+      .catch(() => {
+        // Manual entry still works; the locality picker is an optional convenience.
+      })
+      .finally(() => active && setLocalitiesLoading(false));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const applyLocality = useCallback((localityId: string) => {
+    setSelectedLocalityId(localityId);
+    const locality = localities.find((entry) => entry.id === localityId);
+    if (!locality) return;
+    setDraft((current) => ({
+      ...current,
+      city: locality.city,
+      pincode: locality.pincode,
+      state: locality.state,
+      line2: current.line2 || locality.name,
+      latitude: locality.latitude ?? current.latitude,
+      longitude: locality.longitude ?? current.longitude,
+    }));
+  }, [localities]);
+
+  const filteredLocalities = useMemo(() => {
+    const pincodeFilter = /^\d{6}$/.test(draft.pincode.trim()) ? draft.pincode.trim() : null;
+    const cityFilter = draft.city.trim().toLowerCase();
+    const cityOptions: Array<{ city: string; items: LocalityOption[] }> = [];
+    for (const entry of localities) {
+      if (pincodeFilter && entry.pincode !== pincodeFilter) continue;
+      if (cityFilter && !entry.city.toLowerCase().includes(cityFilter)) continue;
+      const group = cityOptions.find((item) => item.city === entry.city);
+      if (group) group.items.push(entry);
+      else cityOptions.push({ city: entry.city, items: [entry] });
+    }
+    return cityOptions;
+  }, [draft.pincode, draft.city, localities]);
 
   useEffect(() => {
     let active = true;
@@ -322,6 +382,7 @@ export default function CheckoutPage() {
 
   const openNewAddress = () => {
     setEditingAddressId(null);
+    setSelectedLocalityId('');
     setDraft(emptyDraft());
     setShowAddressForm(true);
   };
@@ -563,6 +624,31 @@ export default function CheckoutPage() {
                     </div>
                   )}
                   <div className="grid gap-3 md:grid-cols-2">
+                    <label className="block md:col-span-2">
+                      <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">Locality</span>
+                      <select
+                        value={selectedLocalityId}
+                        onChange={(event) => applyLocality(event.target.value)}
+                        disabled={localitiesLoading}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-teal-500"
+                      >
+                        <option value="">{localitiesLoading ? 'Loading localities…' : 'Select your locality (optional)'}</option>
+                        {filteredLocalities.map((group) => (
+                          <optgroup key={group.city} label={group.city}>
+                            {group.items.map((entry) => (
+                              <option key={entry.id} value={entry.id}>
+                                {entry.name} — {entry.pincode}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                      <span className="mt-1 block text-[11px] font-semibold text-slate-400">
+                        {filteredLocalities.length === 0
+                          ? 'No matching serviceable locality. You can still type the address below.'
+                          : 'Pick your village — city, pincode and delivery point are filled automatically.'}
+                      </span>
+                    </label>
                     <Field label="Label" value={draft.label} onChange={(value) => setDraft((current) => ({ ...current, label: value }))} />
                     <Field label="Recipient name" value={draft.recipientName} onChange={(value) => setDraft((current) => ({ ...current, recipientName: value }))} />
                     <Field label="Phone" value={draft.phoneE164} onChange={(value) => setDraft((current) => ({ ...current, phoneE164: value }))} placeholder="+91XXXXXXXXXX" />

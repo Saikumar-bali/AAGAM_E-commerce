@@ -9,7 +9,7 @@ async function login(page: Page, email: string, password: string) {
   await page.fill('input[autocomplete="username"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(3000);
 }
 
@@ -18,7 +18,7 @@ test.describe('Phase 0: Delivery Dispatch UI', () => {
     await login(page, 'admin@aagam.com', (process.env.DISPATCH_TEST_PASS ?? 'admin@2026!'));
 
     await page.goto('/admin/dispatch');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(5000);
 
     await expect(page.getByRole('heading', { name: /Rider Dispatch Board/i })).toBeVisible({ timeout: 15000 });
@@ -37,7 +37,7 @@ test.describe('Phase 0: Delivery Dispatch UI', () => {
   test('Admin: Can refresh dispatch board', async ({ page }) => {
     await login(page, 'admin@aagam.com', (process.env.DISPATCH_TEST_PASS ?? 'admin@2026!'));
     await page.goto('/admin/dispatch');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(5000);
 
     const refreshBtn = page.getByRole('button', { name: /Refresh/i }).first();
@@ -53,7 +53,7 @@ test.describe('Phase 0: Delivery Dispatch UI', () => {
   test('Rider: Workspace shows ONLINE status', async ({ page }) => {
     await login(page, 'rider@aagam.com', (process.env.DISPATCH_RIDER_PASS ?? 'rider@2026!'));
     await page.goto('/rider');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(5000);
 
     await expect(page.getByRole('heading', { name: /Delivery Workspace/i })).toBeVisible({ timeout: 15000 });
@@ -66,7 +66,7 @@ test.describe('Phase 0: Delivery Dispatch UI', () => {
   test('Cross-role navigation: Store sees orders page', async ({ page }) => {
     await login(page, 'store@aagam.com', (process.env.DISPATCH_STORE_PASS ?? 'store@2026!'));
     await page.goto('/store/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(5000);
 
     await expect(page.getByRole('heading', { name: 'Order Queue' })).toBeVisible({ timeout: 10000 });

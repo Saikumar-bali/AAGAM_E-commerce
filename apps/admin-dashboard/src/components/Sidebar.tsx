@@ -31,6 +31,7 @@ import {
   Clock,
   X,
   IndianRupee,
+  Trees,
 } from "lucide-react";
 
 import { apiClient } from "@aagam/utils";
@@ -61,6 +62,7 @@ const menuItems: Record<Role, MenuItem[]> = {
     { name: "Customers", href: "/admin/customers", icon: UserCircle },
     { name: "Products", href: "/admin/products", icon: Package },
     { name: "Delivery Zones", href: "/admin/delivery-zones", icon: MapPinned },
+    { name: "Localities", href: "/admin/localities", icon: Trees },
     { name: "Delivery Fee Rules", href: "/admin/delivery-fee-rules", icon: IndianRupee },
     { name: "Promotions", href: "/admin/promotions", icon: Megaphone },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: CalendarDays },

@@ -115,6 +115,28 @@ model DeliveryFeeRule {
   @@index([matchType])
 }
 
+model ServiceableLocality {
+  id        String  @id @default(cuid())
+  name      String
+  aliases   String[] @default([])
+  city      String
+  state     String  @default("ANDHRA PRADESH")
+  pincode   String
+  latitude  Float?
+  longitude Float?
+  zoneId    String?
+  zone      DeliveryZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pincode, name])
+  @@index([pincode])
+  @@index([city])
+  @@index([zoneId])
+}
+
 model Category {
   id       String    @id @default(cuid())
   name     String    @unique
@@ -189,6 +211,7 @@ model DeliveryZone {
   deliveryRuns          DeliveryRun[]
   deliveryRunStops      DeliveryRunStop[]
   homeRiders            RiderProfile[]
+  localities            ServiceableLocality[]
 
   @@index([isActive, priority, sortOrder])
 }

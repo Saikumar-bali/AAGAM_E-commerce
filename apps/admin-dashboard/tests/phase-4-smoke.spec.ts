@@ -15,12 +15,12 @@ async function loginViaForm(page: Page, email: string, password: string) {
 
 async function waitForDashboard(page: Page, urlFragment: string, timeout = 20000) {
   await page.waitForURL(`**${urlFragment}**`, { timeout });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(3000);
 }
 
 async function waitForStyles(page: Page) {
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.fonts.ready);
   await page.waitForFunction(() => {
     const body = document.body;
@@ -42,57 +42,57 @@ async function openOrderDetail(page: Page) {
   await page.waitForTimeout(2000);
 }
 
-test.describe('Phase 4 — Real Screenshot Proof', () => {
+test.describe('Phase 4 â€” Real Screenshot Proof', () => {
 
-  test('01 — Login page', async ({ page }) => {
+  test('01 â€” Login page', async ({ page }) => {
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('text=Sign in to Aagaam', { timeout: 15000 });
     await page.waitForTimeout(2000);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/01-login-page.png`, fullPage: true });
   });
 
-  test('02 — Customer shop / product listing', async ({ page }) => {
+  test('02 â€” Customer shop / product listing', async ({ page }) => {
     await loginViaForm(page, 'customer@aagam.com', (process.env.P4_DEMO_PASS ?? 'customer@2026!'));
     await waitForDashboard(page, '/shop');
     await page.goto('/shop');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(5000);
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/02-customer-products-or-cart.png`, fullPage: true });
   });
 
-  test('03 — Customer order tracking', async ({ page }) => {
+  test('03 â€” Customer order tracking', async ({ page }) => {
     await loginViaForm(page, 'customer@aagam.com', (process.env.P4_DEMO_PASS ?? 'customer@2026!'));
     await waitForDashboard(page, '/shop');
     await page.goto('/shop/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/03-customer-order-tracking.png`, fullPage: true });
   });
 
-  test('04 — Store owner login success', async ({ page }) => {
+  test('04 â€” Store owner login success', async ({ page }) => {
     await loginViaForm(page, 'store@aagam.com', (process.env.P4_STORE_PASS ?? 'store@2026!'));
     await waitForDashboard(page, '/store');
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/04-store-owner-login-or-token-proof.png`, fullPage: true });
   });
 
-  test('05 — Store owner orders page', async ({ page }) => {
+  test('05 â€” Store owner orders page', async ({ page }) => {
     await loginViaForm(page, 'store@aagam.com', (process.env.P4_STORE_PASS ?? 'store@2026!'));
     await waitForDashboard(page, '/store');
     await page.goto('/store/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
     await waitForStyles(page);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/05-store-owner-orders.png`, fullPage: true });
   });
 
-  test('06 — Store owner status actions (strict)', async ({ page }) => {
+  test('06 â€” Store owner status actions (strict)', async ({ page }) => {
     await loginViaForm(page, 'store@aagam.com', (process.env.P4_STORE_PASS ?? 'store@2026!'));
     await waitForDashboard(page, '/store');
     await page.goto('/store/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     const actionBtn = page.locator('button').filter({ hasText: /Mark|Accept|Start|Pick|Accept & Pack/i }).first();
@@ -102,7 +102,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
       await actionBtn.click();
       await page.waitForTimeout(3000);
       await page.reload();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
       await page.waitForTimeout(2000);
     }
 
@@ -110,11 +110,11 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
     await page.screenshot({ path: `${SCREENSHOT_DIR}/06-store-owner-status-actions.png`, fullPage: true });
   });
 
-  test('07 — Admin orders page (real data)', async ({ page }) => {
+  test('07 â€” Admin orders page (real data)', async ({ page }) => {
     await loginViaForm(page, 'admin@aagam.com', (process.env.P4_ADMIN_PASS ?? 'admin@2026!'));
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     const orderHeading = page.locator('h1:has-text("Order Management")');
@@ -128,11 +128,11 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
     await page.screenshot({ path: `${SCREENSHOT_DIR}/07-admin-orders.png`, fullPage: true });
   });
 
-  test('08 — Admin force cancel modal', async ({ page }) => {
+  test('08 â€” Admin force cancel modal', async ({ page }) => {
     await loginViaForm(page, 'admin@aagam.com', (process.env.P4_ADMIN_PASS ?? 'admin@2026!'));
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     await openOrderDetail(page);
@@ -158,11 +158,11 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
     await page.screenshot({ path: `${SCREENSHOT_DIR}/08-admin-force-cancel-modal.png`, fullPage: true });
   });
 
-  test('09 — Admin reassign rider modal', async ({ page }) => {
+  test('09 â€” Admin reassign rider modal', async ({ page }) => {
     await loginViaForm(page, 'admin@aagam.com', (process.env.P4_ADMIN_PASS ?? 'admin@2026!'));
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     await openOrderDetail(page);
@@ -204,7 +204,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
     await page.screenshot({ path: `${SCREENSHOT_DIR}/09-admin-reassign-rider-modal.png`, fullPage: true });
   });
 
-  test('10 — Rider dashboard (active delivery queue)', async ({ page }) => {
+  test('10 â€” Rider dashboard (active delivery queue)', async ({ page }) => {
     await loginViaForm(page, 'rider@aagam.com', (process.env.P4_RIDER_PASS ?? 'rider@2026!'));
     await waitForDashboard(page, '/rider');
 
@@ -220,7 +220,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
     await page.screenshot({ path: `${SCREENSHOT_DIR}/10-rider-dashboard.png`, fullPage: true });
   });
 
-  test('11 — Rider delivery state (strict — picks available order)', async ({ page }) => {
+  test('11 â€” Rider delivery state (strict â€” picks available order)', async ({ page }) => {
     await loginViaForm(page, 'rider@aagam.com', (process.env.P4_RIDER_PASS ?? 'rider@2026!'));
     await waitForDashboard(page, '/rider');
 
@@ -247,7 +247,7 @@ test.describe('Phase 4 — Real Screenshot Proof', () => {
       await page.waitForTimeout(5000);
 
       await page.reload();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
       await page.waitForTimeout(3000);
 
       const pickBtnAfter = page.locator('button:has-text("Pick")').first();
