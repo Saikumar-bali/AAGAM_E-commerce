@@ -44,7 +44,12 @@ export async function loginWithCookieSession(page: Page, role: QaRole) {
   const submitBtn = page.locator('button[type="submit"], button:has-text("Continue"), button:has-text("Sign in")').first();
   await submitBtn.click();
   await page.waitForFunction(() => localStorage.getItem('user_role') !== null, { timeout: 15000 });
-  await page.waitForLoadState('networkidle');
+  // The post-login landing page (e.g. /admin analytics) can keep loading slow
+  // endpoints, so networkidle may never settle under load. Wait for the
+  // redirect away from /login, then give the page a short bounded settle
+  // instead of blocking the full test timeout.
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15000 });
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
   const sessionCookie = (await page.context().cookies()).find((cookie) => cookie.name === 'access_token');
   if (!sessionCookie?.httpOnly) throw new Error('Login did not create an HttpOnly session cookie');
