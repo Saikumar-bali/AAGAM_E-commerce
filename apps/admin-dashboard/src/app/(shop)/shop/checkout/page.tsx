@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import BillDetailsCard from '@/components/customer/BillDetailsCard';
+import { useToast } from '@/components/ToastProvider';
 import { useCart } from '@/hooks/useCart';
 import { formatINR } from '@/lib/currency';
 
@@ -125,6 +126,7 @@ const emptyDraft = () => ({
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const toast = useToast();
   const { cart, clearCart, totalPrice, isLoaded } = useCart();
   const itemsPayload = useMemo(
     () => cart.map((item) => ({ productId: item.id, quantity: item.quantity })),
@@ -154,6 +156,30 @@ export default function CheckoutPage() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const idemKeyRef = useRef<string | null>(null);
+  const [defaultMapCenter, setDefaultMapCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    apiClient
+      .get('/stores/delivery-zones')
+      .then((response) => {
+        if (!active) return;
+        const zones = Array.isArray(response.data) ? response.data : [];
+        const zone = zones.find(
+          (entry: any) =>
+            entry.isActive !== false &&
+            typeof entry.centerLatitude === 'number' &&
+            typeof entry.centerLongitude === 'number',
+        );
+        if (zone) setDefaultMapCenter({ latitude: zone.centerLatitude, longitude: zone.centerLongitude });
+      })
+      .catch(() => {
+        // Optional fallback only; the address can still be saved without a map pin.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedAddressId || orderId) {
@@ -322,12 +348,8 @@ export default function CheckoutPage() {
   };
 
   const saveAddress = async () => {
-    if (draft.latitude == null || draft.longitude == null) {
-      setError('Choose the delivery point on the map before saving.');
-      return;
-    }
     if (!draft.recipientName.trim() || !draft.phoneE164.trim() || !draft.line1.trim() || !draft.pincode.trim()) {
-      setError('Recipient, phone, address line, and pincode are required.');
+      toast.warning('Recipient, phone, address line, and pincode are required.');
       return;
     }
     setSavingAddress(true);
@@ -341,6 +363,8 @@ export default function CheckoutPage() {
       line2: draft.line2.trim() || undefined,
       landmark: draft.landmark.trim() || undefined,
       instructions: draft.instructions.trim() || undefined,
+      latitude: draft.latitude ?? undefined,
+      longitude: draft.longitude ?? undefined,
       isDefault: addresses.length === 0 ? true : draft.isDefault,
     };
     try {
@@ -358,6 +382,7 @@ export default function CheckoutPage() {
       setShowAddressForm(false);
       setEditingAddressId(null);
       setDraft(emptyDraft());
+      toast.success(editingAddressId ? 'Delivery address updated.' : 'Delivery address saved.');
     } catch (cause: any) {
       setError(cause?.response?.data?.message || cause?.message || 'Failed to save address.');
     } finally {
@@ -525,7 +550,17 @@ export default function CheckoutPage() {
                   {draft.latitude != null && draft.longitude != null ? (
                     <CustomerLocationPicker latitude={draft.latitude} longitude={draft.longitude} onChange={(lat, lng) => void updateCoordinates(lat, lng)} />
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-teal-300 bg-white p-6 text-center text-sm font-bold text-slate-500">Use live location to open the map, then drag the pin to the exact entrance.</div>
+                    <div className="rounded-2xl border border-dashed border-teal-300 bg-white p-6 text-center">
+                      <p className="text-sm font-bold text-slate-500">You can save this address without a map pin — we will place it on the delivery map from the address text.</p>
+                      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                        {defaultMapCenter ? (
+                          <button onClick={() => void updateCoordinates(defaultMapCenter.latitude, defaultMapCenter.longitude)} className="flex items-center gap-2 rounded-xl border border-teal-600 px-3 py-2 text-xs font-black text-teal-700">
+                            <MapPin className="h-4 w-4" />Set pin on map
+                          </button>
+                        ) : null}
+                      </div>
+                      <p className="mt-3 text-[11px] font-semibold text-slate-400">Use live location or set a pin for an exact entrance point.</p>
+                    </div>
                   )}
                   <div className="grid gap-3 md:grid-cols-2">
                     <Field label="Label" value={draft.label} onChange={(value) => setDraft((current) => ({ ...current, label: value }))} />
