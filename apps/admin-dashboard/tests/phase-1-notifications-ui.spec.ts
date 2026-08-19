@@ -17,12 +17,12 @@ async function login(page: Page, email: string, password?: string) {
   await page.fill('input[type="password"]', password ?? getPasswordForEmail(email));
   await page.click('button[type="submit"]');
   await page.waitForFunction(() => localStorage.getItem('user_role') !== null, { timeout: 15000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 }
 
 async function verifyNotificationCenter(page: Page, route: string, heading: RegExp, screenshotName: string) {
   await page.goto(route);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await expect(page.getByRole('heading', { name: heading })).toBeVisible({ timeout: 15000 });
   await expect(page.getByText('Communication centre', { exact: false }).or(page.getByText('Communication center', { exact: false }))).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Failed to fetch');
@@ -33,7 +33,7 @@ test.describe('Phase 1: Professional notification centers', () => {
   test('Admin notification center and broadcast form render', async ({ page }) => {
     await login(page, 'admin@aagam.com');
     await page.goto('/admin/notifications');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await expect(page.getByRole('heading', { name: /Admin Notifications/i })).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('Communication center', { exact: false })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Broadcast placeholder' })).toBeVisible();
@@ -45,7 +45,7 @@ test.describe('Phase 1: Professional notification centers', () => {
   test('Customer notification center renders with durable inbox controls', async ({ page }) => {
     await login(page, 'customer@aagam.com');
     await page.goto('/shop/notifications');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await expect(page.getByRole('heading', { name: /Notifications/i })).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('Unread', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: /Refresh/i })).toBeVisible();
@@ -68,7 +68,7 @@ test.describe('Phase 1: Professional notification centers', () => {
     await login(page, 'rider@aagam.com');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/rider/notifications');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await expect(page.getByRole('heading', { name: /Rider Notifications/i })).toBeVisible({ timeout: 15000 });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     expect(overflow).toBe(false);

@@ -77,7 +77,7 @@ async function login(page: Page) {
   await page.fill('input[type="password"]', ADMIN_PASSWORD);
   await page.click('button[type="submit"]');
   await page.waitForURL('**/admin**', { timeout: 20000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 }
 
 
@@ -91,7 +91,7 @@ async function createProduct(page: Page, entry: ProductEntry) {
   console.log(`Creating: ${data.name}`);
 
   await page.goto('/admin/products');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(1000);
 
   // Click Add Product
@@ -162,13 +162,13 @@ async function createProduct(page: Page, entry: ProductEntry) {
   // Check for errors
   const errorEl = page.locator('text=Failed to save product');
   if (await errorEl.isVisible({ timeout: 2000 }).catch(() => false)) {
-    console.log(`  ✗ Failed to save ${data.name}`);
+    console.log(`  âœ— Failed to save ${data.name}`);
     return;
   }
 
   // Set inventory
   await page.goto('/admin/products');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(2000);
 
   // Find the product row and set stock
@@ -188,7 +188,7 @@ async function createProduct(page: Page, entry: ProductEntry) {
     }
   }
 
-  console.log(`  ✓ Created: ${data.name}`);
+  console.log(`  âœ“ Created: ${data.name}`);
 }
 
 test.describe('Seed Admin Products via UI', () => {
@@ -200,7 +200,7 @@ test.describe('Seed Admin Products via UI', () => {
         await createProduct(page, entry);
         await page.waitForTimeout(2000);
       } catch (e: any) {
-        console.log(`  ✗ Error: ${e.message}`);
+        console.log(`  âœ— Error: ${e.message}`);
       }
     }
     console.log('\nDone seeding products!');

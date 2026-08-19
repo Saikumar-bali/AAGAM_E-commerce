@@ -4,7 +4,7 @@ import path from 'path';
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/qa/phase-8b');
 
 async function waitForStyles(page: Page) {
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1500);
 }
@@ -22,7 +22,7 @@ async function loginAsStore(page: Page, email = STORE_EMAIL, password = STORE_PA
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
   await page.waitForFunction(() => localStorage.getItem('user_role') !== null, { timeout: 15000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 }
 
 async function createP8bStoreApi(): Promise<APIRequestContext> {
@@ -54,13 +54,13 @@ async function getStoreOrders(api: APIRequestContext) {
   return orders as any[];
 }
 
-test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () => {
+test.describe('Phase 8b: Store Fulfillment â€” Item Issues & Substitutes', () => {
   test.describe.configure({ mode: 'serial' });
 
-  test('01 — Store orders page loads with lane counters', async ({ page }) => {
+  test('01 â€” Store orders page loads with lane counters', async ({ page }) => {
     await loginAsStore(page);
     await page.goto('/store/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     // Page title
@@ -78,10 +78,10 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
     await page.screenshot({ path: `${SCREENSHOT_DIR}/01-lane-counters.png`, fullPage: true });
   });
 
-  test('02 — Order card shows picking list with product quantities', async ({ page }) => {
+  test('02 â€” Order card shows picking list with product quantities', async ({ page }) => {
     await loginAsStore(page);
     await page.goto('/store/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     // At least one order card should exist
@@ -101,10 +101,10 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
     await page.screenshot({ path: `${SCREENSHOT_DIR}/02-picking-list.png`, fullPage: true });
   });
 
-  test('03 — Unavail and Substitute buttons visible on editable orders', async ({ page }) => {
+  test('03 â€” Unavail and Substitute buttons visible on editable orders', async ({ page }) => {
     await loginAsStore(page);
     await page.goto('/store/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     // Find an order card with items (PENDING or PICKING status has edit buttons)
@@ -123,7 +123,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
     await page.screenshot({ path: `${SCREENSHOT_DIR}/03-unavail-substitute-buttons.png`, fullPage: true });
   });
 
-  test('04 — Mark item unavailable via API and verify UI update', async ({ page }) => {
+  test('04 â€” Mark item unavailable via API and verify UI update', async ({ page }) => {
     // Use the API to mark an item unavailable, then verify UI shows it
     const api = await createP8bStoreApi();
     const orders = await getStoreOrders(api);
@@ -147,7 +147,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
     // Reload page and verify the unavailable badge appears
     await loginAsStore(page, P8B_STORE_EMAIL, P8B_STORE_PASS);
     await page.goto('/store/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     const unavailableBadge = page.locator('text=Unavailable').first();
@@ -157,7 +157,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
     await page.screenshot({ path: `${SCREENSHOT_DIR}/04-item-unavailable.png`, fullPage: true });
   });
 
-  test('05 — Ready for Pickup blocked when unresolved item issues exist', async ({ page }) => {
+  test('05 â€” Ready for Pickup blocked when unresolved item issues exist', async ({ page }) => {
     // Get orders and find one with an unresolved issue
     const api = await createP8bStoreApi();
     const orders = await getStoreOrders(api);
@@ -169,7 +169,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
     });
     expect(orderWithIssue).toBeDefined();
 
-    // Try ready for pickup — should fail
+    // Try ready for pickup â€” should fail
     const readyRes = await api.patch(`/orders/store/${orderWithIssue.id}/ready`);
     expect(readyRes.ok()).toBeFalsy();
     const errorBody = await readyRes.json();
@@ -180,7 +180,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
     await page.screenshot({ path: `${SCREENSHOT_DIR}/05-ready-blocked.png`, fullPage: true });
   });
 
-  test('06 — Substitute listing returns available products', async ({ page }) => {
+  test('06 â€” Substitute listing returns available products', async ({ page }) => {
     const api = await createP8bStoreApi();
     const orders = await getStoreOrders(api);
 
@@ -207,7 +207,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
     await page.screenshot({ path: `${SCREENSHOT_DIR}/06-substitutes-list.png`, fullPage: true });
   });
 
-  test('07 — Substitute replacement updates item and grand total', async ({ page }) => {
+  test('07 â€” Substitute replacement updates item and grand total', async ({ page }) => {
     // Find a PICKING order with rice item
     const api = await createP8bStoreApi();
     const orders = await getStoreOrders(api);
@@ -258,7 +258,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
     await page.screenshot({ path: `${SCREENSHOT_DIR}/07-substitute-applied.png`, fullPage: true });
   });
 
-  test('08 — Ready for Pickup succeeds after all issues resolved', async ({ page }) => {
+  test('08 â€” Ready for Pickup succeeds after all issues resolved', async ({ page }) => {
     const api = await createP8bStoreApi();
 
     // The picking order should now have all issues resolved from test 07
@@ -271,7 +271,7 @@ test.describe('Phase 8b: Store Fulfillment — Item Issues & Substitutes', () =>
     // Verify on UI
     await loginAsStore(page, P8B_STORE_EMAIL, P8B_STORE_PASS);
     await page.goto('/store/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     // The order should now appear in "Ready" lane

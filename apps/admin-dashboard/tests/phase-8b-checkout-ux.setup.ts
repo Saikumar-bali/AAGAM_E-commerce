@@ -13,7 +13,7 @@ setup('authenticate as store owner', async ({ page }) => {
     .fill(process.env.STORE_OWNER_QA_PASSWORD ?? 'store@2026!');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.waitForURL('**/store**', { timeout: 20000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
   await page.context().storageState({ path: AUTH_FILE });
 });

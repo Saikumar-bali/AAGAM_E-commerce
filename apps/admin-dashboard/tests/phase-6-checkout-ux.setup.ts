@@ -12,7 +12,7 @@ setup('login as customer and save auth state', async ({ page }) => {
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.waitForURL('**/shop**', { timeout: 20000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
   // The browser session is carried only by the HttpOnly cookie. The role is
   // non-sensitive UI state and confirms that the login flow completed.

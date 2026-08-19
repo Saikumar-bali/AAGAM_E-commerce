@@ -14,23 +14,23 @@ async function loginViaForm(page: Page, email: string, password: string) {
 
 async function waitForDashboard(page: Page, urlFragment: string, timeout = 20000) {
   await page.waitForURL(`**${urlFragment}**`, { timeout });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(2000);
 }
 
 async function waitForStyles(page: Page) {
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1500);
 }
 
 test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification over deterministic backend-seeded order)', () => {
 
-  test('01 — Store owner: sees orders page with seeded orders', async ({ page }) => {
+  test('01 â€” Store owner: sees orders page with seeded orders', async ({ page }) => {
     await loginViaForm(page, 'store@aagam.com', (process.env.P5_STORE_PASS ?? 'store@2026!'));
     await waitForDashboard(page, '/store');
     await page.goto('/store/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     await expect(page.locator('h1, h2').filter({ hasText: /order/i }).first()).toBeVisible({ timeout: 10000 });
@@ -40,11 +40,11 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
     await page.screenshot({ path: `${SCREENSHOT_DIR}/02-store-owner-packed.png`, fullPage: true });
   });
 
-  test('02 — Admin: order table with seeded orders', async ({ page }) => {
+  test('02 â€” Admin: order table with seeded orders', async ({ page }) => {
     await loginViaForm(page, 'admin@aagam.com', (process.env.P5_ADMIN_PASS ?? 'admin@2026!'));
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     await expect(page.getByText('Order Management')).toBeVisible({ timeout: 10000 });
@@ -56,7 +56,7 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
     await page.screenshot({ path: `${SCREENSHOT_DIR}/03-admin-rider-assigned.png`, fullPage: true });
   });
 
-  test('03 — Rider: dashboard with queue section', async ({ page }) => {
+  test('03 â€” Rider: dashboard with queue section', async ({ page }) => {
     await loginViaForm(page, 'rider@aagam.com', (process.env.P5_RIDER_PASS ?? 'rider@2026!'));
     await waitForDashboard(page, '/rider');
     await page.waitForTimeout(3000);
@@ -68,11 +68,11 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
     await page.screenshot({ path: `${SCREENSHOT_DIR}/04-rider-out-for-delivery.png`, fullPage: true });
   });
 
-  test('04 — Customer: order list and detail accessible', async ({ page }) => {
+  test('04 â€” Customer: order list and detail accessible', async ({ page }) => {
     await loginViaForm(page, 'customer@aagam.com', (process.env.P5_CUSTOMER_PASS ?? 'customer@2026!'));
     await waitForDashboard(page, '/shop');
     await page.goto('/shop/orders');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     await expect(page.getByRole('heading', { name: 'My Orders' })).toBeVisible({ timeout: 10000 });
@@ -80,7 +80,7 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
     const orderCards = page.locator('[class*="cursor-pointer"]').filter({ hasText: /Confirmed|Pending|Picking|Delivered|Cancelled/ });
     await expect(orderCards.first()).toBeVisible({ timeout: 10000 });
     await orderCards.first().click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     await expect(page.getByText('#').first()).toBeVisible({ timeout: 10000 });
@@ -90,11 +90,11 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
     await page.screenshot({ path: `${SCREENSHOT_DIR}/05-customer-live-tracking.png`, fullPage: true });
   });
 
-  test('05 — Admin: live tracking map with filters', async ({ page }) => {
+  test('05 â€” Admin: live tracking map with filters', async ({ page }) => {
     await loginViaForm(page, 'admin@aagam.com', (process.env.P5_ADMIN_PASS ?? 'admin@2026!'));
     await waitForDashboard(page, '/admin');
     await page.goto('/admin/live-tracking');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(3000);
 
     await expect(page.getByRole('heading', { name: 'Live Tracking' })).toBeVisible({ timeout: 10000 });

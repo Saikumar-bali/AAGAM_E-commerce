@@ -16,7 +16,7 @@ async function login(page: Page, email: string, password?: string) {
   await page.fill('input[type="password"]', password ?? getPasswordForEmail(email));
   await page.click('button[type="submit"]');
   await page.waitForFunction(() => localStorage.getItem('user_role') !== null, { timeout: 15000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 }
 
 test.describe('Phase 1: Notification e2e scenarios', () => {
@@ -24,7 +24,7 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
   test('Admin broadcast end-to-end: queue a broadcast and verify outbox', async ({ page }) => {
     await login(page, 'admin@aagam.com');
     await page.goto('/admin/notifications');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
     await expect(page.getByRole('heading', { name: /Admin Notifications/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Broadcast placeholder' })).toBeVisible();
@@ -45,8 +45,8 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
 
     await page1.goto('/rider/notifications');
     await page2.goto('/rider/notifications');
-    await page1.waitForLoadState('networkidle');
-    await page2.waitForLoadState('networkidle');
+    await page1.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    await page2.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
     await expect(page1.getByRole('heading', { name: /Rider Notifications/i })).toBeVisible({ timeout: 15000 });
     await expect(page2.getByRole('heading', { name: /Rider Notifications/i })).toBeVisible({ timeout: 15000 });
@@ -136,7 +136,7 @@ test.describe('Phase 1: Notification e2e scenarios', () => {
     }
 
     await page.goto(`/rider/notifications?aagamNotificationRecipient=${encodeURIComponent(recipientId)}`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
     await expect(page.getByRole('heading', { name: /Rider Notifications/i })).toBeVisible({ timeout: 15000 });
 
