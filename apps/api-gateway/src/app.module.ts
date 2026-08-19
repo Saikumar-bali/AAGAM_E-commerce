@@ -23,6 +23,7 @@ import { PartnerOnboardingModule } from './partner-onboarding/partner-onboarding
 import { GlobalSearchModule } from './search/search.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { WhatsAppWebhookModule } from './whatsapp-webhook/whatsapp-webhook.module';
+import { LocalitiesModule } from './localities/localities.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { WhatsAppWebhookModule } from './whatsapp-webhook/whatsapp-webhook.modul
     GlobalSearchModule,
     SubscriptionsModule,
     WhatsAppWebhookModule,
+    LocalitiesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
