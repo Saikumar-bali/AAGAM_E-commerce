@@ -101,7 +101,7 @@ export class GeoService {
   }
 
   async forward(input: ForwardAddressInput) {
-    const query = [
+    const fullQuery = [
       input.line1,
       input.line2,
       input.landmark,
@@ -113,6 +113,35 @@ export class GeoService {
       .map((value) => value.trim())
       .join(', ');
 
+    const pincode = String(input.pincode || '').trim();
+    const city = String(input.city || '').trim();
+    const state = String(input.state || '').trim();
+
+    // A single token Nominatim does not know (e.g. a small locality) makes the
+    // free-text search return nothing, even though the pincode or city alone
+    // resolve. Fall back through progressively simpler queries so a manual
+    // address can still be placed on the delivery map.
+    const candidates = [
+      fullQuery,
+      pincode,
+      [city, state, 'India'].filter(Boolean).join(', '),
+      city ? `${city}, India` : '',
+    ].filter((value, index, all) => value.trim().length > 0 && all.indexOf(value) === index);
+
+    let lastFailure: { ok: false; source: 'nominatim'; status: number; message?: string } | null = null;
+
+    for (const candidate of candidates) {
+      const result = await this.searchOnce(candidate);
+      if (result.ok) return result;
+      lastFailure = result;
+      // Respect Nominatim's ~1 request/sec usage policy across fallback attempts.
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+    }
+
+    return lastFailure ?? { ok: false as const, source: 'nominatim' as const, status: 0 };
+  }
+
+  private async searchOnce(query: string) {
     try {
       const response = await axios.get<NominatimResponse[]>('https://nominatim.openstreetmap.org/search', {
         params: {
@@ -127,17 +156,17 @@ export class GeoService {
         validateStatus: () => true,
       });
       if (response.status < 200 || response.status >= 300) {
-        return { ok: false as const, source: 'nominatim', status: response.status };
+        return { ok: false as const, source: 'nominatim' as const, status: response.status };
       }
       const result = response.data?.[0];
       const latitude = Number(result?.lat);
       const longitude = Number(result?.lon);
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-        return { ok: false as const, source: 'nominatim', status: response.status, message: 'Address was not found' };
+        return { ok: false as const, source: 'nominatim' as const, status: response.status, message: 'Address was not found' };
       }
       return {
         ok: true as const,
-        source: 'nominatim',
+        source: 'nominatim' as const,
         latitude,
         longitude,
         displayName: result?.display_name || null,
@@ -145,7 +174,7 @@ export class GeoService {
     } catch (error: any) {
       return {
         ok: false as const,
-        source: 'nominatim',
+        source: 'nominatim' as const,
         status: 0,
         message: error?.message || 'Forward geocode failed',
       };
