@@ -282,7 +282,7 @@ export const CheckoutScreen = () => {
   const orderDisabled = !selectedAddressId || loadingQuote || placeOrderMutation.isPending || quote?.serviceable === false || Boolean(quoteFailure);
   const quotedSubtotal = Number(quote?.invoice?.subtotal ?? total());
   const freeDeliveryMinimumPaise = Number(quote?.deliveryPricing?.freeDeliveryMinimumPaise ?? 9_900);
-  const deliveryRatePaisePerKm = Number(quote?.deliveryPricing?.ratePaisePerKm ?? 150);
+  const deliveryRatePaisePerKm = quote?.deliveryPricing?.ratePaisePerKm != null ? Number(quote.deliveryPricing.ratePaisePerKm) : null;
   const freeDeliveryRemainingPaise = Math.max(0, freeDeliveryMinimumPaise - Math.round(quotedSubtotal * 100));
   const leaveCheckout = () => {
     if (navigation.canGoBack?.()) navigation.goBack();
@@ -316,7 +316,7 @@ export const CheckoutScreen = () => {
 
       <Text style={styles.sectionTitle}>Order Summary</Text>
       <View style={styles.summaryCard}>
-        <View style={[styles.freeDeliveryCard, freeDeliveryRemainingPaise === 0 && styles.freeDeliveryUnlocked]}><Text style={styles.freeDeliveryTitle}>{freeDeliveryRemainingPaise === 0 ? 'Free delivery unlocked' : `Add ${formatCheckoutMoney(freeDeliveryRemainingPaise / 100)} for free delivery`}</Text><Text style={styles.freeDeliveryText}>Delivery at {formatCheckoutMoney(deliveryRatePaisePerKm / 100)}/km. Free on orders of {formatCheckoutMoney(freeDeliveryMinimumPaise / 100)} or more.</Text></View>
+        <View style={[styles.freeDeliveryCard, freeDeliveryRemainingPaise === 0 && styles.freeDeliveryUnlocked]}><Text style={styles.freeDeliveryTitle}>{freeDeliveryRemainingPaise === 0 ? 'Free delivery unlocked' : `Add ${formatCheckoutMoney(freeDeliveryRemainingPaise / 100)} for free delivery`}</Text><Text style={styles.freeDeliveryText}>{deliveryRatePaisePerKm != null ? `Delivery at ${formatCheckoutMoney(deliveryRatePaisePerKm / 100)}/km. ` : ''}Free on orders of {formatCheckoutMoney(freeDeliveryMinimumPaise / 100)} or more.</Text></View>
         {items.map((item) => <View key={item.product.id} style={styles.summaryRow}><Text style={styles.summaryText}>{item.product.name} x {item.quantity}</Text><Text style={styles.summaryAmount}>₹{item.product.price * item.quantity}</Text></View>)}
         <View style={styles.summaryDivider} />
         <View style={styles.summaryRow}><Text style={styles.summaryText}>Subtotal</Text><Text style={styles.summaryAmount}>{formatCheckoutMoney(Number(quote?.invoice?.subtotal ?? total()))}</Text></View>

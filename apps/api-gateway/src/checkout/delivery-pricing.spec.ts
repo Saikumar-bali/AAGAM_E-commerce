@@ -5,22 +5,31 @@ import {
   FREE_DELIVERY_MINIMUM_PAISE,
 } from './delivery-pricing';
 
+const defaultRule = { ruleId: 'rule-default', ruleName: 'Default', matchType: 'DEFAULT' };
+
 describe('distance delivery pricing', () => {
+  it('returns not serviceable when no delivery fee rule matches', () => {
+    const pricing = calculateDeliveryPricing(5, 7_000);
+    expect(pricing.serviceable).toBe(false);
+    expect(pricing.payableFeePaise).toBe(0);
+    expect(pricing.appliedRule).toBeNull();
+  });
+
   it('charges ₹2.00 per kilometre and rounds once to the nearest paise', () => {
     expect(DELIVERY_RATE_PAISE_PER_KM).toBe(200);
-    expect(calculateDeliveryPricing(1, 7_000).payableFeePaise).toBe(200);
-    expect(calculateDeliveryPricing(3.25, 7_000).payableFeePaise).toBe(650);
-    expect(calculateDeliveryPricing(8, 7_000).payableFeePaise).toBe(1_600);
+    expect(calculateDeliveryPricing(1, 7_000, false, defaultRule).payableFeePaise).toBe(200);
+    expect(calculateDeliveryPricing(3.25, 7_000, false, defaultRule).payableFeePaise).toBe(650);
+    expect(calculateDeliveryPricing(8, 7_000, false, defaultRule).payableFeePaise).toBe(1_600);
   });
 
   it('waives the distance fee at a ₹99 subtotal', () => {
     expect(FREE_DELIVERY_MINIMUM_PAISE).toBe(9_900);
-    expect(calculateDeliveryPricing(7.8, 9_899)).toMatchObject({
+    expect(calculateDeliveryPricing(7.8, 9_899, false, defaultRule)).toMatchObject({
       distanceFeePaise: 1_560,
       waivedByThreshold: false,
       payableFeePaise: 1_560,
     });
-    expect(calculateDeliveryPricing(7.8, 9_900)).toMatchObject({
+    expect(calculateDeliveryPricing(7.8, 9_900, false, defaultRule)).toMatchObject({
       distanceFeePaise: 1_560,
       waivedByThreshold: true,
       payableFeePaise: 0,
@@ -28,7 +37,7 @@ describe('distance delivery pricing', () => {
   });
 
   it('waives delivery for an eligible first order below the subtotal threshold', () => {
-    expect(calculateDeliveryPricing(3.25, 6_000, true)).toMatchObject({
+    expect(calculateDeliveryPricing(3.25, 6_000, true, defaultRule)).toMatchObject({
       distanceFeePaise: 650,
       waivedByThreshold: false,
       waivedByFirstOrder: true,
@@ -37,7 +46,7 @@ describe('distance delivery pricing', () => {
   });
 
   it('does not mark an out-of-range first order as a free deliverable order', () => {
-    expect(calculateDeliveryPricing(15.001, 6_000, true)).toMatchObject({
+    expect(calculateDeliveryPricing(15.001, 6_000, true, defaultRule)).toMatchObject({
       serviceable: false,
       waivedByFirstOrder: false,
     });
@@ -45,13 +54,13 @@ describe('distance delivery pricing', () => {
 
   it('recalculates the distance fee when the cart drops below ₹99', () => {
     expect(DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM).toBe(15);
-    expect(calculateDeliveryPricing(35.7, 12_000)).toMatchObject({
+    expect(calculateDeliveryPricing(35.7, 12_000, false, defaultRule)).toMatchObject({
       serviceable: false,
       distanceFeePaise: 7_140,
       waivedByThreshold: false,
       payableFeePaise: 7_140,
     });
-    expect(calculateDeliveryPricing(35.7, 6_000)).toMatchObject({
+    expect(calculateDeliveryPricing(35.7, 6_000, false, defaultRule)).toMatchObject({
       serviceable: false,
       distanceFeePaise: 7_140,
       waivedByThreshold: false,
@@ -60,8 +69,8 @@ describe('distance delivery pricing', () => {
   });
 
   it('uses a 15 kilometre default service radius', () => {
-    expect(calculateDeliveryPricing(15, 6_000).serviceable).toBe(true);
-    expect(calculateDeliveryPricing(15.001, 6_000)).toMatchObject({
+    expect(calculateDeliveryPricing(15, 6_000, false, defaultRule).serviceable).toBe(true);
+    expect(calculateDeliveryPricing(15.001, 6_000, false, defaultRule)).toMatchObject({
       serviceable: false,
       maximumDistanceKm: 15,
     });
@@ -71,7 +80,7 @@ describe('distance delivery pricing', () => {
     const previous = process.env.DELIVERY_MAX_DISTANCE_KM;
     process.env.DELIVERY_MAX_DISTANCE_KM = '8';
     try {
-      expect(calculateDeliveryPricing(8.001, 7_000)).toMatchObject({
+      expect(calculateDeliveryPricing(8.001, 7_000, false, defaultRule)).toMatchObject({
         serviceable: false,
         maximumDistanceKm: 8,
         distanceFeePaise: 1_600,
@@ -84,8 +93,8 @@ describe('distance delivery pricing', () => {
   });
 
   it('rejects invalid distances', () => {
-    expect(calculateDeliveryPricing(Number.NaN, 7_000).serviceable).toBe(false);
-    expect(calculateDeliveryPricing(-1, 7_000).serviceable).toBe(false);
+    expect(calculateDeliveryPricing(Number.NaN, 7_000, false, defaultRule).serviceable).toBe(false);
+    expect(calculateDeliveryPricing(-1, 7_000, false, defaultRule).serviceable).toBe(false);
   });
 
   it('applies a locality rate override while keeping the default fallback intact', () => {
@@ -103,8 +112,8 @@ describe('distance delivery pricing', () => {
       name: 'Thummapala',
       matchType: 'KEYWORD',
     });
-    // default path is unchanged when no override is provided
-    expect(calculateDeliveryPricing(5, 7_000).payableFeePaise).toBe(1_000);
+    // no rule matched → not serviceable
+    expect(calculateDeliveryPricing(5, 7_000).serviceable).toBe(false);
   });
 
   it('uses a flat fee instead of per-kilometre rate when the rule sets one', () => {

@@ -31,6 +31,23 @@ export function calculateDeliveryPricing(
   firstOrderEligible = false,
   overrides: DeliveryFeeRuleOverrides = {},
 ): DeliveryPricing {
+  const hasRule = Boolean(overrides.ruleId);
+
+  if (!hasRule) {
+    return {
+      serviceable: false,
+      ratePaisePerKm: DELIVERY_RATE_PAISE_PER_KM,
+      freeDeliveryMinimumPaise: FREE_DELIVERY_MINIMUM_PAISE,
+      maximumDistanceKm: DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM,
+      distanceFeePaise: 0,
+      waivedByThreshold: false,
+      waivedByFirstOrder: false,
+      payableFeePaise: 0,
+      appliedRule: null,
+      flatFeePaise: null,
+    };
+  }
+
   const configuredMaximum = Number(process.env.DELIVERY_MAX_DISTANCE_KM);
   const globalMaximum = Number.isFinite(configuredMaximum) && configuredMaximum > 0
     ? configuredMaximum

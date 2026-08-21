@@ -353,6 +353,13 @@ export default function DeliveryFeeRulesPage() {
           </div>
         ) : null}
 
+        {!loading && rules.length > 0 && !rules.some((r) => r.matchType === "DEFAULT" && r.isActive) && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+            No active <span className="font-black">DEFAULT</span> rule found. Addresses that don't match any specific rule
+            (pincode, city or keyword) will <span className="font-black">not be serviceable</span>. Create a DEFAULT rule as a catch-all fallback.
+          </div>
+        )}
+
         <section>
           <h2 className="mb-3 text-lg font-black text-slate-950">Rules</h2>
           {loading ? (

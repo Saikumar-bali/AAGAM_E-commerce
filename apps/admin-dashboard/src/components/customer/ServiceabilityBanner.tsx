@@ -50,7 +50,7 @@ export default function ServiceabilityBanner({ address, serviceability, onAddres
                     ~{serviceability.etaMinutes} min
                   </span>
                   <span className="text-xs font-bold text-emerald-700">
-                    Delivery ₹{((serviceability.deliveryPricing?.ratePaisePerKm ?? 200) / 100).toFixed(2)}/km · {serviceability.deliveryFee === 0 ? 'FREE' : `₹${serviceability.deliveryFee.toFixed(2)}`}
+                    {serviceability.deliveryFee === 0 ? 'FREE delivery' : `Delivery ₹${serviceability.deliveryFee.toFixed(2)}`}
                   </span>
                 </>
               ) : (
