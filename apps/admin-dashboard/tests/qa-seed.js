@@ -48,6 +48,22 @@ async function main() {
   assertSafeQaSeedTarget();
   console.log('QA Seed: Ensuring test orders are in correct state...');
 
+  // Ensure a DEFAULT delivery fee rule exists so checkout is serviceable
+  await prisma.deliveryFeeRule.upsert({
+    where: { id: '__qa_default_delivery_rule__' },
+    update: {},
+    create: {
+      id: '__qa_default_delivery_rule__',
+      name: 'QA Default',
+      matchType: 'DEFAULT',
+      ratePaisePerKm: 200,
+      freeDeliveryMinimumPaise: 9900,
+      priority: 100,
+      isActive: true,
+    },
+  });
+  console.log('  QA default delivery fee rule ready');
+
   const qaCustomer = await prisma.user.upsert({
     where: { email: 'qa-rider-pick-customer@aagam.com' },
     update: { role: 'CUSTOMER', name: 'QA Rider Pick Customer' },

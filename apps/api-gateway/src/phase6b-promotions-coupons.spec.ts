@@ -17,6 +17,7 @@ import { PromotionsService } from "./promotions/promotions.service";
 
 const PREFIX = "_test_phase6b_promotions_";
 const CODE_PREFIX = "P6B";
+const DEFAULT_RULE_ID = "__ci_test_default_rule__";
 
 const gatewayMock = () => ({
   server: { to: jest.fn().mockReturnThis(), emit: jest.fn() },
@@ -132,6 +133,11 @@ describe("Phase 6B dynamic promotions and real coupon pricing", () => {
 
   beforeAll(async () => {
     await cleanup();
+    await prisma.deliveryFeeRule.upsert({
+      where: { id: DEFAULT_RULE_ID },
+      create: { id: DEFAULT_RULE_ID, name: 'CI Test Default Rule', matchType: 'DEFAULT', ratePaisePerKm: 200 },
+      update: {},
+    });
     admin = await prisma.user.create({
       data: {
         email: `${PREFIX}admin@test.com`,

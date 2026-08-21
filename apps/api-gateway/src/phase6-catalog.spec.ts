@@ -3,6 +3,7 @@ import { CheckoutService } from './checkout/checkout.service';
 import { ProductService } from './products/product.service';
 
 const PREFIX = '_test_phase6catalog_';
+const DEFAULT_RULE_ID = '__ci_test_default_rule__';
 
 function cacheMock() {
   return {
@@ -67,6 +68,11 @@ describe('Phase 6 catalog, serviceability, substitutes', () => {
 
   beforeAll(async () => {
     await cleanup();
+    await prisma.deliveryFeeRule.upsert({
+      where: { id: DEFAULT_RULE_ID },
+      create: { id: DEFAULT_RULE_ID, name: 'CI Test Default Rule', matchType: 'DEFAULT', ratePaisePerKm: 200 },
+      update: {},
+    });
 
     owner = await prisma.user.create({
       data: { email: `${PREFIX}owner@test.com`, name: 'Phase 6 Owner', role: Role.STORE_OWNER },
@@ -144,6 +150,7 @@ describe('Phase 6 catalog, serviceability, substitutes', () => {
 
   afterAll(async () => {
     await cleanup();
+    await prisma.deliveryFeeRule.deleteMany({ where: { id: DEFAULT_RULE_ID } });
     await prisma.$disconnect();
   });
 
