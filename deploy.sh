@@ -360,12 +360,22 @@ npx turbo build \
   --concurrency=1 \
   --force
 
+# Next.js keeps its incremental/full-route cache (.next/cache) across releases.
+# A stale prerender - e.g. a 404 cached while a route did not exist in an older
+# build - survives `next build` and is served as HTTP 200 with a soft-404 body
+# from the new release. Purge the cache so every request renders fresh.
+rm -rf apps/admin-dashboard/.next/cache
+
 # Deploy only checked-in migrations. Never use prisma db push in production.
 npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
 npx prisma migrate status --schema packages/database/prisma/schema.prisma
 
 deploy_node="$(command -v node)"
 pm2 startOrReload ecosystem.config.js --update-env --interpreter "$deploy_node"
+# `pm2 startOrReload` does not restart a process whose script is unchanged, so
+# the dashboard could keep serving the previous release's in-memory route table
+# and cache. Restart it explicitly to load the freshly built .next output.
+pm2 restart admin-dashboard --update-env
 pm2 save
 
 pm2 jlist | node -e '
