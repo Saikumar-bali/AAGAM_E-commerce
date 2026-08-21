@@ -5,6 +5,7 @@ import { TrackingService } from './tracking/tracking.service';
 import { RefundsService } from './payments/refunds.service';
 
 const PREFIX = '_test_phase5e2e_';
+const DEFAULT_RULE_ID = '__ci_test_default_rule__';
 
 async function cleanup() {
   const users = await prisma.user.findMany({ where: { email: { contains: PREFIX } }, select: { id: true } });
@@ -61,6 +62,11 @@ describe('Phase 5 E2E: Complete Order-to-Delivery Workflow', () => {
 
   beforeAll(async () => {
     await cleanup();
+    await prisma.deliveryFeeRule.upsert({
+      where: { id: DEFAULT_RULE_ID },
+      create: { id: DEFAULT_RULE_ID, name: 'CI Test Default Rule', matchType: 'DEFAULT', ratePaisePerKm: 200 },
+      update: {},
+    });
 
     customer = await prisma.user.create({
       data: { email: `${PREFIX}customer@test.com`, name: 'E2E Customer', role: Role.CUSTOMER, phone: '+919000000001' },
@@ -94,6 +100,7 @@ describe('Phase 5 E2E: Complete Order-to-Delivery Workflow', () => {
 
   afterAll(async () => {
     await cleanup();
+    await prisma.deliveryFeeRule.deleteMany({ where: { id: DEFAULT_RULE_ID } });
     await prisma.$disconnect();
   });
 

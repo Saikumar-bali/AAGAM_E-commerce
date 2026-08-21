@@ -29,12 +29,20 @@ async function cleanup() {
   await prisma.user.deleteMany({ where: { email: { contains: TEST_USER_PREFIX } } });
 }
 
+const DEFAULT_RULE_ID = '__ci_test_default_rule__';
+
 beforeAll(async () => {
   await cleanup();
+  await prisma.deliveryFeeRule.upsert({
+    where: { id: DEFAULT_RULE_ID },
+    create: { id: DEFAULT_RULE_ID, name: 'CI Test Default Rule', matchType: 'DEFAULT', ratePaisePerKm: 200 },
+    update: {},
+  });
 });
 
 afterAll(async () => {
   await cleanup();
+  await prisma.deliveryFeeRule.deleteMany({ where: { id: DEFAULT_RULE_ID } });
   await prisma.$disconnect();
 });
 
