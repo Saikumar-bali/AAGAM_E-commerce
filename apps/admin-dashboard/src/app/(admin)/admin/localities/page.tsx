@@ -102,7 +102,7 @@ const emptyForm = (): LocalityForm => ({
   pincode: "",
   latitude: "",
   longitude: "",
-  radius: "5",
+  radius: "",
   zoneId: "",
   sortOrder: "0",
   isActive: true,
@@ -117,24 +117,29 @@ export default function LocalitiesPage() {
   const [error, setError] = useState("");
 
   const [formOpen, setFormOpen] = useState(false);
+  const [formError, setFormError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<LocalityForm>(emptyForm());
 
   const load = async () => {
     setLoading(true);
     try {
-      const [localitiesResponse, zonesResponse] = await Promise.all([
+      const [localitiesResult, zonesResult] = await Promise.allSettled([
         apiClient.get("/admin/localities"),
         apiClient.get("/stores/delivery-zones/admin"),
       ]);
-      setLocalities(Array.isArray(localitiesResponse.data) ? localitiesResponse.data : []);
-      setZones(
-        Array.isArray(zonesResponse.data)
-          ? zonesResponse.data
-              .filter((zone: any) => zone && zone.id && zone.isActive !== false)
-              .map((zone: any) => ({ id: zone.id, name: zone.name || zone.id }))
-          : [],
-      );
+      if (localitiesResult.status === "fulfilled") {
+        setLocalities(Array.isArray(localitiesResult.value.data) ? localitiesResult.value.data : []);
+      } else {
+        setError(errorMessage(localitiesResult.reason) || "Could not load localities.");
+      }
+      if (zonesResult.status === "fulfilled" && Array.isArray(zonesResult.value.data)) {
+        setZones(
+          zonesResult.value.data
+            .filter((zone: any) => zone && zone.id && zone.isActive !== false)
+            .map((zone: any) => ({ id: zone.id, name: zone.name || zone.id })),
+        );
+      }
     } catch (requestError: any) {
       setError(errorMessage(requestError) || "Could not load localities.");
     } finally {
@@ -149,6 +154,7 @@ export default function LocalitiesPage() {
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm());
+    setFormError("");
     setFormOpen(true);
   };
 
@@ -162,7 +168,7 @@ export default function LocalitiesPage() {
       pincode: locality.pincode,
       latitude: locality.latitude != null ? String(locality.latitude) : "",
       longitude: locality.longitude != null ? String(locality.longitude) : "",
-      radius: locality.radius != null ? String(locality.radius) : "5",
+      radius: locality.radius != null ? String(locality.radius) : "",
       zoneId: locality.zoneId || "",
       sortOrder: String(locality.sortOrder),
       isActive: locality.isActive,
@@ -173,8 +179,18 @@ export default function LocalitiesPage() {
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
+    setFormError("");
     setError("");
     setMessage("");
+
+    const hasLat = form.latitude.trim() !== "";
+    const hasLng = form.longitude.trim() !== "";
+    if (hasLat !== hasLng) {
+      setFormError("Both latitude and longitude must be provided together, or both left empty.");
+      setSaving(false);
+      return;
+    }
+
     try {
       const payload: Record<string, unknown> = {
         name: form.name.trim(),
@@ -187,13 +203,15 @@ export default function LocalitiesPage() {
         isActive: form.isActive,
       };
 
-      if (form.latitude && form.longitude) {
+      if (hasLat && hasLng) {
         payload.latitude = Number(form.latitude);
         payload.longitude = Number(form.longitude);
       }
 
-      if (form.radius) {
+      if (form.radius.trim() !== "") {
         payload.radius = Number(form.radius);
+      } else {
+        payload.radius = null;
       }
 
       if (editingId) {
@@ -206,7 +224,7 @@ export default function LocalitiesPage() {
       setFormOpen(false);
       await load();
     } catch (requestError: any) {
-      setError(errorMessage(requestError) || "Could not save the locality.");
+      setFormError(errorMessage(requestError) || "Could not save the locality.");
     } finally {
       setSaving(false);
     }
@@ -362,6 +380,7 @@ export default function LocalitiesPage() {
           onClose={() => setFormOpen(false)}
         >
           <form onSubmit={save} className="grid gap-4 md:grid-cols-2">
+            {formError ? <div className="md:col-span-2 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{formError}</div> : null}
             <Field label="Locality name" wide>
               <input
                 required
@@ -445,16 +464,16 @@ export default function LocalitiesPage() {
             <div className="md:col-span-2">
               <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">Map &amp; Radius</p>
               <p className="mb-3 text-xs text-slate-400">
-                Click the map to move the centre pin. Drag the teal circle edge or use the slider to adjust the delivery radius.
+                Click the map to move the centre pin, or drag the marker. Use the slider below to set the delivery radius.
               </p>
               <LocalityMapPicker
                 latitude={formLat}
                 longitude={formLng}
                 radius={formRadius}
                 onCenterChange={(lat, lng) =>
-                  setForm({ ...form, latitude: String(lat), longitude: String(lng) })
+                  setForm((prev) => ({ ...prev, latitude: String(lat), longitude: String(lng) }))
                 }
-                onRadiusChange={(km) => setForm({ ...form, radius: String(km) })}
+                onRadiusChange={(km) => setForm((prev) => ({ ...prev, radius: String(km) }))}
               />
               <div className="mt-3 grid grid-cols-[1fr_4rem] items-center gap-3">
                 <div>

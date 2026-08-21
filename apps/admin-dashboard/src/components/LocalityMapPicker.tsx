@@ -26,6 +26,11 @@ export default function LocalityMapPicker({
   const mapRef = useRef<LeafletMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
   const circleRef = useRef<Circle | null>(null);
+  const centerCbRef = useRef(onCenterChange);
+  const radiusCbRef = useRef(onRadiusChange);
+
+  useEffect(() => { centerCbRef.current = onCenterChange; }, [onCenterChange]);
+  useEffect(() => { radiusCbRef.current = onRadiusChange; }, [onRadiusChange]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -64,7 +69,7 @@ export default function LocalityMapPicker({
       map.on("click", (e: { latlng: { lat: number; lng: number } }) => {
         marker.setLatLng(e.latlng);
         circle.setLatLng(e.latlng);
-        onCenterChange(
+        centerCbRef.current(
           Math.round(e.latlng.lat * 1e7) / 1e7,
           Math.round(e.latlng.lng * 1e7) / 1e7,
         );
@@ -73,7 +78,7 @@ export default function LocalityMapPicker({
       marker.on("dragend", () => {
         const pos = marker.getLatLng();
         circle.setLatLng(pos);
-        onCenterChange(
+        centerCbRef.current(
           Math.round(pos.lat * 1e7) / 1e7,
           Math.round(pos.lng * 1e7) / 1e7,
         );
