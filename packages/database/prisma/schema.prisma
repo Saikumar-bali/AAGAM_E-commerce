@@ -124,6 +124,7 @@ model ServiceableLocality {
   pincode   String
   latitude  Float?
   longitude Float?
+  radius    Float?
   zoneId    String?
   zone      DeliveryZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
   isActive  Boolean @default(true)
