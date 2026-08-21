@@ -479,15 +479,15 @@ export default function LocalitiesPage() {
                 <div>
                   <input
                     type="range"
-                    min="1"
+                    min="0.1"
                     max="50"
-                    step="0.5"
+                    step="0.1"
                     value={formRadius}
                     onChange={(event) => setForm({ ...form, radius: event.target.value })}
                     className="w-full accent-teal-600"
                   />
                   <div className="mt-0.5 flex justify-between text-[10px] font-semibold text-slate-400">
-                    <span>1 km</span>
+                    <span>100 m</span>
                     <span>25 km</span>
                     <span>50 km</span>
                   </div>
