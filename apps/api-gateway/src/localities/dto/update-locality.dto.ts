@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsInt, IsLatitude, IsLongitude, IsOptional, IsString, Matches, MaxLength, Min, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsLatitude, IsLongitude, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class UpdateServiceableLocalityDto {
   @IsOptional()
@@ -41,6 +41,12 @@ export class UpdateServiceableLocalityDto {
   @IsOptional()
   @IsLongitude()
   longitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.1)
+  @Max(100)
+  radius?: number;
 
   @IsOptional()
   @IsBoolean()

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   Loader2,
   Plus,
@@ -12,6 +13,11 @@ import {
 import { apiClient } from "@aagam/utils";
 import DashboardLayout from "@/components/DashboardLayout";
 
+const LocalityMapPicker = dynamic(
+  () => import("@/components/LocalityMapPicker"),
+  { ssr: false, loading: () => <div className="grid h-[300px] place-items-center rounded-2xl bg-slate-50 text-xs text-slate-400">Loading map…</div> },
+);
+
 type Locality = {
   id: string;
   name: string;
@@ -21,6 +27,7 @@ type Locality = {
   pincode: string;
   latitude: number | null;
   longitude: number | null;
+  radius: number | null;
   zoneId: string | null;
   isActive: boolean;
   sortOrder: number;
@@ -34,6 +41,9 @@ type LocalityForm = {
   city: string;
   state: string;
   pincode: string;
+  latitude: string;
+  longitude: string;
+  radius: string;
   zoneId: string;
   sortOrder: string;
   isActive: boolean;
@@ -90,6 +100,9 @@ const emptyForm = (): LocalityForm => ({
   city: "",
   state: "ANDHRA PRADESH",
   pincode: "",
+  latitude: "",
+  longitude: "",
+  radius: "",
   zoneId: "",
   sortOrder: "0",
   isActive: true,
@@ -104,24 +117,29 @@ export default function LocalitiesPage() {
   const [error, setError] = useState("");
 
   const [formOpen, setFormOpen] = useState(false);
+  const [formError, setFormError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<LocalityForm>(emptyForm());
 
   const load = async () => {
     setLoading(true);
     try {
-      const [localitiesResponse, zonesResponse] = await Promise.all([
+      const [localitiesResult, zonesResult] = await Promise.allSettled([
         apiClient.get("/admin/localities"),
         apiClient.get("/stores/delivery-zones/admin"),
       ]);
-      setLocalities(Array.isArray(localitiesResponse.data) ? localitiesResponse.data : []);
-      setZones(
-        Array.isArray(zonesResponse.data)
-          ? zonesResponse.data
-              .filter((zone: any) => zone && zone.id && zone.isActive !== false)
-              .map((zone: any) => ({ id: zone.id, name: zone.name || zone.id }))
-          : [],
-      );
+      if (localitiesResult.status === "fulfilled") {
+        setLocalities(Array.isArray(localitiesResult.value.data) ? localitiesResult.value.data : []);
+      } else {
+        setError(errorMessage(localitiesResult.reason) || "Could not load localities.");
+      }
+      if (zonesResult.status === "fulfilled" && Array.isArray(zonesResult.value.data)) {
+        setZones(
+          zonesResult.value.data
+            .filter((zone: any) => zone && zone.id && zone.isActive !== false)
+            .map((zone: any) => ({ id: zone.id, name: zone.name || zone.id })),
+        );
+      }
     } catch (requestError: any) {
       setError(errorMessage(requestError) || "Could not load localities.");
     } finally {
@@ -136,6 +154,7 @@ export default function LocalitiesPage() {
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm());
+    setFormError("");
     setFormOpen(true);
   };
 
@@ -147,6 +166,9 @@ export default function LocalitiesPage() {
       city: locality.city,
       state: locality.state,
       pincode: locality.pincode,
+      latitude: locality.latitude != null ? String(locality.latitude) : "",
+      longitude: locality.longitude != null ? String(locality.longitude) : "",
+      radius: locality.radius != null ? String(locality.radius) : "",
       zoneId: locality.zoneId || "",
       sortOrder: String(locality.sortOrder),
       isActive: locality.isActive,
@@ -157,10 +179,20 @@ export default function LocalitiesPage() {
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
+    setFormError("");
     setError("");
     setMessage("");
+
+    const hasLat = form.latitude.trim() !== "";
+    const hasLng = form.longitude.trim() !== "";
+    if (hasLat !== hasLng) {
+      setFormError("Both latitude and longitude must be provided together, or both left empty.");
+      setSaving(false);
+      return;
+    }
+
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         name: form.name.trim(),
         aliases: form.aliases.split(",").map((alias) => alias.trim()).filter(Boolean),
         city: form.city.trim(),
@@ -170,6 +202,18 @@ export default function LocalitiesPage() {
         sortOrder: form.sortOrder === "" ? 0 : Number(form.sortOrder),
         isActive: form.isActive,
       };
+
+      if (hasLat && hasLng) {
+        payload.latitude = Number(form.latitude);
+        payload.longitude = Number(form.longitude);
+      }
+
+      if (form.radius.trim() !== "") {
+        payload.radius = Number(form.radius);
+      } else {
+        payload.radius = null;
+      }
+
       if (editingId) {
         await apiClient.patch(`/admin/localities/${editingId}`, payload);
         setMessage("Locality updated.");
@@ -180,7 +224,7 @@ export default function LocalitiesPage() {
       setFormOpen(false);
       await load();
     } catch (requestError: any) {
-      setError(errorMessage(requestError) || "Could not save the locality.");
+      setFormError(errorMessage(requestError) || "Could not save the locality.");
     } finally {
       setSaving(false);
     }
@@ -209,6 +253,10 @@ export default function LocalitiesPage() {
       setError(errorMessage(requestError) || "Could not delete the locality.");
     }
   };
+
+  const formLat = form.latitude ? Number(form.latitude) : 0;
+  const formLng = form.longitude ? Number(form.longitude) : 0;
+  const formRadius = form.radius ? Number(form.radius) : 5;
 
   return (
     <DashboardLayout allowedRole="ADMIN">
@@ -255,6 +303,7 @@ export default function LocalitiesPage() {
                     <th className="px-5 py-4 font-black">Pincode</th>
                     <th className="px-5 py-4 font-black">Zone</th>
                     <th className="px-5 py-4 font-black">Centre</th>
+                    <th className="px-5 py-4 font-black">Radius</th>
                     <th className="px-5 py-4 font-black">Status</th>
                     <th className="px-5 py-4 text-right font-black">Actions</th>
                   </tr>
@@ -283,6 +332,9 @@ export default function LocalitiesPage() {
                         {locality.latitude != null && locality.longitude != null
                           ? `${locality.latitude.toFixed(5)}, ${locality.longitude.toFixed(5)}`
                           : "auto (pincode)"}
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-4 font-semibold text-slate-700">
+                        {locality.radius != null ? `${locality.radius} km` : "—"}
                       </td>
                       <td className="px-5 py-4">
                         <button
@@ -324,10 +376,11 @@ export default function LocalitiesPage() {
       {formOpen ? (
         <Modal
           title={editingId ? "Edit locality" : "New locality"}
-          subtitle="A locality the customer can pick when entering a delivery address. Its coordinates are resolved automatically from the pincode."
+          subtitle="Pin the centre on the map and set the delivery radius. Customers pick this locality when entering a manual address."
           onClose={() => setFormOpen(false)}
         >
           <form onSubmit={save} className="grid gap-4 md:grid-cols-2">
+            {formError ? <div className="md:col-span-2 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{formError}</div> : null}
             <Field label="Locality name" wide>
               <input
                 required
@@ -406,6 +459,63 @@ export default function LocalitiesPage() {
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
               </select>
+            </Field>
+
+            <div className="md:col-span-2">
+              <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">Map &amp; Radius</p>
+              <p className="mb-3 text-xs text-slate-400">
+                Click the map to move the centre pin, or drag the marker. Use the slider below to set the delivery radius.
+              </p>
+              <LocalityMapPicker
+                latitude={formLat}
+                longitude={formLng}
+                radius={formRadius}
+                onCenterChange={(lat, lng) =>
+                  setForm((prev) => ({ ...prev, latitude: String(lat), longitude: String(lng) }))
+                }
+                onRadiusChange={(km) => setForm((prev) => ({ ...prev, radius: String(km) }))}
+              />
+              <div className="mt-3 grid grid-cols-[1fr_4rem] items-center gap-3">
+                <div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="50"
+                    step="0.5"
+                    value={formRadius}
+                    onChange={(event) => setForm({ ...form, radius: event.target.value })}
+                    className="w-full accent-teal-600"
+                  />
+                  <div className="mt-0.5 flex justify-between text-[10px] font-semibold text-slate-400">
+                    <span>1 km</span>
+                    <span>25 km</span>
+                    <span>50 km</span>
+                  </div>
+                </div>
+                <div className="grid place-items-center rounded-xl border border-slate-200 bg-slate-50 py-2 text-sm font-black text-slate-950">
+                  {formRadius} km
+                </div>
+              </div>
+            </div>
+
+            <Field label="Latitude">
+              <input
+                type="number"
+                step="any"
+                value={form.latitude}
+                onChange={(event) => setForm({ ...form, latitude: event.target.value })}
+                placeholder="17.6868"
+              />
+            </Field>
+
+            <Field label="Longitude">
+              <input
+                type="number"
+                step="any"
+                value={form.longitude}
+                onChange={(event) => setForm({ ...form, longitude: event.target.value })}
+                placeholder="83.2185"
+              />
             </Field>
 
             <div className="mt-2 flex justify-end gap-3 md:col-span-2">
