@@ -189,10 +189,10 @@ export default function LandingPage() {
       </header>
 
       <section className="relative overflow-hidden bg-[#073f3d] text-white" style={{ backgroundColor: hero.backgroundColor || '#073f3d' }}>
-        {hero.imageUrl ? (
+        {hero.imageUrl || hero.mobileImageUrl ? (
           <picture className="absolute inset-0">
             {hero.mobileImageUrl ? <source media="(max-width: 767px)" srcSet={hero.mobileImageUrl} /> : null}
-            <img src={hero.imageUrl} alt="" className="h-full w-full object-cover object-center" />
+            <img src={hero.imageUrl || hero.mobileImageUrl} alt="" className="h-full w-full object-cover object-center" />
           </picture>
         ) : null}
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,47,46,.96)_0%,rgba(3,47,46,.87)_33%,rgba(3,47,46,.35)_58%,rgba(3,47,46,.08)_100%)] md:bg-[linear-gradient(90deg,rgba(3,47,46,.96)_0%,rgba(3,47,46,.92)_34%,rgba(3,47,46,.30)_58%,rgba(3,47,46,.02)_100%)]" />
@@ -286,7 +286,7 @@ export default function LandingPage() {
             <div className="flex flex-col justify-center px-2">
               <h2 className="text-[16px] font-black">Subscribe & Save</h2>
               <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-600">Goodness on repeat.<br />Save more with<br />flexible subscriptions.</p>
-              <Link href="/shop/subscribe" className="mt-3 inline-flex items-center gap-2 text-[9px] font-black text-[#087765]">View all plans <ArrowRight className="h-3 w-3" /></Link>
+              <Link href="/shop/subscriptions" className="mt-3 inline-flex items-center gap-2 text-[9px] font-black text-[#087765]">View all plans <ArrowRight className="h-3 w-3" /></Link>
             </div>
             {visiblePlans.map((plan) => {
               const save = planSavings(plan);
@@ -340,8 +340,8 @@ export default function LandingPage() {
           <div><span className="font-serif text-[25px] font-bold tracking-[-0.04em]">Aagaam</span><p className="mt-1 max-w-[190px] text-[8px] font-semibold leading-3 text-white/70">Your trusted neighbourhood partner for fresh groceries and everyday essentials.</p><p className="mt-4 text-[7px] text-white/50">© 2026 Aagaam Retail Pvt. Ltd. All rights reserved.</p></div>
           <div><h3 className="text-[9px] font-black">Shop</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#categories">All Categories</a><Link href="/shop">Fruits & Vegetables</Link><Link href="/shop">Dairy & Eggs</Link><Link href="/shop/deals">Deals</Link><Link href="/shop">Beverages</Link></div></div>
           <div><h3 className="text-[9px] font-black">Help & Support</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><Link href="/shop/support">FAQs</Link><Link href="/shop/support">Delivery Information</Link><Link href="/shop/support">Returns & Refunds</Link><Link href="/shop/support">Contact Us</Link></div></div>
-          <div><h3 className="text-[9px] font-black">Company</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><Link href="/shop/addresses">Store Locator</Link><Link href="/login">Terms & Conditions</Link><Link href="/login">Privacy Policy</Link></div></div>
-          <div><h3 className="text-[9px] font-black">Subscribe to our newsletter</h3><p className="mt-1 text-[8px] font-semibold text-white/60">Get the best offers & updates delivered to your inbox.</p><div className="mt-2 flex overflow-hidden rounded-md border border-white/15 bg-white/10"><input aria-label="Newsletter email" placeholder="Enter your email" className="h-8 min-w-0 flex-1 bg-transparent px-3 text-[8px] outline-none placeholder:text-white/40" /><button className="bg-[#20bfa6] px-4 text-[8px] font-black">Subscribe</button></div><div className="mt-4 flex flex-wrap items-center gap-3 text-[8px] font-black text-white/70"><span>UPI</span><span>VISA</span><span>Mastercard</span><span>RuPay</span></div></div>
+          <div><h3 className="text-[9px] font-black">Company</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><Link href="/shop/addresses">Store Locator</Link><Link href="/terms">Terms & Conditions</Link><Link href="/privacy">Privacy Policy</Link></div></div>
+          <div><h3 className="text-[9px] font-black">Offers & updates</h3><p className="mt-1 text-[8px] font-semibold text-white/60">Browse current promotions and savings published through the Aagaam shop.</p><Link href="/shop/deals" className="mt-2 inline-flex h-8 items-center gap-2 rounded-md bg-[#20bfa6] px-4 text-[8px] font-black text-white">View current offers <ArrowRight className="h-3 w-3" /></Link><div className="mt-4 flex flex-wrap items-center gap-3 text-[8px] font-black text-white/70"><span>UPI</span><span>VISA</span><span>Mastercard</span><span>RuPay</span></div></div>
         </div>
       </footer>
     </main>
