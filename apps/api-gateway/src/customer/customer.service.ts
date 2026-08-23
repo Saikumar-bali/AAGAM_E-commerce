@@ -115,7 +115,7 @@ export class CustomerService {
     });
     if (!locality) throw new BadRequestException('Select an active serviceable locality');
     const matches = (left: string, right: string) => left.trim().toLowerCase() === right.trim().toLowerCase();
-    if (!matches(locality.city, input.city) || !matches(locality.state, input.state) || locality.pincode !== input.pincode) {
+    if (!matches(locality.city, input.city) || !matches(locality.state, input.state) || locality.pincode !== input.pincode?.trim()) {
       throw new BadRequestException('Address city, state, and pincode must match the selected locality');
     }
     return locality;
@@ -144,9 +144,17 @@ export class CustomerService {
     };
   }
 
-  private addressTextChanged(dto: UpdateAddressDto) {
-    return ['line1', 'line2', 'landmark', 'city', 'state', 'pincode', 'country']
-      .some((key) => Object.prototype.hasOwnProperty.call(dto, key));
+  private addressTextChanged(existing: AddressLocationInput, dto: UpdateAddressDto) {
+    const values: Array<[keyof AddressLocationInput, string | null | undefined]> = [
+      ['line1', dto.line1],
+      ['line2', dto.line2],
+      ['landmark', dto.landmark],
+      ['city', dto.city],
+      ['state', dto.state],
+      ['pincode', dto.pincode],
+      ['country', dto.country],
+    ];
+    return values.some(([key, value]) => value !== undefined && String(value ?? '').trim() !== String(existing[key] ?? '').trim());
   }
 
   private async resolveUpdatedLocation(existing: any, dto: UpdateAddressDto): Promise<ResolvedAddressLocation> {

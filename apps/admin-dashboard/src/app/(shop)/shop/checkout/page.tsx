@@ -226,7 +226,8 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!editingAddressId || draft.locationSource !== 'GEOCODED' || selectedLocalityId || localities.length === 0) return;
-    const matchedLocality = localities.find((entry) => entry.city.toLowerCase() === draft.city.toLowerCase() && entry.state.toLowerCase() === draft.state.toLowerCase() && entry.pincode === draft.pincode);
+    const matchedLocalities = localities.filter((entry) => entry.city.trim().toLowerCase() === draft.city.trim().toLowerCase() && entry.state.trim().toLowerCase() === draft.state.trim().toLowerCase() && entry.pincode === draft.pincode.trim());
+    const matchedLocality = matchedLocalities.length === 1 ? matchedLocalities[0] : undefined;
     if (matchedLocality) setSelectedLocalityId(matchedLocality.id);
   }, [editingAddressId, localities]);
 
@@ -409,7 +410,7 @@ export default function CheckoutPage() {
 
   const openEditAddress = (address: Address) => {
     setEditingAddressId(address.id);
-    setSelectedLocalityId(address.localityId || localities.find((entry) => entry.city.toLowerCase() === address.city.toLowerCase() && entry.state.toLowerCase() === address.state.toLowerCase() && entry.pincode === address.pincode)?.id || '');
+    setSelectedLocalityId(address.localityId || (() => { const matches = localities.filter((entry) => entry.city.trim().toLowerCase() === address.city.trim().toLowerCase() && entry.state.trim().toLowerCase() === address.state.trim().toLowerCase() && entry.pincode === address.pincode.trim()); return matches.length === 1 ? matches[0]?.id : ''; })() || '');
     setDraft({
       label: address.label || 'Home',
       recipientName: address.recipientName,

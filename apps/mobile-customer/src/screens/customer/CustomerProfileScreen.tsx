@@ -431,9 +431,9 @@ export const CustomerProfileScreen = () => {
     setEditingAddressId(address.id);
     const draft = draftFromAddress(address);
     const matchedLocality = localities.find(
-      (loc) => loc.city.toLowerCase() === (address?.city || '').toLowerCase()
-        && loc.state.toLowerCase() === (address?.state || '').toLowerCase()
-        && loc.pincode === (address?.pincode || ''),
+      (loc) => loc.city.trim().toLowerCase() === (address?.city || '').trim().toLowerCase()
+        && loc.state.trim().toLowerCase() === (address?.state || '').trim().toLowerCase()
+        && loc.pincode === (address?.pincode || '').trim(),
     );
     setDraft({ ...draft, selectedLocalityId: draft.selectedLocalityId || matchedLocality?.id || '', localityId: draft.localityId || matchedLocality?.id || '' });
     setAddressErrors({});
@@ -442,7 +442,7 @@ export const CustomerProfileScreen = () => {
 
   useEffect(() => {
     if (!editingAddressId || !localitiesLoaded || draft.locationSource !== 'GEOCODED' || draft.selectedLocalityId || localities.length === 0) return;
-    const matchedLocality = localities.find((loc) => loc.city.toLowerCase() === draft.city.toLowerCase() && loc.state.toLowerCase() === draft.state.toLowerCase() && loc.pincode === draft.pincode);
+    const matchedLocality = localities.find((loc) => loc.city.trim().toLowerCase() === draft.city.trim().toLowerCase() && loc.state.trim().toLowerCase() === draft.state.trim().toLowerCase() && loc.pincode === draft.pincode.trim());
     if (matchedLocality) setDraft((current) => ({ ...current, selectedLocalityId: matchedLocality.id, localityId: matchedLocality.id }));
   }, [editingAddressId, localitiesLoaded]);
 

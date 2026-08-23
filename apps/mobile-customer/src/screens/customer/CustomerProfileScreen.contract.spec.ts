@@ -23,7 +23,7 @@ describe('Customer profile address validation contract', () => {
     expect(source).toContain('Could not load localities. Tap to retry.');
     expect(source).toContain('if (!route.params?.openAddressForm || !localitiesLoaded) return;');
     expect(source).toContain('onRequestClose={() => setLocalityModalVisible(false)}');
-    expect(source).toContain("loc.state.toLowerCase() === (address?.state || '').toLowerCase()");
+    expect(source).toContain("loc.state.trim().toLowerCase() === (address?.state || '').trim().toLowerCase()");
     expect(source).toContain('Use current location');
     expect(source).toContain('Enter manually');
     expect(source).toContain('inputError');

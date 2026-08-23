@@ -114,7 +114,8 @@ export default function AddressesPage() {
   useEffect(() => { const handleClick = () => setMenuOpenId(null); if (menuOpenId) { document.addEventListener('click', handleClick); return () => document.removeEventListener('click', handleClick); } }, [menuOpenId]);
   useEffect(() => {
     if (!editingId || draft.locationSource !== 'GEOCODED' || draft.selectedLocalityId || localities.length === 0) return;
-    const matchedLocality = localities.find((loc) => loc.city.toLowerCase() === draft.city.toLowerCase() && loc.state.toLowerCase() === draft.state.toLowerCase() && loc.pincode === draft.pincode);
+    const matchedLocalities = localities.filter((loc) => loc.city.trim().toLowerCase() === draft.city.trim().toLowerCase() && loc.state.trim().toLowerCase() === draft.state.trim().toLowerCase() && loc.pincode === draft.pincode.trim());
+    const matchedLocality = matchedLocalities.length === 1 ? matchedLocalities[0] : undefined;
     if (matchedLocality) setDraft((current) => ({ ...current, selectedLocalityId: matchedLocality.id }));
   }, [editingId, localities]);
 
@@ -122,11 +123,14 @@ export default function AddressesPage() {
   const clearFieldError = (field: AddressField) => setFieldErrors((current) => ({ ...current, [field]: undefined }));
   const handleEdit = (addr: Address) => {
     setEditingId(addr.id); setFieldErrors({});
-    const matchedLocalityId = addr.localityId || localities.find(
-      (loc) => loc.city.toLowerCase() === addr.city.toLowerCase()
-        && loc.state.toLowerCase() === addr.state.toLowerCase()
-        && loc.pincode === addr.pincode,
-    )?.id;
+    const matchedLocalityId = addr.localityId || (() => {
+      const matches = localities.filter(
+        (loc) => loc.city.trim().toLowerCase() === addr.city.trim().toLowerCase()
+          && loc.state.trim().toLowerCase() === addr.state.trim().toLowerCase()
+          && loc.pincode === addr.pincode.trim(),
+      );
+      return matches.length === 1 ? matches[0]?.id : undefined;
+    })();
     setDraft({
       label: addr.label || 'Home', recipientName: addr.recipientName, phoneE164: addr.phoneE164,
       alternatePhoneE164: addr.alternatePhoneE164 || '', line1: addr.line1, line2: addr.line2 || '', landmark: addr.landmark || '',

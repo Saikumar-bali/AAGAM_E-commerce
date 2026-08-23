@@ -9,7 +9,7 @@ describe('Checkout locality contract', () => {
     expect(source).toContain("localityId: draft.locationSource === 'GEOCODED' ? selectedLocalityId : undefined,");
     expect(source).toContain("locationSource: draft.locationSource === 'LEGACY_UNKNOWN' ? undefined : draft.locationSource,");
     expect(source).toContain("updateCoordinates(lat, lng, 'MAP_PIN')");
-    expect(source).toContain("address.locationSource === 'LIVE_GPS' || address.locationSource === 'MAP_PIN'");
+    expect(source).toContain("['LIVE_GPS', 'MAP_PIN', 'GEOCODED', 'LEGACY_UNKNOWN'].includes(String(address.locationSource))");
     expect(source).toContain('position.coords.accuracy');
     expect(source).toContain("locationCapturedAt: draft.locationSource === 'LIVE_GPS' ? draft.locationCapturedAt ?? undefined : undefined,");
   });
