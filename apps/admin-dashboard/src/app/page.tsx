@@ -111,18 +111,17 @@ export default function LandingPage() {
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
   const [placements, setPlacements] = useState<Record<string, Campaign[]>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-
+  const loadData = () => {
+    setLoading(true);
+    setLoadError(false);
     Promise.allSettled([
       apiClient.get('/products', { params: { pageSize: 12, sort: 'newest' } }),
       apiClient.get('/products/categories'),
       apiClient.get('/subscriptions/plans'),
       apiClient.get('/public/promotions/active'),
     ]).then(([productResult, categoryResult, planResult, promotionResult]) => {
-      if (!active) return;
-
       if (productResult.status === 'fulfilled') {
         const payload = productResult.value.data;
         const nextProducts = Array.isArray(payload) ? payload : payload?.items || payload?.products || [];
@@ -141,12 +140,16 @@ export default function LandingPage() {
         setPlacements(normalizePromotionPlacements(promotionResult.value.data) as Record<string, Campaign[]>);
       }
 
+      const allRejected = [productResult, categoryResult, planResult, promotionResult].every(
+        (r) => r.status === 'rejected',
+      );
+      if (allRejected) setLoadError(true);
       setLoading(false);
     });
+  };
 
-    return () => {
-      active = false;
-    };
+  useEffect(() => {
+    loadData();
   }, []);
 
   const hero = placements.LANDING_HERO?.[0];
@@ -165,6 +168,12 @@ export default function LandingPage() {
 
   return (
     <main className="min-h-screen bg-[#f6f8f7] text-[#102522]">
+      {loadError && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-center text-sm font-semibold text-amber-800">
+          Some content could not be loaded.{' '}
+          <button onClick={loadData} className="underline font-black hover:text-amber-900">Retry</button>
+        </div>
+      )}
       <header className="relative z-40 border-b border-white/10 bg-[#062d2d] text-white">
         <div className="mx-auto flex h-[58px] max-w-[1440px] items-center gap-5 px-4 sm:px-6 lg:px-9">
           <Link href="/" className="group flex min-w-[150px] items-center gap-2" aria-label="Aagaam home">
@@ -396,6 +405,10 @@ export default function LandingPage() {
             </Link>
           </div>
 
+          {!loading && !visiblePlans.length && (
+            <p className="col-span-full py-4 text-center text-sm font-semibold text-slate-400">No subscription plans available.</p>
+          )}
+
           {(visiblePlans.length ? visiblePlans : loading ? Array.from({ length: 3 }) : []).map((plan: any, index) => {
             const pricePaise = numberFrom(plan?.pricePaise);
             const mrpPaise = Math.max(numberFrom(plan?.mrpPaise), pricePaise);
@@ -474,39 +487,34 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {landingBanners[0] ? (
-            landingBanners[0].targetUrl ? (
-              <Link
-                href={landingBanners[0].targetUrl!}
-                className="group relative min-h-[92px] overflow-hidden rounded-[10px] bg-[#e8f2e9] px-5 py-3"
-                style={{ backgroundColor: landingBanners[0].backgroundColor || '#e8f2e9', color: landingBanners[0].textColor || '#17352f' }}
-              >
+          {landingBanners[0] ? (() => {
+            const bannerInner = (
+              <>
                 <CampaignPicture campaign={landingBanners[0]} />
                 <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/72 to-transparent" />
                 <div className="relative max-w-[58%]">
                   <p className="text-[8px] font-black uppercase tracking-[.14em] text-emerald-700">{landingBanners[0].badgeText || 'Aagaam campaign'}</p>
                   <h2 className="mt-1 line-clamp-1 text-[13px] font-black">{landingBanners[0].title}</h2>
                   <p className="mt-1 line-clamp-2 text-[8px] font-semibold opacity-75">{landingBanners[0].subtitle || landingBanners[0].description}</p>
-                  <span className="mt-2 inline-flex items-center gap-1 text-[8px] font-black text-emerald-800">
-                    {landingBanners[0].ctaLabel || 'Know more'} <ArrowRight className="h-3 w-3" />
-                  </span>
+                  {landingBanners[0].targetUrl ? (
+                    <span className="mt-2 inline-flex items-center gap-1 text-[8px] font-black text-emerald-800">
+                      {landingBanners[0].ctaLabel || 'Know more'} <ArrowRight className="h-3 w-3" />
+                    </span>
+                  ) : null}
                 </div>
-              </Link>
+              </>
+            );
+            const wrapperProps = {
+              className: 'relative min-h-[92px] overflow-hidden rounded-[10px] bg-[#e8f2e9] px-5 py-3',
+              style: { backgroundColor: landingBanners[0].backgroundColor || '#e8f2e9', color: landingBanners[0].textColor || '#17352f' } as React.CSSProperties,
+            };
+            return landingBanners[0].targetUrl ? (
+              <Link {...wrapperProps} href={landingBanners[0].targetUrl!}>{bannerInner}</Link>
             ) : (
-              <div
-                className="relative min-h-[92px] overflow-hidden rounded-[10px] bg-[#e8f2e9] px-5 py-3"
-                style={{ backgroundColor: landingBanners[0].backgroundColor || '#e8f2e9', color: landingBanners[0].textColor || '#17352f' }}
-              >
-                <CampaignPicture campaign={landingBanners[0]} />
-                <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/72 to-transparent" />
-                <div className="relative max-w-[58%]">
-                  <p className="text-[8px] font-black uppercase tracking-[.14em] text-emerald-700">{landingBanners[0].badgeText || 'Aagaam campaign'}</p>
-                  <h2 className="mt-1 line-clamp-1 text-[13px] font-black">{landingBanners[0].title}</h2>
-                  <p className="mt-1 line-clamp-2 text-[8px] font-semibold opacity-75">{landingBanners[0].subtitle || landingBanners[0].description}</p>
-                </div>
-              </div>
-            )
-          ) : (
+              <div {...wrapperProps}>{bannerInner}</div>
+            );
+          })()
+          : (
             <div className="flex min-h-[92px] items-center gap-4 rounded-[10px] bg-[#e8f2e9] px-5 py-3">
               <span className="grid h-12 w-12 place-items-center rounded-full bg-white/75"><Leaf className="h-6 w-6 text-emerald-700" /></span>
               <div>
@@ -523,11 +531,6 @@ export default function LandingPage() {
         <section className="bg-[#f6f8f7] pb-3">
           <div className="mx-auto grid max-w-[1370px] gap-3 px-4 sm:px-6 md:grid-cols-2">
             {landingBanners.slice(1, 3).map((campaign) => {
-              const bannerProps = {
-                key: campaign.id,
-                className: 'relative min-h-[120px] overflow-hidden rounded-xl p-5',
-                style: { backgroundColor: campaign.backgroundColor || '#0b3a36', color: campaign.textColor || '#fff' } as React.CSSProperties,
-              };
               const bannerInner = (
                 <>
                   <CampaignPicture campaign={campaign} />
@@ -539,10 +542,14 @@ export default function LandingPage() {
                   </div>
                 </>
               );
+              const sharedProps = {
+                className: 'relative min-h-[120px] overflow-hidden rounded-xl p-5',
+                style: { backgroundColor: campaign.backgroundColor || '#0b3a36', color: campaign.textColor || '#fff' } as React.CSSProperties,
+              };
               return campaign.targetUrl ? (
-                <Link {...bannerProps} href={campaign.targetUrl}>{bannerInner}</Link>
+                <Link key={campaign.id} {...sharedProps} href={campaign.targetUrl}>{bannerInner}</Link>
               ) : (
-                <div {...bannerProps}>{bannerInner}</div>
+                <div key={campaign.id} {...sharedProps}>{bannerInner}</div>
               );
             })}
           </div>

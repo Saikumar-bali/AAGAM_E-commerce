@@ -151,10 +151,10 @@ test.describe('Public promotions placement rendering', () => {
     expect(feedBody).toContain(bannerTitle);
 
     await page.goto('/');
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
     await expect(page.getByText(heroTitle).first()).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(bannerTitle).first()).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(bannerTitle).first().locator('xpath=ancestor::a')).toHaveAttribute('href', '/shop/deals');
+    await expect(page.getByText(bannerTitle).first().locator('xpath=ancestor::a[1]')).toHaveAttribute('href', '/shop/deals');
     await page.screenshot({
       path: path.join(PROOF_DIR, '02-public-landing-campaigns.png'),
       fullPage: true,
