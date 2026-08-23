@@ -20,6 +20,7 @@ import { apiClient, getProductImage } from '@aagam/utils';
 import { useCart } from '@/hooks/useCart';
 import { formatINR } from '@/lib/currency';
 import { normalizePromotionPlacements } from '@/lib/promotion-normalizer';
+import AagamLogo from '@/components/AagamLogo';
 
 type Campaign = {
   id: string;
@@ -183,11 +184,8 @@ export default function LandingPage() {
   return (
     <main className="min-h-screen bg-[#f7f8f7] text-[#16231f]">
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#063b3a] text-white shadow-sm">
-        <div className="mx-auto flex h-[58px] max-w-[1448px] items-center gap-4 px-5 lg:px-10">
-          <Link href="/" className="mr-3 shrink-0 leading-none" aria-label="Aagaam home">
-            <span className="block font-serif text-[27px] font-bold tracking-[-0.04em]">Aagaam<span className="ml-1 text-[15px] text-emerald-300">◆</span></span>
-            <span className="mt-0.5 block text-[7px] font-semibold tracking-[0.06em] text-white/70">Bringing goodness home</span>
-          </Link>
+        <div className="mx-auto flex h-[64px] max-w-[1448px] items-center gap-4 px-4 sm:px-5 lg:px-10">
+          <div className="mr-2 shrink-0"><AagamLogo inverse compact label="Bringing goodness home" /></div>
 
           <nav className="hidden items-center gap-7 text-[12px] font-bold text-white/90 xl:flex">
             <a href="#categories" className="inline-flex items-center gap-1 hover:text-emerald-300">Categories <ChevronDown className="h-3 w-3" /></a>
@@ -219,6 +217,13 @@ export default function LandingPage() {
             Shop now <ShoppingBag className="h-3.5 w-3.5" />{totalItems > 0 ? <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] text-[#063b3a]">{totalItems}</span> : null}
           </Link>
         </div>
+        <nav aria-label="Landing sections" className="flex h-10 items-center gap-1 overflow-x-auto border-t border-white/10 px-3 text-[10px] font-black text-white/85 xl:hidden">
+          <a href="#categories" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Categories</a>
+          <a href="#subscriptions" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Subscriptions</a>
+          <Link href="/shop/deals" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Offers</Link>
+          <Link href="/shop" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Store Locator</Link>
+          <a href="#about" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">About Us</a>
+        </nav>
       </header>
 
       <section className="relative overflow-hidden bg-[#073f3d] text-white" style={{ backgroundColor: hero.backgroundColor || '#073f3d' }}>
@@ -260,7 +265,7 @@ export default function LandingPage() {
       </section>
 
       <div className="mx-auto max-w-[1448px] overflow-hidden rounded-t-[24px] bg-white shadow-[0_-4px_18px_rgba(10,50,45,.06)]">
-        <section id="categories" className="px-5 pb-2 pt-4 lg:px-16">
+        <section id="categories" className="scroll-mt-28 px-5 pb-2 pt-4 xl:scroll-mt-20 lg:px-16">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[14px] font-black">Shop by category</h2>
             <Link href="/shop" className="inline-flex items-center gap-2 text-[9px] font-black text-[#087765]">View all categories <ArrowRight className="h-3 w-3" /></Link>
@@ -316,7 +321,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="subscriptions" className="mx-5 mb-0 rounded-[10px] bg-[#f5f7f6] p-3 lg:mx-10 lg:px-6">
+        <section id="subscriptions" className="scroll-mt-28 mx-5 mb-0 rounded-[10px] bg-[#f5f7f6] p-3 xl:scroll-mt-20 lg:mx-10 lg:px-6">
           <div className="grid gap-3 lg:grid-cols-[180px_1fr_1fr_1fr]">
             <div className="flex flex-col justify-center px-2">
               <h2 className="text-[16px] font-black">Subscribe & Save</h2>
@@ -354,7 +359,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="about" className="grid min-h-[94px] items-stretch border-b border-[#e4e8e6] bg-[#f7faf8] lg:grid-cols-[1.15fr_1.65fr_1.25fr]">
+        <section id="about" className="scroll-mt-28 grid min-h-[94px] items-stretch border-b border-[#e4e8e6] bg-[#f7faf8] xl:scroll-mt-20 lg:grid-cols-[1.15fr_1.65fr_1.25fr]">
           <div className="flex items-center gap-3 px-6 py-4 lg:px-12">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#dcefe7] text-[#087765]"><User className="h-5 w-5" /></span>
             <div><div className="text-[9px] tracking-[0.08em] text-amber-500">★★★★★</div><p className="mt-1 text-[8px] font-semibold leading-3 text-slate-600">“Aagaam never disappoints! Vegetables are always fresh and delivery is super reliable.”</p><strong className="mt-1 block text-[8px] text-[#087765]">— Priya S., Bengaluru</strong></div>
@@ -372,7 +377,7 @@ export default function LandingPage() {
 
       <footer className="bg-[#063b3a] text-white">
         <div className="mx-auto grid max-w-[1448px] gap-7 px-6 py-6 md:grid-cols-2 lg:grid-cols-[1.25fr_.8fr_.8fr_1.2fr_1.1fr] lg:px-10">
-          <div><span className="font-serif text-[25px] font-bold tracking-[-0.04em]">Aagaam</span><p className="mt-1 max-w-[190px] text-[8px] font-semibold leading-3 text-white/70">Your trusted neighbourhood partner for fresh groceries and everyday essentials.</p><p className="mt-4 text-[7px] text-white/50">© 2026 Aagaam Retail Pvt. Ltd. All rights reserved.</p></div>
+          <div><AagamLogo inverse compact label="Fresh, quality and trust" /><p className="mt-3 max-w-[230px] text-[8px] font-semibold leading-3 text-white/70">Your trusted neighbourhood partner for fresh groceries and everyday essentials.</p><p className="mt-4 text-[7px] text-white/50">© 2026 Aagaam Retail Pvt. Ltd. All rights reserved.</p></div>
           <div><h3 className="text-[9px] font-black">Shop</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#categories">All Categories</a><Link href="/shop">Fruits & Vegetables</Link><Link href="/shop">Dairy & Eggs</Link><Link href="/shop/deals">Deals</Link><Link href="/shop">Beverages</Link></div></div>
           <div><h3 className="text-[9px] font-black">Help & Support</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><Link href="/shop/support">Contact Us</Link><Link href="/shop">Browse catalogue</Link><Link href="/shop/deals">Current offers</Link><Link href="/shop/subscriptions">Subscription plans</Link></div></div>
           <div><h3 className="text-[9px] font-black">Company</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><Link href="/shop">Store Locator</Link><Link href="/terms">Terms & Conditions</Link><Link href="/privacy">Privacy Policy</Link></div></div>

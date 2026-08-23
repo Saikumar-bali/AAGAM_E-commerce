@@ -1104,7 +1104,7 @@ export default function AdminPromotionsPage() {
               <h3 className="text-sm font-black text-slate-950">Hero creative</h3>
               <div className="mt-3 rounded-2xl bg-teal-50 p-4 text-xs font-semibold leading-5 text-teal-900">
                 <p className="font-black uppercase tracking-[0.16em]">Reference banner recipe</p>
-                <p className="mt-2">Upload your completed banner artwork. Use a wide 16:9 desktop image and a portrait-safe mobile image when available. The customer app uses the mobile image on phones, keeps the banner tappable, and follows the selected destination below.</p>
+                <p className="mt-2">Upload your completed banner artwork or use a trusted hosted image URL. Use a wide desktop image and a portrait-safe mobile image when available. The customer app uses the mobile image on phones, keeps the banner tappable, and follows the selected destination below.</p>
                 <p className="mt-2 font-black">Required for Home Hero: image + HOME HERO placement + future/active schedule.</p>
               </div>
               <div className="mt-3 grid gap-4 md:grid-cols-2">
@@ -1126,6 +1126,26 @@ export default function AdminPromotionsPage() {
                     setCampaignForm({ ...campaignForm, mobileImageUrl: "" })
                   }
                 />
+                <Field label="Desktop hosted image URL">
+                  <input
+                    type="url"
+                    value={campaignForm.imageUrl}
+                    onChange={(event) =>
+                      setCampaignForm({ ...campaignForm, imageUrl: event.target.value })
+                    }
+                    placeholder="https://aagaam.in/generated/banner.png"
+                  />
+                </Field>
+                <Field label="Mobile hosted image URL">
+                  <input
+                    type="url"
+                    value={campaignForm.mobileImageUrl}
+                    onChange={(event) =>
+                      setCampaignForm({ ...campaignForm, mobileImageUrl: event.target.value })
+                    }
+                    placeholder="Optional mobile-specific image URL"
+                  />
+                </Field>
                 <Field label="Background">
                   <input
                     type="color"

@@ -116,6 +116,7 @@ test.describe('Public reference landing UI', () => {
     await expect(page.getByText('Subscribe & Save', { exact: true })).toBeVisible();
     await expect(page.getByText('Daily Milk Plan', { exact: true })).toBeVisible();
     await expect(page.getByText('Supporting local farmers', { exact: true })).toBeVisible();
+    await expect(page.getByRole('img', { name: 'Aagaam' }).first()).toBeVisible();
 
     const heroImage = page.locator('img[src="https://cdn.example.test/aagaam-landing-hero.webp"]');
     await expect(heroImage).toBeVisible();
@@ -153,6 +154,10 @@ test.describe('Public reference landing UI', () => {
 
     await page.goto('/');
     await expect(page.locator('img[src="https://cdn.example.test/aagaam-landing-hero-mobile.webp"]')).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Landing sections' })).toBeVisible();
+    await page.getByRole('navigation', { name: 'Landing sections' }).getByRole('link', { name: 'Subscriptions' }).click();
+    await expect(page).toHaveURL(/#subscriptions$/);
+    await expect(page.locator('#subscriptions')).toBeInViewport();
   });
 
   test('shop consumes the landing search query when loading products', async ({ page }) => {
