@@ -36,7 +36,7 @@ type Campaign = {
   targetUrl?: string | null;
 };
 
-const FALLBACK_HERO = {
+const FALLBACK_HERO: Record<string, string | null> = {
   badgeText: 'Farm fresh. Locally sourced.',
   title: 'Fresh groceries.',
   subtitle: 'Delivered with trust.',
@@ -46,6 +46,8 @@ const FALLBACK_HERO = {
   backgroundColor: '#073f3d',
   textColor: '#ffffff',
   accentColor: '#20c9a6',
+  imageUrl: null,
+  mobileImageUrl: null,
 };
 
 const trustItems = [
