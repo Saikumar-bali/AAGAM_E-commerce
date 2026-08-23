@@ -64,8 +64,9 @@ export default function ShopPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const category = new URLSearchParams(window.location.search).get('category') || '';
-    setSelectedCategoryId(category);
+    const params = new URLSearchParams(window.location.search);
+    setSelectedCategoryId(params.get('category') || '');
+    setQuery(params.get('search') || '');
     apiClient
       .get('/promotions/active')
       .then((response) => setPromotions(normalizePlacements(response.data?.placements)))

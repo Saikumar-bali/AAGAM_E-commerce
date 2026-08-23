@@ -110,3 +110,10 @@ pages-output/
 docs/
 RAILWAY_DEPLOYMENT.md
 aagam_data/
+
+# Local build cache
+.local-run/
+
+# Manual e2e debug scripts (not for repo)
+apps/admin-dashboard/e2e/manual-e2e-*.ts
+apps/admin-dashboard/e2e-tmp/
