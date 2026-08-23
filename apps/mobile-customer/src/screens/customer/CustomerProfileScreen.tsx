@@ -431,7 +431,9 @@ export const CustomerProfileScreen = () => {
     setEditingAddressId(address.id);
     const draft = draftFromAddress(address);
     const matchedLocality = localities.find(
-      (loc) => loc.city.toLowerCase() === (address?.city || '').toLowerCase() && loc.pincode === (address?.pincode || ''),
+      (loc) => loc.city.toLowerCase() === (address?.city || '').toLowerCase()
+        && loc.state.toLowerCase() === (address?.state || '').toLowerCase()
+        && loc.pincode === (address?.pincode || ''),
     );
     setDraft({ ...draft, selectedLocalityId: draft.selectedLocalityId || matchedLocality?.id || '', localityId: draft.localityId || matchedLocality?.id || '' });
     setAddressErrors({});
