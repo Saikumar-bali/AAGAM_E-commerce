@@ -80,6 +80,10 @@ export class CreateAddressDto {
   longitude?: number;
 
   @IsOptional()
+  @IsString()
+  localityId?: string;
+
+  @IsOptional()
   @IsIn(['LIVE_GPS', 'MAP_PIN', 'GEOCODED'])
   locationSource?: 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED';
 

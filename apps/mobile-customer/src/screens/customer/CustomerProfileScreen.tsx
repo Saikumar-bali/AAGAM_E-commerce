@@ -69,6 +69,7 @@ const emptyDraft = {
   instructions: '',
   isDefault: false,
   selectedLocalityId: '',
+  localityId: '',
 };
 
 type AddressDraftKey = keyof typeof emptyDraft;
@@ -111,7 +112,8 @@ const draftFromAddress = (address: any) => ({
   locationCapturedAt: String(address?.locationCapturedAt || ''),
   instructions: String(address?.instructions || ''),
   isDefault: Boolean(address?.isDefault),
-  selectedLocalityId: '',
+  selectedLocalityId: String(address?.localityId || ''),
+  localityId: String(address?.localityId || ''),
 });
 
 function validPhone(value: string) {
@@ -137,24 +139,27 @@ export const CustomerProfileScreen = () => {
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [localities, setLocalities] = useState<LocalityOption[]>([]);
   const [localitiesLoading, setLocalitiesLoading] = useState(false);
+  const [localitiesError, setLocalitiesError] = useState(false);
   const [localityModalVisible, setLocalityModalVisible] = useState(false);
 
-  useEffect(() => {
-    let active = true;
+  const loadLocalities = React.useCallback(async () => {
     setLocalitiesLoading(true);
-    apiClient
-      .get('/localities')
-      .then((response) => {
-        if (active) setLocalities(Array.isArray(response.data) ? response.data : []);
-      })
-      .catch(() => {})
-      .finally(() => active && setLocalitiesLoading(false));
-    return () => { active = false; };
+    setLocalitiesError(false);
+    try {
+      const response = await apiClient.get('/localities');
+      setLocalities(Array.isArray(response.data) ? response.data : []);
+    } catch {
+      setLocalitiesError(true);
+    } finally {
+      setLocalitiesLoading(false);
+    }
   }, []);
+
+  useEffect(() => { void loadLocalities(); }, [loadLocalities]);
 
   const applyLocality = (localityId: string) => {
     setLocalityModalVisible(false);
-    setDraft((d) => ({ ...d, selectedLocalityId: localityId }));
+    setDraft((d) => ({ ...d, selectedLocalityId: localityId, localityId }));
     const locality = localities.find((entry) => entry.id === localityId);
     if (!locality) return;
     setDraft((d) => ({
@@ -187,11 +192,15 @@ export const CustomerProfileScreen = () => {
     if (!route.params?.openAddressForm) return;
     const address = route.params.address;
     setEditingAddressId(address?.id || null);
-    setDraft(address ? draftFromAddress(address) : emptyDraft);
+    const initialDraft = address ? draftFromAddress(address) : emptyDraft;
+    if (address && !initialDraft.selectedLocalityId) {
+      const matchedLocality = localities.find((loc) => loc.city.toLowerCase() === initialDraft.city.toLowerCase() && loc.state.toLowerCase() === initialDraft.state.toLowerCase() && loc.pincode === initialDraft.pincode);
+      setDraft({ ...initialDraft, selectedLocalityId: matchedLocality?.id || '', localityId: matchedLocality?.id || '' });
+    } else setDraft(initialDraft);
     setAddressErrors({});
     setShowForm(true);
     navigation.setParams({ openAddressForm: undefined, address: undefined });
-  }, [navigation, route.params?.openAddressForm, route.params?.address?.id]);
+  }, [localities, navigation, route.params?.openAddressForm, route.params?.address?.id]);
 
   const { data: profile } = useQuery<any>({
     queryKey: ['customer-profile'],
@@ -239,6 +248,7 @@ export const CustomerProfileScreen = () => {
         country: draft.country,
         instructions: draft.instructions,
         isDefault: draft.isDefault,
+        localityId: draft.locationSource === 'GEOCODED' ? draft.selectedLocalityId : null,
       };
       if (draft.locationSource === 'LIVE_GPS') {
         basePayload.locationSource = 'LIVE_GPS';
@@ -297,8 +307,10 @@ export const CustomerProfileScreen = () => {
     if (draft.city.trim().length < 2) next.city = 'City is required.';
     if (draft.state.trim().length < 2) next.state = 'State is required.';
     if (!/^\d{6}$/.test(draft.pincode.trim())) next.pincode = 'A valid 6 digit pincode is required.';
-    if (draft.locationSource === 'GEOCODED' && !draft.selectedLocalityId) {
-      next.locality = 'Select a serviceable locality for your delivery area.';
+    if (draft.locationSource === 'GEOCODED') {
+      const locality = localities.find((entry) => entry.id === draft.selectedLocalityId);
+      if (!locality) next.locality = 'Select a serviceable locality for your delivery area.';
+      else if (locality.city.toLowerCase() !== draft.city.trim().toLowerCase() || locality.state.toLowerCase() !== draft.state.trim().toLowerCase() || locality.pincode !== draft.pincode.trim()) next.locality = 'Re-select a locality matching the city, state, and pincode.';
     }
     if (draft.locationSource === 'LIVE_GPS' || draft.locationSource === 'MAP_PIN') {
       const latitude = Number(draft.latitude);
@@ -515,9 +527,11 @@ export const CustomerProfileScreen = () => {
               <Text style={[styles.inputLabel, addressErrors.locality && styles.inputLabelError]}>
                 Locality <Text style={{ color: '#EF4444' }}>*</Text>
               </Text>
+              {localitiesError ? <TouchableOpacity onPress={() => void loadLocalities()}><Text style={styles.inputErrorText}>Could not load localities. Tap to retry.</Text></TouchableOpacity> : null}
               <TouchableOpacity
                 style={[styles.input, addressErrors.locality && styles.inputError]}
                 onPress={() => setLocalityModalVisible(true)}
+                disabled={localitiesError}
                 activeOpacity={0.7}
               >
                 <Text style={selectedLocalityName ? styles.inputText : styles.inputPlaceholder}>
@@ -564,7 +578,7 @@ export const CustomerProfileScreen = () => {
           const error = addressErrors[key as AddressErrorKey];
           return <View key={key} style={styles.inputGroup}>
             <Text style={[styles.inputLabel, error && styles.inputLabelError]}>{label}{required ? ' *' : ''}</Text>
-            <TextInput value={String((draft as any)[key] ?? '')} onChangeText={(value) => { clearAddressError(key); setDraft((previous) => ({ ...previous, [key]: value })); }} placeholder={required ? `${label} (required)` : label} placeholderTextColor="#94A3B8" style={[styles.input, error && styles.inputError]} accessibilityLabel={label} />
+            <TextInput value={String((draft as any)[key] ?? '')} onChangeText={(value) => { clearAddressError(key); setDraft((previous) => ({ ...previous, [key]: value, ...(key === 'city' || key === 'state' || key === 'pincode' ? { selectedLocalityId: '', localityId: '' } : {}) })); }} placeholder={required ? `${label} (required)` : label} placeholderTextColor="#94A3B8" style={[styles.input, error && styles.inputError]} accessibilityLabel={label} />
             {error ? <Text style={styles.inputErrorText}>{error}</Text> : null}
           </View>;
         })}

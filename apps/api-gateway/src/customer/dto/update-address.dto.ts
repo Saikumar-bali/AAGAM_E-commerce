@@ -83,6 +83,10 @@ export class UpdateAddressDto {
   longitude?: number;
 
   @IsOptional()
+  @IsString()
+  localityId?: string | null;
+
+  @IsOptional()
   @IsIn(['LIVE_GPS', 'MAP_PIN', 'GEOCODED'])
   locationSource?: 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED';
 

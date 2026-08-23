@@ -36,6 +36,7 @@ type AddressLocationInput = {
   locationSource?: 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED';
   locationAccuracyMetres?: number;
   locationCapturedAt?: string;
+  localityId?: string | null;
 };
 
 type ResolvedAddressLocation = {
@@ -104,8 +105,32 @@ export class CustomerService {
     };
   }
 
+  private async resolveLocality(input: AddressLocationInput) {
+    const isManual = input.locationSource === 'GEOCODED'
+      || (input.locationSource == null && input.latitude == null && input.longitude == null);
+    if (!isManual) return null;
+    if (!input.localityId) throw new BadRequestException('A serviceable locality is required for a manual address');
+    const locality = await prisma.serviceableLocality.findFirst({
+      where: { id: input.localityId, isActive: true },
+    });
+    if (!locality) throw new BadRequestException('Select an active serviceable locality');
+    const matches = (left: string, right: string) => left.trim().toLowerCase() === right.trim().toLowerCase();
+    if (!matches(locality.city, input.city) || !matches(locality.state, input.state) || locality.pincode !== input.pincode) {
+      throw new BadRequestException('Address city, state, and pincode must match the selected locality');
+    }
+    return locality;
+  }
+
   private async resolveNewLocation(input: AddressLocationInput): Promise<ResolvedAddressLocation> {
     this.assertCoordinatePair(input.latitude, input.longitude);
+    const locality = await this.resolveLocality(input);
+    if (locality?.latitude != null && locality.longitude != null) {
+      return {
+        latitude: locality.latitude,
+        longitude: locality.longitude,
+        evidence: { source: 'GEOCODED', accuracyMetres: null, capturedAt: null },
+      };
+    }
     if (input.locationSource === 'LIVE_GPS' || input.locationSource === 'MAP_PIN') {
       return this.verifiedCoordinates(input, input.locationSource);
     }
@@ -139,6 +164,7 @@ export class CustomerService {
       locationSource: dto.locationSource,
       locationAccuracyMetres: dto.locationAccuracyMetres,
       locationCapturedAt: dto.locationCapturedAt,
+      localityId: dto.localityId === undefined ? existing.localityId : dto.localityId,
     };
 
     const coordinatesTouched = dto.latitude !== undefined || dto.longitude !== undefined;
@@ -157,7 +183,7 @@ export class CustomerService {
       };
     }
     if (evidence.source === 'GEOCODED' && this.addressTextChanged(dto)) {
-      return this.geocodedCoordinates(merged);
+      return this.resolveNewLocation({ ...merged, locationSource: 'GEOCODED' });
     }
     return {
       latitude: existing.latitude,
@@ -182,7 +208,10 @@ export class CustomerService {
     if (country !== 'IN') {
       throw new BadRequestException('Only IN addresses are supported currently');
     }
-    const location = await this.resolveNewLocation({ ...dto, country });
+    const locationInput = { ...dto, country };
+    const location = await this.resolveNewLocation(locationInput);
+    const isManual = locationInput.locationSource === 'GEOCODED'
+      || (locationInput.locationSource == null && locationInput.latitude == null && locationInput.longitude == null);
 
     return prisma.$transaction(async (tx) => {
       if (dto.isDefault) {
@@ -210,6 +239,7 @@ export class CustomerService {
           longitude: location.longitude,
           instructions: dto.instructions,
           isDefault: Boolean(dto.isDefault),
+           localityId: isManual ? dto.localityId : null,
         },
       });
       await upsertAddressLocationEvidence(tx, created.id, location.evidence);
@@ -238,7 +268,24 @@ export class CustomerService {
       : dto.alternatePhoneE164 === '' || dto.alternatePhoneE164 === null
         ? null
         : undefined;
-    const location = await this.resolveUpdatedLocation(existing, { ...dto, ...(country ? { country } : {}) });
+    const locationInput = { ...dto, ...(country ? { country } : {}) };
+    const location = await this.resolveUpdatedLocation(existing, locationInput);
+    const localityId = locationInput.localityId === undefined ? existing.localityId : locationInput.localityId;
+    const isManual = locationInput.locationSource === 'GEOCODED'
+      || (locationInput.locationSource == null && locationInput.latitude == null && locationInput.longitude == null && location.evidence.source === 'GEOCODED');
+    if (isManual) {
+      await this.resolveLocality({
+        line1: locationInput.line1 ?? existing.line1,
+        line2: locationInput.line2 === undefined ? existing.line2 : locationInput.line2,
+        landmark: locationInput.landmark === undefined ? existing.landmark : locationInput.landmark,
+        city: locationInput.city ?? existing.city,
+        state: locationInput.state ?? existing.state,
+        pincode: locationInput.pincode ?? existing.pincode,
+        country: locationInput.country ?? existing.country,
+        localityId,
+        locationSource: 'GEOCODED',
+      });
+    }
 
     return prisma.$transaction(async (tx) => {
       if (dto.isDefault) {
@@ -266,6 +313,7 @@ export class CustomerService {
           longitude: location.longitude,
           instructions: dto.instructions,
           isDefault: dto.isDefault,
+          localityId: isManual ? localityId : null,
         },
       });
       await upsertAddressLocationEvidence(tx, addressId, location.evidence);

@@ -130,6 +130,7 @@ model ServiceableLocality {
   sortOrder Int     @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  customerAddresses CustomerAddress[] @relation("CustomerAddressLocality")
 
   @@unique([pincode, name])
   @@index([pincode])
@@ -757,8 +758,11 @@ model CustomerAddress {
   updatedAt          DateTime @updatedAt
   subscriptions      CustomerSubscription[]
   deliveryZone       DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+  localityId         String?
+  locality           ServiceableLocality? @relation("CustomerAddressLocality", fields: [localityId], references: [id], onDelete: SetNull)
 
   @@index([deliveryZoneId])
+  @@index([localityId])
 }
 
 enum PaymentMethod {

@@ -11,7 +11,9 @@ describe('Web customer address validation contract', () => {
     expect(source).toContain('City is required.');
     expect(source).toContain('State is required.');
     expect(source).toContain('A valid 6 digit pincode is required.');
-    expect(source).toContain('Pin your delivery location using live location, search, or the map.');
+    expect(source).toContain('Capture current location or choose an exact map point.');
+    expect(source).toContain('Select a serviceable locality for your delivery area.');
+    expect(source).toContain('localityId: draft.locationSource === \'GEOCODED\' ? draft.selectedLocalityId : undefined,');
   });
 
   test('renders red inline errors and keeps optional fields optional', () => {

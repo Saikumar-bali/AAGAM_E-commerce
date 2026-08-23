@@ -47,6 +47,7 @@ type Address = {
   longitude: number;
   instructions?: string | null;
   isDefault: boolean;
+  localityId?: string | null;
 };
 
 type LocalityOption = {
@@ -170,24 +171,23 @@ export default function CheckoutPage() {
   const [defaultMapCenter, setDefaultMapCenter] = useState<{ latitude: number; longitude: number } | null>(null);
   const [localities, setLocalities] = useState<LocalityOption[]>([]);
   const [localitiesLoading, setLocalitiesLoading] = useState(false);
+  const [localitiesError, setLocalitiesError] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState('');
 
-  useEffect(() => {
-    let active = true;
+  const loadLocalities = useCallback(async () => {
     setLocalitiesLoading(true);
-    apiClient
-      .get('/localities')
-      .then((response) => {
-        if (active) setLocalities(Array.isArray(response.data) ? response.data : []);
-      })
-      .catch(() => {
-        // Manual entry still works; the locality picker is an optional convenience.
-      })
-      .finally(() => active && setLocalitiesLoading(false));
-    return () => {
-      active = false;
-    };
+    setLocalitiesError(false);
+    try {
+      const response = await apiClient.get('/localities');
+      setLocalities(Array.isArray(response.data) ? response.data : []);
+    } catch {
+      setLocalitiesError(true);
+    } finally {
+      setLocalitiesLoading(false);
+    }
   }, []);
+
+  useEffect(() => { void loadLocalities(); }, [loadLocalities]);
 
   const applyLocality = useCallback((localityId: string) => {
     setSelectedLocalityId(localityId);
@@ -389,6 +389,7 @@ export default function CheckoutPage() {
 
   const openEditAddress = (address: Address) => {
     setEditingAddressId(address.id);
+    setSelectedLocalityId(address.localityId || localities.find((entry) => entry.city.toLowerCase() === address.city.toLowerCase() && entry.state.toLowerCase() === address.state.toLowerCase() && entry.pincode === address.pincode)?.id || '');
     setDraft({
       label: address.label || 'Home',
       recipientName: address.recipientName,
@@ -413,6 +414,11 @@ export default function CheckoutPage() {
       toast.warning('Recipient, phone, address line, and pincode are required.');
       return;
     }
+    const locality = localities.find((entry) => entry.id === selectedLocalityId);
+    if (!locality || locality.city.toLowerCase() !== draft.city.trim().toLowerCase() || locality.state.toLowerCase() !== draft.state.trim().toLowerCase() || locality.pincode !== draft.pincode.trim()) {
+      toast.warning('Select a locality matching the city, state, and pincode.');
+      return;
+    }
     setSavingAddress(true);
     setError(null);
     const payload = {
@@ -427,6 +433,7 @@ export default function CheckoutPage() {
       latitude: draft.latitude ?? undefined,
       longitude: draft.longitude ?? undefined,
       isDefault: addresses.length === 0 ? true : draft.isDefault,
+      localityId: selectedLocalityId,
     };
     try {
       const response = editingAddressId
@@ -626,13 +633,14 @@ export default function CheckoutPage() {
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="block md:col-span-2">
                       <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">Locality</span>
+                      {localitiesError ? <div className="mb-2 flex items-center justify-between rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700"><span>Could not load serviceable localities.</span><button type="button" onClick={() => void loadLocalities()} className="underline">Retry</button></div> : null}
                       <select
                         value={selectedLocalityId}
                         onChange={(event) => applyLocality(event.target.value)}
-                        disabled={localitiesLoading}
+                        disabled={localitiesLoading || localitiesError}
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-teal-500"
                       >
-                        <option value="">{localitiesLoading ? 'Loading localities…' : 'Select your locality (optional)'}</option>
+                        <option value="">{localitiesLoading ? 'Loading localities…' : 'Select your locality'}</option>
                         {filteredLocalities.map((group) => (
                           <optgroup key={group.city} label={group.city}>
                             {group.items.map((entry) => (
@@ -652,10 +660,10 @@ export default function CheckoutPage() {
                     <Field label="Label" value={draft.label} onChange={(value) => setDraft((current) => ({ ...current, label: value }))} />
                     <Field label="Recipient name" value={draft.recipientName} onChange={(value) => setDraft((current) => ({ ...current, recipientName: value }))} />
                     <Field label="Phone" value={draft.phoneE164} onChange={(value) => setDraft((current) => ({ ...current, phoneE164: value }))} placeholder="+91XXXXXXXXXX" />
-                    <Field label="Pincode" value={draft.pincode} onChange={(value) => setDraft((current) => ({ ...current, pincode: value }))} />
+                    <Field label="Pincode" value={draft.pincode} onChange={(value) => { setSelectedLocalityId(''); setDraft((current) => ({ ...current, pincode: value })); }} />
                     <Field label="Address line" value={draft.line1} onChange={(value) => setDraft((current) => ({ ...current, line1: value }))} className="md:col-span-2" />
-                    <Field label="City" value={draft.city} onChange={(value) => setDraft((current) => ({ ...current, city: value }))} />
-                    <Field label="State" value={draft.state} onChange={(value) => setDraft((current) => ({ ...current, state: value }))} />
+                    <Field label="City" value={draft.city} onChange={(value) => { setSelectedLocalityId(''); setDraft((current) => ({ ...current, city: value })); }} />
+                    <Field label="State" value={draft.state} onChange={(value) => { setSelectedLocalityId(''); setDraft((current) => ({ ...current, state: value })); }} />
                   </div>
                   <div className="flex gap-3">
                     <button onClick={() => setShowAddressForm(false)} className="rounded-xl bg-white px-4 py-2.5 text-xs font-black text-slate-700">Cancel</button>
