@@ -160,7 +160,8 @@ export default function LandingPage() {
   );
   const visibleCategories = categories.slice(0, 5);
   const visiblePlans = subscriptionPlans.slice(0, 3);
-  const heroHref = hero?.targetUrl || '/shop';
+  const heroHref = hero?.targetUrl || '';
+  const heroHasTarget = Boolean(hero?.targetUrl);
 
   return (
     <main className="min-h-screen bg-[#f6f8f7] text-[#102522]">
@@ -255,13 +256,22 @@ export default function LandingPage() {
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-4">
-              <Link
-                href={heroHref}
-                className="inline-flex h-10 items-center gap-3 rounded-lg px-7 text-[12px] font-black text-white shadow-xl shadow-black/10"
-                style={{ backgroundColor: hero?.accentColor || '#1dbb9d' }}
-              >
-                {hero?.ctaLabel || heroFallback.ctaLabel} <ArrowRight className="h-4 w-4" />
-              </Link>
+              {heroHasTarget ? (
+                <Link
+                  href={heroHref}
+                  className="inline-flex h-10 items-center gap-3 rounded-lg px-7 text-[12px] font-black text-white shadow-xl shadow-black/10"
+                  style={{ backgroundColor: hero?.accentColor || '#1dbb9d' }}
+                >
+                  {hero?.ctaLabel || heroFallback.ctaLabel} <ArrowRight className="h-4 w-4" />
+                </Link>
+              ) : (
+                <span
+                  className="inline-flex h-10 items-center gap-3 rounded-lg px-7 text-[12px] font-black text-white shadow-xl shadow-black/10 opacity-80"
+                  style={{ backgroundColor: hero?.accentColor || '#1dbb9d' }}
+                >
+                  {hero?.ctaLabel || heroFallback.ctaLabel}
+                </span>
+              )}
               <Link
                 href={customerAuthHref('/login', '/shop/subscriptions')}
                 className="inline-flex h-10 items-center rounded-lg border border-white/45 bg-black/10 px-7 text-[12px] font-black text-white backdrop-blur-sm"
@@ -300,9 +310,9 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {(visibleCategories.length ? visibleCategories : Array.from({ length: 5 }).map((_, index) => ({ id: `placeholder-${index}`, name: loading ? 'Loading...' : 'Category' }))).map((category: any) => {
+            {visibleCategories.length ? visibleCategories.map((category: any) => {
               const image = categoryImage(category, products);
-              const href = category.id?.startsWith('placeholder-') ? '/shop' : `/shop?category=${encodeURIComponent(category.id)}`;
+              const href = `/shop?category=${encodeURIComponent(category.id)}`;
               return (
                 <Link
                   key={category.id}
@@ -314,7 +324,11 @@ export default function LandingPage() {
                   <span className="absolute bottom-2 left-3 text-[12px] font-black text-white drop-shadow">{category.name}</span>
                 </Link>
               );
-            })}
+            }) : loading ? Array.from({ length: 5 }).map((_, index) => (
+              <div key={`placeholder-${index}`} className="h-[94px] animate-pulse rounded-[9px] bg-[#e9eeeb] shadow-[0_1px_5px_rgba(15,23,42,.08)]" />
+            )) : (
+              <p className="col-span-full py-6 text-center text-sm font-semibold text-slate-400">No categories available.</p>
+            )}
           </div>
         </div>
       </section>
@@ -329,7 +343,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {(featured.length ? featured : Array.from({ length: 6 })).map((product: any, index) => {
+            {featured.length ? featured.map((product: any, index) => {
               const price = product ? productPrice(product) : 0;
               const mrp = product ? productMrp(product) : 0;
               const discount = product ? productDiscount(product) : 0;
@@ -358,7 +372,16 @@ export default function LandingPage() {
                   </Link>
                 </article>
               );
-            })}
+            }) : loading ? Array.from({ length: 6 }).map((_, index) => (
+              <article key={`placeholder-${index}`} className="flex min-h-[147px] flex-col rounded-[9px] border border-[#dfe5e2] bg-white p-2.5 shadow-[0_1px_4px_rgba(15,23,42,.03)] animate-pulse">
+                <div className="flex h-[65px] items-center justify-center overflow-hidden rounded-md bg-[#fafcfb]"><ShoppingBag className="h-7 w-7 text-emerald-700/15" /></div>
+                <div className="mt-1.5 h-2.5 w-3/4 rounded bg-slate-100" />
+                <div className="mt-1 h-2 w-1/2 rounded bg-slate-100" />
+                <div className="mt-auto h-6 rounded-md bg-slate-100" />
+              </article>
+            )) : (
+              <p className="col-span-full py-8 text-center text-sm font-semibold text-slate-400">No products available yet.</p>
+            )}
           </div>
         </div>
       </section>
@@ -373,7 +396,7 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          {(visiblePlans.length ? visiblePlans : Array.from({ length: 3 })).map((plan: any, index) => {
+          {(visiblePlans.length ? visiblePlans : loading ? Array.from({ length: 3 }) : []).map((plan: any, index) => {
             const pricePaise = numberFrom(plan?.pricePaise);
             const mrpPaise = Math.max(numberFrom(plan?.mrpPaise), pricePaise);
             const savePct = mrpPaise > pricePaise && mrpPaise > 0 ? Math.round(((mrpPaise - pricePaise) / mrpPaise) * 100) : 0;
@@ -452,22 +475,37 @@ export default function LandingPage() {
           </div>
 
           {landingBanners[0] ? (
-            <Link
-              href={landingBanners[0].targetUrl || '/shop'}
-              className="group relative min-h-[92px] overflow-hidden rounded-[10px] bg-[#e8f2e9] px-5 py-3"
-              style={{ backgroundColor: landingBanners[0].backgroundColor || '#e8f2e9', color: landingBanners[0].textColor || '#17352f' }}
-            >
-              <CampaignPicture campaign={landingBanners[0]} />
-              <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/72 to-transparent" />
-              <div className="relative max-w-[58%]">
-                <p className="text-[8px] font-black uppercase tracking-[.14em] text-emerald-700">{landingBanners[0].badgeText || 'Aagaam campaign'}</p>
-                <h2 className="mt-1 line-clamp-1 text-[13px] font-black">{landingBanners[0].title}</h2>
-                <p className="mt-1 line-clamp-2 text-[8px] font-semibold opacity-75">{landingBanners[0].subtitle || landingBanners[0].description}</p>
-                <span className="mt-2 inline-flex items-center gap-1 text-[8px] font-black text-emerald-800">
-                  {landingBanners[0].ctaLabel || 'Know more'} <ArrowRight className="h-3 w-3" />
-                </span>
+            landingBanners[0].targetUrl ? (
+              <Link
+                href={landingBanners[0].targetUrl!}
+                className="group relative min-h-[92px] overflow-hidden rounded-[10px] bg-[#e8f2e9] px-5 py-3"
+                style={{ backgroundColor: landingBanners[0].backgroundColor || '#e8f2e9', color: landingBanners[0].textColor || '#17352f' }}
+              >
+                <CampaignPicture campaign={landingBanners[0]} />
+                <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/72 to-transparent" />
+                <div className="relative max-w-[58%]">
+                  <p className="text-[8px] font-black uppercase tracking-[.14em] text-emerald-700">{landingBanners[0].badgeText || 'Aagaam campaign'}</p>
+                  <h2 className="mt-1 line-clamp-1 text-[13px] font-black">{landingBanners[0].title}</h2>
+                  <p className="mt-1 line-clamp-2 text-[8px] font-semibold opacity-75">{landingBanners[0].subtitle || landingBanners[0].description}</p>
+                  <span className="mt-2 inline-flex items-center gap-1 text-[8px] font-black text-emerald-800">
+                    {landingBanners[0].ctaLabel || 'Know more'} <ArrowRight className="h-3 w-3" />
+                  </span>
+                </div>
+              </Link>
+            ) : (
+              <div
+                className="relative min-h-[92px] overflow-hidden rounded-[10px] bg-[#e8f2e9] px-5 py-3"
+                style={{ backgroundColor: landingBanners[0].backgroundColor || '#e8f2e9', color: landingBanners[0].textColor || '#17352f' }}
+              >
+                <CampaignPicture campaign={landingBanners[0]} />
+                <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/72 to-transparent" />
+                <div className="relative max-w-[58%]">
+                  <p className="text-[8px] font-black uppercase tracking-[.14em] text-emerald-700">{landingBanners[0].badgeText || 'Aagaam campaign'}</p>
+                  <h2 className="mt-1 line-clamp-1 text-[13px] font-black">{landingBanners[0].title}</h2>
+                  <p className="mt-1 line-clamp-2 text-[8px] font-semibold opacity-75">{landingBanners[0].subtitle || landingBanners[0].description}</p>
+                </div>
               </div>
-            </Link>
+            )
           ) : (
             <div className="flex min-h-[92px] items-center gap-4 rounded-[10px] bg-[#e8f2e9] px-5 py-3">
               <span className="grid h-12 w-12 place-items-center rounded-full bg-white/75"><Leaf className="h-6 w-6 text-emerald-700" /></span>
@@ -484,22 +522,29 @@ export default function LandingPage() {
       {landingBanners.slice(1).length ? (
         <section className="bg-[#f6f8f7] pb-3">
           <div className="mx-auto grid max-w-[1370px] gap-3 px-4 sm:px-6 md:grid-cols-2">
-            {landingBanners.slice(1, 3).map((campaign) => (
-              <Link
-                key={campaign.id}
-                href={campaign.targetUrl || '/shop'}
-                className="relative min-h-[120px] overflow-hidden rounded-xl p-5"
-                style={{ backgroundColor: campaign.backgroundColor || '#0b3a36', color: campaign.textColor || '#fff' }}
-              >
-                <CampaignPicture campaign={campaign} />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-transparent" />
-                <div className="relative max-w-[55%]">
-                  <p className="text-[8px] font-black uppercase tracking-[.14em] opacity-75">{campaign.badgeText || 'Aagaam'}</p>
-                  <h3 className="mt-1 text-[16px] font-black">{campaign.title}</h3>
-                  <p className="mt-1 text-[9px] font-semibold opacity-80">{campaign.subtitle || campaign.description}</p>
-                </div>
-              </Link>
-            ))}
+            {landingBanners.slice(1, 3).map((campaign) => {
+              const bannerProps = {
+                key: campaign.id,
+                className: 'relative min-h-[120px] overflow-hidden rounded-xl p-5',
+                style: { backgroundColor: campaign.backgroundColor || '#0b3a36', color: campaign.textColor || '#fff' } as React.CSSProperties,
+              };
+              const bannerInner = (
+                <>
+                  <CampaignPicture campaign={campaign} />
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-transparent" />
+                  <div className="relative max-w-[55%]">
+                    <p className="text-[8px] font-black uppercase tracking-[.14em] opacity-75">{campaign.badgeText || 'Aagaam'}</p>
+                    <h3 className="mt-1 text-[16px] font-black">{campaign.title}</h3>
+                    <p className="mt-1 text-[9px] font-semibold opacity-80">{campaign.subtitle || campaign.description}</p>
+                  </div>
+                </>
+              );
+              return campaign.targetUrl ? (
+                <Link {...bannerProps} href={campaign.targetUrl}>{bannerInner}</Link>
+              ) : (
+                <div {...bannerProps}>{bannerInner}</div>
+              );
+            })}
           </div>
         </section>
       ) : null}
