@@ -110,9 +110,12 @@ test.describe('Public reference landing UI', () => {
     await expect(page.getByText('Fresh groceries.', { exact: true })).toBeVisible();
     await expect(page.getByText('Delivered with trust.', { exact: true })).toBeVisible();
     await expect(page.getByText('Shop by category', { exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Vegetables' }).first()).toHaveAttribute('href', '/shop?category=veg');
-    await expect(page.getByText('Featured Products', { exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Tomato Hybrid', exact: true }).last()).toHaveAttribute('href', '/shop/products/tomato-1');
+    await expect(page.getByRole('button', { name: 'Vegetables' }).first()).toBeVisible();
+    await expect(page.getByText("Today's offers", { exact: true })).toBeVisible();
+    await expect(page.getByText('Tomato Hybrid', { exact: true })).toBeVisible();
+    await expect(page.locator('header a[href="#offers"]').first()).toHaveText('Offers');
+    await expect(page.locator('header a[href="#service-area"]').first()).toHaveText('Store Locator');
+    await expect(page.getByText('Serving 90+ neighbourhood areas', { exact: true })).toBeVisible();
     await expect(page.getByText('Subscribe & Save', { exact: true })).toBeVisible();
     await expect(page.getByText('Daily Milk Plan', { exact: true })).toBeVisible();
     await expect(page.getByText('Supporting local farmers', { exact: true })).toBeVisible();

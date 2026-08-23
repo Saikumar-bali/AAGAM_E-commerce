@@ -43,7 +43,7 @@ const FALLBACK_HERO: Record<string, string | null> = {
   subtitle: 'Delivered with trust.',
   description: 'From farm to your home – handpicked quality, local stores and on-time delivery you can count on.',
   ctaLabel: 'Shop now',
-  targetUrl: '/shop',
+  targetUrl: '#offers',
   backgroundColor: '#073f3d',
   textColor: '#ffffff',
   accentColor: '#20c9a6',
@@ -154,7 +154,16 @@ export default function LandingPage() {
   }, []);
 
   const hero = { ...FALLBACK_HERO, ...heroCampaign };
-  const featuredProducts = products.filter((item) => item?.availability?.inStock !== false).slice(0, 6);
+  const normalizedQuery = query.trim().toLowerCase();
+  const featuredProducts = products
+    .filter((item) => item?.availability?.inStock !== false)
+    .filter((item) => {
+      if (!normalizedQuery) return true;
+      return [item?.name, item?.category?.name, item?.description]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+    })
+    .slice(0, 6);
   const visiblePlans = subscriptionPlans.slice(0, 3);
 
   const visibleCategories = useMemo(() => {
@@ -177,21 +186,27 @@ export default function LandingPage() {
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
-    const value = query.trim();
-    window.location.assign(value ? `/shop?search=${encodeURIComponent(value)}` : '/shop');
+    document.getElementById('offers')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  const showCategory = (categoryName: string) => {
+    setQuery(categoryName);
+    requestAnimationFrame(() => document.getElementById('offers')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+
+  const publicHeroTarget = hero.targetUrl?.startsWith('/shop') ? '#offers' : hero.targetUrl;
 
   return (
     <main className="min-h-screen bg-[#f7f8f7] text-[#16231f]">
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#063b3a] text-white shadow-sm">
         <div className="mx-auto flex h-[64px] max-w-[1448px] items-center gap-4 px-4 sm:px-5 lg:px-10">
-          <div className="mr-2 shrink-0"><AagamLogo inverse compact label="Bringing goodness home" /></div>
+          <div className="mr-2 shrink-0"><AagamLogo inverse compact label="Fresh, quality & trust" /></div>
 
           <nav className="hidden items-center gap-7 text-[12px] font-bold text-white/90 xl:flex">
             <a href="#categories" className="inline-flex items-center gap-1 hover:text-emerald-300">Categories <ChevronDown className="h-3 w-3" /></a>
             <a href="#subscriptions" className="hover:text-emerald-300">Subscriptions</a>
-            <Link href="/shop/deals" className="hover:text-emerald-300">Offers</Link>
-            <Link href="/shop" className="hover:text-emerald-300">Store Locator</Link>
+            <a href="#offers" className="hover:text-emerald-300">Offers</a>
+            <a href="#service-area" className="hover:text-emerald-300">Store Locator</a>
             <a href="#about" className="hover:text-emerald-300">About Us</a>
           </nav>
 
@@ -207,21 +222,21 @@ export default function LandingPage() {
             </label>
           </form>
 
-          <Link href="/shop" className="hidden h-9 items-center gap-2 rounded-lg border border-white/20 px-3 text-[10px] font-bold text-white/90 2xl:flex">
+          <a href="#service-area" className="hidden h-9 items-center gap-2 rounded-lg border border-white/20 px-3 text-[10px] font-bold text-white/90 2xl:flex">
             <MapPin className="h-4 w-4" />
             <span><span className="block text-[8px] font-semibold text-white/55">Delivering to</span>Choose location</span>
             <ChevronDown className="h-3 w-3" />
-          </Link>
+          </a>
           <Link href="/login" className="hidden items-center gap-1.5 whitespace-nowrap text-[11px] font-bold md:flex"><User className="h-4 w-4" /> Sign in</Link>
-          <Link href="/shop" className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-[#20bfa6] px-5 text-[11px] font-black text-white shadow-lg shadow-black/10 transition hover:bg-[#24cdb1]">
+          <a href="#offers" className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-[#20bfa6] px-5 text-[11px] font-black text-white shadow-lg shadow-black/10 transition hover:bg-[#24cdb1]">
             Shop now <ShoppingBag className="h-3.5 w-3.5" />{totalItems > 0 ? <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] text-[#063b3a]">{totalItems}</span> : null}
-          </Link>
+          </a>
         </div>
         <nav aria-label="Landing sections" className="flex h-10 items-center gap-1 overflow-x-auto border-t border-white/10 px-3 text-[10px] font-black text-white/85 xl:hidden">
           <a href="#categories" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Categories</a>
           <a href="#subscriptions" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Subscriptions</a>
-          <Link href="/shop/deals" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Offers</Link>
-          <Link href="/shop" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Store Locator</Link>
+          <a href="#offers" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Offers</a>
+          <a href="#service-area" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Store Locator</a>
           <a href="#about" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">About Us</a>
         </nav>
       </header>
@@ -233,19 +248,19 @@ export default function LandingPage() {
             <img src={hero.imageUrl || hero.mobileImageUrl} alt="" className="h-full w-full object-cover object-center" />
           </picture>
         ) : null}
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,47,46,.96)_0%,rgba(3,47,46,.87)_33%,rgba(3,47,46,.35)_58%,rgba(3,47,46,.08)_100%)] md:bg-[linear-gradient(90deg,rgba(3,47,46,.96)_0%,rgba(3,47,46,.92)_34%,rgba(3,47,46,.30)_58%,rgba(3,47,46,.02)_100%)]" />
-        <div className="relative mx-auto min-h-[302px] max-w-[1448px] px-5 py-7 lg:px-16">
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,47,46,.92)_0%,rgba(3,47,46,.72)_52%,rgba(3,47,46,.90)_100%)] md:bg-[linear-gradient(90deg,rgba(3,47,46,.96)_0%,rgba(3,47,46,.92)_34%,rgba(3,47,46,.30)_58%,rgba(3,47,46,.02)_100%)]" />
+        <div className="relative mx-auto min-h-[520px] max-w-[1448px] px-5 py-7 md:min-h-[302px] lg:px-16">
           <div className="max-w-[560px]">
             {hero.badgeText ? <span className="inline-flex rounded-md border border-emerald-300/30 bg-emerald-400/10 px-2 py-1 text-[9px] font-black text-emerald-200">✓ {hero.badgeText}</span> : null}
-            <h1 className="mt-3 font-serif text-[40px] font-bold leading-[0.98] tracking-[-0.025em] sm:text-[48px]">
+            <h1 className="mt-3 font-serif text-[34px] font-bold leading-[1.01] tracking-[-0.025em] sm:text-[38px] md:text-[48px]">
               <span className="block" style={{ color: hero.textColor || '#fff' }}>{hero.title}</span>
               <span className="mt-1 block" style={{ color: hero.accentColor || '#20c9a6' }}>{hero.subtitle}</span>
             </h1>
             <p className="mt-3 max-w-[480px] text-[13px] font-semibold leading-5 text-white/90">{hero.description}</p>
             <div className="mt-5 flex flex-wrap gap-3">
-              {hero.targetUrl ? <Link href={hero.targetUrl} className="inline-flex h-10 items-center gap-3 rounded-lg px-7 text-[11px] font-black text-[#063b3a] shadow-lg" style={{ backgroundColor: hero.accentColor || '#20c9a6' }}>
+              {publicHeroTarget ? <a href={publicHeroTarget} className="inline-flex h-10 items-center gap-3 rounded-lg px-7 text-[11px] font-black text-[#063b3a] shadow-lg" style={{ backgroundColor: hero.accentColor || '#20c9a6' }}>
                 {hero.ctaLabel || 'Shop now'} <ArrowRight className="h-4 w-4" />
-              </Link> : <span className="inline-flex h-10 items-center rounded-lg px-7 text-[11px] font-black text-white/70" style={{ backgroundColor: hero.accentColor || '#20c9a6' }}>
+              </a> : <span className="inline-flex h-10 items-center rounded-lg px-7 text-[11px] font-black text-white/70" style={{ backgroundColor: hero.accentColor || '#20c9a6' }}>
                 {hero.ctaLabel || 'Shop now'}
               </span>}
               <a href="#subscriptions" className="inline-flex h-10 items-center rounded-lg border border-white/45 px-7 text-[11px] font-black text-white backdrop-blur-sm">Explore subscriptions</a>
@@ -268,27 +283,27 @@ export default function LandingPage() {
         <section id="categories" className="scroll-mt-28 px-5 pb-2 pt-4 xl:scroll-mt-20 lg:px-16">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[14px] font-black">Shop by category</h2>
-            <Link href="/shop" className="inline-flex items-center gap-2 text-[9px] font-black text-[#087765]">View all categories <ArrowRight className="h-3 w-3" /></Link>
+            <a href="#offers" className="inline-flex items-center gap-2 text-[9px] font-black text-[#087765]">Browse catalogue <ArrowRight className="h-3 w-3" /></a>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {visibleCategories.map((category) => {
               const image = categoryImage(category);
               return (
-                <Link key={category.id} href={`/shop?category=${encodeURIComponent(category.id)}`} className="group relative h-[96px] overflow-hidden rounded-[8px] bg-[#e9efe9] shadow-sm">
+                <button key={category.id} type="button" onClick={() => showCategory(category.name)} className="group relative h-[96px] overflow-hidden rounded-[8px] bg-[#e9efe9] text-left shadow-sm">
                   {image ? <img src={image} alt={category.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" /> : null}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                   <span className="absolute bottom-2 left-3 text-[11px] font-black text-white">{category.name}</span>
-                </Link>
+                </button>
               );
             })}
             {!visibleCategories.length && !loading ? <p className="col-span-full py-6 text-center text-xs font-semibold text-slate-400">Categories will appear here when the catalogue has published categories.</p> : null}
           </div>
         </section>
 
-        <section className="px-5 pb-4 pt-2 lg:px-16">
+        <section id="offers" className="scroll-mt-28 px-5 pb-4 pt-2 xl:scroll-mt-20 lg:px-16">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-[14px] font-black">Featured Products</h2>
-            <Link href="/shop" className="inline-flex items-center gap-2 text-[9px] font-black text-[#087765]">View all products <ArrowRight className="h-3 w-3" /></Link>
+            <div><span className="text-[8px] font-black uppercase tracking-[0.16em] text-[#078b70]">Public catalogue</span><h2 className="text-[14px] font-black">Today&apos;s offers</h2></div>
+            {normalizedQuery ? <button type="button" onClick={() => setQuery('')} className="text-[9px] font-black text-[#087765]">Clear filter</button> : <span className="text-[9px] font-bold text-slate-500">Add items before signing in</span>}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {featuredProducts.map((product) => {
@@ -297,10 +312,10 @@ export default function LandingPage() {
               const mrp = Number(product?.mrpPaise || 0) / 100;
               return (
                 <article key={product.id} className="flex min-h-[174px] flex-col rounded-[8px] border border-[#e4e9e6] bg-white p-2 shadow-[0_1px_4px_rgba(20,40,35,.04)]">
-                  <Link href={`/shop/products/${product.id}`} className="flex h-[76px] items-center justify-center overflow-hidden rounded-md bg-white">
+                  <div className="flex h-[76px] items-center justify-center overflow-hidden rounded-md bg-white">
                     <img src={getProductImage(product)} alt={product.name} className="h-full w-full object-contain transition hover:scale-105" />
-                  </Link>
-                  <Link href={`/shop/products/${product.id}`} className="mt-1 line-clamp-1 text-[10px] font-black text-[#17231f]">{product.name}</Link>
+                  </div>
+                  <div className="mt-1 line-clamp-1 text-[10px] font-black text-[#17231f]">{product.name}</div>
                   <p className="mt-0.5 min-h-[12px] text-[8px] font-semibold text-slate-500">{productUnit(product)}</p>
                   <div className="mt-1 flex items-center gap-1.5 text-[9px]"><strong className="text-[11px]">{formatINR(Number(product.price || 0))}</strong>{mrp > Number(product.price || 0) ? <span className="text-slate-400 line-through">{formatINR(mrp)}</span> : null}{discount > 0 ? <span className="rounded bg-emerald-50 px-1 py-0.5 text-[7px] font-black text-emerald-700">{discount}% OFF</span> : null}</div>
                   <div className="mt-auto pt-2">
@@ -321,12 +336,27 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <section id="service-area" className="scroll-mt-28 mx-5 mb-4 rounded-2xl border border-emerald-100 bg-[linear-gradient(135deg,#effbf7,#ffffff)] px-5 py-5 xl:scroll-mt-20 lg:mx-16 lg:flex lg:items-center lg:justify-between lg:px-8">
+          <div className="flex items-start gap-4">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#087765] text-white"><MapPin className="h-6 w-6" /></span>
+            <div>
+              <span className="text-[8px] font-black uppercase tracking-[0.18em] text-[#078b70]">Aagaam near you</span>
+              <h2 className="mt-1 text-lg font-black">Serving 90+ neighbourhood areas</h2>
+              <p className="mt-1 max-w-2xl text-[11px] font-semibold leading-5 text-slate-600">We fulfil from verified local partner stores and match each order to the nearest serviceable location. Browse the public catalogue here; sign in only when you are ready to confirm an address and checkout.</p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2 lg:mt-0 lg:pl-8">
+            <a href="#categories" className="inline-flex h-10 items-center rounded-xl border border-emerald-200 bg-white px-5 text-[10px] font-black text-[#087765]">Browse areas & categories</a>
+            <Link href="/login" className="inline-flex h-10 items-center rounded-xl bg-[#087765] px-5 text-[10px] font-black text-white">Sign in to check address</Link>
+          </div>
+        </section>
+
         <section id="subscriptions" className="scroll-mt-28 mx-5 mb-0 rounded-[10px] bg-[#f5f7f6] p-3 xl:scroll-mt-20 lg:mx-10 lg:px-6">
           <div className="grid gap-3 lg:grid-cols-[180px_1fr_1fr_1fr]">
             <div className="flex flex-col justify-center px-2">
               <h2 className="text-[16px] font-black">Subscribe & Save</h2>
               <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-600">Goodness on repeat.<br />Save more with<br />flexible subscriptions.</p>
-              <Link href="/shop/subscriptions" className="mt-3 inline-flex items-center gap-2 text-[9px] font-black text-[#087765]">View all plans <ArrowRight className="h-3 w-3" /></Link>
+              <Link href="/login" className="mt-3 inline-flex items-center gap-2 text-[9px] font-black text-[#087765]">Sign in for all plans <ArrowRight className="h-3 w-3" /></Link>
             </div>
             {visiblePlans.map((plan) => {
               const save = planSavings(plan);
@@ -339,7 +369,7 @@ export default function LandingPage() {
                     <h3 className="line-clamp-1 text-[10px] font-black">{plan.name}</h3>
                     <p className="mt-1 line-clamp-1 text-[8px] font-semibold text-slate-500">{plan.description || `${plan.totalDeliveries || ''} scheduled deliveries`}</p>
                     <div className="mt-2 flex items-baseline gap-1"><strong className="text-[11px]">{moneyFromPaise(plan.pricePaise)}</strong>{Number(plan.mrpPaise) > Number(plan.pricePaise) ? <span className="text-[8px] text-slate-400 line-through">{moneyFromPaise(plan.mrpPaise)}</span> : null}</div>
-                    <Link href={`/shop/subscribe/${encodeURIComponent(plan.id)}`} className="mt-2 inline-flex h-7 items-center rounded-md bg-[#078b70] px-3 text-[8px] font-black text-white">Subscribe now</Link>
+                    <Link href="/login" className="mt-2 inline-flex h-7 items-center rounded-md bg-[#078b70] px-3 text-[8px] font-black text-white">Sign in to subscribe</Link>
                   </div>
                 </article>
               );
@@ -378,10 +408,10 @@ export default function LandingPage() {
       <footer className="bg-[#063b3a] text-white">
         <div className="mx-auto grid max-w-[1448px] gap-7 px-6 py-6 md:grid-cols-2 lg:grid-cols-[1.25fr_.8fr_.8fr_1.2fr_1.1fr] lg:px-10">
           <div><AagamLogo inverse compact label="Fresh, quality and trust" /><p className="mt-3 max-w-[230px] text-[8px] font-semibold leading-3 text-white/70">Your trusted neighbourhood partner for fresh groceries and everyday essentials.</p><p className="mt-4 text-[7px] text-white/50">© 2026 Aagaam Retail Pvt. Ltd. All rights reserved.</p></div>
-          <div><h3 className="text-[9px] font-black">Shop</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#categories">All Categories</a><Link href="/shop">Fruits & Vegetables</Link><Link href="/shop">Dairy & Eggs</Link><Link href="/shop/deals">Deals</Link><Link href="/shop">Beverages</Link></div></div>
-          <div><h3 className="text-[9px] font-black">Help & Support</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><Link href="/shop/support">Contact Us</Link><Link href="/shop">Browse catalogue</Link><Link href="/shop/deals">Current offers</Link><Link href="/shop/subscriptions">Subscription plans</Link></div></div>
-          <div><h3 className="text-[9px] font-black">Company</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><Link href="/shop">Store Locator</Link><Link href="/terms">Terms & Conditions</Link><Link href="/privacy">Privacy Policy</Link></div></div>
-          <div><h3 className="text-[9px] font-black">Offers & updates</h3><p className="mt-1 text-[8px] font-semibold text-white/60">Browse current promotions and savings published through the Aagaam shop.</p><Link href="/shop/deals" className="mt-2 inline-flex h-8 items-center gap-2 rounded-md bg-[#20bfa6] px-4 text-[8px] font-black text-white">View current offers <ArrowRight className="h-3 w-3" /></Link></div>
+          <div><h3 className="text-[9px] font-black">Shop</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#categories">All Categories</a><a href="#offers">Fruits & Vegetables</a><a href="#offers">Dairy & Eggs</a><a href="#offers">Deals</a><a href="#offers">Beverages</a></div></div>
+          <div><h3 className="text-[9px] font-black">Help & Support</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="tel:+918340064486">Contact Us</a><a href="#offers">Browse catalogue</a><a href="#offers">Current offers</a><a href="#subscriptions">Subscription plans</a></div></div>
+          <div><h3 className="text-[9px] font-black">Company</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><a href="#service-area">Store Locator</a><Link href="/terms">Terms & Conditions</Link><Link href="/privacy">Privacy Policy</Link></div></div>
+          <div><h3 className="text-[9px] font-black">Offers & updates</h3><p className="mt-1 text-[8px] font-semibold text-white/60">Browse current promotions and savings directly on this public page.</p><a href="#offers" className="mt-2 inline-flex h-8 items-center gap-2 rounded-md bg-[#20bfa6] px-4 text-[8px] font-black text-white">View current offers <ArrowRight className="h-3 w-3" /></a></div>
         </div>
       </footer>
     </main>
