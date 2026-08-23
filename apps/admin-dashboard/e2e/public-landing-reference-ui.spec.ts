@@ -130,9 +130,9 @@ test.describe('Public reference landing UI', () => {
     const cart = await page.evaluate(() => JSON.parse(window.localStorage.getItem('aagam_cart') || '[]'));
     expect(cart).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'tomato-1', quantity: 1 })]));
 
-    await expect(page.getByRole('link', { name: 'Subscribe now' })).toHaveAttribute('href', '/shop/subscribe/daily-milk-plan');
-    await expect(page.getByRole('link', { name: 'View all plans' })).toHaveAttribute('href', '/shop/subscriptions');
-    await expect(page.getByRole('link', { name: /Shop now/ }).first()).toHaveAttribute('href', '/shop');
+    await expect(page.getByRole('link', { name: 'Sign in to subscribe' })).toHaveAttribute('href', '/login');
+    await expect(page.getByRole('link', { name: 'Sign in for all plans' })).toHaveAttribute('href', '/login');
+    await expect(page.getByRole('link', { name: /Shop now/ }).first()).toHaveAttribute('href', '#offers');
     await expect(page.getByRole('link', { name: 'Terms & Conditions' })).toHaveAttribute('href', '/terms');
     await expect(page.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy');
     await expect(page.getByLabel('Newsletter email')).toHaveCount(0);
