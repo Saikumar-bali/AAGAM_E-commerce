@@ -154,7 +154,7 @@ test.describe('Public promotions placement rendering', () => {
     await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
     await expect(page.getByText(heroTitle).first()).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(bannerTitle).first()).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(bannerTitle).first().locator('xpath=ancestor::a[1]')).toHaveAttribute('href', '/shop/deals');
+    await expect(page.locator('strong', { hasText: bannerTitle }).first().locator('xpath=following-sibling::a[1]')).toHaveAttribute('href', '/shop/deals');
     await page.screenshot({
       path: path.join(PROOF_DIR, '02-public-landing-campaigns.png'),
       fullPage: true,
