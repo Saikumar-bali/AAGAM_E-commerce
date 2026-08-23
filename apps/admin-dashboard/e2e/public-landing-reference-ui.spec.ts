@@ -112,7 +112,7 @@ test.describe('Public reference landing UI', () => {
     await expect(page.getByText('Shop by category', { exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Vegetables' })).toHaveAttribute('href', '/shop?category=veg');
     await expect(page.getByText('Featured Products', { exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Tomato Hybrid' })).toHaveAttribute('href', '/shop/products/tomato-1');
+    await expect(page.getByRole('link', { name: 'Tomato Hybrid', exact: true }).last()).toHaveAttribute('href', '/shop/products/tomato-1');
     await expect(page.getByText('Subscribe & Save', { exact: true })).toBeVisible();
     await expect(page.getByText('Daily Milk Plan', { exact: true })).toBeVisible();
     await expect(page.getByText('Supporting local farmers', { exact: true })).toBeVisible();
