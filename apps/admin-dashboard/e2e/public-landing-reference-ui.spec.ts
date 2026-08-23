@@ -127,7 +127,61 @@ test.describe('Public reference landing UI', () => {
     expect(cart).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'tomato-1', quantity: 1 })]));
 
     await expect(page.getByRole('link', { name: 'Subscribe now' })).toHaveAttribute('href', '/shop/subscribe/daily-milk-plan');
+    await expect(page.getByRole('link', { name: 'View all plans' })).toHaveAttribute('href', '/shop/subscriptions');
     await expect(page.getByRole('link', { name: /Shop now/ }).first()).toHaveAttribute('href', '/shop');
+    await expect(page.getByRole('link', { name: 'Terms & Conditions' })).toHaveAttribute('href', '/terms');
+    await expect(page.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy');
+    await expect(page.getByLabel('Newsletter email')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Subscribe', exact: true })).toHaveCount(0);
+  });
+
+  test('renders a mobile-only Admin hero campaign', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.unroute('**/public/promotions/active**');
+    await page.route('**/public/promotions/active**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          placements: {
+            LANDING_HERO: [{ ...heroCampaign, imageUrl: null }],
+            LANDING_BANNER: [],
+          },
+        }),
+      });
+    });
+
+    await page.goto('/');
+    await expect(page.locator('img[src="https://cdn.example.test/aagaam-landing-hero-mobile.webp"]')).toBeVisible();
+  });
+
+  test('shop consumes the landing search query when loading products', async ({ page }) => {
+    await page.route('**/auth/me**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'customer-1', role: 'CUSTOMER', roles: ['CUSTOMER'], name: 'Test Customer' }),
+      });
+    });
+    await page.route('**/promotions/active**', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ placements: {} }) });
+    });
+
+    const matchingProductRequest = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return url.pathname.endsWith('/products') && url.searchParams.get('search') === 'Banana';
+    });
+
+    await page.goto('/shop?search=Banana');
+    await matchingProductRequest;
+    await expect(page.getByPlaceholder('Search groceries, essentials...')).toHaveValue('Banana');
+  });
+
+  test('publishes real public terms and privacy pages', async ({ page }) => {
+    await page.goto('/terms');
+    await expect(page.getByRole('heading', { name: 'Terms & Conditions' })).toBeVisible();
+    await page.goto('/privacy');
+    await expect(page.getByRole('heading', { name: 'Privacy Policy' })).toBeVisible();
   });
 
   test('falls back cleanly when the landing campaign feed is empty', async ({ page }) => {
