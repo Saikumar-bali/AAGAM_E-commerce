@@ -150,7 +150,7 @@ export default function LandingPage() {
     return () => { active = false; };
   }, []);
 
-  const hero = { ...FALLBACK_HERO, ...(heroCampaign || {}) };
+  const hero = { ...FALLBACK_HERO, ...Object.fromEntries(Object.entries(heroCampaign || {}).filter(([, v]) => v != null)) };
   const featuredProducts = products.filter((item) => item?.availability?.inStock !== false).slice(0, 6);
   const visiblePlans = subscriptionPlans.slice(0, 3);
 
@@ -229,16 +229,18 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,47,46,.96)_0%,rgba(3,47,46,.87)_33%,rgba(3,47,46,.35)_58%,rgba(3,47,46,.08)_100%)] md:bg-[linear-gradient(90deg,rgba(3,47,46,.96)_0%,rgba(3,47,46,.92)_34%,rgba(3,47,46,.30)_58%,rgba(3,47,46,.02)_100%)]" />
         <div className="relative mx-auto min-h-[302px] max-w-[1448px] px-5 py-7 lg:px-16">
           <div className="max-w-[560px]">
-            <span className="inline-flex rounded-md border border-emerald-300/30 bg-emerald-400/10 px-2 py-1 text-[9px] font-black text-emerald-200">✓ {hero.badgeText}</span>
+            {hero.badgeText ? <span className="inline-flex rounded-md border border-emerald-300/30 bg-emerald-400/10 px-2 py-1 text-[9px] font-black text-emerald-200">✓ {hero.badgeText}</span> : null}
             <h1 className="mt-3 font-serif text-[40px] font-bold leading-[0.98] tracking-[-0.025em] sm:text-[48px]">
               <span className="block" style={{ color: hero.textColor || '#fff' }}>{hero.title}</span>
               <span className="mt-1 block" style={{ color: hero.accentColor || '#20c9a6' }}>{hero.subtitle}</span>
             </h1>
             <p className="mt-3 max-w-[480px] text-[13px] font-semibold leading-5 text-white/90">{hero.description}</p>
             <div className="mt-5 flex flex-wrap gap-3">
-              <Link href={hero.targetUrl || '/shop'} className="inline-flex h-10 items-center gap-3 rounded-lg px-7 text-[11px] font-black text-[#063b3a] shadow-lg" style={{ backgroundColor: hero.accentColor || '#20c9a6' }}>
+              {hero.targetUrl ? <Link href={hero.targetUrl} className="inline-flex h-10 items-center gap-3 rounded-lg px-7 text-[11px] font-black text-[#063b3a] shadow-lg" style={{ backgroundColor: hero.accentColor || '#20c9a6' }}>
                 {hero.ctaLabel || 'Shop now'} <ArrowRight className="h-4 w-4" />
-              </Link>
+              </Link> : <span className="inline-flex h-10 items-center rounded-lg px-7 text-[11px] font-black text-white/70" style={{ backgroundColor: hero.accentColor || '#20c9a6' }}>
+                {hero.ctaLabel || 'Shop now'}
+              </span>}
               <a href="#subscriptions" className="inline-flex h-10 items-center rounded-lg border border-white/45 px-7 text-[11px] font-black text-white backdrop-blur-sm">Explore subscriptions</a>
             </div>
             <div className="mt-5 grid max-w-[535px] grid-cols-3 divide-x divide-white/20 text-white">
@@ -361,7 +363,7 @@ export default function LandingPage() {
           <div className="relative min-h-[94px] overflow-hidden px-6 py-4 lg:px-8" style={landingBanner?.backgroundColor ? { backgroundColor: landingBanner.backgroundColor } : undefined}>
             {landingBanner ? <CampaignPicture campaign={landingBanner} /> : null}
             <div className="absolute inset-0 bg-gradient-to-r from-[#f7faf8]/95 via-[#f7faf8]/80 to-transparent" />
-            <div className="relative max-w-[250px]"><strong className="text-[10px]" style={landingBanner?.textColor ? { color: landingBanner.textColor } : { color: '#087765' }}>{landingBanner?.title || 'Supporting local farmers'}</strong><p className="mt-1 text-[8px] font-semibold leading-3 text-slate-600">{landingBanner?.subtitle || landingBanner?.description || 'We work directly with farmers to bring you fresh produce and a better tomorrow.'}</p><Link href={landingBanner?.targetUrl || '/shop'} className="mt-2 inline-flex items-center gap-2 text-[8px] font-black" style={landingBanner?.textColor ? { color: landingBanner.textColor } : { color: '#087765' }}>{landingBanner?.ctaLabel || 'Know more'} <ArrowRight className="h-3 w-3" /></Link></div>
+            <div className="relative max-w-[250px]"><strong className="text-[10px]" style={landingBanner?.textColor ? { color: landingBanner.textColor } : { color: '#087765' }}>{landingBanner?.title || 'Supporting local farmers'}</strong><p className="mt-1 text-[8px] font-semibold leading-3 text-slate-600">{landingBanner?.subtitle || landingBanner?.description || 'We work directly with farmers to bring you fresh produce and a better tomorrow.'}</p>{landingBanner?.targetUrl ? <Link href={landingBanner.targetUrl} className="mt-2 inline-flex items-center gap-2 text-[8px] font-black" style={landingBanner?.textColor ? { color: landingBanner.textColor } : { color: '#087765' }}>{landingBanner?.ctaLabel || 'Know more'} <ArrowRight className="h-3 w-3" /></Link> : null}</div>
           </div>
         </section>
       </div>
