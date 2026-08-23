@@ -176,8 +176,13 @@ export class CustomerService {
     };
 
     const coordinatesTouched = dto.latitude !== undefined || dto.longitude !== undefined;
+    const addressChanged = this.addressTextChanged(existing, dto);
     if (dto.locationSource) {
       return this.resolveNewLocation(merged);
+    }
+    if ((evidence.source === 'GEOCODED' || evidence.source === 'LEGACY_UNKNOWN')
+      && (addressChanged || dto.localityId !== undefined)) {
+      return this.resolveNewLocation({ ...merged, locationSource: 'GEOCODED' });
     }
     if (coordinatesTouched) {
       this.assertCoordinatePair(dto.latitude, dto.longitude);
@@ -189,10 +194,6 @@ export class CustomerService {
         longitude: Number(dto.longitude),
         evidence: { source: 'LEGACY_UNKNOWN', accuracyMetres: null, capturedAt: null },
       };
-    }
-    if ((evidence.source === 'GEOCODED' || evidence.source === 'LEGACY_UNKNOWN')
-      && (this.addressTextChanged(dto) || dto.localityId !== undefined)) {
-      return this.resolveNewLocation({ ...merged, locationSource: 'GEOCODED' });
     }
     return {
       latitude: existing.latitude,
@@ -282,7 +283,7 @@ export class CustomerService {
     const localityId = locationInput.localityId === undefined ? existing.localityId : locationInput.localityId;
     const isManual = locationInput.locationSource === 'GEOCODED'
       || (locationInput.locationSource == null && location.evidence.source === 'GEOCODED'
-        && (this.addressTextChanged(locationInput) || locationInput.localityId !== undefined));
+        && (this.addressTextChanged(existing, locationInput) || locationInput.localityId !== undefined));
     if (isManual) {
       await this.resolveLocality({
         line1: locationInput.line1 ?? existing.line1,
@@ -326,7 +327,7 @@ export class CustomerService {
           localityId: isManual
             ? localityId
             : (locationInput.locationSource == null
-              && !this.addressTextChanged(locationInput)
+              && !this.addressTextChanged(existing, locationInput)
               && locationInput.latitude === undefined
               && locationInput.longitude === undefined
               ? existing.localityId

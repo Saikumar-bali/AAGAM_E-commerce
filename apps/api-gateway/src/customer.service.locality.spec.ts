@@ -50,6 +50,17 @@ describe('CustomerService locality enforcement', () => {
     expect(geo.forward).not.toHaveBeenCalled();
   });
 
+  test('allows an unchanged legacy full-form update without locality', async () => {
+    db.$transaction = jest.fn(async (callback: (tx: any) => unknown) => callback({
+      customerAddress: { update: jest.fn().mockResolvedValue(legacyAddress) },
+      $executeRaw: jest.fn(),
+    }));
+
+    await service.updateAddress('user-1', 'address-1', updateDto());
+    expect(db.serviceableLocality.findFirst).not.toHaveBeenCalled();
+    expect(db.$transaction).toHaveBeenCalled();
+  });
+
   test('uses the selected locality coordinates for a legacy address update', async () => {
     db.serviceableLocality.findFirst.mockResolvedValue({
       id: 'locality-1',

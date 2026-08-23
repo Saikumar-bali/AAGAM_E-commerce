@@ -186,6 +186,8 @@ export const CustomerProfileScreen = () => {
     });
   }, [draft.pincode, draft.city, localities]);
 
+  const normalizeLocalityText = (value: string) => value.trim().toLowerCase();
+
   const selectedLocalityName = useMemo(() => {
     const match = localities.find((l) => l.id === draft.selectedLocalityId);
     return match ? `${match.name} — ${match.pincode}` : '';
@@ -197,7 +199,7 @@ export const CustomerProfileScreen = () => {
     setEditingAddressId(address?.id || null);
     const initialDraft = address ? draftFromAddress(address) : emptyDraft;
     if (address && !initialDraft.selectedLocalityId) {
-      const matchedLocality = localities.find((loc) => loc.city.toLowerCase() === initialDraft.city.toLowerCase() && loc.state.toLowerCase() === initialDraft.state.toLowerCase() && loc.pincode === initialDraft.pincode);
+      const matchedLocality = localities.find((loc) => normalizeLocalityText(loc.city) === normalizeLocalityText(initialDraft.city) && normalizeLocalityText(loc.state) === normalizeLocalityText(initialDraft.state) && loc.pincode === initialDraft.pincode.trim());
       setDraft({ ...initialDraft, selectedLocalityId: matchedLocality?.id || '', localityId: matchedLocality?.id || '' });
     } else setDraft(initialDraft);
     setAddressErrors({});
@@ -577,7 +579,7 @@ export const CustomerProfileScreen = () => {
                           <Text style={styles.localityDetail}>{item.city} — {item.pincode}</Text>
                         </TouchableOpacity>
                       )}
-                      ListEmptyComponent={<Text style={styles.localityEmpty}>No localities match your address. You can still type the address below.</Text>}
+                      ListEmptyComponent={<Text style={styles.localityEmpty}>No serviceable localities match this address. Use live location or pin the map instead.</Text>}
                     />
                   )}
                 </View>

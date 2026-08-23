@@ -680,7 +680,7 @@ export default function CheckoutPage() {
                       </select>
                       <span className="mt-1 block text-[11px] font-semibold text-slate-400">
                         {filteredLocalities.length === 0
-                          ? 'No matching serviceable locality. You can still type the address below.'
+                          ? 'No serviceable locality matches this address. Use live location or set a map pin instead.'
                           : 'Pick your village — city, pincode and delivery point are filled automatically.'}
                       </span>
                     </label>
