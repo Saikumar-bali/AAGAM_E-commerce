@@ -152,7 +152,7 @@ export default function LandingPage() {
     return () => { active = false; };
   }, []);
 
-  const hero = { ...FALLBACK_HERO, ...Object.fromEntries(Object.entries(heroCampaign || {}).filter(([, v]) => v != null)) };
+  const hero: Record<string, string | null> = { ...FALLBACK_HERO, ...Object.fromEntries(Object.entries(heroCampaign || {}).filter(([, v]) => v != null)) };
   const featuredProducts = products.filter((item) => item?.availability?.inStock !== false).slice(0, 6);
   const visiblePlans = subscriptionPlans.slice(0, 3);
 
