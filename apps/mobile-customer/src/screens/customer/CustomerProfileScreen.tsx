@@ -139,11 +139,13 @@ export const CustomerProfileScreen = () => {
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [localities, setLocalities] = useState<LocalityOption[]>([]);
   const [localitiesLoading, setLocalitiesLoading] = useState(false);
+  const [localitiesLoaded, setLocalitiesLoaded] = useState(false);
   const [localitiesError, setLocalitiesError] = useState(false);
   const [localityModalVisible, setLocalityModalVisible] = useState(false);
 
   const loadLocalities = React.useCallback(async () => {
     setLocalitiesLoading(true);
+    setLocalitiesLoaded(false);
     setLocalitiesError(false);
     try {
       const response = await apiClient.get('/localities');
@@ -151,6 +153,7 @@ export const CustomerProfileScreen = () => {
     } catch {
       setLocalitiesError(true);
     } finally {
+      setLocalitiesLoaded(true);
       setLocalitiesLoading(false);
     }
   }, []);
@@ -189,7 +192,7 @@ export const CustomerProfileScreen = () => {
   }, [localities, draft.selectedLocalityId]);
 
   useEffect(() => {
-    if (!route.params?.openAddressForm) return;
+    if (!route.params?.openAddressForm || !localitiesLoaded) return;
     const address = route.params.address;
     setEditingAddressId(address?.id || null);
     const initialDraft = address ? draftFromAddress(address) : emptyDraft;
@@ -200,7 +203,7 @@ export const CustomerProfileScreen = () => {
     setAddressErrors({});
     setShowForm(true);
     navigation.setParams({ openAddressForm: undefined, address: undefined });
-  }, [localities, navigation, route.params?.openAddressForm, route.params?.address?.id]);
+  }, [localities, localitiesLoaded, navigation, route.params?.openAddressForm, route.params?.address?.id]);
 
   const { data: profile } = useQuery<any>({
     queryKey: ['customer-profile'],

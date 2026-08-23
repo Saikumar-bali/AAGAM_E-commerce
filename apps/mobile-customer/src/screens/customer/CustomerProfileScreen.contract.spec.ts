@@ -21,6 +21,7 @@ describe('Customer profile address validation contract', () => {
     expect(source).toContain('localityId: draft.locationSource === \'GEOCODED\' ? draft.selectedLocalityId : null');
     expect(source).toContain('Re-select a locality matching the city, state, and pincode.');
     expect(source).toContain('Could not load localities. Tap to retry.');
+    expect(source).toContain('if (!route.params?.openAddressForm || !localitiesLoaded) return;');
     expect(source).toContain('Use current location');
     expect(source).toContain('Enter manually');
     expect(source).toContain('inputError');

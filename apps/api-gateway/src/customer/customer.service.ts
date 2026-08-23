@@ -272,7 +272,8 @@ export class CustomerService {
     const location = await this.resolveUpdatedLocation(existing, locationInput);
     const localityId = locationInput.localityId === undefined ? existing.localityId : locationInput.localityId;
     const isManual = locationInput.locationSource === 'GEOCODED'
-      || (locationInput.locationSource == null && locationInput.latitude == null && locationInput.longitude == null && location.evidence.source === 'GEOCODED');
+      || (locationInput.locationSource == null && location.evidence.source === 'GEOCODED'
+        && (this.addressTextChanged(locationInput) || locationInput.localityId !== undefined));
     if (isManual) {
       await this.resolveLocality({
         line1: locationInput.line1 ?? existing.line1,
@@ -313,7 +314,14 @@ export class CustomerService {
           longitude: location.longitude,
           instructions: dto.instructions,
           isDefault: dto.isDefault,
-          localityId: isManual ? localityId : null,
+          localityId: isManual
+            ? localityId
+            : (locationInput.locationSource == null
+              && !this.addressTextChanged(locationInput)
+              && locationInput.latitude === undefined
+              && locationInput.longitude === undefined
+              ? existing.localityId
+              : null),
         },
       });
       await upsertAddressLocationEvidence(tx, addressId, location.evidence);

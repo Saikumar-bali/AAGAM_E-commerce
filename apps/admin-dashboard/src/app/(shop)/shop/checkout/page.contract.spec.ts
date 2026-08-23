@@ -7,6 +7,9 @@ describe('Checkout locality contract', () => {
     expect(source).toContain('const locality = localities.find((entry) => entry.id === selectedLocalityId);');
     expect(source).toContain('Select a locality matching the city, state, and pincode.');
     expect(source).toContain('localityId: selectedLocalityId,');
+    expect(source).toContain('locationSource: draft.locationSource,');
+    expect(source).toContain("updateCoordinates(lat, lng, 'MAP_PIN')");
+    expect(source).toContain("address.locationSource === 'LIVE_GPS' || address.locationSource === 'MAP_PIN'");
   });
 
   test('provides a retry path when locality loading fails', () => {

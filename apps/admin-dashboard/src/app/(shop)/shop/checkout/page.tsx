@@ -47,6 +47,7 @@ type Address = {
   longitude: number;
   instructions?: string | null;
   isDefault: boolean;
+  locationSource?: 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED' | 'LEGACY_UNKNOWN';
   localityId?: string | null;
 };
 
@@ -132,6 +133,7 @@ const emptyDraft = () => ({
   country: 'IN',
   latitude: null as number | null,
   longitude: null as number | null,
+  locationSource: 'GEOCODED' as 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED',
   instructions: '',
   isDefault: true,
 });
@@ -340,8 +342,9 @@ export default function CheckoutPage() {
     };
   }, [appliedCouponCode, itemsPayload, orderId, selectedAddressId]);
 
-  const updateCoordinates = useCallback(async (latitude: number, longitude: number) => {
-    setDraft((current) => ({ ...current, latitude, longitude }));
+  const updateCoordinates = useCallback(async (latitude: number, longitude: number, locationSource: 'LIVE_GPS' | 'MAP_PIN') => {
+    setSelectedLocalityId('');
+    setDraft((current) => ({ ...current, latitude, longitude, locationSource }));
     try {
       const response = await apiClient.get('/geo/reverse', { params: { lat: latitude, lng: longitude } });
       const address = response.data?.address;
@@ -370,7 +373,7 @@ export default function CheckoutPage() {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        void updateCoordinates(position.coords.latitude, position.coords.longitude).finally(() => setLocating(false));
+        void updateCoordinates(position.coords.latitude, position.coords.longitude, 'LIVE_GPS').finally(() => setLocating(false));
       },
       (cause) => {
         setError(cause.message || 'Failed to get your current location.');
@@ -403,6 +406,7 @@ export default function CheckoutPage() {
       country: address.country,
       latitude: address.latitude,
       longitude: address.longitude,
+      locationSource: address.locationSource === 'LIVE_GPS' || address.locationSource === 'MAP_PIN' ? address.locationSource : 'GEOCODED',
       instructions: address.instructions || '',
       isDefault: address.isDefault,
     });
@@ -415,7 +419,7 @@ export default function CheckoutPage() {
       return;
     }
     const locality = localities.find((entry) => entry.id === selectedLocalityId);
-    if (!locality || locality.city.toLowerCase() !== draft.city.trim().toLowerCase() || locality.state.toLowerCase() !== draft.state.trim().toLowerCase() || locality.pincode !== draft.pincode.trim()) {
+    if (draft.locationSource === 'GEOCODED' && (!locality || locality.city.toLowerCase() !== draft.city.trim().toLowerCase() || locality.state.toLowerCase() !== draft.state.trim().toLowerCase() || locality.pincode !== draft.pincode.trim())) {
       toast.warning('Select a locality matching the city, state, and pincode.');
       return;
     }
@@ -434,7 +438,8 @@ export default function CheckoutPage() {
       longitude: draft.longitude ?? undefined,
       isDefault: addresses.length === 0 ? true : draft.isDefault,
       localityId: selectedLocalityId,
-    };
+locationSource: draft.locationSource,
+     };
     try {
       const response = editingAddressId
         ? await apiClient.patch(`/customer/addresses/${editingAddressId}`, payload)
@@ -616,13 +621,13 @@ export default function CheckoutPage() {
                     </button>
                   </div>
                   {draft.latitude != null && draft.longitude != null ? (
-                    <CustomerLocationPicker latitude={draft.latitude} longitude={draft.longitude} onChange={(lat, lng) => void updateCoordinates(lat, lng)} />
+                    <CustomerLocationPicker latitude={draft.latitude} longitude={draft.longitude} onChange={(lat, lng) => void updateCoordinates(lat, lng, 'MAP_PIN')} />
                   ) : (
                     <div className="rounded-2xl border border-dashed border-teal-300 bg-white p-6 text-center">
                       <p className="text-sm font-bold text-slate-500">You can save this address without a map pin — we will place it on the delivery map from the address text.</p>
                       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                         {defaultMapCenter ? (
-                          <button onClick={() => void updateCoordinates(defaultMapCenter.latitude, defaultMapCenter.longitude)} className="flex items-center gap-2 rounded-xl border border-teal-600 px-3 py-2 text-xs font-black text-teal-700">
+                          <button onClick={() => void updateCoordinates(defaultMapCenter.latitude, defaultMapCenter.longitude, 'MAP_PIN')} className="flex items-center gap-2 rounded-xl border border-teal-600 px-3 py-2 text-xs font-black text-teal-700">
                             <MapPin className="h-4 w-4" />Set pin on map
                           </button>
                         ) : null}

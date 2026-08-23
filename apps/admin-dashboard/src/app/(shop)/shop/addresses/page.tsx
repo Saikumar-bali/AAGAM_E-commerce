@@ -117,9 +117,11 @@ export default function AddressesPage() {
   const clearFieldError = (field: AddressField) => setFieldErrors((current) => ({ ...current, [field]: undefined }));
   const handleEdit = (addr: Address) => {
     setEditingId(addr.id); setFieldErrors({});
-    const matchedLocality = localities.find(
-      (loc) => loc.city.toLowerCase() === addr.city.toLowerCase() && loc.pincode === addr.pincode,
-    );
+    const matchedLocalityId = addr.localityId || localities.find(
+      (loc) => loc.city.toLowerCase() === addr.city.toLowerCase()
+        && loc.state.toLowerCase() === addr.state.toLowerCase()
+        && loc.pincode === addr.pincode,
+    )?.id;
     setDraft({
       label: addr.label || 'Home', recipientName: addr.recipientName, phoneE164: addr.phoneE164,
       alternatePhoneE164: addr.alternatePhoneE164 || '', line1: addr.line1, line2: addr.line2 || '', landmark: addr.landmark || '',
@@ -127,7 +129,7 @@ export default function AddressesPage() {
       locationSource: ['LIVE_GPS', 'MAP_PIN', 'GEOCODED', 'LEGACY_UNKNOWN'].includes(String(addr.locationSource)) ? addr.locationSource! : 'LEGACY_UNKNOWN',
       locationAccuracyMetres: addr.locationAccuracyMetres ?? null, locationCapturedAt: addr.locationCapturedAt ?? null,
       instructions: addr.instructions || '', isDefault: addr.isDefault,
-      selectedLocalityId: matchedLocality?.id || '',
+       selectedLocalityId: matchedLocalityId || '',
     });
     setShowForm(true);
   };
