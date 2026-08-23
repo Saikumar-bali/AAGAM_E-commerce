@@ -4,14 +4,9 @@ import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
-  BadgeCheck,
-  CalendarDays,
   CheckCircle2,
   ChevronDown,
-  ChevronRight,
   Clock3,
-  HeartHandshake,
-  Leaf,
   MapPin,
   PackageCheck,
   Search,
@@ -24,7 +19,6 @@ import {
 import { apiClient, getProductImage } from '@aagam/utils';
 import { useCart } from '@/hooks/useCart';
 import { formatINR } from '@/lib/currency';
-import { customerAuthHref } from '@/lib/customer-return-path';
 import { normalizePromotionPlacements } from '@/lib/promotion-normalizer';
 
 type Campaign = {
@@ -364,10 +358,10 @@ export default function LandingPage() {
           <div className="grid grid-cols-4 items-center border-y border-[#e4e8e6] px-3 py-3 lg:border-x lg:border-y-0">
             {proofStats.map((stat) => <div key={stat.label} className="text-center"><strong className="block text-[16px] font-black">{stat.value}</strong><span className="mt-0.5 block text-[7px] font-semibold text-slate-500">{stat.label}</span></div>)}
           </div>
-          <div className="relative min-h-[94px] overflow-hidden px-6 py-4 lg:px-8">
+          <div className="relative min-h-[94px] overflow-hidden px-6 py-4 lg:px-8" style={landingBanner?.backgroundColor ? { backgroundColor: landingBanner.backgroundColor } : undefined}>
             {landingBanner ? <CampaignPicture campaign={landingBanner} /> : null}
             <div className="absolute inset-0 bg-gradient-to-r from-[#f7faf8]/95 via-[#f7faf8]/80 to-transparent" />
-            <div className="relative max-w-[250px]"><strong className="text-[10px] text-[#087765]">{landingBanner?.title || 'Supporting local farmers'}</strong><p className="mt-1 text-[8px] font-semibold leading-3 text-slate-600">{landingBanner?.subtitle || landingBanner?.description || 'We work directly with farmers to bring you fresh produce and a better tomorrow.'}</p><Link href={landingBanner?.targetUrl || '/shop'} className="mt-2 inline-flex items-center gap-2 text-[8px] font-black text-[#087765]">{landingBanner?.ctaLabel || 'Know more'} <ArrowRight className="h-3 w-3" /></Link></div>
+            <div className="relative max-w-[250px]"><strong className="text-[10px]" style={landingBanner?.textColor ? { color: landingBanner.textColor } : { color: '#087765' }}>{landingBanner?.title || 'Supporting local farmers'}</strong><p className="mt-1 text-[8px] font-semibold leading-3 text-slate-600">{landingBanner?.subtitle || landingBanner?.description || 'We work directly with farmers to bring you fresh produce and a better tomorrow.'}</p><Link href={landingBanner?.targetUrl || '/shop'} className="mt-2 inline-flex items-center gap-2 text-[8px] font-black" style={landingBanner?.textColor ? { color: landingBanner.textColor } : { color: '#087765' }}>{landingBanner?.ctaLabel || 'Know more'} <ArrowRight className="h-3 w-3" /></Link></div>
           </div>
         </section>
       </div>
