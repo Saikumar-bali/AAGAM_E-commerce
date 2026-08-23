@@ -433,10 +433,16 @@ export const CustomerProfileScreen = () => {
     const matchedLocality = localities.find(
       (loc) => loc.city.toLowerCase() === (address?.city || '').toLowerCase() && loc.pincode === (address?.pincode || ''),
     );
-    setDraft({ ...draft, selectedLocalityId: matchedLocality?.id || '' });
+    setDraft({ ...draft, selectedLocalityId: draft.selectedLocalityId || matchedLocality?.id || '', localityId: draft.localityId || matchedLocality?.id || '' });
     setAddressErrors({});
     setShowForm(true);
   };
+
+  useEffect(() => {
+    if (!editingAddressId || !localitiesLoaded || draft.locationSource !== 'GEOCODED' || draft.selectedLocalityId || localities.length === 0) return;
+    const matchedLocality = localities.find((loc) => loc.city.toLowerCase() === draft.city.toLowerCase() && loc.state.toLowerCase() === draft.state.toLowerCase() && loc.pincode === draft.pincode);
+    if (matchedLocality) setDraft((current) => ({ ...current, selectedLocalityId: matchedLocality.id, localityId: matchedLocality.id }));
+  }, [editingAddressId, localitiesLoaded]);
 
   const confirmLogout = () => Alert.alert(
     'Sign out?',

@@ -135,7 +135,7 @@ const emptyDraft = () => ({
   country: 'IN',
   latitude: null as number | null,
   longitude: null as number | null,
-  locationSource: 'GEOCODED' as 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED',
+  locationSource: 'GEOCODED' as 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED' | 'LEGACY_UNKNOWN',
   locationAccuracyMetres: null as number | null,
   locationCapturedAt: null as string | null,
   instructions: '',
@@ -223,6 +223,12 @@ export default function CheckoutPage() {
     }
     return cityOptions;
   }, [draft.pincode, draft.city, localities]);
+
+  useEffect(() => {
+    if (!editingAddressId || draft.locationSource !== 'GEOCODED' || selectedLocalityId || localities.length === 0) return;
+    const matchedLocality = localities.find((entry) => entry.city.toLowerCase() === draft.city.toLowerCase() && entry.state.toLowerCase() === draft.state.toLowerCase() && entry.pincode === draft.pincode);
+    if (matchedLocality) setSelectedLocalityId(matchedLocality.id);
+  }, [editingAddressId, localities]);
 
   useEffect(() => {
     let active = true;
@@ -417,7 +423,7 @@ export default function CheckoutPage() {
       country: address.country,
       latitude: address.latitude,
       longitude: address.longitude,
-      locationSource: address.locationSource === 'LIVE_GPS' || address.locationSource === 'MAP_PIN' ? address.locationSource : 'GEOCODED',
+       locationSource: ['LIVE_GPS', 'MAP_PIN', 'GEOCODED', 'LEGACY_UNKNOWN'].includes(String(address.locationSource)) ? address.locationSource! : 'GEOCODED',
       locationAccuracyMetres: address.locationAccuracyMetres ?? null,
       locationCapturedAt: address.locationCapturedAt ?? null,
       instructions: address.instructions || '',
@@ -451,7 +457,7 @@ export default function CheckoutPage() {
       longitude: draft.longitude ?? undefined,
       isDefault: addresses.length === 0 ? true : draft.isDefault,
       localityId: draft.locationSource === 'GEOCODED' ? selectedLocalityId : undefined,
-      locationSource: draft.locationSource,
+      locationSource: draft.locationSource === 'LEGACY_UNKNOWN' ? undefined : draft.locationSource,
       locationAccuracyMetres: draft.locationSource === 'LIVE_GPS' ? draft.locationAccuracyMetres ?? undefined : undefined,
       locationCapturedAt: draft.locationSource === 'LIVE_GPS' ? draft.locationCapturedAt ?? undefined : undefined,
      };

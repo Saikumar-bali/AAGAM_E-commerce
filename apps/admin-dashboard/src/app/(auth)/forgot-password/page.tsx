@@ -52,11 +52,11 @@ export default function ForgotPasswordPage() {
   };
 
   return <main className="relative min-h-[100dvh] overflow-y-auto bg-[#03151c] px-4 py-3 text-white sm:px-6 lg:px-10">
-    <img src="/generated/aagaam-commerce-3d-login-v1.png" alt="A 3D farm-to-store local commerce landscape" className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center opacity-95" />
+     <img src="/generated/aagaam-commerce-3d-login-v1.png" alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center opacity-95" />
     <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(2,16,22,.06)_0%,rgba(2,16,22,.02)_45%,rgba(2,16,22,.48)_70%,rgba(2,16,22,.9)_100%)]" />
     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_25%,rgba(45,212,191,.13),transparent_28%),linear-gradient(0deg,rgba(2,12,18,.58),transparent_45%)]" />
     <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.05)_1px,transparent_1px)] [background-size:64px_64px] [mask-image:linear-gradient(to_left,black,transparent_70%)]" />
-    <div className="relative z-20 mx-auto flex h-full max-w-[1440px] flex-col">
+    <div className="relative z-20 mx-auto flex min-h-[100dvh] w-full max-w-[1440px] flex-col">
       <header className="flex shrink-0 items-center py-1" />
       <div className="grid min-h-0 flex-1 items-center justify-center py-2">
         <section className="relative mx-auto w-full max-w-[450px] rounded-[1.75rem] border border-white/20 bg-white/[.88] p-5 text-slate-950 shadow-[0_40px_120px_-30px_rgba(0,0,0,.9),inset_0_1px_0_rgba(255,255,255,.8)] backdrop-blur-2xl sm:p-7">

@@ -112,6 +112,11 @@ export default function AddressesPage() {
   };
   useEffect(() => { void fetchAddresses(); }, []);
   useEffect(() => { const handleClick = () => setMenuOpenId(null); if (menuOpenId) { document.addEventListener('click', handleClick); return () => document.removeEventListener('click', handleClick); } }, [menuOpenId]);
+  useEffect(() => {
+    if (!editingId || draft.locationSource !== 'GEOCODED' || draft.selectedLocalityId || localities.length === 0) return;
+    const matchedLocality = localities.find((loc) => loc.city.toLowerCase() === draft.city.toLowerCase() && loc.state.toLowerCase() === draft.state.toLowerCase() && loc.pincode === draft.pincode);
+    if (matchedLocality) setDraft((current) => ({ ...current, selectedLocalityId: matchedLocality.id }));
+  }, [editingId, localities]);
 
   const resetDraft = () => { setDraft(emptyDraft()); setFieldErrors({}); };
   const clearFieldError = (field: AddressField) => setFieldErrors((current) => ({ ...current, [field]: undefined }));

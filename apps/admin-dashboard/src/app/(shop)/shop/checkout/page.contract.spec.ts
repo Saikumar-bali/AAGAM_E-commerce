@@ -6,12 +6,12 @@ describe('Checkout locality contract', () => {
   test('requires and persists a matching locality for inline manual addresses', () => {
     expect(source).toContain('const locality = localities.find((entry) => entry.id === selectedLocalityId);');
     expect(source).toContain('Select a locality matching the city, state, and pincode.');
-    expect(source).toContain('localityId: selectedLocalityId,');
-    expect(source).toContain('locationSource: draft.locationSource,');
+    expect(source).toContain("localityId: draft.locationSource === 'GEOCODED' ? selectedLocalityId : undefined,");
+    expect(source).toContain("locationSource: draft.locationSource === 'LEGACY_UNKNOWN' ? undefined : draft.locationSource,");
     expect(source).toContain("updateCoordinates(lat, lng, 'MAP_PIN')");
     expect(source).toContain("address.locationSource === 'LIVE_GPS' || address.locationSource === 'MAP_PIN'");
     expect(source).toContain('position.coords.accuracy');
-    expect(source).toContain('locationCapturedAt: draft.locationCapturedAt');
+    expect(source).toContain("locationCapturedAt: draft.locationSource === 'LIVE_GPS' ? draft.locationCapturedAt ?? undefined : undefined,");
   });
 
   test('provides a retry path when locality loading fails', () => {
