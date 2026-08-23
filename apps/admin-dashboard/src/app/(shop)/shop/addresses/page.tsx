@@ -13,8 +13,13 @@ type Address = {
   line1: string; line2?: string | null; landmark?: string | null; city: string; state: string; pincode: string;
   country: string; latitude: number; longitude: number; instructions?: string | null; isDefault: boolean;
   locationSource?: LocationSource; locationAccuracyMetres?: number | null; locationCapturedAt?: string | null;
+  localityId?: string | null;
 };
-type AddressField = 'recipientName' | 'phoneE164' | 'alternatePhoneE164' | 'line1' | 'city' | 'state' | 'pincode' | 'location';
+type LocalityOption = {
+  id: string; name: string; aliases: string[]; city: string; state: string; pincode: string;
+  latitude: number | null; longitude: number | null;
+};
+type AddressField = 'recipientName' | 'phoneE164' | 'alternatePhoneE164' | 'line1' | 'city' | 'state' | 'pincode' | 'locality' | 'location';
 type AddressFieldErrors = Partial<Record<AddressField, string>>;
 const ADDRESS_ICONS: Record<string, React.ElementType> = { home: Home, work: Building };
 
@@ -22,7 +27,7 @@ const emptyDraft = () => ({
   label: 'Home', recipientName: '', phoneE164: '', alternatePhoneE164: '', line1: '', line2: '', landmark: '',
   city: '', state: '', pincode: '', country: 'IN', latitude: null as number | null, longitude: null as number | null,
   locationSource: 'GEOCODED' as LocationSource, locationAccuracyMetres: null as number | null, locationCapturedAt: null as string | null,
-  instructions: '', isDefault: false,
+  instructions: '', isDefault: false, selectedLocalityId: '',
 });
 
 function normalizeIndianPhone(value: string) {
@@ -52,6 +57,53 @@ export default function AddressesPage() {
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
   const [draft, setDraft] = useState(emptyDraft());
+  const [localities, setLocalities] = useState<LocalityOption[]>([]);
+  const [localitiesLoading, setLocalitiesLoading] = useState(false);
+  const [localitiesError, setLocalitiesError] = useState(false);
+
+  const loadLocalities = React.useCallback(async () => {
+    setLocalitiesLoading(true);
+    setLocalitiesError(false);
+    try {
+      const response = await apiClient.get('/localities');
+      setLocalities(Array.isArray(response.data) ? response.data : []);
+    } catch {
+      setLocalitiesError(true);
+    } finally {
+      setLocalitiesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadLocalities(); }, [loadLocalities]);
+
+  const applyLocality = (localityId: string) => {
+    setDraft((d) => ({ ...d, selectedLocalityId: localityId }));
+    const locality = localities.find((entry) => entry.id === localityId);
+    if (!locality) return;
+    setDraft((d) => ({
+      ...d,
+      selectedLocalityId: localityId,
+      city: locality.city,
+      state: locality.state,
+      pincode: locality.pincode,
+      latitude: locality.latitude ?? d.latitude,
+      longitude: locality.longitude ?? d.longitude,
+    }));
+  };
+
+  const filteredLocalities = React.useMemo(() => {
+    const pincodeFilter = /^\d{6}$/.test(draft.pincode.trim()) ? draft.pincode.trim() : null;
+    const cityFilter = draft.city.trim().toLowerCase();
+    const cityOptions: Array<{ city: string; items: LocalityOption[] }> = [];
+    for (const entry of localities) {
+      if (pincodeFilter && entry.pincode !== pincodeFilter) continue;
+      if (cityFilter && !entry.city.toLowerCase().includes(cityFilter)) continue;
+      const group = cityOptions.find((item) => item.city === entry.city);
+      if (group) group.items.push(entry);
+      else cityOptions.push({ city: entry.city, items: [entry] });
+    }
+    return cityOptions;
+  }, [draft.pincode, draft.city, localities]);
 
   const fetchAddresses = async () => {
     try { const res = await apiClient.get('/customer/addresses'); setAddresses(Array.isArray(res.data) ? res.data : []); }
@@ -60,11 +112,25 @@ export default function AddressesPage() {
   };
   useEffect(() => { void fetchAddresses(); }, []);
   useEffect(() => { const handleClick = () => setMenuOpenId(null); if (menuOpenId) { document.addEventListener('click', handleClick); return () => document.removeEventListener('click', handleClick); } }, [menuOpenId]);
+  useEffect(() => {
+    if (!editingId || draft.locationSource !== 'GEOCODED' || draft.selectedLocalityId || localities.length === 0) return;
+    const matchedLocalities = localities.filter((loc) => loc.city.trim().toLowerCase() === draft.city.trim().toLowerCase() && loc.state.trim().toLowerCase() === draft.state.trim().toLowerCase() && loc.pincode === draft.pincode.trim());
+    const matchedLocality = matchedLocalities.length === 1 ? matchedLocalities[0] : undefined;
+    if (matchedLocality) setDraft((current) => ({ ...current, selectedLocalityId: matchedLocality.id }));
+  }, [editingId, localities]);
 
   const resetDraft = () => { setDraft(emptyDraft()); setFieldErrors({}); };
   const clearFieldError = (field: AddressField) => setFieldErrors((current) => ({ ...current, [field]: undefined }));
   const handleEdit = (addr: Address) => {
     setEditingId(addr.id); setFieldErrors({});
+    const matchedLocalityId = addr.localityId || (() => {
+      const matches = localities.filter(
+        (loc) => loc.city.trim().toLowerCase() === addr.city.trim().toLowerCase()
+          && loc.state.trim().toLowerCase() === addr.state.trim().toLowerCase()
+          && loc.pincode === addr.pincode.trim(),
+      );
+      return matches.length === 1 ? matches[0]?.id : undefined;
+    })();
     setDraft({
       label: addr.label || 'Home', recipientName: addr.recipientName, phoneE164: addr.phoneE164,
       alternatePhoneE164: addr.alternatePhoneE164 || '', line1: addr.line1, line2: addr.line2 || '', landmark: addr.landmark || '',
@@ -72,6 +138,7 @@ export default function AddressesPage() {
       locationSource: ['LIVE_GPS', 'MAP_PIN', 'GEOCODED', 'LEGACY_UNKNOWN'].includes(String(addr.locationSource)) ? addr.locationSource! : 'LEGACY_UNKNOWN',
       locationAccuracyMetres: addr.locationAccuracyMetres ?? null, locationCapturedAt: addr.locationCapturedAt ?? null,
       instructions: addr.instructions || '', isDefault: addr.isDefault,
+       selectedLocalityId: matchedLocalityId || '',
     });
     setShowForm(true);
   };
@@ -88,6 +155,13 @@ export default function AddressesPage() {
     if (draft.city.trim().length < 2) next.city = 'City is required.';
     if (draft.state.trim().length < 2) next.state = 'State is required.';
     if (!/^\d{6}$/.test(pincode)) next.pincode = 'A valid 6 digit pincode is required.';
+    if (draft.locationSource === 'GEOCODED') {
+      const selected = localities.find((entry) => entry.id === draft.selectedLocalityId);
+      if (!selected) next.locality = 'Select a serviceable locality for your delivery area.';
+      else if (selected.city.toLowerCase() !== draft.city.trim().toLowerCase()
+        || selected.state.toLowerCase() !== draft.state.trim().toLowerCase()
+        || selected.pincode !== pincode) next.locality = 'Re-select a locality matching the city, state, and pincode.';
+    }
     if ((draft.locationSource === 'LIVE_GPS' || draft.locationSource === 'MAP_PIN')
       && (draft.latitude === null || draft.longitude === null || !Number.isFinite(draft.latitude) || !Number.isFinite(draft.longitude))) {
       next.location = 'Capture current location or choose an exact map point.';
@@ -106,6 +180,7 @@ export default function AddressesPage() {
       line1: draft.line1.trim(), line2: draft.line2.trim() || undefined, landmark: draft.landmark.trim() || undefined,
       city: draft.city.trim(), state: draft.state.trim(), pincode: cleanPincode(draft.pincode), country: 'IN',
       instructions: draft.instructions.trim() || undefined, isDefault: draft.isDefault || addresses.length === 0,
+      localityId: draft.locationSource === 'GEOCODED' ? draft.selectedLocalityId : undefined,
     };
     if (draft.locationSource === 'LIVE_GPS') Object.assign(base, {
       locationSource: 'LIVE_GPS', latitude: draft.latitude, longitude: draft.longitude,
@@ -168,7 +243,43 @@ export default function AddressesPage() {
         {draft.locationSource !== 'GEOCODED' && <StoreLocationPicker apiClient={apiClient} coords={{ lat: draft.latitude, lng: draft.longitude }} onCoordsChange={(lat, lng) => { clearFieldError('location'); setDraft((d) => ({ ...d, latitude: lat, longitude: lng, locationSource: 'MAP_PIN', locationAccuracyMetres: null, locationCapturedAt: null })); }} onAddressChange={(address) => setDraft((d) => ({ ...d, line1: d.line1 || address.address, city: d.city || address.city, state: d.state || address.state, pincode: d.pincode || cleanPincode(address.pincode || '') }))} searchPlaceholder="Search apartment, street, landmark..." />}
         {fieldErrors.location && <p role="alert" className="mt-2 text-xs font-bold text-red-600">{fieldErrors.location}</p>}
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2"><Input label="Label" value={draft.label} onChange={(v) => setDraft((d) => ({ ...d, label: v }))} placeholder="Home, Work, etc" /><Input required label="Recipient Name" value={draft.recipientName} error={fieldErrors.recipientName} onChange={(v) => { clearFieldError('recipientName'); setDraft((d) => ({ ...d, recipientName: v })); }} /><Input required label="Phone" value={draft.phoneE164} error={fieldErrors.phoneE164} onChange={(v) => { clearFieldError('phoneE164'); setDraft((d) => ({ ...d, phoneE164: v })); }} placeholder="9876543210 or +919876543210" /><Input required label="Pincode" value={draft.pincode} error={fieldErrors.pincode} onChange={(v) => { clearFieldError('pincode'); setDraft((d) => ({ ...d, pincode: cleanPincode(v) })); }} /><Input required label="City" value={draft.city} error={fieldErrors.city} onChange={(v) => { clearFieldError('city'); setDraft((d) => ({ ...d, city: v })); }} /><Input required label="State" value={draft.state} error={fieldErrors.state} onChange={(v) => { clearFieldError('state'); setDraft((d) => ({ ...d, state: v })); }} /><Input required label="Address Line 1" value={draft.line1} error={fieldErrors.line1} onChange={(v) => { clearFieldError('line1'); setDraft((d) => ({ ...d, line1: v })); }} className="md:col-span-2" /><Input label="Address Line 2" value={draft.line2} onChange={(v) => setDraft((d) => ({ ...d, line2: v }))} className="md:col-span-2" /><Input label="Landmark" value={draft.landmark} onChange={(v) => setDraft((d) => ({ ...d, landmark: v }))} /><Input label="Instructions" value={draft.instructions} onChange={(v) => setDraft((d) => ({ ...d, instructions: v }))} placeholder="Gate code, floor, etc" /></div>
+      {draft.locationSource === 'GEOCODED' && (
+        <div className="mb-4">
+          <label className={`mb-1.5 block text-xs font-black uppercase tracking-wider ${fieldErrors.locality ? 'text-red-700' : 'text-slate-700'}`}>
+            Locality <span className="ml-1 text-red-600">*</span>
+          </label>
+          {localitiesError && <div className="mb-2 flex items-center justify-between rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700"><span>Could not load serviceable localities.</span><button type="button" onClick={() => void loadLocalities()} className="underline">Retry</button></div>}
+          <select
+            value={draft.selectedLocalityId}
+            onChange={(e) => applyLocality(e.target.value)}
+            disabled={localitiesLoading || localitiesError}
+            aria-invalid={Boolean(fieldErrors.locality)}
+            className={`w-full rounded-xl border bg-white px-4 py-2.5 text-sm text-slate-900 transition-colors focus:outline-none focus:ring-2 ${
+              fieldErrors.locality
+                ? 'border-red-400 bg-red-50/40 focus:border-red-500 focus:ring-red-200'
+                : 'border-slate-200 focus:border-teal-500 focus:ring-teal-500'
+            }`}
+          >
+            <option value="">{localitiesLoading ? 'Loading localities…' : 'Select your locality'}</option>
+            {filteredLocalities.map((group) => (
+              <optgroup key={group.city} label={group.city}>
+                {group.items.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name} — {loc.pincode}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          {fieldErrors.locality && <p role="alert" className="mt-1.5 text-xs font-bold text-red-600">{fieldErrors.locality}</p>}
+          {!fieldErrors.locality && !draft.selectedLocalityId && (
+            <p className="mt-1.5 text-xs font-semibold text-slate-500">
+              Select your locality to auto-fill city, state and pincode.
+            </p>
+          )}
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2"><Input label="Label" value={draft.label} onChange={(v) => setDraft((d) => ({ ...d, label: v }))} placeholder="Home, Work, etc" /><Input required label="Recipient Name" value={draft.recipientName} error={fieldErrors.recipientName} onChange={(v) => { clearFieldError('recipientName'); setDraft((d) => ({ ...d, recipientName: v })); }} /><Input required label="Phone" value={draft.phoneE164} error={fieldErrors.phoneE164} onChange={(v) => { clearFieldError('phoneE164'); setDraft((d) => ({ ...d, phoneE164: v })); }} placeholder="9876543210 or +919876543210" /><Input required label="Pincode" value={draft.pincode} error={fieldErrors.pincode} onChange={(v) => { clearFieldError('pincode'); setDraft((d) => ({ ...d, pincode: cleanPincode(v), selectedLocalityId: '' })); }} /><Input required label="City" value={draft.city} error={fieldErrors.city} onChange={(v) => { clearFieldError('city'); setDraft((d) => ({ ...d, city: v, selectedLocalityId: '' })); }} /><Input required label="State" value={draft.state} error={fieldErrors.state} onChange={(v) => { clearFieldError('state'); setDraft((d) => ({ ...d, state: v, selectedLocalityId: '' })); }} /><Input required label="Address Line 1" value={draft.line1} error={fieldErrors.line1} onChange={(v) => { clearFieldError('line1'); setDraft((d) => ({ ...d, line1: v })); }} className="md:col-span-2" /><Input label="Address Line 2" value={draft.line2} onChange={(v) => setDraft((d) => ({ ...d, line2: v }))} className="md:col-span-2" /><Input label="Landmark" value={draft.landmark} onChange={(v) => setDraft((d) => ({ ...d, landmark: v }))} /><Input label="Instructions" value={draft.instructions} onChange={(v) => setDraft((d) => ({ ...d, instructions: v }))} placeholder="Gate code, floor, etc" /></div>
       <div className="mt-4 flex items-center gap-2"><input type="checkbox" id="isDefault" checked={draft.isDefault} onChange={(e) => setDraft((d) => ({ ...d, isDefault: e.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" /><label htmlFor="isDefault" className="text-sm font-bold text-slate-700">Set as default address</label></div><div className="mt-5 flex gap-3"><button onClick={() => { setShowForm(false); setEditingId(null); resetDraft(); }} className="flex-1 rounded-xl bg-slate-100 px-4 py-2.5 font-black text-slate-700 transition-colors hover:bg-slate-200">Cancel</button><button onClick={saveAddress} disabled={saving} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 font-black text-white transition-colors hover:bg-teal-800 disabled:opacity-50">{saving && <Loader2 className="h-4 w-4 animate-spin" />}{editingId ? 'Update' : 'Save'} Address</button></div></div>}
     {!showForm && addresses.length > 0 && <button onClick={() => { resetDraft(); setShowForm(true); }} className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 py-3.5 font-black text-slate-500 transition-colors hover:border-teal-400 hover:text-teal-600"><Plus className="h-5 w-5" /> Add New Address</button>}
     {deletingId && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"><div className="text-center"><div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-red-100 text-red-600"><Trash2 className="h-6 w-6" /></div><h3 className="mt-3 text-lg font-black text-slate-950">Delete Address?</h3><p className="mt-1 text-sm text-slate-500">This action cannot be undone.</p></div><div className="mt-5 flex gap-3"><button onClick={() => setDeletingId(null)} className="flex-1 rounded-xl bg-slate-100 px-4 py-2.5 font-black text-slate-700 hover:bg-slate-200">Cancel</button><button onClick={() => void deleteAddress()} className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 font-black text-white hover:bg-red-700">Delete</button></div></div></div>}

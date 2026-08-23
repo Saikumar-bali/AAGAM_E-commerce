@@ -47,6 +47,10 @@ type Address = {
   longitude: number;
   instructions?: string | null;
   isDefault: boolean;
+  locationSource?: 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED' | 'LEGACY_UNKNOWN';
+  locationAccuracyMetres?: number | null;
+  locationCapturedAt?: string | null;
+  localityId?: string | null;
 };
 
 type LocalityOption = {
@@ -131,6 +135,9 @@ const emptyDraft = () => ({
   country: 'IN',
   latitude: null as number | null,
   longitude: null as number | null,
+  locationSource: 'GEOCODED' as 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED' | 'LEGACY_UNKNOWN',
+  locationAccuracyMetres: null as number | null,
+  locationCapturedAt: null as string | null,
   instructions: '',
   isDefault: true,
 });
@@ -170,24 +177,23 @@ export default function CheckoutPage() {
   const [defaultMapCenter, setDefaultMapCenter] = useState<{ latitude: number; longitude: number } | null>(null);
   const [localities, setLocalities] = useState<LocalityOption[]>([]);
   const [localitiesLoading, setLocalitiesLoading] = useState(false);
+  const [localitiesError, setLocalitiesError] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState('');
 
-  useEffect(() => {
-    let active = true;
+  const loadLocalities = useCallback(async () => {
     setLocalitiesLoading(true);
-    apiClient
-      .get('/localities')
-      .then((response) => {
-        if (active) setLocalities(Array.isArray(response.data) ? response.data : []);
-      })
-      .catch(() => {
-        // Manual entry still works; the locality picker is an optional convenience.
-      })
-      .finally(() => active && setLocalitiesLoading(false));
-    return () => {
-      active = false;
-    };
+    setLocalitiesError(false);
+    try {
+      const response = await apiClient.get('/localities');
+      setLocalities(Array.isArray(response.data) ? response.data : []);
+    } catch {
+      setLocalitiesError(true);
+    } finally {
+      setLocalitiesLoading(false);
+    }
   }, []);
+
+  useEffect(() => { void loadLocalities(); }, [loadLocalities]);
 
   const applyLocality = useCallback((localityId: string) => {
     setSelectedLocalityId(localityId);
@@ -217,6 +223,13 @@ export default function CheckoutPage() {
     }
     return cityOptions;
   }, [draft.pincode, draft.city, localities]);
+
+  useEffect(() => {
+    if (!editingAddressId || draft.locationSource !== 'GEOCODED' || selectedLocalityId || localities.length === 0) return;
+    const matchedLocalities = localities.filter((entry) => entry.city.trim().toLowerCase() === draft.city.trim().toLowerCase() && entry.state.trim().toLowerCase() === draft.state.trim().toLowerCase() && entry.pincode === draft.pincode.trim());
+    const matchedLocality = matchedLocalities.length === 1 ? matchedLocalities[0] : undefined;
+    if (matchedLocality) setSelectedLocalityId(matchedLocality.id);
+  }, [editingAddressId, localities]);
 
   useEffect(() => {
     let active = true;
@@ -340,8 +353,16 @@ export default function CheckoutPage() {
     };
   }, [appliedCouponCode, itemsPayload, orderId, selectedAddressId]);
 
-  const updateCoordinates = useCallback(async (latitude: number, longitude: number) => {
-    setDraft((current) => ({ ...current, latitude, longitude }));
+  const updateCoordinates = useCallback(async (latitude: number, longitude: number, locationSource: 'LIVE_GPS' | 'MAP_PIN', accuracyMetres?: number) => {
+    setSelectedLocalityId('');
+    setDraft((current) => ({
+      ...current,
+      latitude,
+      longitude,
+      locationSource,
+      locationAccuracyMetres: locationSource === 'LIVE_GPS' ? accuracyMetres ?? null : null,
+      locationCapturedAt: locationSource === 'LIVE_GPS' ? new Date().toISOString() : null,
+    }));
     try {
       const response = await apiClient.get('/geo/reverse', { params: { lat: latitude, lng: longitude } });
       const address = response.data?.address;
@@ -370,7 +391,7 @@ export default function CheckoutPage() {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        void updateCoordinates(position.coords.latitude, position.coords.longitude).finally(() => setLocating(false));
+        void updateCoordinates(position.coords.latitude, position.coords.longitude, 'LIVE_GPS', position.coords.accuracy).finally(() => setLocating(false));
       },
       (cause) => {
         setError(cause.message || 'Failed to get your current location.');
@@ -389,6 +410,7 @@ export default function CheckoutPage() {
 
   const openEditAddress = (address: Address) => {
     setEditingAddressId(address.id);
+    setSelectedLocalityId(address.localityId || (() => { const matches = localities.filter((entry) => entry.city.trim().toLowerCase() === address.city.trim().toLowerCase() && entry.state.trim().toLowerCase() === address.state.trim().toLowerCase() && entry.pincode === address.pincode.trim()); return matches.length === 1 ? matches[0]?.id : ''; })() || '');
     setDraft({
       label: address.label || 'Home',
       recipientName: address.recipientName,
@@ -402,6 +424,9 @@ export default function CheckoutPage() {
       country: address.country,
       latitude: address.latitude,
       longitude: address.longitude,
+       locationSource: ['LIVE_GPS', 'MAP_PIN', 'GEOCODED', 'LEGACY_UNKNOWN'].includes(String(address.locationSource)) ? address.locationSource! : 'GEOCODED',
+      locationAccuracyMetres: address.locationAccuracyMetres ?? null,
+      locationCapturedAt: address.locationCapturedAt ?? null,
       instructions: address.instructions || '',
       isDefault: address.isDefault,
     });
@@ -411,6 +436,11 @@ export default function CheckoutPage() {
   const saveAddress = async () => {
     if (!draft.recipientName.trim() || !draft.phoneE164.trim() || !draft.line1.trim() || !draft.pincode.trim()) {
       toast.warning('Recipient, phone, address line, and pincode are required.');
+      return;
+    }
+    const locality = localities.find((entry) => entry.id === selectedLocalityId);
+    if (draft.locationSource === 'GEOCODED' && (!locality || locality.city.toLowerCase() !== draft.city.trim().toLowerCase() || locality.state.toLowerCase() !== draft.state.trim().toLowerCase() || locality.pincode !== draft.pincode.trim())) {
+      toast.warning('Select a locality matching the city, state, and pincode.');
       return;
     }
     setSavingAddress(true);
@@ -427,7 +457,11 @@ export default function CheckoutPage() {
       latitude: draft.latitude ?? undefined,
       longitude: draft.longitude ?? undefined,
       isDefault: addresses.length === 0 ? true : draft.isDefault,
-    };
+      localityId: draft.locationSource === 'GEOCODED' ? selectedLocalityId : undefined,
+      locationSource: draft.locationSource === 'LEGACY_UNKNOWN' ? undefined : draft.locationSource,
+      locationAccuracyMetres: draft.locationSource === 'LIVE_GPS' ? draft.locationAccuracyMetres ?? undefined : undefined,
+      locationCapturedAt: draft.locationSource === 'LIVE_GPS' ? draft.locationCapturedAt ?? undefined : undefined,
+     };
     try {
       const response = editingAddressId
         ? await apiClient.patch(`/customer/addresses/${editingAddressId}`, payload)
@@ -609,13 +643,13 @@ export default function CheckoutPage() {
                     </button>
                   </div>
                   {draft.latitude != null && draft.longitude != null ? (
-                    <CustomerLocationPicker latitude={draft.latitude} longitude={draft.longitude} onChange={(lat, lng) => void updateCoordinates(lat, lng)} />
+                    <CustomerLocationPicker latitude={draft.latitude} longitude={draft.longitude} onChange={(lat, lng) => void updateCoordinates(lat, lng, 'MAP_PIN')} />
                   ) : (
                     <div className="rounded-2xl border border-dashed border-teal-300 bg-white p-6 text-center">
                       <p className="text-sm font-bold text-slate-500">You can save this address without a map pin — we will place it on the delivery map from the address text.</p>
                       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                         {defaultMapCenter ? (
-                          <button onClick={() => void updateCoordinates(defaultMapCenter.latitude, defaultMapCenter.longitude)} className="flex items-center gap-2 rounded-xl border border-teal-600 px-3 py-2 text-xs font-black text-teal-700">
+                          <button onClick={() => void updateCoordinates(defaultMapCenter.latitude, defaultMapCenter.longitude, 'MAP_PIN')} className="flex items-center gap-2 rounded-xl border border-teal-600 px-3 py-2 text-xs font-black text-teal-700">
                             <MapPin className="h-4 w-4" />Set pin on map
                           </button>
                         ) : null}
@@ -626,13 +660,14 @@ export default function CheckoutPage() {
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="block md:col-span-2">
                       <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">Locality</span>
+                      {localitiesError ? <div className="mb-2 flex items-center justify-between rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700"><span>Could not load serviceable localities.</span><button type="button" onClick={() => void loadLocalities()} className="underline">Retry</button></div> : null}
                       <select
                         value={selectedLocalityId}
                         onChange={(event) => applyLocality(event.target.value)}
-                        disabled={localitiesLoading}
+                        disabled={localitiesLoading || localitiesError}
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-teal-500"
                       >
-                        <option value="">{localitiesLoading ? 'Loading localities…' : 'Select your locality (optional)'}</option>
+                        <option value="">{localitiesLoading ? 'Loading localities…' : 'Select your locality'}</option>
                         {filteredLocalities.map((group) => (
                           <optgroup key={group.city} label={group.city}>
                             {group.items.map((entry) => (
@@ -645,17 +680,17 @@ export default function CheckoutPage() {
                       </select>
                       <span className="mt-1 block text-[11px] font-semibold text-slate-400">
                         {filteredLocalities.length === 0
-                          ? 'No matching serviceable locality. You can still type the address below.'
+                          ? 'No serviceable locality matches this address. Use live location or set a map pin instead.'
                           : 'Pick your village — city, pincode and delivery point are filled automatically.'}
                       </span>
                     </label>
                     <Field label="Label" value={draft.label} onChange={(value) => setDraft((current) => ({ ...current, label: value }))} />
                     <Field label="Recipient name" value={draft.recipientName} onChange={(value) => setDraft((current) => ({ ...current, recipientName: value }))} />
                     <Field label="Phone" value={draft.phoneE164} onChange={(value) => setDraft((current) => ({ ...current, phoneE164: value }))} placeholder="+91XXXXXXXXXX" />
-                    <Field label="Pincode" value={draft.pincode} onChange={(value) => setDraft((current) => ({ ...current, pincode: value }))} />
+                    <Field label="Pincode" value={draft.pincode} onChange={(value) => { setSelectedLocalityId(''); setDraft((current) => ({ ...current, pincode: value })); }} />
                     <Field label="Address line" value={draft.line1} onChange={(value) => setDraft((current) => ({ ...current, line1: value }))} className="md:col-span-2" />
-                    <Field label="City" value={draft.city} onChange={(value) => setDraft((current) => ({ ...current, city: value }))} />
-                    <Field label="State" value={draft.state} onChange={(value) => setDraft((current) => ({ ...current, state: value }))} />
+                    <Field label="City" value={draft.city} onChange={(value) => { setSelectedLocalityId(''); setDraft((current) => ({ ...current, city: value })); }} />
+                    <Field label="State" value={draft.state} onChange={(value) => { setSelectedLocalityId(''); setDraft((current) => ({ ...current, state: value })); }} />
                   </div>
                   <div className="flex gap-3">
                     <button onClick={() => setShowAddressForm(false)} className="rounded-xl bg-white px-4 py-2.5 text-xs font-black text-slate-700">Cancel</button>
