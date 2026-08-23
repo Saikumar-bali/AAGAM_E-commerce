@@ -182,7 +182,7 @@ export class CustomerService {
         evidence: { source: 'LEGACY_UNKNOWN', accuracyMetres: null, capturedAt: null },
       };
     }
-    if (evidence.source === 'GEOCODED' && this.addressTextChanged(dto)) {
+    if (evidence.source === 'GEOCODED' && (this.addressTextChanged(dto) || dto.localityId !== undefined)) {
       return this.resolveNewLocation({ ...merged, locationSource: 'GEOCODED' });
     }
     return {

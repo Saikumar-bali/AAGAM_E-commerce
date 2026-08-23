@@ -10,6 +10,8 @@ describe('Checkout locality contract', () => {
     expect(source).toContain('locationSource: draft.locationSource,');
     expect(source).toContain("updateCoordinates(lat, lng, 'MAP_PIN')");
     expect(source).toContain("address.locationSource === 'LIVE_GPS' || address.locationSource === 'MAP_PIN'");
+    expect(source).toContain('position.coords.accuracy');
+    expect(source).toContain('locationCapturedAt: draft.locationCapturedAt');
   });
 
   test('provides a retry path when locality loading fails', () => {

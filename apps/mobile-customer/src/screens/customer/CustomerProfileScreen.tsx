@@ -548,7 +548,7 @@ export const CustomerProfileScreen = () => {
                 </Text>
               )}
             </View>
-            <Modal visible={localityModalVisible} animationType="slide" transparent>
+            <Modal visible={localityModalVisible} animationType="slide" transparent onRequestClose={() => setLocalityModalVisible(false)}>
               <View style={styles.modalOverlay}>
                 <View style={styles.modalContent}>
                   <View style={styles.modalHeader}>

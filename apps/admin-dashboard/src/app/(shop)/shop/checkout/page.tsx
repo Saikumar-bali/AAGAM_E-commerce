@@ -48,6 +48,8 @@ type Address = {
   instructions?: string | null;
   isDefault: boolean;
   locationSource?: 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED' | 'LEGACY_UNKNOWN';
+  locationAccuracyMetres?: number | null;
+  locationCapturedAt?: string | null;
   localityId?: string | null;
 };
 
@@ -134,6 +136,8 @@ const emptyDraft = () => ({
   latitude: null as number | null,
   longitude: null as number | null,
   locationSource: 'GEOCODED' as 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED',
+  locationAccuracyMetres: null as number | null,
+  locationCapturedAt: null as string | null,
   instructions: '',
   isDefault: true,
 });
@@ -342,9 +346,16 @@ export default function CheckoutPage() {
     };
   }, [appliedCouponCode, itemsPayload, orderId, selectedAddressId]);
 
-  const updateCoordinates = useCallback(async (latitude: number, longitude: number, locationSource: 'LIVE_GPS' | 'MAP_PIN') => {
+  const updateCoordinates = useCallback(async (latitude: number, longitude: number, locationSource: 'LIVE_GPS' | 'MAP_PIN', accuracyMetres?: number) => {
     setSelectedLocalityId('');
-    setDraft((current) => ({ ...current, latitude, longitude, locationSource }));
+    setDraft((current) => ({
+      ...current,
+      latitude,
+      longitude,
+      locationSource,
+      locationAccuracyMetres: locationSource === 'LIVE_GPS' ? accuracyMetres ?? null : null,
+      locationCapturedAt: locationSource === 'LIVE_GPS' ? new Date().toISOString() : null,
+    }));
     try {
       const response = await apiClient.get('/geo/reverse', { params: { lat: latitude, lng: longitude } });
       const address = response.data?.address;
@@ -373,7 +384,7 @@ export default function CheckoutPage() {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        void updateCoordinates(position.coords.latitude, position.coords.longitude, 'LIVE_GPS').finally(() => setLocating(false));
+        void updateCoordinates(position.coords.latitude, position.coords.longitude, 'LIVE_GPS', position.coords.accuracy).finally(() => setLocating(false));
       },
       (cause) => {
         setError(cause.message || 'Failed to get your current location.');
@@ -407,6 +418,8 @@ export default function CheckoutPage() {
       latitude: address.latitude,
       longitude: address.longitude,
       locationSource: address.locationSource === 'LIVE_GPS' || address.locationSource === 'MAP_PIN' ? address.locationSource : 'GEOCODED',
+      locationAccuracyMetres: address.locationAccuracyMetres ?? null,
+      locationCapturedAt: address.locationCapturedAt ?? null,
       instructions: address.instructions || '',
       isDefault: address.isDefault,
     });
@@ -437,8 +450,10 @@ export default function CheckoutPage() {
       latitude: draft.latitude ?? undefined,
       longitude: draft.longitude ?? undefined,
       isDefault: addresses.length === 0 ? true : draft.isDefault,
-      localityId: selectedLocalityId,
-locationSource: draft.locationSource,
+      localityId: draft.locationSource === 'GEOCODED' ? selectedLocalityId : undefined,
+      locationSource: draft.locationSource,
+      locationAccuracyMetres: draft.locationSource === 'LIVE_GPS' ? draft.locationAccuracyMetres ?? undefined : undefined,
+      locationCapturedAt: draft.locationSource === 'LIVE_GPS' ? draft.locationCapturedAt ?? undefined : undefined,
      };
     try {
       const response = editingAddressId
