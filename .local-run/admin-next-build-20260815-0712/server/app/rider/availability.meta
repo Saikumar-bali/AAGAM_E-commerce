@@ -1,0 +1,7 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/(rider)/layout,_N_T_/(rider)/rider/layout,_N_T_/(rider)/rider/availability/layout,_N_T_/(rider)/rider/availability/page,_N_T_/rider/availability"
+  }
+}

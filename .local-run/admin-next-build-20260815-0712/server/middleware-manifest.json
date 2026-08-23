@@ -1,0 +1,100 @@
+{
+  "version": 3,
+  "middleware": {},
+  "functions": {
+    "/(shop)/shop/delivery-code/[deliveryJobId]/page": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/(shop)/shop/delivery-code/[deliveryJobId]/page_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/edge-chunks/917.js",
+        "server/edge-chunks/950.js",
+        "server/app/(shop)/shop/delivery-code/[deliveryJobId]/page.js"
+      ],
+      "name": "app/(shop)/shop/delivery-code/[deliveryJobId]/page",
+      "page": "/(shop)/shop/delivery-code/[deliveryJobId]/page",
+      "matchers": [
+        {
+          "regexp": "^/shop/delivery\\-code/(?<deliveryJobId>[^/]+?)$",
+          "originalSource": "/shop/delivery-code/[deliveryJobId]"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "QDYKPlZwEaloziZ6j9Y7L",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "wGaoMc9Q+qXQEIsx2r+zuif4w0/JdL4wL3gcsClL8oM=",
+        "__NEXT_PREVIEW_MODE_ID": "d30f7ac3680df557d0fb351318643d72",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "d6ddaa1289e424aff76e6314de420afa4a02431974a7f0dea2bdc71e9c62ca1c",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "3ca9a64cf319a6e3486d48e027f7890c9c7e6b0d18ae0f24b85d8e51365d77d8"
+      }
+    },
+    "/(shop)/shop/orders/[id]/page": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/(shop)/shop/orders/[id]/page_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/edge-chunks/917.js",
+        "server/edge-chunks/950.js",
+        "server/app/(shop)/shop/orders/[id]/page.js"
+      ],
+      "name": "app/(shop)/shop/orders/[id]/page",
+      "page": "/(shop)/shop/orders/[id]/page",
+      "matchers": [
+        {
+          "regexp": "^/shop/orders/(?<id>[^/]+?)$",
+          "originalSource": "/shop/orders/[id]"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "QDYKPlZwEaloziZ6j9Y7L",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "wGaoMc9Q+qXQEIsx2r+zuif4w0/JdL4wL3gcsClL8oM=",
+        "__NEXT_PREVIEW_MODE_ID": "d30f7ac3680df557d0fb351318643d72",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "d6ddaa1289e424aff76e6314de420afa4a02431974a7f0dea2bdc71e9c62ca1c",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "3ca9a64cf319a6e3486d48e027f7890c9c7e6b0d18ae0f24b85d8e51365d77d8"
+      }
+    },
+    "/(shop)/shop/products/[id]/page": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/(shop)/shop/products/[id]/page_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/edge-chunks/917.js",
+        "server/edge-chunks/950.js",
+        "server/app/(shop)/shop/products/[id]/page.js"
+      ],
+      "name": "app/(shop)/shop/products/[id]/page",
+      "page": "/(shop)/shop/products/[id]/page",
+      "matchers": [
+        {
+          "regexp": "^/shop/products/(?<id>[^/]+?)$",
+          "originalSource": "/shop/products/[id]"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "QDYKPlZwEaloziZ6j9Y7L",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "wGaoMc9Q+qXQEIsx2r+zuif4w0/JdL4wL3gcsClL8oM=",
+        "__NEXT_PREVIEW_MODE_ID": "d30f7ac3680df557d0fb351318643d72",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "d6ddaa1289e424aff76e6314de420afa4a02431974a7f0dea2bdc71e9c62ca1c",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "3ca9a64cf319a6e3486d48e027f7890c9c7e6b0d18ae0f24b85d8e51365d77d8"
+      }
+    }
+  },
+  "sortedMiddleware": []
+}

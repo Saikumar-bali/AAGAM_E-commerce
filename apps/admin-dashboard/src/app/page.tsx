@@ -4,9 +4,14 @@ import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
+  BadgeCheck,
+  CalendarDays,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   Clock3,
+  HeartHandshake,
+  Leaf,
   MapPin,
   PackageCheck,
   Search,
@@ -19,7 +24,23 @@ import {
 import { apiClient, getProductImage } from '@aagam/utils';
 import { useCart } from '@/hooks/useCart';
 import { formatINR } from '@/lib/currency';
+import { customerAuthHref } from '@/lib/customer-return-path';
 import { normalizePromotionPlacements } from '@/lib/promotion-normalizer';
+
+type Campaign = {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  description?: string | null;
+  badgeText?: string | null;
+  imageUrl?: string | null;
+  mobileImageUrl?: string | null;
+  backgroundColor?: string | null;
+  textColor?: string | null;
+  accentColor?: string | null;
+  ctaLabel?: string | null;
+  targetUrl?: string | null;
+};
 
 const FALLBACK_HERO = {
   badgeText: 'Farm fresh. Locally sourced.',
@@ -49,6 +70,22 @@ const proofStats = [
 
 function moneyFromPaise(value: unknown) {
   return formatINR(Math.max(0, Number(value || 0)) / 100);
+}
+
+function CampaignPicture({ campaign }: { campaign: Campaign }) {
+  if (!campaign.imageUrl && !campaign.mobileImageUrl) return null;
+  return (
+    <picture className="absolute inset-0">
+      {campaign.mobileImageUrl ? (
+        <source media="(max-width: 767px)" srcSet={campaign.mobileImageUrl} />
+      ) : null}
+      <img
+        src={campaign.imageUrl || campaign.mobileImageUrl || ''}
+        alt=""
+        className="h-full w-full object-cover object-center"
+      />
+    </picture>
+  );
 }
 
 function planSavings(plan: any) {

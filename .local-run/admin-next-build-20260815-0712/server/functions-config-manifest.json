@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "functions": {
+    "/shop/delivery-code/[deliveryJobId]": {},
+    "/shop/orders/[id]": {},
+    "/shop/products/[id]": {}
+  }
+}
