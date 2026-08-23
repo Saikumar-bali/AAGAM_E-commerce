@@ -197,7 +197,7 @@ export default function LandingPage() {
             <a href="#categories" className="inline-flex items-center gap-1 hover:text-emerald-300">Categories <ChevronDown className="h-3 w-3" /></a>
             <a href="#subscriptions" className="hover:text-emerald-300">Subscriptions</a>
             <Link href="/shop/deals" className="hover:text-emerald-300">Offers</Link>
-            <Link href="/shop/addresses" className="hover:text-emerald-300">Store Locator</Link>
+            <Link href="/shop" className="hover:text-emerald-300">Store Locator</Link>
             <a href="#about" className="hover:text-emerald-300">About Us</a>
           </nav>
 
@@ -213,7 +213,7 @@ export default function LandingPage() {
             </label>
           </form>
 
-          <Link href="/shop/addresses" className="hidden h-9 items-center gap-2 rounded-lg border border-white/20 px-3 text-[10px] font-bold text-white/90 2xl:flex">
+          <Link href="/shop" className="hidden h-9 items-center gap-2 rounded-lg border border-white/20 px-3 text-[10px] font-bold text-white/90 2xl:flex">
             <MapPin className="h-4 w-4" />
             <span><span className="block text-[8px] font-semibold text-white/55">Delivering to</span>Choose location</span>
             <ChevronDown className="h-3 w-3" />
@@ -248,7 +248,7 @@ export default function LandingPage() {
               <a href="#subscriptions" className="inline-flex h-10 items-center rounded-lg border border-white/45 px-7 text-[11px] font-black text-white backdrop-blur-sm">Explore subscriptions</a>
             </div>
             <div className="mt-5 grid max-w-[535px] grid-cols-3 divide-x divide-white/20 text-white">
-              <div className="flex items-center gap-2 pr-4"><Truck className="h-5 w-5 text-emerald-200" /><span className="text-[9px] font-bold leading-3.5">Free delivery<br />on orders ₹499+</span></div>
+              <div className="flex items-center gap-2 pr-4"><Truck className="h-5 w-5 text-emerald-200" /><span className="text-[9px] font-bold leading-3.5">Free delivery<br />on eligible orders</span></div>
               <div className="flex items-center gap-2 px-4"><MapPin className="h-5 w-5 text-emerald-200" /><span className="text-[9px] font-bold leading-3.5">Delivering in<br />90+ areas</span></div>
               <div className="flex items-center gap-2 pl-4"><ShieldCheck className="h-5 w-5 text-emerald-200" /><span className="text-[9px] font-bold leading-3.5">Best quality<br />always</span></div>
             </div>
@@ -365,7 +365,7 @@ export default function LandingPage() {
             {proofStats.map((stat) => <div key={stat.label} className="text-center"><strong className="block text-[16px] font-black">{stat.value}</strong><span className="mt-0.5 block text-[7px] font-semibold text-slate-500">{stat.label}</span></div>)}
           </div>
           <div className="relative min-h-[94px] overflow-hidden px-6 py-4 lg:px-8">
-            {landingBanner?.imageUrl ? <img src={landingBanner.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
+            {landingBanner ? <CampaignPicture campaign={landingBanner} /> : null}
             <div className="absolute inset-0 bg-gradient-to-r from-[#f7faf8]/95 via-[#f7faf8]/80 to-transparent" />
             <div className="relative max-w-[250px]"><strong className="text-[10px] text-[#087765]">{landingBanner?.title || 'Supporting local farmers'}</strong><p className="mt-1 text-[8px] font-semibold leading-3 text-slate-600">{landingBanner?.subtitle || landingBanner?.description || 'We work directly with farmers to bring you fresh produce and a better tomorrow.'}</p><Link href={landingBanner?.targetUrl || '/shop'} className="mt-2 inline-flex items-center gap-2 text-[8px] font-black text-[#087765]">{landingBanner?.ctaLabel || 'Know more'} <ArrowRight className="h-3 w-3" /></Link></div>
           </div>
@@ -376,9 +376,9 @@ export default function LandingPage() {
         <div className="mx-auto grid max-w-[1448px] gap-7 px-6 py-6 md:grid-cols-2 lg:grid-cols-[1.25fr_.8fr_.8fr_1.2fr_1.1fr] lg:px-10">
           <div><span className="font-serif text-[25px] font-bold tracking-[-0.04em]">Aagaam</span><p className="mt-1 max-w-[190px] text-[8px] font-semibold leading-3 text-white/70">Your trusted neighbourhood partner for fresh groceries and everyday essentials.</p><p className="mt-4 text-[7px] text-white/50">© 2026 Aagaam Retail Pvt. Ltd. All rights reserved.</p></div>
           <div><h3 className="text-[9px] font-black">Shop</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#categories">All Categories</a><Link href="/shop">Fruits & Vegetables</Link><Link href="/shop">Dairy & Eggs</Link><Link href="/shop/deals">Deals</Link><Link href="/shop">Beverages</Link></div></div>
-          <div><h3 className="text-[9px] font-black">Help & Support</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><Link href="/shop/support">FAQs</Link><Link href="/shop/support">Delivery Information</Link><Link href="/shop/support">Returns & Refunds</Link><Link href="/shop/support">Contact Us</Link></div></div>
-          <div><h3 className="text-[9px] font-black">Company</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><Link href="/shop/addresses">Store Locator</Link><Link href="/terms">Terms & Conditions</Link><Link href="/privacy">Privacy Policy</Link></div></div>
-          <div><h3 className="text-[9px] font-black">Offers & updates</h3><p className="mt-1 text-[8px] font-semibold text-white/60">Browse current promotions and savings published through the Aagaam shop.</p><Link href="/shop/deals" className="mt-2 inline-flex h-8 items-center gap-2 rounded-md bg-[#20bfa6] px-4 text-[8px] font-black text-white">View current offers <ArrowRight className="h-3 w-3" /></Link><div className="mt-4 flex flex-wrap items-center gap-3 text-[8px] font-black text-white/70"><span>UPI</span><span>VISA</span><span>Mastercard</span><span>RuPay</span></div></div>
+          <div><h3 className="text-[9px] font-black">Help & Support</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><Link href="/shop/support">Contact Us</Link><Link href="/shop">Browse catalogue</Link><Link href="/shop/deals">Current offers</Link><Link href="/shop/subscriptions">Subscription plans</Link></div></div>
+          <div><h3 className="text-[9px] font-black">Company</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><Link href="/shop">Store Locator</Link><Link href="/terms">Terms & Conditions</Link><Link href="/privacy">Privacy Policy</Link></div></div>
+          <div><h3 className="text-[9px] font-black">Offers & updates</h3><p className="mt-1 text-[8px] font-semibold text-white/60">Browse current promotions and savings published through the Aagaam shop.</p><Link href="/shop/deals" className="mt-2 inline-flex h-8 items-center gap-2 rounded-md bg-[#20bfa6] px-4 text-[8px] font-black text-white">View current offers <ArrowRight className="h-3 w-3" /></Link></div>
         </div>
       </footer>
     </main>
