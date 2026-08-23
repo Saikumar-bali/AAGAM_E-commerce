@@ -133,7 +133,7 @@ test.describe('Public promotions placement rendering', () => {
     });
   });
 
-  test('landing campaigns stay available while the entry route redirects to login', async ({ page, request }) => {
+  test('landing page renders admin-managed LANDING_HERO and LANDING_BANNER campaigns', async ({ page, request }) => {
     const suffix = ts();
     const heroTitle = `PW Hero ${suffix}`;
     const bannerTitle = `PW Banner ${suffix}`;
@@ -151,8 +151,13 @@ test.describe('Public promotions placement rendering', () => {
     expect(feedBody).toContain(bannerTitle);
 
     await page.goto('/');
-    await expect(page).toHaveURL(/\/login(?:\?|$)/);
-    await expect(page.getByText(heroTitle)).toHaveCount(0);
-    await expect(page.getByText(bannerTitle)).toHaveCount(0);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByText(heroTitle).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(bannerTitle).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(bannerTitle).first().locator('xpath=ancestor::a')).toHaveAttribute('href', '/shop/deals');
+    await page.screenshot({
+      path: path.join(PROOF_DIR, '02-public-landing-campaigns.png'),
+      fullPage: true,
+    });
   });
 });
