@@ -13,6 +13,26 @@ export function normalizeAliases(aliases: string[] | undefined): string[] {
   return (aliases ?? []).map((alias) => String(alias).trim()).filter(Boolean);
 }
 
+const STRING_PREFIX_RE = /^string:(.*)/i;
+
+function sanitizeLocality<T extends { state?: string; city?: string; name?: string; pincode?: string }>(
+  row: T,
+): T {
+  if (row.state && STRING_PREFIX_RE.test(row.state)) {
+    row.state = row.state.replace(STRING_PREFIX_RE, '$1');
+  }
+  if (row.city && STRING_PREFIX_RE.test(row.city)) {
+    row.city = row.city.replace(STRING_PREFIX_RE, '$1');
+  }
+  if (row.name && STRING_PREFIX_RE.test(row.name)) {
+    row.name = row.name.replace(STRING_PREFIX_RE, '$1');
+  }
+  if (row.pincode && STRING_PREFIX_RE.test(row.pincode)) {
+    row.pincode = row.pincode.replace(STRING_PREFIX_RE, '$1');
+  }
+  return row;
+}
+
 @Injectable()
 export class LocalitiesService {
   constructor(private readonly geo: GeoService) {}
@@ -32,17 +52,19 @@ export class LocalitiesService {
         { pincode: { contains: token } },
       ];
     }
-    return prisma.serviceableLocality.findMany({
+    const rows = await prisma.serviceableLocality.findMany({
       where,
       orderBy: [{ city: 'asc' }, { sortOrder: 'asc' }, { name: 'asc' }],
     });
+    return rows.map(sanitizeLocality);
   }
 
   async listAll(params: { city?: string }) {
-    return prisma.serviceableLocality.findMany({
+    const rows = await prisma.serviceableLocality.findMany({
       where: params.city?.trim() ? { city: params.city.trim() } : {},
       orderBy: [{ city: 'asc' }, { sortOrder: 'asc' }, { name: 'asc' }],
     });
+    return rows.map(sanitizeLocality);
   }
 
   async create(input: CreateServiceableLocalityDto) {
