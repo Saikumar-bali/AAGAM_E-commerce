@@ -15,6 +15,7 @@ import {
   Store,
   Truck,
   User,
+  ChevronUp,
 } from 'lucide-react';
 import { apiClient, getProductImage } from '@aagam/utils';
 import { useCart } from '@/hooks/useCart';
@@ -78,7 +79,7 @@ function CampaignPicture({ campaign }: { campaign: Campaign }) {
       ) : null}
       <img
         src={campaign.imageUrl || campaign.mobileImageUrl || ''}
-        alt=""
+        alt={campaign.title || 'Promotion'}
         className="h-full w-full object-cover object-center"
       />
     </picture>
@@ -109,6 +110,26 @@ function productUnit(product: any) {
   return product?.category?.name || '';
 }
 
+function SkeletonCard() {
+  return (
+    <div className="flex min-h-[174px] flex-col rounded-[8px] border border-[#e4e9e6] bg-white p-2">
+      <div className="h-[76px] animate-pulse rounded-md bg-slate-100" />
+      <div className="mt-2 h-3 w-3/4 animate-pulse rounded bg-slate-100" />
+      <div className="mt-1 h-2 w-1/2 animate-pulse rounded bg-slate-100" />
+      <div className="mt-2 h-3 w-1/3 animate-pulse rounded bg-slate-100" />
+      <div className="mt-auto pt-2">
+        <div className="h-7 w-full animate-pulse rounded-md bg-slate-100" />
+      </div>
+    </div>
+  );
+}
+
+function SkeletonCategory() {
+  return (
+    <div className="h-[108px] animate-pulse overflow-hidden rounded-[8px] bg-slate-100" />
+  );
+}
+
 export default function LandingPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -117,7 +138,14 @@ export default function LandingPage() {
   const [landingBanner, setLandingBanner] = useState<any>(null);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const { cart, addToCart, updateQuantity, totalItems } = useCart();
+
+  useEffect(() => {
+    const onScroll = () => setShowBackToTop(window.scrollY > 600);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -210,7 +238,7 @@ export default function LandingPage() {
             <a href="#about" className="hover:text-emerald-300">About Us</a>
           </nav>
 
-          <form onSubmit={submitSearch} className="ml-auto hidden min-w-0 flex-1 lg:block lg:max-w-[300px]">
+          <form onSubmit={submitSearch} className="ml-auto hidden min-w-0 flex-1 md:block lg:max-w-[300px]">
             <label className="relative block">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/55" />
               <input
@@ -222,9 +250,9 @@ export default function LandingPage() {
             </label>
           </form>
 
-          <a href="#service-area" className="hidden h-9 items-center gap-2 rounded-lg border border-white/20 px-3 text-[10px] font-bold text-white/90 2xl:flex">
+          <a href="#service-area" className="hidden h-9 items-center gap-2 rounded-lg border border-white/20 px-3 text-[10px] font-bold text-white/90 lg:flex">
             <MapPin className="h-4 w-4" />
-            <span><span className="block text-[8px] font-semibold text-white/55">Delivering to</span>Choose location</span>
+            <span><span className="block text-[10px] font-semibold text-white/55">Delivering to</span>Choose location</span>
             <ChevronDown className="h-3 w-3" />
           </a>
           <Link href="/login" className="hidden items-center gap-1.5 whitespace-nowrap text-[11px] font-bold md:flex"><User className="h-4 w-4" /> Sign in</Link>
@@ -245,14 +273,14 @@ export default function LandingPage() {
         {hero.imageUrl || hero.mobileImageUrl ? (
           <picture className="absolute inset-0">
             {hero.mobileImageUrl ? <source media="(max-width: 767px)" srcSet={hero.mobileImageUrl} /> : null}
-            <img src={hero.imageUrl || hero.mobileImageUrl} alt="" className="h-full w-full object-cover object-center" />
+            <img src={hero.imageUrl || hero.mobileImageUrl} alt={hero.title || 'Aagaam'} className="h-full w-full object-cover object-center" />
           </picture>
         ) : null}
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,47,46,.92)_0%,rgba(3,47,46,.72)_52%,rgba(3,47,46,.90)_100%)] md:bg-[linear-gradient(90deg,rgba(3,47,46,.96)_0%,rgba(3,47,46,.92)_34%,rgba(3,47,46,.30)_58%,rgba(3,47,46,.02)_100%)]" />
-        <div className="relative mx-auto min-h-[520px] max-w-[1448px] px-5 py-7 md:min-h-[302px] lg:px-16">
+        <div className="relative mx-auto min-h-[420px] max-w-[1448px] px-5 py-7 md:min-h-[302px] lg:px-16">
           <div className="max-w-[560px]">
-            {hero.badgeText ? <span className="inline-flex rounded-md border border-emerald-300/30 bg-emerald-400/10 px-2 py-1 text-[9px] font-black text-emerald-200">✓ {hero.badgeText}</span> : null}
-            <h1 className="mt-3 font-serif text-[34px] font-bold leading-[1.01] tracking-[-0.025em] sm:text-[38px] md:text-[48px]">
+            {hero.badgeText ? <span className="inline-flex rounded-md border border-emerald-300/30 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black text-emerald-200">✓ {hero.badgeText}</span> : null}
+            <h1 className="mt-3 font-serif text-[30px] font-bold leading-[1.01] tracking-[-0.025em] sm:text-[38px] md:text-[48px]">
               <span className="block" style={{ color: hero.textColor || '#fff' }}>{hero.title}</span>
               <span className="mt-1 block" style={{ color: hero.accentColor || '#20c9a6' }}>{hero.subtitle}</span>
             </h1>
@@ -266,14 +294,14 @@ export default function LandingPage() {
               <a href="#subscriptions" className="inline-flex h-10 items-center rounded-lg border border-white/45 px-7 text-[11px] font-black text-white backdrop-blur-sm">Explore subscriptions</a>
             </div>
             <div className="mt-5 grid max-w-[535px] grid-cols-3 divide-x divide-white/20 text-white">
-              <div className="flex items-center gap-2 pr-4"><Truck className="h-5 w-5 text-emerald-200" /><span className="text-[9px] font-bold leading-3.5">Free delivery<br />on eligible orders</span></div>
-              <div className="flex items-center gap-2 px-4"><MapPin className="h-5 w-5 text-emerald-200" /><span className="text-[9px] font-bold leading-3.5">Delivering in<br />90+ areas</span></div>
-              <div className="flex items-center gap-2 pl-4"><ShieldCheck className="h-5 w-5 text-emerald-200" /><span className="text-[9px] font-bold leading-3.5">Best quality<br />always</span></div>
+              <div className="flex items-center gap-2 pr-4"><Truck className="h-5 w-5 shrink-0 text-emerald-200" /><span className="text-[10px] font-bold leading-4">Free delivery<br />on eligible orders</span></div>
+              <div className="flex items-center gap-2 px-4"><MapPin className="h-5 w-5 shrink-0 text-emerald-200" /><span className="text-[10px] font-bold leading-4">Delivering in<br />90+ areas</span></div>
+              <div className="flex items-center gap-2 pl-4"><ShieldCheck className="h-5 w-5 shrink-0 text-emerald-200" /><span className="text-[10px] font-bold leading-4">Best quality<br />always</span></div>
             </div>
           </div>
-          <div className="absolute bottom-4 right-6 hidden items-center gap-3 rounded-full border border-white/20 bg-[#173c39]/90 px-4 py-2.5 shadow-xl backdrop-blur-md lg:flex">
+          <div className="absolute bottom-4 right-6 hidden items-center gap-3 rounded-full border border-white/20 bg-[#173c39]/90 px-4 py-2.5 shadow-xl backdrop-blur-md md:flex">
             <span className="grid h-10 w-10 place-items-center rounded-full bg-[#eaf8f3] text-[#087765]"><Truck className="h-5 w-5" /></span>
-            <span><strong className="block text-[10px]">On-time delivery</strong><small className="block text-[8px] text-white/75">Every time, guaranteed.</small></span>
+            <span><strong className="block text-[11px]">On-time delivery</strong><small className="block text-[10px] text-white/75">Every time, guaranteed.</small></span>
             <CheckCircle2 className="h-4 w-4 text-emerald-300" />
           </div>
         </div>
@@ -283,55 +311,64 @@ export default function LandingPage() {
         <section id="categories" className="scroll-mt-28 px-5 pb-2 pt-4 xl:scroll-mt-20 lg:px-16">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[14px] font-black">Shop by category</h2>
-            <a href="#offers" className="inline-flex items-center gap-2 text-[9px] font-black text-[#087765]">Browse catalogue <ArrowRight className="h-3 w-3" /></a>
+            <a href="#offers" className="inline-flex items-center gap-2 text-[10px] font-black text-[#087765]">Browse catalogue <ArrowRight className="h-3 w-3" /></a>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {visibleCategories.map((category) => {
-              const image = categoryImage(category);
-              return (
-                <button key={category.id} type="button" onClick={() => showCategory(category.name)} className="group relative h-[96px] overflow-hidden rounded-[8px] bg-[#e9efe9] text-left shadow-sm">
-                  {image ? <img src={image} alt={category.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" /> : null}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                  <span className="absolute bottom-2 left-3 text-[11px] font-black text-white">{category.name}</span>
-                </button>
-              );
-            })}
+            {loading
+              ? Array.from({ length: 5 }).map((_, i) => <SkeletonCategory key={i} />)
+              : visibleCategories.map((category) => {
+                const image = categoryImage(category);
+                return (
+                  <button key={category.id} type="button" onClick={() => showCategory(category.name)} className="group relative h-[108px] overflow-hidden rounded-[8px] bg-[#e9efe9] text-left shadow-sm transition-shadow hover:shadow-md">
+                    {image ? <img src={image} alt={category.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" /> : null}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                    <span className="absolute bottom-2 left-3 text-[12px] font-black text-white">{category.name}</span>
+                  </button>
+                );
+              })}
             {!visibleCategories.length && !loading ? <p className="col-span-full py-6 text-center text-xs font-semibold text-slate-400">Categories will appear here when the catalogue has published categories.</p> : null}
           </div>
         </section>
 
         <section id="offers" className="scroll-mt-28 px-5 pb-4 pt-2 xl:scroll-mt-20 lg:px-16">
           <div className="mb-2 flex items-center justify-between">
-            <div><span className="text-[8px] font-black uppercase tracking-[0.16em] text-[#078b70]">Public catalogue</span><h2 className="text-[14px] font-black">Today&apos;s offers</h2></div>
-            {normalizedQuery ? <button type="button" onClick={() => setQuery('')} className="text-[9px] font-black text-[#087765]">Clear filter</button> : <span className="text-[9px] font-bold text-slate-500">Add items before signing in</span>}
+            <div><span className="text-[10px] font-black uppercase tracking-[0.16em] text-[#078b70]">Public catalogue</span><h2 className="text-[14px] font-black">Today&apos;s offers</h2></div>
+            {normalizedQuery ? <button type="button" onClick={() => setQuery('')} className="text-[10px] font-black text-[#087765]">Clear filter</button> : <span className="text-[10px] font-bold text-slate-500">Add items before signing in</span>}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {featuredProducts.map((product) => {
-              const qty = qtyById.get(String(product.id)) || 0;
-              const discount = productDiscount(product);
-              const mrp = Number(product?.mrpPaise || 0) / 100;
-              return (
-                <article key={product.id} className="flex min-h-[174px] flex-col rounded-[8px] border border-[#e4e9e6] bg-white p-2 shadow-[0_1px_4px_rgba(20,40,35,.04)]">
-                  <div className="flex h-[76px] items-center justify-center overflow-hidden rounded-md bg-white">
-                    <img src={getProductImage(product)} alt={product.name} className="h-full w-full object-contain transition hover:scale-105" />
-                  </div>
-                  <div className="mt-1 line-clamp-1 text-[10px] font-black text-[#17231f]">{product.name}</div>
-                  <p className="mt-0.5 min-h-[12px] text-[8px] font-semibold text-slate-500">{productUnit(product)}</p>
-                  <div className="mt-1 flex items-center gap-1.5 text-[9px]"><strong className="text-[11px]">{formatINR(Number(product.price || 0))}</strong>{mrp > Number(product.price || 0) ? <span className="text-slate-400 line-through">{formatINR(mrp)}</span> : null}{discount > 0 ? <span className="rounded bg-emerald-50 px-1 py-0.5 text-[7px] font-black text-emerald-700">{discount}% OFF</span> : null}</div>
-                  <div className="mt-auto pt-2">
-                    {qty > 0 ? (
-                      <div className="flex h-7 items-center justify-between rounded-md bg-[#078b70] px-1 text-white">
-                        <button onClick={() => updateQuantity(String(product.id), qty - 1)} className="grid h-6 w-6 place-items-center text-sm font-black">−</button>
-                        <span className="text-[10px] font-black">{qty}</span>
-                        <button onClick={() => updateQuantity(String(product.id), qty + 1)} className="grid h-6 w-6 place-items-center text-sm font-black">+</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => addToCart(product)} className="flex h-7 w-full items-center justify-center gap-1.5 rounded-md bg-[#078b70] text-[8px] font-black text-white transition hover:bg-[#06735f]"><ShoppingBag className="h-3 w-3" /> Add to Cart</button>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
+            {loading
+              ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
+              : featuredProducts.map((product) => {
+                const qty = qtyById.get(String(product.id)) || 0;
+                const discount = productDiscount(product);
+                const mrp = Number(product?.mrpPaise || 0) / 100;
+                return (
+                  <article key={product.id} className="flex min-h-[174px] flex-col rounded-[8px] border border-[#e4e9e6] bg-white p-2 shadow-[0_1px_4px_rgba(20,40,35,.04)]">
+                    <div className="flex h-[76px] items-center justify-center overflow-hidden rounded-md bg-white">
+                      <img
+                        src={getProductImage(product)}
+                        alt={product.name}
+                        className="h-full w-full object-contain transition hover:scale-105"
+                        onError={(e) => { (e.target as HTMLImageElement).src = '/brand/aagam-mark'; }}
+                      />
+                    </div>
+                    <div className="mt-1 line-clamp-1 text-[11px] font-black text-[#17231f]">{product.name}</div>
+                    <p className="mt-0.5 min-h-[14px] text-[10px] font-semibold text-slate-500">{productUnit(product)}</p>
+                    <div className="mt-1 flex items-center gap-1.5 text-[10px]"><strong className="text-[11px]">{formatINR(Number(product.price || 0))}</strong>{mrp > Number(product.price || 0) ? <span className="text-slate-400 line-through">{formatINR(mrp)}</span> : null}{discount > 0 ? <span className="rounded bg-emerald-50 px-1 py-0.5 text-[9px] font-black text-emerald-700">{discount}% OFF</span> : null}</div>
+                    <div className="mt-auto pt-2">
+                      {qty > 0 ? (
+                        <div className="flex h-7 items-center justify-between rounded-md bg-[#078b70] px-1 text-white">
+                          <button onClick={() => updateQuantity(String(product.id), qty - 1)} className="grid h-6 w-6 place-items-center text-sm font-black">−</button>
+                          <span className="text-[10px] font-black">{qty}</span>
+                          <button onClick={() => updateQuantity(String(product.id), qty + 1)} className="grid h-6 w-6 place-items-center text-sm font-black">+</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => addToCart(product)} className="flex h-7 w-full items-center justify-center gap-1.5 rounded-md bg-[#078b70] text-[10px] font-black text-white transition hover:bg-[#06735f]"><ShoppingBag className="h-3 w-3" /> Add to Cart</button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
             {!featuredProducts.length && !loading ? <p className="col-span-full py-8 text-center text-xs font-semibold text-slate-400">Featured products will appear here from the published catalogue.</p> : null}
           </div>
         </section>
@@ -340,14 +377,14 @@ export default function LandingPage() {
           <div className="flex items-start gap-4">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#087765] text-white"><MapPin className="h-6 w-6" /></span>
             <div>
-              <span className="text-[8px] font-black uppercase tracking-[0.18em] text-[#078b70]">Aagaam near you</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#078b70]">Aagaam near you</span>
               <h2 className="mt-1 text-lg font-black">Serving 90+ neighbourhood areas</h2>
               <p className="mt-1 max-w-2xl text-[11px] font-semibold leading-5 text-slate-600">We fulfil from verified local partner stores and match each order to the nearest serviceable location. Browse the public catalogue here; sign in only when you are ready to confirm an address and checkout.</p>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2 lg:mt-0 lg:pl-8">
-            <a href="#categories" className="inline-flex h-10 items-center rounded-xl border border-emerald-200 bg-white px-5 text-[10px] font-black text-[#087765]">Browse areas & categories</a>
-            <Link href="/login" className="inline-flex h-10 items-center rounded-xl bg-[#087765] px-5 text-[10px] font-black text-white">Sign in to check address</Link>
+            <a href="#categories" className="inline-flex h-10 items-center rounded-xl border border-emerald-200 bg-white px-5 text-[11px] font-black text-[#087765]">Browse areas & categories</a>
+            <Link href="/login" className="inline-flex h-10 items-center rounded-xl bg-[#087765] px-5 text-[11px] font-black text-white">Sign in to check address</Link>
           </div>
         </section>
 
@@ -355,21 +392,21 @@ export default function LandingPage() {
           <div className="grid gap-3 lg:grid-cols-[180px_1fr_1fr_1fr]">
             <div className="flex flex-col justify-center px-2">
               <h2 className="text-[16px] font-black">Subscribe & Save</h2>
-              <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-600">Goodness on repeat.<br />Save more with<br />flexible subscriptions.</p>
-              <Link href="/login" className="mt-3 inline-flex items-center gap-2 text-[9px] font-black text-[#087765]">Sign in for all plans <ArrowRight className="h-3 w-3" /></Link>
+              <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-600">Goodness on repeat.<br />Save more with<br />flexible subscriptions.</p>
+              <Link href="/login" className="mt-3 inline-flex items-center gap-2 text-[10px] font-black text-[#087765]">Sign in for all plans <ArrowRight className="h-3 w-3" /></Link>
             </div>
             {visiblePlans.map((plan) => {
               const save = planSavings(plan);
               const image = plan.imageUrl || plan.mobileImageUrl;
               return (
                 <article key={plan.id} className="relative grid min-h-[112px] grid-cols-[105px_1fr] overflow-hidden rounded-[8px] border border-[#e1e6e3] bg-white p-2 shadow-sm">
-                  {save > 0 ? <span className="absolute right-2 top-2 rounded bg-emerald-50 px-1.5 py-0.5 text-[7px] font-black text-emerald-700">Save {save}%</span> : null}
-                  <div className="mr-3 overflow-hidden rounded-md bg-[#eef2ef]">{image ? <img src={image} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center"><PackageCheck className="h-7 w-7 text-emerald-700" /></div>}</div>
+                  {save > 0 ? <span className="absolute right-2 top-2 rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black text-emerald-700">Save {save}%</span> : null}
+                  <div className="mr-3 overflow-hidden rounded-md bg-[#eef2ef]">{image ? <img src={image} alt={plan.name || 'Subscription plan'} className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center"><PackageCheck className="h-7 w-7 text-emerald-700" /></div>}</div>
                   <div className="min-w-0 pr-1">
-                    <h3 className="line-clamp-1 text-[10px] font-black">{plan.name}</h3>
-                    <p className="mt-1 line-clamp-1 text-[8px] font-semibold text-slate-500">{plan.description || `${plan.totalDeliveries || ''} scheduled deliveries`}</p>
-                    <div className="mt-2 flex items-baseline gap-1"><strong className="text-[11px]">{moneyFromPaise(plan.pricePaise)}</strong>{Number(plan.mrpPaise) > Number(plan.pricePaise) ? <span className="text-[8px] text-slate-400 line-through">{moneyFromPaise(plan.mrpPaise)}</span> : null}</div>
-                    <Link href="/login" className="mt-2 inline-flex h-7 items-center rounded-md bg-[#078b70] px-3 text-[8px] font-black text-white">Sign in to subscribe</Link>
+                    <h3 className="line-clamp-1 text-[11px] font-black">{plan.name}</h3>
+                    <p className="mt-1 line-clamp-1 text-[10px] font-semibold text-slate-500">{plan.description || `${plan.totalDeliveries || ''} scheduled deliveries`}</p>
+                    <div className="mt-2 flex items-baseline gap-1"><strong className="text-[11px]">{moneyFromPaise(plan.pricePaise)}</strong>{Number(plan.mrpPaise) > Number(plan.pricePaise) ? <span className="text-[10px] text-slate-400 line-through">{moneyFromPaise(plan.mrpPaise)}</span> : null}</div>
+                    <Link href="/login" className="mt-2 inline-flex h-7 items-center rounded-md bg-[#078b70] px-3 text-[10px] font-black text-white">Sign in to subscribe</Link>
                   </div>
                 </article>
               );
@@ -383,7 +420,7 @@ export default function LandingPage() {
             {trustItems.map((item, index) => (
               <div key={item.title} className={`flex items-center gap-4 ${index ? 'lg:border-l lg:border-white/20 lg:pl-8' : ''}`}>
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10"><item.icon className="h-5 w-5 text-emerald-100" /></span>
-                <span><strong className="block text-[11px]">{item.title}</strong><small className="mt-1 block max-w-[190px] text-[8px] font-semibold leading-3 text-white/75">{item.copy}</small></span>
+                <span><strong className="block text-[11px]">{item.title}</strong><small className="mt-1 block max-w-[190px] text-[10px] font-semibold leading-4 text-white/75">{item.copy}</small></span>
               </div>
             ))}
           </div>
@@ -392,28 +429,39 @@ export default function LandingPage() {
         <section id="about" className="scroll-mt-28 grid min-h-[94px] items-stretch border-b border-[#e4e8e6] bg-[#f7faf8] xl:scroll-mt-20 lg:grid-cols-[1.15fr_1.65fr_1.25fr]">
           <div className="flex items-center gap-3 px-6 py-4 lg:px-12">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#dcefe7] text-[#087765]"><User className="h-5 w-5" /></span>
-            <div><div className="text-[9px] tracking-[0.08em] text-amber-500">★★★★★</div><p className="mt-1 text-[8px] font-semibold leading-3 text-slate-600">“Aagaam never disappoints! Vegetables are always fresh and delivery is super reliable.”</p><strong className="mt-1 block text-[8px] text-[#087765]">— Priya S., Bengaluru</strong></div>
+            <div><div className="text-[11px] tracking-[0.08em] text-amber-500">★★★★★</div><p className="mt-1 text-[11px] font-semibold leading-4 text-slate-600">&ldquo;Aagaam never disappoints! Vegetables are always fresh and delivery is super reliable.&rdquo;</p><strong className="mt-1 block text-[10px] text-[#087765]">— Priya S., Bengaluru</strong></div>
           </div>
           <div className="grid grid-cols-4 items-center border-y border-[#e4e8e6] px-3 py-3 lg:border-x lg:border-y-0">
-            {proofStats.map((stat) => <div key={stat.label} className="text-center"><strong className="block text-[16px] font-black">{stat.value}</strong><span className="mt-0.5 block text-[7px] font-semibold text-slate-500">{stat.label}</span></div>)}
+            {proofStats.map((stat) => <div key={stat.label} className="text-center"><strong className="block text-[16px] font-black">{stat.value}</strong><span className="mt-0.5 block text-[10px] font-semibold text-slate-500">{stat.label}</span></div>)}
           </div>
           <div className="relative min-h-[94px] overflow-hidden px-6 py-4 lg:px-8" style={landingBanner?.backgroundColor ? { backgroundColor: landingBanner.backgroundColor } : undefined}>
             {landingBanner ? <CampaignPicture campaign={landingBanner} /> : null}
             <div className="absolute inset-0 bg-gradient-to-r from-[#f7faf8]/95 via-[#f7faf8]/80 to-transparent" />
-            <div className="relative max-w-[250px]"><strong className="text-[10px]" style={landingBanner?.textColor ? { color: landingBanner.textColor } : { color: '#087765' }}>{landingBanner?.title || 'Supporting local farmers'}</strong><p className="mt-1 text-[8px] font-semibold leading-3 text-slate-600">{landingBanner?.subtitle || landingBanner?.description || 'We work directly with farmers to bring you fresh produce and a better tomorrow.'}</p>{landingBanner?.targetUrl ? <Link href={landingBanner.targetUrl} className="mt-2 inline-flex items-center gap-2 text-[8px] font-black" style={landingBanner?.textColor ? { color: landingBanner.textColor } : { color: '#087765' }}>{landingBanner?.ctaLabel || 'Know more'} <ArrowRight className="h-3 w-3" /></Link> : null}</div>
+            <div className="relative max-w-[250px]"><strong className="text-[11px]" style={landingBanner?.textColor ? { color: landingBanner.textColor } : { color: '#087765' }}>{landingBanner?.title || 'Supporting local farmers'}</strong><p className="mt-1 text-[10px] font-semibold leading-4 text-slate-600">{landingBanner?.subtitle || landingBanner?.description || 'We work directly with farmers to bring you fresh produce and a better tomorrow.'}</p>{landingBanner?.targetUrl ? <Link href={landingBanner.targetUrl} className="mt-2 inline-flex items-center gap-2 text-[10px] font-black" style={landingBanner?.textColor ? { color: landingBanner.textColor } : { color: '#087765' }}>{landingBanner?.ctaLabel || 'Know more'} <ArrowRight className="h-3 w-3" /></Link> : null}</div>
           </div>
         </section>
       </div>
 
       <footer className="bg-[#063b3a] text-white">
         <div className="mx-auto grid max-w-[1448px] gap-7 px-6 py-6 md:grid-cols-2 lg:grid-cols-[1.25fr_.8fr_.8fr_1.2fr_1.1fr] lg:px-10">
-          <div><AagamLogo inverse compact label="Fresh, quality and trust" /><p className="mt-3 max-w-[230px] text-[8px] font-semibold leading-3 text-white/70">Your trusted neighbourhood partner for fresh groceries and everyday essentials.</p><p className="mt-4 text-[7px] text-white/50">© 2026 Aagaam Retail Pvt. Ltd. All rights reserved.</p></div>
-          <div><h3 className="text-[9px] font-black">Shop</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#categories">All Categories</a><a href="#offers">Fruits & Vegetables</a><a href="#offers">Dairy & Eggs</a><a href="#offers">Deals</a><a href="#offers">Beverages</a></div></div>
-          <div><h3 className="text-[9px] font-black">Help & Support</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="tel:+918340064486">Contact Us</a><a href="#offers">Browse catalogue</a><a href="#offers">Current offers</a><a href="#subscriptions">Subscription plans</a></div></div>
-          <div><h3 className="text-[9px] font-black">Company</h3><div className="mt-2 grid gap-1 text-[8px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><a href="#service-area">Store Locator</a><Link href="/terms">Terms & Conditions</Link><Link href="/privacy">Privacy Policy</Link></div></div>
-          <div><h3 className="text-[9px] font-black">Offers & updates</h3><p className="mt-1 text-[8px] font-semibold text-white/60">Browse current promotions and savings directly on this public page.</p><a href="#offers" className="mt-2 inline-flex h-8 items-center gap-2 rounded-md bg-[#20bfa6] px-4 text-[8px] font-black text-white">View current offers <ArrowRight className="h-3 w-3" /></a></div>
+          <div><AagamLogo inverse compact label="Fresh, quality and trust" /><p className="mt-3 max-w-[230px] text-[10px] font-semibold leading-4 text-white/70">Your trusted neighbourhood partner for fresh groceries and everyday essentials.</p><p className="mt-4 text-[10px] text-white/50">&copy; 2026 Aagaam Retail Pvt. Ltd. All rights reserved.</p></div>
+          <div><h3 className="text-[11px] font-black">Shop</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><a href="#categories">All Categories</a><a href="#offers" onClick={(e) => { e.preventDefault(); setQuery('Fruits'); showCategory('Fruits'); }}>Fruits & Vegetables</a><a href="#offers" onClick={(e) => { e.preventDefault(); setQuery('Dairy'); showCategory('Dairy'); }}>Dairy & Eggs</a><a href="#offers" onClick={(e) => { e.preventDefault(); setQuery('Deals'); showCategory('Deals'); }}>Deals</a><a href="#offers" onClick={(e) => { e.preventDefault(); setQuery('Beverages'); showCategory('Beverages'); }}>Beverages</a></div></div>
+          <div><h3 className="text-[11px] font-black">Help & Support</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><a href="tel:+918340064486">Contact Us</a><a href="#offers">Browse catalogue</a><a href="#offers">Current offers</a><a href="#subscriptions">Subscription plans</a></div></div>
+          <div><h3 className="text-[11px] font-black">Company</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><a href="#service-area">Store Locator</a><Link href="/terms">Terms & Conditions</Link><Link href="/privacy">Privacy Policy</Link></div></div>
+          <div><h3 className="text-[11px] font-black">Offers & updates</h3><p className="mt-1 text-[10px] font-semibold text-white/60">Browse current promotions and savings directly on this public page.</p><a href="#offers" className="mt-2 inline-flex h-8 items-center gap-2 rounded-md bg-[#20bfa6] px-4 text-[10px] font-black text-white">View current offers <ArrowRight className="h-3 w-3" /></a></div>
         </div>
       </footer>
+
+      {showBackToTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 right-6 z-50 grid h-10 w-10 place-items-center rounded-full bg-[#087765] text-white shadow-lg transition hover:bg-[#06735f] md:hidden"
+          aria-label="Back to top"
+        >
+          <ChevronUp className="h-5 w-5" />
+        </button>
+      )}
     </main>
   );
 }
