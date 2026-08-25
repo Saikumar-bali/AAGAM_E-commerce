@@ -93,7 +93,7 @@ export default function AddressesPage() {
 
   const filteredLocalities = React.useMemo(() => {
     const pincodeFilter = /^\d{6}$/.test(draft.pincode.trim()) ? draft.pincode.trim() : null;
-    const cityRaw = draft.city.trim();
+    const cityRaw = draft.city.trim().replace(/^string:/i, '');
     const cityFilter = /^\d{6}$/.test(cityRaw) ? '' : cityRaw.toLowerCase();
     const cityOptions: Array<{ city: string; items: LocalityOption[] }> = [];
     for (const entry of localities) {

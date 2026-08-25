@@ -212,7 +212,8 @@ export default function CheckoutPage() {
 
   const filteredLocalities = useMemo(() => {
     const pincodeFilter = /^\d{6}$/.test(draft.pincode.trim()) ? draft.pincode.trim() : null;
-    const cityFilter = draft.city.trim().toLowerCase();
+    const cityRaw = draft.city.trim().replace(/^string:/i, '');
+    const cityFilter = /^\d{6}$/.test(cityRaw) ? '' : cityRaw.toLowerCase();
     const cityOptions: Array<{ city: string; items: LocalityOption[] }> = [];
     for (const entry of localities) {
       if (pincodeFilter && entry.pincode !== pincodeFilter) continue;
