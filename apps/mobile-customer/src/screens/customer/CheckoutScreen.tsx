@@ -58,9 +58,16 @@ export const CheckoutScreen = () => {
     isDefault: true,
   });
   const [addressErrors, setAddressErrors] = useState<CheckoutAddressErrors>({});
+  const [localities, setLocalities] = useState<Array<{ id: string; name: string; pincode: string; city: string; state: string }>>([]);
   const idempotencyKey = useRef(`mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const lastRequestedCoupon = useRef('');
   const itemsPayload = useMemo(() => items.map((item) => ({ productId: item.product.id, quantity: item.quantity })), [items]);
+
+  useEffect(() => {
+    apiClient.get('/localities').then((res) => {
+      if (Array.isArray(res.data)) setLocalities(res.data);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const requested = String(route.params?.couponCode || couponCode || '').trim().toUpperCase();
@@ -159,6 +166,7 @@ export const CheckoutScreen = () => {
     if (addressDraft.city.trim().length < 2) next.city = 'City is required.';
     if (addressDraft.state.trim().length < 2) next.state = 'State is required.';
     if (!/^\d{6}$/.test(addressDraft.pincode.trim())) next.pincode = 'A valid 6 digit pincode is required.';
+    else if (localities.length > 0 && !localities.some((loc) => loc.pincode === addressDraft.pincode.trim())) next.pincode = 'This pincode is not serviceable in your area.';
     const latitude = Number(addressDraft.latitude);
     const longitude = Number(addressDraft.longitude);
     if (!addressDraft.latitude.trim() || !Number.isFinite(latitude) || latitude < -90 || latitude > 90) next.latitude = 'Pin a valid delivery location.';

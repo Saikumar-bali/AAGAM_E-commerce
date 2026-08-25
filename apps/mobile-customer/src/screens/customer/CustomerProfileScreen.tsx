@@ -178,7 +178,8 @@ export const CustomerProfileScreen = () => {
 
   const filteredLocalities = useMemo(() => {
     const pincodeFilter = /^\d{6}$/.test(draft.pincode.trim()) ? draft.pincode.trim() : null;
-    const cityFilter = draft.city.trim().toLowerCase();
+    const cityRaw = draft.city.trim().replace(/^string:/i, '');
+    const cityFilter = /^\d{6}$/.test(cityRaw) ? '' : cityRaw.toLowerCase();
     return localities.filter((entry) => {
       if (pincodeFilter && entry.pincode !== pincodeFilter) return false;
       if (cityFilter && !entry.city.toLowerCase().includes(cityFilter)) return false;
@@ -312,6 +313,7 @@ export const CustomerProfileScreen = () => {
     if (draft.city.trim().length < 2) next.city = 'City is required.';
     if (draft.state.trim().length < 2) next.state = 'State is required.';
     if (!/^\d{6}$/.test(draft.pincode.trim())) next.pincode = 'A valid 6 digit pincode is required.';
+    else if (localities.length > 0 && !localities.some((loc) => loc.pincode === draft.pincode.trim())) next.pincode = 'This pincode is not serviceable in your area.';
     if (draft.locationSource === 'GEOCODED') {
       const locality = localities.find((entry) => entry.id === draft.selectedLocalityId);
       if (!locality) next.locality = 'Select a serviceable locality for your delivery area.';
