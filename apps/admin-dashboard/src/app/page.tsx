@@ -267,6 +267,7 @@ export default function LandingPage() {
           <a href="#offers" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Offers</a>
           <a href="#service-area" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Store Locator</a>
           <a href="#about" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">About Us</a>
+          <Link href="/login" className="ml-auto shrink-0 rounded-full bg-[#20bfa6] px-3 py-2 text-white transition hover:bg-[#24cdb1]">Sign in</Link>
         </nav>
       </header>
 
