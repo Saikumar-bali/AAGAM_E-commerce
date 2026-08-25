@@ -439,6 +439,11 @@ export default function CheckoutPage() {
       toast.warning('Recipient, phone, address line, and pincode are required.');
       return;
     }
+    const pincodeClean = draft.pincode.trim().replace(/\D/g, '');
+    if (/^\d{6}$/.test(pincodeClean) && localities.length > 0 && !localities.some((loc) => loc.pincode === pincodeClean)) {
+      toast.warning('This pincode is not serviceable in your area.');
+      return;
+    }
     const locality = localities.find((entry) => entry.id === selectedLocalityId);
     if (draft.locationSource === 'GEOCODED' && (!locality || locality.city.toLowerCase() !== draft.city.trim().toLowerCase() || locality.state.toLowerCase() !== draft.state.trim().toLowerCase() || locality.pincode !== draft.pincode.trim())) {
       toast.warning('Select a locality matching the city, state, and pincode.');

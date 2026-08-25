@@ -156,6 +156,7 @@ export default function AddressesPage() {
     if (draft.city.trim().length < 2) next.city = 'City is required.';
     if (draft.state.trim().length < 2) next.state = 'State is required.';
     if (!/^\d{6}$/.test(pincode)) next.pincode = 'A valid 6 digit pincode is required.';
+    else if (localities.length > 0 && !localities.some((loc) => loc.pincode === pincode)) next.pincode = 'This pincode is not serviceable in your area.';
     if (draft.locationSource === 'GEOCODED') {
       const selected = localities.find((entry) => entry.id === draft.selectedLocalityId);
       if (!selected) next.locality = 'Select a serviceable locality for your delivery area.';
