@@ -55,8 +55,10 @@ export default function ProductCard({ product, qty, onAdd, onIncrement, onDecrem
       <div className="flex flex-1 flex-col p-3">
         {disabled ? <div className="block cursor-not-allowed">{title}</div> : <Link href={`/shop/products/${product.id}`} className="block">{title}</Link>}
 
-        {product.description && (
-          <p className="mt-1 text-[11px] font-semibold text-slate-400 line-clamp-1">{product.description}</p>
+        {product.description ? (
+          <p className="mt-1 min-h-[14px] text-[11px] font-semibold text-slate-400 line-clamp-1">{product.description}</p>
+        ) : (
+          <p className="mt-1 min-h-[14px]" />
         )}
 
         {disabled && <p className="mt-2 text-[11px] font-black uppercase tracking-wider text-red-500">Currently unavailable</p>}
@@ -64,7 +66,13 @@ export default function ProductCard({ product, qty, onAdd, onIncrement, onDecrem
         <div className="mt-auto pt-3">
           <div className="flex items-end justify-between gap-1.5">
             <div className="min-w-0">
-              <div className={`inline-flex rounded-xl px-2 py-1 text-sm font-black sm:text-base ${disabled ? 'bg-slate-100 text-slate-400' : 'bg-emerald-700 text-white'}`}>{formatINR(price)}</div>{discount > 0 ? <div className="mt-1 flex flex-wrap items-center gap-1 text-[9px] font-bold sm:text-[10px]"><span className="text-slate-500">MRP</span><span className="text-slate-500 line-through">{formatINR(mrp)}</span><span className="text-emerald-700">{formatINR(discount)} OFF</span></div> : null}
+              <div className={`inline-flex rounded-xl px-2 py-1 text-sm font-black sm:text-base ${disabled ? 'bg-slate-100 text-slate-400' : 'bg-emerald-700 text-white'}`}>{formatINR(price)}</div>
+              {discount > 0 ? (
+                <div className="mt-1 flex items-center gap-1 whitespace-nowrap text-[9px] font-bold sm:text-[10px]">
+                  <span className="text-slate-400 line-through">{formatINR(mrp)}</span>
+                  <span className="rounded bg-emerald-50 px-1 py-px text-[8px] font-black text-emerald-700 sm:text-[9px]">{Math.round((discount / mrp) * 100)}% off</span>
+                </div>
+              ) : null}
             </div>
 
             <div className="flex items-center gap-1 sm:gap-1.5">
