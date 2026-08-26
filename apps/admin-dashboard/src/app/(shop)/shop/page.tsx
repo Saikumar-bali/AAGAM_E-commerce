@@ -14,7 +14,7 @@ import type { PromotionPlacements } from '@/components/customer/promotion-types'
 import ProductCard from '@/components/customer/ProductCard';
 import CartSheet from '@/components/customer/CartSheet';
 import EmptyState from '@/components/customer/EmptyState';
-import { Package, SlidersHorizontal, ArrowRight, CalendarDays } from 'lucide-react';
+import { Package, SlidersHorizontal, ArrowRight, CalendarDays, ShoppingCart } from 'lucide-react';
 import SubscriptionPlanCard from '@/components/subscriptions/SubscriptionPlanCard';
 
 const emptyPlacements = (): PromotionPlacements => ({
@@ -353,23 +353,35 @@ export default function ShopPage() {
           )}
 
           {totalItems > 0 && (
-            <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 px-4 md:mx-auto md:max-w-7xl md:px-0">
-              <div className="pointer-events-auto flex items-center justify-between rounded-2xl bg-slate-950 px-5 py-3.5 shadow-2xl shadow-slate-950/30">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-black text-white">
-                    <Package className="h-3.5 w-3.5" />
-                    {totalItems} item{totalItems !== 1 ? 's' : ''}
+            <>
+              <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 hidden px-4 md:mx-auto md:block md:max-w-7xl md:px-0">
+                <div className="pointer-events-auto flex items-center justify-between rounded-2xl bg-slate-950 px-5 py-3.5 shadow-2xl shadow-slate-950/30">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-black text-white">
+                      <Package className="h-3.5 w-3.5" />
+                      {totalItems} item{totalItems !== 1 ? 's' : ''}
+                    </div>
+                    <span className="text-lg font-black text-white">₹{totalPrice.toFixed(0)}</span>
                   </div>
-                  <span className="text-lg font-black text-white">₹{totalPrice.toFixed(0)}</span>
+                  <button
+                    onClick={() => router.push('/shop/checkout')}
+                    className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-teal-900/20 transition-all hover:-translate-y-0.5 hover:bg-teal-500"
+                  >
+                    Checkout →
+                  </button>
                 </div>
-                <button
-                  onClick={() => router.push('/shop/checkout')}
-                  className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-teal-900/20 transition-all hover:-translate-y-0.5 hover:bg-teal-500"
-                >
-                  Checkout →
-                </button>
               </div>
-            </div>
+              <button
+                onClick={() => router.push('/shop/checkout')}
+                className="fixed bottom-20 right-4 z-40 flex items-center gap-2 rounded-full bg-teal-600 px-4 py-3 text-xs font-black text-white shadow-xl shadow-teal-900/30 transition-all hover:-translate-y-0.5 hover:bg-teal-500 md:hidden"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                <span>{totalItems}</span>
+                <span className="text-white/80">|</span>
+                <span>₹{totalPrice.toFixed(0)}</span>
+                <span className="text-white/80">→</span>
+              </button>
+            </>
           )}
         </div>
       </CustomerShell>
