@@ -61,52 +61,54 @@ export default function ProductCard({ product, qty, onAdd, onIncrement, onDecrem
 
         {disabled && <p className="mt-2 text-[11px] font-black uppercase tracking-wider text-red-500">Currently unavailable</p>}
 
-        <div className="mt-auto pt-3 flex items-end justify-between gap-2">
-          <div>
-            <div className={`inline-flex rounded-xl px-2.5 py-1 text-base font-black ${disabled ? 'bg-slate-100 text-slate-400' : 'bg-emerald-700 text-white'}`}>{formatINR(price)}</div>{discount > 0 ? <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] font-bold"><span className="text-slate-500">MRP</span><span className="text-slate-500 line-through">{formatINR(mrp)}</span><span className="text-emerald-700">{formatINR(discount)} OFF</span></div> : null}
-          </div>
+        <div className="mt-auto pt-3">
+          <div className="flex items-end justify-between gap-1.5">
+            <div className="min-w-0">
+              <div className={`inline-flex rounded-xl px-2 py-1 text-sm font-black sm:text-base ${disabled ? 'bg-slate-100 text-slate-400' : 'bg-emerald-700 text-white'}`}>{formatINR(price)}</div>{discount > 0 ? <div className="mt-1 flex flex-wrap items-center gap-1 text-[9px] font-bold sm:text-[10px]"><span className="text-slate-500">MRP</span><span className="text-slate-500 line-through">{formatINR(mrp)}</span><span className="text-emerald-700">{formatINR(discount)} OFF</span></div> : null}
+            </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleWish(); }}
-              className={`grid h-8 w-8 place-items-center rounded-lg border transition-all ${
-                wished
-                  ? 'border-rose-200 bg-rose-50 text-rose-500'
-                  : 'border-slate-200 bg-white text-slate-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-400'
-              }`}
-              aria-label="Toggle wishlist"
-            >
-              <Heart className={`h-3.5 w-3.5 ${wished ? 'fill-current' : ''}`} />
-            </button>
-
-            {qty > 0 ? (
-              <div className="inline-flex items-center rounded-xl border border-teal-200 bg-teal-50">
-                <button
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDecrement(); }}
-                  className="h-8 w-8 grid place-items-center text-teal-800 hover:bg-teal-100 rounded-l-xl transition-colors"
-                  aria-label="Decrease quantity"
-                >
-                  <Minus className="h-3.5 w-3.5" />
-                </button>
-                <span className="w-7 text-center text-xs font-black text-teal-900">{qty}</span>
-                <button
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onIncrement(); }}
-                  className="h-8 w-8 grid place-items-center text-teal-800 hover:bg-teal-100 rounded-r-xl transition-colors"
-                  aria-label="Increase quantity"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ) : (
+            <div className="flex items-center gap-1 sm:gap-1.5">
               <button
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (!disabled) onAdd(); }}
-                disabled={disabled}
-                className="inline-flex items-center gap-1 rounded-xl bg-teal-700 px-3.5 py-2 text-xs font-black text-white shadow-sm transition-all hover:bg-teal-800 hover:shadow-md disabled:bg-slate-300 disabled:cursor-not-allowed"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleWish(); }}
+                className={`grid h-7 w-7 place-items-center rounded-lg border transition-all sm:h-8 sm:w-8 ${
+                  wished
+                    ? 'border-rose-200 bg-rose-50 text-rose-500'
+                    : 'border-slate-200 bg-white text-slate-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-400'
+                }`}
+                aria-label="Toggle wishlist"
               >
-                <Plus className="h-3 w-3" />
-                {disabled ? 'N/A' : 'ADD'}
+                <Heart className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${wished ? 'fill-current' : ''}`} />
               </button>
-            )}
+
+              {qty > 0 ? (
+                <div className="inline-flex items-center rounded-xl border border-teal-200 bg-teal-50">
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDecrement(); }}
+                    className="h-7 w-7 grid place-items-center text-teal-800 hover:bg-teal-100 rounded-l-xl transition-colors sm:h-8 sm:w-8"
+                    aria-label="Decrease quantity"
+                  >
+                    <Minus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  </button>
+                  <span className="w-5 text-center text-[10px] font-black text-teal-900 sm:w-7 sm:text-xs">{qty}</span>
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onIncrement(); }}
+                    className="h-7 w-7 grid place-items-center text-teal-800 hover:bg-teal-100 rounded-r-xl transition-colors sm:h-8 sm:w-8"
+                    aria-label="Increase quantity"
+                  >
+                    <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (!disabled) onAdd(); }}
+                  disabled={disabled}
+                  className="inline-flex items-center gap-0.5 rounded-xl bg-teal-700 px-2.5 py-1.5 text-[10px] font-black text-white shadow-sm transition-all hover:bg-teal-800 hover:shadow-md disabled:bg-slate-300 disabled:cursor-not-allowed sm:gap-1 sm:px-3.5 sm:py-2 sm:text-xs"
+                >
+                  <Plus className="h-3 w-3" />
+                  {disabled ? 'N/A' : 'ADD'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

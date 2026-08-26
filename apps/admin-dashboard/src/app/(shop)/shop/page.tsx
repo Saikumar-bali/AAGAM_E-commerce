@@ -373,7 +373,7 @@ export default function ShopPage() {
               </div>
               <button
                 onClick={() => router.push('/shop/checkout')}
-                className="fixed bottom-20 right-4 z-40 flex items-center gap-2 rounded-full bg-teal-600 px-4 py-3 text-xs font-black text-white shadow-xl shadow-teal-900/30 transition-all hover:-translate-y-0.5 hover:bg-teal-500 md:hidden"
+                className="fixed bottom-24 right-4 z-50 flex items-center gap-2 rounded-full bg-teal-600 px-4 py-3 text-xs font-black text-white shadow-xl shadow-teal-900/30 transition-all hover:-translate-y-0.5 hover:bg-teal-500 md:hidden"
               >
                 <ShoppingCart className="h-4 w-4" />
                 <span>{totalItems}</span>
