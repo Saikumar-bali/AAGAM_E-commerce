@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { API_URL } from '@env';
 import { useAuthStore } from '../store/authStore';
 
-const SOCKET_URL = (API_URL || 'https://aagam.accesscam.org/api')
+const SOCKET_URL = (API_URL || 'https://aagaam.in/api')
   .replace(/\/+$/, '')
   .replace(/\/api$/, '');
 

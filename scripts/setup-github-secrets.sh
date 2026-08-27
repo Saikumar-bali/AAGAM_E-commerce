@@ -22,7 +22,7 @@ echo ""
 
 # ---- Shared Variables (non-sensitive) ----
 echo "Setting variables..."
-gh variable set API_URL --repo "$REPO" --body "https://aagam.accesscam.org/api"
+gh variable set API_URL --repo "$REPO" --body "https://aagaam.in/api"
 
 # ---- Shared Secret: Mobile Web client ID (from google-services.json type 3) ----
 echo "Setting GOOGLE_WEB_CLIENT_ID..."

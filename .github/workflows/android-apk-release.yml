@@ -106,7 +106,7 @@ jobs:
     if: needs.changes.outputs.customer == 'true'
     runs-on: ubuntu-latest
     env:
-      API_URL: ${{ vars.API_URL || 'https://aagam.accesscam.org/api' }}
+      API_URL: ${{ vars.API_URL || 'https://aagaam.in/api' }}
       GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID || secrets.GOOGLE_WEB_CLIENT_ID }}
       GOOGLE_ANDROID_CLIENT_ID: ${{ vars.GOOGLE_ANDROID_CLIENT_ID_CUSTOMER || secrets.GOOGLE_ANDROID_CLIENT_ID_CUSTOMER }}
       GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON_CUSTOMER }}
@@ -188,7 +188,7 @@ jobs:
     if: needs.changes.outputs.partners == 'true'
     runs-on: ubuntu-latest
     env:
-      API_URL: ${{ vars.API_URL || 'https://aagam.accesscam.org/api' }}
+      API_URL: ${{ vars.API_URL || 'https://aagaam.in/api' }}
       GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID || secrets.GOOGLE_WEB_CLIENT_ID }}
       GOOGLE_ANDROID_CLIENT_ID: ${{ vars.GOOGLE_ANDROID_CLIENT_ID_PARTNERS || secrets.GOOGLE_ANDROID_CLIENT_ID_PARTNERS }}
       GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON_PARTNERS }}
@@ -281,7 +281,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          API_URL: ${{ vars.API_URL || 'https://aagam.accesscam.org/api' }}
+          API_URL: ${{ vars.API_URL || 'https://aagaam.in/api' }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
