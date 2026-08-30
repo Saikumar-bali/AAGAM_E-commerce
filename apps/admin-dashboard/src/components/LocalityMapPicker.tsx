@@ -60,9 +60,11 @@ export default function LocalityMapPicker({
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const centerCbRef = useRef(onCenterChange);
   const radiusCbRef = useRef(onRadiusChange);
+  const radiusRef = useRef(radius);
 
   useEffect(() => { centerCbRef.current = onCenterChange; }, [onCenterChange]);
   useEffect(() => { radiusCbRef.current = onRadiusChange; }, [onRadiusChange]);
+  useEffect(() => { radiusRef.current = radius; }, [radius]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -84,7 +86,8 @@ export default function LocalityMapPicker({
     const marker = new mapboxgl.Marker({ element: el, draggable: true }).setLngLat(center).addTo(map);
 
     map.on('load', () => {
-      const circleData = createCircleGeoJSON(center, radius);
+      const currentCenter: [number, number] = [marker.getLngLat().lng, marker.getLngLat().lat];
+      const circleData = createCircleGeoJSON(currentCenter, radiusRef.current);
       map.addSource('radius', { type: 'geojson', data: circleData as any });
       map.addLayer({ id: 'radius-fill', type: 'fill', source: 'radius', paint: { 'fill-color': '#0d9488', 'fill-opacity': 0.12 } });
       map.addLayer({ id: 'radius-line', type: 'line', source: 'radius', paint: { 'line-color': '#0d9488', 'line-width': 2 } });
@@ -92,7 +95,7 @@ export default function LocalityMapPicker({
       map.on('click', (e) => {
         const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
         marker.setLngLat(lngLat);
-        const newData = createCircleGeoJSON(lngLat, radius);
+        const newData = createCircleGeoJSON(lngLat, radiusRef.current);
         (map.getSource('radius') as mapboxgl.GeoJSONSource)?.setData(newData as any);
         centerCbRef.current(
           Math.round(e.lngLat.lat * 1e7) / 1e7,
@@ -103,7 +106,7 @@ export default function LocalityMapPicker({
       marker.on('dragend', () => {
         const lngLat = marker.getLngLat();
         const newCenter: [number, number] = [lngLat.lng, lngLat.lat];
-        const newData = createCircleGeoJSON(newCenter, radius);
+        const newData = createCircleGeoJSON(newCenter, radiusRef.current);
         (map.getSource('radius') as mapboxgl.GeoJSONSource)?.setData(newData as any);
         centerCbRef.current(
           Math.round(lngLat.lat * 1e7) / 1e7,

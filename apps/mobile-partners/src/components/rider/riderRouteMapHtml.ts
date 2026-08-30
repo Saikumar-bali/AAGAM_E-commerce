@@ -15,15 +15,21 @@ mapboxgl.accessToken = '${MAPBOX_TOKEN}';
 const destination = [${destination.longitude}, ${destination.latitude}];
 const destLatLng = [${destination.latitude}, ${destination.longitude}];
 const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/streets-v12', center: destination, zoom: 15, attributionControl: true });
-const destPopup = new mapboxgl.Popup({ offset: 16 }).setText(${JSON.stringify(escapeForHtml(label))});
+const destPopup = new mapboxgl.Popup({ offset: 16 }).setText(${JSON.stringify(label)});
 new mapboxgl.Marker({ color: '#E74C3C' }).setLngLat(destination).setPopup(destPopup).addTo(map);
-let riderMarker=null; let routeSourceAdded=false;
+let riderMarker=null; let routeSourceAdded=false; let mapLoaded=false; let pendingLocation=null;
 function ensureRoute(point, dest) {
+  if (!mapLoaded || !map.isStyleLoaded()) {
+    pendingLocation = { point: point, dest: dest };
+    return;
+  }
   const geojson = { type: 'Feature', geometry: { type: 'LineString', coordinates: [point, dest] } };
   if (!routeSourceAdded) {
-    map.addSource('rider-route', { type: 'geojson', data: geojson });
-    map.addLayer({ id: 'rider-route-line', type: 'line', source: 'rider-route', paint: { 'line-color': '#008c68', 'line-width': 5, 'line-opacity': 0.85, 'line-dasharray': [1, 2] } });
-    routeSourceAdded = true;
+    try {
+      map.addSource('rider-route', { type: 'geojson', data: geojson });
+      map.addLayer({ id: 'rider-route-line', type: 'line', source: 'rider-route', paint: { 'line-color': '#008c68', 'line-width': 5, 'line-opacity': 0.85, 'line-dasharray': [1, 2] } });
+      routeSourceAdded = true;
+    } catch(e) { pendingLocation = { point: point, dest: dest }; }
   } else {
     const src = map.getSource('rider-route');
     if (src) src.setData(geojson);
@@ -36,7 +42,10 @@ function removeRoute() {
 }
 window.setRiderLocation=function(lat,lng){
   const point=[lng,lat];
-  const latLng=[lat,lng];
+  if(!mapLoaded || !map.isStyleLoaded()){
+    pendingLocation={ lat: lat, lng: lng };
+    // still create marker visually if possible, but defer route
+  }
   if(!riderMarker){
     const el=document.createElement('div');
     el.className='rider-dot';
@@ -46,11 +55,12 @@ window.setRiderLocation=function(lat,lng){
   const bounds=new mapboxgl.LngLatBounds();
   bounds.extend(point);
   bounds.extend(destination);
-  map.fitBounds(bounds,{padding:32,maxZoom:16});
+  try { map.fitBounds(bounds,{padding:32,maxZoom:16}); } catch(e) {}
 };
 window.clearRiderLocation=function(){
   if(riderMarker){ riderMarker.remove(); riderMarker=null; }
   if(routeSourceAdded) removeRoute();
+  pendingLocation=null;
 };
-map.on('load', function(){ map.resize(); });
+map.on('load', function(){ mapLoaded=true; map.resize(); if(pendingLocation && pendingLocation.lat !== undefined){ const p=[pendingLocation.lng, pendingLocation.lat]; ensureRoute(p, destination); const b=new mapboxgl.LngLatBounds(); b.extend(p); b.extend(destination); try{ map.fitBounds(b,{padding:32,maxZoom:16}); }catch(e){} pendingLocation=null; } });
 </script></body></html>`;

@@ -9,13 +9,19 @@ if (typeof window !== 'undefined' && MAPBOX_TOKEN) {
   mapboxgl.accessToken = MAPBOX_TOKEN;
 }
 
-function createRiderElement(bearing: number = 0): HTMLElement {
+function createRiderElement(): HTMLElement {
   const el = document.createElement('div');
   el.style.width = '32px';
   el.style.height = '32px';
-  el.style.transform = `rotate(${bearing}deg)`;
-  el.style.transition = 'transform 0.3s ease';
-  el.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#10B981" stroke="white" stroke-width="2"/><path d="M12 6L16 16L12 14L8 16L12 6Z" fill="white"/></svg>`;
+  el.style.display = 'flex';
+  el.style.alignItems = 'center';
+  el.style.justifyContent = 'center';
+  // Use inner wrapper for any CSS transforms so Mapbox can manage root transform (rotation)
+  const inner = document.createElement('div');
+  inner.style.width = '32px';
+  inner.style.height = '32px';
+  inner.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#10B981" stroke="white" stroke-width="2"/><path d="M12 6L16 16L12 14L8 16L12 6Z" fill="white"/></svg>`;
+  el.appendChild(inner);
   return el;
 }
 
@@ -169,9 +175,9 @@ export default function LiveTrackingMap({
 
       riders.forEach((rider) => {
         if (!hasCoordinate(rider.longitude) || !hasCoordinate(rider.latitude)) return;
-        const el = createRiderElement(rider.bearing || 0);
+        const el = createRiderElement();
         const popup = new mapboxgl.Popup({ offset: 16 }).setDOMContent(popupContent(rider.user?.name || 'Rider', [{ label: 'Status', value: rider.status }]));
-        new mapboxgl.Marker({ element: el }).setLngLat([rider.longitude!, rider.latitude!]).setPopup(popup).addTo(map);
+        new mapboxgl.Marker({ element: el, rotation: rider.bearing || 0, rotationAlignment: 'map' }).setLngLat([rider.longitude!, rider.latitude!]).setPopup(popup).addTo(map);
       });
 
       orders.forEach((order) => {
