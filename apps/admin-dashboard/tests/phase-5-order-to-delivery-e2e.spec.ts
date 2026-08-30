@@ -98,7 +98,7 @@ test.describe('Phase 5 E2E: Order-to-Delivery Workflow (UI state verification ov
     await page.waitForTimeout(3000);
 
     await expect(page.getByRole('heading', { name: 'Live Tracking' })).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.leaflet-container').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.mapboxgl-map').first()).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('button', { name: 'All Active' })).toBeVisible({ timeout: 10000 });
 
     await waitForStyles(page);

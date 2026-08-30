@@ -1,15 +1,22 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import L, { type Map as LeafletMap, type Marker as LeafletMarker } from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 
-const pinIcon = L.divIcon({
-  className: 'aagam-address-pin',
-  html: '<div style="width:36px;height:36px;border-radius:18px 18px 18px 4px;transform:rotate(-45deg);background:#0f766e;border:4px solid white;box-shadow:0 8px 24px rgba(15,23,42,.25)"><div style="width:10px;height:10px;border-radius:50%;background:white;margin:9px"></div></div>',
-  iconSize: [36, 36],
-  iconAnchor: [18, 34],
-});
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1Ijoic2Fpa3VtY3VtdYXiYIwiYSI6ImNtdD1ON3F5ZzBmYjgd3NodWE1a2hzZG4ifQ.4puZMTpkr6k1P9BPQreYdw';
+if (typeof window !== 'undefined' && MAPBOX_TOKEN) {
+  mapboxgl.accessToken = MAPBOX_TOKEN;
+}
+
+function createPinElement(): HTMLElement {
+  const el = document.createElement('div');
+  el.style.width = '36px';
+  el.style.height = '36px';
+  el.style.cursor = 'grab';
+  el.innerHTML = '<div style="width:36px;height:36px;border-radius:18px 18px 18px 4px;transform:rotate(-45deg);background:#0f766e;border:4px solid white;box-shadow:0 8px 24px rgba(15,23,42,.25);display:flex;align-items:center;justify-content:center"><div style="width:10px;height:10px;border-radius:50%;background:white;margin:9px;transform:rotate(45deg)"></div></div>';
+  return el;
+}
 
 type Props = {
   latitude: number;
@@ -19,8 +26,8 @@ type Props = {
 
 export default function CustomerLocationPicker({ latitude, longitude, onChange }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<LeafletMap | null>(null);
-  const markerRef = useRef<LeafletMarker | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markerRef = useRef<mapboxgl.Marker | null>(null);
   const onChangeRef = useRef(onChange);
 
   useEffect(() => {
@@ -31,26 +38,26 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
     const container = containerRef.current;
     if (!container) return;
 
-    const map = L.map(container, { scrollWheelZoom: true }).setView([latitude, longitude], 17);
+    const map = new mapboxgl.Map({
+      container,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [longitude, latitude],
+      zoom: 17,
+      attributionControl: false,
+    });
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
     mapRef.current = map;
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(map);
-
-    const marker = L.marker([latitude, longitude], {
-      draggable: true,
-      icon: pinIcon,
-    }).addTo(map);
+    const el = createPinElement();
+    const marker = new mapboxgl.Marker({ element: el, draggable: true }).setLngLat([longitude, latitude]).addTo(map);
     markerRef.current = marker;
 
-    const handleClick = (event: L.LeafletMouseEvent) => {
-      onChangeRef.current(event.latlng.lat, event.latlng.lng);
+    const handleClick = (e: mapboxgl.MapMouseEvent) => {
+      onChangeRef.current(e.lngLat.lat, e.lngLat.lng);
     };
     const handleDragEnd = () => {
-      const position = marker.getLatLng();
-      onChangeRef.current(position.lat, position.lng);
+      const lngLat = marker.getLngLat();
+      onChangeRef.current(lngLat.lat, lngLat.lng);
     };
 
     map.on('click', handleClick);
@@ -73,9 +80,9 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
     const marker = markerRef.current;
     if (!map || !marker) return;
 
-    const nextPosition = L.latLng(latitude, longitude);
-    marker.setLatLng(nextPosition);
-    map.setView(nextPosition, Math.max(map.getZoom(), 17), { animate: true });
+    marker.setLngLat([longitude, latitude]);
+    map.setCenter([longitude, latitude]);
+    if (map.getZoom() < 17) map.setZoom(17);
   }, [latitude, longitude]);
 
   return (

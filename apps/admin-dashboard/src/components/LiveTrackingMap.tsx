@@ -1,45 +1,45 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 
-const RiderIcon = (bearing: number = 0) => L.divIcon({
-  className: 'custom-rider-icon',
-  html: `<div style="transform: rotate(${bearing}deg); transition: transform 0.3s ease;">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" fill="#10B981" stroke="white" stroke-width="2"/>
-            <path d="M12 6L16 16L12 14L8 16L12 6Z" fill="white"/>
-          </svg>
-        </div>`,
-  iconSize: [32, 32],
-  iconAnchor: [16, 16],
-});
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1Ijoic2Fpa3VtY3VtdYXiYIwiYSI6ImNtdD1ON3F5ZzBmYjgd3NodWE1a2hzZG4ifQ.4puZMTpkr6k1P9BPQreYdw';
+if (typeof window !== 'undefined' && MAPBOX_TOKEN) {
+  mapboxgl.accessToken = MAPBOX_TOKEN;
+}
 
-const StoreIcon = L.divIcon({
-  className: 'custom-store-icon',
-  html: `<div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" fill="#F59E0B" stroke="white" stroke-width="2"/>
-            <path d="M8 8h8l1 4H7l1-4z" fill="white"/>
-            <rect x="7" y="12" width="10" height="3" rx="1" fill="white"/>
-          </svg>
-        </div>`,
-  iconSize: [28, 28],
-  iconAnchor: [14, 14],
-});
+function createRiderElement(bearing: number = 0): HTMLElement {
+  const el = document.createElement('div');
+  el.style.width = '32px';
+  el.style.height = '32px';
+  el.style.transform = `rotate(${bearing}deg)`;
+  el.style.transition = 'transform 0.3s ease';
+  el.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#10B981" stroke="white" stroke-width="2"/><path d="M12 6L16 16L12 14L8 16L12 6Z" fill="white"/></svg>`;
+  return el;
+}
 
-const DeliveryIcon = L.divIcon({
-  className: 'custom-delivery-icon',
-  html: `<div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" fill="#3B82F6" stroke="white" stroke-width="2"/>
-            <path d="M12 6C9.24 6 7 8.24 7 11c0 3.75 5 9 5 9s5-5.25 5-9c0-2.76-2.24-5-5-5zm0 6.75c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" fill="white"/>
-          </svg>
-        </div>`,
-  iconSize: [28, 28],
-  iconAnchor: [14, 14],
-});
+function createStoreElement(): HTMLElement {
+  const el = document.createElement('div');
+  el.style.width = '28px';
+  el.style.height = '28px';
+  el.style.display = 'flex';
+  el.style.alignItems = 'center';
+  el.style.justifyContent = 'center';
+  el.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#F59E0B" stroke="white" stroke-width="2"/><path d="M8 8h8l1 4H7l1-4z" fill="white"/><rect x="7" y="12" width="10" height="3" rx="1" fill="white"/></svg>`;
+  return el;
+}
+
+function createDeliveryElement(): HTMLElement {
+  const el = document.createElement('div');
+  el.style.width = '28px';
+  el.style.height = '28px';
+  el.style.display = 'flex';
+  el.style.alignItems = 'center';
+  el.style.justifyContent = 'center';
+  el.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#3B82F6" stroke="white" stroke-width="2"/><path d="M12 6C9.24 6 7 8.24 7 11c0 3.75 5 9 5 9s5-5.25 5-9c0-2.76-2.24-5-5-5zm0 6.75c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" fill="white"/></svg>`;
+  return el;
+}
 
 interface ActiveOrder {
   orderId: string;
@@ -73,19 +73,16 @@ const hasCoordinate = (value: number | null | undefined): value is number =>
 function popupContent(title: string, lines: Array<{ label?: string; value: string }>) {
   const root = document.createElement('div');
   root.className = 'p-1';
-
   const heading = document.createElement('p');
   heading.className = 'font-bold text-gray-900';
   heading.textContent = title;
   root.appendChild(heading);
-
   for (const line of lines) {
     const paragraph = document.createElement('p');
     paragraph.className = 'text-xs text-gray-500 mt-1';
     paragraph.textContent = line.label ? `${line.label}: ${line.value}` : line.value;
     root.appendChild(paragraph);
   }
-
   return root;
 }
 
@@ -106,87 +103,110 @@ export default function LiveTrackingMap({
     const allPoints: [number, number][] = [];
     riders.forEach((rider) => {
       if (hasCoordinate(rider.latitude) && hasCoordinate(rider.longitude)) {
-        allPoints.push([rider.latitude, rider.longitude]);
+        allPoints.push([rider.longitude, rider.latitude]);
       }
     });
     orders.forEach((order) => {
-      if (hasCoordinate(order.store.latitude) && hasCoordinate(order.store.longitude)) {
-        allPoints.push([order.store.latitude, order.store.longitude]);
+      if (hasCoordinate(order.store.longitude) && hasCoordinate(order.store.latitude)) {
+        allPoints.push([order.store.longitude, order.store.latitude]);
       }
-      if (hasCoordinate(order.delivery.latitude) && hasCoordinate(order.delivery.longitude)) {
-        allPoints.push([order.delivery.latitude, order.delivery.longitude]);
+      if (hasCoordinate(order.delivery.longitude) && hasCoordinate(order.delivery.latitude)) {
+        allPoints.push([order.delivery.longitude, order.delivery.latitude]);
       }
-      if (hasCoordinate(order.rider?.latitude) && hasCoordinate(order.rider?.longitude)) {
-        allPoints.push([order.rider.latitude, order.rider.longitude]);
+      if (hasCoordinate(order.rider?.longitude) && hasCoordinate(order.rider?.latitude)) {
+        allPoints.push([order.rider.longitude!, order.rider.latitude!]);
       }
-      if (order.latestLocation && hasCoordinate(order.latestLocation.latitude) && hasCoordinate(order.latestLocation.longitude)) {
-        allPoints.push([order.latestLocation.latitude, order.latestLocation.longitude]);
+      if (order.latestLocation && hasCoordinate(order.latestLocation.longitude) && hasCoordinate(order.latestLocation.latitude)) {
+        allPoints.push([order.latestLocation.longitude, order.latestLocation.latitude]);
       }
     });
 
     const selectedRider = selectedRiderId ? riders.find((rider) => rider.id === selectedRiderId) : undefined;
     const selectedRiderPoint: [number, number] | null =
-      hasCoordinate(selectedRider?.latitude) && hasCoordinate(selectedRider?.longitude)
-        ? [selectedRider.latitude, selectedRider.longitude]
+      hasCoordinate(selectedRider?.longitude) && hasCoordinate(selectedRider?.latitude)
+        ? [selectedRider.longitude!, selectedRider.latitude!]
         : null;
 
-    let mapCenter: [number, number] = [20.5937, 78.9629];
+    let mapCenter: [number, number] = [78.9629, 20.5937];
     if (selectedRiderPoint) {
       mapCenter = selectedRiderPoint;
     } else if (selectedOrderId) {
       const order = orders.find((candidate) => candidate.orderId === selectedOrderId);
-      const lat = order?.rider?.latitude ?? order?.latestLocation?.latitude ?? order?.store.latitude;
       const lng = order?.rider?.longitude ?? order?.latestLocation?.longitude ?? order?.store.longitude;
-      if (hasCoordinate(lat) && hasCoordinate(lng)) mapCenter = [lat, lng];
+      const lat = order?.rider?.latitude ?? order?.latestLocation?.latitude ?? order?.store.latitude;
+      if (hasCoordinate(lng) && hasCoordinate(lat)) mapCenter = [lng!, lat!];
     } else if (allPoints[0]) {
       mapCenter = allPoints[0];
     }
 
-    const map = L.map(container, { scrollWheelZoom: true, zoomControl: true }).setView(mapCenter, 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 19,
-    }).addTo(map);
+    const map = new mapboxgl.Map({
+      container,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: mapCenter,
+      zoom: 13,
+      attributionControl: false,
+    });
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
-    const routePathCoords: [number, number][] = (showRoutePath || [])
-      .filter((point) => hasCoordinate(point.latitude) && hasCoordinate(point.longitude))
-      .map((point) => [point.latitude, point.longitude]);
-    if (routePathCoords.length > 1) {
-      L.polyline(routePathCoords, { color: '#3B82F6', weight: 3, opacity: 0.7 }).addTo(map);
-    }
-
-    riders.forEach((rider) => {
-      if (!hasCoordinate(rider.latitude) || !hasCoordinate(rider.longitude)) return;
-      L.marker([rider.latitude, rider.longitude], { icon: RiderIcon(rider.bearing || 0) })
-        .bindPopup(popupContent(rider.user?.name || 'Rider', [{ label: 'Status', value: rider.status }]))
-        .addTo(map);
+    const bounds = new mapboxgl.LngLatBounds();
+    let hasBounds = false;
+    allPoints.forEach((p) => {
+      bounds.extend(p);
+      hasBounds = true;
     });
 
-    orders.forEach((order) => {
-      if (hasCoordinate(order.store.latitude) && hasCoordinate(order.store.longitude)) {
-        L.marker([order.store.latitude, order.store.longitude], { icon: StoreIcon })
-          .bindPopup(popupContent(order.store.name || 'Store', [{ value: 'Store' }]))
-          .addTo(map);
+    map.on('load', () => {
+      const routePathCoords: [number, number][] = (showRoutePath || [])
+        .filter((point) => hasCoordinate(point.longitude) && hasCoordinate(point.latitude))
+        .map((point) => [point.longitude, point.latitude] as [number, number]);
+      if (routePathCoords.length > 1) {
+        map.addSource('route', {
+          type: 'geojson',
+          data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: routePathCoords } },
+        });
+        map.addLayer({ id: 'route', type: 'line', source: 'route', paint: { 'line-color': '#3B82F6', 'line-width': 3, 'line-opacity': 0.7 } });
       }
 
-      if (hasCoordinate(order.delivery.latitude) && hasCoordinate(order.delivery.longitude)) {
-        const marker = L.marker([order.delivery.latitude, order.delivery.longitude], { icon: DeliveryIcon })
-          .bindPopup(
+      riders.forEach((rider) => {
+        if (!hasCoordinate(rider.longitude) || !hasCoordinate(rider.latitude)) return;
+        const el = createRiderElement(rider.bearing || 0);
+        const popup = new mapboxgl.Popup({ offset: 16 }).setDOMContent(popupContent(rider.user?.name || 'Rider', [{ label: 'Status', value: rider.status }]));
+        new mapboxgl.Marker({ element: el }).setLngLat([rider.longitude!, rider.latitude!]).setPopup(popup).addTo(map);
+      });
+
+      orders.forEach((order) => {
+        if (hasCoordinate(order.store.longitude) && hasCoordinate(order.store.latitude)) {
+          const el = createStoreElement();
+          const popup = new mapboxgl.Popup({ offset: 16 }).setDOMContent(popupContent(order.store.name || 'Store', [{ value: 'Store' }]));
+          new mapboxgl.Marker({ element: el }).setLngLat([order.store.longitude!, order.store.latitude!]).setPopup(popup).addTo(map);
+        }
+        if (hasCoordinate(order.delivery.longitude) && hasCoordinate(order.delivery.latitude)) {
+          const el = createDeliveryElement();
+          const popup = new mapboxgl.Popup({ offset: 16 }).setDOMContent(
             popupContent('Delivery', [
               { value: order.customer.name || 'Customer' },
               { value: `#${order.orderId.slice(-8).toUpperCase()}` },
             ]),
-          )
-          .addTo(map);
-        marker.on('click', () => onOrderClick?.(order.orderId));
-      }
+          );
+          const marker = new mapboxgl.Marker({ element: el }).setLngLat([order.delivery.longitude!, order.delivery.latitude!]).setPopup(popup).addTo(map);
+          const markerEl = marker.getElement();
+          markerEl.style.cursor = 'pointer';
+          markerEl.addEventListener('click', () => onOrderClick?.(order.orderId));
+        }
+      });
     });
 
     const mapPoints = selectedRiderPoint ? [selectedRiderPoint] : allPoints;
     if (mapPoints.length === 1) {
-      map.setView(mapPoints[0], 16, { animate: false });
-    } else if (mapPoints.length > 1) {
-      map.fitBounds(L.latLngBounds(mapPoints), { padding: [64, 64], maxZoom: 16, animate: false });
+      map.setCenter(mapPoints[0]);
+      map.setZoom(16);
+    } else if (mapPoints.length > 1 && hasBounds) {
+      try {
+        map.fitBounds(bounds, { padding: 64, maxZoom: 16, duration: 0 });
+      } catch {}
+      map.on('load', () => {
+        try { map.fitBounds(bounds, { padding: 64, maxZoom: 16, duration: 0 }); } catch {}
+      });
     }
 
     return () => {

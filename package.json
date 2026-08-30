@@ -79,12 +79,14 @@
     "@nestjs/platform-express": "11.1.28",
     "@nestjs/platform-socket.io": "11.1.28",
     "@nestjs/websockets": "11.1.28",
+    "@types/mapbox-gl": "^3.4.1",
     "react-native-dotenv": "^3.4.11",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "turbo": "^2.10.7"
   },
   "dependencies": {
+    "mapbox-gl": "^3.29.0",
     "playwright": "^1.61.1"
   }
 }

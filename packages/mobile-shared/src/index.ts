@@ -19,6 +19,8 @@ export {
   type PartnerOperationalRole,
 } from './utils/partnerRole';
 export { LeafletMap } from './components/LeafletMap';
+export { LeafletMap as MapboxMap } from './components/LeafletMap';
 export { checkForAppUpdate } from './utils/appUpdates';
 export { TrackingMap } from './components/TrackingMap';
+export { TrackingMap as MapboxTrackingMap } from './components/TrackingMap';
 export { COLORS, SPACING, BORDER_RADIUS, SHADOWS, FONTS } from './constants/theme';

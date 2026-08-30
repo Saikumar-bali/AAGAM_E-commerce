@@ -122,7 +122,7 @@ test.describe.serial('Mobile commerce hardening E2E acceptance', () => {
 
     await page.getByRole('button', { name: 'Add address' }).click();
     await page.getByRole('button', { name: 'Use live location' }).click();
-    const map = page.locator('.leaflet-container');
+    const map = page.locator('.mapboxgl-map');
     await expect(map).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/23\.02250,\s*72\.57140/)).toBeVisible();
     const box = await map.boundingBox();

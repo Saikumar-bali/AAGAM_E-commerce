@@ -15,43 +15,55 @@ type Props = {
   style?: any;
 };
 
-const LEAFLET_HTML = (lat: number, lng: number) => `
+const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2Fpa3VtY3VtdYXiYIwiYSI6ImNtdD1ON3F5ZzBmYjgd3NodWE1a2hzZG4ifQ.4puZMTpkr6k1P9BPQreYdw';
+
+const MAPBOX_HTML = (lat: number, lng: number) => `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
   <style>
     html, body, #map { margin:0; padding:0; height:100%; width:100%; }
-    .leaflet-control-attribution { display: none !important; }
+    .mapboxgl-ctrl-attrib { display: none !important; }
+    .mapboxgl-ctrl-logo { display: none !important; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <script>
-    var map = L.map('map', {
-      zoomControl: false,
+    mapboxgl.accessToken = '${MAPBOX_TOKEN}';
+    var map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [${lng}, ${lat}],
+      zoom: 15,
       attributionControl: false
-    }).setView([${lat}, ${lng}], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19
-    }).addTo(map);
-    var marker = L.marker([${lat}, ${lng}], { draggable: true }).addTo(map);
-    marker.on('dragend', function(e) {
-      var pos = e.target.getLatLng();
-      window.ReactNativeWebView.postMessage(JSON.stringify({ lat: pos.lat, lng: pos.lng }));
+    });
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right');
+    var marker = new mapboxgl.Marker({ draggable: true, color: '#0f766e' })
+      .setLngLat([${lng}, ${lat}])
+      .addTo(map);
+    function sendPos(lngLat) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ lat: lngLat.lat, lng: lngLat.lng }));
+    }
+    marker.on('dragend', function() {
+      var lngLat = marker.getLngLat();
+      sendPos(lngLat);
     });
     map.on('click', function(e) {
-      var pos = e.latlng;
-      marker.setLatLng(pos);
-      window.ReactNativeWebView.postMessage(JSON.stringify({ lat: pos.lat, lng: pos.lng }));
+      marker.setLngLat(e.lngLat);
+      sendPos(e.lngLat);
     });
   </script>
 </body>
 </html>
 `;
+
+// Backward compat – keep LEAFLET_HTML alias for any external import (now uses Mapbox)
+const LEAFLET_HTML = MAPBOX_HTML;
 
 export const LeafletMap = ({ latitude, longitude, onPinChange, style }: Props) => {
   const webViewRef = useRef<any>(null);
