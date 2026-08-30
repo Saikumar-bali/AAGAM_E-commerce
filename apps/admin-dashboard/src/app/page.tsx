@@ -469,7 +469,7 @@ export default function LandingPage() {
             <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] text-[#063b3a]">{totalItems}</span>
             <span>View cart</span>
           </Link>
-          <Link href="/login" className="hidden md:flex fixed bottom-6 left-1/2 z-50 h-12 -translate-x-1/2 items-center gap-3 rounded-full bg-[#078b70] px-6 text-[13px] font-black text-white shadow-xl transition hover:bg-[#06735f]">
+          <Link href="/login" className="fixed bottom-6 left-1/2 z-50 hidden h-12 -translate-x-1/2 items-center gap-3 rounded-full bg-[#078b70] px-6 text-[13px] font-black text-white shadow-xl transition hover:bg-[#06735f] md:flex">
             <ShoppingBag className="h-5 w-5" />
             <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-[#063b3a]">{totalItems}</span>
             <span>View cart</span>

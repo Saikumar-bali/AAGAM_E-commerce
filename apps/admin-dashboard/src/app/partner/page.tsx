@@ -22,23 +22,30 @@ const FALLBACK_RELEASE: GithubRelease = {
   tag_name: 'android-1215-30869f4',
   name: 'AAGAM Android 1215',
   html_url: 'https://github.com/Saikumar-bali/AAGAM_E-commerce/releases/tag/android-1215-30869f4',
-  published_at: new Date().toISOString(),
+  published_at: '2026-08-29T11:22:26Z',
   prerelease: false,
   assets: [
     {
       name: 'aagam-partners-1215-30869f4.apk',
       browser_download_url: 'https://github.com/Saikumar-bali/AAGAM_E-commerce/releases/download/android-1215-30869f4/aagam-partners-1215-30869f4.apk',
-      size: 0,
+      size: 42848533,
       download_count: 0,
     },
   ],
 };
 
 async function getLatestPartnersRelease(): Promise<{ release: GithubRelease; asset: ReleaseAsset | null }> {
+  const githubHeaders: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'Aagaam-Partners-Page',
+  };
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (token) githubHeaders.Authorization = `Bearer ${token}`;
+
   try {
     // Prefer stable latest; fall back to recent list if needed
     const latestRes = await fetch('https://api.github.com/repos/Saikumar-bali/AAGAM_E-commerce/releases/latest', {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Aagaam-Partners-Page' },
+      headers: githubHeaders,
       next: { revalidate: 3600 },
     });
     if (latestRes.ok) {
@@ -47,11 +54,13 @@ async function getLatestPartnersRelease(): Promise<{ release: GithubRelease; ass
         const asset = latest.assets.find((a) => a.name.includes('partners') && a.name.endsWith('.apk')) || null;
         if (asset) return { release: latest, asset };
       }
+    } else {
+      console.warn(`[partner] GitHub latest release fetch failed: ${latestRes.status} ${latestRes.statusText}`);
     }
 
     // Fallback: scan recent releases for latest stable android partners asset
     const listRes = await fetch('https://api.github.com/repos/Saikumar-bali/AAGAM_E-commerce/releases?per_page=20', {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Aagaam-Partners-Page' },
+      headers: githubHeaders,
       next: { revalidate: 3600 },
     });
     if (listRes.ok) {
@@ -63,9 +72,11 @@ async function getLatestPartnersRelease(): Promise<{ release: GithubRelease; ass
         const asset = stable.assets.find((a) => a.name.includes('partners') && a.name.endsWith('.apk')) || null;
         return { release: stable, asset };
       }
+    } else {
+      console.warn(`[partner] GitHub releases list fetch failed: ${listRes.status} ${listRes.statusText}`);
     }
-  } catch {
-    // ignore and use fallback
+  } catch (error) {
+    console.warn('[partner] GitHub fetch error, using fallback', error);
   }
   return { release: FALLBACK_RELEASE, asset: FALLBACK_RELEASE.assets[0] };
 }
@@ -85,7 +96,7 @@ function formatBytes(bytes: number) {
 function formatDate(iso: string | null) {
   if (!iso) return 'Recently';
   try {
-    return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
   } catch {
     return iso;
   }

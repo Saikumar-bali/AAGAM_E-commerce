@@ -103,8 +103,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           const urlPath = String(response.config?.url || '').split('?')[0];
           const payload = requestPayload(response.config);
           const isExactLoginEndpoint = urlPath.endsWith('/auth/login') || urlPath.endsWith('/auth/google');
-          const isPhoneLoginRequest = (urlPath.endsWith('/auth/phone/request') || urlPath.endsWith('/auth/phone/verify')) && payload?.purpose === 'LOGIN';
-          const isLoginSuccess = isExactLoginEndpoint || isPhoneLoginRequest || /login successful|signed in successfully/i.test(responseMessage);
+          const isPhoneVerifyLogin = urlPath.endsWith('/phone/verify') && payload?.purpose === 'LOGIN';
+          const isLoginByMessage = urlPath.includes('/auth/') && /login successful|signed in successfully/i.test(responseMessage);
+          const isLoginSuccess = isExactLoginEndpoint || isPhoneVerifyLogin || isLoginByMessage;
           if (isLoginSuccess) return response;
           show({ kind: 'success', title: 'Done', message: responseMessage.trim() });
         }
