@@ -260,9 +260,15 @@ export default function LandingPage() {
           <Link href="/login" className="ml-auto inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-[#20bfa6] px-5 text-[11px] font-black text-white shadow-lg shadow-black/10 transition hover:bg-[#24cdb1] md:hidden">
             Sign in <User className="h-3.5 w-3.5" />
           </Link>
-          <a href="#offers" className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-[#20bfa6] px-5 text-[11px] font-black text-white shadow-lg shadow-black/10 transition hover:bg-[#24cdb1] md:inline-flex">
-            Shop now <ShoppingBag className="h-3.5 w-3.5" />{totalItems > 0 ? <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] text-[#063b3a]">{totalItems}</span> : null}
-          </a>
+          {totalItems > 0 ? (
+            <Link href="/login" className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-[#20bfa6] px-5 text-[11px] font-black text-white shadow-lg shadow-black/10 transition hover:bg-[#24cdb1] md:inline-flex">
+              View cart <ShoppingBag className="h-3.5 w-3.5" /><span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] text-[#063b3a]">{totalItems}</span>
+            </Link>
+          ) : (
+            <a href="#offers" className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-[#20bfa6] px-5 text-[11px] font-black text-white shadow-lg shadow-black/10 transition hover:bg-[#24cdb1] md:inline-flex">
+              Shop now <ShoppingBag className="h-3.5 w-3.5" />
+            </a>
+          )}
         </div>
         <nav aria-label="Landing sections" className="flex h-10 items-center gap-1 overflow-x-auto border-t border-white/10 px-3 text-[10px] font-black text-white/85 xl:hidden">
           <a href="#categories" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Categories</a>
@@ -457,11 +463,20 @@ export default function LandingPage() {
       </footer>
 
       {totalItems > 0 && (
-        <a href="#offers" className="fixed bottom-6 left-6 z-50 flex h-12 items-center gap-2 rounded-full bg-[#078b70] px-4 text-[11px] font-black text-white shadow-lg transition hover:bg-[#06735f] md:hidden">
-          <ShoppingBag className="h-4 w-4" />
-          <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] text-[#063b3a]">{totalItems}</span>
-          <span>View cart</span>
-        </a>
+        <>
+          <Link href="/login" className="fixed bottom-6 left-6 z-50 flex h-12 items-center gap-2 rounded-full bg-[#078b70] px-4 text-[11px] font-black text-white shadow-lg transition hover:bg-[#06735f] md:hidden">
+            <ShoppingBag className="h-4 w-4" />
+            <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] text-[#063b3a]">{totalItems}</span>
+            <span>View cart</span>
+          </Link>
+          <Link href="/login" className="fixed bottom-6 left-1/2 z-50 hidden h-12 -translate-x-1/2 items-center gap-3 rounded-full bg-[#078b70] px-6 text-[13px] font-black text-white shadow-xl transition hover:bg-[#06735f] md:flex">
+            <ShoppingBag className="h-5 w-5" />
+            <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-[#063b3a]">{totalItems}</span>
+            <span>View cart</span>
+            <span className="h-4 w-px bg-white/20" />
+            <span className="text-[11px] font-bold opacity-90">Sign in to checkout</span>
+          </Link>
+        </>
       )}
       {showBackToTop && (
         <button
