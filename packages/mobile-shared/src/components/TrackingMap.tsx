@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { getMapboxToken } from '../utils/mapbox';
 
 const CompatibleWebView = WebView as unknown as React.ComponentType<any>;
 
@@ -17,12 +18,14 @@ interface TrackingMapProps {
   style?: any;
 }
 
-const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2Fpa3VtY3VtdYXiYIwiYSI6ImNtdD1ON3F5ZzBmYjgd3NodWE1a2hzZG4ifQ.4puZMTpkr6k1P9BPQreYdw';
-
 const TRACKING_HTML = (
   markers: Marker[],
   routePath: { latitude: number; longitude: number }[],
 ) => {
+  const token = getMapboxToken();
+  if (!token) {
+    return `<!DOCTYPE html><html><body style="display:flex;align-items:center;justify-content:center;height:100%;margin:0;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</body></html>`;
+  }
   const markersJson = JSON.stringify(markers);
   const routeJson = JSON.stringify(routePath);
   return `
@@ -31,11 +34,10 @@ const TRACKING_HTML = (
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet" />
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.29.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.29.0/mapbox-gl.js"></script>
   <style>
     html, body, #map { margin:0; padding:0; height:100%; width:100%; }
-    .mapboxgl-ctrl-attrib, .mapboxgl-ctrl-logo { display: none !important; }
     .marker-store { width: 28px; height: 28px; background: #F59E0B; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
     .marker-delivery { width: 28px; height: 28px; background: #3B82F6; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
     .marker-rider { width: 32px; height: 32px; background: #10B981; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
@@ -49,14 +51,14 @@ const TRACKING_HTML = (
   <script>
     var markers = ${markersJson};
     var routePath = ${routeJson};
-    mapboxgl.accessToken = '${MAPBOX_TOKEN}';
+    mapboxgl.accessToken = '${token}';
 
     if (markers.length === 0) {
       document.getElementById('map').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:14px;">No location data</div>';
     } else {
       var bounds = new mapboxgl.LngLatBounds();
       markers.forEach(function(m){ bounds.extend([m.longitude, m.latitude]); });
-      var map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/streets-v12', center: [markers[0].longitude, markers[0].latitude], zoom: 14, attributionControl: false });
+      var map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/streets-v12', center: [markers[0].longitude, markers[0].latitude], zoom: 14, attributionControl: true });
       if (markers.length > 1) {
         map.fitBounds(bounds, { padding: 40 });
       }

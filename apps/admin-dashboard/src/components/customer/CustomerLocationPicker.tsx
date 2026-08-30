@@ -3,11 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1Ijoic2Fpa3VtY3VtdYXiYIwiYSI6ImNtdD1ON3F5ZzBmYjgd3NodWE1a2hzZG4ifQ.4puZMTpkr6k1P9BPQreYdw';
-if (typeof window !== 'undefined' && MAPBOX_TOKEN) {
-  mapboxgl.accessToken = MAPBOX_TOKEN;
-}
+import { getMapboxToken } from '@/lib/mapbox';
 
 function createPinElement(): HTMLElement {
   const el = document.createElement('div');
@@ -37,13 +33,19 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    const token = getMapboxToken();
+    if (!token) {
+      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</div>';
+      return;
+    }
+    mapboxgl.accessToken = token;
 
     const map = new mapboxgl.Map({
       container,
       style: 'mapbox://styles/mapbox/streets-v12',
       center: [longitude, latitude],
       zoom: 17,
-      attributionControl: false,
+      attributionControl: true,
     });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
     mapRef.current = map;

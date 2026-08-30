@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { getMapboxToken } from "@/lib/mapbox";
 
 type Props = {
   latitude: number;
@@ -13,10 +14,6 @@ type Props = {
 };
 
 const ANDHRA_PRADESH_CENTER: [number, number] = [83.2185, 17.6868];
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1Ijoic2Fpa3VtY3VtdYXiYIwiYSI6ImNtdD1ON3F5ZzBmYjgd3NodWE1a2hzZG4ifQ.4puZMTpkr6k1P9BPQreYdw';
-if (typeof window !== 'undefined' && MAPBOX_TOKEN) {
-  mapboxgl.accessToken = MAPBOX_TOKEN;
-}
 
 const TEAL_MARKER_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">
@@ -36,12 +33,13 @@ function createTealElement(): HTMLElement {
 function createCircleGeoJSON(center: [number, number], radiusKm: number): GeoJSON.Feature<GeoJSON.Polygon> {
   const points = 64;
   const coords: [number, number][] = [];
-  const distanceX = radiusKm / 111.32; // approx degrees latitude
-  const distanceY = radiusKm / (111.32 * Math.cos((center[1] * Math.PI) / 180));
+  // center = [lng, lat] -> latitude degrees ~111.32km, longitude degrees ~111.32*cos(lat) km
+  const latDegrees = radiusKm / 111.32;
+  const lngDegrees = radiusKm / (111.32 * Math.cos((center[1] * Math.PI) / 180));
   for (let i = 0; i < points; i++) {
     const theta = (i / points) * (2 * Math.PI);
-    const x = distanceX * Math.cos(theta);
-    const y = distanceY * Math.sin(theta);
+    const x = lngDegrees * Math.cos(theta);
+    const y = latDegrees * Math.sin(theta);
     coords.push([center[0] + x, center[1] + y]);
   }
   coords.push(coords[0]);
@@ -68,6 +66,12 @@ export default function LocalityMapPicker({
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+    const token = getMapboxToken();
+    if (!token) {
+      containerRef.current.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</div>';
+      return;
+    }
+    mapboxgl.accessToken = token;
 
     const center: [number, number] =
       latitude && longitude ? [longitude, latitude] : ANDHRA_PRADESH_CENTER;
@@ -78,7 +82,7 @@ export default function LocalityMapPicker({
       style: 'mapbox://styles/mapbox/streets-v12',
       center,
       zoom,
-      attributionControl: false,
+      attributionControl: true,
     });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
@@ -133,26 +137,15 @@ export default function LocalityMapPicker({
     if (latitude && longitude) {
       const pos: [number, number] = [longitude, latitude];
       marker.setLngLat(pos);
-      const source = map.getSource('radius') as mapboxgl.GeoJSONSource | undefined;
-      if (source) {
-        const newData = createCircleGeoJSON(pos, radius);
-        source.setData(newData as any);
-      }
       map.setCenter(pos);
       if (map.getZoom() < 14) map.setZoom(14);
-    } else {
-      const source = map.getSource('radius') as mapboxgl.GeoJSONSource | undefined;
-      if (source && latitude && longitude) {
-        const pos: [number, number] = [longitude, latitude];
-        const newData = createCircleGeoJSON(pos, radius);
-        source.setData(newData as any);
-      }
     }
     const source = map.getSource('radius') as mapboxgl.GeoJSONSource | undefined;
     if (source) {
-      const current = marker.getLngLat();
-      const newData = createCircleGeoJSON([current.lng, current.lat], radius);
-      source.setData(newData as any);
+      const center: [number, number] = latitude && longitude
+        ? [longitude, latitude]
+        : [marker.getLngLat().lng, marker.getLngLat().lat];
+      source.setData(createCircleGeoJSON(center as [number, number], radius) as any);
     }
   }, [latitude, longitude, radius]);
 

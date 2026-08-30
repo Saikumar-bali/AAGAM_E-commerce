@@ -3,11 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1Ijoic2Fpa3VtY3VtdYXiYIwiYSI6ImNtdD1ON3F5ZzBmYjgd3NodWE1a2hzZG4ifQ.4puZMTpkr6k1P9BPQreYdw';
-if (typeof window !== 'undefined' && MAPBOX_TOKEN) {
-  mapboxgl.accessToken = MAPBOX_TOKEN;
-}
+import { getMapboxToken } from '@/lib/mapbox';
 
 function createRiderElement(): HTMLElement {
   const el = document.createElement('div');
@@ -16,7 +12,6 @@ function createRiderElement(): HTMLElement {
   el.style.display = 'flex';
   el.style.alignItems = 'center';
   el.style.justifyContent = 'center';
-  // Use inner wrapper for any CSS transforms so Mapbox can manage root transform (rotation)
   const inner = document.createElement('div');
   inner.style.width = '32px';
   inner.style.height = '32px';
@@ -105,6 +100,12 @@ export default function LiveTrackingMap({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    const token = getMapboxToken();
+    if (!token) {
+      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</div>';
+      return;
+    }
+    mapboxgl.accessToken = token;
 
     const allPoints: [number, number][] = [];
     riders.forEach((rider) => {
@@ -150,7 +151,7 @@ export default function LiveTrackingMap({
       style: 'mapbox://styles/mapbox/streets-v12',
       center: mapCenter,
       zoom: 13,
-      attributionControl: false,
+      attributionControl: true,
     });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
@@ -207,12 +208,12 @@ export default function LiveTrackingMap({
       map.setCenter(mapPoints[0]);
       map.setZoom(16);
     } else if (mapPoints.length > 1 && hasBounds) {
-      try {
-        map.fitBounds(bounds, { padding: 64, maxZoom: 16, duration: 0 });
-      } catch {}
       map.on('load', () => {
         try { map.fitBounds(bounds, { padding: 64, maxZoom: 16, duration: 0 }); } catch {}
       });
+      if (map.isStyleLoaded()) {
+        try { map.fitBounds(bounds, { padding: 64, maxZoom: 16, duration: 0 }); } catch {}
+      }
     }
 
     return () => {

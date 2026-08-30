@@ -1,6 +1,7 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { getMapboxToken } from '../utils/mapbox';
 
 // react-native-webview 14 currently exposes a class overload that collapses to
 // `never` under React 19's JSX types. Runtime props remain supported; keep the
@@ -15,32 +16,33 @@ type Props = {
   style?: any;
 };
 
-const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2Fpa3VtY3VtdYXiYIwiYSI6ImNtdD1ON3F5ZzBmYjgd3NodWE1a2hzZG4ifQ.4puZMTpkr6k1P9BPQreYdw';
-
-const MAPBOX_HTML = (lat: number, lng: number) => `
+const MAPBOX_HTML = (lat: number, lng: number) => {
+  const token = getMapboxToken();
+  if (!token) {
+    return `<!DOCTYPE html><html><body style="display:flex;align-items:center;justify-content:center;height:100%;margin:0;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</body></html>`;
+  }
+  return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet" />
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.29.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.29.0/mapbox-gl.js"></script>
   <style>
     html, body, #map { margin:0; padding:0; height:100%; width:100%; }
-    .mapboxgl-ctrl-attrib { display: none !important; }
-    .mapboxgl-ctrl-logo { display: none !important; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <script>
-    mapboxgl.accessToken = '${MAPBOX_TOKEN}';
+    mapboxgl.accessToken = '${token}';
     var map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/mapbox/streets-v12',
       center: [${lng}, ${lat}],
       zoom: 15,
-      attributionControl: false
+      attributionControl: true
     });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right');
     var marker = new mapboxgl.Marker({ draggable: true, color: '#0f766e' })
@@ -61,6 +63,7 @@ const MAPBOX_HTML = (lat: number, lng: number) => `
 </body>
 </html>
 `;
+};
 
 // Backward compat – keep LEAFLET_HTML alias for any external import (now uses Mapbox)
 const LEAFLET_HTML = MAPBOX_HTML;
@@ -82,6 +85,11 @@ export const LeafletMap = ({ latitude, longitude, onPinChange, style }: Props) =
     },
     [onPinChange],
   );
+
+  useEffect(() => {
+    // Reload on prop change so controlled pin moves without remount
+    webViewRef.current?.reload?.();
+  }, [latitude, longitude]);
 
   return (
     <View style={[styles.container, style]}>

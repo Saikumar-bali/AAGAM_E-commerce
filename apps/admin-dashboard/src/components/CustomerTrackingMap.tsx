@@ -3,11 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1Ijoic2Fpa3VtY3VtdYXiYIwiYSI6ImNtdD1ON3F5ZzBmYjgd3NodWE1a2hzZG4ifQ.4puZMTpkr6k1P9BPQreYdw';
-if (typeof window !== 'undefined' && MAPBOX_TOKEN) {
-  mapboxgl.accessToken = MAPBOX_TOKEN;
-}
+import { getMapboxToken } from '@/lib/mapbox';
 
 function createRiderEl(): HTMLElement {
   const el = document.createElement('div');
@@ -62,6 +58,12 @@ export default function CustomerTrackingMap({ markers }: CustomerTrackingMapProp
   useEffect(() => {
     const container = containerRef.current;
     if (!container || validMarkers.length === 0) return;
+    const token = getMapboxToken();
+    if (!token) {
+      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</div>';
+      return;
+    }
+    mapboxgl.accessToken = token;
 
     const riderMarker = validMarkers.find((marker) => marker.type === 'rider');
     const deliveryMarker = validMarkers.find((marker) => marker.type === 'delivery');
@@ -74,7 +76,7 @@ export default function CustomerTrackingMap({ markers }: CustomerTrackingMapProp
       style: 'mapbox://styles/mapbox/streets-v12',
       center,
       zoom: 16,
-      attributionControl: false,
+      attributionControl: true,
     });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
@@ -113,10 +115,12 @@ export default function CustomerTrackingMap({ markers }: CustomerTrackingMapProp
     } else {
       const bounds = new mapboxgl.LngLatBounds();
       focusPoints.forEach((p) => bounds.extend(p));
-      try { map.fitBounds(bounds, { padding: 26, maxZoom: 16, duration: 0 }); } catch {}
       map.on('load', () => {
         try { map.fitBounds(bounds, { padding: 26, maxZoom: 16, duration: 0 }); } catch {}
       });
+      if (map.isStyleLoaded()) {
+        try { map.fitBounds(bounds, { padding: 26, maxZoom: 16, duration: 0 }); } catch {}
+      }
     }
 
     return () => {
