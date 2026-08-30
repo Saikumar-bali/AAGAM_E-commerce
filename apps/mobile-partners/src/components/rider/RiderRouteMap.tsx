@@ -59,7 +59,7 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
     <View testID="rider_live_route_map" style={[styles.card, expanded && styles.expandedCard]}>
       <View style={styles.header}>
         <View style={styles.titleRow}><View style={styles.liveDot} /><Text style={styles.title}>LIVE ROUTE</Text></View>
-        <Text style={styles.provider}>OpenStreetMap</Text>
+        <Text style={styles.provider}>Mapbox</Text>
       </View>
       <View style={[styles.mapClip, expanded && styles.expandedMap]}>
         <CompatibleWebView
