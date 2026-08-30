@@ -2,11 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Image,
   Modal,
   PermissionsAndroid,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -44,10 +44,11 @@ import { AagamBrand } from '../../components/AagamBrand';
 import { CUSTOMER_ADDRESSES_QUERY_KEY } from '../../utils/addressQueries';
 
 type LocationSource = 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED' | 'LEGACY_UNKNOWN';
-type LocalityOption = {
-  id: string; name: string; aliases: string[]; city: string; state: string; pincode: string;
-  latitude: number | null; longitude: number | null;
-};
+// LocalityOption type retained for backward compatibility with existing addresses
+// type LocalityOption = {
+//   id: string; name: string; aliases: string[]; city: string; state: string; pincode: string;
+//   latitude: number | null; longitude: number | null;
+// };
 
 const emptyDraft = {
   label: 'Home',
@@ -76,18 +77,18 @@ type AddressDraftKey = keyof typeof emptyDraft;
 type AddressErrorKey = 'recipientName' | 'phoneE164' | 'alternatePhoneE164' | 'line1' | 'city' | 'state' | 'pincode' | 'locality' | 'location';
 type AddressErrors = Partial<Record<AddressErrorKey, string>>;
 
-const addressFields: Array<{ key: AddressDraftKey; label: string; required?: boolean }> = [
-  { key: 'label', label: 'Label' },
-  { key: 'recipientName', label: 'Recipient Name', required: true },
-  { key: 'phoneE164', label: 'Phone', required: true },
-  { key: 'alternatePhoneE164', label: 'Alternate Phone' },
-  { key: 'line1', label: 'Address Line 1', required: true },
-  { key: 'line2', label: 'Address Line 2' },
-  { key: 'landmark', label: 'Landmark' },
+const addressFields: Array<{ key: AddressDraftKey; label: string; required?: boolean; placeholder?: string }> = [
+  { key: 'label', label: 'Label', placeholder: 'Home, Work, etc.' },
+  { key: 'recipientName', label: 'Name', required: true, placeholder: 'Who is this for?' },
+  { key: 'phoneE164', label: 'Phone', required: true, placeholder: '10-digit number' },
+  { key: 'alternatePhoneE164', label: 'Alternate Phone', placeholder: 'Optional' },
+  { key: 'line1', label: 'House / Street', required: true, placeholder: 'Flat no, building, street' },
+  { key: 'line2', label: 'Area / Locality', placeholder: 'Neighborhood, colony' },
+  { key: 'landmark', label: 'Nearby', placeholder: 'Near temple, park, etc.' },
   { key: 'city', label: 'City', required: true },
   { key: 'state', label: 'State', required: true },
-  { key: 'pincode', label: 'Pincode', required: true },
-  { key: 'instructions', label: 'Instructions' },
+  { key: 'pincode', label: 'Pincode', required: true, placeholder: '6-digit pincode' },
+  { key: 'instructions', label: 'Note for rider', placeholder: 'Gate code, floor, etc.' },
 ];
 
 const draftFromAddress = (address: any) => ({
@@ -137,76 +138,81 @@ export const CustomerProfileScreen = () => {
   const [draft, setDraft] = useState(emptyDraft);
   const [addressErrors, setAddressErrors] = useState<AddressErrors>({});
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
-  const [localities, setLocalities] = useState<LocalityOption[]>([]);
-  const [localitiesLoading, setLocalitiesLoading] = useState(false);
-  const [localitiesLoaded, setLocalitiesLoaded] = useState(false);
-  const [localitiesError, setLocalitiesError] = useState(false);
-  const [localityModalVisible, setLocalityModalVisible] = useState(false);
+  // Locality state commented out — replaced by Mapbox geocoding search
+  // const [localities, setLocalities] = useState<LocalityOption[]>([]);
+  // const [localitiesLoading, setLocalitiesLoading] = useState(false);
+  // const [localitiesLoaded, setLocalitiesLoaded] = useState(false);
+  // const [localitiesError, setLocalitiesError] = useState(false);
+  // const [localityModalVisible, setLocalityModalVisible] = useState(false);
 
-  const loadLocalities = React.useCallback(async () => {
-    setLocalitiesLoading(true);
-    setLocalitiesLoaded(false);
-    setLocalitiesError(false);
-    try {
-      const response = await apiClient.get('/localities');
-      setLocalities(Array.isArray(response.data) ? response.data : []);
-    } catch {
-      setLocalitiesError(true);
-    } finally {
-      setLocalitiesLoaded(true);
-      setLocalitiesLoading(false);
-    }
-  }, []);
+  // Locality loading commented out — replaced by Mapbox geocoding search
+  // const loadLocalities = React.useCallback(async () => {
+  //   setLocalitiesLoading(true);
+  //   setLocalitiesLoaded(false);
+  //   setLocalitiesError(false);
+  //   try {
+  //     const response = await apiClient.get('/localities');
+  //     setLocalities(Array.isArray(response.data) ? response.data : []);
+  //   } catch {
+  //     setLocalitiesError(true);
+  //   } finally {
+  //     setLocalitiesLoaded(true);
+  //     setLocalitiesLoading(false);
+  //   }
+  // }, []);
 
-  useEffect(() => { void loadLocalities(); }, [loadLocalities]);
+  // useEffect(() => { void loadLocalities(); }, [loadLocalities]);
 
-  const applyLocality = (localityId: string) => {
-    setLocalityModalVisible(false);
-    setDraft((d) => ({ ...d, selectedLocalityId: localityId, localityId }));
-    const locality = localities.find((entry) => entry.id === localityId);
-    if (!locality) return;
-    setDraft((d) => ({
-      ...d,
-      selectedLocalityId: localityId,
-      city: locality.city,
-      state: locality.state,
-      pincode: locality.pincode,
-      latitude: locality.latitude != null ? String(locality.latitude) : d.latitude,
-      longitude: locality.longitude != null ? String(locality.longitude) : d.longitude,
-    }));
-  };
+  // Locality apply commented out — replaced by Mapbox geocoding search
+  // const applyLocality = (localityId: string) => {
+  //   setLocalityModalVisible(false);
+  //   setDraft((d) => ({ ...d, selectedLocalityId: localityId, localityId }));
+  //   const locality = localities.find((entry) => entry.id === localityId);
+  //   if (!locality) return;
+  //   setDraft((d) => ({
+  //     ...d,
+  //     selectedLocalityId: localityId,
+  //     city: locality.city,
+  //     state: locality.state,
+  //     pincode: locality.pincode,
+  //     latitude: locality.latitude != null ? String(locality.latitude) : d.latitude,
+  //     longitude: locality.longitude != null ? String(locality.longitude) : d.longitude,
+  //   }));
+  // };
 
-  const filteredLocalities = useMemo(() => {
-    const pincodeFilter = /^\d{6}$/.test(draft.pincode.trim()) ? draft.pincode.trim() : null;
-    const cityRaw = draft.city.trim().replace(/^string:/i, '');
-    const cityFilter = /^\d{6}$/.test(cityRaw) ? '' : cityRaw.toLowerCase();
-    return localities.filter((entry) => {
-      if (pincodeFilter && entry.pincode !== pincodeFilter) return false;
-      if (cityFilter && !entry.city.toLowerCase().includes(cityFilter)) return false;
-      return true;
-    });
-  }, [draft.pincode, draft.city, localities]);
+  // const filteredLocalities = useMemo(() => {
+  //   const pincodeFilter = /^\d{6}$/.test(draft.pincode.trim()) ? draft.pincode.trim() : null;
+  //   const cityRaw = draft.city.trim().replace(/^string:/i, '');
+  //   const cityFilter = /^\d{6}$/.test(cityRaw) ? '' : cityRaw.toLowerCase();
+  //   return localities.filter((entry) => {
+  //     if (pincodeFilter && entry.pincode !== pincodeFilter) return false;
+  //     if (cityFilter && !entry.city.toLowerCase().includes(cityFilter)) return false;
+  //     return true;
+  //   });
+  // }, [draft.pincode, draft.city, localities]);
 
-  const normalizeLocalityText = (value: string) => value.trim().toLowerCase();
+  // const normalizeLocalityText = (value: string) => value.trim().toLowerCase();
 
-  const selectedLocalityName = useMemo(() => {
-    const match = localities.find((l) => l.id === draft.selectedLocalityId);
-    return match ? `${match.name} — ${match.pincode}` : '';
-  }, [localities, draft.selectedLocalityId]);
+  // const selectedLocalityName = useMemo(() => {
+  //   const match = localities.find((l) => l.id === draft.selectedLocalityId);
+  //   return match ? `${match.name} — ${match.pincode}` : '';
+  // }, [localities, draft.selectedLocalityId]);
 
   useEffect(() => {
-    if (!route.params?.openAddressForm || !localitiesLoaded) return;
+    if (!route.params?.openAddressForm) return;
     const address = route.params.address;
     setEditingAddressId(address?.id || null);
     const initialDraft = address ? draftFromAddress(address) : emptyDraft;
-    if (address && !initialDraft.selectedLocalityId) {
-      const matchedLocality = localities.find((loc) => normalizeLocalityText(loc.city) === normalizeLocalityText(initialDraft.city) && normalizeLocalityText(loc.state) === normalizeLocalityText(initialDraft.state) && loc.pincode === initialDraft.pincode.trim());
-      setDraft({ ...initialDraft, selectedLocalityId: matchedLocality?.id || '', localityId: matchedLocality?.id || '' });
-    } else setDraft(initialDraft);
+    // Locality matching commented out — replaced by Mapbox geocoding search
+    // if (address && !initialDraft.selectedLocalityId) {
+    //   const matchedLocality = localities.find((loc) => normalizeLocalityText(loc.city) === normalizeLocalityText(initialDraft.city) && normalizeLocalityText(loc.state) === normalizeLocalityText(initialDraft.state) && loc.pincode === initialDraft.pincode.trim());
+    //   setDraft({ ...initialDraft, selectedLocalityId: matchedLocality?.id || '', localityId: matchedLocality?.id || '' });
+    // } else setDraft(initialDraft);
+    setDraft(initialDraft);
     setAddressErrors({});
     setShowForm(true);
     navigation.setParams({ openAddressForm: undefined, address: undefined });
-  }, [localities, localitiesLoaded, navigation, route.params?.openAddressForm, route.params?.address?.id]);
+  }, [navigation, route.params?.openAddressForm, route.params?.address?.id]);
 
   const { data: profile } = useQuery<any>({
     queryKey: ['customer-profile'],
@@ -254,7 +260,8 @@ export const CustomerProfileScreen = () => {
         country: draft.country,
         instructions: draft.instructions,
         isDefault: draft.isDefault,
-        localityId: draft.locationSource === 'GEOCODED' ? draft.selectedLocalityId : null,
+        // localityId no longer required — using Mapbox geocoding coordinates
+        localityId: null,
       };
       if (draft.locationSource === 'LIVE_GPS') {
         basePayload.locationSource = 'LIVE_GPS';
@@ -268,6 +275,10 @@ export const CustomerProfileScreen = () => {
         basePayload.longitude = Number(draft.longitude);
       } else if (draft.locationSource === 'GEOCODED') {
         basePayload.locationSource = 'GEOCODED';
+        if (draft.latitude && draft.longitude) {
+          basePayload.latitude = Number(draft.latitude);
+          basePayload.longitude = Number(draft.longitude);
+        }
       }
       return editingAddressId
         ? apiClient.patch(`/customer/addresses/${editingAddressId}`, basePayload)
@@ -313,12 +324,14 @@ export const CustomerProfileScreen = () => {
     if (draft.city.trim().length < 2) next.city = 'City is required.';
     if (draft.state.trim().length < 2) next.state = 'State is required.';
     if (!/^\d{6}$/.test(draft.pincode.trim())) next.pincode = 'A valid 6 digit pincode is required.';
-    else if (localities.length > 0 && !localities.some((loc) => loc.pincode === draft.pincode.trim())) next.pincode = 'This pincode is not serviceable in your area.';
-    if (draft.locationSource === 'GEOCODED') {
-      const locality = localities.find((entry) => entry.id === draft.selectedLocalityId);
-      if (!locality) next.locality = 'Select a serviceable locality for your delivery area.';
-      else if (locality.city.toLowerCase() !== draft.city.trim().toLowerCase() || locality.state.toLowerCase() !== draft.state.trim().toLowerCase() || locality.pincode !== draft.pincode.trim()) next.locality = 'Re-select a locality matching the city, state, and pincode.';
-    }
+    // Locality pincode validation commented out — using Mapbox geocoding search
+    // else if (localities.length > 0 && !localities.some((loc) => loc.pincode === draft.pincode.trim())) next.pincode = 'This pincode is not serviceable in your area.';
+    // Locality match validation commented out — using Mapbox geocoding search
+    // if (draft.locationSource === 'GEOCODED') {
+    //   const locality = localities.find((entry) => entry.id === draft.selectedLocalityId);
+    //   if (!locality) next.locality = 'Select a serviceable locality for your delivery area.';
+    //   else if (locality.city.toLowerCase() !== draft.city.trim().toLowerCase() || locality.state.toLowerCase() !== draft.state.trim().toLowerCase() || locality.pincode !== draft.pincode.trim()) next.locality = 'Re-select a locality matching the city, state, and pincode.';
+    // }
     if (draft.locationSource === 'LIVE_GPS' || draft.locationSource === 'MAP_PIN') {
       const latitude = Number(draft.latitude);
       const longitude = Number(draft.longitude);
@@ -414,7 +427,7 @@ export const CustomerProfileScreen = () => {
     clearAddressError('location');
     setDraft((previous) => ({
       ...previous,
-      locationSource: 'GEOCODED',
+      locationSource: 'MAP_PIN',
       latitude: '',
       longitude: '',
       locationAccuracyMetres: '',
@@ -434,21 +447,24 @@ export const CustomerProfileScreen = () => {
   const editAddress = (address: any) => {
     setEditingAddressId(address.id);
     const draft = draftFromAddress(address);
-    const matchedLocality = localities.find(
-      (loc) => loc.city.trim().toLowerCase() === (address?.city || '').trim().toLowerCase()
-        && loc.state.trim().toLowerCase() === (address?.state || '').trim().toLowerCase()
-        && loc.pincode === (address?.pincode || '').trim(),
-    );
-    setDraft({ ...draft, selectedLocalityId: draft.selectedLocalityId || matchedLocality?.id || '', localityId: draft.localityId || matchedLocality?.id || '' });
+    // Locality matching commented out — using Mapbox geocoding search
+    // const matchedLocality = localities.find(
+    //   (loc) => loc.city.trim().toLowerCase() === (address?.city || '').trim().toLowerCase()
+    //     && loc.state.trim().toLowerCase() === (address?.state || '').trim().toLowerCase()
+    //     && loc.pincode === (address?.pincode || '').trim(),
+    // );
+    // setDraft({ ...draft, selectedLocalityId: draft.selectedLocalityId || matchedLocality?.id || '', localityId: draft.localityId || matchedLocality?.id || '' });
+    setDraft(draft);
     setAddressErrors({});
     setShowForm(true);
   };
 
-  useEffect(() => {
-    if (!editingAddressId || !localitiesLoaded || draft.locationSource !== 'GEOCODED' || draft.selectedLocalityId || localities.length === 0) return;
-    const matchedLocality = localities.find((loc) => loc.city.trim().toLowerCase() === draft.city.trim().toLowerCase() && loc.state.trim().toLowerCase() === draft.state.trim().toLowerCase() && loc.pincode === draft.pincode.trim());
-    if (matchedLocality) setDraft((current) => ({ ...current, selectedLocalityId: matchedLocality.id, localityId: matchedLocality.id }));
-  }, [editingAddressId, localitiesLoaded]);
+  // Locality auto-match on edit commented out — using Mapbox geocoding search
+  // useEffect(() => {
+  //   if (!editingAddressId || !localitiesLoaded || draft.locationSource !== 'GEOCODED' || draft.selectedLocalityId || localities.length === 0) return;
+  //   const matchedLocality = localities.find((loc) => loc.city.trim().toLowerCase() === draft.city.trim().toLowerCase() && loc.state.trim().toLowerCase() === draft.state.trim().toLowerCase() && loc.pincode === draft.pincode.trim());
+  //   if (matchedLocality) setDraft((current) => ({ ...current, selectedLocalityId: matchedLocality.id, localityId: matchedLocality.id }));
+  // }, [editingAddressId, localitiesLoaded]);
 
   const confirmLogout = () => Alert.alert(
     'Sign out?',
@@ -524,82 +540,42 @@ export const CustomerProfileScreen = () => {
       ))}
       {addresses.length > 0 ? <TouchableOpacity style={styles.viewAddresses} onPress={() => navigation.navigate('SavedAddresses')}><Text style={styles.viewAddressesText}>View all saved addresses</Text><ChevronRight size={17} color="#0F766E" /></TouchableOpacity> : null}
 
-      {showForm ? <View style={styles.formCard}>
-        <Text style={styles.formTitle}>{editingAddressId ? 'Edit Address' : 'Add Address'}</Text>
-        <View style={[styles.locationPanel, locationHasError && styles.locationPanelError]}>
-          <View style={styles.locationChoiceRow}>
-            <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceActive]} onPress={() => void useCurrentLocation()}><Text style={[styles.locationChoiceText, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceTextActive]}>Use current location</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'GEOCODED' && styles.locationChoiceActive]} onPress={useManualAddress}><Text style={[styles.locationChoiceText, draft.locationSource === 'GEOCODED' && styles.locationChoiceTextActive]}>Enter manually</Text></TouchableOpacity>
-          </View>
-          <Text style={styles.locationModeTitle}>{locationLabel(draft.locationSource)}</Text>
-          <Text style={styles.locationModeText}>{draft.locationSource === 'LIVE_GPS' ? 'Rider arrival will use strict GPS verification at this saved point.' : draft.locationSource === 'MAP_PIN' ? 'This exact map pin helps navigation; delivery can fall back to OTP/photo proof when needed.' : draft.locationSource === 'GEOCODED' ? 'No location permission is required. The server estimates a routing pin from the written address; OTP remains the primary delivery proof.' : 'This older saved location has unknown provenance. Re-verify with current location or a map pin for stronger location proof.'}</Text>
-          {draft.locationSource !== 'GEOCODED' ? <LeafletMap latitude={pinnedLatitude} longitude={pinnedLongitude} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')} /> : null}
-          <Text style={[styles.locationHelp, locationHasError && styles.locationHelpError]}>{locationHasError ? addressErrors.location : draft.locationSource === 'GEOCODED' ? 'Enter the full address below. A routing coordinate will be estimated automatically.' : hasPinnedLocation ? `Pinned: ${pinnedLatitude.toFixed(5)}, ${pinnedLongitude.toFixed(5)}` : 'Use current location or tap the map to pin the delivery point.'}</Text>
-        </View>
-        {draft.locationSource === 'GEOCODED' && (
-          <>
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, addressErrors.locality && styles.inputLabelError]}>
-                Locality <Text style={{ color: '#EF4444' }}>*</Text>
-              </Text>
-              {localitiesError ? <TouchableOpacity onPress={() => void loadLocalities()}><Text style={styles.inputErrorText}>Could not load localities. Tap to retry.</Text></TouchableOpacity> : null}
-              <TouchableOpacity
-                style={[styles.input, addressErrors.locality && styles.inputError]}
-                onPress={() => setLocalityModalVisible(true)}
-                disabled={localitiesError}
-                activeOpacity={0.7}
-              >
-                <Text style={selectedLocalityName ? styles.inputText : styles.inputPlaceholder}>
-                  {localitiesLoading ? 'Loading localities…' : selectedLocalityName || 'Select your locality'}
-                </Text>
-              </TouchableOpacity>
-              {addressErrors.locality ? <Text style={styles.inputErrorText}>{addressErrors.locality}</Text> : null}
-              {!addressErrors.locality && !draft.selectedLocalityId && (
-                <Text style={{ marginTop: 5, color: '#64748B', fontSize: 11, fontWeight: '700' }}>
-                  Select your locality to auto-fill city, state and pincode.
-                </Text>
-              )}
-            </View>
-            <Modal visible={localityModalVisible} animationType="slide" transparent onRequestClose={() => setLocalityModalVisible(false)}>
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Select Locality</Text>
-                    <TouchableOpacity onPress={() => setLocalityModalVisible(false)} style={styles.modalClose}>
-                      <Text style={styles.modalCloseText}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                  {localitiesLoading ? (
-                    <ActivityIndicator size="large" color="#0F766E" style={{ marginVertical: 30 }} />
-                  ) : (
-                    <FlatList
-                      data={filteredLocalities}
-                      keyExtractor={(item) => item.id}
-                      renderItem={({ item }) => (
-                        <TouchableOpacity style={styles.localityItem} onPress={() => applyLocality(item.id)}>
-                          <Text style={styles.localityName}>{item.name}</Text>
-                          <Text style={styles.localityDetail}>{item.city} — {item.pincode}</Text>
-                        </TouchableOpacity>
-                      )}
-                      ListEmptyComponent={<Text style={styles.localityEmpty}>No serviceable localities match this address. Use live location or pin the map instead.</Text>}
-                    />
-                  )}
-                </View>
+      {showForm ? (
+        <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => { setShowForm(false); setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); }}>
+          <View style={styles.dialogOverlay}>
+            <Pressable style={styles.dialogDismiss} onPress={() => { setShowForm(false); setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); }} />
+            <View style={styles.dialogSheet}>
+              <View style={styles.dialogHandle} />
+              <View style={styles.dialogHeader}>
+                <Text style={styles.dialogTitle}>{editingAddressId ? 'Edit Address' : 'New Address'}</Text>
+                <TouchableOpacity onPress={() => { setShowForm(false); setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); }} style={styles.dialogClose}>
+                  <Text style={styles.dialogCloseText}>✕</Text>
+                </TouchableOpacity>
               </View>
-            </Modal>
-          </>
-        )}
-        {addressFields.map(({ key, label, required }) => {
-          const error = addressErrors[key as AddressErrorKey];
-          return <View key={key} style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, error && styles.inputLabelError]}>{label}{required ? ' *' : ''}</Text>
-            <TextInput value={String((draft as any)[key] ?? '')} onChangeText={(value) => { clearAddressError(key); setDraft((previous) => ({ ...previous, [key]: value, ...(key === 'city' || key === 'state' || key === 'pincode' ? { selectedLocalityId: '', localityId: '' } : {}) })); }} placeholder={required ? `${label} (required)` : label} placeholderTextColor="#94A3B8" style={[styles.input, error && styles.inputError]} accessibilityLabel={label} />
-            {error ? <Text style={styles.inputErrorText}>{error}</Text> : null}
-          </View>;
-        })}
-        <View style={styles.switchRow}><Text style={styles.switchText}>Set as default</Text><Switch value={draft.isDefault} onValueChange={(value) => setDraft((previous) => ({ ...previous, isDefault: value }))} /></View>
-        <TouchableOpacity disabled={saveAddressMutation.isPending} style={[styles.saveButton, saveAddressMutation.isPending && styles.disabled]} onPress={saveAddress}><Text style={styles.saveButtonText}>{saveAddressMutation.isPending ? 'Saving...' : editingAddressId ? 'Update Address' : 'Save Address'}</Text></TouchableOpacity>
-      </View> : null}
+              <ScrollView contentContainerStyle={styles.dialogContent} keyboardShouldPersistTaps="handled">
+                <View style={[styles.locationPanel, locationHasError && styles.locationPanelError]}>
+                  <View style={styles.locationChoiceRow}>
+                    <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceActive]} onPress={() => void useCurrentLocation()}><Text style={[styles.locationChoiceText, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceTextActive]}>📍 Use my location</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'MAP_PIN' && styles.locationChoiceActive]} onPress={useManualAddress}><Text style={[styles.locationChoiceText, draft.locationSource === 'MAP_PIN' && styles.locationChoiceTextActive]}>🗺️ Search on map</Text></TouchableOpacity>
+                  </View>
+                  {draft.locationSource !== 'LIVE_GPS' ? <LeafletMap latitude={pinnedLatitude} longitude={pinnedLongitude} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')} /> : null}
+                  <Text style={[styles.locationHelp, locationHasError && styles.locationHelpError]}>{locationHasError ? addressErrors.location : draft.locationSource === 'LIVE_GPS' ? 'Using your current location' : hasPinnedLocation ? `Pinned: ${pinnedLatitude.toFixed(5)}, ${pinnedLongitude.toFixed(5)}` : 'Search above or tap the map to pin delivery spot'}</Text>
+                </View>
+                {addressFields.map(({ key, label, required, placeholder }) => {
+                  const error = addressErrors[key as AddressErrorKey];
+                  return <View key={key} style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, error && styles.inputLabelError]}>{label}{required ? ' *' : ''}</Text>
+                    <TextInput value={String((draft as any)[key] ?? '')} onChangeText={(value) => { clearAddressError(key); setDraft((previous) => ({ ...previous, [key]: value })); }} placeholder={placeholder || (required ? `${label} (required)` : label)} placeholderTextColor="#94A3B8" style={[styles.input, error && styles.inputError]} accessibilityLabel={label} />
+                    {error ? <Text style={styles.inputErrorText}>{error}</Text> : null}
+                  </View>;
+                })}
+                <View style={styles.switchRow}><Text style={styles.switchText}>Set as default</Text><Switch value={draft.isDefault} onValueChange={(value) => setDraft((previous) => ({ ...previous, isDefault: value }))} /></View>
+                <TouchableOpacity disabled={saveAddressMutation.isPending} style={[styles.saveButton, saveAddressMutation.isPending && styles.disabled]} onPress={saveAddress}><Text style={styles.saveButtonText}>{saveAddressMutation.isPending ? 'Saving...' : editingAddressId ? 'Update' : 'Save Address'}</Text></TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </ScrollView>
   );
 };
@@ -622,6 +598,7 @@ const styles = StyleSheet.create({
   addressCard: { marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', padding: 14 }, addressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }, addressLabelRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7 }, addressLabel: { fontSize: 12, fontWeight: '900', color: '#0F766E', textTransform: 'uppercase' }, smallAction: { color: '#0F766E', fontWeight: '900', fontSize: 12 }, addressName: { marginTop: 7, fontSize: 16, fontWeight: '900', color: '#0F172A' }, addressText: { marginTop: 4, color: '#475569' }, locationBadge: { marginTop: 7, alignSelf: 'flex-start', borderRadius: 999, backgroundColor: '#F0FDFA', color: '#0F766E', paddingHorizontal: 9, paddingVertical: 4, fontSize: 10, fontWeight: '900' }, deleteText: { color: '#DC2626', fontWeight: '900', fontSize: 12 }, addressActions: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 10 }, addressAction: { flexDirection: 'row', alignItems: 'center', gap: 4 }, deliverHere: { flex: 1, alignItems: 'center', borderRadius: 999, backgroundColor: '#0F766E', paddingVertical: 9 }, deliverHereText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' }, viewAddresses: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 }, viewAddressesText: { color: '#0F766E', fontWeight: '900', fontSize: 12 },
   formCard: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' }, formTitle: { fontSize: 18, fontWeight: '900', color: '#0F172A', marginBottom: 12 },
   inputText: { color: '#0F172A', fontSize: 14 }, inputPlaceholder: { color: '#94A3B8', fontSize: 14 },
+  dialogOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(9,31,24,0.45)' }, dialogDismiss: { flex: 1 }, dialogSheet: { maxHeight: '88%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24 }, dialogHandle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', marginTop: 10, marginBottom: 4 }, dialogHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }, dialogTitle: { fontSize: 18, fontWeight: '900', color: '#0F172A' }, dialogClose: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' }, dialogCloseText: { fontSize: 16, fontWeight: '900', color: '#64748B' }, dialogContent: { padding: 16, paddingBottom: 30 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }, modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '70%', paddingBottom: 30 }, modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }, modalTitle: { fontSize: 17, fontWeight: '900', color: '#0F172A' }, modalClose: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' }, modalCloseText: { fontSize: 16, fontWeight: '900', color: '#64748B' },
   localityItem: { paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }, localityName: { fontSize: 15, fontWeight: '800', color: '#0F172A' }, localityDetail: { fontSize: 12, fontWeight: '600', color: '#64748B', marginTop: 3 }, localityEmpty: { padding: 24, textAlign: 'center', color: '#64748B', fontSize: 13 }, locationPanel: { borderRadius: 18, backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#CCFBF1', padding: 10, marginBottom: 12 }, locationPanelError: { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' }, locationChoiceRow: { flexDirection: 'row', gap: 8, marginBottom: 10 }, locationChoice: { flex: 1, alignItems: 'center', borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#99F6E4', paddingVertical: 10 }, locationChoiceActive: { backgroundColor: '#0F766E', borderColor: '#0F766E' }, locationChoiceText: { color: '#0F766E', fontSize: 11, fontWeight: '900' }, locationChoiceTextActive: { color: '#FFFFFF' }, locationModeTitle: { color: '#0F172A', fontSize: 13, fontWeight: '900', marginBottom: 3 }, locationModeText: { color: '#475569', fontSize: 11, lineHeight: 16, marginBottom: 10 }, locationHelp: { marginTop: 8, color: '#115E59', fontWeight: '700', fontSize: 12, textAlign: 'center' }, locationHelpError: { color: '#B91C1C' },
   inputGroup: { marginBottom: 10 }, inputLabel: { marginBottom: 5, color: '#475569', fontSize: 12, fontWeight: '900' }, inputLabelError: { color: '#B91C1C' }, input: { borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, color: '#0F172A' }, inputError: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' }, inputErrorText: { marginTop: 5, color: '#B91C1C', fontSize: 11, lineHeight: 16, fontWeight: '800' }, switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 12 }, switchText: { color: '#0F172A', fontWeight: '700' }, saveButton: { backgroundColor: '#0F766E', borderRadius: 16, paddingVertical: 15, alignItems: 'center' }, saveButtonText: { color: '#FFFFFF', fontWeight: '900' },

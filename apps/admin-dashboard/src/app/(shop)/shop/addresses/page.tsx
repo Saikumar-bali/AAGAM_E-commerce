@@ -19,7 +19,7 @@ type LocalityOption = {
   id: string; name: string; aliases: string[]; city: string; state: string; pincode: string;
   latitude: number | null; longitude: number | null;
 };
-type AddressField = 'recipientName' | 'phoneE164' | 'alternatePhoneE164' | 'line1' | 'city' | 'state' | 'pincode' | 'locality' | 'location';
+type AddressField = 'recipientName' | 'phoneE164' | 'alternatePhoneE164' | 'line1' | 'city' | 'state' | 'pincode' | 'location';
 type AddressFieldErrors = Partial<Record<AddressField, string>>;
 const ADDRESS_ICONS: Record<string, React.ElementType> = { home: Home, work: Building };
 
@@ -57,54 +57,57 @@ export default function AddressesPage() {
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
   const [draft, setDraft] = useState(emptyDraft());
-  const [localities, setLocalities] = useState<LocalityOption[]>([]);
-  const [localitiesLoading, setLocalitiesLoading] = useState(false);
-  const [localitiesError, setLocalitiesError] = useState(false);
+  // Locality state commented out — replaced by Mapbox geocoding search in StoreLocationPicker
+  // const [localities, setLocalities] = useState<LocalityOption[]>([]);
+  // const [localitiesLoading, setLocalitiesLoading] = useState(false);
+  // const [localitiesError, setLocalitiesError] = useState(false);
 
-  const loadLocalities = React.useCallback(async () => {
-    setLocalitiesLoading(true);
-    setLocalitiesError(false);
-    try {
-      const response = await apiClient.get('/localities');
-      setLocalities(Array.isArray(response.data) ? response.data : []);
-    } catch {
-      setLocalitiesError(true);
-    } finally {
-      setLocalitiesLoading(false);
-    }
-  }, []);
+  // Locality loading commented out — replaced by Mapbox geocoding search
+  // const loadLocalities = React.useCallback(async () => {
+  //   setLocalitiesLoading(true);
+  //   setLocalitiesError(false);
+  //   try {
+  //     const response = await apiClient.get('/localities');
+  //     setLocalities(Array.isArray(response.data) ? response.data : []);
+  //   } catch {
+  //     setLocalitiesError(true);
+  //   } finally {
+  //     setLocalitiesLoading(false);
+  //   }
+  // }, []);
 
-  useEffect(() => { void loadLocalities(); }, [loadLocalities]);
+  // useEffect(() => { void loadLocalities(); }, [loadLocalities]);
 
-  const applyLocality = (localityId: string) => {
-    setDraft((d) => ({ ...d, selectedLocalityId: localityId }));
-    const locality = localities.find((entry) => entry.id === localityId);
-    if (!locality) return;
-    setDraft((d) => ({
-      ...d,
-      selectedLocalityId: localityId,
-      city: locality.city,
-      state: locality.state,
-      pincode: locality.pincode,
-      latitude: locality.latitude ?? d.latitude,
-      longitude: locality.longitude ?? d.longitude,
-    }));
-  };
+  // Locality apply commented out — replaced by Mapbox geocoding search
+  // const applyLocality = (localityId: string) => {
+  //   setDraft((d) => ({ ...d, selectedLocalityId: localityId }));
+  //   const locality = localities.find((entry) => entry.id === localityId);
+  //   if (!locality) return;
+  //   setDraft((d) => ({
+  //     ...d,
+  //     selectedLocalityId: localityId,
+  //     city: locality.city,
+  //     state: locality.state,
+  //     pincode: locality.pincode,
+  //     latitude: locality.latitude ?? d.latitude,
+  //     longitude: locality.longitude ?? d.longitude,
+  //   }));
+  // };
 
-  const filteredLocalities = React.useMemo(() => {
-    const pincodeFilter = /^\d{6}$/.test(draft.pincode.trim()) ? draft.pincode.trim() : null;
-    const cityRaw = draft.city.trim().replace(/^string:/i, '');
-    const cityFilter = /^\d{6}$/.test(cityRaw) ? '' : cityRaw.toLowerCase();
-    const cityOptions: Array<{ city: string; items: LocalityOption[] }> = [];
-    for (const entry of localities) {
-      if (pincodeFilter && entry.pincode !== pincodeFilter) continue;
-      if (cityFilter && !entry.city.toLowerCase().includes(cityFilter)) continue;
-      const group = cityOptions.find((item) => item.city === entry.city);
-      if (group) group.items.push(entry);
-      else cityOptions.push({ city: entry.city, items: [entry] });
-    }
-    return cityOptions;
-  }, [draft.pincode, draft.city, localities]);
+  // const filteredLocalities = React.useMemo(() => {
+  //   const pincodeFilter = /^\d{6}$/.test(draft.pincode.trim()) ? draft.pincode.trim() : null;
+  //   const cityRaw = draft.city.trim().replace(/^string:/i, '');
+  //   const cityFilter = /^\d{6}$/.test(cityRaw) ? '' : cityRaw.toLowerCase();
+  //   const cityOptions: Array<{ city: string; items: LocalityOption[] }> = [];
+  //   for (const entry of localities) {
+  //     if (pincodeFilter && entry.pincode !== pincodeFilter) continue;
+  //     if (cityFilter && !entry.city.toLowerCase().includes(cityFilter)) continue;
+  //     const group = cityOptions.find((item) => item.city === entry.city);
+  //     if (group) group.items.push(entry);
+  //     else cityOptions.push({ city: entry.city, items: [entry] });
+  //   }
+  //   return cityOptions;
+  // }, [draft.pincode, draft.city, localities]);
 
   const fetchAddresses = async () => {
     try { const res = await apiClient.get('/customer/addresses'); setAddresses(Array.isArray(res.data) ? res.data : []); }
@@ -113,25 +116,27 @@ export default function AddressesPage() {
   };
   useEffect(() => { void fetchAddresses(); }, []);
   useEffect(() => { const handleClick = () => setMenuOpenId(null); if (menuOpenId) { document.addEventListener('click', handleClick); return () => document.removeEventListener('click', handleClick); } }, [menuOpenId]);
-  useEffect(() => {
-    if (!editingId || draft.locationSource !== 'GEOCODED' || draft.selectedLocalityId || localities.length === 0) return;
-    const matchedLocalities = localities.filter((loc) => loc.city.trim().toLowerCase() === draft.city.trim().toLowerCase() && loc.state.trim().toLowerCase() === draft.state.trim().toLowerCase() && loc.pincode === draft.pincode.trim());
-    const matchedLocality = matchedLocalities.length === 1 ? matchedLocalities[0] : undefined;
-    if (matchedLocality) setDraft((current) => ({ ...current, selectedLocalityId: matchedLocality.id }));
-  }, [editingId, localities]);
+  // Locality auto-match on edit commented out — using Mapbox geocoding search
+  // useEffect(() => {
+  //   if (!editingId || draft.locationSource !== 'GEOCODED' || draft.selectedLocalityId || localities.length === 0) return;
+  //   const matchedLocalities = localities.filter((loc) => loc.city.trim().toLowerCase() === draft.city.trim().toLowerCase() && loc.state.trim().toLowerCase() === draft.state.trim().toLowerCase() && loc.pincode === draft.pincode.trim());
+  //   const matchedLocality = matchedLocalities.length === 1 ? matchedLocalities[0] : undefined;
+  //   if (matchedLocality) setDraft((current) => ({ ...current, selectedLocalityId: matchedLocality.id }));
+  // }, [editingId, localities]);
 
   const resetDraft = () => { setDraft(emptyDraft()); setFieldErrors({}); };
   const clearFieldError = (field: AddressField) => setFieldErrors((current) => ({ ...current, [field]: undefined }));
   const handleEdit = (addr: Address) => {
     setEditingId(addr.id); setFieldErrors({});
-    const matchedLocalityId = addr.localityId || (() => {
-      const matches = localities.filter(
-        (loc) => loc.city.trim().toLowerCase() === addr.city.trim().toLowerCase()
-          && loc.state.trim().toLowerCase() === addr.state.trim().toLowerCase()
-          && loc.pincode === addr.pincode.trim(),
-      );
-      return matches.length === 1 ? matches[0]?.id : undefined;
-    })();
+    // Locality matching commented out — using Mapbox geocoding search
+    // const matchedLocalityId = addr.localityId || (() => {
+    //   const matches = localities.filter(
+    //     (loc) => loc.city.trim().toLowerCase() === addr.city.trim().toLowerCase()
+    //       && loc.state.trim().toLowerCase() === addr.state.trim().toLowerCase()
+    //       && loc.pincode === addr.pincode.trim(),
+    //   );
+    //   return matches.length === 1 ? matches[0]?.id : undefined;
+    // })();
     setDraft({
       label: addr.label || 'Home', recipientName: addr.recipientName, phoneE164: addr.phoneE164,
       alternatePhoneE164: addr.alternatePhoneE164 || '', line1: addr.line1, line2: addr.line2 || '', landmark: addr.landmark || '',
@@ -139,7 +144,8 @@ export default function AddressesPage() {
       locationSource: ['LIVE_GPS', 'MAP_PIN', 'GEOCODED', 'LEGACY_UNKNOWN'].includes(String(addr.locationSource)) ? addr.locationSource! : 'LEGACY_UNKNOWN',
       locationAccuracyMetres: addr.locationAccuracyMetres ?? null, locationCapturedAt: addr.locationCapturedAt ?? null,
       instructions: addr.instructions || '', isDefault: addr.isDefault,
-       selectedLocalityId: matchedLocalityId || '',
+      // selectedLocalityId: matchedLocalityId || '',
+      selectedLocalityId: '',
     });
     setShowForm(true);
   };
@@ -156,14 +162,16 @@ export default function AddressesPage() {
     if (draft.city.trim().length < 2) next.city = 'City is required.';
     if (draft.state.trim().length < 2) next.state = 'State is required.';
     if (!/^\d{6}$/.test(pincode)) next.pincode = 'A valid 6 digit pincode is required.';
-    else if (localities.length > 0 && !localities.some((loc) => loc.pincode === pincode)) next.pincode = 'This pincode is not serviceable in your area.';
-    if (draft.locationSource === 'GEOCODED') {
-      const selected = localities.find((entry) => entry.id === draft.selectedLocalityId);
-      if (!selected) next.locality = 'Select a serviceable locality for your delivery area.';
-      else if (selected.city.toLowerCase() !== draft.city.trim().toLowerCase()
-        || selected.state.toLowerCase() !== draft.state.trim().toLowerCase()
-        || selected.pincode !== pincode) next.locality = 'Re-select a locality matching the city, state, and pincode.';
-    }
+    // Locality pincode validation commented out — using Mapbox geocoding search
+    // else if (localities.length > 0 && !localities.some((loc) => loc.pincode === pincode)) next.pincode = 'This pincode is not serviceable in your area.';
+    // Locality match validation commented out — using Mapbox geocoding search
+    // if (draft.locationSource === 'GEOCODED') {
+    //   const selected = localities.find((entry) => entry.id === draft.selectedLocalityId);
+    //   if (!selected) next.locality = 'Select a serviceable locality for your delivery area.';
+    //   else if (selected.city.toLowerCase() !== draft.city.trim().toLowerCase()
+    //     || selected.state.toLowerCase() !== draft.state.trim().toLowerCase()
+    //     || selected.pincode !== pincode) next.locality = 'Re-select a locality matching the city, state, and pincode.';
+    // }
     if ((draft.locationSource === 'LIVE_GPS' || draft.locationSource === 'MAP_PIN')
       && (draft.latitude === null || draft.longitude === null || !Number.isFinite(draft.latitude) || !Number.isFinite(draft.longitude))) {
       next.location = 'Capture current location or choose an exact map point.';
@@ -182,7 +190,8 @@ export default function AddressesPage() {
       line1: draft.line1.trim(), line2: draft.line2.trim() || undefined, landmark: draft.landmark.trim() || undefined,
       city: draft.city.trim(), state: draft.state.trim(), pincode: cleanPincode(draft.pincode), country: 'IN',
       instructions: draft.instructions.trim() || undefined, isDefault: draft.isDefault || addresses.length === 0,
-      localityId: draft.locationSource === 'GEOCODED' ? draft.selectedLocalityId : undefined,
+      // localityId no longer required — using Mapbox geocoding coordinates
+      localityId: undefined,
     };
     if (draft.locationSource === 'LIVE_GPS') Object.assign(base, {
       locationSource: 'LIVE_GPS', latitude: draft.latitude, longitude: draft.longitude,
@@ -238,51 +247,41 @@ export default function AddressesPage() {
     {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">{error}</div>}
     <div className="mb-6 space-y-3">{addresses.map((addr) => { const Icon = ADDRESS_ICONS[(addr.label || '').toLowerCase()] || Navigation; return <div key={addr.id} className={`relative rounded-2xl border p-4 transition-all ${addr.isDefault ? 'border-teal-300 bg-teal-50 shadow-sm shadow-teal-100' : 'border-slate-100 bg-white hover:border-teal-200'}`}><div className="flex items-start justify-between"><div className="flex flex-1 items-start gap-3"><div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${addr.isDefault ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-500'}`}><Icon className="h-5 w-5" /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="text-xs font-black uppercase tracking-wider text-slate-950">{addr.label || 'Address'}</span>{addr.isDefault && <span className="rounded-lg bg-teal-600 px-1.5 py-0.5 text-[10px] font-black text-white">Default</span>}<span className="rounded-lg bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-600">{locationLabel(addr.locationSource)}</span></div><div className="mt-1 font-bold text-slate-900">{addr.recipientName}</div><div className="mt-1 text-sm text-slate-600">{addr.line1}{addr.line2 && `, ${addr.line2}`}{addr.landmark && `, nr ${addr.landmark}`}<br />{addr.city}, {addr.state} - {addr.pincode}</div><div className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-slate-500"><Phone className="h-3 w-3" />{addr.phoneE164}</div></div></div><div className="relative"><button onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === addr.id ? null : addr.id); }} className="rounded-xl p-2 transition-colors hover:bg-slate-100"><MoreVertical className="h-4 w-4 text-slate-400" /></button>{menuOpenId === addr.id && <div className="absolute right-0 top-full z-20 mt-1 w-36 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xl"><button onClick={(e) => { e.stopPropagation(); handleEdit(addr); setMenuOpenId(null); }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Edit2 className="h-4 w-4" /> Edit</button><button onClick={(e) => { e.stopPropagation(); setDeletingId(addr.id); setMenuOpenId(null); }} className="flex w-full items-center gap-2 px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /> Delete</button></div>}</div></div></div>; })}{addresses.length === 0 && !showForm && <EmptyState icon={MapPin} title="No addresses saved yet" description="Add a delivery address to start ordering." action={{ label: 'Add Address', onClick: () => { resetDraft(); setShowForm(true); } }} />}</div>
 
-    {showForm && <div className="rounded-2xl border border-slate-100 bg-white p-5"><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-black text-slate-950">{editingId ? 'Edit Address' : 'Add New Address'}</h2><button onClick={() => { setShowForm(false); setEditingId(null); resetDraft(); }} className="grid h-8 w-8 place-items-center rounded-xl transition-colors hover:bg-slate-100"><X className="h-5 w-5 text-slate-400" /></button></div>
-      <div className={`mb-4 rounded-2xl border p-3 ${fieldErrors.location ? 'border-red-300 bg-red-50/50' : 'border-teal-100 bg-teal-50/30'}`}>
-        <div className="mb-3 grid grid-cols-2 gap-2"><button type="button" onClick={useCurrentLocation} disabled={locating} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black ${draft.locationSource === 'LIVE_GPS' ? 'border-teal-700 bg-teal-700 text-white' : 'border-teal-200 bg-white text-teal-800'}`}>{locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />}Use current location</button><button type="button" onClick={useManualAddress} className={`min-h-11 rounded-xl border px-3 text-sm font-black ${draft.locationSource === 'GEOCODED' ? 'border-teal-700 bg-teal-700 text-white' : 'border-teal-200 bg-white text-teal-800'}`}>Enter manually</button></div>
-        <p className="mb-2 text-xs font-black text-slate-900">{locationLabel(draft.locationSource)}</p><p className="mb-3 text-xs font-semibold leading-5 text-slate-600">{draft.locationSource === 'LIVE_GPS' ? 'Strict Rider GPS verification will use this saved customer location.' : draft.locationSource === 'MAP_PIN' ? 'The Rider gets this exact navigation pin; OTP/photo fallback remains available if the pin is imperfect.' : draft.locationSource === 'GEOCODED' ? 'No location permission is required. A routing pin is estimated from the written address and OTP is the primary delivery proof.' : 'This older location has unknown provenance. Re-verify it for stronger delivery proof.'}</p>
-        {draft.locationSource !== 'GEOCODED' && <StoreLocationPicker apiClient={apiClient} coords={{ lat: draft.latitude, lng: draft.longitude }} onCoordsChange={(lat, lng) => { clearFieldError('location'); setDraft((d) => ({ ...d, latitude: lat, longitude: lng, locationSource: 'MAP_PIN', locationAccuracyMetres: null, locationCapturedAt: null })); }} onAddressChange={(address) => setDraft((d) => ({ ...d, line1: d.line1 || address.address, city: d.city || address.city, state: d.state || address.state, pincode: d.pincode || cleanPincode(address.pincode || '') }))} searchPlaceholder="Search apartment, street, landmark..." />}
-        {fieldErrors.location && <p role="alert" className="mt-2 text-xs font-bold text-red-600">{fieldErrors.location}</p>}
-      </div>
-      {draft.locationSource === 'GEOCODED' && (
-        <div className="mb-4">
-          <label className={`mb-1.5 block text-xs font-black uppercase tracking-wider ${fieldErrors.locality ? 'text-red-700' : 'text-slate-700'}`}>
-            Locality <span className="ml-1 text-red-600">*</span>
-          </label>
-          {localitiesError && <div className="mb-2 flex items-center justify-between rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700"><span>Could not load serviceable localities.</span><button type="button" onClick={() => void loadLocalities()} className="underline">Retry</button></div>}
-          <select
-            value={draft.selectedLocalityId}
-            onChange={(e) => applyLocality(e.target.value)}
-            disabled={localitiesLoading || localitiesError}
-            aria-invalid={Boolean(fieldErrors.locality)}
-            className={`w-full rounded-xl border bg-white px-4 py-2.5 text-sm text-slate-900 transition-colors focus:outline-none focus:ring-2 ${
-              fieldErrors.locality
-                ? 'border-red-400 bg-red-50/40 focus:border-red-500 focus:ring-red-200'
-                : 'border-slate-200 focus:border-teal-500 focus:ring-teal-500'
-            }`}
-          >
-            <option value="">{localitiesLoading ? 'Loading localities…' : 'Select your locality'}</option>
-            {filteredLocalities.map((group) => (
-              <optgroup key={group.city} label={group.city}>
-                {group.items.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.name} — {loc.pincode}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          {fieldErrors.locality && <p role="alert" className="mt-1.5 text-xs font-bold text-red-600">{fieldErrors.locality}</p>}
-          {!fieldErrors.locality && !draft.selectedLocalityId && (
-            <p className="mt-1.5 text-xs font-semibold text-slate-500">
-              Select your locality to auto-fill city, state and pincode.
-            </p>
-          )}
+    {showForm && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+      <div className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
+          <div>
+            <h2 className="text-xl font-black text-slate-950">{editingId ? 'Edit Address' : 'New Address'}</h2>
+            <p className="text-xs font-semibold text-slate-500">Find your location or fill in the details below.</p>
+          </div>
+          <button onClick={() => { setShowForm(false); setEditingId(null); resetDraft(); }} className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100"><X className="h-4 w-4 text-slate-400" /></button>
+        </header>
+        <div className="space-y-4 p-5">
+          <div className={`rounded-2xl border p-3 ${fieldErrors.location ? 'border-red-300 bg-red-50/50' : 'border-teal-100 bg-teal-50/30'}`}>
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <button type="button" onClick={useCurrentLocation} disabled={locating} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black ${draft.locationSource === 'LIVE_GPS' ? 'border-teal-700 bg-teal-700 text-white' : 'border-teal-200 bg-white text-teal-800'}`}>{locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />}Use my location</button>
+              <button type="button" onClick={useManualAddress} className={`min-h-11 rounded-xl border px-3 text-sm font-black ${draft.locationSource === 'GEOCODED' ? 'border-teal-700 bg-teal-700 text-white' : 'border-teal-200 bg-white text-teal-800'}`}>Search on map</button>
+            </div>
+            {draft.locationSource !== 'GEOCODED' && <StoreLocationPicker apiClient={apiClient} coords={{ lat: draft.latitude, lng: draft.longitude }} onCoordsChange={(lat, lng) => { clearFieldError('location'); setDraft((d) => ({ ...d, latitude: lat, longitude: lng, locationSource: 'MAP_PIN', locationAccuracyMetres: null, locationCapturedAt: null })); }} onAddressChange={(address) => setDraft((d) => ({ ...d, line1: d.line1 || address.address, city: d.city || address.city, state: d.state || address.state, pincode: d.pincode || cleanPincode(address.pincode || '') }))} searchPlaceholder="Search apartment, street, landmark..." />}
+            {fieldErrors.location && <p role="alert" className="mt-2 text-xs font-bold text-red-600">{fieldErrors.location}</p>}
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Input label="Label" value={draft.label} onChange={(v) => setDraft((d) => ({ ...d, label: v }))} placeholder="Home, Work, etc." />
+            <Input required label="Name" value={draft.recipientName} error={fieldErrors.recipientName} onChange={(v) => { clearFieldError('recipientName'); setDraft((d) => ({ ...d, recipientName: v })); }} placeholder="Who is this for?" />
+            <Input required label="Phone" value={draft.phoneE164} error={fieldErrors.phoneE164} onChange={(v) => { clearFieldError('phoneE164'); setDraft((d) => ({ ...d, phoneE164: v })); }} placeholder="10-digit number" />
+            <Input required label="Pincode" value={draft.pincode} error={fieldErrors.pincode} onChange={(v) => { clearFieldError('pincode'); setDraft((d) => ({ ...d, pincode: cleanPincode(v) })); }} placeholder="6-digit pincode" />
+            <Input required label="House / Street" value={draft.line1} error={fieldErrors.line1} onChange={(v) => { clearFieldError('line1'); setDraft((d) => ({ ...d, line1: v })); }} className="md:col-span-2" placeholder="Flat no, building, street" />
+            <Input label="Area / Locality" value={draft.line2} onChange={(v) => setDraft((d) => ({ ...d, line2: v }))} className="md:col-span-2" placeholder="Neighborhood, colony" />
+            <Input label="Nearby" value={draft.landmark} onChange={(v) => setDraft((d) => ({ ...d, landmark: v }))} placeholder="Near temple, park, etc." />
+            <Input label="Note for rider" value={draft.instructions} onChange={(v) => setDraft((d) => ({ ...d, instructions: v }))} placeholder="Gate code, floor, etc." />
+            <Input required label="City" value={draft.city} error={fieldErrors.city} onChange={(v) => { clearFieldError('city'); setDraft((d) => ({ ...d, city: v })); }} />
+            <Input required label="State" value={draft.state} error={fieldErrors.state} onChange={(v) => { clearFieldError('state'); setDraft((d) => ({ ...d, state: v })); }} />
+          </div>
+          <div className="flex items-center gap-2"><input type="checkbox" id="isDefault" checked={draft.isDefault} onChange={(e) => setDraft((d) => ({ ...d, isDefault: e.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" /><label htmlFor="isDefault" className="text-sm font-bold text-slate-700">Set as default</label></div>
+          <div className="flex gap-3 pt-2"><button onClick={() => { setShowForm(false); setEditingId(null); resetDraft(); }} className="flex-1 rounded-xl bg-slate-100 px-4 py-2.5 font-black text-slate-700 transition-colors hover:bg-slate-200">Cancel</button><button onClick={saveAddress} disabled={saving} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 font-black text-white transition-colors hover:bg-teal-800 disabled:opacity-50">{saving && <Loader2 className="h-4 w-4 animate-spin" />}{editingId ? 'Update' : 'Save'}</button></div>
         </div>
-      )}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2"><Input label="Label" value={draft.label} onChange={(v) => setDraft((d) => ({ ...d, label: v }))} placeholder="Home, Work, etc" /><Input required label="Recipient Name" value={draft.recipientName} error={fieldErrors.recipientName} onChange={(v) => { clearFieldError('recipientName'); setDraft((d) => ({ ...d, recipientName: v })); }} /><Input required label="Phone" value={draft.phoneE164} error={fieldErrors.phoneE164} onChange={(v) => { clearFieldError('phoneE164'); setDraft((d) => ({ ...d, phoneE164: v })); }} placeholder="9876543210 or +919876543210" /><Input required label="Pincode" value={draft.pincode} error={fieldErrors.pincode} onChange={(v) => { clearFieldError('pincode'); setDraft((d) => ({ ...d, pincode: cleanPincode(v), selectedLocalityId: '' })); }} /><Input required label="City" value={draft.city} error={fieldErrors.city} onChange={(v) => { clearFieldError('city'); setDraft((d) => ({ ...d, city: v, selectedLocalityId: '' })); }} /><Input required label="State" value={draft.state} error={fieldErrors.state} onChange={(v) => { clearFieldError('state'); setDraft((d) => ({ ...d, state: v, selectedLocalityId: '' })); }} /><Input required label="Address Line 1" value={draft.line1} error={fieldErrors.line1} onChange={(v) => { clearFieldError('line1'); setDraft((d) => ({ ...d, line1: v })); }} className="md:col-span-2" /><Input label="Address Line 2" value={draft.line2} onChange={(v) => setDraft((d) => ({ ...d, line2: v }))} className="md:col-span-2" /><Input label="Landmark" value={draft.landmark} onChange={(v) => setDraft((d) => ({ ...d, landmark: v }))} /><Input label="Instructions" value={draft.instructions} onChange={(v) => setDraft((d) => ({ ...d, instructions: v }))} placeholder="Gate code, floor, etc" /></div>
-      <div className="mt-4 flex items-center gap-2"><input type="checkbox" id="isDefault" checked={draft.isDefault} onChange={(e) => setDraft((d) => ({ ...d, isDefault: e.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" /><label htmlFor="isDefault" className="text-sm font-bold text-slate-700">Set as default address</label></div><div className="mt-5 flex gap-3"><button onClick={() => { setShowForm(false); setEditingId(null); resetDraft(); }} className="flex-1 rounded-xl bg-slate-100 px-4 py-2.5 font-black text-slate-700 transition-colors hover:bg-slate-200">Cancel</button><button onClick={saveAddress} disabled={saving} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 font-black text-white transition-colors hover:bg-teal-800 disabled:opacity-50">{saving && <Loader2 className="h-4 w-4 animate-spin" />}{editingId ? 'Update' : 'Save'} Address</button></div></div>}
+      </div>
+    </div>}
     {!showForm && addresses.length > 0 && <button onClick={() => { resetDraft(); setShowForm(true); }} className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 py-3.5 font-black text-slate-500 transition-colors hover:border-teal-400 hover:text-teal-600"><Plus className="h-5 w-5" /> Add New Address</button>}
     {deletingId && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"><div className="text-center"><div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-red-100 text-red-600"><Trash2 className="h-6 w-6" /></div><h3 className="mt-3 text-lg font-black text-slate-950">Delete Address?</h3><p className="mt-1 text-sm text-slate-500">This action cannot be undone.</p></div><div className="mt-5 flex gap-3"><button onClick={() => setDeletingId(null)} className="flex-1 rounded-xl bg-slate-100 px-4 py-2.5 font-black text-slate-700 hover:bg-slate-200">Cancel</button><button onClick={() => void deleteAddress()} className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 font-black text-white hover:bg-red-700">Delete</button></div></div></div>}
   </div></DashboardLayout>;
