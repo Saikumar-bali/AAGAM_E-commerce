@@ -20,5 +20,13 @@ export class GeoController {
 
     return this.geoService.reverse(lat, lng);
   }
+
+  @Get('search')
+  async search(@Query('q') query: string) {
+    if (!query || query.trim().length < 2) {
+      throw new BadRequestException('q (query) is required');
+    }
+    return this.geoService.search(query.trim());
+  }
 }
 

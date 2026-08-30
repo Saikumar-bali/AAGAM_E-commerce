@@ -1,6 +1,14 @@
 import axios from 'axios';
 import { Injectable } from '@nestjs/common';
 
+declare const process: any;
+
+function getMapboxToken(): string | null {
+  const token = process.env?.NEXT_PUBLIC_MAPBOX_TOKEN || process.env?.MAPBOX_SECRET_TOKEN || null;
+  if (token && typeof token === 'string' && token.startsWith('pk.')) return token;
+  return null;
+}
+
 type NominatimAddress = {
   house_number?: string;
   road?: string;
@@ -139,6 +147,45 @@ export class GeoService {
     }
 
     return lastFailure ?? { ok: false as const, source: 'nominatim' as const, status: 0 };
+  }
+
+  async search(query: string) {
+    const token = getMapboxToken();
+    if (!token) {
+      return { ok: false, source: 'mapbox', results: [], message: 'Mapbox token not configured' };
+    }
+
+    try {
+      const response = await axios.get(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json`,
+        {
+          params: {
+            access_token: token,
+            country: 'in',
+            types: 'address,place,neighborhood,poi',
+            autocomplete: true,
+            limit: 5,
+          },
+          timeout: 10000,
+          validateStatus: () => true,
+        },
+      );
+
+      if (response.status < 200 || response.status >= 300) {
+        return { ok: false, source: 'mapbox', status: response.status, results: [] };
+      }
+
+      const features = (response.data?.features || []).map((f: any) => ({
+        displayName: f.place_name || f.text || '',
+        lat: f.center?.[1] ?? 0,
+        lng: f.center?.[0] ?? 0,
+        type: f.place_type?.[0] || 'place',
+      }));
+
+      return { ok: true, source: 'mapbox', results: features };
+    } catch (e: any) {
+      return { ok: false, source: 'mapbox', results: [], message: e?.message || 'Search failed' };
+    }
   }
 
   private async searchOnce(query: string) {
