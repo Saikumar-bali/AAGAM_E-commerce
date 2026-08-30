@@ -274,8 +274,7 @@ export const CustomerProfileScreen = () => {
         basePayload.latitude = Number(draft.latitude);
         basePayload.longitude = Number(draft.longitude);
       } else if (draft.locationSource === 'GEOCODED') {
-        // GEOCODED now uses search-based map — treat as MAP_PIN with coordinates
-        basePayload.locationSource = 'MAP_PIN';
+        basePayload.locationSource = 'GEOCODED';
         if (draft.latitude && draft.longitude) {
           basePayload.latitude = Number(draft.latitude);
           basePayload.longitude = Number(draft.longitude);

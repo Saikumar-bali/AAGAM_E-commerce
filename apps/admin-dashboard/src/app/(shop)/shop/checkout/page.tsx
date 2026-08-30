@@ -660,7 +660,7 @@ export default function CheckoutPage() {
                       <div className="flex items-center justify-end">
                         <button onClick={useCurrentLocation} disabled={locating} className="flex items-center gap-2 rounded-xl bg-teal-700 px-3 py-2 text-xs font-black text-white disabled:opacity-50">
                           {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
-                          {locating ? 'Locating...' : 'Use my location'}
+                          {locating ? 'Locating...' : 'Use live location'}
                         </button>
                       </div>
                       {draft.latitude != null && draft.longitude != null ? (
