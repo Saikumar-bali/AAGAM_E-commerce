@@ -155,10 +155,6 @@ export const LoginScreen = () => {
             ? { name: profileName.trim(), email: profileEmail.trim() || undefined }
             : {}),
         });
-        notify.success(
-          otpPurpose === 'SIGNUP' ? 'Account created successfully' : 'Signed in successfully',
-          otpPurpose === 'SIGNUP' ? 'Welcome to Aagaam.' : 'Welcome back to Aagaam.',
-        );
       } catch (error) {
         setCode('');
         notify.error('Code not verified', getUserSafeError(error, 'The OTP is wrong or expired. Request a new code and try again.'));
@@ -199,7 +195,6 @@ export const LoginScreen = () => {
     setPasswordLoading(true);
     try {
       await login(identifier.trim(), password);
-      notify.success('Signed in successfully', 'Welcome back to Aagaam.');
     } catch (error) {
       notify.error('Login failed', getUserSafeError(error, 'Check your credentials and try again.'));
     } finally {
@@ -219,7 +214,6 @@ export const LoginScreen = () => {
       const idToken = response.data?.idToken || (response as any)?.idToken;
       if (!idToken) throw new Error('Google token missing');
       await googleLogin(idToken);
-      notify.success('Signed in successfully', 'Your Google account is connected.');
     } catch (error: any) {
       if (error?.code !== statusCodes.SIGN_IN_CANCELLED) {
         notify.error('Google Sign-In failed', getUserSafeError(error, 'Please try again.'));

@@ -9,10 +9,10 @@ type ToastInput = { title?: string; message: string; kind?: ToastKind; duration?
 type ToastItem = Required<Pick<ToastInput, 'message' | 'kind'>> & Pick<ToastInput, 'title'> & { id: number; duration: number };
 type ToastApi = {
   show: (input: ToastInput | string) => void;
-  success: (message: string, title?: string) => void;
-  error: (message: string, title?: string) => void;
-  warning: (message: string, title?: string) => void;
-  info: (message: string, title?: string) => void;
+  success: (message: string, title?: string, duration?: number) => void;
+  error: (message: string, title?: string, duration?: number) => void;
+  warning: (message: string, title?: string, duration?: number) => void;
+  info: (message: string, title?: string, duration?: number) => void;
 };
 
 const ToastContext = createContext<ToastApi | null>(null);
@@ -88,10 +88,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const api = useMemo<ToastApi>(() => ({
     show,
-    success: (message, title = 'Done') => show({ kind: 'success', title, message }),
-    error: (message, title = 'Request failed') => show({ kind: 'error', title, message }),
-    warning: (message, title = 'Attention required') => show({ kind: 'warning', title, message }),
-    info: (message, title = 'Information') => show({ kind: 'info', title, message }),
+    success: (message, title = 'Done', duration?: number) => show({ kind: 'success', title, message, ...(duration !== undefined ? { duration } : {}) }),
+    error: (message, title = 'Request failed', duration?: number) => show({ kind: 'error', title, message, ...(duration !== undefined ? { duration } : {}) }),
+    warning: (message, title = 'Attention required', duration?: number) => show({ kind: 'warning', title, message, ...(duration !== undefined ? { duration } : {}) }),
+    info: (message, title = 'Information', duration?: number) => show({ kind: 'info', title, message, ...(duration !== undefined ? { duration } : {}) }),
   }), [show]);
 
   useEffect(() => {
@@ -100,6 +100,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         const method = String(response.config?.method || '').toLowerCase();
         const responseMessage = response.data?.message;
         if (['post', 'put', 'patch', 'delete'].includes(method) && typeof responseMessage === 'string' && responseMessage.trim()) {
+          const isLoginSuccess = String(response.config?.url || '').includes('/auth/') || /login successful|signed in successfully/i.test(responseMessage);
+          if (isLoginSuccess) return response;
           show({ kind: 'success', title: 'Done', message: responseMessage.trim() });
         }
         return response;

@@ -85,7 +85,6 @@ const LoginScreen = ({ navigation }: any) => {
     try {
       const response = await apiClient.post('/auth/mobile/partner/phone/verify', { phoneE164: phoneForApi(phone), purpose: 'LOGIN', code });
       await setAuth(response.data.user, response.data.access_token);
-      Toast.show({ type: 'success', text1: 'Workspace ready', text2: 'Signed in securely to Aagaam Partners.' });
     } catch (error: any) {
       setCode('');
       Toast.show({ type: 'error', text1: 'Code not verified', text2: errorMessage(error, 'The OTP is wrong or expired.') });
@@ -102,7 +101,6 @@ const LoginScreen = ({ navigation }: any) => {
     setLoading(true);
     try {
       await login(identifier.trim(), password);
-      Toast.show({ type: 'success', text1: 'Workspace ready', text2: 'Signed in successfully.' });
     } catch (error: any) {
       Toast.show({ type: 'error', text1: 'Sign in failed', text2: errorMessage(error, 'Check your credentials and try again.') });
     } finally {
