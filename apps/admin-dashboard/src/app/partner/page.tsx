@@ -63,11 +63,6 @@ async function getLatestPartnersRelease(): Promise<{ release: GithubRelease; ass
         const asset = stable.assets.find((a) => a.name.includes('partners') && a.name.endsWith('.apk')) || null;
         return { release: stable, asset };
       }
-      const anyPartners = list.find((r) => r.assets.some((a) => a.name.includes('partners') && a.name.endsWith('.apk')));
-      if (anyPartners) {
-        const asset = anyPartners.assets.find((a) => a.name.includes('partners') && a.name.endsWith('.apk')) || null;
-        return { release: anyPartners, asset };
-      }
     }
   } catch {
     // ignore and use fallback
