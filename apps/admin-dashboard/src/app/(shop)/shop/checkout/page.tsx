@@ -121,6 +121,7 @@ type StoreStatus = {
 };
 
 const DELIVERY_TIME_ZONE = 'Asia/Kolkata';
+const DEFAULT_MAP_CENTER = { latitude: 17.385, longitude: 78.4867 };
 
 const emptyDraft = () => ({
   label: 'Home',
@@ -408,7 +409,12 @@ export default function CheckoutPage() {
   const openNewAddress = () => {
     setEditingAddressId(null);
     // setSelectedLocalityId(''); // Locality removed
-    setDraft(emptyDraft());
+    const initial = emptyDraft();
+    const center = defaultMapCenter || DEFAULT_MAP_CENTER;
+    initial.latitude = center.latitude;
+    initial.longitude = center.longitude;
+    initial.locationSource = 'MAP_PIN';
+    setDraft(initial);
     setShowAddressForm(true);
   };
 

@@ -109,7 +109,7 @@ export class CustomerService {
     const isManual = input.locationSource === 'GEOCODED'
       || (input.locationSource == null && input.latitude == null && input.longitude == null);
     if (!isManual) return null;
-    if (!input.localityId) throw new BadRequestException('A serviceable locality is required for a manual address');
+    if (!input.localityId) return null;
     const locality = await prisma.serviceableLocality.findFirst({
       where: { id: input.localityId, isActive: true },
     });

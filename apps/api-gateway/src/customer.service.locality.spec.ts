@@ -43,11 +43,17 @@ describe('CustomerService locality enforcement', () => {
     db.$queryRaw = jest.fn().mockResolvedValue([{ source: 'LEGACY_UNKNOWN', accuracyMetres: null, capturedAt: null }]);
   });
 
-  test('requires locality when a legacy address text changes', async () => {
-    await expect(service.updateAddress('user-1', 'address-1', updateDto({ city: 'Visakhapatnam' }) as any))
-      .rejects.toBeInstanceOf(BadRequestException);
+  test('forward geocodes when a legacy address text changes without locality', async () => {
+    geo.forward.mockResolvedValue({ ok: true, latitude: 17.8, longitude: 83.1 });
+    db.$transaction = jest.fn(async (callback: (tx: any) => unknown) => callback({
+      customerAddress: { update: jest.fn().mockResolvedValue({ ...legacyAddress, city: 'Visakhapatnam', latitude: 17.8, longitude: 83.1 }) },
+      $executeRaw: jest.fn(),
+    }));
+
+    await service.updateAddress('user-1', 'address-1', updateDto({ city: 'Visakhapatnam' }) as any);
     expect(db.serviceableLocality.findFirst).not.toHaveBeenCalled();
-    expect(geo.forward).not.toHaveBeenCalled();
+    expect(geo.forward).toHaveBeenCalled();
+    expect(db.$transaction).toHaveBeenCalled();
   });
 
   test('allows an unchanged legacy full-form update without locality', async () => {
