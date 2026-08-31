@@ -101,7 +101,7 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
 
     const map = new mapboxgl.Map({
       container,
-      style: 'mapbox://styles/mapbox/streets-v12',
+      style: 'mapbox://styles/mapbox/navigation-day-v1',
       center: [longitude, latitude],
       zoom: 17,
       attributionControl: true,
