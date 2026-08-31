@@ -86,6 +86,8 @@ const managedOverlays = [
   ['WHATSAPP_OTP_TEMPLATE_LANGUAGE_CODE', process.env.WHATSAPP_OTP_TEMPLATE_LANGUAGE_CODE_CONFIG],
   ['WHATSAPP_WEBHOOK_VERIFY_TOKEN', process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN_SECRET],
   ['WHATSAPP_APP_SECRET', process.env.WHATSAPP_APP_SECRET_SECRET],
+  ['NEXT_PUBLIC_MAPBOX_TOKEN', process.env.NEXT_PUBLIC_MAPBOX_TOKEN_SECRET],
+  ['EXPO_PUBLIC_MAPBOX_TOKEN', process.env.EXPO_PUBLIC_MAPBOX_TOKEN_SECRET],
 ];
 const hasManagedOverlay = managedOverlays.some(([, value]) => String(value || '').trim());
 
