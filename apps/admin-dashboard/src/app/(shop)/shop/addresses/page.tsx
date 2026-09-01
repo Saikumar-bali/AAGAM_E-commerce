@@ -230,7 +230,8 @@ export default function AddressesPage() {
 
   const useManualAddress = () => {
     clearFieldError('location');
-    setDraft((current) => ({ ...current, locationSource: 'GEOCODED', latitude: null, longitude: null,
+    setDraft((current) => ({ ...current, locationSource: 'MAP_PIN',
+      latitude: current.latitude ?? 17.385, longitude: current.longitude ?? 78.4867,
       locationAccuracyMetres: null, locationCapturedAt: null }));
   };
 

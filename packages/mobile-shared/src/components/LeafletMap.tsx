@@ -86,7 +86,7 @@ const MAPBOX_HTML = (lat: number, lng: number) => {
       if (debounceTimer) clearTimeout(debounceTimer);
       if (query.length < 3) { searchResults.style.display = 'none'; return; }
       debounceTimer = setTimeout(function() {
-        fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5')
+        fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}')
           .then(function(r) { return r.json(); })
           .then(function(data) {
             if (!data.features || data.features.length === 0) { searchResults.style.display = 'none'; return; }

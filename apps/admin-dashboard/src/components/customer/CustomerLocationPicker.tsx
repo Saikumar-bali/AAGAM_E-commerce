@@ -60,7 +60,7 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
     setSearching(true);
     try {
       const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${longitude},${latitude}`
       );
       const data = await res.json();
       const features = (data.features || []).map((f: any) => ({
@@ -75,7 +75,7 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
     } finally {
       setSearching(false);
     }
-  }, []);
+  }, [latitude, longitude]);
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
