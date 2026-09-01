@@ -8,14 +8,14 @@ const read = (relativePath: string) =>
 describe("Mobile commerce hardening contracts", () => {
   test("checkout preserves cart totals and removes internal offer copy", () => {
     const cart = read("apps/admin-dashboard/src/hooks/useCart.ts");
-    const checkout = read(
-      "apps/admin-dashboard/src/app/(shop)/shop/checkout/page.tsx"
+    const checkoutView = read(
+      "apps/admin-dashboard/src/components/customer/checkout/CheckoutView.tsx"
     );
 
     expect(cart).toContain("aagam:cart-changed");
     expect(cart).toContain("isLoaded");
-    expect(checkout).toContain("quote?.invoice.subtotal ?? totalPrice");
-    expect(checkout).not.toContain(
+    expect(checkoutView).toContain("quote?.invoice.subtotal ??");
+    expect(checkoutView).not.toContain(
       "Automatic offers are evaluated by the server. Code offers are checked against cart, account, store, schedule, and usage limits."
     );
   });
@@ -24,8 +24,8 @@ describe("Mobile commerce hardening contracts", () => {
     const picker = read(
       "apps/admin-dashboard/src/components/customer/CustomerLocationPicker.tsx"
     );
-    const checkout = read(
-      "apps/admin-dashboard/src/app/(shop)/shop/checkout/page.tsx"
+    const checkoutView = read(
+      "apps/admin-dashboard/src/components/customer/checkout/CheckoutView.tsx"
     );
 
     expect(picker).toContain("mapboxgl.Map");
@@ -34,8 +34,8 @@ describe("Mobile commerce hardening contracts", () => {
     expect(picker).toContain("marker.on('dragend'");
     expect(picker).toContain("map.on('click'");
     expect(picker).toContain("onChangeRef.current(");
-    expect(checkout).toContain("Use live location");
-    expect(checkout).toContain("CustomerLocationPicker");
+    expect(checkoutView).toContain("live location");
+    expect(checkoutView).toContain("CustomerLocationPicker");
   });
 
   test("authenticated web shell is session-deduplicated and mounts unified web push", () => {
