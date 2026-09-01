@@ -20,3 +20,9 @@ export function setMapboxTokenOrWarn(mapboxgl: { accessToken: string }): boolean
   mapboxgl.accessToken = token;
   return true;
 }
+
+export function getGoogleMapsApiKey(): string | null {
+  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  if (key && typeof key === 'string' && key.startsWith('AIza')) return key;
+  return null;
+}

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { getMapboxToken } from '@/lib/mapbox';
+import { getMapboxToken, getGoogleMapsApiKey } from '@/lib/mapbox';
 import { MapPin, Search, X } from 'lucide-react';
 
 function createPinElement(): HTMLElement {
@@ -52,24 +52,55 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
   }, []);
 
   const handleSearch = useCallback(async (query: string) => {
-    const token = getMapboxToken();
-    if (!token || query.trim().length < 3) {
+    if (query.trim().length < 3) {
       setSearchResults([]);
       return;
     }
     setSearching(true);
     try {
-      const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${longitude},${latitude}`
-      );
-      const data = await res.json();
-      const features = (data.features || []).map((f: any) => ({
-        displayName: f.place_name || f.text || '',
-        lat: f.center?.[1] ?? 0,
-        lng: f.center?.[0] ?? 0,
-        type: f.place_type?.[0] || 'place',
-      }));
-      setSearchResults(features);
+      const googleKey = getGoogleMapsApiKey();
+      if (googleKey) {
+        const acRes = await fetch(
+          `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${googleKey}&components=country:in&types=geocode|establishment`
+        );
+        const acData = await acRes.json();
+        const predictions = acData.predictions || [];
+        if (predictions.length === 0) { setSearchResults([]); return; }
+        const results: SearchResult[] = await Promise.all(
+          predictions.slice(0, 5).map(async (p: any) => {
+            try {
+              const detRes = await fetch(
+                `https://maps.googleapis.com/maps/api/place/details/json?place_id=${p.place_id}&key=${googleKey}&fields=geometry`
+              );
+              const detData = await detRes.json();
+              const loc = detData.result?.geometry?.location;
+              return {
+                displayName: p.description || p.formatted_address || '',
+                lat: loc?.lat ?? 0,
+                lng: loc?.lng ?? 0,
+                type: p.types?.[0]?.replace(/_/g, ' ') || 'place',
+              };
+            } catch {
+              return { displayName: p.description || '', lat: 0, lng: 0, type: 'place' };
+            }
+          })
+        );
+        setSearchResults(results.filter(r => r.lat !== 0));
+      } else {
+        const token = getMapboxToken();
+        if (!token) { setSearchResults([]); return; }
+        const res = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${longitude},${latitude}`
+        );
+        const data = await res.json();
+        const features = (data.features || []).map((f: any) => ({
+          displayName: f.place_name || f.text || '',
+          lat: f.center?.[1] ?? 0,
+          lng: f.center?.[0] ?? 0,
+          type: f.place_type?.[0] || 'place',
+        }));
+        setSearchResults(features);
+      }
     } catch {
       setSearchResults([]);
     } finally {

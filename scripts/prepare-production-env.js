@@ -88,6 +88,7 @@ const managedOverlays = [
   ['WHATSAPP_APP_SECRET', process.env.WHATSAPP_APP_SECRET_SECRET],
   ['NEXT_PUBLIC_MAPBOX_TOKEN', process.env.NEXT_PUBLIC_MAPBOX_TOKEN_SECRET],
   ['EXPO_PUBLIC_MAPBOX_TOKEN', process.env.EXPO_PUBLIC_MAPBOX_TOKEN_SECRET],
+  ['NEXT_PUBLIC_GOOGLE_MAPS_API_KEY', process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY_SECRET],
 ];
 const hasManagedOverlay = managedOverlays.some(([, value]) => String(value || '').trim());
 

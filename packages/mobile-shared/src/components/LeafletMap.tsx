@@ -15,13 +15,15 @@ type Props = {
   onPinChange: (lat: number, lng: number) => void;
   style?: any;
   mapboxToken?: string;
+  googleMapsApiKey?: string;
 };
 
-const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null) => {
+const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, googleKey?: string | null) => {
   const token = getMapboxToken(explicitToken);
   if (!token) {
     return `<!DOCTYPE html><html><body style="display:flex;align-items:center;justify-content:center;height:100%;margin:0;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</body></html>`;
   }
+  const gKey = googleKey || '';
   return `
 <!DOCTYPE html>
 <html>
@@ -80,6 +82,7 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null) =>
     var searchResults = document.getElementById('search-results');
     var searchClear = document.getElementById('search-clear');
     var debounceTimer = null;
+    var GOOGLE_KEY = '${gKey}';
 
     searchInput.addEventListener('input', function() {
       var query = this.value.trim();
@@ -87,30 +90,64 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null) =>
       if (debounceTimer) clearTimeout(debounceTimer);
       if (query.length < 3) { searchResults.style.display = 'none'; return; }
       debounceTimer = setTimeout(function() {
-        fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}')
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (!data.features || data.features.length === 0) { searchResults.style.display = 'none'; return; }
-            searchResults.innerHTML = '';
-            data.features.forEach(function(f) {
-              var div = document.createElement('div');
-              div.className = 'search-result-item';
-              div.innerHTML = '<div class="search-result-type">' + (f.place_type[0] || '') + '</div><div class="search-result-name">' + f.place_name + '</div>';
-              div.addEventListener('click', function() {
-                var lng = f.center[0];
-                var lat = f.center[1];
-                map.flyTo({ center: [lng, lat], zoom: 16 });
-                marker.setLngLat([lng, lat]);
-                searchInput.value = f.place_name;
-                searchResults.style.display = 'none';
-                searchClear.style.display = 'block';
-                sendPos({ lat: lat, lng: lng });
+        if (GOOGLE_KEY) {
+          fetch('https://maps.googleapis.com/maps/api/place/autocomplete/json?input=' + encodeURIComponent(query) + '&key=' + GOOGLE_KEY + '&components=country:in&types=geocode|establishment')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (!data.predictions || data.predictions.length === 0) { searchResults.style.display = 'none'; return; }
+              searchResults.innerHTML = '';
+              data.predictions.forEach(function(p) {
+                var div = document.createElement('div');
+                div.className = 'search-result-item';
+                div.innerHTML = '<div class="search-result-type">' + (p.types[0] || '').replace(/_/g, ' ') + '</div><div class="search-result-name">' + p.description + '</div>';
+                div.addEventListener('click', function() {
+                  fetch('https://maps.googleapis.com/maps/api/place/details/json?place_id=' + p.place_id + '&key=' + GOOGLE_KEY + '&fields=geometry')
+                    .then(function(r) { return r.json(); })
+                    .then(function(detail) {
+                      if (detail.result && detail.result.geometry && detail.result.geometry.location) {
+                        var lat2 = detail.result.geometry.location.lat;
+                        var lng2 = detail.result.geometry.location.lng;
+                        map.flyTo({ center: [lng2, lat2], zoom: 16 });
+                        marker.setLngLat([lng2, lat2]);
+                        searchInput.value = p.description;
+                        searchResults.style.display = 'none';
+                        searchClear.style.display = 'block';
+                        sendPos({ lat: lat2, lng: lng2 });
+                      }
+                    })
+                    .catch(function() {});
+                });
+                searchResults.appendChild(div);
               });
-              searchResults.appendChild(div);
-            });
-            searchResults.style.display = 'block';
-          })
-          .catch(function() { searchResults.style.display = 'none'; });
+              searchResults.style.display = 'block';
+            })
+            .catch(function() { searchResults.style.display = 'none'; });
+        } else {
+          fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (!data.features || data.features.length === 0) { searchResults.style.display = 'none'; return; }
+              searchResults.innerHTML = '';
+              data.features.forEach(function(f) {
+                var div = document.createElement('div');
+                div.className = 'search-result-item';
+                div.innerHTML = '<div class="search-result-type">' + (f.place_type[0] || '') + '</div><div class="search-result-name">' + f.place_name + '</div>';
+                div.addEventListener('click', function() {
+                  var lng2 = f.center[0];
+                  var lat2 = f.center[1];
+                  map.flyTo({ center: [lng2, lat2], zoom: 16 });
+                  marker.setLngLat([lng2, lat2]);
+                  searchInput.value = f.place_name;
+                  searchResults.style.display = 'none';
+                  searchClear.style.display = 'block';
+                  sendPos({ lat: lat2, lng: lng2 });
+                });
+                searchResults.appendChild(div);
+              });
+              searchResults.style.display = 'block';
+            })
+            .catch(function() { searchResults.style.display = 'none'; });
+        }
       }, 300);
     });
 
@@ -133,7 +170,7 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null) =>
 // Backward compat – keep LEAFLET_HTML alias for any external import (now uses Mapbox)
 const LEAFLET_HTML = MAPBOX_HTML;
 
-export const LeafletMap = ({ latitude, longitude, onPinChange, style, mapboxToken }: Props) => {
+export const LeafletMap = ({ latitude, longitude, onPinChange, style, mapboxToken, googleMapsApiKey }: Props) => {
   const webViewRef = useRef<any>(null);
   const lastSentRef = useRef('');
 
@@ -161,7 +198,7 @@ export const LeafletMap = ({ latitude, longitude, onPinChange, style, mapboxToke
       <CompatibleWebView
         ref={webViewRef}
         originWhitelist={['*']}
-        source={{ html: LEAFLET_HTML(latitude, longitude, mapboxToken) }}
+        source={{ html: LEAFLET_HTML(latitude, longitude, mapboxToken, googleMapsApiKey) }}
         style={styles.webview}
         onMessage={onMessage}
         javaScriptEnabled
