@@ -14,10 +14,11 @@ type Props = {
   longitude: number;
   onPinChange: (lat: number, lng: number) => void;
   style?: any;
+  mapboxToken?: string;
 };
 
-const MAPBOX_HTML = (lat: number, lng: number) => {
-  const token = getMapboxToken();
+const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null) => {
+  const token = getMapboxToken(explicitToken);
   if (!token) {
     return `<!DOCTYPE html><html><body style="display:flex;align-items:center;justify-content:center;height:100%;margin:0;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</body></html>`;
   }
@@ -132,7 +133,7 @@ const MAPBOX_HTML = (lat: number, lng: number) => {
 // Backward compat – keep LEAFLET_HTML alias for any external import (now uses Mapbox)
 const LEAFLET_HTML = MAPBOX_HTML;
 
-export const LeafletMap = ({ latitude, longitude, onPinChange, style }: Props) => {
+export const LeafletMap = ({ latitude, longitude, onPinChange, style, mapboxToken }: Props) => {
   const webViewRef = useRef<any>(null);
   const lastSentRef = useRef('');
 
@@ -160,7 +161,7 @@ export const LeafletMap = ({ latitude, longitude, onPinChange, style }: Props) =
       <CompatibleWebView
         ref={webViewRef}
         originWhitelist={['*']}
-        source={{ html: LEAFLET_HTML(latitude, longitude) }}
+        source={{ html: LEAFLET_HTML(latitude, longitude, mapboxToken) }}
         style={styles.webview}
         onMessage={onMessage}
         javaScriptEnabled

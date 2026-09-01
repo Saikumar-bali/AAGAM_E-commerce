@@ -1,7 +1,8 @@
 export type MapCoordinate = { latitude: number; longitude: number };
 
-function getMapboxToken(): string | null {
+function getMapboxToken(explicitToken?: string | null): string | null {
   const token =
+    explicitToken ||
     (typeof process !== 'undefined' && ((process.env as any).EXPO_PUBLIC_MAPBOX_TOKEN || (process.env as any).NEXT_PUBLIC_MAPBOX_TOKEN)) ||
     null;
   if (token && typeof token === 'string' && token.startsWith('pk.')) return token;
@@ -12,8 +13,8 @@ function getMapboxToken(): string | null {
   return null;
 }
 
-export const buildRiderMapHtml = (destination: MapCoordinate, label: string) => {
-  const token = getMapboxToken();
+export const buildRiderMapHtml = (destination: MapCoordinate, label: string, explicitToken?: string | null) => {
+  const token = getMapboxToken(explicitToken);
   if (!token) {
     return `<!doctype html><html><body style="display:flex;align-items:center;justify-content:center;height:100%;margin:0;color:#999;font-family:system-ui;">Map unavailable – missing Mapbox token</body></html>`;
   }

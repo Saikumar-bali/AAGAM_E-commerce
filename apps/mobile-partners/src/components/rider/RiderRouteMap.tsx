@@ -3,6 +3,7 @@ import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { ExternalLink, LocateFixed, Navigation } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
 import { buildRiderMapHtml, MapCoordinate } from './riderRouteMapHtml';
+import { EXPO_PUBLIC_MAPBOX_TOKEN } from '@env';
 
 // react-native-webview 14's overloads collapse to `never` with React 19 JSX
 // types. Keep the compatibility cast at this third-party boundary.
@@ -31,7 +32,7 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
   const [hasFix, setHasFix] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const html = useMemo(
-    () => validCoordinate(destination) ? buildRiderMapHtml(destination, destinationLabel) : null,
+    () => validCoordinate(destination) ? buildRiderMapHtml(destination, destinationLabel, EXPO_PUBLIC_MAPBOX_TOKEN) : null,
     [destination?.latitude, destination?.longitude, destinationLabel],
   );
 

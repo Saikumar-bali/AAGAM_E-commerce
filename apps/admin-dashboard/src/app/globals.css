@@ -130,3 +130,15 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .delivery-story { display: none !important; }
 }
+
+@keyframes aagam-check-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.aagam-check-pop { animation: aagam-check-pop 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.3) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .aagam-check-pop { animation: none; }
+}

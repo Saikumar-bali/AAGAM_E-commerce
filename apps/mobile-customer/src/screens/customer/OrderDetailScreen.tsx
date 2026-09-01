@@ -11,6 +11,7 @@ import {
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient, TrackingMap, useSocket } from "@aagam/mobile-shared";
+import { EXPO_PUBLIC_MAPBOX_TOKEN } from "@env";
 import { normalizeOrderLine, normalizeOrderPricing } from "@aagam/utils";
 import { DeliveryCodeCard } from "../../components/orders/DeliveryCodeCard";
 import {
@@ -323,6 +324,7 @@ export const OrderDetailScreen = () => {
             markers={buildMarkers()}
             routePath={buildRoutePath()}
             style={styles.trackingMap}
+            mapboxToken={EXPO_PUBLIC_MAPBOX_TOKEN}
           />
           <View style={styles.trackingInfo}>
             {etaMinutes ? (

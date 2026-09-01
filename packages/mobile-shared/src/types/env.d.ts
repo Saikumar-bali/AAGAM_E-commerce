@@ -4,4 +4,5 @@ declare module '@env' {
   export const APP_VERSION_CODE: string | undefined;
   export const GOOGLE_WEB_CLIENT_ID: string | undefined;
   export const GOOGLE_ANDROID_CLIENT_ID: string | undefined;
+  export const EXPO_PUBLIC_MAPBOX_TOKEN: string | undefined;
 }

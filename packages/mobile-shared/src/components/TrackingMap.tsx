@@ -16,13 +16,15 @@ interface TrackingMapProps {
   markers: Marker[];
   routePath?: { latitude: number; longitude: number }[];
   style?: any;
+  mapboxToken?: string;
 }
 
 const TRACKING_HTML = (
   markers: Marker[],
   routePath: { latitude: number; longitude: number }[],
+  explicitToken?: string | null,
 ) => {
-  const token = getMapboxToken();
+  const token = getMapboxToken(explicitToken);
   if (!token) {
     return `<!DOCTYPE html><html><body style="display:flex;align-items:center;justify-content:center;height:100%;margin:0;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</body></html>`;
   }
@@ -97,7 +99,7 @@ const TRACKING_HTML = (
 </html>`;
 };
 
-export const TrackingMap = ({ markers, routePath = [], style }: TrackingMapProps) => {
+export const TrackingMap = ({ markers, routePath = [], style, mapboxToken }: TrackingMapProps) => {
   const webViewRef = useRef<any>(null);
 
   useEffect(() => {
@@ -127,7 +129,7 @@ export const TrackingMap = ({ markers, routePath = [], style }: TrackingMapProps
       <CompatibleWebView
         ref={webViewRef}
         originWhitelist={['*']}
-        source={{ html: TRACKING_HTML(validMarkers, routePath) }}
+        source={{ html: TRACKING_HTML(validMarkers, routePath, mapboxToken) }}
         style={styles.webview}
         javaScriptEnabled
         domStorageEnabled

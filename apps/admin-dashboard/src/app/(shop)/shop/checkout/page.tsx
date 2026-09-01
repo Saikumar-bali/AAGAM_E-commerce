@@ -1,57 +1,19 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@aagam/utils';
-import {
-  ArrowLeft,
-  BadgePercent,
-  Banknote,
-  CalendarDays,
-  CheckCircle2,
-  Clock3,
-  CreditCard,
-  Edit2,
-  Loader2,
-  MapPin,
-  Phone,
-  ShieldCheck,
-  ShoppingBag,
-  Trash2,
-} from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
-import BillDetailsCard from '@/components/customer/BillDetailsCard';
 import { useToast } from '@/components/ToastProvider';
 import { useCart } from '@/hooks/useCart';
-import { formatINR } from '@/lib/currency';
-
-const CustomerLocationPicker = dynamic(
-  () => import('@/components/customer/CustomerLocationPicker'),
-  { ssr: false },
-);
-
-type Address = {
-  id: string;
-  label?: string | null;
-  recipientName: string;
-  phoneE164: string;
-  line1: string;
-  line2?: string | null;
-  landmark?: string | null;
-  city: string;
-  state: string;
-  pincode: string;
-  country: string;
-  latitude: number;
-  longitude: number;
-  instructions?: string | null;
-  isDefault: boolean;
-  locationSource?: 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED' | 'LEGACY_UNKNOWN';
-  locationAccuracyMetres?: number | null;
-  locationCapturedAt?: string | null;
-  localityId?: string | null;
-};
+import CheckoutView from '@/components/customer/checkout/CheckoutView';
+import type {
+  Address,
+  AddressDraft,
+  DeliverySlot,
+  QuoteResponse,
+  StoreStatus,
+} from '@/components/customer/checkout/CheckoutView';
 
 type LocalityOption = {
   id: string;
@@ -64,66 +26,10 @@ type LocalityOption = {
   longitude: number | null;
 };
 
-type QuoteResponse = {
-  currency: 'INR';
-  serviceable: boolean;
-  distanceKm: number | null;
-  store: { id: string; name: string | null } | null;
-  deliveryPricing: {
-    serviceable: boolean;
-    ratePaisePerKm: number;
-    freeDeliveryMinimumPaise: number;
-    maximumDistanceKm: number;
-    distanceFeePaise: number;
-    waivedByThreshold: boolean;
-    waivedByFirstOrder: boolean;
-    payableFeePaise: number;
-  } | null;
-  invoice: {
-    items: Array<{
-      productId: string;
-      name: string;
-      quantity: number;
-      unitPrice: number;
-      lineTotal: number;
-      inStock: boolean;
-      availableQty: number | null;
-    }>;
-    subtotal: number;
-    deliveryFee: number;
-    discountAmount: number;
-    taxAmount: number;
-    grandTotal: number;
-  };
-  appliedCoupon?: {
-    id: string;
-    code: string;
-    name: string;
-    discountType: string;
-    applicationMode: string;
-    discountAmount: number;
-  } | null;
-};
-
-type DeliverySlot = {
-  id: string;
-  label: string;
-  windowStart: string;
-  windowEnd: string;
-  remainingCapacity: number;
-  available: boolean;
-};
-
-type StoreStatus = {
-  storeOpen: boolean;
-  nextOpenAt: string | null;
-  timezone: string;
-};
-
 const DELIVERY_TIME_ZONE = 'Asia/Kolkata';
 const DEFAULT_MAP_CENTER = { latitude: 17.385, longitude: 78.4867 };
 
-const emptyDraft = () => ({
+const emptyDraft = (): AddressDraft => ({
   label: 'Home',
   recipientName: '',
   phoneE164: '',
@@ -435,7 +341,7 @@ export default function CheckoutPage() {
       country: address.country,
       latitude: address.latitude,
       longitude: address.longitude,
-       locationSource: ['LIVE_GPS', 'MAP_PIN', 'GEOCODED', 'LEGACY_UNKNOWN'].includes(String(address.locationSource)) ? address.locationSource! : 'GEOCODED',
+      locationSource: ['LIVE_GPS', 'MAP_PIN', 'GEOCODED', 'LEGACY_UNKNOWN'].includes(String(address.locationSource)) ? address.locationSource! : 'GEOCODED',
       locationAccuracyMetres: address.locationAccuracyMetres ?? null,
       locationCapturedAt: address.locationCapturedAt ?? null,
       instructions: address.instructions || '',
@@ -567,234 +473,84 @@ export default function CheckoutPage() {
     }
   };
 
-  if (!isLoaded) {
-    return (
-      <DashboardLayout allowedRole="CUSTOMER">
-        <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-teal-700" /></div>
-      </DashboardLayout>
-    );
-  }
+  const closeAddressForm = useCallback(() => {
+    setShowAddressForm(false);
+    setEditingAddressId(null);
+    setDraft(emptyDraft());
+  }, []);
 
-  if (cart.length === 0 && !orderId) {
-    return (
-      <DashboardLayout allowedRole="CUSTOMER">
-        <div className="mx-auto max-w-lg py-12 text-center">
-          <ShoppingBag className="mx-auto h-12 w-12 text-teal-500" />
-          <h2 className="mt-4 text-xl font-black text-slate-950">Your cart is empty</h2>
-          <button onClick={() => router.push('/shop')} className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white">Browse products</button>
-        </div>
-      </DashboardLayout>
-    );
-  }
+  const setFulfillment = useCallback((type: 'IMMEDIATE' | 'SCHEDULED') => {
+    if (type === 'IMMEDIATE') {
+      setFulfillmentType('IMMEDIATE');
+      setSelectedSlotId(null);
+      return;
+    }
+    setFulfillmentType('SCHEDULED');
+  }, []);
 
-  const billItems = quote
-    ? quote.invoice.items.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        lineTotal: item.lineTotal,
-      }))
-    : cart.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        unitPrice: item.price,
-        lineTotal: item.price * item.quantity,
-      }));
-  const subtotal = quote?.invoice.subtotal ?? totalPrice;
-  const grandTotal = quote?.invoice.grandTotal ?? totalPrice;
-  const selectedAddress = addresses.find((address) => address.id === selectedAddressId);
+  const viewState = {
+    isLoaded,
+    cartLines: cart.map((item) => ({ name: item.name, price: item.price, quantity: item.quantity })),
+    orderId,
+
+    addresses,
+    selectedAddressId,
+    loadingAddresses,
+    showAddressForm,
+    editingAddressId,
+    draft,
+    savingAddress,
+    locating,
+    defaultMapCenter,
+
+    quote,
+    loadingQuote,
+    cartTotal: totalPrice,
+
+    couponInput,
+    couponError,
+
+    fulfillmentType,
+    deliverySlots,
+    selectedSlotId,
+    storeStatus,
+    loadingSlots,
+
+    paymentMethod,
+    placingOrder,
+    error,
+  };
+
+  const viewActions = {
+    onBack: () => router.push('/shop'),
+    onBrowse: () => router.push('/shop'),
+    onBrowseDeals: () => router.push('/shop/deals'),
+    onViewOrder: () => router.push('/shop/orders'),
+
+    onSelectAddress: (id: string) => setSelectedAddressId(id),
+    onOpenNewAddress: openNewAddress,
+    onOpenEditAddress: openEditAddress,
+    onCloseAddressForm: closeAddressForm,
+    onSaveAddress: () => void saveAddress(),
+    onDeleteAddress: (id: string) => void deleteAddress(id),
+    onUseLiveLocation: useCurrentLocation,
+    onDraftChange: (patch: Partial<AddressDraft>) => setDraft((current) => ({ ...current, ...patch })),
+    onMapPinChange: (latitude: number, longitude: number) => void updateCoordinates(latitude, longitude, 'MAP_PIN'),
+
+    onSetFulfillment: setFulfillment,
+    onSelectSlot: (id: string) => setSelectedSlotId(id),
+    onSetPayment: (method: 'COD' | 'ONLINE') => setPaymentMethod(method),
+
+    onCouponInputChange: (value: string) => setCouponInput(value),
+    onApplyCoupon: applyCoupon,
+    onRemoveCoupon: removeCoupon,
+
+    onPlaceOrder: () => void placeOrder(),
+  };
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
-      <div className="mx-auto max-w-6xl pb-24">
-        <div className="mb-6 flex items-center gap-3">
-          <button onClick={() => router.push('/shop')} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white"><ArrowLeft className="h-4 w-4" /></button>
-          <div>
-            <h1 className="text-2xl font-black text-slate-950">Checkout</h1>
-            <p className="text-xs font-bold text-slate-500">Confirm delivery point, bill, and payment.</p>
-          </div>
-          <div className="ml-auto rounded-xl bg-teal-50 px-3 py-2 text-sm font-black text-teal-800">{formatINR(grandTotal)}</div>
-        </div>
-
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-5">
-            <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-100 text-teal-700"><MapPin className="h-5 w-5" /></div>
-                  <div><h2 className="font-black text-slate-950">Delivery address</h2><p className="text-xs text-slate-500">Select an address or place the pin precisely.</p></div>
-                </div>
-                <button onClick={openNewAddress} className="rounded-xl bg-teal-700 px-4 py-2.5 text-xs font-black text-white">Add address</button>
-              </div>
-
-              {loadingAddresses ? (
-                <div className="mt-5 flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading addresses…</div>
-              ) : (
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  {addresses.map((address) => (
-                    <button
-                      key={address.id}
-                      onClick={() => setSelectedAddressId(address.id)}
-                      className={`rounded-2xl border p-4 text-left transition ${address.id === selectedAddressId ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:border-teal-200'}`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div><p className="text-xs font-black uppercase text-teal-700">{address.label || 'Address'}{address.isDefault ? ' · Default' : ''}</p><p className="mt-1 font-black text-slate-950">{address.recipientName}</p></div>
-                        {address.id === selectedAddressId ? <CheckCircle2 className="h-5 w-5 text-teal-600" /> : null}
-                      </div>
-                      <p className="mt-2 text-xs leading-5 text-slate-600">{address.line1}, {address.city} - {address.pincode}</p>
-                      <p className="mt-2 flex items-center gap-1 text-xs font-bold text-slate-500"><Phone className="h-3 w-3" />{address.phoneE164}</p>
-                      <div className="mt-3 flex gap-2" onClick={(event) => event.stopPropagation()}>
-                        <button onClick={() => openEditAddress(address)} className="flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-black text-slate-700"><Edit2 className="h-3 w-3" />Edit</button>
-                        <button onClick={() => void deleteAddress(address.id)} className="flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-black text-red-700"><Trash2 className="h-3 w-3" />Delete</button>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {showAddressForm ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
-                  <div className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-                    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
-                      <div>
-                        <h2 className="text-xl font-black text-slate-950">{editingAddressId ? 'Edit address' : 'New address'}</h2>
-                        <p className="text-xs font-semibold text-slate-500">Find your location on the map or fill in the details below.</p>
-                      </div>
-                      <button onClick={() => { setShowAddressForm(false); setEditingAddressId(null); setDraft(emptyDraft()); }} className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100"><span className="text-slate-400">✕</span></button>
-                    </header>
-                    <div className="space-y-4 p-5">
-                      <div className="flex items-center justify-end">
-                        <button onClick={useCurrentLocation} disabled={locating} className="flex items-center gap-2 rounded-xl bg-teal-700 px-3 py-2 text-xs font-black text-white disabled:opacity-50">
-                          {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
-                          {locating ? 'Locating...' : 'Use live location'}
-                        </button>
-                      </div>
-                      {draft.latitude != null && draft.longitude != null ? (
-                        <CustomerLocationPicker latitude={draft.latitude} longitude={draft.longitude} onChange={(lat, lng) => void updateCoordinates(lat, lng, 'MAP_PIN')} />
-                      ) : (
-                        <div className="rounded-2xl border border-dashed border-teal-300 bg-white p-6 text-center">
-                          <p className="text-sm font-bold text-slate-500">Search on the map above or use your current location.</p>
-                          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                            {defaultMapCenter ? (
-                              <button onClick={() => void updateCoordinates(defaultMapCenter.latitude, defaultMapCenter.longitude, 'MAP_PIN')} className="flex items-center gap-2 rounded-xl border border-teal-600 px-3 py-2 text-xs font-black text-teal-700">
-                                <MapPin className="h-4 w-4" />Pin on map
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      )}
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <Field label="Label" value={draft.label} onChange={(value) => setDraft((current) => ({ ...current, label: value }))} placeholder="Home, Work, etc." />
-                        <Field label="Name" value={draft.recipientName} onChange={(value) => setDraft((current) => ({ ...current, recipientName: value }))} placeholder="Who is this for?" />
-                        <Field label="Phone" value={draft.phoneE164} onChange={(value) => setDraft((current) => ({ ...current, phoneE164: value }))} placeholder="10-digit number" />
-                        <Field label="Pincode" value={draft.pincode} onChange={(value) => { setDraft((current) => ({ ...current, pincode: value })); }} placeholder="6-digit pincode" />
-                        <Field label="House / Street" value={draft.line1} onChange={(value) => setDraft((current) => ({ ...current, line1: value }))} className="md:col-span-2" placeholder="Flat no, building, street" />
-                        <Field label="Area / Locality" value={draft.line2} onChange={(value) => setDraft((current) => ({ ...current, line2: value }))} className="md:col-span-2" placeholder="Neighborhood, colony" />
-                        <Field label="Nearby" value={draft.landmark} onChange={(value) => setDraft((current) => ({ ...current, landmark: value }))} placeholder="Near temple, park, etc." />
-                        <Field label="Note for rider" value={draft.instructions} onChange={(value) => setDraft((current) => ({ ...current, instructions: value }))} placeholder="Gate code, floor, etc." />
-                        <Field label="City" value={draft.city} onChange={(value) => { setDraft((current) => ({ ...current, city: value })); }} />
-                        <Field label="State" value={draft.state} onChange={(value) => { setDraft((current) => ({ ...current, state: value })); }} />
-                  </div>
-                      <div className="flex gap-3 pt-2">
-                        <button onClick={() => { setShowAddressForm(false); setEditingAddressId(null); setDraft(emptyDraft()); }} className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-700">Cancel</button>
-                        <button onClick={() => void saveAddress()} disabled={savingAddress} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-xs font-black text-white disabled:opacity-50">{savingAddress ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{editingAddressId ? 'Update' : 'Save address'}</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </section>
-
-            <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
-              <div className="bg-gradient-to-r from-slate-950 to-teal-950 p-5 text-white">
-                <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-white/10"><CalendarDays className="h-5 w-5" /></span><div><h2 className="font-black">Choose delivery time</h2><p className="text-xs font-semibold text-teal-100">{storeStatus && !storeStatus.storeOpen ? 'This store is closed right now — reserve the next open window.' : 'Get it now or reserve a convenient window.'}</p></div></div>
-              </div>
-              <div className="p-5">
-                {storeStatus && !storeStatus.storeOpen ? (
-                  <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                    <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
-                    <div>
-                      <p className="text-sm font-black text-amber-900">Store is closed</p>
-                      <p className="mt-1 text-xs font-semibold leading-5 text-amber-800">
-                        {storeStatus.nextOpenAt
-                          ? <>Instant delivery is paused. Pre-order now for delivery from <span className="font-black">{new Date(storeStatus.nextOpenAt).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: storeStatus.timezone })}</span>.</>
-                          : 'Instant delivery is paused. Pre-order for the next open window.'}
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
-                <div className={`grid gap-3 ${storeStatus && !storeStatus.storeOpen ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                  {!(storeStatus && !storeStatus.storeOpen) ? (
-                    <button type="button" onClick={() => { setFulfillmentType('IMMEDIATE'); setSelectedSlotId(null); }} className={`rounded-2xl border p-4 text-left transition ${fulfillmentType === 'IMMEDIATE' ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-200'}`}><Clock3 className="h-5 w-5 text-teal-700"/><p className="mt-2 text-sm font-black text-slate-950">Deliver now</p><p className="mt-1 text-xs text-slate-500">Fastest available delivery</p></button>
-                  ) : null}
-                  <button type="button" onClick={() => setFulfillmentType('SCHEDULED')} className={`rounded-2xl border p-4 text-left transition ${fulfillmentType === 'SCHEDULED' ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-200'}`}><CalendarDays className="h-5 w-5 text-teal-700"/><p className="mt-2 text-sm font-black text-slate-950">{storeStatus && !storeStatus.storeOpen ? 'Pre-order delivery' : 'Schedule delivery'}</p><p className="mt-1 text-xs text-slate-500">Reserve up to 7 days ahead</p></button>
-                </div>
-                {fulfillmentType === 'SCHEDULED' ? <div className="mt-5"><div className="mb-3 flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-500">Available windows</p>{loadingSlots ? <Loader2 className="h-4 w-4 animate-spin text-teal-700"/> : null}</div><div className="grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">{deliverySlots.filter((slot) => slot.available).map((slot) => { const start = new Date(slot.windowStart); const end = new Date(slot.windowEnd); const active = selectedSlotId === slot.id; return <button type="button" key={slot.id} onClick={() => setSelectedSlotId(slot.id)} className={`rounded-2xl border p-3 text-left transition ${active ? 'border-teal-500 bg-teal-50' : 'border-slate-200 hover:border-teal-300'}`}><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-black text-slate-950">{start.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: storeStatus?.timezone || DELIVERY_TIME_ZONE })}</p><p className="mt-1 text-xs font-bold text-teal-700">{slot.label} · {start.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: storeStatus?.timezone || DELIVERY_TIME_ZONE })}–{end.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: storeStatus?.timezone || DELIVERY_TIME_ZONE })}</p></div>{active ? <CheckCircle2 className="h-5 w-5 shrink-0 text-teal-600"/> : null}</div><p className="mt-2 text-[11px] font-semibold text-slate-400">{slot.remainingCapacity <= 5 ? `Only ${slot.remainingCapacity} windows left` : 'Available'}</p></button>; })}</div>{!loadingSlots && deliverySlots.filter((slot) => slot.available).length === 0 ? <p className="rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">No scheduled windows are available for this address.</p> : null}</div> : null}
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-              <h2 className="font-black text-slate-950">Payment method</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                {([
-                  ['COD', 'Cash on delivery', Banknote],
-                  ['ONLINE', 'Pay online', CreditCard],
-                ] as const).map(([method, label, Icon]) => (
-                  <button key={method} onClick={() => setPaymentMethod(method)} className={`rounded-2xl border p-4 text-left ${paymentMethod === method ? 'border-teal-400 bg-teal-50' : 'border-slate-200'}`}>
-                    <Icon className="h-5 w-5 text-teal-700" /><p className="mt-3 text-sm font-black text-slate-950">{label}</p>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{error}</div> : null}
-          </div>
-
-          <aside className="space-y-5">
-            <BillDetailsCard
-              items={billItems}
-              subtotal={subtotal}
-              deliveryFee={quote?.invoice.deliveryFee ?? 0}
-              discountAmount={quote?.invoice.discountAmount ?? 0}
-              taxAmount={quote?.invoice.taxAmount ?? 0}
-              grandTotal={grandTotal}
-              storeName={quote?.store?.name}
-              distanceKm={quote?.distanceKm}
-              deliveryPricing={quote?.deliveryPricing}
-              showDeliveryOffer
-              loading={loadingQuote && !quote}
-            />
-
-            <section data-testid="checkout-coupon" className="rounded-2xl border border-slate-100 bg-white p-5">
-              <div className="flex items-center gap-2"><BadgePercent className="h-4 w-4 text-teal-700" /><h3 className="text-sm font-black text-slate-950">Coupon</h3><button onClick={() => router.push('/shop/deals')} className="ml-auto text-xs font-black text-teal-700">Browse deals</button></div>
-              {quote?.appliedCoupon ? (
-                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3"><p className="text-xs font-black text-emerald-700">{quote.appliedCoupon.code} applied</p><p className="mt-1 text-sm font-bold text-emerald-950">You save {formatINR(quote.appliedCoupon.discountAmount)}</p><button onClick={removeCoupon} className="mt-3 text-xs font-black text-slate-700">Remove</button></div>
-              ) : (
-                <div className="mt-3 flex gap-2"><input value={couponInput} onChange={(event) => setCouponInput(event.target.value.toUpperCase())} onKeyDown={(event) => event.key === 'Enter' && applyCoupon()} placeholder="Enter coupon code" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2.5 font-mono text-sm font-bold uppercase" /><button onClick={applyCoupon} disabled={loadingQuote} className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">Apply</button></div>
-              )}
-              {couponError ? <p className="mt-2 text-xs font-bold text-red-600">{couponError}</p> : null}
-            </section>
-
-            <section className="rounded-2xl border border-slate-100 bg-white p-5">
-              {orderId ? (
-                <div className="text-center"><CheckCircle2 className="mx-auto h-12 w-12 text-teal-600" /><h3 className="mt-3 text-lg font-black text-slate-950">Order placed</h3><p className="mt-1 text-xs text-slate-500">#{orderId.slice(-8).toUpperCase()}</p><button onClick={() => router.push('/shop/orders')} className="mt-4 w-full rounded-xl bg-slate-950 py-3 text-sm font-black text-white">View order</button></div>
-              ) : (
-                <button onClick={() => void placeOrder()} disabled={placingOrder || !quote?.serviceable || (fulfillmentType === 'SCHEDULED' && !selectedSlotId)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 py-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{placingOrder ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}{placingOrder ? 'Placing order…' : fulfillmentType === 'SCHEDULED' ? 'Reserve delivery window' : paymentMethod === 'COD' ? 'Place COD order' : 'Continue to pay'}</button>
-              )}
-              {selectedAddress ? <p className="mt-3 text-center text-xs text-slate-500">Deliver to <span className="font-black text-slate-800">{selectedAddress.recipientName}</span></p> : null}
-            </section>
-          </aside>
-        </div>
-      </div>
+      <CheckoutView state={viewState} actions={viewActions} />
     </DashboardLayout>
-  );
-}
-
-function Field({ label, value, onChange, placeholder, className = '' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; className?: string }) {
-  return (
-    <label className={`block ${className}`}>
-      <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-teal-500" />
-    </label>
   );
 }

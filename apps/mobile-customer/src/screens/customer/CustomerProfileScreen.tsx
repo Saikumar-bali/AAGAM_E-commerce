@@ -38,6 +38,7 @@ import {
   registerDeviceToken,
   useAuthStore,
 } from '@aagam/mobile-shared';
+import { EXPO_PUBLIC_MAPBOX_TOKEN } from '@env';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getUserSafeError, notify } from '../../ui/notify';
 import { AagamBrand } from '../../components/AagamBrand';
@@ -558,7 +559,7 @@ export const CustomerProfileScreen = () => {
                     <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceActive]} onPress={() => void useCurrentLocation()}><Text style={[styles.locationChoiceText, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceTextActive]}>📍 Use my location</Text></TouchableOpacity>
                     <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'MAP_PIN' && styles.locationChoiceActive]} onPress={useManualAddress}><Text style={[styles.locationChoiceText, draft.locationSource === 'MAP_PIN' && styles.locationChoiceTextActive]}>🗺️ Search on map</Text></TouchableOpacity>
                   </View>
-                  {draft.locationSource !== 'LIVE_GPS' ? <LeafletMap latitude={pinnedLatitude} longitude={pinnedLongitude} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')} /> : null}
+                  {draft.locationSource !== 'LIVE_GPS' ? <LeafletMap mapboxToken={EXPO_PUBLIC_MAPBOX_TOKEN} latitude={pinnedLatitude} longitude={pinnedLongitude} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')} /> : null}
                   <Text style={[styles.locationHelp, locationHasError && styles.locationHelpError]}>{locationHasError ? addressErrors.location : draft.locationSource === 'LIVE_GPS' ? 'Using your current location' : hasPinnedLocation ? `Pinned: ${pinnedLatitude.toFixed(5)}, ${pinnedLongitude.toFixed(5)}` : 'Search above or tap the map to pin delivery spot'}</Text>
                 </View>
                 {addressFields.map(({ key, label, required, placeholder }) => {
