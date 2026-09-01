@@ -776,6 +776,7 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
       </div>
 
       <div className="px-5 py-4">
+        <h3 className="mb-3 text-sm font-black text-slate-800">Bill Details</h3>
         {showSkeleton ? (
           <div className="space-y-3" aria-hidden>
             {[0, 1, 2].map((i) => (
