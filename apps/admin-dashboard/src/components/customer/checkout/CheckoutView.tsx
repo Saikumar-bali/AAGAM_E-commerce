@@ -843,7 +843,7 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
               <span className="flex items-center gap-1.5 font-semibold text-emerald-700">
                 <Tag className="h-3.5 w-3.5" /> Discount
               </span>
-              <span className="font-extrabold tabular-nums text-emerald-700">−{money(discount)}</span>
+              <span className="font-extrabold tabular-nums text-emerald-700">-{money(discount)}</span>
             </div>
           ) : null}
           {tax > 0 ? (
