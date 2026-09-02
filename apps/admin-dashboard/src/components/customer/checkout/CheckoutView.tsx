@@ -905,7 +905,7 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
         <div className="my-4 border-t border-dashed border-slate-200" aria-hidden />
 
         <div className="flex items-center justify-between rounded-2xl bg-teal-950 px-4 py-3.5">
-          <span className="text-sm font-extrabold text-white">Total</span>
+          <span className="text-sm font-extrabold text-white">Grand Total</span>
           <span className="text-xl font-extrabold tabular-nums text-white">{money(grandTotal)}</span>
         </div>
 
