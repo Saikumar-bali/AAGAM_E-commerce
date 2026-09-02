@@ -120,8 +120,8 @@ test.describe.serial('Mobile commerce hardening E2E acceptance', () => {
     await expect(page.getByText('Grand Total', { exact: true }).locator('..')).not.toContainText(/₹\s*0\b/);
     await expect(page.locator('body')).not.toContainText('Automatic offers are evaluated by the server. Code offers are checked against cart, account, store, schedule, and usage limits.');
 
-    await page.getByRole('button', { name: 'Add address' }).click();
-    await page.getByRole('button', { name: 'Use live location' }).click();
+    await page.getByRole('button', { name: 'Add new address' }).click();
+    await page.getByRole('button', { name: /live location/ }).click();
     const map = page.locator('.mapboxgl-map');
     await expect(map).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/23\.02250,\s*72\.57140/)).toBeVisible();
