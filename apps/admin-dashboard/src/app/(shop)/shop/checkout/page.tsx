@@ -10,6 +10,7 @@ import CheckoutView from '@/components/customer/checkout/CheckoutView';
 import type {
   Address,
   AddressDraft,
+  AddressFieldErrors,
   DeliverySlot,
   QuoteResponse,
   StoreStatus,
@@ -64,6 +65,7 @@ export default function CheckoutPage() {
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [draft, setDraft] = useState(emptyDraft);
+  const [addressFieldErrors, setAddressFieldErrors] = useState<AddressFieldErrors>({});
   const [savingAddress, setSavingAddress] = useState(false);
   const [locating, setLocating] = useState(false);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
@@ -321,6 +323,7 @@ export default function CheckoutPage() {
     initial.longitude = center.longitude;
     initial.locationSource = 'MAP_PIN';
     setDraft(initial);
+    setAddressFieldErrors({});
     setShowAddressForm(true);
   };
 
@@ -347,14 +350,30 @@ export default function CheckoutPage() {
       instructions: address.instructions || '',
       isDefault: address.isDefault,
     });
+    setAddressFieldErrors({});
     setShowAddressForm(true);
   };
 
+  // Mirrors the /shop/addresses page: per-field inline errors under red labels
+  // instead of a single toast, and the same rules the API enforces.
+  const validateAddressDraft = (value: AddressDraft): AddressFieldErrors => {
+    const fieldErrors: AddressFieldErrors = {};
+    if (value.recipientName.trim().length < 2) fieldErrors.recipientName = 'Recipient name is required (at least 2 characters).';
+    if (!/^(\+?[1-9]\d{7,14}|\d{10})$/.test(value.phoneE164.trim().replace(/[\s-]/g, ''))) fieldErrors.phoneE164 = 'Enter a valid 10-digit mobile number.';
+    if (value.line1.trim().length < 3) fieldErrors.line1 = 'Address line is required (at least 3 characters).';
+    if (value.city.trim().length < 2) fieldErrors.city = 'City is required.';
+    if (value.state.trim().length < 2) fieldErrors.state = 'State is required.';
+    if (!/^\d{6}$/.test(value.pincode.trim())) fieldErrors.pincode = 'A valid 6-digit pincode is required.';
+    return fieldErrors;
+  };
+
   const saveAddress = async () => {
-    if (!draft.recipientName.trim() || !draft.phoneE164.trim() || !draft.line1.trim() || !draft.pincode.trim()) {
-      toast.warning('Recipient, phone, address line, and pincode are required.');
+    const fieldErrors = validateAddressDraft(draft);
+    if (Object.keys(fieldErrors).length > 0) {
+      setAddressFieldErrors(fieldErrors);
       return;
     }
+    setAddressFieldErrors({});
     const pincodeClean = draft.pincode.trim().replace(/\D/g, '');
     // Locality pincode validation commented out — using Mapbox geocoding search
     // if (/^\d{6}$/.test(pincodeClean) && localities.length > 0 && !localities.some((loc) => loc.pincode === pincodeClean)) {
@@ -477,6 +496,7 @@ export default function CheckoutPage() {
     setShowAddressForm(false);
     setEditingAddressId(null);
     setDraft(emptyDraft());
+    setAddressFieldErrors({});
   }, []);
 
   const setFulfillment = useCallback((type: 'IMMEDIATE' | 'SCHEDULED') => {
@@ -499,6 +519,7 @@ export default function CheckoutPage() {
     showAddressForm,
     editingAddressId,
     draft,
+    addressFieldErrors,
     savingAddress,
     locating,
     defaultMapCenter,
@@ -534,7 +555,21 @@ export default function CheckoutPage() {
     onSaveAddress: () => void saveAddress(),
     onDeleteAddress: (id: string) => void deleteAddress(id),
     onUseLiveLocation: useCurrentLocation,
-    onDraftChange: (patch: Partial<AddressDraft>) => setDraft((current) => ({ ...current, ...patch })),
+    onDraftChange: (patch: Partial<AddressDraft>) => {
+      setDraft((current) => ({ ...current, ...patch }));
+      // Typing into a field clears its inline error (same feel as /shop/addresses).
+      setAddressFieldErrors((current) => {
+        const next = { ...current };
+        let changed = false;
+        for (const key of Object.keys(patch)) {
+          if (key in next) {
+            delete next[key as keyof AddressFieldErrors];
+            changed = true;
+          }
+        }
+        return changed ? next : current;
+      });
+    },
     onMapPinChange: (latitude: number, longitude: number) => void updateCoordinates(latitude, longitude, 'MAP_PIN'),
 
     onSetFulfillment: setFulfillment,
