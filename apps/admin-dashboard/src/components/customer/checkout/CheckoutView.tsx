@@ -98,7 +98,7 @@ export type AddressDraft = {
 
 // Inline validation messages per address form field, keyed like AddressDraft.
 export type AddressFieldErrors = Partial<
-  Record<'recipientName' | 'phoneE164' | 'line1' | 'city' | 'state' | 'pincode', string>
+  Record<'label' | 'recipientName' | 'phoneE164' | 'line1' | 'line2' | 'landmark' | 'city' | 'state' | 'pincode' | 'instructions', string>
 >;
 
 export type QuoteResponse = {
@@ -1040,14 +1040,14 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
           )}
 
           <div className="grid gap-3.5 md:grid-cols-2">
-            <Field label="Label" value={draft.label} onChange={(value) => actions.onDraftChange({ label: value })} placeholder="Home, Work, etc." autoComplete="off" />
+            <Field label="Label" error={addressFieldErrors.label} value={draft.label} onChange={(value) => actions.onDraftChange({ label: value })} placeholder="Home, Work, etc." autoComplete="off" />
             <Field label="Recipient name" required error={addressFieldErrors.recipientName} value={draft.recipientName} onChange={(value) => actions.onDraftChange({ recipientName: value })} placeholder="Who is this for?" autoComplete="name" />
             <Field label="Phone" required error={addressFieldErrors.phoneE164} value={draft.phoneE164} onChange={(value) => actions.onDraftChange({ phoneE164: value })} placeholder="10-digit mobile number" type="tel" inputMode="tel" autoComplete="tel" />
             <Field label="Pincode" required error={addressFieldErrors.pincode} value={draft.pincode} onChange={(value) => actions.onDraftChange({ pincode: value })} placeholder="6-digit pincode" inputMode="numeric" autoComplete="postal-code" />
             <Field label="House / street" required error={addressFieldErrors.line1} value={draft.line1} onChange={(value) => actions.onDraftChange({ line1: value })} placeholder="Flat no, building, street" className="md:col-span-2" autoComplete="address-line1" />
-            <Field label="Area / locality" value={draft.line2} onChange={(value) => actions.onDraftChange({ line2: value })} placeholder="Neighbourhood, colony" className="md:col-span-2" autoComplete="address-line2" />
-            <Field label="Nearby landmark" value={draft.landmark} onChange={(value) => actions.onDraftChange({ landmark: value })} placeholder="Near temple, park, etc." />
-            <Field label="Note for rider" value={draft.instructions} onChange={(value) => actions.onDraftChange({ instructions: value })} placeholder="Gate code, floor, etc." />
+            <Field label="Area / locality" error={addressFieldErrors.line2} value={draft.line2} onChange={(value) => actions.onDraftChange({ line2: value })} placeholder="Neighbourhood, colony" className="md:col-span-2" autoComplete="address-line2" />
+            <Field label="Nearby landmark" error={addressFieldErrors.landmark} value={draft.landmark} onChange={(value) => actions.onDraftChange({ landmark: value })} placeholder="Near temple, park, etc." />
+            <Field label="Note for rider" error={addressFieldErrors.instructions} value={draft.instructions} onChange={(value) => actions.onDraftChange({ instructions: value })} placeholder="Gate code, floor, etc." />
             <Field label="City" required error={addressFieldErrors.city} value={draft.city} onChange={(value) => actions.onDraftChange({ city: value })} autoComplete="address-level2" />
             <Field label="State" required error={addressFieldErrors.state} value={draft.state} onChange={(value) => actions.onDraftChange({ state: value })} autoComplete="address-level1" />
           </div>
