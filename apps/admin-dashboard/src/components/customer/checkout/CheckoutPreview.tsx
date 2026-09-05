@@ -235,6 +235,7 @@ export default function CheckoutPreview() {
             showAddressForm,
             editingAddressId,
             draft,
+            addressFieldErrors: {},
             savingAddress: false,
             locating: false,
             defaultMapCenter: { latitude: 17.385, longitude: 78.4867 },

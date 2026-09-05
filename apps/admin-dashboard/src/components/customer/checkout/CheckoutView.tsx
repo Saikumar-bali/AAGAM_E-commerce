@@ -96,6 +96,11 @@ export type AddressDraft = {
   isDefault: boolean;
 };
 
+// Inline validation messages per address form field, keyed like AddressDraft.
+export type AddressFieldErrors = Partial<
+  Record<'label' | 'recipientName' | 'phoneE164' | 'line1' | 'line2' | 'landmark' | 'city' | 'state' | 'pincode' | 'instructions', string>
+>;
+
 export type QuoteResponse = {
   currency: 'INR';
   serviceable: boolean;
@@ -165,6 +170,7 @@ export type CheckoutViewState = {
   showAddressForm: boolean;
   editingAddressId: string | null;
   draft: AddressDraft;
+  addressFieldErrors: AddressFieldErrors;
   savingAddress: boolean;
   locating: boolean;
   defaultMapCenter: { latitude: number; longitude: number } | null;
@@ -974,7 +980,7 @@ function MobileActionBar({ grandTotal, canPlace, placeLabel, placingOrder, onPla
 /* ------------------------------ address modal ------------------------------ */
 
 function AddressFormModal({ state, actions }: { state: CheckoutViewState; actions: CheckoutViewActions }) {
-  const { draft, savingAddress, locating, editingAddressId, defaultMapCenter } = state;
+  const { draft, addressFieldErrors, savingAddress, locating, editingAddressId, defaultMapCenter } = state;
   const titleId = useId();
 
   return (
@@ -1034,16 +1040,16 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
           )}
 
           <div className="grid gap-3.5 md:grid-cols-2">
-            <Field label="Label" value={draft.label} onChange={(value) => actions.onDraftChange({ label: value })} placeholder="Home, Work, etc." autoComplete="off" />
-            <Field label="Recipient name" value={draft.recipientName} onChange={(value) => actions.onDraftChange({ recipientName: value })} placeholder="Who is this for?" autoComplete="name" />
-            <Field label="Phone" value={draft.phoneE164} onChange={(value) => actions.onDraftChange({ phoneE164: value })} placeholder="10-digit mobile number" type="tel" inputMode="tel" autoComplete="tel" />
-            <Field label="Pincode" value={draft.pincode} onChange={(value) => actions.onDraftChange({ pincode: value })} placeholder="6-digit pincode" inputMode="numeric" autoComplete="postal-code" />
-            <Field label="House / street" value={draft.line1} onChange={(value) => actions.onDraftChange({ line1: value })} placeholder="Flat no, building, street" className="md:col-span-2" autoComplete="address-line1" />
-            <Field label="Area / locality" value={draft.line2} onChange={(value) => actions.onDraftChange({ line2: value })} placeholder="Neighbourhood, colony" className="md:col-span-2" autoComplete="address-line2" />
-            <Field label="Nearby landmark" value={draft.landmark} onChange={(value) => actions.onDraftChange({ landmark: value })} placeholder="Near temple, park, etc." />
-            <Field label="Note for rider" value={draft.instructions} onChange={(value) => actions.onDraftChange({ instructions: value })} placeholder="Gate code, floor, etc." />
-            <Field label="City" value={draft.city} onChange={(value) => actions.onDraftChange({ city: value })} autoComplete="address-level2" />
-            <Field label="State" value={draft.state} onChange={(value) => actions.onDraftChange({ state: value })} autoComplete="address-level1" />
+            <Field label="Label" error={addressFieldErrors.label} value={draft.label} onChange={(value) => actions.onDraftChange({ label: value })} placeholder="Home, Work, etc." autoComplete="off" />
+            <Field label="Recipient name" required error={addressFieldErrors.recipientName} value={draft.recipientName} onChange={(value) => actions.onDraftChange({ recipientName: value })} placeholder="Who is this for?" autoComplete="name" />
+            <Field label="Phone" required error={addressFieldErrors.phoneE164} value={draft.phoneE164} onChange={(value) => actions.onDraftChange({ phoneE164: value })} placeholder="10-digit mobile number" type="tel" inputMode="tel" autoComplete="tel" />
+            <Field label="Pincode" required error={addressFieldErrors.pincode} value={draft.pincode} onChange={(value) => actions.onDraftChange({ pincode: value })} placeholder="6-digit pincode" inputMode="numeric" autoComplete="postal-code" />
+            <Field label="House / street" required error={addressFieldErrors.line1} value={draft.line1} onChange={(value) => actions.onDraftChange({ line1: value })} placeholder="Flat no, building, street" className="md:col-span-2" autoComplete="address-line1" />
+            <Field label="Area / locality" error={addressFieldErrors.line2} value={draft.line2} onChange={(value) => actions.onDraftChange({ line2: value })} placeholder="Neighbourhood, colony" className="md:col-span-2" autoComplete="address-line2" />
+            <Field label="Nearby landmark" error={addressFieldErrors.landmark} value={draft.landmark} onChange={(value) => actions.onDraftChange({ landmark: value })} placeholder="Near temple, park, etc." />
+            <Field label="Note for rider" error={addressFieldErrors.instructions} value={draft.instructions} onChange={(value) => actions.onDraftChange({ instructions: value })} placeholder="Gate code, floor, etc." />
+            <Field label="City" required error={addressFieldErrors.city} value={draft.city} onChange={(value) => actions.onDraftChange({ city: value })} autoComplete="address-level2" />
+            <Field label="State" required error={addressFieldErrors.state} value={draft.state} onChange={(value) => actions.onDraftChange({ state: value })} autoComplete="address-level1" />
           </div>
 
           <div className="flex gap-3 pt-1">
@@ -1068,7 +1074,7 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
   );
 }
 
-function Field({ label, value, onChange, placeholder, className = '', type = 'text', inputMode, autoComplete }: {
+function Field({ label, value, onChange, placeholder, className = '', type = 'text', inputMode, autoComplete, required = false, error }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -1077,11 +1083,16 @@ function Field({ label, value, onChange, placeholder, className = '', type = 'te
   type?: string;
   inputMode?: 'text' | 'tel' | 'numeric' | 'email' | 'decimal';
   autoComplete?: string;
+  required?: boolean;
+  error?: string;
 }) {
   const id = useId();
   return (
-    <label htmlFor={id} className={`block ${className}`}>
-      <span className="mb-1.5 block text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-500">{label}</span>
+    <div className={className}>
+      <label htmlFor={id} className={`mb-1.5 block text-[11px] font-extrabold uppercase tracking-[0.08em] ${error ? 'text-red-700' : 'text-slate-500'}`}>
+        {label}
+        {required && <span className="ml-1 text-red-600">*</span>}
+      </label>
       <input
         id={id}
         type={type}
@@ -1090,8 +1101,13 @@ function Field({ label, value, onChange, placeholder, className = '', type = 'te
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-900 caret-teal-700 outline-none transition placeholder:font-normal placeholder:text-slate-500 focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+        className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-900 caret-teal-700 outline-none transition placeholder:font-normal placeholder:text-slate-500 focus:ring-4 ${error ? 'border-red-400 bg-red-50/40 text-red-900 placeholder:text-red-400 focus:border-red-500 focus:ring-red-500/10' : 'border-slate-200 focus:border-teal-600 focus:ring-teal-600/10'}`}
       />
-    </label>
+      {error && (
+        <p id={`${id}-error`} role="alert" className="mt-1 text-xs font-bold text-red-600">{error}</p>
+      )}
+    </div>
   );
 }

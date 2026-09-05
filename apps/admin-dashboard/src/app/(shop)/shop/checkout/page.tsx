@@ -10,6 +10,7 @@ import CheckoutView from '@/components/customer/checkout/CheckoutView';
 import type {
   Address,
   AddressDraft,
+  AddressFieldErrors,
   DeliverySlot,
   QuoteResponse,
   StoreStatus,
@@ -64,6 +65,7 @@ export default function CheckoutPage() {
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [draft, setDraft] = useState(emptyDraft);
+  const [addressFieldErrors, setAddressFieldErrors] = useState<AddressFieldErrors>({});
   const [savingAddress, setSavingAddress] = useState(false);
   const [locating, setLocating] = useState(false);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
@@ -264,6 +266,23 @@ export default function CheckoutPage() {
     };
   }, [appliedCouponCode, itemsPayload, orderId, selectedAddressId]);
 
+  // Single path for draft updates so inline errors clear whenever a field
+  // changes, whether typed (onDraftChange) or filled by reverse geocoding.
+  const patchDraft = useCallback((patch: Partial<AddressDraft>) => {
+    setDraft((current) => ({ ...current, ...patch }));
+    setAddressFieldErrors((current) => {
+      const next = { ...current };
+      let changed = false;
+      for (const key of Object.keys(patch)) {
+        if (key in next) {
+          delete next[key as keyof AddressFieldErrors];
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, []);
+
   const updateCoordinates = useCallback(async (latitude: number, longitude: number, locationSource: 'LIVE_GPS' | 'MAP_PIN', accuracyMetres?: number) => {
     // setSelectedLocalityId(''); // Locality removed
     setDraft((current) => ({
@@ -278,20 +297,19 @@ export default function CheckoutPage() {
       const response = await apiClient.get('/geo/reverse', { params: { lat: latitude, lng: longitude } });
       const address = response.data?.address;
       if (response.data?.ok && address) {
-        setDraft((current) => ({
-          ...current,
-          line1: address.line1 || current.line1,
-          landmark: address.landmark || current.landmark,
-          city: address.city || current.city,
-          state: address.state || current.state,
-          pincode: address.pincode || current.pincode,
-          country: address.country || current.country,
-        }));
+        const geoPatch: Partial<AddressDraft> = {};
+        if (address.line1) geoPatch.line1 = address.line1;
+        if (address.landmark) geoPatch.landmark = address.landmark;
+        if (address.city) geoPatch.city = address.city;
+        if (address.state) geoPatch.state = address.state;
+        if (address.pincode) geoPatch.pincode = address.pincode;
+        if (address.country) geoPatch.country = address.country;
+        patchDraft(geoPatch);
       }
     } catch {
       // Coordinates remain usable even when reverse geocoding is unavailable.
     }
-  }, []);
+  }, [patchDraft]);
 
   const useCurrentLocation = () => {
     setError(null);
@@ -321,6 +339,7 @@ export default function CheckoutPage() {
     initial.longitude = center.longitude;
     initial.locationSource = 'MAP_PIN';
     setDraft(initial);
+    setAddressFieldErrors({});
     setShowAddressForm(true);
   };
 
@@ -347,14 +366,40 @@ export default function CheckoutPage() {
       instructions: address.instructions || '',
       isDefault: address.isDefault,
     });
+    setAddressFieldErrors({});
     setShowAddressForm(true);
   };
 
+  // Mirrors the /shop/addresses page: per-field inline errors under red labels
+  // instead of a single toast. Min/max lengths and patterns match the rules the
+  // API enforces in CreateAddressDto so locally valid input never fails server-side.
+  const validateAddressDraft = (value: AddressDraft): AddressFieldErrors => {
+    const fieldErrors: AddressFieldErrors = {};
+    if (value.recipientName.trim().length < 2) fieldErrors.recipientName = 'Recipient name is required (at least 2 characters).';
+    else if (value.recipientName.trim().length > 80) fieldErrors.recipientName = 'Recipient name must be at most 80 characters.';
+    if (!/^(\+?[1-9]\d{7,14}|\d{10})$/.test(value.phoneE164.trim().replace(/[\s-]/g, ''))) fieldErrors.phoneE164 = 'Enter a valid 10-digit mobile number.';
+    if (value.line1.trim().length < 3) fieldErrors.line1 = 'Address line is required (at least 3 characters).';
+    else if (value.line1.trim().length > 120) fieldErrors.line1 = 'Address line must be at most 120 characters.';
+    if (value.line2.trim().length > 120) fieldErrors.line2 = 'Area / locality must be at most 120 characters.';
+    if (value.landmark.trim().length > 80) fieldErrors.landmark = 'Nearby landmark must be at most 80 characters.';
+    if (value.city.trim().length < 2) fieldErrors.city = 'City is required.';
+    else if (value.city.trim().length > 60) fieldErrors.city = 'City must be at most 60 characters.';
+    if (value.state.trim().length < 2) fieldErrors.state = 'State is required.';
+    else if (value.state.trim().length > 60) fieldErrors.state = 'State must be at most 60 characters.';
+    if (!/^\d{6}$/.test(value.pincode.trim())) fieldErrors.pincode = 'A valid 6-digit pincode is required.';
+    if (value.instructions.trim().length > 200) fieldErrors.instructions = 'Note for rider must be at most 200 characters.';
+    if (value.label.trim().length > 32) fieldErrors.label = 'Label must be at most 32 characters.';
+    return fieldErrors;
+  };
+
   const saveAddress = async () => {
-    if (!draft.recipientName.trim() || !draft.phoneE164.trim() || !draft.line1.trim() || !draft.pincode.trim()) {
-      toast.warning('Recipient, phone, address line, and pincode are required.');
+    const fieldErrors = validateAddressDraft(draft);
+    if (Object.keys(fieldErrors).length > 0) {
+      setAddressFieldErrors(fieldErrors);
       return;
     }
+    setAddressFieldErrors({});
+    const phoneClean = draft.phoneE164.trim().replace(/[\s-]/g, '');
     const pincodeClean = draft.pincode.trim().replace(/\D/g, '');
     // Locality pincode validation commented out — using Mapbox geocoding search
     // if (/^\d{6}$/.test(pincodeClean) && localities.length > 0 && !localities.some((loc) => loc.pincode === pincodeClean)) {
@@ -373,11 +418,12 @@ export default function CheckoutPage() {
       ...draft,
       label: draft.label.trim() || 'Home',
       recipientName: draft.recipientName.trim(),
-      phoneE164: draft.phoneE164.trim(),
+      phoneE164: phoneClean,
       line1: draft.line1.trim(),
       line2: draft.line2.trim() || undefined,
       landmark: draft.landmark.trim() || undefined,
       instructions: draft.instructions.trim() || undefined,
+      pincode: pincodeClean,
       latitude: draft.latitude ?? undefined,
       longitude: draft.longitude ?? undefined,
       isDefault: addresses.length === 0 ? true : draft.isDefault,
@@ -477,6 +523,7 @@ export default function CheckoutPage() {
     setShowAddressForm(false);
     setEditingAddressId(null);
     setDraft(emptyDraft());
+    setAddressFieldErrors({});
   }, []);
 
   const setFulfillment = useCallback((type: 'IMMEDIATE' | 'SCHEDULED') => {
@@ -499,6 +546,7 @@ export default function CheckoutPage() {
     showAddressForm,
     editingAddressId,
     draft,
+    addressFieldErrors,
     savingAddress,
     locating,
     defaultMapCenter,
@@ -534,7 +582,7 @@ export default function CheckoutPage() {
     onSaveAddress: () => void saveAddress(),
     onDeleteAddress: (id: string) => void deleteAddress(id),
     onUseLiveLocation: useCurrentLocation,
-    onDraftChange: (patch: Partial<AddressDraft>) => setDraft((current) => ({ ...current, ...patch })),
+    onDraftChange: patchDraft,
     onMapPinChange: (latitude: number, longitude: number) => void updateCoordinates(latitude, longitude, 'MAP_PIN'),
 
     onSetFulfillment: setFulfillment,
