@@ -12,7 +12,7 @@ function getMapboxToken(): string | null {
 // Places API (New) key. A dedicated maps key wins; otherwise reuse the Firebase
 // web key — both are Google API keys, Places just needs to be enabled in console.
 function getGooglePlacesKey(): string | null {
-  const key = process.env?.GOOGLE_MAPS_API_KEY || process.env?.FIREBASE_WEB_API_KEY || null;
+  const key = process.env?.GOOGLE_MAPS_API_KEY || process.env?.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env?.FIREBASE_WEB_API_KEY || null;
   if (key && typeof key === 'string' && key.startsWith('AIza')) return key;
   return null;
 }
