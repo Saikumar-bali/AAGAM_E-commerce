@@ -130,6 +130,7 @@ describe('production deployment environment contracts', () => {
       WHATSAPP_OTP_TEMPLATE_LANGUAGE_CODE_CONFIG: 'en_US',
       WHATSAPP_WEBHOOK_VERIFY_TOKEN_SECRET: 'ci-verify-token-at-least-16-chars',
       WHATSAPP_APP_SECRET_SECRET: 'ci-app-secret-at-least-16-chars',
+      GOOGLE_MAPS_API_KEY_SECRET: 'AIzaSyCI-test-key-for-contract',
     });
 
     try {
@@ -147,6 +148,7 @@ describe('production deployment environment contracts', () => {
         'Applied managed WhatsApp production settings without printing credential values.',
       );
       expect(run.result.stdout).not.toContain('token-with-');
+      expect(generated).toContain("GOOGLE_MAPS_API_KEY='AIzaSyCI-test-key-for-contract'");
 
       const validate = spawnSync(
         'bash',
@@ -213,5 +215,6 @@ describe('production deployment environment contracts', () => {
     expect(workflow).toContain('WHATSAPP_WEBHOOK_VERIFY_TOKEN_SECRET: ${{ secrets.WHATSAPP_WEBHOOK_VERIFY_TOKEN }}');
     expect(workflow).toContain('node scripts/prepare-production-env.js "$RUNNER_TEMP/aagam-production.env"');
     expect(workflow).toContain('REQUIRE_CLOSED_APP_PUSH=true node scripts/validate-prod-env.js');
+    expect(workflow).toContain('GOOGLE_MAPS_API_KEY_SECRET: ${{ secrets.GOOGLE_MAPS_API_KEY }}');
   });
 });
