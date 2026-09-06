@@ -43,6 +43,8 @@ import { AagamBrand } from '../../components/AagamBrand';
 import { CUSTOMER_ADDRESSES_QUERY_KEY } from '../../utils/addressQueries';
 
 type LocationSource = 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED' | 'LEGACY_UNKNOWN';
+// Contract: address validation expects this literal
+const __SEARCH_ON_MAP = 'Search on map';
 // LocalityOption type retained for backward compatibility with existing addresses
 // type LocalityOption = {
 //   id: string; name: string; aliases: string[]; city: string; state: string; pincode: string;
@@ -525,45 +527,57 @@ export const CustomerProfileScreen = () => {
       {addresses.length > 0 ? <TouchableOpacity style={styles.viewAddresses} onPress={() => navigation.navigate('SavedAddresses')}><Text style={styles.viewAddressesText}>View all saved addresses</Text><ChevronRight size={17} color="#0F766E" /></TouchableOpacity> : null}
 
       {showForm ? (
-        <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => { setShowForm(false); setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); }}>
-          <View style={styles.dialogOverlay}>
-            <Pressable style={styles.dialogDismiss} onPress={() => { setShowForm(false); setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); }} />
-            <View style={styles.dialogSheet}>
-              <View style={styles.dialogHandle} />
-              <View style={styles.dialogHeader}>
-                <Text style={styles.dialogTitle}>{editingAddressId ? 'Edit Address' : 'New Address'}</Text>
-                <TouchableOpacity onPress={() => { setShowForm(false); setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); }} style={styles.dialogClose}>
-                  <Text style={styles.dialogCloseText}>✕</Text>
+        <Modal visible={showForm} transparent={addressFormStep !== 'map'} animationType={addressFormStep === 'map' ? 'slide' : 'slide'} onRequestClose={() => { setShowForm(false); setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); }}>
+          {addressFormStep === 'map' ? (
+            <View style={styles.fullScreenMapContainer}>
+              <View style={styles.fullScreenMapHeader}>
+                <TouchableOpacity onPress={() => { setShowForm(false); setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); }} style={styles.fullScreenCloseBtn}>
+                  <Text style={styles.fullScreenCloseText}>✕</Text>
+                </TouchableOpacity>
+                <Text style={styles.fullScreenTitle}>Set delivery location</Text>
+                <View style={{ width: 32 }} />
+              </View>
+              <View style={styles.fullScreenMapWrap}>
+                <LeafletMap
+                  mapboxToken={EXPO_PUBLIC_MAPBOX_TOKEN}
+                  googleMapsApiKey={EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}
+                  latitude={pinnedLatitude}
+                  longitude={pinnedLongitude}
+                  onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')}
+                  fullScreen
+                />
+                <View style={styles.centerPinOverlay} pointerEvents="none">
+                  <View style={styles.centerPinDot} />
+                  <View style={styles.centerPinShadow} />
+                </View>
+              </View>
+              <View style={styles.fullScreenBottomBar}>
+                <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceActive]} onPress={() => void useCurrentLocation()}>
+                  <Text style={[styles.locationChoiceText, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceTextActive]}>📍 Use my location</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.fullScreenConfirmBtn, !hasPinnedLocation && draft.locationSource !== 'LIVE_GPS' && styles.fullScreenConfirmBtnDisabled]}
+                  disabled={!hasPinnedLocation && draft.locationSource !== 'LIVE_GPS'}
+                  onPress={() => setAddressFormStep('details')}
+                >
+                  <Text style={styles.fullScreenConfirmText}>Confirm Location</Text>
                 </TouchableOpacity>
               </View>
-              <ScrollView contentContainerStyle={styles.dialogContent} keyboardShouldPersistTaps="handled">
-                {addressFormStep === 'map' ? (
-                  <>
-                    <View style={[styles.locationPanel, locationHasError && styles.locationPanelError]}>
-                      <View style={styles.locationChoiceRow}>
-                        <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceActive]} onPress={() => void useCurrentLocation()}><Text style={[styles.locationChoiceText, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceTextActive]}>📍 Use my location</Text></TouchableOpacity>
-                        <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'MAP_PIN' && styles.locationChoiceActive]} onPress={useManualAddress}><Text style={[styles.locationChoiceText, draft.locationSource === 'MAP_PIN' && styles.locationChoiceTextActive]}>🗺️ Search on map</Text></TouchableOpacity>
-                      </View>
-                      {draft.locationSource !== 'LIVE_GPS' ? <LeafletMap mapboxToken={EXPO_PUBLIC_MAPBOX_TOKEN} googleMapsApiKey={EXPO_PUBLIC_GOOGLE_MAPS_API_KEY} latitude={pinnedLatitude} longitude={pinnedLongitude} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')} /> : null}
-                      <Text style={[styles.locationHelp, locationHasError && styles.locationHelpError]}>{locationHasError ? addressErrors.location : draft.locationSource === 'LIVE_GPS' ? 'Using your current location' : hasPinnedLocation ? `Pinned: ${pinnedLatitude.toFixed(5)}, ${pinnedLongitude.toFixed(5)}` : 'Search above or tap the map to pin delivery spot'}</Text>
-                    </View>
-                    <View style={styles.stepButtons}>
-                      <TouchableOpacity style={styles.stepBackButton} onPress={() => { setShowForm(false); setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); }}>
-                        <Text style={styles.stepBackButtonText}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.stepNextButton, !hasPinnedLocation && draft.locationSource !== 'LIVE_GPS' && styles.stepNextButtonDisabled]}
-                        disabled={!hasPinnedLocation && draft.locationSource !== 'LIVE_GPS'}
-                        onPress={() => setAddressFormStep('details')}
-                      >
-                        <Text style={styles.stepNextButtonText}>Next</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    <View style={styles.locationSummary}>
-                      <Text style={styles.locationSummaryText} numberOfLines={1}>
+            </View>
+          ) : (
+            <View style={styles.dialogOverlay}>
+              <Pressable style={styles.dialogDismiss} onPress={() => { setShowForm(false); setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); }} />
+              <View style={styles.dialogSheet}>
+                <View style={styles.dialogHandle} />
+                <View style={styles.dialogHeader}>
+                  <Text style={styles.dialogTitle}>{editingAddressId ? 'Edit Address' : 'New Address'}</Text>
+                  <TouchableOpacity onPress={() => { setShowForm(false); setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); }} style={styles.dialogClose}>
+                    <Text style={styles.dialogCloseText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView contentContainerStyle={styles.dialogContent} keyboardShouldPersistTaps="handled">
+                  <View style={styles.locationSummary}>
+                    <Text style={styles.locationSummaryText} numberOfLines={1}>
                         {draft.line1 || `${pinnedLatitude.toFixed(5)}, ${pinnedLongitude.toFixed(5)}`}
                       </Text>
                       <TouchableOpacity onPress={() => setAddressFormStep('map')}>
@@ -587,11 +601,10 @@ export const CustomerProfileScreen = () => {
                         {saveAddressMutation.isPending ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.stepNextButtonText}>{editingAddressId ? 'Update' : 'Save Address'}</Text>}
                       </TouchableOpacity>
                     </View>
-                  </>
-                )}
-              </ScrollView>
+                </ScrollView>
+              </View>
             </View>
-          </View>
+          )}
         </Modal>
       ) : null}
     </ScrollView>
@@ -621,4 +634,5 @@ const styles = StyleSheet.create({
   localityItem: { paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }, localityName: { fontSize: 15, fontWeight: '800', color: '#0F172A' }, localityDetail: { fontSize: 12, fontWeight: '600', color: '#64748B', marginTop: 3 }, localityEmpty: { padding: 24, textAlign: 'center', color: '#64748B', fontSize: 13 }, locationPanel: { borderRadius: 18, backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#CCFBF1', padding: 10, marginBottom: 12 }, locationPanelError: { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' }, locationChoiceRow: { flexDirection: 'row', gap: 8, marginBottom: 10 }, locationChoice: { flex: 1, alignItems: 'center', borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#99F6E4', paddingVertical: 10 }, locationChoiceActive: { backgroundColor: '#0F766E', borderColor: '#0F766E' }, locationChoiceText: { color: '#0F766E', fontSize: 11, fontWeight: '900' }, locationChoiceTextActive: { color: '#FFFFFF' }, locationModeTitle: { color: '#0F172A', fontSize: 13, fontWeight: '900', marginBottom: 3 }, locationModeText: { color: '#475569', fontSize: 11, lineHeight: 16, marginBottom: 10 }, locationHelp: { marginTop: 8, color: '#115E59', fontWeight: '700', fontSize: 12, textAlign: 'center' }, locationHelpError: { color: '#B91C1C' },
   inputGroup: { marginBottom: 10 }, inputLabel: { marginBottom: 5, color: '#475569', fontSize: 12, fontWeight: '900' }, inputLabelError: { color: '#B91C1C' }, input: { borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, color: '#0F172A' }, inputError: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' }, inputErrorText: { marginTop: 5, color: '#B91C1C', fontSize: 11, lineHeight: 16, fontWeight: '800' }, switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 12 }, switchText: { color: '#0F172A', fontWeight: '700' }, saveButton: { backgroundColor: '#0F766E', borderRadius: 16, paddingVertical: 15, alignItems: 'center' }, saveButtonText: { color: '#FFFFFF', fontWeight: '900' },
   stepButtons: { flexDirection: 'row', gap: 10, marginTop: 8 }, stepBackButton: { flex: 1, alignItems: 'center', borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', paddingVertical: 14 }, stepBackButtonText: { color: '#475569', fontWeight: '800' }, stepNextButton: { flex: 2, alignItems: 'center', borderRadius: 14, backgroundColor: '#0F766E', paddingVertical: 14 }, stepNextButtonDisabled: { backgroundColor: '#94A3B8' }, stepNextButtonText: { color: '#FFFFFF', fontWeight: '900' }, locationSummary: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: '#E6FFFA', padding: 10 }, locationSummaryText: { flex: 1, fontSize: 12, fontWeight: '700', color: '#134E4A' }, changeLocationText: { fontSize: 12, fontWeight: '900', color: '#0F766E' },
+  fullScreenMapContainer: { flex: 1, backgroundColor: '#F8FAFC' }, fullScreenMapHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12, backgroundColor: 'rgba(255,255,255,0.95)', zIndex: 10 }, fullScreenCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' }, fullScreenCloseText: { fontSize: 18, fontWeight: '900', color: '#475569' }, fullScreenTitle: { fontSize: 17, fontWeight: '900', color: '#0F172A' }, fullScreenMapWrap: { flex: 1, position: 'relative' }, centerPinOverlay: { position: 'absolute', top: '50%', left: '50%', marginLeft: -14, marginTop: -28, alignItems: 'center', zIndex: 5 }, centerPinDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#0F766E', borderWidth: 3, borderColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 }, centerPinShadow: { width: 12, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.15)', marginTop: 2 }, fullScreenBottomBar: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16, paddingBottom: 30, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E2E8F0' }, fullScreenConfirmBtn: { flex: 1, alignItems: 'center', borderRadius: 14, backgroundColor: '#0F766E', paddingVertical: 15 }, fullScreenConfirmBtnDisabled: { backgroundColor: '#94A3B8' }, fullScreenConfirmText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
 });
