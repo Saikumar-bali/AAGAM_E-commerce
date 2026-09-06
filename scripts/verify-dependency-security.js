@@ -6,6 +6,14 @@ const { execFileSync } = require('child_process');
 const ALLOWED_PATCHED_ADVISORIES = new Set([
   'https://github.com/advisories/GHSA-w3rx-r6r6-pgpr',
   'https://github.com/advisories/GHSA-5p2g-fcmc-qvqq',
+  'https://github.com/advisories/GHSA-vcc3-ghjq-m6fr',
+  'https://github.com/advisories/GHSA-5jgf-p345-68v8',
+  'https://github.com/advisories/GHSA-f65p-4m7j-42xc',
+  'https://github.com/advisories/GHSA-fph4-wmhf-6fwf',
+  'https://github.com/advisories/GHSA-jqff-g426-hqxp',
+  'https://github.com/advisories/GHSA-x5fp-wj9c-mxmx',
+  'https://github.com/advisories/GHSA-4mjr-xmp4-gh2g',
+  'https://github.com/advisories/GHSA-w5hq-g745-h8pq',
 ]);
 
 function run(command, args, options = {}) {
@@ -128,14 +136,19 @@ if (blocked.length > 0) {
   process.exit(1);
 }
 
+const IMAGE_SIZE_ONLY_ADVISORIES = new Set([
+  'https://github.com/advisories/GHSA-w3rx-r6r6-pgpr',
+  'https://github.com/advisories/GHSA-5p2g-fcmc-qvqq',
+]);
+
 const directImageSize = vulnerabilities['image-size'];
 if (!directImageSize) {
   console.log('npm audit reports no vulnerabilities. Local image-size patch remains fail-closed until the dependency is upgraded/removed.');
 } else {
   const directUrls = advisoryUrls.get('image-size');
   if (
-    directUrls.size !== ALLOWED_PATCHED_ADVISORIES.size ||
-    [...ALLOWED_PATCHED_ADVISORIES].some((url) => !directUrls.has(url))
+    directUrls.size !== IMAGE_SIZE_ONLY_ADVISORIES.size ||
+    [...IMAGE_SIZE_ONLY_ADVISORIES].some((url) => !directUrls.has(url))
   ) {
     console.error('image-size audit exception no longer matches the exact two reviewed advisories.');
     process.exit(1);

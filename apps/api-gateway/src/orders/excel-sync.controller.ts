@@ -1,0 +1,97 @@
+﻿import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Role, prisma } from '@aagam/database';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { ExcelSyncDto } from './dto/excel-sync.dto';
+
+@Controller('orders/excel-sync')
+export class ExcelSyncController {
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async sync(@Query() query: ExcelSyncDto) {
+    let since: Date;
+    if (query.since) {
+      const parsed = new Date(query.since);
+      since = isNaN(parsed.getTime()) ? new Date(0) : parsed;
+    } else {
+      since = new Date(0);
+    }
+
+    const orders = await prisma.order.findMany({
+      where: {
+        OR: [
+          { createdAt: { gt: since } },
+          { updatedAt: { gt: since } },
+        ],
+      },
+      take: 500,
+      include: {
+        customer: {
+          select: { name: true, email: true, phone: true },
+        },
+        store: {
+          select: { name: true, address: true },
+        },
+        items: {
+          include: {
+            product: {
+              select: { name: true },
+            },
+          },
+        },
+        rider: {
+          include: {
+            user: {
+              select: { name: true, phone: true },
+            },
+          },
+        },
+        payment: {
+          select: { method: true, status: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return orders.map((order) => {
+      const address = order.addressSnapshot as any;
+      const items = (order.items || []).map((item) => ({
+        productName: item.product?.name || 'Unknown',
+        quantity: item.quantity,
+        unitPrice: item.price,
+        lineTotal: item.quantity * item.price,
+      }));
+
+      return {
+        id: order.id,
+        shortId: order.id.substring(0, 8).toUpperCase(),
+        status: order.status,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        customerName: order.customer?.name || address?.recipientName || 'Unknown',
+        customerPhone: order.customer?.phone || address?.phoneE164 || '',
+        addressLine1: address?.line1 || '',
+        addressLine2: address?.line2 || '',
+        addressCity: address?.city || '',
+        addressPincode: address?.pincode || '',
+        storeName: order.store?.name || '',
+        items,
+        itemCount: items.length,
+        itemsSummary: items
+          .map((i) => `${i.productName} \u00d7 ${i.quantity}`)
+          .join(', '),
+        subtotal: order.subtotal,
+        deliveryFee: order.deliveryFee,
+        discountAmount: order.discountAmount,
+        taxAmount: order.taxAmount,
+        grandTotal: order.grandTotal,
+        paymentMethod: order.payment?.method || 'UNKNOWN',
+        paymentStatus: order.payment?.status || 'UNKNOWN',
+        riderName: order.rider?.user?.name || '',
+        riderPhone: order.rider?.user?.phone || '',
+      };
+    });
+  }
+}
