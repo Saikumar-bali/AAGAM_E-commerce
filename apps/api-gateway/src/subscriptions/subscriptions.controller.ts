@@ -58,6 +58,9 @@ import {
   TrustedDropEvidenceUploadDto,
   UpsertSubscriptionPlanDto,
   VerifyCashDepositBatchDto,
+  CreateManualOfflineCustomerDto,
+  CreateAdminManualSubscriptionDto,
+  UpdateAdminManualSubscriptionDto,
 } from './subscriptions.dto';
 
 type AuthenticatedRequest = { user: { id: string; role: Role } };
@@ -502,5 +505,20 @@ export class AdminSubscriptionsController {
     @Headers('idempotency-key') key?: string,
   ) {
     return this.cash.resolveVariance(batchId, body, req.user, key);
+  }
+
+  @Post('manual-customer')
+  createOfflineCustomer(@Body() body: CreateManualOfflineCustomerDto) {
+    return this.reporting.createOfflineCustomer(body);
+  }
+
+  @Post('manual-subscribe')
+  createManualSubscription(@Body() body: CreateAdminManualSubscriptionDto, @Req() req: AuthenticatedRequest) {
+    return this.reporting.createManualSubscription(body, req.user.id);
+  }
+
+  @Patch('subscribers/:id/manual-edit')
+  updateManualSubscription(@Param('id') id: string, @Body() body: UpdateAdminManualSubscriptionDto, @Req() req: AuthenticatedRequest) {
+    return this.reporting.updateManualSubscription(id, body, req.user.id);
   }
 }
