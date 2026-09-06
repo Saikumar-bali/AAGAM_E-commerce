@@ -9,6 +9,14 @@ function getMapboxToken(): string | null {
   return null;
 }
 
+// Places API (New) key. A dedicated maps key wins; otherwise reuse the Firebase
+// web key — both are Google API keys, Places just needs to be enabled in console.
+function getGooglePlacesKey(): string | null {
+  const key = process.env?.GOOGLE_MAPS_API_KEY || process.env?.FIREBASE_WEB_API_KEY || null;
+  if (key && typeof key === 'string' && key.startsWith('AIza')) return key;
+  return null;
+}
+
 type NominatimAddress = {
   house_number?: string;
   road?: string;
@@ -185,6 +193,160 @@ export class GeoService {
       return { ok: true, source: 'mapbox', results: features };
     } catch (e: any) {
       return { ok: false, source: 'mapbox', results: [], message: e?.message || 'Search failed' };
+    }
+  }
+
+  async placesAutocomplete(query: string, lat?: number, lng?: number) {
+    const key = getGooglePlacesKey();
+    if (!key) {
+      return { ok: false, source: 'google', results: [], message: 'Google Places key not configured' };
+    }
+
+    try {
+      const body: Record<string, unknown> = {
+        input: query,
+        includedPrimaryTypes: ['geocode', 'establishment'],
+        regionCode: 'in',
+      };
+      const response = await axios.post('https://places.googleapis.com/v1/places:autocomplete', body, {
+        headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key },
+        timeout: 10000,
+        validateStatus: () => true,
+      });
+
+      if (response.status < 200 || response.status >= 300) {
+        // Places API (New) not enabled for this key's project — retry via legacy Places
+        if (response.status === 403) {
+          return this.legacyPlacesAutocomplete(query, key, lat, lng);
+        }
+        return {
+          ok: false,
+          source: 'google',
+          status: response.status,
+          message: response.data?.error?.message || 'Google Places autocomplete failed',
+          results: [],
+        };
+      }
+
+      const results = (response.data?.suggestions || [])
+        .map((s: any) => s?.placePrediction)
+        .filter(Boolean)
+        .slice(0, 5)
+        .map((p: any) => ({
+          placeId: p.placeId as string,
+          displayName: p.structuredFormat?.mainText?.text && p.structuredFormat?.secondaryText?.text
+            ? `${p.structuredFormat.mainText.text}, ${p.structuredFormat.secondaryText.text}`
+            : p.text?.text || '',
+          type: String(p.types?.[0] || 'place').replace(/_/g, ' '),
+        }));
+
+      return { ok: true, source: 'google', results };
+    } catch (e: any) {
+      return { ok: false, source: 'google', results: [], message: e?.message || 'Search failed' };
+    }
+  }
+
+  private async legacyPlacesAutocomplete(query: string, key: string, lat?: number, lng?: number) {
+    try {
+      const params: Record<string, unknown> = {
+        input: query,
+        key,
+        components: 'country:in',
+        types: 'geocode|establishment',
+      };
+      const response = await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
+        params,
+        timeout: 10000,
+        validateStatus: () => true,
+      });
+
+      const status = response.data?.status;
+      if (status !== 'OK' && status !== 'ZERO_RESULTS') {
+        return {
+          ok: false,
+          source: 'google',
+          message: response.data?.error_message || status || 'Google Places autocomplete failed',
+          results: [],
+        };
+      }
+
+      const results = (response.data?.predictions || []).slice(0, 5).map((p: any) => ({
+        placeId: p.place_id as string,
+        displayName: p.description || p.formatted_address || '',
+        type: String(p.types?.[0] || 'place').replace(/_/g, ' '),
+      }));
+
+      return { ok: true, source: 'google', results };
+    } catch (e: any) {
+      return { ok: false, source: 'google', results: [], message: e?.message || 'Search failed' };
+    }
+  }
+
+  async placeDetails(placeId: string) {
+    const key = getGooglePlacesKey();
+    if (!key) {
+      return { ok: false, source: 'google', message: 'Google Places key not configured' };
+    }
+
+    try {
+      const response = await axios.get(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+        headers: { 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'location,formattedAddress' },
+        timeout: 10000,
+        validateStatus: () => true,
+      });
+
+      if (response.status < 200 || response.status >= 300) {
+        // Places API (New) not enabled for this key's project — retry via legacy Place Details
+        if (response.status === 403) {
+          return this.legacyPlaceDetails(placeId, key);
+        }
+        return {
+          ok: false,
+          source: 'google',
+          status: response.status,
+          message: response.data?.error?.message || 'Google Places details failed',
+        };
+      }
+
+      return {
+        ok: true,
+        source: 'google',
+        lat: response.data?.location?.latitude,
+        lng: response.data?.location?.longitude,
+        formattedAddress: response.data?.formattedAddress,
+      };
+    } catch (e: any) {
+      return { ok: false, source: 'google', message: e?.message || 'Details failed' };
+    }
+  }
+
+  private async legacyPlaceDetails(placeId: string, key: string) {
+    try {
+      const response = await axios.get('https://maps.googleapis.com/maps/api/place/details/json', {
+        params: { place_id: placeId, key, fields: 'geometry,formatted_address' },
+        timeout: 10000,
+        validateStatus: () => true,
+      });
+
+      const status = response.data?.status;
+      if (status !== 'OK') {
+        return {
+          ok: false,
+          source: 'google',
+          message: response.data?.error_message || status || 'Google Places details failed',
+        };
+      }
+
+      const location = response.data?.result?.geometry?.location;
+      return {
+        ok: true,
+        source: 'google',
+        lat: location?.lat,
+        lng: location?.lng,
+        formattedAddress: response.data?.result?.formatted_address,
+      };
+    } catch (e: any) {
+      return { ok: false, source: 'google', message: e?.message || 'Details failed' };
     }
   }
 

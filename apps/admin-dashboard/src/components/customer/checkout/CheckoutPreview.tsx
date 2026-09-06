@@ -238,7 +238,7 @@ export default function CheckoutPreview() {
             addressFieldErrors: {},
             savingAddress: false,
             locating: false,
-            defaultMapCenter: { latitude: 17.385, longitude: 78.4867 },
+            defaultMapCenter: { latitude: 17.6916, longitude: 83.0037 },
 
             quote,
             loadingQuote: false,

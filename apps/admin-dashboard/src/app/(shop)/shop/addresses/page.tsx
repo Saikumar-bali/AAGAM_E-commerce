@@ -231,7 +231,7 @@ export default function AddressesPage() {
   const useManualAddress = () => {
     clearFieldError('location');
     setDraft((current) => ({ ...current, locationSource: 'MAP_PIN',
-      latitude: current.latitude ?? 17.385, longitude: current.longitude ?? 78.4867,
+      latitude: current.latitude ?? 17.6916, longitude: current.longitude ?? 83.0037,
       locationAccuracyMetres: null, locationCapturedAt: null }));
   };
 
