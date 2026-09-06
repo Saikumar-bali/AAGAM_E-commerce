@@ -136,14 +136,19 @@ if (blocked.length > 0) {
   process.exit(1);
 }
 
+const IMAGE_SIZE_ONLY_ADVISORIES = new Set([
+  'https://github.com/advisories/GHSA-w3rx-r6r6-pgpr',
+  'https://github.com/advisories/GHSA-5p2g-fcmc-qvqq',
+]);
+
 const directImageSize = vulnerabilities['image-size'];
 if (!directImageSize) {
   console.log('npm audit reports no vulnerabilities. Local image-size patch remains fail-closed until the dependency is upgraded/removed.');
 } else {
   const directUrls = advisoryUrls.get('image-size');
   if (
-    directUrls.size !== ALLOWED_PATCHED_ADVISORIES.size ||
-    [...ALLOWED_PATCHED_ADVISORIES].some((url) => !directUrls.has(url))
+    directUrls.size !== IMAGE_SIZE_ONLY_ADVISORIES.size ||
+    [...IMAGE_SIZE_ONLY_ADVISORIES].some((url) => !directUrls.has(url))
   ) {
     console.error('image-size audit exception no longer matches the exact two reviewed advisories.');
     process.exit(1);
