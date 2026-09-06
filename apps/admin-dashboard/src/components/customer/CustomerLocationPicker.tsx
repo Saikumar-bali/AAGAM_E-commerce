@@ -209,14 +209,12 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
       <div className={fullHeight ? 'h-full w-full' : 'h-64 w-full'}>
         <div ref={containerRef} className="h-full w-full" />
       </div>
-      {!fullHeight && (
       <div className="flex items-center justify-between gap-3 px-4 py-3 text-xs font-bold text-slate-600">
         <span>Drag the pin or tap the map to set the entrance.</span>
         <span className="font-mono text-[10px] text-slate-400">
           {latitude.toFixed(5)}, {longitude.toFixed(5)}
         </span>
       </div>
-      )}
     </div>
   );
 }
