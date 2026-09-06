@@ -62,16 +62,16 @@ const STATUS_OPTIONS = [
 ] as const;
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string; label: string }> = {
-  PENDING: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', label: 'Pending' },
-  PAYMENT_PENDING: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', label: 'Payment Pending' },
-  PAYMENT_FAILED: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', label: 'Payment Failed' },
-  CONFIRMED: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', label: 'Confirmed' },
-  PICKING: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', label: 'Picking' },
-  PACKED: { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', label: 'Packed' },
-  RIDER_ASSIGNED: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', label: 'Rider Assigned' },
-  OUT_FOR_DELIVERY: { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200', label: 'Out for Delivery' },
-  DELIVERED: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', label: 'Delivered' },
-  CANCELLED: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', label: 'Cancelled' },
+  PENDING: { bg: '#fffbeb', text: '#b45309', border: '#fde68a', label: 'Pending' },
+  PAYMENT_PENDING: { bg: '#fff7ed', text: '#c2410c', border: '#fed7aa', label: 'Payment Pending' },
+  PAYMENT_FAILED: { bg: '#fef2f2', text: '#dc2626', border: '#fecaca', label: 'Payment Failed' },
+  CONFIRMED: { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe', label: 'Confirmed' },
+  PICKING: { bg: '#faf5ff', text: '#7e22ce', border: '#e9d5ff', label: 'Picking' },
+  PACKED: { bg: '#f5f3ff', text: '#6d28d9', border: '#ddd6fe', label: 'Packed' },
+  RIDER_ASSIGNED: { bg: '#eef2ff', text: '#4338ca', border: '#c7d2fe', label: 'Rider Assigned' },
+  OUT_FOR_DELIVERY: { bg: '#f0f9ff', text: '#0369a1', border: '#bae6fd', label: 'Out for Delivery' },
+  DELIVERED: { bg: '#ecfdf5', text: '#059669', border: '#a7f3d0', label: 'Delivered' },
+  CANCELLED: { bg: '#fef2f2', text: '#dc2626', border: '#fecaca', label: 'Cancelled' },
 };
 
 const PAYMENT_COLORS: Record<string, string> = {
@@ -715,7 +715,8 @@ export default function ExcelReportPage() {
                         </td>
                         <td className="px-4 py-4">
                           <span
-                            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${sc.bg} ${sc.text} border ${sc.border}`}
+                            className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold"
+                            style={{ backgroundColor: sc.bg, color: sc.text, borderColor: sc.border, borderWidth: 1 }}
                           >
                             {sc.label}
                           </span>
@@ -781,11 +782,13 @@ export default function ExcelReportPage() {
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <span
-                  className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold ${
-                    STATUS_COLORS[selectedOrder.status]?.bg || ''
-                  } ${STATUS_COLORS[selectedOrder.status]?.text || ''} border ${
-                    STATUS_COLORS[selectedOrder.status]?.border || ''
-                  }`}
+                  className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold"
+                  style={{
+                    backgroundColor: STATUS_COLORS[selectedOrder.status]?.bg || '#f3f4f6',
+                    color: STATUS_COLORS[selectedOrder.status]?.text || '#374151',
+                    borderColor: STATUS_COLORS[selectedOrder.status]?.border || '#d1d5db',
+                    borderWidth: 1,
+                  }}
                 >
                   {STATUS_COLORS[selectedOrder.status]?.label || selectedOrder.status}
                 </span>
