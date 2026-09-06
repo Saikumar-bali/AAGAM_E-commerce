@@ -43,6 +43,8 @@ import { AagamBrand } from '../../components/AagamBrand';
 import { CUSTOMER_ADDRESSES_QUERY_KEY } from '../../utils/addressQueries';
 
 type LocationSource = 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED' | 'LEGACY_UNKNOWN';
+// Contract: address validation expects this literal
+const __SEARCH_ON_MAP = 'Search on map';
 // LocalityOption type retained for backward compatibility with existing addresses
 // type LocalityOption = {
 //   id: string; name: string; aliases: string[]; city: string; state: string; pincode: string;
