@@ -134,6 +134,7 @@ export const CustomerProfileScreen = () => {
   const queryClient = useQueryClient();
   const { user, logout } = useAuthStore();
   const [showForm, setShowForm] = useState(false);
+  const [addressFormStep, setAddressFormStep] = useState<'map' | 'details'>('map');
   const [draft, setDraft] = useState(emptyDraft);
   const [addressErrors, setAddressErrors] = useState<AddressErrors>({});
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
@@ -209,6 +210,7 @@ export const CustomerProfileScreen = () => {
     // } else setDraft(initialDraft);
     setDraft(initialDraft);
     setAddressErrors({});
+    setAddressFormStep('map');
     setShowForm(true);
     navigation.setParams({ openAddressForm: undefined, address: undefined });
   }, [navigation, route.params?.openAddressForm, route.params?.address?.id]);
@@ -455,6 +457,7 @@ export const CustomerProfileScreen = () => {
     // setDraft({ ...draft, selectedLocalityId: draft.selectedLocalityId || matchedLocality?.id || '', localityId: draft.localityId || matchedLocality?.id || '' });
     setDraft(draft);
     setAddressErrors({});
+    setAddressFormStep('map');
     setShowForm(true);
   };
 
@@ -508,7 +511,7 @@ export const CustomerProfileScreen = () => {
 
       <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Saved Addresses</Text><TouchableOpacity style={styles.linkButton} onPress={() => { if (showForm) { setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); } setShowForm((value) => !value); }}><Plus size={16} color="#0F766E" /><Text style={styles.linkButtonText}>{showForm ? 'Close' : 'Add New'}</Text></TouchableOpacity></View>
 
-      {isLoading ? <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View> : addresses.length === 0 ? <TouchableOpacity style={styles.emptyCard} onPress={() => { setAddressErrors({}); setShowForm(true); }}><View style={styles.emptyAddressIcon}><MapPinIcon /></View><View style={styles.emptyAddressCopy}><Text style={styles.emptyTitle}>No saved address yet</Text><Text style={styles.emptyText}>Add a delivery address before checkout for faster order delivery.</Text></View><ChevronRight size={20} color="#64748B" /></TouchableOpacity> : addresses.slice(0, 2).map((address: any) => (
+      {isLoading ? <View style={styles.centered}><ActivityIndicator size="large" color="#0F766E" /></View> : addresses.length === 0 ? <TouchableOpacity style={styles.emptyCard} onPress={() => { setAddressErrors({}); setAddressFormStep('map'); setShowForm(true); }}><View style={styles.emptyAddressIcon}><MapPinIcon /></View><View style={styles.emptyAddressCopy}><Text style={styles.emptyTitle}>No saved address yet</Text><Text style={styles.emptyText}>Add a delivery address before checkout for faster order delivery.</Text></View><ChevronRight size={20} color="#64748B" /></TouchableOpacity> : addresses.slice(0, 2).map((address: any) => (
         <View key={address.id} style={styles.addressCard}>
           <View style={styles.addressTop}><View style={styles.addressLabelRow}><BriefcaseBusiness size={18} color="#0F766E" /><Text style={styles.addressLabel}>{address.label || 'Address'} {address.isDefault ? '• Default' : ''}</Text></View>{!address.isDefault ? <TouchableOpacity onPress={() => setDefaultMutation.mutate(address.id)}><Text style={styles.smallAction}>Make default</Text></TouchableOpacity> : null}</View>
           <Text style={styles.addressName}>{address.recipientName}</Text>
@@ -534,24 +537,58 @@ export const CustomerProfileScreen = () => {
                 </TouchableOpacity>
               </View>
               <ScrollView contentContainerStyle={styles.dialogContent} keyboardShouldPersistTaps="handled">
-                <View style={[styles.locationPanel, locationHasError && styles.locationPanelError]}>
-                  <View style={styles.locationChoiceRow}>
-                    <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceActive]} onPress={() => void useCurrentLocation()}><Text style={[styles.locationChoiceText, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceTextActive]}>📍 Use my location</Text></TouchableOpacity>
-                    <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'MAP_PIN' && styles.locationChoiceActive]} onPress={useManualAddress}><Text style={[styles.locationChoiceText, draft.locationSource === 'MAP_PIN' && styles.locationChoiceTextActive]}>🗺️ Search on map</Text></TouchableOpacity>
-                  </View>
-                  {draft.locationSource !== 'LIVE_GPS' ? <LeafletMap mapboxToken={EXPO_PUBLIC_MAPBOX_TOKEN} googleMapsApiKey={EXPO_PUBLIC_GOOGLE_MAPS_API_KEY} latitude={pinnedLatitude} longitude={pinnedLongitude} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')} /> : null}
-                  <Text style={[styles.locationHelp, locationHasError && styles.locationHelpError]}>{locationHasError ? addressErrors.location : draft.locationSource === 'LIVE_GPS' ? 'Using your current location' : hasPinnedLocation ? `Pinned: ${pinnedLatitude.toFixed(5)}, ${pinnedLongitude.toFixed(5)}` : 'Search above or tap the map to pin delivery spot'}</Text>
-                </View>
-                {addressFields.map(({ key, label, required, placeholder }) => {
-                  const error = addressErrors[key as AddressErrorKey];
-                  return <View key={key} style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, error && styles.inputLabelError]}>{label}{required ? ' *' : ''}</Text>
-                    <TextInput value={String((draft as any)[key] ?? '')} onChangeText={(value) => { clearAddressError(key); setDraft((previous) => ({ ...previous, [key]: value })); }} placeholder={placeholder || (required ? `${label} (required)` : label)} placeholderTextColor="#94A3B8" style={[styles.input, error && styles.inputError]} accessibilityLabel={label} />
-                    {error ? <Text style={styles.inputErrorText}>{error}</Text> : null}
-                  </View>;
-                })}
-                <View style={styles.switchRow}><Text style={styles.switchText}>Set as default</Text><Switch value={draft.isDefault} onValueChange={(value) => setDraft((previous) => ({ ...previous, isDefault: value }))} /></View>
-                <TouchableOpacity disabled={saveAddressMutation.isPending} style={[styles.saveButton, saveAddressMutation.isPending && styles.disabled]} onPress={saveAddress}><Text style={styles.saveButtonText}>{saveAddressMutation.isPending ? 'Saving...' : editingAddressId ? 'Update' : 'Save Address'}</Text></TouchableOpacity>
+                {addressFormStep === 'map' ? (
+                  <>
+                    <View style={[styles.locationPanel, locationHasError && styles.locationPanelError]}>
+                      <View style={styles.locationChoiceRow}>
+                        <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceActive]} onPress={() => void useCurrentLocation()}><Text style={[styles.locationChoiceText, draft.locationSource === 'LIVE_GPS' && styles.locationChoiceTextActive]}>📍 Use my location</Text></TouchableOpacity>
+                        <TouchableOpacity style={[styles.locationChoice, draft.locationSource === 'MAP_PIN' && styles.locationChoiceActive]} onPress={useManualAddress}><Text style={[styles.locationChoiceText, draft.locationSource === 'MAP_PIN' && styles.locationChoiceTextActive]}>🗺️ Search on map</Text></TouchableOpacity>
+                      </View>
+                      {draft.locationSource !== 'LIVE_GPS' ? <LeafletMap mapboxToken={EXPO_PUBLIC_MAPBOX_TOKEN} googleMapsApiKey={EXPO_PUBLIC_GOOGLE_MAPS_API_KEY} latitude={pinnedLatitude} longitude={pinnedLongitude} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')} /> : null}
+                      <Text style={[styles.locationHelp, locationHasError && styles.locationHelpError]}>{locationHasError ? addressErrors.location : draft.locationSource === 'LIVE_GPS' ? 'Using your current location' : hasPinnedLocation ? `Pinned: ${pinnedLatitude.toFixed(5)}, ${pinnedLongitude.toFixed(5)}` : 'Search above or tap the map to pin delivery spot'}</Text>
+                    </View>
+                    <View style={styles.stepButtons}>
+                      <TouchableOpacity style={styles.stepBackButton} onPress={() => { setShowForm(false); setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); }}>
+                        <Text style={styles.stepBackButtonText}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.stepNextButton, !hasPinnedLocation && draft.locationSource !== 'LIVE_GPS' && styles.stepNextButtonDisabled]}
+                        disabled={!hasPinnedLocation && draft.locationSource !== 'LIVE_GPS'}
+                        onPress={() => setAddressFormStep('details')}
+                      >
+                        <Text style={styles.stepNextButtonText}>Next</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.locationSummary}>
+                      <Text style={styles.locationSummaryText} numberOfLines={1}>
+                        {draft.line1 || `${pinnedLatitude.toFixed(5)}, ${pinnedLongitude.toFixed(5)}`}
+                      </Text>
+                      <TouchableOpacity onPress={() => setAddressFormStep('map')}>
+                        <Text style={styles.changeLocationText}>Change</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {addressFields.map(({ key, label, required, placeholder }) => {
+                      const error = addressErrors[key as AddressErrorKey];
+                      return <View key={key} style={styles.inputGroup}>
+                        <Text style={[styles.inputLabel, error && styles.inputLabelError]}>{label}{required ? ' *' : ''}</Text>
+                        <TextInput value={String((draft as any)[key] ?? '')} onChangeText={(value) => { clearAddressError(key); setDraft((previous) => ({ ...previous, [key]: value })); }} placeholder={placeholder || (required ? `${label} (required)` : label)} placeholderTextColor="#94A3B8" style={[styles.input, error && styles.inputError]} accessibilityLabel={label} />
+                        {error ? <Text style={styles.inputErrorText}>{error}</Text> : null}
+                      </View>;
+                    })}
+                    <View style={styles.switchRow}><Text style={styles.switchText}>Set as default</Text><Switch value={draft.isDefault} onValueChange={(value) => setDraft((previous) => ({ ...previous, isDefault: value }))} /></View>
+                    <View style={styles.stepButtons}>
+                      <TouchableOpacity style={styles.stepBackButton} onPress={() => setAddressFormStep('map')}>
+                        <Text style={styles.stepBackButtonText}>Back</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity disabled={saveAddressMutation.isPending} style={[styles.stepNextButton, saveAddressMutation.isPending && styles.disabled]} onPress={saveAddress}>
+                        {saveAddressMutation.isPending ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.stepNextButtonText}>{editingAddressId ? 'Update' : 'Save Address'}</Text>}
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
               </ScrollView>
             </View>
           </View>
@@ -583,4 +620,5 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }, modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '70%', paddingBottom: 30 }, modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }, modalTitle: { fontSize: 17, fontWeight: '900', color: '#0F172A' }, modalClose: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' }, modalCloseText: { fontSize: 16, fontWeight: '900', color: '#64748B' },
   localityItem: { paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }, localityName: { fontSize: 15, fontWeight: '800', color: '#0F172A' }, localityDetail: { fontSize: 12, fontWeight: '600', color: '#64748B', marginTop: 3 }, localityEmpty: { padding: 24, textAlign: 'center', color: '#64748B', fontSize: 13 }, locationPanel: { borderRadius: 18, backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#CCFBF1', padding: 10, marginBottom: 12 }, locationPanelError: { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' }, locationChoiceRow: { flexDirection: 'row', gap: 8, marginBottom: 10 }, locationChoice: { flex: 1, alignItems: 'center', borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#99F6E4', paddingVertical: 10 }, locationChoiceActive: { backgroundColor: '#0F766E', borderColor: '#0F766E' }, locationChoiceText: { color: '#0F766E', fontSize: 11, fontWeight: '900' }, locationChoiceTextActive: { color: '#FFFFFF' }, locationModeTitle: { color: '#0F172A', fontSize: 13, fontWeight: '900', marginBottom: 3 }, locationModeText: { color: '#475569', fontSize: 11, lineHeight: 16, marginBottom: 10 }, locationHelp: { marginTop: 8, color: '#115E59', fontWeight: '700', fontSize: 12, textAlign: 'center' }, locationHelpError: { color: '#B91C1C' },
   inputGroup: { marginBottom: 10 }, inputLabel: { marginBottom: 5, color: '#475569', fontSize: 12, fontWeight: '900' }, inputLabelError: { color: '#B91C1C' }, input: { borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, color: '#0F172A' }, inputError: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' }, inputErrorText: { marginTop: 5, color: '#B91C1C', fontSize: 11, lineHeight: 16, fontWeight: '800' }, switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 12 }, switchText: { color: '#0F172A', fontWeight: '700' }, saveButton: { backgroundColor: '#0F766E', borderRadius: 16, paddingVertical: 15, alignItems: 'center' }, saveButtonText: { color: '#FFFFFF', fontWeight: '900' },
+  stepButtons: { flexDirection: 'row', gap: 10, marginTop: 8 }, stepBackButton: { flex: 1, alignItems: 'center', borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', paddingVertical: 14 }, stepBackButtonText: { color: '#475569', fontWeight: '800' }, stepNextButton: { flex: 2, alignItems: 'center', borderRadius: 14, backgroundColor: '#0F766E', paddingVertical: 14 }, stepNextButtonDisabled: { backgroundColor: '#94A3B8' }, stepNextButtonText: { color: '#FFFFFF', fontWeight: '900' }, locationSummary: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: '#E6FFFA', padding: 10 }, locationSummaryText: { flex: 1, fontSize: 12, fontWeight: '700', color: '#134E4A' }, changeLocationText: { fontSize: 12, fontWeight: '900', color: '#0F766E' },
 });
