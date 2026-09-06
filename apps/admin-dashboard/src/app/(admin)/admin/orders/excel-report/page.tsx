@@ -332,26 +332,21 @@ export default function ExcelReportPage() {
           isNew: isNew ? 'NEW' : 'OLD',
         });
 
-        if (isNew) {
-          row.eachCell((cell) => {
-            cell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: 'FFDCFCE7' },
-            };
-          });
-        }
+        const statusKey = order.status;
+        const rowBg = getStatusBgArgb(statusKey);
+
+        row.eachCell((cell) => {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: rowBg },
+          };
+        });
 
         const statusCell = row.getCell('orderStatus');
-        const statusKey = order.status;
         statusCell.font = {
           bold: true,
           color: { argb: getStatusColor(statusKey) },
-        };
-        statusCell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: getStatusBgArgb(statusKey) },
         };
 
         const isNewCell = row.getCell('isNew');
