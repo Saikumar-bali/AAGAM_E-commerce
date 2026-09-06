@@ -331,6 +331,7 @@ export const CheckoutScreen = () => {
               <LeafletMap
                 mapboxToken={EXPO_PUBLIC_MAPBOX_TOKEN}
                 googleMapsApiKey={EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}
+                apiBaseUrl={String((apiClient.defaults.baseURL as unknown as string) || 'https://aagaam.in/api')}
                 latitude={Number(addressDraft.latitude) || 17.6916}
                 longitude={Number(addressDraft.longitude) || 83.0037}
                 onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')}
