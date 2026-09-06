@@ -982,93 +982,145 @@ function MobileActionBar({ grandTotal, canPlace, placeLabel, placingOrder, onPla
 function AddressFormModal({ state, actions }: { state: CheckoutViewState; actions: CheckoutViewActions }) {
   const { draft, addressFieldErrors, savingAddress, locating, editingAddressId, defaultMapCenter } = state;
   const titleId = useId();
+  const [step, setStep] = React.useState<'map' | 'details'>(editingAddressId ? 'details' : 'map');
+
+  React.useEffect(() => {
+    setStep(editingAddressId ? 'details' : 'map');
+  }, [editingAddressId]);
+
+  const hasLocation = draft.latitude != null && draft.longitude != null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-2 sm:p-4 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]"
+        className={step === 'map'
+          ? 'flex h-[95dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]'
+          : 'max-h-[96dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]'
+        }
       >
         <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur">
           <div>
             <h2 id={titleId} className="text-lg font-extrabold tracking-[-0.01em] text-teal-950">
-              {editingAddressId ? 'Edit address' : 'Add a new address'}
+              {editingAddressId ? 'Edit address' : step === 'map' ? 'Pin your location' : 'Address details'}
             </h2>
-            <p className="mt-0.5 text-xs font-semibold text-slate-500">Pin your door on the map or fill in the details below.</p>
+            <p className="mt-0.5 text-xs font-semibold text-slate-500">
+              {step === 'map' ? 'Search or drag the pin to your door.' : 'Fill in the details below.'}
+            </p>
           </div>
           <button
             onClick={actions.onCloseAddressForm}
             aria-label="Close address form"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800"
           >
             <X className="h-4 w-4" />
           </button>
         </header>
 
-        <div className="space-y-4 px-5 py-5">
-          <div className="flex justify-end">
-            <button
-              onClick={actions.onUseLiveLocation}
-              disabled={locating}
-              className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-2 text-xs font-extrabold text-teal-800 transition hover:border-teal-300 hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
-              {locating ? 'Locating…' : 'Use my live location'}
-            </button>
-          </div>
-
-          {draft.latitude != null && draft.longitude != null ? (
-            <CustomerLocationPicker
-              latitude={draft.latitude}
-              longitude={draft.longitude}
-              onChange={actions.onMapPinChange}
-            />
-          ) : (
-            <div className="rounded-2xl border-2 border-dashed border-teal-200 bg-teal-50/40 p-6 text-center">
-              <p className="text-sm font-bold text-slate-600">Pin your location on the map or use your live location above.</p>
-              {defaultMapCenter ? (
-                <button
-                  onClick={() => actions.onMapPinChange(defaultMapCenter.latitude, defaultMapCenter.longitude)}
-                  className="mt-4 inline-flex items-center gap-2 rounded-xl border border-teal-300 bg-white px-3.5 py-2 text-xs font-extrabold text-teal-800 transition hover:border-teal-400"
-                >
-                  <MapPin className="h-4 w-4" /> Open the map
-                </button>
-              ) : null}
+        {step === 'map' ? (
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex justify-end px-5 pt-4">
+              <button
+                onClick={actions.onUseLiveLocation}
+                disabled={locating}
+                className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-3 text-xs font-extrabold text-teal-800 transition hover:border-teal-300 hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+                {locating ? 'Locating…' : 'Use my live location'}
+              </button>
             </div>
-          )}
 
-          <div className="grid gap-3.5 md:grid-cols-2">
-            <Field label="Label" error={addressFieldErrors.label} value={draft.label} onChange={(value) => actions.onDraftChange({ label: value })} placeholder="Home, Work, etc." autoComplete="off" />
-            <Field label="Recipient name" required error={addressFieldErrors.recipientName} value={draft.recipientName} onChange={(value) => actions.onDraftChange({ recipientName: value })} placeholder="Who is this for?" autoComplete="name" />
-            <Field label="Phone" required error={addressFieldErrors.phoneE164} value={draft.phoneE164} onChange={(value) => actions.onDraftChange({ phoneE164: value })} placeholder="10-digit mobile number" type="tel" inputMode="tel" autoComplete="tel" />
-            <Field label="Pincode" required error={addressFieldErrors.pincode} value={draft.pincode} onChange={(value) => actions.onDraftChange({ pincode: value })} placeholder="6-digit pincode" inputMode="numeric" autoComplete="postal-code" />
-            <Field label="House / street" required error={addressFieldErrors.line1} value={draft.line1} onChange={(value) => actions.onDraftChange({ line1: value })} placeholder="Flat no, building, street" className="md:col-span-2" autoComplete="address-line1" />
-            <Field label="Area / locality" error={addressFieldErrors.line2} value={draft.line2} onChange={(value) => actions.onDraftChange({ line2: value })} placeholder="Neighbourhood, colony" className="md:col-span-2" autoComplete="address-line2" />
-            <Field label="Nearby landmark" error={addressFieldErrors.landmark} value={draft.landmark} onChange={(value) => actions.onDraftChange({ landmark: value })} placeholder="Near temple, park, etc." />
-            <Field label="Note for rider" error={addressFieldErrors.instructions} value={draft.instructions} onChange={(value) => actions.onDraftChange({ instructions: value })} placeholder="Gate code, floor, etc." />
-            <Field label="City" required error={addressFieldErrors.city} value={draft.city} onChange={(value) => actions.onDraftChange({ city: value })} autoComplete="address-level2" />
-            <Field label="State" required error={addressFieldErrors.state} value={draft.state} onChange={(value) => actions.onDraftChange({ state: value })} autoComplete="address-level1" />
-          </div>
+            <div className="flex-1 px-5 pb-4">
+              {hasLocation ? (
+                <CustomerLocationPicker
+                  latitude={draft.latitude!}
+                  longitude={draft.longitude!}
+                  onChange={actions.onMapPinChange}
+                  fullHeight
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-2xl border-2 border-dashed border-teal-200 bg-teal-50/40 p-6 text-center">
+                  <div>
+                    <p className="text-sm font-bold text-slate-600">Pin your location on the map or use your live location above.</p>
+                    {defaultMapCenter ? (
+                      <button
+                        onClick={() => actions.onMapPinChange(defaultMapCenter.latitude, defaultMapCenter.longitude)}
+                        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-teal-300 bg-white px-3.5 py-2 text-xs font-extrabold text-teal-800 transition hover:border-teal-400"
+                      >
+                        <MapPin className="h-4 w-4" /> Open the map
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+            </div>
 
-          <div className="flex gap-3 pt-1">
-            <button
-              onClick={actions.onCloseAddressForm}
-              className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-700 transition hover:border-slate-300"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={actions.onSaveAddress}
-              disabled={savingAddress}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_24px_rgba(15,23,42,0.14)] transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
-            >
-              {savingAddress ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {editingAddressId ? 'Update address' : 'Save address'}
-            </button>
+            <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
+              <button
+                onClick={actions.onCloseAddressForm}
+                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-700 transition hover:border-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setStep('details')}
+                disabled={!hasLocation}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_24px_rgba(15,23,42,0.14)] transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+              >
+                Next
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-4 px-5 py-5">
+            {hasLocation && (
+              <div className="flex items-center gap-3 rounded-xl border border-teal-100 bg-teal-50/50 px-4 py-2.5">
+                <MapPin className="h-4 w-4 shrink-0 text-teal-600" />
+                <span className="truncate text-xs font-semibold text-teal-800">
+                  {draft.line1 || `${draft.latitude?.toFixed(5)}, ${draft.longitude?.toFixed(5)}`}
+                </span>
+                <button
+                  onClick={() => setStep('map')}
+                  className="ml-auto shrink-0 rounded-lg px-3 py-2 text-xs font-extrabold text-teal-700 hover:bg-teal-100 hover:underline"
+                >
+                  Change
+                </button>
+              </div>
+            )}
+
+            <div className="grid gap-3.5 md:grid-cols-2">
+              <Field label="Label" error={addressFieldErrors.label} value={draft.label} onChange={(value) => actions.onDraftChange({ label: value })} placeholder="Home, Work, etc." autoComplete="off" />
+              <Field label="Recipient name" required error={addressFieldErrors.recipientName} value={draft.recipientName} onChange={(value) => actions.onDraftChange({ recipientName: value })} placeholder="Who is this for?" autoComplete="name" />
+              <Field label="Phone" required error={addressFieldErrors.phoneE164} value={draft.phoneE164} onChange={(value) => actions.onDraftChange({ phoneE164: value })} placeholder="10-digit mobile number" type="tel" inputMode="tel" autoComplete="tel" />
+              <Field label="Pincode" required error={addressFieldErrors.pincode} value={draft.pincode} onChange={(value) => actions.onDraftChange({ pincode: value })} placeholder="6-digit pincode" inputMode="numeric" autoComplete="postal-code" />
+              <Field label="House / street" required error={addressFieldErrors.line1} value={draft.line1} onChange={(value) => actions.onDraftChange({ line1: value })} placeholder="Flat no, building, street" className="md:col-span-2" autoComplete="address-line1" />
+              <Field label="Area / locality" error={addressFieldErrors.line2} value={draft.line2} onChange={(value) => actions.onDraftChange({ line2: value })} placeholder="Neighbourhood, colony" className="md:col-span-2" autoComplete="address-line2" />
+              <Field label="Nearby landmark" error={addressFieldErrors.landmark} value={draft.landmark} onChange={(value) => actions.onDraftChange({ landmark: value })} placeholder="Near temple, park, etc." />
+              <Field label="Note for rider" error={addressFieldErrors.instructions} value={draft.instructions} onChange={(value) => actions.onDraftChange({ instructions: value })} placeholder="Gate code, floor, etc." />
+              <Field label="City" required error={addressFieldErrors.city} value={draft.city} onChange={(value) => actions.onDraftChange({ city: value })} autoComplete="address-level2" />
+              <Field label="State" required error={addressFieldErrors.state} value={draft.state} onChange={(value) => actions.onDraftChange({ state: value })} autoComplete="address-level1" />
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setStep('map')}
+                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-700 transition hover:border-slate-300"
+              >
+                Back
+              </button>
+              <button
+                onClick={actions.onSaveAddress}
+                disabled={savingAddress}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_24px_rgba(15,23,42,0.14)] transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+              >
+                {savingAddress ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {editingAddressId ? 'Update address' : 'Save address'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1103,7 +1155,7 @@ function Field({ label, value, onChange, placeholder, className = '', type = 'te
         placeholder={placeholder}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
-        className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-900 caret-teal-700 outline-none transition placeholder:font-normal placeholder:text-slate-500 focus:ring-4 ${error ? 'border-red-400 bg-red-50/40 text-red-900 placeholder:text-red-400 focus:border-red-500 focus:ring-red-500/10' : 'border-slate-200 focus:border-teal-600 focus:ring-teal-600/10'}`}
+        className={`w-full rounded-xl border bg-white px-3.5 py-3 text-sm font-semibold text-slate-900 caret-teal-700 outline-none transition placeholder:font-normal placeholder:text-slate-500 focus:ring-4 ${error ? 'border-red-400 bg-red-50/40 text-red-900 placeholder:text-red-400 focus:border-red-500 focus:ring-red-500/10' : 'border-slate-200 focus:border-teal-600 focus:ring-teal-600/10'}`}
       />
       {error && (
         <p id={`${id}-error`} role="alert" className="mt-1 text-xs font-bold text-red-600">{error}</p>

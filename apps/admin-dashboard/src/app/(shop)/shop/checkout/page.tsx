@@ -28,7 +28,7 @@ type LocalityOption = {
 };
 
 const DELIVERY_TIME_ZONE = 'Asia/Kolkata';
-const DEFAULT_MAP_CENTER = { latitude: 17.385, longitude: 78.4867 };
+const DEFAULT_MAP_CENTER = { latitude: 17.6916, longitude: 83.0037 };
 
 const emptyDraft = (): AddressDraft => ({
   label: 'Home',

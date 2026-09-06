@@ -43,6 +43,7 @@ export const CheckoutScreen = () => {
   const [couponError, setCouponError] = useState('');
   const [couponApplying, setCouponApplying] = useState(false);
   const [showAddressForm, setShowAddressForm] = useState(false);
+  const [addressFormStep, setAddressFormStep] = useState<'map' | 'details'>('map');
   const [addressDraft, setAddressDraft] = useState({
     label: 'Home',
     recipientName: user?.name || '',
@@ -60,6 +61,7 @@ export const CheckoutScreen = () => {
     isDefault: true,
   });
   const [addressErrors, setAddressErrors] = useState<CheckoutAddressErrors>({});
+  const hasLocation = !!addressDraft.latitude && !!addressDraft.longitude;
   // Locality state commented out — pincode validation no longer checks against locality list
   // const [localities, setLocalities] = useState<Array<{ id: string; name: string; pincode: string; city: string; state: string }>>([]);
   const idempotencyKey = useRef(`mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -316,9 +318,78 @@ export const CheckoutScreen = () => {
         const active = selectedAddressId === address.id;
         return <TouchableOpacity testID="checkout_address_card" key={address.id} style={[styles.addressCard, active && styles.addressCardActive]} onPress={() => setSelectedAddressId(address.id)}><Text style={styles.addressLabel}>{address.label || 'Address'} {active ? '• Selected' : ''}</Text><Text style={styles.addressName}>{address.recipientName}</Text><Text style={styles.addressText}>{address.line1}{address.line2 ? `, ${address.line2}` : ''}</Text><Text style={styles.addressText}>{address.city}, {address.state} - {address.pincode}</Text><Text style={styles.addressPhone}>{address.phoneE164}</Text></TouchableOpacity>;
       })}
-      {addresses.length === 0 ? <View style={styles.noticeCard}><Text style={styles.noticeTitle}>No saved address yet</Text><Text style={styles.noticeText}>Add and pin a delivery address without leaving checkout.</Text><TouchableOpacity testID="checkout_inline_address_button" style={styles.inlineAddressButton} onPress={() => { setAddressErrors({}); setShowAddressForm(true); }}><Text style={styles.inlineAddressButtonText}>Add delivery address</Text></TouchableOpacity></View> : null}
-      {addresses.length > 0 ? <TouchableOpacity testID="checkout_add_another_address" style={styles.addAnotherButton} onPress={() => { setAddressErrors({}); setShowAddressForm((value) => !value); }}><Text style={styles.addAnotherText}>{showAddressForm ? 'Close address form' : '+ Add another address'}</Text></TouchableOpacity> : null}
-      {showAddressForm ? <View style={[styles.addressForm, locationError && styles.addressFormError]}><Text style={styles.addressFormTitle}>Pin delivery location *</Text><TouchableOpacity testID="checkout_use_live_location" style={styles.locationButton} onPress={() => void useCurrentLocation()}><Text style={styles.locationButtonText}>Use live location</Text></TouchableOpacity><LeafletMap mapboxToken={EXPO_PUBLIC_MAPBOX_TOKEN} googleMapsApiKey={EXPO_PUBLIC_GOOGLE_MAPS_API_KEY} latitude={Number(addressDraft.latitude) || 17.385} longitude={Number(addressDraft.longitude) || 78.4867} onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')} />{locationError ? <Text style={styles.addressErrorText}>A valid pinned delivery location is required.</Text> : null}{(['recipientName', 'phoneE164', 'line1', 'city', 'state', 'pincode'] as CheckoutAddressField[]).map((key) => { const labels: Record<string, string> = { recipientName: 'Recipient name', phoneE164: 'Phone number', line1: 'House, street and area', city: 'City', state: 'State', pincode: 'Pincode' }; const fieldError = addressErrors[key]; return <View key={key}><TextInput testID={`checkout_address_input_${key}`} value={(addressDraft as any)[key]} onChangeText={(value) => { clearAddressError(key); setAddressDraft((current) => ({ ...current, [key]: value })); }} placeholder={`${labels[key]} (required)`} placeholderTextColor="#94A3B8" style={[styles.addressInput, fieldError && styles.addressInputError]} accessibilityLabel={labels[key]} />{fieldError ? <Text style={styles.addressErrorText}>{fieldError}</Text> : null}</View>; })}<TouchableOpacity testID="checkout_save_address_button" disabled={saveAddress.isPending} style={[styles.saveAddressButton, saveAddress.isPending && styles.placeOrderButtonDisabled]} onPress={submitAddress}><Text style={styles.saveAddressText}>{saveAddress.isPending ? 'Saving…' : 'Save and use this address'}</Text></TouchableOpacity></View> : null}
+      {addresses.length === 0 ? <View style={styles.noticeCard}><Text style={styles.noticeTitle}>No saved address yet</Text><Text style={styles.noticeText}>Add and pin a delivery address without leaving checkout.</Text><TouchableOpacity testID="checkout_inline_address_button" style={styles.inlineAddressButton} onPress={() => { setAddressErrors({}); setAddressFormStep('map'); setShowAddressForm(true); }}><Text style={styles.inlineAddressButtonText}>Add delivery address</Text></TouchableOpacity></View> : null}
+      {addresses.length > 0 ? <TouchableOpacity testID="checkout_add_another_address" style={styles.addAnotherButton} onPress={() => { setAddressErrors({}); setAddressFormStep('map'); setShowAddressForm((value) => !value); }}><Text style={styles.addAnotherText}>{showAddressForm ? 'Close address form' : '+ Add another address'}</Text></TouchableOpacity> : null}
+      {showAddressForm ? (
+        <View style={[styles.addressForm, locationError && styles.addressFormError]}>
+          {addressFormStep === 'map' ? (
+            <>
+              <Text style={styles.addressFormTitle}>Pin delivery location *</Text>
+              <TouchableOpacity testID="checkout_use_live_location" style={styles.locationButton} onPress={() => void useCurrentLocation()}>
+                <Text style={styles.locationButtonText}>Use live location</Text>
+              </TouchableOpacity>
+              <LeafletMap
+                mapboxToken={EXPO_PUBLIC_MAPBOX_TOKEN}
+                googleMapsApiKey={EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}
+                latitude={Number(addressDraft.latitude) || 17.6916}
+                longitude={Number(addressDraft.longitude) || 83.0037}
+                onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')}
+              />
+              {locationError ? <Text style={styles.addressErrorText}>A valid pinned delivery location is required.</Text> : null}
+              <View style={styles.stepButtons}>
+                <TouchableOpacity style={styles.stepBackButton} onPress={() => setShowAddressForm(false)}>
+                  <Text style={styles.stepBackButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  testID="checkout_next_step_button"
+                  style={[styles.stepNextButton, !hasLocation && styles.stepNextButtonDisabled]}
+                  disabled={!hasLocation}
+                  onPress={() => setAddressFormStep('details')}
+                >
+                  <Text style={styles.stepNextButtonText}>Next</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.locationSummary}>
+                <Text style={styles.locationSummaryText} numberOfLines={1}>
+                  {addressDraft.line1 || `${addressDraft.latitude || '0.00000'}, ${addressDraft.longitude || '0.00000'}`}
+                </Text>
+                <TouchableOpacity onPress={() => setAddressFormStep('map')}>
+                  <Text style={styles.changeLocationText}>Change</Text>
+                </TouchableOpacity>
+              </View>
+              {(['recipientName', 'phoneE164', 'line1', 'city', 'state', 'pincode'] as CheckoutAddressField[]).map((key) => {
+                const labels: Record<string, string> = { recipientName: 'Recipient name', phoneE164: 'Phone number', line1: 'House, street and area', city: 'City', state: 'State', pincode: 'Pincode' };
+                const fieldError = addressErrors[key];
+                return (
+                  <View key={key}>
+                    <TextInput
+                      testID={`checkout_address_input_${key}`}
+                      value={(addressDraft as any)[key]}
+                      onChangeText={(value) => { clearAddressError(key); setAddressDraft((current) => ({ ...current, [key]: value })); }}
+                      placeholder={`${labels[key]} (required)`}
+                      placeholderTextColor="#94A3B8"
+                      style={[styles.addressInput, fieldError && styles.addressInputError]}
+                      accessibilityLabel={labels[key]}
+                    />
+                    {fieldError ? <Text style={styles.addressErrorText}>{fieldError}</Text> : null}
+                  </View>
+                );
+              })}
+              <View style={styles.stepButtons}>
+                <TouchableOpacity style={styles.stepBackButton} onPress={() => setAddressFormStep('map')}>
+                  <Text style={styles.stepBackButtonText}>Back</Text>
+                </TouchableOpacity>
+                <TouchableOpacity testID="checkout_save_address_button" disabled={saveAddress.isPending} style={[styles.stepNextButton, saveAddress.isPending && styles.placeOrderButtonDisabled]} onPress={submitAddress}>
+                  {saveAddress.isPending ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.stepNextButtonText}>{saveAddress.isPending ? 'Saving…' : 'Save and use this address'}</Text>}
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
+      ) : null}
 
       <Text style={styles.sectionTitle}>Payment Method</Text>
       <View style={styles.paymentRow}><TouchableOpacity testID="checkout_payment_cod" style={[styles.paymentButton, styles.paymentButtonActive]} accessibilityState={{ selected: true }}><Text style={[styles.paymentLabel, styles.paymentLabelActive]}>Cash on Delivery</Text><Text style={styles.paymentMeta}>Pay when the order arrives</Text></TouchableOpacity><TouchableOpacity testID="checkout_payment_online" disabled accessibilityState={{ disabled: true }} style={[styles.paymentButton, { opacity: 0.55, backgroundColor: '#F8FAFC' }]}><Text style={[styles.paymentLabel, { color: '#94A3B8' }]}>Pay Online</Text><Text style={styles.paymentMeta}>Currently unavailable</Text></TouchableOpacity></View>
@@ -349,5 +420,6 @@ const styles = StyleSheet.create({
   checkoutHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }, backButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' }, checkoutTitle: { color: '#0F172A', fontSize: 22, fontWeight: '900' }, checkoutSubtitle: { marginTop: 2, color: '#64748B', fontSize: 12, fontWeight: '600' },
   addressCard: { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', padding: 16, marginBottom: 12 }, addressCardActive: { borderColor: '#0F766E', backgroundColor: '#F0FDFA' }, addressLabel: { fontSize: 12, fontWeight: '800', color: '#0F766E', textTransform: 'uppercase' }, addressName: { marginTop: 6, fontSize: 16, fontWeight: '800', color: '#0F172A' }, addressText: { marginTop: 4, color: '#475569' }, addressPhone: { marginTop: 6, color: '#0F172A', fontWeight: '700' }, noticeCard: { borderRadius: 18, backgroundColor: '#FFF7ED', padding: 16, borderWidth: 1, borderColor: '#FED7AA' }, noticeTitle: { fontSize: 16, fontWeight: '800', color: '#9A3412' }, noticeText: { marginTop: 6, color: '#9A3412' }, inlineAddressButton: { marginTop: 12, alignItems: 'center', borderRadius: 14, backgroundColor: '#9A3412', paddingVertical: 12 }, inlineAddressButtonText: { color: '#FFFFFF', fontWeight: '900' }, addAnotherButton: { alignSelf: 'flex-start', paddingVertical: 8 }, addAnotherText: { color: '#0F766E', fontWeight: '900' }, addressForm: { marginBottom: 16, borderRadius: 20, borderWidth: 1, borderColor: '#99F6E4', backgroundColor: '#F0FDFA', padding: 12, gap: 10 }, addressFormError: { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' }, addressFormTitle: { fontSize: 17, fontWeight: '900', color: '#134E4A' }, locationButton: { alignItems: 'center', borderRadius: 14, backgroundColor: '#0F766E', paddingVertical: 12 }, locationButtonText: { color: '#FFFFFF', fontWeight: '900' }, addressInput: { borderRadius: 13, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', paddingHorizontal: 13, paddingVertical: 11, color: '#0F172A' }, addressInputError: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' }, addressErrorText: { marginTop: 4, color: '#B91C1C', fontSize: 11, lineHeight: 16, fontWeight: '800' }, saveAddressButton: { alignItems: 'center', borderRadius: 14, backgroundColor: '#0F766E', paddingVertical: 14 }, saveAddressText: { color: '#FFFFFF', fontWeight: '900' },
   paymentRow: { gap: 10 }, paymentButton: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16 }, paymentButtonActive: { borderColor: '#0F766E', backgroundColor: '#F0FDFA' }, paymentLabel: { fontSize: 15, fontWeight: '800', color: '#0F172A' }, paymentLabelActive: { color: '#115E59' }, paymentMeta: { marginTop: 6, color: '#64748B', fontSize: 12 }, couponHeadingRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, viewDeals: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 8 }, viewDealsText: { color: '#0F766E', fontSize: 12, fontWeight: '900' }, couponRow: { flexDirection: 'row', gap: 10 }, couponInput: { flex: 1, borderRadius: 15, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', paddingHorizontal: 14, color: '#0F172A', fontWeight: '800' }, applyButton: { justifyContent: 'center', borderRadius: 15, backgroundColor: '#0F172A', paddingHorizontal: 18 }, applyButtonText: { color: '#FFFFFF', fontWeight: '900' }, couponError: { marginTop: 8, color: '#B91C1C', fontSize: 12, fontWeight: '800' }, appliedCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 18, borderWidth: 1, borderColor: '#99F6E4', backgroundColor: '#F0FDFA', padding: 15 }, appliedCopy: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11 }, appliedTextWrap: { flex: 1 }, appliedTitle: { color: '#115E59', fontSize: 14, fontWeight: '900' }, appliedText: { marginTop: 3, color: '#0F766E', fontSize: 12, fontWeight: '700' }, autoBadge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#EDE9FE', paddingHorizontal: 9, paddingVertical: 5, color: '#6D28D9', fontSize: 10, fontWeight: '900' },
-  summaryCard: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16 }, freeDeliveryCard: { marginBottom: 15, borderRadius: 14, borderWidth: 1, borderColor: '#FDE68A', backgroundColor: '#FFFBEB', padding: 12 }, freeDeliveryUnlocked: { borderColor: '#A7F3D0', backgroundColor: '#ECFDF5' }, freeDeliveryTitle: { color: '#065F46', fontWeight: '900', fontSize: 13 }, freeDeliveryText: { marginTop: 3, color: '#64748B', fontSize: 11, fontWeight: '700' }, freeDeliveryValue: { color: '#059669', fontWeight: '900' }, summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, gap: 12 }, summaryText: { color: '#475569', flex: 1 }, summaryAmount: { color: '#334155', fontWeight: '700' }, summaryDivider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: 8 }, discountLabel: { color: '#0F766E', fontWeight: '800' }, discountValue: { color: '#0F766E', fontWeight: '900' }, totalLabel: { fontSize: 17, fontWeight: '800', color: '#0F172A' }, totalValue: { fontSize: 17, fontWeight: '800', color: '#0F172A' }, errorText: { marginTop: 10, color: '#B91C1C', fontWeight: '700' }, placeOrderButton: { marginTop: 20, borderRadius: 18, backgroundColor: '#0F766E', paddingVertical: 16, alignItems: 'center' }, placeOrderButtonDisabled: { backgroundColor: '#94A3B8' }, placeOrderText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  summaryCard: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16 }, freeDeliveryCard: { marginBottom: 15, borderRadius: 14, borderWidth: 1, borderColor: '#FDE68A', backgroundColor: '#FFFBEB', padding: 12 }, freeDeliveryUnlocked: { borderColor: '#A7F3D0', backgroundColor: '#ECFDF5' }, freeDeliveryTitle: { color: '#065F46', fontWeight: '900', fontSize: 13 }, freeDeliveryText: { marginTop: 3, color: '#64748B', fontSize: 11, fontWeight: '700' }, freeDeliveryValue: { color: '#059669', fontWeight: '900' }, summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, gap: 12 }, summaryText: { color: '#475569', flex: 1 }, summaryAmount: { color: '#334155', fontWeight: '700' }, summaryDivider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: 8 }, discountLabel: { color: '#0F766E', fontWeight: '800' }, discountValue: { color: '#0F766E', fontWeight: '900' }, totalLabel: { fontSize: 17, fontWeight: '800', color: '#0F172A' }, totalValue: { fontSize: 17, fontWeight: '800', color: '#0F172A' }, errorText: { marginTop: 10, color: '#B91C1C', fontWeight: '700' },   placeOrderButton: { marginTop: 20, borderRadius: 18, backgroundColor: '#0F766E', paddingVertical: 16, alignItems: 'center' }, placeOrderButtonDisabled: { backgroundColor: '#94A3B8' }, placeOrderText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  stepButtons: { flexDirection: 'row', gap: 10, marginTop: 8 }, stepBackButton: { flex: 1, alignItems: 'center', borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', paddingVertical: 14 }, stepBackButtonText: { color: '#475569', fontWeight: '800' }, stepNextButton: { flex: 2, alignItems: 'center', borderRadius: 14, backgroundColor: '#0F766E', paddingVertical: 14 }, stepNextButtonDisabled: { backgroundColor: '#94A3B8' }, stepNextButtonText: { color: '#FFFFFF', fontWeight: '900' }, locationSummary: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: '#E6FFFA', padding: 10 }, locationSummaryText: { flex: 1, fontSize: 12, fontWeight: '700', color: '#134E4A' }, changeLocationText: { fontSize: 12, fontWeight: '900', color: '#0F766E' },
 });

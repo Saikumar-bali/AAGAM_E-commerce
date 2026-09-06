@@ -1,8 +1,10 @@
-import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 import { GeoService } from './geo.service';
 
 @Controller('geo')
+@UseGuards(ThrottlerGuard)
 export class GeoController {
   constructor(private readonly geoService: GeoService) {}
 
@@ -27,6 +29,32 @@ export class GeoController {
       throw new BadRequestException('q (query) is required');
     }
     return this.geoService.search(query.trim());
+  }
+
+  @Get('places/autocomplete')
+  async placesAutocomplete(
+    @Query('q') query: string,
+    @Query('lat') latRaw?: string,
+    @Query('lng') lngRaw?: string,
+  ) {
+    if (!query || query.trim().length < 2) {
+      throw new BadRequestException('q (query) is required');
+    }
+    const lat = latRaw !== undefined ? Number(latRaw) : NaN;
+    const lng = lngRaw !== undefined ? Number(lngRaw) : NaN;
+    return this.geoService.placesAutocomplete(
+      query.trim(),
+      Number.isFinite(lat) ? lat : undefined,
+      Number.isFinite(lng) ? lng : undefined,
+    );
+  }
+
+  @Get('places/details')
+  async placeDetails(@Query('placeId') placeId: string) {
+    if (!placeId || !placeId.trim()) {
+      throw new BadRequestException('placeId is required');
+    }
+    return this.geoService.placeDetails(placeId.trim());
   }
 }
 

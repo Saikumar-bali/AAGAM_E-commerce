@@ -3,15 +3,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { getMapboxToken, getGoogleMapsApiKey } from '@/lib/mapbox';
+import { getMapboxToken } from '@/lib/mapbox';
+import { apiClient } from '@aagam/utils';
 import { MapPin, Search, X } from 'lucide-react';
 
 function createPinElement(): HTMLElement {
   const el = document.createElement('div');
-  el.style.width = '36px';
-  el.style.height = '36px';
+  el.style.width = '44px';
+  el.style.height = '44px';
   el.style.cursor = 'grab';
-  el.innerHTML = '<div style="width:36px;height:36px;border-radius:18px 18px 18px 4px;transform:rotate(-45deg);background:#0f766e;border:4px solid white;box-shadow:0 8px 24px rgba(15,23,42,.25);display:flex;align-items:center;justify-content:center"><div style="width:10px;height:10px;border-radius:50%;background:white;margin:9px;transform:rotate(45deg)"></div></div>';
+  el.innerHTML = '<div style="width:44px;height:44px;border-radius:22px 22px 22px 5px;transform:rotate(-45deg);background:#0f766e;border:4px solid white;box-shadow:0 8px 24px rgba(15,23,42,.25);display:flex;align-items:center;justify-content:center"><div style="width:12px;height:12px;border-radius:50%;background:white;margin:12px;transform:rotate(45deg)"></div></div>';
   return el;
 }
 
@@ -19,6 +20,7 @@ type Props = {
   latitude: number;
   longitude: number;
   onChange: (latitude: number, longitude: number) => void;
+  fullHeight?: boolean;
 };
 
 type SearchResult = {
@@ -26,9 +28,10 @@ type SearchResult = {
   lat: number;
   lng: number;
   type: string;
+  placeId?: string;
 };
 
-export default function CustomerLocationPicker({ latitude, longitude, onChange }: Props) {
+export default function CustomerLocationPicker({ latitude, longitude, onChange, fullHeight }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
@@ -58,49 +61,31 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
     }
     setSearching(true);
     try {
-      const googleKey = getGoogleMapsApiKey();
-      if (googleKey) {
-        const acRes = await fetch(
-          `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${googleKey}&components=country:in&types=geocode|establishment`
-        );
-        const acData = await acRes.json();
-        const predictions = acData.predictions || [];
-        if (predictions.length === 0) { setSearchResults([]); return; }
-        const results: SearchResult[] = await Promise.all(
-          predictions.slice(0, 5).map(async (p: any) => {
-            try {
-              const detRes = await fetch(
-                `https://maps.googleapis.com/maps/api/place/details/json?place_id=${p.place_id}&key=${googleKey}&fields=geometry`
-              );
-              const detData = await detRes.json();
-              const loc = detData.result?.geometry?.location;
-              return {
-                displayName: p.description || p.formatted_address || '',
-                lat: loc?.lat ?? 0,
-                lng: loc?.lng ?? 0,
-                type: p.types?.[0]?.replace(/_/g, ' ') || 'place',
-              };
-            } catch {
-              return { displayName: p.description || '', lat: 0, lng: 0, type: 'place' };
-            }
-          })
-        );
-        setSearchResults(results.filter(r => r.lat !== 0));
-      } else {
-        const token = getMapboxToken();
-        if (!token) { setSearchResults([]); return; }
-        const res = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${longitude},${latitude}`
-        );
-        const data = await res.json();
-        const features = (data.features || []).map((f: any) => ({
-          displayName: f.place_name || f.text || '',
-          lat: f.center?.[1] ?? 0,
-          lng: f.center?.[0] ?? 0,
-          type: f.place_type?.[0] || 'place',
-        }));
-        setSearchResults(features);
+      // Google Places via the API gateway proxy (server-side key, no browser CORS limits)
+      try {
+        const { data } = await apiClient.get('/geo/places/autocomplete', {
+          params: { q: query.trim(), lat: latitude, lng: longitude },
+        });
+        if (data?.ok && Array.isArray(data.results) && data.results.length > 0) {
+          setSearchResults(data.results);
+          return;
+        }
+      } catch {
+        // proxy unavailable (or Places not enabled) — fall back to Mapbox below
       }
+      const token = getMapboxToken();
+      if (!token) { setSearchResults([]); return; }
+      const res = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${longitude},${latitude}`
+      );
+      const data = await res.json();
+      const features = (data.features || []).map((f: any) => ({
+        displayName: f.place_name || f.text || '',
+        lat: f.center?.[1] ?? 0,
+        lng: f.center?.[0] ?? 0,
+        type: f.place_type?.[0] || 'place',
+      }));
+      setSearchResults(features);
     } catch {
       setSearchResults([]);
     } finally {
@@ -114,9 +99,20 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
     debounceRef.current = setTimeout(() => handleSearch(value), 300);
   };
 
-  const handleSelectResult = (result: SearchResult) => {
+  const handleSelectResult = async (result: SearchResult) => {
     setSearchQuery(result.displayName);
     setSearchResults([]);
+    if (result.placeId && (!result.lat || !result.lng)) {
+      try {
+        const { data } = await apiClient.get('/geo/places/details', { params: { placeId: result.placeId } });
+        if (data?.ok && Number.isFinite(data.lat) && Number.isFinite(data.lng)) {
+          flyTo(data.lat, data.lng);
+        }
+      } catch {
+        // could not resolve coordinates — leave the pin where it is
+      }
+      return;
+    }
     flyTo(result.lat, result.lng);
   };
 
@@ -132,7 +128,7 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
 
     const map = new mapboxgl.Map({
       container,
-      style: 'mapbox://styles/mapbox/navigation-day-v1',
+      style: 'mapbox://styles/mapbox/satellite-streets-v12',
       center: [longitude, latitude],
       zoom: 17,
       attributionControl: true,
@@ -176,7 +172,7 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
   }, [latitude, longitude]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-teal-200 bg-white">
+    <div className={fullHeight ? 'flex h-full flex-col overflow-hidden bg-white' : 'overflow-hidden rounded-2xl border border-teal-200 bg-white'}>
       <div className="relative">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -185,10 +181,10 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search address..."
-            className="w-full border-b border-slate-100 bg-white px-10 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+            className="w-full border-b border-slate-100 bg-white py-3 pl-10 pr-20 text-sm text-slate-900 outline-none placeholder:text-slate-400"
           />
           {searchQuery && (
-            <button onClick={() => { setSearchQuery(''); setSearchResults([]); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <button onClick={() => { setSearchQuery(''); setSearchResults([]); }} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:text-slate-600">
               <X className="h-4 w-4" />
             </button>
           )}
@@ -210,7 +206,7 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange }
           </div>
         )}
       </div>
-      <div className="h-64 w-full">
+      <div className={fullHeight ? 'h-full w-full' : 'h-64 w-full'}>
         <div ref={containerRef} className="h-full w-full" />
       </div>
       <div className="flex items-center justify-between gap-3 px-4 py-3 text-xs font-bold text-slate-600">

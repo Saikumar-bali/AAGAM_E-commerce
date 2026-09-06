@@ -57,7 +57,7 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, go
     mapboxgl.accessToken = '${token}';
     var map = new mapboxgl.Map({
       container: 'map',
-      style: 'mapbox://styles/mapbox/navigation-day-v1',
+      style: 'mapbox://styles/mapbox/satellite-streets-v12',
       center: [${lng}, ${lat}],
       zoom: 15,
       attributionControl: true
