@@ -39,7 +39,6 @@ import { EXPO_PUBLIC_MAPBOX_TOKEN } from '@env';
 import { EXPO_PUBLIC_GOOGLE_MAPS_API_KEY } from '@env';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getUserSafeError, notify } from '../../ui/notify';
-import { AagamBrand } from '../../components/AagamBrand';
 import { CUSTOMER_ADDRESSES_QUERY_KEY } from '../../utils/addressQueries';
 
 type LocationSource = 'LIVE_GPS' | 'MAP_PIN' | 'GEOCODED' | 'LEGACY_UNKNOWN';
@@ -489,9 +488,6 @@ export const CustomerProfileScreen = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.topHeader}><AagamBrand compact /><View style={styles.headerActions}><TouchableOpacity style={styles.topIcon} onPress={() => navigation.navigate('Alerts')} accessibilityLabel="Open notifications"><Bell size={21} color="#0F766E" /></TouchableOpacity><TouchableOpacity style={styles.topCart} onPress={() => navigation.navigate('Cart')} accessibilityLabel="Open cart"><ShoppingCart size={22} color="#115E59" /></TouchableOpacity></View></View>
-      <Text style={styles.profileHeading}>My Profile</Text>
-      <Text style={styles.profileSubtitle}>Manage your account and preferences</Text>
       <View style={styles.heroCard}>
         <TouchableOpacity style={styles.headerLogout} onPress={confirmLogout}><Text style={styles.headerLogoutText}>↪</Text></TouchableOpacity>
         {avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <View style={styles.avatar}><Text style={styles.avatarText}>{profileInitial}</Text></View>}
@@ -499,16 +495,16 @@ export const CustomerProfileScreen = () => {
       </View>
 
       <View style={styles.statsRow}>
-        <View style={styles.statCard}><View style={styles.statIcon}><ShoppingCart size={20} color="#0F766E" /></View><View><Text style={styles.statValue}>{orders.length}</Text><Text style={styles.statLabel}>Orders</Text></View></View>
-        <View style={styles.statCard}><View style={styles.statIcon}><ClipboardList size={20} color="#0F766E" /></View><View><Text style={styles.statValue}>{activeOrders}</Text><Text style={styles.statLabel}>Active</Text></View></View>
-        <View style={styles.statCard}><View style={styles.statIcon}><Bell size={20} color="#0F766E" /></View><View><Text style={styles.statValue}>{notifications?.unreadCount || 0}</Text><Text style={styles.statLabel}>Alerts</Text></View></View>
+        <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Orders')} accessibilityLabel="Orders"><View style={styles.statIcon}><ShoppingCart size={20} color="#0F766E" /></View><View><Text style={styles.statValue}>{orders.length}</Text><Text style={styles.statLabel}>Orders</Text></View></TouchableOpacity>
+        <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Orders')} accessibilityLabel="Active orders"><View style={styles.statIcon}><ClipboardList size={20} color="#0F766E" /></View><View><Text style={styles.statValue}>{activeOrders}</Text><Text style={styles.statLabel}>Active</Text></View></TouchableOpacity>
+        <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Alerts')} accessibilityLabel="Alerts"><View style={styles.statIcon}><Bell size={20} color="#0F766E" /></View><View><Text style={styles.statValue}>{notifications?.unreadCount || 0}</Text><Text style={styles.statLabel}>Alerts</Text></View></TouchableOpacity>
       </View>
 
       <View style={styles.menuCard}>
-        <MenuRow icon={ClipboardList} title="My Orders" subtitle="Track, reorder, and review deliveries" onPress={() => navigation.navigate('Orders')} />
-        <MenuRow icon={CalendarDays} title="My Subscriptions" subtitle="Manage recurring deliveries, skips, funding and proofs" onPress={() => navigation.navigate('MySubscriptions')} />
-        <MenuRow icon={Bell} title="Alerts" subtitle="Order and support notifications" onPress={() => navigation.navigate('Alerts')} />
-        <MenuRow icon={Headphones} title="Customer Support" subtitle="Open a ticket for an order, item, payment, or delivery issue" onPress={() => navigation.navigate('Support')} />
+        <MenuRow icon={ClipboardList} title="My Orders" onPress={() => navigation.navigate('Orders')} />
+        <MenuRow icon={CalendarDays} title="My Subscriptions" onPress={() => navigation.navigate('MySubscriptions')} />
+        <MenuRow icon={Bell} title="Alerts" onPress={() => navigation.navigate('Alerts')} />
+        <MenuRow icon={Headphones} title="Customer Support" onPress={() => navigation.navigate('Support')} />
       </View>
 
       <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Saved Addresses</Text><TouchableOpacity style={styles.linkButton} onPress={() => { if (showForm) { setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); } setShowForm((value) => !value); }}><Plus size={16} color="#0F766E" /><Text style={styles.linkButtonText}>{showForm ? 'Close' : 'Add New'}</Text></TouchableOpacity></View>
@@ -612,8 +608,8 @@ export const CustomerProfileScreen = () => {
   );
 };
 
-function MenuRow({ icon: Icon, title, subtitle, onPress }: { icon: React.ComponentType<{ size?: number; color?: string }>; title: string; subtitle: string; onPress: () => void }) {
-  return <TouchableOpacity style={styles.menuRow} onPress={onPress}><View style={styles.menuIcon}><Icon size={21} color="#0F766E" /></View><View style={{ flex: 1 }}><Text style={styles.menuTitle}>{title}</Text><Text style={styles.menuSubtitle}>{subtitle}</Text></View><ChevronRight size={22} color="#64748B" /></TouchableOpacity>;
+function MenuRow({ icon: Icon, title, subtitle, onPress }: { icon: React.ComponentType<{ size?: number; color?: string }>; title: string; subtitle?: string; onPress: () => void }) {
+  return <TouchableOpacity style={styles.menuRow} onPress={onPress}><View style={styles.menuIcon}><Icon size={21} color="#0F766E" /></View><View style={{ flex: 1 }}><Text style={styles.menuTitle}>{title}</Text>{subtitle ? <Text style={styles.menuSubtitle}>{subtitle}</Text> : null}</View><ChevronRight size={22} color="#64748B" /></TouchableOpacity>;
 }
 
 function MapPinIcon() { return <MapPin size={30} color="#0F766E" />; }
