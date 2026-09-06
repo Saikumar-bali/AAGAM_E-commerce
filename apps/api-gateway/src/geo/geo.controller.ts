@@ -1,8 +1,10 @@
-import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 import { GeoService } from './geo.service';
 
 @Controller('geo')
+@UseGuards(ThrottlerGuard)
 export class GeoController {
   constructor(private readonly geoService: GeoService) {}
 
