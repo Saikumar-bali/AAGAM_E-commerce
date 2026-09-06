@@ -541,6 +541,7 @@ export const CustomerProfileScreen = () => {
                 <LeafletMap
                   mapboxToken={EXPO_PUBLIC_MAPBOX_TOKEN}
                   googleMapsApiKey={EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}
+                  apiBaseUrl={String((apiClient.defaults.baseURL as unknown as string) || 'https://aagaam.in/api')}
                   latitude={pinnedLatitude}
                   longitude={pinnedLongitude}
                   onPinChange={(latitude, longitude) => void setPinnedLocation(latitude, longitude, 'MAP_PIN')}
