@@ -991,14 +991,14 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
   const hasLocation = draft.latitude != null && draft.longitude != null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-2 sm:p-4 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         className={step === 'map'
-          ? 'flex h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]'
-          : 'max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]'
+          ? 'flex h-[95dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]'
+          : 'max-h-[96dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]'
         }
       >
         <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur">
@@ -1013,7 +1013,7 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
           <button
             onClick={actions.onCloseAddressForm}
             aria-label="Close address form"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800"
           >
             <X className="h-4 w-4" />
           </button>
@@ -1025,7 +1025,7 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
               <button
                 onClick={actions.onUseLiveLocation}
                 disabled={locating}
-                className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-2 text-xs font-extrabold text-teal-800 transition hover:border-teal-300 hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-3 text-xs font-extrabold text-teal-800 transition hover:border-teal-300 hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
                 {locating ? 'Locating…' : 'Use my live location'}
@@ -1083,7 +1083,7 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
                 </span>
                 <button
                   onClick={() => setStep('map')}
-                  className="ml-auto shrink-0 text-xs font-extrabold text-teal-700 hover:underline"
+                  className="ml-auto shrink-0 rounded-lg px-3 py-2 text-xs font-extrabold text-teal-700 hover:bg-teal-100 hover:underline"
                 >
                   Change
                 </button>
@@ -1155,7 +1155,7 @@ function Field({ label, value, onChange, placeholder, className = '', type = 'te
         placeholder={placeholder}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
-        className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-900 caret-teal-700 outline-none transition placeholder:font-normal placeholder:text-slate-500 focus:ring-4 ${error ? 'border-red-400 bg-red-50/40 text-red-900 placeholder:text-red-400 focus:border-red-500 focus:ring-red-500/10' : 'border-slate-200 focus:border-teal-600 focus:ring-teal-600/10'}`}
+        className={`w-full rounded-xl border bg-white px-3.5 py-3 text-sm font-semibold text-slate-900 caret-teal-700 outline-none transition placeholder:font-normal placeholder:text-slate-500 focus:ring-4 ${error ? 'border-red-400 bg-red-50/40 text-red-900 placeholder:text-red-400 focus:border-red-500 focus:ring-red-500/10' : 'border-slate-200 focus:border-teal-600 focus:ring-teal-600/10'}`}
       />
       {error && (
         <p id={`${id}-error`} role="alert" className="mt-1 text-xs font-bold text-red-600">{error}</p>

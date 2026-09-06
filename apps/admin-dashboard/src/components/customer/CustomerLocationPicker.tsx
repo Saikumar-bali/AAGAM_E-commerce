@@ -9,10 +9,10 @@ import { MapPin, Search, X } from 'lucide-react';
 
 function createPinElement(): HTMLElement {
   const el = document.createElement('div');
-  el.style.width = '36px';
-  el.style.height = '36px';
+  el.style.width = '44px';
+  el.style.height = '44px';
   el.style.cursor = 'grab';
-  el.innerHTML = '<div style="width:36px;height:36px;border-radius:18px 18px 18px 4px;transform:rotate(-45deg);background:#0f766e;border:4px solid white;box-shadow:0 8px 24px rgba(15,23,42,.25);display:flex;align-items:center;justify-content:center"><div style="width:10px;height:10px;border-radius:50%;background:white;margin:9px;transform:rotate(45deg)"></div></div>';
+  el.innerHTML = '<div style="width:44px;height:44px;border-radius:22px 22px 22px 5px;transform:rotate(-45deg);background:#0f766e;border:4px solid white;box-shadow:0 8px 24px rgba(15,23,42,.25);display:flex;align-items:center;justify-content:center"><div style="width:12px;height:12px;border-radius:50%;background:white;margin:12px;transform:rotate(45deg)"></div></div>';
   return el;
 }
 
@@ -181,10 +181,10 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search address..."
-            className="w-full border-b border-slate-100 bg-white px-10 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+            className="w-full border-b border-slate-100 bg-white py-3 pl-10 pr-20 text-sm text-slate-900 outline-none placeholder:text-slate-400"
           />
           {searchQuery && (
-            <button onClick={() => { setSearchQuery(''); setSearchResults([]); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <button onClick={() => { setSearchQuery(''); setSearchResults([]); }} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:text-slate-600">
               <X className="h-4 w-4" />
             </button>
           )}
