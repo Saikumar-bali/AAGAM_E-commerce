@@ -177,8 +177,115 @@ export default function AdminSubscriptionsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<any>();
   const [form, setForm] = useState<PlanForm>(emptyForm());
-  const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [savingManual, setSavingManual] = useState(false);
+  const [manualForm, setManualForm] = useState({
+    storeId: '',
+    planId: '',
+    customerName: '',
+    customerPhone: '',
+    line1: '',
+    line2: '',
+    city: 'Hyderabad',
+    state: 'Telangana',
+    pincode: '',
+    startDate: new Date().toISOString().slice(0, 10),
+    totalDeliveries: '30',
+    deliverySlot: 'MORNING' as 'MORNING' | 'EVENING' | 'BOTH',
+    initialCashRupees: '0',
+    note: '',
+  });
+
+  const [editManualModalOpen, setEditManualModalOpen] = useState(false);
+  const [editingSubscriber, setEditingSubscriber] = useState<any>(null);
+  const [editSubscriberForm, setEditSubscriberForm] = useState({
+    startDate: '',
+    totalDeliveries: '30',
+    deliverySlot: 'MORNING' as 'MORNING' | 'EVENING' | 'BOTH',
+    amountDueRupees: '0',
+    amountCollectedRupees: '0',
+    note: '',
+  });
+
+  const submitManualSubscription = async () => {
+    if (!manualForm.storeId) return toast.warning('Select a store for the subscription.');
+    if (!manualForm.planId) return toast.warning('Select a subscription plan.');
+    if (!manualForm.customerName.trim() || manualForm.customerPhone.trim().length < 10) {
+      return toast.warning('Enter customer name and a 10-digit phone number.');
+    }
+    if (!manualForm.line1.trim() || !manualForm.city.trim() || !/^\d{6}$/.test(manualForm.pincode.trim())) {
+      return toast.warning('Enter full delivery address and 6-digit pincode.');
+    }
+    setSavingManual(true);
+    try {
+      const custRes = await apiClient.post('/admin/subscriptions/manual-customer', {
+        name: manualForm.customerName.trim(),
+        phone: manualForm.customerPhone.trim(),
+        line1: manualForm.line1.trim(),
+        line2: manualForm.line2.trim() || undefined,
+        city: manualForm.city.trim(),
+        state: manualForm.state.trim(),
+        pincode: manualForm.pincode.trim(),
+      });
+      const customerId = custRes.data.customer.id;
+      const addressId = custRes.data.address.id;
+
+      await apiClient.post('/admin/subscriptions/manual-subscribe', {
+        storeId: manualForm.storeId,
+        planId: manualForm.planId,
+        customerId,
+        addressId,
+        startDate: manualForm.startDate,
+        totalDeliveries: Number(manualForm.totalDeliveries || 30),
+        deliverySlot: manualForm.deliverySlot,
+        initialCashCollectedPaise: Math.round(Number(manualForm.initialCashRupees || 0) * 100),
+        note: manualForm.note.trim() || undefined,
+      });
+
+      toast.success('Manual subscription created successfully for offline customer!');
+      setManualModalOpen(false);
+      await load();
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'Manual subscription creation failed.'));
+    } finally {
+      setSavingManual(false);
+    }
+  };
+
+  const openSubscriberEdit = (sub: any) => {
+    setEditingSubscriber(sub);
+    setEditSubscriberForm({
+      startDate: sub.startDate ? new Date(sub.startDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      totalDeliveries: String(sub.fundedDeliveryCount || 30),
+      deliverySlot: sub.deliveryWindowStartMinute >= 17 * 60 ? 'EVENING' : 'MORNING',
+      amountDueRupees: paiseToRupeesInput(sub.amountDuePaise),
+      amountCollectedRupees: paiseToRupeesInput(sub.amountCollectedPaise),
+      note: '',
+    });
+    setEditManualModalOpen(true);
+  };
+
+  const saveSubscriberEdit = async () => {
+    if (!editingSubscriber) return;
+    setSavingManual(true);
+    try {
+      await apiClient.patch(`/admin/subscriptions/subscribers/${editingSubscriber.id}/manual-edit`, {
+        startDate: editSubscriberForm.startDate,
+        totalDeliveries: Number(editSubscriberForm.totalDeliveries || 30),
+        deliverySlot: editSubscriberForm.deliverySlot,
+        amountDuePaise: Math.round(Number(editSubscriberForm.amountDueRupees || 0) * 100),
+        amountCollectedPaise: Math.round(Number(editSubscriberForm.amountCollectedRupees || 0) * 100),
+        note: editSubscriberForm.note.trim() || undefined,
+      });
+      toast.success('Subscriber updated successfully.');
+      setEditManualModalOpen(false);
+      await load();
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'Subscriber update failed.'));
+    } finally {
+      setSavingManual(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -366,8 +473,9 @@ export default function AdminSubscriptionsPage() {
               <h1 className="mt-3 text-3xl font-black">Subscriptions, runs & cash</h1>
               <p className="mt-2 max-w-3xl leading-7 text-emerald-100">Customer subscriptions are shown first. Plan definitions stay separate so operational records are never confused with billing presets.</p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <button onClick={() => void load()} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-5 font-black"><RefreshCw className="h-4 w-4" /> Refresh</button>
+              <button onClick={() => setManualModalOpen(true)} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-amber-400 px-5 font-black text-slate-900 shadow-md hover:bg-amber-300"><Plus className="h-5 w-5" /> Manual Subscription</button>
               <button onClick={openCreate} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-white px-5 font-black text-emerald-800"><Plus className="h-5 w-5" /> New plan</button>
             </div>
           </div>
@@ -392,7 +500,7 @@ export default function AdminSubscriptionsPage() {
 
         {loading ? <div className="flex min-h-72 items-center justify-center"><Loader2 className="h-9 w-9 animate-spin text-emerald-700" /></div> : (
           <main>
-            {tab === 'subscribers' ? <Subscribers rows={subscribers} />
+            {tab === 'subscribers' ? <Subscribers rows={subscribers} onEditSubscriber={openSubscriberEdit} />
               : tab === 'plans' ? <Plans plans={plans} onEdit={openEdit} onLifecycle={lifecycle} />
               : tab === 'calendar' ? <Calendar rows={calendar} onReload={load} />
               : tab === 'runs' ? <Runs rows={runs} />
@@ -401,6 +509,149 @@ export default function AdminSubscriptionsPage() {
               : <Analytics data={analytics} />}
           </main>
         )}
+
+        {manualModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="Manual offline subscription form">
+            <div className="max-h-[96vh] w-full max-w-3xl overflow-y-auto rounded-t-[28px] bg-white shadow-2xl sm:rounded-[28px]">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-5">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-amber-700">Offline Customer Subscription</p>
+                  <h2 className="mt-1 text-2xl font-black text-slate-900">Create Manual Subscription</h2>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">For illiterate/offline store customers without email or password.</p>
+                </div>
+                <button onClick={() => setManualModalOpen(false)} aria-label="Close form" className="rounded-xl bg-slate-100 p-3"><X className="h-5 w-5" /></button>
+              </div>
+
+              <div className="space-y-5 p-5">
+                <section className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Target Store">
+                    <select value={manualForm.storeId} onChange={(e) => setManualForm({ ...manualForm, storeId: e.target.value })}>
+                      <option value="">Select Store</option>
+                      {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Subscription Plan">
+                    <select value={manualForm.planId} onChange={(e) => {
+                      const selPlan = plans.find((p) => p.id === e.target.value);
+                      setManualForm({ ...manualForm, planId: e.target.value, totalDeliveries: selPlan ? String(selPlan.totalDeliveries) : manualForm.totalDeliveries });
+                    }}>
+                      <option value="">Select Plan</option>
+                      {plans.map((p) => <option key={p.id} value={p.id}>{p.name} ({formatPaise(p.pricePaise)})</option>)}
+                    </select>
+                  </Field>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-700">Customer Information (No Login Required)</h3>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Customer Full Name">
+                      <input value={manualForm.customerName} onChange={(e) => setManualForm({ ...manualForm, customerName: e.target.value })} placeholder="e.g. Ramesh Kumar" />
+                    </Field>
+                    <Field label="10-Digit Mobile Number">
+                      <input value={manualForm.customerPhone} onChange={(e) => setManualForm({ ...manualForm, customerPhone: e.target.value })} placeholder="e.g. 9876543210" maxLength={15} />
+                    </Field>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="House / Street / Flat">
+                      <input value={manualForm.line1} onChange={(e) => setManualForm({ ...manualForm, line1: e.target.value })} placeholder="Flat 201, Balaji Heights" />
+                    </Field>
+                    <Field label="Area / Locality">
+                      <input value={manualForm.line2} onChange={(e) => setManualForm({ ...manualForm, line2: e.target.value })} placeholder="Kukatpally, Main Road" />
+                    </Field>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <Field label="City"><input value={manualForm.city} onChange={(e) => setManualForm({ ...manualForm, city: e.target.value })} /></Field>
+                    <Field label="State"><input value={manualForm.state} onChange={(e) => setManualForm({ ...manualForm, state: e.target.value })} /></Field>
+                    <Field label="Pincode"><input value={manualForm.pincode} onChange={(e) => setManualForm({ ...manualForm, pincode: e.target.value })} placeholder="500072" maxLength={6} /></Field>
+                  </div>
+                </section>
+
+                <section className="grid gap-4 sm:grid-cols-3">
+                  <Field label="Start Month / Date">
+                    <input type="date" value={manualForm.startDate} onChange={(e) => setManualForm({ ...manualForm, startDate: e.target.value })} />
+                  </Field>
+                  <Field label="Total Deliveries">
+                    <input type="number" min="1" max="366" value={manualForm.totalDeliveries} onChange={(e) => setManualForm({ ...manualForm, totalDeliveries: e.target.value })} />
+                  </Field>
+                  <Field label="Delivery Slot">
+                    <select value={manualForm.deliverySlot} onChange={(e) => setManualForm({ ...manualForm, deliverySlot: e.target.value as any })}>
+                      <option value="MORNING">Morning (6 AM - 9 AM)</option>
+                      <option value="EVENING">Evening (5 PM - 8 PM)</option>
+                      <option value="BOTH">Both (Morning & Evening)</option>
+                    </select>
+                  </Field>
+                </section>
+
+                <section className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Initial Cash Picked / Paid (₹)">
+                    <input type="number" min="0" step="1" value={manualForm.initialCashRupees} onChange={(e) => setManualForm({ ...manualForm, initialCashRupees: e.target.value })} placeholder="0" />
+                  </Field>
+                  <Field label="Admin / Store Note (Optional)">
+                    <input value={manualForm.note} onChange={(e) => setManualForm({ ...manualForm, note: e.target.value })} placeholder="e.g. Paid ₹500 in advance at store counter" />
+                  </Field>
+                </section>
+              </div>
+
+              <div className="sticky bottom-0 flex justify-end gap-3 border-t border-slate-200 bg-white p-5">
+                <button onClick={() => setManualModalOpen(false)} className="min-h-12 rounded-2xl border border-slate-200 px-5 font-black">Cancel</button>
+                <button disabled={savingManual} onClick={() => void submitManualSubscription()} className="inline-flex min-h-12 min-w-40 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 font-black text-slate-950 disabled:opacity-50">
+                  {savingManual ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />} Create Subscription
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {editManualModalOpen && editingSubscriber ? (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="Edit subscriber modal">
+            <div className="max-h-[96vh] w-full max-w-2xl overflow-y-auto rounded-t-[28px] bg-white shadow-2xl sm:rounded-[28px]">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-5">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Subscriber Management</p>
+                  <h2 className="mt-1 text-2xl font-black text-slate-900">Edit Subscription #{editingSubscriber.id.slice(-6)}</h2>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">Customer: {editingSubscriber.customer?.name || editingSubscriber.customer?.email}</p>
+                </div>
+                <button onClick={() => setEditManualModalOpen(false)} aria-label="Close edit form" className="rounded-xl bg-slate-100 p-3"><X className="h-5 w-5" /></button>
+              </div>
+
+              <div className="space-y-4 p-5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Start Month / Date">
+                    <input type="date" value={editSubscriberForm.startDate} onChange={(e) => setEditSubscriberForm({ ...editSubscriberForm, startDate: e.target.value })} />
+                  </Field>
+                  <Field label="Total Deliveries">
+                    <input type="number" min="1" max="366" value={editSubscriberForm.totalDeliveries} onChange={(e) => setEditSubscriberForm({ ...editSubscriberForm, totalDeliveries: e.target.value })} />
+                  </Field>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Field label="Delivery Slot">
+                    <select value={editSubscriberForm.deliverySlot} onChange={(e) => setEditSubscriberForm({ ...editSubscriberForm, deliverySlot: e.target.value as any })}>
+                      <option value="MORNING">Morning (6 AM - 9 AM)</option>
+                      <option value="EVENING">Evening (5 PM - 8 PM)</option>
+                      <option value="BOTH">Both (Morning & Evening)</option>
+                    </select>
+                  </Field>
+                  <Field label="Amount Due (₹)">
+                    <input type="number" min="0" step="0.01" value={editSubscriberForm.amountDueRupees} onChange={(e) => setEditSubscriberForm({ ...editSubscriberForm, amountDueRupees: e.target.value })} />
+                  </Field>
+                  <Field label="Amount Collected (₹)">
+                    <input type="number" min="0" step="0.01" value={editSubscriberForm.amountCollectedRupees} onChange={(e) => setEditSubscriberForm({ ...editSubscriberForm, amountCollectedRupees: e.target.value })} />
+                  </Field>
+                </div>
+                <Field label="Reason / Audit Note">
+                  <input value={editSubscriberForm.note} onChange={(e) => setEditSubscriberForm({ ...editSubscriberForm, note: e.target.value })} placeholder="e.g. Adjusted delivery schedule & cash received" />
+                </Field>
+              </div>
+
+              <div className="sticky bottom-0 flex justify-end gap-3 border-t border-slate-200 bg-white p-5">
+                <button onClick={() => setEditManualModalOpen(false)} className="min-h-12 rounded-2xl border border-slate-200 px-5 font-black">Cancel</button>
+                <button disabled={savingManual} onClick={() => void saveSubscriberEdit()} className="inline-flex min-h-12 min-w-40 items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-5 font-black text-white disabled:opacity-50">
+                  {savingManual ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />} Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {formOpen ? (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="Subscription plan form">
@@ -497,8 +748,37 @@ function Plans({ plans, onEdit, onLifecycle }: any) {
   );
 }
 
-function Subscribers({ rows }: any) {
-  return <section className="space-y-3"><div><h2 className="text-xl font-black text-slate-900">Customer subscriptions</h2><p className="mt-1 text-sm font-semibold text-slate-500">These are the actual customer subscription records, not plan templates.</p></div><Table headers={['Customer', 'Phone', 'Plan', 'Status', 'Progress', 'Collected / due', 'Next delivery']} rows={rows.map((item: any) => [item.customer?.name || item.customer?.email, item.customer?.phone || '—', item.plan?.name, <StatusPill key={item.id} status={item.status} />, `${item.completedDeliveries}/${item.planVersion?.totalDeliveries || '—'}`, `${formatPaise(item.amountCollectedPaise)} / ${formatPaise(item.amountDuePaise)}`, formatDate(item.nextDeliveryDate)])} empty="No customer subscriptions yet." /></section>;
+function Subscribers({ rows, onEditSubscriber }: { rows: any[]; onEditSubscriber?: (sub: any) => void }) {
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-xl font-black text-slate-900">Customer subscriptions</h2>
+        <p className="mt-1 text-sm font-semibold text-slate-500">These are the actual customer subscription records (online & manual offline).</p>
+      </div>
+      <Table
+        headers={['Customer', 'Phone', 'Plan', 'Store', 'Status', 'Progress', 'Collected / due', 'Actions']}
+        rows={rows.map((item: any) => [
+          item.customer?.name || item.customer?.email,
+          item.customer?.phone || item.deliveryContact?.phone || '—',
+          item.plan?.name,
+          item.homeStore?.name || '—',
+          <StatusPill key={item.id} status={item.status} />,
+          `${item.completedDeliveries}/${item.fundedDeliveryCount || item.planVersion?.totalDeliveries || '—'}`,
+          `${formatPaise(item.amountCollectedPaise)} / ${formatPaise(item.amountDuePaise)}`,
+          onEditSubscriber ? (
+            <button
+              key={`edit-${item.id}`}
+              onClick={() => onEditSubscriber(item)}
+              className="inline-flex min-h-8 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 hover:bg-slate-100"
+            >
+              <Edit3 className="h-3.5 w-3.5" /> Edit
+            </button>
+          ) : null,
+        ])}
+        empty="No customer subscriptions yet."
+      />
+    </section>
+  );
 }
 
 function Calendar({ rows, onReload }: { rows: any[]; onReload?: () => void }) {
