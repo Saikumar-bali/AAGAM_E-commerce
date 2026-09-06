@@ -27,15 +27,12 @@ import {
   MapPin,
   Pencil,
   Plus,
-  ShieldCheck,
-  Smartphone,
   ShoppingCart,
   Trash2,
 } from 'lucide-react-native';
 import {
   LeafletMap,
   apiClient,
-  registerDeviceToken,
   useAuthStore,
 } from '@aagam/mobile-shared';
 import { EXPO_PUBLIC_MAPBOX_TOKEN } from '@env';
@@ -477,22 +474,6 @@ export const CustomerProfileScreen = () => {
     ],
   );
 
-  const enablePush = async () => {
-    try {
-      await registerDeviceToken();
-      notify.success('Notifications enabled', 'This device can receive Aagaam updates.');
-    } catch (error) {
-      notify.error('Could not enable notifications', getUserSafeError(error, 'Check notification permission and try again.'));
-    }
-  };
-
-  const showAccountSecurity = () => notify.info(
-    'Account security',
-    isGoogleProfile
-      ? 'Your Google account profile, name, email, and photo are connected to Aagaam.'
-      : 'Google sign-in is preferred. Email/password remains available as a fallback.',
-  );
-
   const pinnedLatitude = Number(draft.latitude) || 17.385;
   const pinnedLongitude = Number(draft.longitude) || 78.4867;
   const hasPinnedLocation = Boolean(draft.latitude && draft.longitude);
@@ -522,9 +503,7 @@ export const CustomerProfileScreen = () => {
         <MenuRow icon={ClipboardList} title="My Orders" subtitle="Track, reorder, and review deliveries" onPress={() => navigation.navigate('Orders')} />
         <MenuRow icon={CalendarDays} title="My Subscriptions" subtitle="Manage recurring deliveries, skips, funding and proofs" onPress={() => navigation.navigate('MySubscriptions')} />
         <MenuRow icon={Bell} title="Alerts" subtitle="Order and support notifications" onPress={() => navigation.navigate('Alerts')} />
-        <MenuRow icon={Smartphone} title="Push Notifications" subtitle="Register this device for updates" onPress={() => void enablePush()} />
         <MenuRow icon={Headphones} title="Customer Support" subtitle="Open a ticket for an order, item, payment, or delivery issue" onPress={() => navigation.navigate('Support')} />
-        <MenuRow icon={ShieldCheck} title="Account Security" subtitle={isGoogleProfile ? 'Google account is connected to this customer profile' : 'Google OAuth primary, email password fallback'} onPress={showAccountSecurity} />
       </View>
 
       <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Saved Addresses</Text><TouchableOpacity style={styles.linkButton} onPress={() => { if (showForm) { setEditingAddressId(null); setDraft(emptyDraft); setAddressErrors({}); } setShowForm((value) => !value); }}><Plus size={16} color="#0F766E" /><Text style={styles.linkButtonText}>{showForm ? 'Close' : 'Add New'}</Text></TouchableOpacity></View>

@@ -27,10 +27,12 @@ import { PostDeliveryService } from './post-delivery.service';
 import { RiderArrivalEvidenceInterceptor } from './rider-arrival-evidence.interceptor';
 import { StoreFulfillmentController } from './store-fulfillment.controller';
 import { StoreFulfillmentService } from './store-fulfillment.service';
+import { ExcelSyncController } from './excel-sync.controller';
 
 @Module({
   imports: [PaymentsModule, UploadModule, forwardRef(() => SubscriptionsModule)],
   controllers: [
+    ExcelSyncController,
     OrderController,
     StoreFulfillmentController,
     DispatchController,

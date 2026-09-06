@@ -32,6 +32,7 @@ import {
   X,
   IndianRupee,
   Trees,
+  FileSpreadsheet,
 } from "lucide-react";
 
 import { apiClient } from "@aagam/utils";
@@ -69,6 +70,7 @@ const menuItems: Record<Role, MenuItem[]> = {
     { name: "Route Planning", href: "/admin/route-planning", icon: Route },
     { name: "Riders", href: "/admin/riders", icon: Truck },
     { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
+    { name: "Excel Report", href: "/admin/orders/excel-report", icon: FileSpreadsheet },
     { name: "Live Tracking", href: "/admin/live-tracking", icon: Radar },
   ],
   RIDER: [
