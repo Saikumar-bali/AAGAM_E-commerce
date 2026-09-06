@@ -16,6 +16,7 @@ type Props = {
   style?: any;
   mapboxToken?: string;
   googleMapsApiKey?: string;
+  fullScreen?: boolean;
 };
 
 const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, googleKey?: string | null) => {
@@ -82,72 +83,36 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, go
     var searchResults = document.getElementById('search-results');
     var searchClear = document.getElementById('search-clear');
     var debounceTimer = null;
-    var GOOGLE_KEY = '${gKey}';
-
     searchInput.addEventListener('input', function() {
       var query = this.value.trim();
       searchClear.style.display = query.length > 0 ? 'block' : 'none';
       if (debounceTimer) clearTimeout(debounceTimer);
       if (query.length < 3) { searchResults.style.display = 'none'; return; }
       debounceTimer = setTimeout(function() {
-        if (GOOGLE_KEY) {
-          fetch('https://maps.googleapis.com/maps/api/place/autocomplete/json?input=' + encodeURIComponent(query) + '&key=' + GOOGLE_KEY + '&components=country:in&types=geocode|establishment')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              if (!data.predictions || data.predictions.length === 0) { searchResults.style.display = 'none'; return; }
-              searchResults.innerHTML = '';
-              data.predictions.forEach(function(p) {
-                var div = document.createElement('div');
-                div.className = 'search-result-item';
-                div.innerHTML = '<div class="search-result-type">' + (p.types[0] || '').replace(/_/g, ' ') + '</div><div class="search-result-name">' + p.description + '</div>';
-                div.addEventListener('click', function() {
-                  fetch('https://maps.googleapis.com/maps/api/place/details/json?place_id=' + p.place_id + '&key=' + GOOGLE_KEY + '&fields=geometry')
-                    .then(function(r) { return r.json(); })
-                    .then(function(detail) {
-                      if (detail.result && detail.result.geometry && detail.result.geometry.location) {
-                        var lat2 = detail.result.geometry.location.lat;
-                        var lng2 = detail.result.geometry.location.lng;
-                        map.flyTo({ center: [lng2, lat2], zoom: 16 });
-                        marker.setLngLat([lng2, lat2]);
-                        searchInput.value = p.description;
-                        searchResults.style.display = 'none';
-                        searchClear.style.display = 'block';
-                        sendPos({ lat: lat2, lng: lng2 });
-                      }
-                    })
-                    .catch(function() {});
-                });
-                searchResults.appendChild(div);
+        fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (!data.features || data.features.length === 0) { searchResults.style.display = 'none'; return; }
+            searchResults.innerHTML = '';
+            data.features.forEach(function(f) {
+              var div = document.createElement('div');
+              div.className = 'search-result-item';
+              div.innerHTML = '<div class="search-result-type">' + (f.place_type[0] || '') + '</div><div class="search-result-name">' + f.place_name + '</div>';
+              div.addEventListener('click', function() {
+                var lng2 = f.center[0];
+                var lat2 = f.center[1];
+                map.flyTo({ center: [lng2, lat2], zoom: 16 });
+                marker.setLngLat([lng2, lat2]);
+                searchInput.value = f.place_name;
+                searchResults.style.display = 'none';
+                searchClear.style.display = 'block';
+                sendPos({ lat: lat2, lng: lng2 });
               });
-              searchResults.style.display = 'block';
-            })
-            .catch(function() { searchResults.style.display = 'none'; });
-        } else {
-          fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              if (!data.features || data.features.length === 0) { searchResults.style.display = 'none'; return; }
-              searchResults.innerHTML = '';
-              data.features.forEach(function(f) {
-                var div = document.createElement('div');
-                div.className = 'search-result-item';
-                div.innerHTML = '<div class="search-result-type">' + (f.place_type[0] || '') + '</div><div class="search-result-name">' + f.place_name + '</div>';
-                div.addEventListener('click', function() {
-                  var lng2 = f.center[0];
-                  var lat2 = f.center[1];
-                  map.flyTo({ center: [lng2, lat2], zoom: 16 });
-                  marker.setLngLat([lng2, lat2]);
-                  searchInput.value = f.place_name;
-                  searchResults.style.display = 'none';
-                  searchClear.style.display = 'block';
-                  sendPos({ lat: lat2, lng: lng2 });
-                });
-                searchResults.appendChild(div);
-              });
-              searchResults.style.display = 'block';
-            })
-            .catch(function() { searchResults.style.display = 'none'; });
-        }
+              searchResults.appendChild(div);
+            });
+            searchResults.style.display = 'block';
+          })
+          .catch(function() { searchResults.style.display = 'none'; });
       }, 300);
     });
 
@@ -170,7 +135,7 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, go
 // Backward compat – keep LEAFLET_HTML alias for any external import (now uses Mapbox)
 const LEAFLET_HTML = MAPBOX_HTML;
 
-export const LeafletMap = ({ latitude, longitude, onPinChange, style, mapboxToken, googleMapsApiKey }: Props) => {
+export const LeafletMap = ({ latitude, longitude, onPinChange, style, mapboxToken, googleMapsApiKey, fullScreen }: Props) => {
   const webViewRef = useRef<any>(null);
   const lastSentRef = useRef('');
 
@@ -194,7 +159,7 @@ export const LeafletMap = ({ latitude, longitude, onPinChange, style, mapboxToke
   }, [latitude, longitude]);
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, fullScreen && styles.containerFullScreen, style]}>
       <CompatibleWebView
         ref={webViewRef}
         originWhitelist={['*']}
@@ -213,5 +178,6 @@ export const LeafletMap = ({ latitude, longitude, onPinChange, style, mapboxToke
 
 const styles = StyleSheet.create({
   container: { borderRadius: 16, overflow: 'hidden', height: 210 },
+  containerFullScreen: { borderRadius: 0, overflow: 'hidden', flex: 1 },
   webview: { flex: 1 },
 });
