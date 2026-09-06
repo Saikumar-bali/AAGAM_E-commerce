@@ -19,6 +19,10 @@ import {
   FileSpreadsheet,
   Wifi,
   WifiOff,
+  Maximize2,
+  Minimize2,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 
 interface SyncOrder {
@@ -112,6 +116,39 @@ function getStatusBgArgb(status: string): string {
   return colors[status] || 'FFF5F5F5';
 }
 
+function SortableHeader({
+  field,
+  label,
+  sortField,
+  sortDir,
+  onSort,
+  className = '',
+}: {
+  field: string;
+  label: string;
+  sortField: string;
+  sortDir: string;
+  onSort: (field: string) => void;
+  className?: string;
+}) {
+  const active = sortField === field;
+  return (
+    <th
+      className={`px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 transition-colors ${className}`}
+      onClick={() => onSort(field)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {active ? (
+          sortDir === 'asc' ? <ArrowUp className="h-3 w-3 text-emerald-600" /> : <ArrowDown className="h-3 w-3 text-emerald-600" />
+        ) : (
+          <span className="h-3 w-3" />
+        )}
+      </span>
+    </th>
+  );
+}
+
 export default function ExcelReportPage() {
   const [orders, setOrders] = useState<SyncOrder[]>([]);
   const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
@@ -123,6 +160,9 @@ export default function ExcelReportPage() {
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [connected, setConnected] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<SyncOrder | null>(null);
+  const [spreadsheetMode, setSpreadsheetMode] = useState(false);
+  const [sortField, setSortField] = useState<string>('createdAt');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   const syncOrders = useCallback(async (silent = false) => {
     if (!silent) setSyncing(true);
@@ -223,8 +263,17 @@ export default function ExcelReportPage() {
     };
   }, [syncOrders]);
 
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
   const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
+    const filtered = orders.filter((order) => {
       const matchesSearch =
         !searchTerm ||
         order.shortId.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -235,7 +284,25 @@ export default function ExcelReportPage() {
       const matchesStatus = statusFilter === 'All' || order.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [orders, searchTerm, statusFilter]);
+
+    return [...filtered].sort((a, b) => {
+      let aVal: any = a[sortField as keyof SyncOrder] ?? '';
+      let bVal: any = b[sortField as keyof SyncOrder] ?? '';
+      if (sortField === 'grandTotal' || sortField === 'subtotal') {
+        aVal = Number(aVal) || 0;
+        bVal = Number(bVal) || 0;
+      } else if (sortField === 'createdAt' || sortField === 'updatedAt') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      } else {
+        aVal = String(aVal).toLowerCase();
+        bVal = String(bVal).toLowerCase();
+      }
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [orders, searchTerm, statusFilter, sortField, sortDir]);
 
   const stats = useMemo(() => {
     const total = orders.length;
@@ -513,24 +580,27 @@ export default function ExcelReportPage() {
     }
   };
 
-  return (
-    <DashboardLayout allowedRole="ADMIN">
-      <div className="mb-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">Orders Excel Report</h1>
-              <span
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
-                  connected
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-red-50 text-red-700 border border-red-200'
-                }`}
-              >
-                {connected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                {connected ? 'Live' : 'Offline'}
-              </span>
-            </div>
+  const content = (
+    <>
+      {/* Header */}
+      <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 ${spreadsheetMode ? 'px-4 py-3 bg-white border-b border-gray-200 shrink-0' : 'mb-6'}`}>
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className={`${spreadsheetMode ? 'text-lg' : 'text-2xl'} font-bold text-gray-900`}>
+              {spreadsheetMode ? 'Live Orders — Spreadsheet View' : 'Orders Excel Report'}
+            </h1>
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+                connected
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-red-50 text-red-700 border border-red-200'
+              }`}
+            >
+              {connected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+              {connected ? 'Live' : 'Offline'}
+            </span>
+          </div>
+          {!spreadsheetMode && (
             <p className="text-gray-500 mt-1">
               Real-time synced order report with Excel export.{' '}
               {lastSyncedAt && (
@@ -539,35 +609,53 @@ export default function ExcelReportPage() {
                 </span>
               )}
             </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => syncOrders()}
-              disabled={syncing}
-              className="flex items-center px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-              Sync Now
-            </button>
-            <button
-              onClick={markAllAsRead}
-              disabled={newOrderIds.size === 0}
-              className="flex items-center px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50"
-            >
-              <EyeOff className="h-4 w-4 mr-2" />
-              Mark All Read ({newOrderIds.size})
-            </button>
-            <button
-              onClick={generateExcel}
-              disabled={isGenerating || orders.length === 0}
-              className="flex items-center px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10 disabled:opacity-50"
-            >
-              <Download className={`h-4 w-4 mr-2 ${isGenerating ? 'animate-bounce' : ''}`} />
-              {isGenerating ? 'Generating...' : 'Download Excel'}
-            </button>
-          </div>
+          )}
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => syncOrders()}
+            disabled={syncing}
+            className="flex items-center px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+            Sync Now
+          </button>
+          {!spreadsheetMode && (
+            <>
+              <button
+                onClick={markAllAsRead}
+                disabled={newOrderIds.size === 0}
+                className="flex items-center px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50"
+              >
+                <EyeOff className="h-4 w-4 mr-2" />
+                Mark All Read ({newOrderIds.size})
+              </button>
+              <button
+                onClick={generateExcel}
+                disabled={isGenerating || orders.length === 0}
+                className="flex items-center px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10 disabled:opacity-50"
+              >
+                <Download className={`h-4 w-4 mr-2 ${isGenerating ? 'animate-bounce' : ''}`} />
+                {isGenerating ? 'Generating...' : 'Download Excel'}
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => setSpreadsheetMode(!spreadsheetMode)}
+            className={`flex items-center px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${
+              spreadsheetMode
+                ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
+                : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {spreadsheetMode ? <Minimize2 className="h-4 w-4 mr-2" /> : <Maximize2 className="h-4 w-4 mr-2" />}
+            {spreadsheetMode ? 'Exit' : 'Fullscreen'}
+          </button>
+        </div>
+      </div>
 
+      {/* Stats Cards — hide in spreadsheet mode */}
+      {!spreadsheetMode && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {[
             { label: 'New Orders', value: newOrderIds.size, icon: Eye, color: 'bg-green-500' },
@@ -593,170 +681,184 @@ export default function ExcelReportPage() {
             </div>
           ))}
         </div>
+      )}
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-50 bg-gray-50/50">
-            <div className="flex flex-col lg:flex-row gap-4 items-center">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search by order ID, customer, phone, store..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="All">All Status</option>
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>
-                    {STATUS_COLORS[s]?.label || s}
-                  </option>
-                ))}
-              </select>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Filter className="h-4 w-4" />
-                {filteredOrders.length} of {orders.length} orders
-              </div>
-            </div>
+      {/* Table Container */}
+      <div className={`bg-white ${spreadsheetMode ? 'flex-1 flex flex-col overflow-hidden border-t border-gray-200' : 'rounded-2xl shadow-sm border border-gray-100 overflow-hidden'}`}>
+        {/* Toolbar */}
+        <div className={`p-3 border-b border-gray-200 bg-gray-50/50 flex flex-col lg:flex-row gap-3 items-center ${spreadsheetMode ? 'shrink-0' : ''}`}>
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by order ID, customer, phone, store..."
+              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-8"></th>
-                  <th className="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID</th>
-                  <th className="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Customer</th>
-                  <th className="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Store</th>
-                  <th className="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Items</th>
-                  <th className="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th>
-                  <th className="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Payment</th>
-                  <th className="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Rider</th>
-                  <th className="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {loading ? (
-                  <tr>
-                    <td colSpan={11} className="px-6 py-12 text-center">
-                      <RefreshCw className="h-8 w-8 text-gray-300 animate-spin mx-auto mb-3" />
-                      <p className="text-sm text-gray-500">Loading orders...</p>
-                    </td>
-                  </tr>
-                ) : filteredOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={11} className="px-6 py-12 text-center">
-                      <FileSpreadsheet className="h-12 w-12 text-gray-200 mx-auto mb-3" />
-                      <p className="text-sm font-medium text-gray-500">No orders found</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {orders.length === 0 ? 'Click "Sync Now" to fetch orders' : 'Try adjusting your filters'}
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredOrders.map((order) => {
-                    const sc = STATUS_COLORS[order.status] || STATUS_COLORS.PENDING;
-                    const isNew = newOrderIds.has(order.id);
-                    return (
-                      <tr
-                        key={order.id}
-                        className={`transition-colors group ${
-                          isNew ? 'bg-green-50/50' : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        <td className="px-4 py-4">
-                          {isNew && (
-                            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-green-500 text-white text-[10px] font-black">
-                              N
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-4">
-                          <p className="text-sm font-mono font-bold text-gray-900">{order.shortId}</p>
-                        </td>
-                        <td className="px-4 py-4">
-                          <p className="text-sm font-medium text-gray-900">{order.customerName}</p>
-                          {order.customerPhone && (
-                            <p className="text-xs text-gray-500">{order.customerPhone}</p>
-                          )}
-                        </td>
-                        <td className="px-4 py-4">
-                          <p className="text-sm text-gray-600">{order.storeName}</p>
-                        </td>
-                        <td className="px-4 py-4">
-                          <p className="text-sm text-gray-600 max-w-[200px] truncate" title={order.itemsSummary}>
-                            {order.itemsSummary}
-                          </p>
-                        </td>
-                        <td className="px-4 py-4">
-                          <p className="text-sm font-bold text-gray-900">{formatINR(order.grandTotal)}</p>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span
-                            className={`text-xs font-bold ${PAYMENT_COLORS[order.paymentMethod] || 'text-gray-600'}`}
-                          >
-                            {order.paymentMethod}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span
-                            className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold"
-                            style={{ backgroundColor: sc.bg, color: sc.text, borderColor: sc.border, borderWidth: 1 }}
-                          >
-                            {sc.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4">
-                          <p className="text-sm text-gray-600">{order.riderName || 'Unassigned'}</p>
-                        </td>
-                        <td className="px-4 py-4">
-                          <p className="text-sm text-gray-500">
-                            {new Date(order.createdAt).toLocaleDateString('en-IN', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </p>
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          <div className="flex justify-end gap-1.5">
-                            {isNew && (
-                              <button
-                                onClick={() => markAsRead(order.id)}
-                                className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                title="Mark as read"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => setSelectedOrder(order)}
-                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                              title="View details"
-                            >
-                              <Search className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            <option value="All">All Status</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_COLORS[s]?.label || s}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Filter className="h-4 w-4" />
+            {filteredOrders.length} of {orders.length} orders
           </div>
+          {spreadsheetMode && (
+            <button
+              onClick={generateExcel}
+              disabled={isGenerating || orders.length === 0}
+              className="flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-all disabled:opacity-50 ml-auto"
+            >
+              <Download className={`h-4 w-4 mr-2 ${isGenerating ? 'animate-bounce' : ''}`} />
+              {isGenerating ? 'Generating...' : 'Download Excel'}
+            </button>
+          )}
         </div>
+
+        {/* Spreadsheet Table */}
+        <div className="overflow-auto flex-1">
+          <table className="w-full text-left border-collapse">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-gray-100 border-b-2 border-gray-300">
+                <th className="px-3 py-2.5 w-8"></th>
+                <SortableHeader field="shortId" label="Order ID" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader field="customerName" label="Customer" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader field="storeName" label="Store" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <th className="px-3 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Items</th>
+                <SortableHeader field="grandTotal" label="Amount" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                <SortableHeader field="paymentMethod" label="Payment" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader field="status" label="Status" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader field="riderName" label="Rider" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader field="createdAt" label="Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                <th className="px-3 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200/60">
+              {loading ? (
+                <tr>
+                  <td colSpan={11} className="px-6 py-12 text-center">
+                    <RefreshCw className="h-8 w-8 text-gray-300 animate-spin mx-auto mb-3" />
+                    <p className="text-sm text-gray-500">Loading orders...</p>
+                  </td>
+                </tr>
+              ) : filteredOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={11} className="px-6 py-12 text-center">
+                    <FileSpreadsheet className="h-12 w-12 text-gray-200 mx-auto mb-3" />
+                    <p className="text-sm font-medium text-gray-500">No orders found</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {orders.length === 0 ? 'Click "Sync Now" to fetch orders' : 'Try adjusting your filters'}
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                filteredOrders.map((order) => {
+                  const sc = STATUS_COLORS[order.status] || STATUS_COLORS.PENDING;
+                  const isNew = newOrderIds.has(order.id);
+                  return (
+                    <tr
+                      key={order.id}
+                      className={`transition-colors group ${isNew ? 'bg-green-50/50' : ''}`}
+                      style={!isNew ? { backgroundColor: sc.bg } : { backgroundColor: '#dcfce7' }}
+                    >
+                      <td className="px-3 py-2 border-r border-gray-200/50">
+                        {isNew && (
+                          <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-green-500 text-white text-[10px] font-black">
+                            N
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 border-r border-gray-200/50">
+                        <p className="text-sm font-mono font-bold text-gray-800">{order.shortId}</p>
+                      </td>
+                      <td className="px-3 py-2 border-r border-gray-200/50">
+                        <p className="text-sm font-medium text-gray-900">{order.customerName}</p>
+                        {order.customerPhone && (
+                          <p className="text-[11px] text-gray-500">{order.customerPhone}</p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 border-r border-gray-200/50">
+                        <p className="text-sm text-gray-600">{order.storeName}</p>
+                      </td>
+                      <td className="px-3 py-2 border-r border-gray-200/50">
+                        <p className="text-sm text-gray-600 max-w-[180px] truncate" title={order.itemsSummary}>
+                          {order.itemsSummary}
+                        </p>
+                      </td>
+                      <td className="px-3 py-2 border-r border-gray-200/50 text-right">
+                        <p className="text-sm font-bold text-gray-900">{formatINR(order.grandTotal)}</p>
+                      </td>
+                      <td className="px-3 py-2 border-r border-gray-200/50">
+                        <span className={`text-[11px] font-bold ${PAYMENT_COLORS[order.paymentMethod] || 'text-gray-600'}`}>
+                          {order.paymentMethod}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 border-r border-gray-200/50">
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold"
+                          style={{ color: sc.text }}
+                        >
+                          {sc.label}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 border-r border-gray-200/50">
+                        <p className="text-sm text-gray-600">{order.riderName || 'Unassigned'}</p>
+                      </td>
+                      <td className="px-3 py-2 border-r border-gray-200/50">
+                        <p className="text-[11px] text-gray-500">
+                          {new Date(order.createdAt).toLocaleDateString('en-IN', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </p>
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <div className="flex justify-end gap-1">
+                          {isNew && (
+                            <button
+                              onClick={() => markAsRead(order.id)}
+                              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-all opacity-0 group-hover:opacity-100"
+                              title="Mark as read"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setSelectedOrder(order)}
+                            className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-all opacity-0 group-hover:opacity-100"
+                            title="View details"
+                          >
+                            <FileSpreadsheet className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+
+  return (
+    <DashboardLayout allowedRole="ADMIN">
+      <div className={spreadsheetMode ? 'fixed inset-0 z-50 bg-gray-50 flex flex-col' : 'mb-8'}>
+        {content}
       </div>
 
       {selectedOrder && (
