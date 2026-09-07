@@ -626,7 +626,7 @@ export default function AdminSubscriptionsPage() {
                         style={{ border: 0 }}
                         loading="lazy"
                         referrerPolicy="no-referrer-when-downgrade"
-                        src={`https://www.google.com/maps/embed/v1/place?key=${typeof window !== 'undefined' ? (window as any).__ENV?.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '' : ''}&q=${manualForm.line1 ? `${manualForm.line1}, ${manualForm.city}, ${manualForm.state} ${manualForm.pincode}` : manualForm.city || 'Hyderabad, India'}&zoom=15`}
+                        src={`https://www.google.com/maps/embed/v1/place?key=${typeof window !== 'undefined' ? (window as any).__ENV?.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '' : ''}&q=${manualForm.line1 ? `${manualForm.line1}, ${manualForm.city}, ${manualForm.state} ${manualForm.pincode}` : manualForm.city || 'Anakapalle, India'}&zoom=15`}
                       />
                     </div>
                     {manualForm.latitude !== 0 && (

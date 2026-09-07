@@ -117,6 +117,7 @@ export const OrderSource = {
   CHECKOUT: 'CHECKOUT',
   SUBSCRIPTION: 'SUBSCRIPTION',
   ADMIN: 'ADMIN',
+  STORE_DELIVERY: 'STORE_DELIVERY',
 } as const
 
 export type OrderSource = (typeof OrderSource)[keyof typeof OrderSource]

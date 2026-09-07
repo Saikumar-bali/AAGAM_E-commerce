@@ -9,6 +9,8 @@ ALTER TABLE "User" ADD CONSTRAINT "User_offlineStore_fkey"
 
 -- Custom offline subscriptions are store-built schedules, not catalog plans.
 ALTER TABLE "CustomerSubscription" ADD COLUMN "source" TEXT;
+ALTER TABLE "CustomerSubscription" ADD COLUMN "isCustom" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "CustomerSubscription" ADD COLUMN "storeDelivery" BOOLEAN NOT NULL DEFAULT false;
 
 -- One delivery row per service date. The slot distinguishes morning/evening/
 -- both deliveries on the same date, which the old BOTH handling silently lost
@@ -16,12 +18,40 @@ ALTER TABLE "CustomerSubscription" ADD COLUMN "source" TEXT;
 ALTER TABLE "SubscriptionDelivery" ADD COLUMN "deliverySlot" TEXT NOT NULL DEFAULT 'AM';
 ALTER TABLE "SubscriptionDelivery" ADD CONSTRAINT "SubscriptionDelivery_deliverySlot_check"
   CHECK ("deliverySlot" IN ('AM', 'PM', 'BOTH'));
-
--- Store-self-delivered orders record who delivered and the cash taken on the
--- doorstep so per-day collection tracking works without a rider COD ledger.
 ALTER TABLE "SubscriptionDelivery" ADD COLUMN "cashCollectedPaise" INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE "SubscriptionDelivery" ADD COLUMN "cashCollectedAt" TIMESTAMP(3);
 ALTER TABLE "SubscriptionDelivery" ADD COLUMN "deliveredByStoreUserId" TEXT;
+ALTER TABLE "SubscriptionDelivery" ADD COLUMN "storeDeliveryProofId" TEXT;
+
+-- Add new enum values for store delivery
+ALTER TYPE "SubscriptionDeliveryStatus" ADD VALUE 'STORE_DELIVERING';
+ALTER TYPE "DeliveryJobStatus" ADD VALUE 'STORE_DELIVERING';
+ALTER TYPE "OrderSource" ADD VALUE 'STORE_DELIVERY';
+
+-- Store self-delivery proof table for verifying customer handoff
+CREATE TABLE "StoreDeliveryProof" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "deliveryJobId" TEXT NOT NULL UNIQUE,
+    "subscriptionDeliveryId" TEXT UNIQUE,
+    "storeUserId" TEXT NOT NULL,
+    "customerNameVerified" BOOLEAN NOT NULL DEFAULT false,
+    "customerPhoneVerified" BOOLEAN NOT NULL DEFAULT false,
+    "verifiedCustomerName" TEXT,
+    "verifiedCustomerPhone" TEXT,
+    "handedOffAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "gpsLat" DOUBLE PRECISION,
+    "gpsLng" DOUBLE PRECISION,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "StoreDeliveryProof_deliveryJobId_fkey" FOREIGN KEY ("deliveryJobId") REFERENCES "DeliveryJob"("id") ON DELETE CASCADE,
+    CONSTRAINT "StoreDeliveryProof_subscriptionDeliveryId_fkey" FOREIGN KEY ("subscriptionDeliveryId") REFERENCES "SubscriptionDelivery"("id") ON DELETE SET NULL,
+    CONSTRAINT "StoreDeliveryProof_storeUserId_fkey" FOREIGN KEY ("storeUserId") REFERENCES "User"("id") ON DELETE RESTRICT
+);
+
+ALTER TABLE "DeliveryJob" ADD COLUMN "storeDeliveryProofId" TEXT UNIQUE;
+ALTER TABLE "SubscriptionDelivery" ADD COLUMN "storeDeliveryProofId" TEXT;
+ALTER TABLE "SubscriptionDelivery" ADD CONSTRAINT "SubscriptionDelivery_storeDeliveryProofId_fkey"
+  FOREIGN KEY ("storeDeliveryProofId") REFERENCES "StoreDeliveryProof"("id") ON DELETE SET NULL;
 
 ALTER TABLE "CustomerSubscription" ADD CONSTRAINT "CustomerSubscription_source_check"
   CHECK ("source" IN ('PLAN', 'CUSTOM_OFFLINE') OR "source" IS NULL);
@@ -29,3 +59,5 @@ ALTER TABLE "CustomerSubscription" ADD CONSTRAINT "CustomerSubscription_source_c
 CREATE INDEX "SubscriptionDelivery_deliverySlot_idx" ON "SubscriptionDelivery"("deliverySlot");
 CREATE INDEX "User_acquisitionSource_idx" ON "User"("acquisitionSource");
 CREATE INDEX "User_offlineStoreId_idx" ON "User"("offlineStoreId");
+CREATE INDEX "StoreDeliveryProof_storeUserId_idx" ON "StoreDeliveryProof"("storeUserId", "handedOffAt");
+CREATE INDEX "StoreDeliveryProof_deliveryJobId_idx" ON "StoreDeliveryProof"("deliveryJobId");
