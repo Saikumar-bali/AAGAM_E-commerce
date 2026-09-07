@@ -181,6 +181,7 @@ export default function AdminSubscriptionsPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [savingManual, setSavingManual] = useState(false);
+  const [manualMode, setManualMode] = useState<'plan' | 'custom'>('plan');
   const [manualForm, setManualForm] = useState({
     storeId: '',
     planId: '',
@@ -188,15 +189,25 @@ export default function AdminSubscriptionsPage() {
     customerPhone: '',
     line1: '',
     line2: '',
-    city: 'Hyderabad',
-    state: 'Telangana',
+    city: 'Anakapalle',
+    state: 'Andhra Pradesh',
     pincode: '',
+    latitude: 0,
+    longitude: 0,
     startDate: new Date().toISOString().slice(0, 10),
     totalDeliveries: '30',
     deliverySlot: 'MORNING' as 'MORNING' | 'EVENING' | 'BOTH',
     initialCashRupees: '0',
     note: '',
+    storeDelivery: false,
   });
+
+  const [customDeliveries, setCustomDeliveries] = useState<Array<{
+    date: string;
+    slot: 'AM' | 'PM' | 'BOTH';
+    items: Array<{ productId: string; quantity: number; pricePaise: number }>;
+  }>>([]);
+  const [customTotalPrice, setCustomTotalPrice] = useState('');
 
   const [editManualModalOpen, setEditManualModalOpen] = useState(false);
   const [editingSubscriber, setEditingSubscriber] = useState<any>(null);
@@ -211,13 +222,20 @@ export default function AdminSubscriptionsPage() {
 
   const submitManualSubscription = async () => {
     if (!manualForm.storeId) return toast.warning('Select a store for the subscription.');
-    if (!manualForm.planId) return toast.warning('Select a subscription plan.');
     if (!manualForm.customerName.trim() || manualForm.customerPhone.trim().length < 10) {
       return toast.warning('Enter customer name and a 10-digit phone number.');
     }
     if (!manualForm.line1.trim() || !manualForm.city.trim() || !/^\d{6}$/.test(manualForm.pincode.trim())) {
       return toast.warning('Enter full delivery address and 6-digit pincode.');
     }
+
+    if (manualMode === 'custom' && customDeliveries.length === 0) {
+      return toast.warning('Add at least one delivery day to the custom schedule.');
+    }
+    if (manualMode === 'plan' && !manualForm.planId) {
+      return toast.warning('Select a subscription plan.');
+    }
+
     setSavingManual(true);
     try {
       const custRes = await apiClient.post('/admin/subscriptions/manual-customer', {
@@ -228,27 +246,48 @@ export default function AdminSubscriptionsPage() {
         city: manualForm.city.trim(),
         state: manualForm.state.trim(),
         pincode: manualForm.pincode.trim(),
+        latitude: manualForm.latitude || undefined,
+        longitude: manualForm.longitude || undefined,
       });
       const customerId = custRes.data.customer.id;
       const addressId = custRes.data.address.id;
 
-      await apiClient.post('/admin/subscriptions/manual-subscribe', {
-        storeId: manualForm.storeId,
-        planId: manualForm.planId,
-        customerId,
-        addressId,
-        startDate: manualForm.startDate,
-        totalDeliveries: Number(manualForm.totalDeliveries || 30),
-        deliverySlot: manualForm.deliverySlot,
-        initialCashCollectedPaise: Math.round(Number(manualForm.initialCashRupees || 0) * 100),
-        note: manualForm.note.trim() || undefined,
-      });
+      if (manualMode === 'custom') {
+        await apiClient.post('/admin/subscriptions/custom-subscribe', {
+          storeId: manualForm.storeId,
+          customerId,
+          addressId,
+          totalPricePaise: Math.round(Number(customTotalPrice || 0) * 100),
+          initialCashCollectedPaise: Math.round(Number(manualForm.initialCashRupees || 0) * 100),
+          storeDelivery: manualForm.storeDelivery,
+          note: manualForm.note.trim() || undefined,
+          deliveries: customDeliveries.map((d) => ({
+            date: d.date,
+            slot: d.slot,
+            items: d.items,
+          })),
+        });
+      } else {
+        await apiClient.post('/admin/subscriptions/manual-subscribe', {
+          storeId: manualForm.storeId,
+          planId: manualForm.planId,
+          customerId,
+          addressId,
+          startDate: manualForm.startDate,
+          totalDeliveries: Number(manualForm.totalDeliveries || 30),
+          deliverySlot: manualForm.deliverySlot,
+          initialCashCollectedPaise: Math.round(Number(manualForm.initialCashRupees || 0) * 100),
+          note: manualForm.note.trim() || undefined,
+        });
+      }
 
-      toast.success('Manual subscription created successfully for offline customer!');
+      toast.success('Subscription created successfully for offline customer!');
       setManualModalOpen(false);
+      setCustomDeliveries([]);
+      setCustomTotalPrice('');
       await load();
     } catch (error) {
-      toast.error(getToastErrorMessage(error, 'Manual subscription creation failed.'));
+      toast.error(getToastErrorMessage(error, 'Subscription creation failed.'));
     } finally {
       setSavingManual(false);
     }
@@ -518,13 +557,18 @@ export default function AdminSubscriptionsPage() {
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-5">
                 <div>
                   <p className="text-xs font-black uppercase tracking-wider text-amber-700">Offline Customer Subscription</p>
-                  <h2 className="mt-1 text-2xl font-black text-slate-900">Create Manual Subscription</h2>
-                  <p className="mt-1 text-sm font-semibold text-slate-500">For illiterate/offline store customers without email or password.</p>
+                  <h2 className="mt-1 text-2xl font-black text-slate-900">Create Subscription</h2>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">For offline store customers. Choose plan-based or custom schedule.</p>
                 </div>
                 <button onClick={() => setManualModalOpen(false)} aria-label="Close form" className="rounded-xl bg-slate-100 p-3"><X className="h-5 w-5" /></button>
               </div>
 
               <div className="space-y-5 p-5">
+                <div className="flex gap-2 rounded-xl bg-slate-100 p-1">
+                  <button onClick={() => setManualMode('plan')} className={`flex-1 rounded-lg py-2.5 text-sm font-black ${manualMode === 'plan' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>Plan-Based</button>
+                  <button onClick={() => setManualMode('custom')} className={`flex-1 rounded-lg py-2.5 text-sm font-black ${manualMode === 'custom' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-500'}`}>Custom Schedule</button>
+                </div>
+
                 <section className="grid gap-4 sm:grid-cols-2">
                   <Field label="Target Store">
                     <select value={manualForm.storeId} onChange={(e) => setManualForm({ ...manualForm, storeId: e.target.value })}>
@@ -532,15 +576,22 @@ export default function AdminSubscriptionsPage() {
                       {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </Field>
-                  <Field label="Subscription Plan">
-                    <select value={manualForm.planId} onChange={(e) => {
-                      const selPlan = plans.find((p) => p.id === e.target.value);
-                      setManualForm({ ...manualForm, planId: e.target.value, totalDeliveries: selPlan ? String(selPlan.totalDeliveries) : manualForm.totalDeliveries });
-                    }}>
-                      <option value="">Select Plan</option>
-                      {plans.map((p) => <option key={p.id} value={p.id}>{p.name} ({formatPaise(p.pricePaise)})</option>)}
-                    </select>
-                  </Field>
+                  {manualMode === 'plan' && (
+                    <Field label="Subscription Plan">
+                      <select value={manualForm.planId} onChange={(e) => {
+                        const selPlan = plans.find((p) => p.id === e.target.value);
+                        setManualForm({ ...manualForm, planId: e.target.value, totalDeliveries: selPlan ? String(selPlan.totalDeliveries) : manualForm.totalDeliveries });
+                      }}>
+                        <option value="">Select Plan</option>
+                        {plans.map((p) => <option key={p.id} value={p.id}>{p.name} ({formatPaise(p.pricePaise)})</option>)}
+                      </select>
+                    </Field>
+                  )}
+                  {manualMode === 'custom' && (
+                    <Field label="Total Price (₹)">
+                      <input type="number" min="0" step="1" value={customTotalPrice} onChange={(e) => setCustomTotalPrice(e.target.value)} placeholder="e.g. 1500" />
+                    </Field>
+                  )}
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
@@ -566,28 +617,94 @@ export default function AdminSubscriptionsPage() {
                     <Field label="State"><input value={manualForm.state} onChange={(e) => setManualForm({ ...manualForm, state: e.target.value })} /></Field>
                     <Field label="Pincode"><input value={manualForm.pincode} onChange={(e) => setManualForm({ ...manualForm, pincode: e.target.value })} placeholder="500072" maxLength={6} /></Field>
                   </div>
+                  <div className="rounded-xl border border-dashed border-emerald-300 bg-white p-2">
+                    <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-emerald-600">Delivery Location (Map)</div>
+                    <div className="h-48 overflow-hidden rounded-lg">
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        style={{ border: 0 }}
+                        loading="lazy"
+                        referrerPolicy="no-referrer-when-downgrade"
+                        src={`https://www.google.com/maps/embed/v1/place?key=${typeof window !== 'undefined' ? (window as any).__ENV?.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '' : ''}&q=${manualForm.line1 ? `${manualForm.line1}, ${manualForm.city}, ${manualForm.state} ${manualForm.pincode}` : manualForm.city || 'Hyderabad, India'}&zoom=15`}
+                      />
+                    </div>
+                    {manualForm.latitude !== 0 && (
+                      <p className="mt-1 text-[10px] font-bold text-slate-400">Coordinates: {manualForm.latitude.toFixed(6)}, {manualForm.longitude.toFixed(6)}</p>
+                    )}
+                  </div>
                 </section>
 
-                <section className="grid gap-4 sm:grid-cols-3">
-                  <Field label="Start Month / Date">
-                    <input type="date" value={manualForm.startDate} onChange={(e) => setManualForm({ ...manualForm, startDate: e.target.value })} />
-                  </Field>
-                  <Field label="Total Deliveries">
-                    <input type="number" min="1" max="366" value={manualForm.totalDeliveries} onChange={(e) => setManualForm({ ...manualForm, totalDeliveries: e.target.value })} />
-                  </Field>
-                  <Field label="Delivery Slot">
-                    <select value={manualForm.deliverySlot} onChange={(e) => setManualForm({ ...manualForm, deliverySlot: e.target.value as any })}>
-                      <option value="MORNING">Morning (6 AM - 9 AM)</option>
-                      <option value="EVENING">Evening (5 PM - 8 PM)</option>
-                      <option value="BOTH">Both (Morning & Evening)</option>
-                    </select>
-                  </Field>
-                </section>
+                {manualMode === 'plan' ? (
+                  <section className="grid gap-4 sm:grid-cols-3">
+                    <Field label="Start Month / Date">
+                      <input type="date" value={manualForm.startDate} onChange={(e) => setManualForm({ ...manualForm, startDate: e.target.value })} />
+                    </Field>
+                    <Field label="Total Deliveries">
+                      <input type="number" min="1" max="366" value={manualForm.totalDeliveries} onChange={(e) => setManualForm({ ...manualForm, totalDeliveries: e.target.value })} />
+                    </Field>
+                    <Field label="Delivery Slot">
+                      <select value={manualForm.deliverySlot} onChange={(e) => setManualForm({ ...manualForm, deliverySlot: e.target.value as any })}>
+                        <option value="MORNING">Morning (6 AM - 9 AM)</option>
+                        <option value="EVENING">Evening (5 PM - 8 PM)</option>
+                        <option value="BOTH">Both (Morning & Evening)</option>
+                      </select>
+                    </Field>
+                  </section>
+                ) : (
+                  <section className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-black uppercase tracking-wider text-amber-700">Custom Delivery Schedule</h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const today = new Date().toISOString().slice(0, 10);
+                          setCustomDeliveries([...customDeliveries, { date: today, slot: 'AM' as const, items: [] }]);
+                        }}
+                        className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-black text-white hover:bg-amber-700"
+                      >+ Add Day</button>
+                    </div>
+                    <p className="text-xs text-amber-600">Add delivery days with specific dates and slots. Example: 10 days with 5 consecutive + 5 alternating.</p>
+                    {customDeliveries.length === 0 && (
+                      <div className="rounded-xl border border-dashed border-amber-300 bg-white p-6 text-center">
+                        <p className="text-sm font-bold text-amber-400">No delivery days added yet. Click "+ Add Day" to start.</p>
+                      </div>
+                    )}
+                    {customDeliveries.map((d, idx) => (
+                      <div key={idx} className="flex items-center gap-2 rounded-xl bg-white p-3 border border-amber-200">
+                        <input type="date" value={d.date} onChange={(e) => {
+                          const updated = [...customDeliveries];
+                          updated[idx].date = e.target.value;
+                          setCustomDeliveries(updated);
+                        }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-bold" />
+                        <select value={d.slot} onChange={(e) => {
+                          const updated = [...customDeliveries];
+                          updated[idx].slot = e.target.value as 'AM' | 'PM' | 'BOTH';
+                          setCustomDeliveries(updated);
+                        }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-bold">
+                          <option value="AM">AM (Morning)</option>
+                          <option value="PM">PM (Evening)</option>
+                          <option value="BOTH">Both</option>
+                        </select>
+                        <button type="button" onClick={() => setCustomDeliveries(customDeliveries.filter((_, i) => i !== idx))} className="rounded-lg bg-red-100 p-1.5 text-red-600 hover:bg-red-200"><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    ))}
+                    <div className="text-xs font-bold text-amber-600">
+                      Total delivery slots: {customDeliveries.reduce((sum, d) => sum + (d.slot === 'BOTH' ? 2 : 1), 0)}
+                    </div>
+                  </section>
+                )}
 
                 <section className="grid gap-4 sm:grid-cols-2">
                   <Field label="Initial Cash Picked / Paid (₹)">
                     <input type="number" min="0" step="1" value={manualForm.initialCashRupees} onChange={(e) => setManualForm({ ...manualForm, initialCashRupees: e.target.value })} placeholder="0" />
                   </Field>
+                  <div className="flex items-center gap-3 pt-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={manualForm.storeDelivery} onChange={(e) => setManualForm({ ...manualForm, storeDelivery: e.target.checked })} className="h-4 w-4 rounded border-slate-300" />
+                      <span className="text-sm font-bold text-slate-700">Store self-delivery</span>
+                    </label>
+                  </div>
                   <Field label="Admin / Store Note (Optional)">
                     <input value={manualForm.note} onChange={(e) => setManualForm({ ...manualForm, note: e.target.value })} placeholder="e.g. Paid ₹500 in advance at store counter" />
                   </Field>
@@ -597,7 +714,7 @@ export default function AdminSubscriptionsPage() {
               <div className="sticky bottom-0 flex justify-end gap-3 border-t border-slate-200 bg-white p-5">
                 <button onClick={() => setManualModalOpen(false)} className="min-h-12 rounded-2xl border border-slate-200 px-5 font-black">Cancel</button>
                 <button disabled={savingManual} onClick={() => void submitManualSubscription()} className="inline-flex min-h-12 min-w-40 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 font-black text-slate-950 disabled:opacity-50">
-                  {savingManual ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />} Create Subscription
+                  {savingManual ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />} {manualMode === 'custom' ? 'Create Custom Subscription' : 'Create Subscription'}
                 </button>
               </div>
             </div>

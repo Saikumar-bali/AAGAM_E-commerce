@@ -627,15 +627,119 @@ export class UpdateAdminManualSubscriptionDto {
 
   @IsOptional()
   @IsInt()
+  @Min(0)
   amountDuePaise?: number;
 
   @IsOptional()
   @IsInt()
+  @Min(0)
   amountCollectedPaise?: number;
 
   @IsOptional()
   @IsString()
   @MaxLength(500)
   note?: string;
+}
+
+export class CustomDeliveryItemDto {
+  @IsString()
+  @MinLength(1)
+  productId!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  quantity!: number;
+
+  @IsInt()
+  @Min(0)
+  pricePaise!: number;
+}
+
+export class CustomDeliveryEntryDto {
+  @IsDateString()
+  date!: string;
+
+  @IsEnum(['AM', 'PM', 'BOTH'])
+  slot!: 'AM' | 'PM' | 'BOTH';
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CustomDeliveryItemDto)
+  items!: CustomDeliveryItemDto[];
+}
+
+export class CreateCustomManualSubscriptionDto {
+  @IsString()
+  @MinLength(1)
+  storeId!: string;
+
+  @IsString()
+  @MinLength(1)
+  customerId!: string;
+
+  @IsString()
+  @MinLength(1)
+  addressId!: string;
+
+  @IsInt()
+  @Min(1)
+  totalPricePaise!: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  initialCashCollectedPaise?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  storeDelivery?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CustomDeliveryEntryDto)
+  deliveries!: CustomDeliveryEntryDto[];
+}
+
+export class StoreDeliveryCompleteDto {
+  @IsString()
+  @MinLength(1)
+  verifiedCustomerName!: string;
+
+  @IsString()
+  @MinLength(4)
+  verifiedCustomerPhone!: string;
+
+  @IsOptional()
+  @IsNumber()
+  gpsLat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  gpsLng?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  cashCollectedPaise?: number;
+}
+
+export class StoreDeliveryFailureDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(500)
+  reason!: string;
 }
 

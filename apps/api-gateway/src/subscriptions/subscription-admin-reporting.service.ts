@@ -473,5 +473,214 @@ export class SubscriptionAdminReportingService {
 
     return updated;
   }
+
+  async createCustomManualSubscription(dto: {
+    storeId: string;
+    customerId: string;
+    addressId: string;
+    totalPricePaise: number;
+    initialCashCollectedPaise?: number;
+    storeDelivery?: boolean;
+    note?: string;
+    deliveries: Array<{
+      date: string;
+      slot: 'AM' | 'PM' | 'BOTH';
+      items: Array<{ productId: string; quantity: number; pricePaise: number }>;
+    }>;
+  }, actorId: string) {
+    const store = await prisma.store.findUnique({ where: { id: dto.storeId } });
+    if (!store) throw new NotFoundException('Store not found');
+
+    const customer = await prisma.user.findUnique({ where: { id: dto.customerId } });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const address = await prisma.customerAddress.findUnique({ where: { id: dto.addressId } });
+    if (!address) throw new NotFoundException('Delivery address not found');
+
+    if (!dto.deliveries || dto.deliveries.length === 0) {
+      throw new BadRequestException('At least one delivery is required');
+    }
+
+    const sortedDeliveries = [...dto.deliveries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const startDate = new Date(sortedDeliveries[0].date);
+    const endDate = new Date(sortedDeliveries[sortedDeliveries.length - 1].date);
+    endDate.setHours(23, 59, 59, 999);
+
+    const totalDeliveries = dto.deliveries.reduce((sum, d) => {
+      return sum + (d.slot === 'BOTH' ? 2 : 1);
+    }, 0);
+
+    const initialCash = dto.initialCashCollectedPaise || 0;
+    const amountDuePaise = Math.max(0, dto.totalPricePaise - initialCash);
+    const initialStatus = initialCash >= dto.totalPricePaise ? CustomerSubscriptionStatus.ACTIVE : CustomerSubscriptionStatus.PENDING_CASH_COLLECTION;
+
+    const firstSlot = sortedDeliveries[0].slot;
+    const slotStartMinute = firstSlot === 'PM' ? 17 * 60 : 6 * 60;
+    const slotEndMinute = firstSlot === 'PM' ? 20 * 60 : 9 * 60;
+
+    const allItems = dto.deliveries.flatMap((d) => d.items);
+    const productMap = new Map<string, { name: string; totalQuantity: number }>();
+    for (const item of allItems) {
+      const existing = productMap.get(item.productId);
+      if (existing) {
+        existing.totalQuantity += item.quantity;
+      } else {
+        const product = await prisma.product.findUnique({ where: { id: item.productId }, select: { name: true } });
+        productMap.set(item.productId, { name: product?.name || 'Unknown', totalQuantity: item.quantity });
+      }
+    }
+
+    const syntheticPlanCode = `CUSTOM-${Date.now()}`;
+    const syntheticPlan = await prisma.subscriptionPlan.create({
+      data: {
+        code: syntheticPlanCode,
+        internalName: `Custom Plan for ${customer.name || customer.phone}`,
+        name: `Custom Plan - ${dto.deliveries.length} days`,
+        status: 'ACTIVE',
+        fundingCycle: 'FULL_PLAN',
+        durationDays: Math.ceil((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1,
+        totalDeliveries,
+        deliveryFrequency: 'CUSTOM',
+        customSchedule: { type: 'custom', deliveryCount: dto.deliveries.length },
+        pricePaise: dto.totalPricePaise,
+        mrpPaise: dto.totalPricePaise,
+        defaultWindowStartMinute: slotStartMinute,
+        defaultWindowEndMinute: slotEndMinute,
+        allowPause: false,
+        allowSkip: false,
+        allowTrustedDrop: false,
+        allowPersonalHandover: true,
+        allowSecurityHandover: false,
+        proofPolicy: { personalHandover: ['OTP', 'GPS'] },
+        createdById: actorId,
+        updatedById: actorId,
+      },
+    });
+
+    const itemsSnapshot = Array.from(productMap.entries()).map(([productId, data]) => ({
+      productId,
+      quantityPerDelivery: data.totalQuantity,
+      name: data.name,
+    }));
+
+    const version = await prisma.subscriptionPlanVersion.create({
+      data: {
+        planId: syntheticPlan.id,
+        version: 1,
+        pricePaise: dto.totalPricePaise,
+        mrpPaise: dto.totalPricePaise,
+        currency: 'INR',
+        totalDeliveries,
+        durationDays: Math.ceil((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1,
+        fundingCycle: 'FULL_PLAN',
+        deliveryFrequency: 'CUSTOM',
+        selectedWeekdays: [],
+        itemsSnapshot,
+        deliveryRulesSnapshot: { windowStart: slotStartMinute, windowEnd: slotEndMinute },
+        proofPolicySnapshot: { personalHandover: ['OTP', 'GPS'] },
+        applicabilitySnapshot: { storeIds: [dto.storeId] },
+        fullSnapshot: { items: itemsSnapshot, customDeliveries: dto.deliveries.length },
+        createdById: actorId,
+      },
+    });
+
+    return prisma.$transaction(async (tx) => {
+      const subscription = await tx.customerSubscription.create({
+        data: {
+          customerId: dto.customerId,
+          planId: syntheticPlan.id,
+          planVersionId: version.id,
+          addressId: dto.addressId,
+          homeStoreId: store.id,
+          source: 'custom_manual',
+          status: initialStatus,
+          startDate,
+          endDate,
+          nextDeliveryDate: startDate,
+          deliveryWindowStartMinute: slotStartMinute,
+          deliveryWindowEndMinute: slotEndMinute,
+          deliveryMethod: 'PERSONAL_HANDOVER',
+          isCustom: true,
+          storeDelivery: dto.storeDelivery || false,
+          priceSnapshot: { pricePaise: dto.totalPricePaise, mrpPaise: dto.totalPricePaise, currency: 'INR', manualNote: dto.note, isCustom: true },
+          itemsSnapshot,
+          addressSnapshot: {
+            recipientName: address.recipientName,
+            phoneE164: address.phoneE164,
+            line1: address.line1,
+            line2: address.line2,
+            city: address.city,
+            state: address.state,
+            pincode: address.pincode,
+          },
+          policySnapshot: { allowPause: false, allowSkip: false, isCustom: true },
+          fundedDeliveryCount: totalDeliveries,
+          remainingFundedDeliveries: totalDeliveries,
+          amountDuePaise,
+          amountCollectedPaise: initialCash,
+          fundingCycle: 'FULL_PLAN',
+        },
+      });
+
+      const deliveriesData: Prisma.SubscriptionDeliveryCreateManyInput[] = [];
+      let seq = 1;
+
+      for (const delivery of sortedDeliveries) {
+        const deliveryDate = new Date(delivery.date);
+        const slotPricePaise = delivery.items.reduce((sum, i) => sum + i.pricePaise * i.quantity, 0);
+
+        deliveriesData.push({
+          subscriptionId: subscription.id,
+          serviceDate: deliveryDate,
+          sequenceNumber: seq,
+          deliverySlot: delivery.slot === 'BOTH' ? 'AM' : delivery.slot,
+          status: SubscriptionDeliveryStatus.SCHEDULED,
+          generationKey: `custom:${subscription.id}:${seq}:${delivery.date}:AM`,
+          storeId: store.id,
+          cashDuePaise: delivery.slot === 'BOTH' ? Math.ceil(slotPricePaise / 2) : slotPricePaise,
+          proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
+        });
+        seq++;
+
+        if (delivery.slot === 'BOTH') {
+          deliveriesData.push({
+            subscriptionId: subscription.id,
+            serviceDate: deliveryDate,
+            sequenceNumber: seq,
+            deliverySlot: 'PM',
+            status: SubscriptionDeliveryStatus.SCHEDULED,
+            generationKey: `custom:${subscription.id}:${seq}:${delivery.date}:PM`,
+            storeId: store.id,
+            cashDuePaise: Math.floor(slotPricePaise / 2),
+            proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
+          });
+          seq++;
+        }
+      }
+
+      await tx.subscriptionDelivery.createMany({ data: deliveriesData, skipDuplicates: true });
+
+      await tx.subscriptionAuditEntry.create({
+        data: {
+          subscriptionId: subscription.id,
+          actorUserId: actorId,
+          actorRole: Role.ADMIN,
+          action: 'ADMIN_CUSTOM_SUBSCRIPTION_CREATED',
+          reason: dto.note || 'Created custom manual subscription for offline customer',
+          metadata: {
+            storeId: store.id,
+            customerId: dto.customerId,
+            totalDeliveries,
+            totalDays: sortedDeliveries.length,
+            storeDelivery: dto.storeDelivery || false,
+            isCustom: true,
+          },
+          idempotencyKey: `custom-subscription:${subscription.id}:${randomUUID()}`,
+        },
+      });
+
+      return subscription;
+    });
+  }
 }
 

@@ -17,6 +17,8 @@ model User {
   avatarUrl           String?
   emailVerified       Boolean   @default(false)
   role                Role      @default(CUSTOMER)
+  acquisitionSource   String?
+  offlineStoreId      String?
   isActive            Boolean   @default(true)
   deactivatedAt       DateTime?
   deactivationReason  String?
@@ -25,6 +27,7 @@ model User {
   updatedAt           DateTime  @updatedAt
 
   riderProfile            RiderProfile?
+  offlineStore            Store?          @relation("OfflineCustomers")
   orders                  Order[]
   addresses               CustomerAddress[]
   stores                  Store[]                  @relation("StoreOwner")
@@ -49,6 +52,7 @@ model User {
   deliveryRouteEvents DeliveryRouteEvent[]
   trustedDropCredentials TrustedDropCredential[] @relation("TrustedDropCredentialCustomer")
   trustedDropChallenges TrustedDropChallenge[] @relation("TrustedDropChallengeCustomer")
+  storeDeliveryProofs StoreDeliveryProof[]
 }
 
 enum Role {
@@ -75,6 +79,7 @@ model Store {
 
   inventory        Inventory[]
   orders           Order[]
+  offlineCustomers User[]          @relation("OfflineCustomers")
   inventoryLedgers InventoryLedger[]
   coupons              Coupon[]
   subscriptionPlanLinks SubscriptionPlanStore[]
@@ -377,6 +382,7 @@ enum OrderSource {
   CHECKOUT
   SUBSCRIPTION
   ADMIN
+  STORE_DELIVERY
 }
 
 enum OrderStatus {
@@ -394,6 +400,7 @@ enum OrderStatus {
 
 enum DeliveryJobStatus {
   WAITING_FOR_DISPATCH
+  STORE_DELIVERING
   RIDER_ASSIGNED
   RIDER_EN_ROUTE_TO_STORE
   RIDER_AT_STORE
@@ -452,6 +459,7 @@ model DeliveryJob {
   deliveryRunStop  DeliveryRunStop?
   trustedDropEvidence TrustedDropEvidence?
   subscriptionDelivery SubscriptionDelivery?
+  storeDeliveryProof StoreDeliveryProof?
 
   @@index([status, createdAt])
   @@index([currentRiderId, status])
@@ -1467,6 +1475,7 @@ enum SubscriptionDeliveryStatus {
   PACKED
   ASSIGNED
   OUT_FOR_DELIVERY
+  STORE_DELIVERING
   DELIVERED
   SKIPPED
   FAILED
@@ -1686,6 +1695,7 @@ model CustomerSubscription {
   addressId                  String
   homeStoreId                String?
   deliveryZoneId             String?
+  source                     String?
   status                     CustomerSubscriptionStatus @default(PENDING_CASH_COLLECTION)
   startDate                  DateTime
   endDate                    DateTime
@@ -1715,6 +1725,8 @@ model CustomerSubscription {
   cancelledAt                DateTime?
   cancellationReason         String?
   cancelledById              String?
+  isCustom                   Boolean                    @default(false)
+  storeDelivery              Boolean                    @default(false)
   customer                   User                       @relation("CustomerSubscriptions", fields: [customerId], references: [id], onDelete: Restrict)
   plan                       SubscriptionPlan           @relation(fields: [planId], references: [id], onDelete: Restrict)
   planVersion                SubscriptionPlanVersion    @relation(fields: [planVersionId], references: [id], onDelete: Restrict)
@@ -1744,12 +1756,16 @@ model SubscriptionDelivery {
   subscriptionId         String
   serviceDate            DateTime
   sequenceNumber         Int
+  deliverySlot           String                     @default("AM")
   status                 SubscriptionDeliveryStatus @default(SCHEDULED)
   generationKey          String                     @unique
   deliveryJobId          String?                    @unique
   storeId                String?
   deliveryZoneId         String?
   cashDuePaise           Int                        @default(0)
+  cashCollectedPaise     Int                        @default(0)
+  cashCollectedAt        DateTime?
+  deliveredByStoreUserId String?
   proofMode              SubscriptionProofMode
   failureReason          String?
   deferredReason         String?
@@ -1773,6 +1789,7 @@ model SubscriptionDelivery {
   generationAttemptRows  SubscriptionGenerationAttempt[]
   trustedDropChallenges  TrustedDropChallenge[]
   trustedDropEvidence    TrustedDropEvidence?
+  storeDeliveryProof    StoreDeliveryProof?
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
 
@@ -2222,4 +2239,26 @@ model SubscriptionWorkerFailure {
   resolvedAt    DateTime?
 
   @@index([failedAt])
+}
+
+model StoreDeliveryProof {
+  id                    String    @id @default(cuid())
+  deliveryJobId         String    @unique
+  subscriptionDeliveryId String?  @unique
+  storeUserId           String
+  customerNameVerified  Boolean   @default(false)
+  customerPhoneVerified Boolean   @default(false)
+  verifiedCustomerName  String?
+  verifiedCustomerPhone String?
+  handedOffAt           DateTime  @default(now())
+  gpsLat                Float?
+  gpsLng                Float?
+  notes                 String?
+  createdAt             DateTime  @default(now())
+
+  deliveryJob           DeliveryJob      @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  subscriptionDelivery  SubscriptionDelivery? @relation(fields: [subscriptionDeliveryId], references: [id], onDelete: SetNull)
+  storeUser             User             @relation(fields: [storeUserId], references: [id], onDelete: Restrict)
+
+  @@index([storeUserId, handedOffAt])
 }
