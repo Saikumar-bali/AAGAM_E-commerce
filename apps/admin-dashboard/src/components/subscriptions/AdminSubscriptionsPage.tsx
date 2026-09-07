@@ -177,6 +177,8 @@ export default function AdminSubscriptionsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<any>();
   const [form, setForm] = useState<PlanForm>(emptyForm());
+  const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [savingManual, setSavingManual] = useState(false);
   const [manualForm, setManualForm] = useState({
