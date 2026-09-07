@@ -6,9 +6,11 @@ import {
   Role,
   SubscriptionDeliveryStatus,
   SubscriptionIssueStatus,
+  SubscriptionProofMode,
   prisma,
 } from '@aagam/database';
 import { DeliveryJobStatus } from '@aagam/types';
+import { randomUUID } from 'crypto';
 import { AdminSubscriptionCorrectionDto, ResolveSubscriptionIssueDto } from './subscriptions.dto';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 import { isOneOf } from '../common/enum-membership';
@@ -308,9 +310,11 @@ export class SubscriptionAdminReportingService {
       });
     }
 
+    const fallbackLat = typeof dto.latitude === 'number' && Number.isFinite(dto.latitude) ? dto.latitude : 17.6868;
+    const fallbackLng = typeof dto.longitude === 'number' && Number.isFinite(dto.longitude) ? dto.longitude : 83.2185;
     const address = await prisma.customerAddress.create({
       data: {
-        customerId: customer.id,
+        userId: customer.id,
         label: 'Home',
         recipientName: dto.name.trim(),
         phoneE164: compactPhone,
@@ -321,9 +325,8 @@ export class SubscriptionAdminReportingService {
         state: dto.state.trim(),
         pincode: dto.pincode.trim(),
         country: 'IN',
-        latitude: dto.latitude ?? null,
-        longitude: dto.longitude ?? null,
-        locationSource: dto.latitude != null ? 'MAP_PIN' : 'GEOCODED',
+        latitude: fallbackLat,
+        longitude: fallbackLng,
         isDefault: true,
       },
     });
@@ -395,8 +398,8 @@ export class SubscriptionAdminReportingService {
         },
       });
 
-      // Generate delivery calendar rows
-      const deliveriesData = [];
+      // Generate delivery calendar rows - proofMode required, use PERSONAL_OTP_GPS for PERSONAL_HANDOVER
+      const deliveriesData: Prisma.SubscriptionDeliveryCreateManyInput[] = [];
       let curDate = new Date(start);
       for (let seq = 1; seq <= dto.totalDeliveries; seq++) {
         deliveriesData.push({
@@ -407,6 +410,7 @@ export class SubscriptionAdminReportingService {
           generationKey: `manual:${subscription.id}:${seq}:${curDate.toISOString().slice(0, 10)}`,
           storeId: store.id,
           cashDuePaise: seq === 1 ? amountDuePaise : 0,
+          proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
         });
         if (dto.deliverySlot !== 'BOTH' || seq % 2 === 0) {
           curDate.setDate(curDate.getDate() + 1);
@@ -422,6 +426,7 @@ export class SubscriptionAdminReportingService {
           action: 'ADMIN_MANUAL_SUBSCRIPTION_CREATED',
           reason: dto.note || 'Created manual subscription for store customer',
           metadata: { storeId: store.id, planId: plan.id, totalDeliveries: dto.totalDeliveries, deliverySlot: dto.deliverySlot },
+          idempotencyKey: `manual-subscription:${subscription.id}:${randomUUID()}`,
         },
       });
 
@@ -462,6 +467,7 @@ export class SubscriptionAdminReportingService {
         action: 'ADMIN_MANUAL_SUBSCRIPTION_UPDATED',
         reason: dto.note || 'Admin updated manual subscription parameters',
         metadata: { changes: updateData },
+        idempotencyKey: `manual-subscription-update:${id}:${randomUUID()}`,
       },
     });
 
