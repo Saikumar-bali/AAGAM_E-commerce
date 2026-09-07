@@ -26,6 +26,12 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, go
     return `<!DOCTYPE html><html><body style="display:flex;align-items:center;justify-content:center;height:100%;margin:0;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</body></html>`;
   }
   const gKey = googleKey || '';
+  // Normalize API base without regex to avoid CodeQL polynomial ReDoS on uncontrolled input.
+  const rawApiBase = apiBaseUrl || 'https://aagaam.in/api';
+  let normalizedApiBase = rawApiBase.trim();
+  while (normalizedApiBase.endsWith('/')) {
+    normalizedApiBase = normalizedApiBase.slice(0, -1);
+  }
   return `
 <!DOCTYPE html>
 <html>
@@ -84,7 +90,7 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, go
     var searchResults = document.getElementById('search-results');
     var searchClear = document.getElementById('search-clear');
     var debounceTimer = null;
-    var API_BASE = '${(apiBaseUrl || "https://aagaam.in/api").replace(/\/+$/, "")}';
+    var API_BASE = '${normalizedApiBase}';
     function renderMapboxResults(query) {
       fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}')
         .then(function(r) { return r.json(); })
@@ -94,7 +100,14 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, go
           data.features.forEach(function(f) {
             var div = document.createElement('div');
             div.className = 'search-result-item';
-            div.innerHTML = '<div class="search-result-type">' + (f.place_type[0] || '') + '</div><div class="search-result-name">' + f.place_name + '</div>';
+            var fType = document.createElement('div');
+            fType.className = 'search-result-type';
+            fType.textContent = String((f.place_type && f.place_type[0]) || '');
+            var fName = document.createElement('div');
+            fName.className = 'search-result-name';
+            fName.textContent = String(f.place_name || '');
+            div.appendChild(fType);
+            div.appendChild(fName);
             div.addEventListener('click', function() {
               var lng2 = f.center[0];
               var lat2 = f.center[1];
@@ -126,7 +139,14 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, go
               data.results.forEach(function(p) {
                 var div = document.createElement('div');
                 div.className = 'search-result-item';
-                div.innerHTML = '<div class="search-result-type">' + (p.type || '').replace(/_/g, ' ') + '</div><div class="search-result-name">' + p.displayName + '</div>';
+                var pType = document.createElement('div');
+                pType.className = 'search-result-type';
+                pType.textContent = String(p.type || '').replace(/_/g, ' ');
+                var pName = document.createElement('div');
+                pName.className = 'search-result-name';
+                pName.textContent = String(p.displayName || '');
+                div.appendChild(pType);
+                div.appendChild(pName);
                 div.addEventListener('click', function() {
                   if (p.lat != null && p.lng != null) {
                     map.flyTo({ center: [p.lng, p.lat], zoom: 16 });
