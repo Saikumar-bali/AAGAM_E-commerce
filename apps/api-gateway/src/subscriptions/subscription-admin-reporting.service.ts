@@ -6,9 +6,11 @@ import {
   Role,
   SubscriptionDeliveryStatus,
   SubscriptionIssueStatus,
+  SubscriptionProofMode,
   prisma,
 } from '@aagam/database';
 import { DeliveryJobStatus } from '@aagam/types';
+import { randomUUID } from 'crypto';
 import { AdminSubscriptionCorrectionDto, ResolveSubscriptionIssueDto } from './subscriptions.dto';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 import { isOneOf } from '../common/enum-membership';
@@ -283,4 +285,193 @@ export class SubscriptionAdminReportingService {
       },
     });
   }
+
+  async createOfflineCustomer(dto: { name: string; phone: string; line1: string; line2?: string; landmark?: string; city: string; state: string; pincode: string; latitude?: number; longitude?: number }) {
+    const compactPhone = dto.phone.trim().replace(/[\s().-]/g, '');
+    let customer = await prisma.user.findFirst({
+      where: { OR: [{ phone: compactPhone }, { phone: dto.phone.trim() }] },
+    });
+
+    if (!customer) {
+      const syntheticEmail = `offline.${compactPhone || Date.now()}@aagaam.local`;
+      customer = await prisma.user.create({
+        data: {
+          name: dto.name.trim(),
+          phone: compactPhone,
+          email: syntheticEmail,
+          role: Role.CUSTOMER,
+          emailVerified: true,
+        },
+      });
+    } else if (dto.name.trim() && !customer.name) {
+      customer = await prisma.user.update({
+        where: { id: customer.id },
+        data: { name: dto.name.trim() },
+      });
+    }
+
+    const fallbackLat = typeof dto.latitude === 'number' && Number.isFinite(dto.latitude) ? dto.latitude : 17.6868;
+    const fallbackLng = typeof dto.longitude === 'number' && Number.isFinite(dto.longitude) ? dto.longitude : 83.2185;
+    const address = await prisma.customerAddress.create({
+      data: {
+        userId: customer.id,
+        label: 'Home',
+        recipientName: dto.name.trim(),
+        phoneE164: compactPhone,
+        line1: dto.line1.trim(),
+        line2: dto.line2?.trim() || null,
+        landmark: dto.landmark?.trim() || null,
+        city: dto.city.trim(),
+        state: dto.state.trim(),
+        pincode: dto.pincode.trim(),
+        country: 'IN',
+        latitude: fallbackLat,
+        longitude: fallbackLng,
+        isDefault: true,
+      },
+    });
+
+    return { customer, address };
+  }
+
+  async createManualSubscription(dto: { storeId: string; planId: string; customerId: string; addressId: string; startDate: string; totalDeliveries: number; deliverySlot?: 'MORNING' | 'EVENING' | 'BOTH'; initialCashCollectedPaise?: number; note?: string }, actorId: string) {
+    const store = await prisma.store.findUnique({ where: { id: dto.storeId } });
+    if (!store) throw new NotFoundException('Store not found');
+
+    const plan = await prisma.subscriptionPlan.findUnique({
+      where: { id: dto.planId },
+      include: { versions: { orderBy: { version: 'desc' }, take: 1 }, items: { include: { product: true } } },
+    });
+    if (!plan) throw new NotFoundException('Subscription plan not found');
+    const version = plan.versions[0];
+    if (!version) throw new NotFoundException('Plan version missing');
+
+    const address = await prisma.customerAddress.findUnique({ where: { id: dto.addressId } });
+    if (!address) throw new NotFoundException('Delivery address not found');
+
+    const start = new Date(dto.startDate);
+    if (isNaN(start.getTime())) throw new BadRequestException('Invalid start date');
+
+    const durationDays = Math.ceil(dto.totalDeliveries / (dto.deliverySlot === 'BOTH' ? 2 : 1));
+    const end = new Date(start.getTime() + durationDays * 86_400_000);
+
+    const pricePaise = plan.pricePaise;
+    const initialCash = dto.initialCashCollectedPaise || 0;
+    const amountDuePaise = Math.max(0, pricePaise - initialCash);
+    const initialStatus = initialCash >= pricePaise ? CustomerSubscriptionStatus.ACTIVE : CustomerSubscriptionStatus.PENDING_CASH_COLLECTION;
+
+    const slotStartMinute = dto.deliverySlot === 'EVENING' ? 17 * 60 : 6 * 60;
+    const slotEndMinute = dto.deliverySlot === 'EVENING' ? 20 * 60 : 9 * 60;
+
+    return prisma.$transaction(async (tx) => {
+      const subscription = await tx.customerSubscription.create({
+        data: {
+          customerId: dto.customerId,
+          planId: plan.id,
+          planVersionId: version.id,
+          addressId: address.id,
+          homeStoreId: store.id,
+          status: initialStatus,
+          startDate: start,
+          endDate: end,
+          nextDeliveryDate: start,
+          deliveryWindowStartMinute: slotStartMinute,
+          deliveryWindowEndMinute: slotEndMinute,
+          deliveryMethod: 'PERSONAL_HANDOVER',
+          priceSnapshot: { pricePaise, mrpPaise: plan.mrpPaise, currency: 'INR', manualNote: dto.note },
+          itemsSnapshot: plan.items.map((i) => ({ productId: i.productId, quantityPerDelivery: i.quantityPerDelivery, name: i.product.name })),
+          addressSnapshot: {
+            recipientName: address.recipientName,
+            phoneE164: address.phoneE164,
+            line1: address.line1,
+            line2: address.line2,
+            city: address.city,
+            state: address.state,
+            pincode: address.pincode,
+          },
+          policySnapshot: { allowPause: plan.allowPause, allowSkip: plan.allowSkip },
+          fundedDeliveryCount: dto.totalDeliveries,
+          remainingFundedDeliveries: dto.totalDeliveries,
+          amountDuePaise,
+          amountCollectedPaise: initialCash,
+          fundingCycle: plan.fundingCycle,
+        },
+      });
+
+      // Generate delivery calendar rows - proofMode required, use PERSONAL_OTP_GPS for PERSONAL_HANDOVER
+      const deliveriesData: Prisma.SubscriptionDeliveryCreateManyInput[] = [];
+      let curDate = new Date(start);
+      for (let seq = 1; seq <= dto.totalDeliveries; seq++) {
+        deliveriesData.push({
+          subscriptionId: subscription.id,
+          serviceDate: new Date(curDate),
+          sequenceNumber: seq,
+          status: SubscriptionDeliveryStatus.SCHEDULED,
+          generationKey: `manual:${subscription.id}:${seq}:${curDate.toISOString().slice(0, 10)}`,
+          storeId: store.id,
+          cashDuePaise: seq === 1 ? amountDuePaise : 0,
+          proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
+        });
+        if (dto.deliverySlot !== 'BOTH' || seq % 2 === 0) {
+          curDate.setDate(curDate.getDate() + 1);
+        }
+      }
+      await tx.subscriptionDelivery.createMany({ data: deliveriesData, skipDuplicates: true });
+
+      await tx.subscriptionAuditEntry.create({
+        data: {
+          subscriptionId: subscription.id,
+          actorUserId: actorId,
+          actorRole: Role.ADMIN,
+          action: 'ADMIN_MANUAL_SUBSCRIPTION_CREATED',
+          reason: dto.note || 'Created manual subscription for store customer',
+          metadata: { storeId: store.id, planId: plan.id, totalDeliveries: dto.totalDeliveries, deliverySlot: dto.deliverySlot },
+          idempotencyKey: `manual-subscription:${subscription.id}:${randomUUID()}`,
+        },
+      });
+
+      return subscription;
+    });
+  }
+
+  async updateManualSubscription(id: string, dto: { startDate?: string; totalDeliveries?: number; deliverySlot?: 'MORNING' | 'EVENING' | 'BOTH'; amountDuePaise?: number; amountCollectedPaise?: number; note?: string }, actorId: string) {
+    const subscription = await prisma.customerSubscription.findUnique({ where: { id } });
+    if (!subscription) throw new NotFoundException('Subscription not found');
+
+    const updateData: any = {};
+    if (dto.startDate) {
+      const start = new Date(dto.startDate);
+      if (!isNaN(start.getTime())) updateData.startDate = start;
+    }
+    if (typeof dto.totalDeliveries === 'number' && dto.totalDeliveries > 0) {
+      updateData.fundedDeliveryCount = dto.totalDeliveries;
+      updateData.remainingFundedDeliveries = Math.max(0, dto.totalDeliveries - subscription.completedDeliveries);
+    }
+    if (typeof dto.amountDuePaise === 'number') updateData.amountDuePaise = dto.amountDuePaise;
+    if (typeof dto.amountCollectedPaise === 'number') updateData.amountCollectedPaise = dto.amountCollectedPaise;
+    if (dto.deliverySlot) {
+      updateData.deliveryWindowStartMinute = dto.deliverySlot === 'EVENING' ? 17 * 60 : 6 * 60;
+      updateData.deliveryWindowEndMinute = dto.deliverySlot === 'EVENING' ? 20 * 60 : 9 * 60;
+    }
+
+    const updated = await prisma.customerSubscription.update({
+      where: { id },
+      data: updateData,
+    });
+
+    await prisma.subscriptionAuditEntry.create({
+      data: {
+        subscriptionId: id,
+        actorUserId: actorId,
+        actorRole: Role.ADMIN,
+        action: 'ADMIN_MANUAL_SUBSCRIPTION_UPDATED',
+        reason: dto.note || 'Admin updated manual subscription parameters',
+        metadata: { changes: updateData },
+        idempotencyKey: `manual-subscription-update:${id}:${randomUUID()}`,
+      },
+    });
+
+    return updated;
+  }
 }
+

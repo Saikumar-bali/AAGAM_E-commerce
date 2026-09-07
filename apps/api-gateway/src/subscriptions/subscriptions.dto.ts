@@ -519,3 +519,123 @@ export class TrustedDropEvidenceUploadDto {
   @IsDateString()
   capturedAt?: string;
 }
+
+export class CreateManualOfflineCustomerDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  name!: string;
+
+  @IsString()
+  @MinLength(10)
+  @MaxLength(15)
+  phone!: string;
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(200)
+  line1!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  line2?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  landmark?: string;
+
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  city!: string;
+
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  state!: string;
+
+  @IsString()
+  @MinLength(6)
+  @MaxLength(6)
+  pincode!: string;
+
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
+}
+
+export class CreateAdminManualSubscriptionDto {
+  @IsString()
+  @MinLength(1)
+  storeId!: string;
+
+  @IsString()
+  @MinLength(1)
+  planId!: string;
+
+  @IsString()
+  @MinLength(1)
+  customerId!: string;
+
+  @IsString()
+  @MinLength(1)
+  addressId!: string;
+
+  @IsDateString()
+  startDate!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(366)
+  totalDeliveries!: number;
+
+  @IsOptional()
+  @IsEnum(['MORNING', 'EVENING', 'BOTH'])
+  deliverySlot?: 'MORNING' | 'EVENING' | 'BOTH';
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  initialCashCollectedPaise?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
+export class UpdateAdminManualSubscriptionDto {
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(366)
+  totalDeliveries?: number;
+
+  @IsOptional()
+  @IsEnum(['MORNING', 'EVENING', 'BOTH'])
+  deliverySlot?: 'MORNING' | 'EVENING' | 'BOTH';
+
+  @IsOptional()
+  @IsInt()
+  amountDuePaise?: number;
+
+  @IsOptional()
+  @IsInt()
+  amountCollectedPaise?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
