@@ -232,6 +232,12 @@ export default function AdminSubscriptionsPage() {
     if (manualMode === 'custom' && customDeliveries.length === 0) {
       return toast.warning('Add at least one delivery day to the custom schedule.');
     }
+    if (manualMode === 'custom' && Math.round(Number(customTotalPrice || 0) * 100) < 1) {
+      return toast.warning('Enter a total price for the custom subscription.');
+    }
+    if (manualMode === 'custom' && customDeliveries.some((d) => d.items.length === 0)) {
+      return toast.warning('Each delivery day needs at least one product. Add products to all days.');
+    }
     if (manualMode === 'plan' && !manualForm.planId) {
       return toast.warning('Select a subscription plan.');
     }
@@ -626,7 +632,7 @@ export default function AdminSubscriptionsPage() {
                         style={{ border: 0 }}
                         loading="lazy"
                         referrerPolicy="no-referrer-when-downgrade"
-                        src={`https://www.google.com/maps/embed/v1/place?key=${typeof window !== 'undefined' ? (window as any).__ENV?.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '' : ''}&q=${manualForm.line1 ? `${encodeURIComponent(manualForm.line1)}, ${encodeURIComponent(manualForm.city)}, ${encodeURIComponent(manualForm.state)} ${encodeURIComponent(manualForm.pincode)}` : encodeURIComponent(manualForm.city || 'Anakapalle, India')}&zoom=15`}
+                        src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}&q=${manualForm.line1 ? `${encodeURIComponent(manualForm.line1)}, ${encodeURIComponent(manualForm.city)}, ${encodeURIComponent(manualForm.state)} ${encodeURIComponent(manualForm.pincode)}` : encodeURIComponent(manualForm.city || 'Anakapalle, India')}&zoom=15`}
                       />
                     </div>
                     {manualForm.latitude !== 0 && (
@@ -671,22 +677,58 @@ export default function AdminSubscriptionsPage() {
                       </div>
                     )}
                     {customDeliveries.map((d, idx) => (
-                      <div key={idx} className="flex items-center gap-2 rounded-xl bg-white p-3 border border-amber-200">
-                        <input type="date" value={d.date} onChange={(e) => {
-                          const updated = [...customDeliveries];
-                          updated[idx].date = e.target.value;
-                          setCustomDeliveries(updated);
-                        }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-bold" />
-                        <select value={d.slot} onChange={(e) => {
-                          const updated = [...customDeliveries];
-                          updated[idx].slot = e.target.value as 'AM' | 'PM' | 'BOTH';
-                          setCustomDeliveries(updated);
-                        }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-bold">
-                          <option value="AM">AM (Morning)</option>
-                          <option value="PM">PM (Evening)</option>
-                          <option value="BOTH">Both</option>
-                        </select>
-                        <button type="button" onClick={() => setCustomDeliveries(customDeliveries.filter((_, i) => i !== idx))} className="rounded-lg bg-red-100 p-1.5 text-red-600 hover:bg-red-200"><X className="h-3.5 w-3.5" /></button>
+                      <div key={idx} className="rounded-xl bg-white p-3 border border-amber-200 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input type="date" value={d.date} onChange={(e) => {
+                            const updated = [...customDeliveries];
+                            updated[idx].date = e.target.value;
+                            setCustomDeliveries(updated);
+                          }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-bold" />
+                          <select value={d.slot} onChange={(e) => {
+                            const updated = [...customDeliveries];
+                            updated[idx].slot = e.target.value as 'AM' | 'PM' | 'BOTH';
+                            setCustomDeliveries(updated);
+                          }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-bold">
+                            <option value="AM">AM (Morning)</option>
+                            <option value="PM">PM (Evening)</option>
+                            <option value="BOTH">Both</option>
+                          </select>
+                          <button type="button" onClick={() => setCustomDeliveries(customDeliveries.filter((_, i) => i !== idx))} className="rounded-lg bg-red-100 p-1.5 text-red-600 hover:bg-red-200"><X className="h-3.5 w-3.5" /></button>
+                        </div>
+                        <div className="space-y-1">
+                          {d.items.map((item, itemIdx) => (
+                            <div key={itemIdx} className="flex items-center gap-1">
+                              <select value={item.productId} onChange={(e) => {
+                                const updated = [...customDeliveries];
+                                const product = products.find((p) => p.id === e.target.value);
+                                updated[idx].items[itemIdx] = {
+                                  ...updated[idx].items[itemIdx],
+                                  productId: e.target.value,
+                                  pricePaise: product?.pricePaise || 0,
+                                };
+                                setCustomDeliveries(updated);
+                              }} className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs">
+                                <option value="">Select product</option>
+                                {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select>
+                              <input type="number" min="1" value={item.quantity} onChange={(e) => {
+                                const updated = [...customDeliveries];
+                                updated[idx].items[itemIdx].quantity = Math.max(1, parseInt(e.target.value) || 1);
+                                setCustomDeliveries(updated);
+                              }} className="w-14 rounded-lg border border-slate-200 px-1 py-1 text-xs text-center" />
+                              <button type="button" onClick={() => {
+                                const updated = [...customDeliveries];
+                                updated[idx].items = updated[idx].items.filter((_, i) => i !== itemIdx);
+                                setCustomDeliveries(updated);
+                              }} className="rounded bg-red-50 p-1 text-red-500 hover:bg-red-100"><X className="h-3 w-3" /></button>
+                            </div>
+                          ))}
+                          <button type="button" onClick={() => {
+                            const updated = [...customDeliveries];
+                            updated[idx].items = [...updated[idx].items, { productId: '', quantity: 1, pricePaise: 0 }];
+                            setCustomDeliveries(updated);
+                          }} className="text-[10px] font-bold text-amber-600 hover:text-amber-700">+ Add Product</button>
+                        </div>
                       </div>
                     ))}
                     <div className="text-xs font-bold text-amber-600">

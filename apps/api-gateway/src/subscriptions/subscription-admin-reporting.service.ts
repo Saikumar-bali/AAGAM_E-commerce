@@ -494,8 +494,8 @@ export class SubscriptionAdminReportingService {
     const customer = await prisma.user.findUnique({ where: { id: dto.customerId } });
     if (!customer) throw new NotFoundException('Customer not found');
 
-    const address = await prisma.customerAddress.findUnique({ where: { id: dto.addressId } });
-    if (!address) throw new NotFoundException('Delivery address not found');
+    const address = await prisma.customerAddress.findUnique({ where: { id: dto.addressId, userId: dto.customerId } });
+    if (!address) throw new NotFoundException('Delivery address not found or does not belong to this customer');
 
     if (!dto.deliveries || dto.deliveries.length === 0) {
       throw new BadRequestException('At least one delivery is required');
@@ -624,10 +624,27 @@ export class SubscriptionAdminReportingService {
 
       const deliveriesData: Prisma.SubscriptionDeliveryCreateManyInput[] = [];
       let seq = 1;
+      let remainingDue = amountDuePaise;
 
       for (const delivery of sortedDeliveries) {
         const deliveryDate = new Date(delivery.date);
         const slotPricePaise = delivery.items.reduce((sum, i) => sum + i.pricePaise * i.quantity, 0);
+
+        let amDue = delivery.slot === 'BOTH' ? Math.ceil(slotPricePaise / 2) : slotPricePaise;
+        let pmDue = delivery.slot === 'BOTH' ? Math.floor(slotPricePaise / 2) : 0;
+
+        if (seq === 1) {
+          const firstTotal = amDue + pmDue;
+          const deduction = Math.min(initialCash, firstTotal);
+          if (delivery.slot === 'BOTH') {
+            amDue = Math.max(0, amDue - deduction);
+          } else {
+            amDue = Math.max(0, amDue - deduction);
+          }
+        }
+
+        amDue = Math.min(amDue, remainingDue);
+        remainingDue -= amDue;
 
         deliveriesData.push({
           subscriptionId: subscription.id,
@@ -637,12 +654,14 @@ export class SubscriptionAdminReportingService {
           status: SubscriptionDeliveryStatus.SCHEDULED,
           generationKey: `custom:${subscription.id}:${seq}:${delivery.date}:AM`,
           storeId: store.id,
-          cashDuePaise: delivery.slot === 'BOTH' ? Math.ceil(slotPricePaise / 2) : slotPricePaise,
+          cashDuePaise: amDue,
           proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
         });
         seq++;
 
         if (delivery.slot === 'BOTH') {
+          pmDue = Math.min(pmDue, remainingDue);
+          remainingDue -= pmDue;
           deliveriesData.push({
             subscriptionId: subscription.id,
             serviceDate: deliveryDate,
@@ -651,7 +670,7 @@ export class SubscriptionAdminReportingService {
             status: SubscriptionDeliveryStatus.SCHEDULED,
             generationKey: `custom:${subscription.id}:${seq}:${delivery.date}:PM`,
             storeId: store.id,
-            cashDuePaise: Math.floor(slotPricePaise / 2),
+            cashDuePaise: pmDue,
             proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
           });
           seq++;

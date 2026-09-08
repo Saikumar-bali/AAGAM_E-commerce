@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Headers,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -16,6 +17,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   CustomerSubscriptionStatus,
+  prisma,
   Role,
   SubscriptionPlanStatus,
 } from '@aagam/database';
@@ -556,11 +558,17 @@ export class AdminSubscriptionsController {
   }
 
   @Get('offline-customers/:customerId/delivery-tracker')
-  getDeliveryTracker(@Param('customerId') customerId: string, @Query('subscriptionId') subscriptionId?: string) {
+  async getDeliveryTracker(@Param('customerId') customerId: string, @Query('subscriptionId') subscriptionId?: string) {
     if (subscriptionId) {
       return this.offlineCustomers.getDeliveryTracker(subscriptionId);
     }
-    return this.offlineCustomers.getDeliveryTracker(customerId);
+    const sub = await prisma.customerSubscription.findFirst({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    if (!sub) throw new NotFoundException('No subscription found for this customer');
+    return this.offlineCustomers.getDeliveryTracker(sub.id);
   }
 
   @Post('offline-customers/:customerId/reactivate')

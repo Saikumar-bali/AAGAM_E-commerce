@@ -1793,7 +1793,7 @@ model SubscriptionDelivery {
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
 
-  @@unique([subscriptionId, serviceDate])
+  @@unique([subscriptionId, serviceDate, deliverySlot])
   @@unique([subscriptionId, sequenceNumber])
   @@index([status, serviceDate])
   @@index([storeId, serviceDate])

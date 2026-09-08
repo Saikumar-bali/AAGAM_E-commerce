@@ -1,10 +1,11 @@
-import { Controller, Get, Param, Post, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Body, Req, UseGuards, ForbiddenException } from '@nestjs/common';
 import { Role } from '@aagam/database';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { StoreSelfDeliveryService } from './store-self-delivery.service';
 import { StoreDeliveryCompleteDto, StoreDeliveryFailureDto } from './subscriptions.dto';
+import { prisma } from '@aagam/database';
 
 type AuthenticatedRequest = { user: { id: string; role: Role; storeId?: string } };
 
@@ -14,8 +15,15 @@ type AuthenticatedRequest = { user: { id: string; role: Role; storeId?: string }
 export class StoreSelfDeliveryController {
   constructor(private readonly storeDelivery: StoreSelfDeliveryService) {}
 
+  private async assertStoreOwnership(storeId: string, user: { id: string; role: Role }) {
+    if (user.role === Role.ADMIN) return;
+    const store = await prisma.store.findUnique({ where: { id: storeId }, select: { ownerId: true } });
+    if (!store || store.ownerId !== user.id) throw new ForbiddenException('You do not have access to this store');
+  }
+
   @Get('queue/:storeId')
-  getTodayQueue(@Param('storeId') storeId: string) {
+  async getTodayQueue(@Param('storeId') storeId: string, @Req() req: AuthenticatedRequest) {
+    await this.assertStoreOwnership(storeId, req.user);
     return this.storeDelivery.getTodayQueue(storeId);
   }
 

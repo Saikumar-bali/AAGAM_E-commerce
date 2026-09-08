@@ -1,11 +1,9 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Role, prisma } from '@aagam/database';
 import { randomUUID } from 'crypto';
 
-type DbClient = Prisma.TransactionClient | typeof prisma;
-
+@Injectable()
 export class OfflineCustomerService {
-  constructor(private readonly prisma: DbClient) {}
 
   async listCustomers(params: { search?: string; storeId?: string; status?: string; page?: number; pageSize?: number }) {
     const { search, storeId, status, page = 1, pageSize = 25 } = params;
@@ -33,18 +31,24 @@ export class OfflineCustomerService {
       ];
     }
 
-    if (storeId) {
-      where.customerSubscriptions = { some: { homeStoreId: storeId } };
-    }
-
-    if (status === 'active') {
-      where.customerSubscriptions = { some: { status: 'ACTIVE' } };
-    } else if (status === 'inactive') {
-      where.customerSubscriptions = { none: { status: { in: ['ACTIVE', 'PENDING_CASH_COLLECTION', 'GRACE_PERIOD'] } } };
+    if (status === 'inactive') {
+      where.customerSubscriptions = {
+        none: {
+          status: { in: ['ACTIVE', 'PENDING_CASH_COLLECTION', 'GRACE_PERIOD'] },
+          ...(storeId ? { homeStoreId: storeId } : {}),
+        },
+      };
+    } else {
+      const subConditions: Record<string, unknown> = {};
+      if (storeId) subConditions.homeStoreId = storeId;
+      if (status === 'active') subConditions.status = 'ACTIVE';
+      if (Object.keys(subConditions).length > 0) {
+        where.customerSubscriptions = { some: subConditions };
+      }
     }
 
     const [users, total] = await Promise.all([
-      (this.prisma as typeof prisma).user.findMany({
+      prisma.user.findMany({
         where,
         skip,
         take: pageSize,
@@ -73,7 +77,7 @@ export class OfflineCustomerService {
           orders: { take: 1, orderBy: { createdAt: 'desc' as const }, select: { createdAt: true } },
         },
       }),
-      (this.prisma as typeof prisma).user.count({ where }),
+      prisma.user.count({ where }),
     ]);
 
     const enriched = users.map((u) => {
@@ -100,7 +104,7 @@ export class OfflineCustomerService {
   }
 
   async getCustomerDetail(customerId: string) {
-    const user = await (this.prisma as typeof prisma).user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: customerId },
       include: {
         addresses: true,
@@ -165,7 +169,7 @@ export class OfflineCustomerService {
   }
 
   async getDeliveryTracker(subscriptionId: string) {
-    const subscription = await (this.prisma as typeof prisma).customerSubscription.findUnique({
+    const subscription = await prisma.customerSubscription.findUnique({
       where: { id: subscriptionId },
       include: {
         customer: { select: { id: true, name: true, phone: true, email: true } },
@@ -267,7 +271,7 @@ export class OfflineCustomerService {
   }
 
   async reactivateCustomer(customerId: string, storeId: string, actorId: string) {
-    const user = await (this.prisma as typeof prisma).user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: customerId },
       include: {
         addresses: { where: { isDefault: true }, take: 1 },

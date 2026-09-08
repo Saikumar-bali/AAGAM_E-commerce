@@ -52,6 +52,7 @@ export default function StoreSelfDeliveryPage() {
       if (storeList.length === 1) setSelectedStoreId(storeList[0].id);
     } catch (err: any) {
       toast.error(getToastErrorMessage(err, 'Failed to load stores'));
+      setLoading(false);
     }
   };
 
@@ -94,6 +95,16 @@ export default function StoreSelfDeliveryPage() {
 
   const completeDelivery = async () => {
     if (!verifyModal) return;
+    if (verifyCash) {
+      const cashNum = parseFloat(verifyCash);
+      if (!Number.isFinite(cashNum) || cashNum < 0) {
+        return toast.warning('Enter a valid non-negative cash amount.');
+      }
+      const paise = Math.round(cashNum * 100);
+      if (paise > Number.MAX_SAFE_INTEGER || paise < 0) {
+        return toast.warning('Cash amount is too large.');
+      }
+    }
     setProcessingId(verifyModal.id);
     try {
       await apiClient.post(`/store-self-delivery/complete/${verifyModal.id}`, {
@@ -347,9 +358,19 @@ function DeliveryCard({ delivery, onStart, onVerify, onFail, onMap, processing, 
         )}
 
         {phase === 'progress' && (
-          <button disabled={processing} onClick={onVerify} className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50">
-            <CheckCircle2 className="h-4 w-4 inline" /> Verify & Complete
-          </button>
+          <>
+            <button disabled={processing} onClick={onVerify} className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50">
+              <CheckCircle2 className="h-4 w-4 inline" /> Verify & Complete
+            </button>
+            {onFail && (
+              <button disabled={processing} onClick={() => {
+                const reason = window.prompt('Enter failure reason:');
+                if (reason?.trim()) onFail(reason.trim());
+              }} className="rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-50">
+                <XCircle className="h-3.5 w-3.5 inline" /> Fail
+              </button>
+            )}
+          </>
         )}
 
         {phase === 'failed' && (

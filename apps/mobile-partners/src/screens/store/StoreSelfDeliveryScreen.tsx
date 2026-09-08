@@ -133,10 +133,34 @@ export default function StoreSelfDeliveryScreen() {
     setVerifyNotes('');
   };
 
+  const recordFailure = async (deliveryId: string) => {
+    Alert.prompt(
+      'Failure Reason',
+      'Why did this delivery fail?',
+      async (reason) => {
+        if (!reason?.trim()) return;
+        try {
+          await apiClient.post(`/store-self-delivery/fail/${deliveryId}`, { reason: reason.trim() });
+          await loadDeliveries();
+        } catch (err: any) {
+          Alert.alert('Error', err?.response?.data?.message || 'Failed to record failure');
+        }
+      },
+      'plain-text',
+    );
+  };
+
   const completeDelivery = async () => {
     if (!verifyModal || !verifyName.trim() || !verifyPhone.trim()) {
       Alert.alert('Required', 'Please enter customer name and phone');
       return;
+    }
+    if (verifyCash) {
+      const cashNum = parseFloat(verifyCash);
+      if (!Number.isFinite(cashNum) || cashNum < 0) {
+        Alert.alert('Invalid', 'Enter a valid non-negative cash amount');
+        return;
+      }
     }
     setProcessingId(verifyModal.id);
     try {
@@ -301,10 +325,16 @@ export default function StoreSelfDeliveryScreen() {
               )}
 
               {d.status === 'STORE_DELIVERING' && (
-                <TouchableOpacity style={styles.completeBtn} onPress={() => openVerify(d)}>
-                  <CheckCircle size={14} color="#FFF" />
-                  <Text style={styles.completeBtnText}>Verify & Deliver</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <TouchableOpacity style={styles.completeBtn} onPress={() => openVerify(d)}>
+                    <CheckCircle size={14} color="#FFF" />
+                    <Text style={styles.completeBtnText}>Verify & Deliver</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.failBtn} onPress={() => recordFailure(d.id)}>
+                    <XCircle size={14} color="#FFF" />
+                    <Text style={styles.failBtnText}>Fail</Text>
+                  </TouchableOpacity>
+                </View>
               )}
 
               {d.status === 'DELIVERED' && (
@@ -398,6 +428,8 @@ const styles = StyleSheet.create({
   startBtnText: { fontSize: 13, fontWeight: '800', color: '#FFF' },
   completeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, backgroundColor: '#059669', paddingVertical: 10 },
   completeBtnText: { fontSize: 13, fontWeight: '800', color: '#FFF' },
+  failBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 10, backgroundColor: '#DC2626', paddingVertical: 10, paddingHorizontal: 12 },
+  failBtnText: { fontSize: 13, fontWeight: '800', color: '#FFF' },
   deliveredBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, backgroundColor: '#D1FAE5', paddingHorizontal: 12, paddingVertical: 8 },
   deliveredText: { fontSize: 12, fontWeight: '800', color: '#065F46' },
   card: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#E2E8F0' },
