@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import {
   CashDepositBatchStatus,
   CustomerSubscriptionStatus,
+  DeliveryJobStatus,
   Prisma,
   Role,
   SubscriptionDeliveryStatus,
@@ -9,7 +10,6 @@ import {
   SubscriptionProofMode,
   prisma,
 } from '@aagam/database';
-import { DeliveryJobStatus } from '@aagam/types';
 import { randomUUID } from 'crypto';
 import { AdminSubscriptionCorrectionDto, ResolveSubscriptionIssueDto } from './subscriptions.dto';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';

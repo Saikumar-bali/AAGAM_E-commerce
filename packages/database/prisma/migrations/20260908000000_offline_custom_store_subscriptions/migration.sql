@@ -21,7 +21,6 @@ ALTER TABLE "SubscriptionDelivery" ADD CONSTRAINT "SubscriptionDelivery_delivery
 ALTER TABLE "SubscriptionDelivery" ADD COLUMN "cashCollectedPaise" INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE "SubscriptionDelivery" ADD COLUMN "cashCollectedAt" TIMESTAMP(3);
 ALTER TABLE "SubscriptionDelivery" ADD COLUMN "deliveredByStoreUserId" TEXT;
-ALTER TABLE "SubscriptionDelivery" ADD COLUMN "storeDeliveryProofId" TEXT;
 
 -- Add new enum values for store delivery
 ALTER TYPE "SubscriptionDeliveryStatus" ADD VALUE 'STORE_DELIVERING';
@@ -47,11 +46,6 @@ CREATE TABLE "StoreDeliveryProof" (
     CONSTRAINT "StoreDeliveryProof_subscriptionDeliveryId_fkey" FOREIGN KEY ("subscriptionDeliveryId") REFERENCES "SubscriptionDelivery"("id") ON DELETE SET NULL,
     CONSTRAINT "StoreDeliveryProof_storeUserId_fkey" FOREIGN KEY ("storeUserId") REFERENCES "User"("id") ON DELETE RESTRICT
 );
-
-ALTER TABLE "DeliveryJob" ADD COLUMN "storeDeliveryProofId" TEXT UNIQUE;
-ALTER TABLE "SubscriptionDelivery" ADD COLUMN "storeDeliveryProofId" TEXT;
-ALTER TABLE "SubscriptionDelivery" ADD CONSTRAINT "SubscriptionDelivery_storeDeliveryProofId_fkey"
-  FOREIGN KEY ("storeDeliveryProofId") REFERENCES "StoreDeliveryProof"("id") ON DELETE SET NULL;
 
 ALTER TABLE "CustomerSubscription" ADD CONSTRAINT "CustomerSubscription_source_check"
   CHECK ("source" IN ('PLAN', 'CUSTOM_OFFLINE') OR "source" IS NULL);

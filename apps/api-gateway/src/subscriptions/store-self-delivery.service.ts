@@ -1,9 +1,11 @@
 import { BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { Prisma, Role, SubscriptionDeliveryStatus, DeliveryJobStatus } from '@aagam/database';
+import { Prisma, Role, SubscriptionDeliveryStatus, DeliveryJobStatus, prisma } from '@aagam/database';
 import { randomUUID } from 'crypto';
 
+type DbClient = Prisma.TransactionClient | typeof prisma;
+
 export class StoreSelfDeliveryService {
-  constructor(private readonly prisma: Prisma.TransactionClient | Prisma.Client) {}
+  constructor(private readonly prisma: DbClient) {}
 
   async getTodayQueue(storeId: string) {
     const today = new Date();
@@ -11,7 +13,7 @@ export class StoreSelfDeliveryService {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const deliveries = await (this.prisma as Prisma.Client).subscriptionDelivery.findMany({
+    const deliveries = await (this.prisma as typeof prisma).subscriptionDelivery.findMany({
       where: {
         storeId,
         serviceDate: { gte: today, lt: tomorrow },
@@ -100,7 +102,7 @@ export class StoreSelfDeliveryService {
   }
 
   async startDelivery(subscriptionDeliveryId: string, storeUserId: string) {
-    const subDelivery = await (this.prisma as Prisma.Client).subscriptionDelivery.findUnique({
+    const subDelivery = await (this.prisma as typeof prisma).subscriptionDelivery.findUnique({
       where: { id: subscriptionDeliveryId },
       include: { subscription: true, deliveryJob: true },
     });
@@ -111,7 +113,7 @@ export class StoreSelfDeliveryService {
       throw new BadRequestException(`Cannot start delivery in status: ${subDelivery.status}`);
     }
 
-    return (this.prisma as Prisma.Client).$transaction(async (tx) => {
+    return (this.prisma as typeof prisma).$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.subscriptionDelivery.update({
         where: { id: subscriptionDeliveryId },
         data: { status: SubscriptionDeliveryStatus.STORE_DELIVERING },
@@ -152,7 +154,7 @@ export class StoreSelfDeliveryService {
       cashCollectedPaise?: number;
     },
   ) {
-    const subDelivery = await (this.prisma as Prisma.Client).subscriptionDelivery.findUnique({
+    const subDelivery = await (this.prisma as typeof prisma).subscriptionDelivery.findUnique({
       where: { id: subscriptionDeliveryId },
       include: {
         subscription: {
@@ -172,7 +174,7 @@ export class StoreSelfDeliveryService {
     const storedPhone = (subDelivery.subscription.customer.phone || '').replace(/\D/g, '');
     const customerPhoneMatch = phoneDigits.endsWith(storedPhone.slice(-4)) || storedPhone.endsWith(phoneDigits.slice(-4));
 
-    return (this.prisma as Prisma.Client).$transaction(async (tx) => {
+    return (this.prisma as typeof prisma).$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.subscriptionDelivery.update({
         where: { id: subscriptionDeliveryId },
         data: {
@@ -253,7 +255,7 @@ export class StoreSelfDeliveryService {
     storeUserId: string,
     reason: string,
   ) {
-    const subDelivery = await (this.prisma as Prisma.Client).subscriptionDelivery.findUnique({
+    const subDelivery = await (this.prisma as typeof prisma).subscriptionDelivery.findUnique({
       where: { id: subscriptionDeliveryId },
       include: { subscription: true },
     });
@@ -263,7 +265,7 @@ export class StoreSelfDeliveryService {
       throw new BadRequestException(`Cannot record failure in status: ${subDelivery.status}`);
     }
 
-    return (this.prisma as Prisma.Client).$transaction(async (tx) => {
+    return (this.prisma as typeof prisma).$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.subscriptionDelivery.update({
         where: { id: subscriptionDeliveryId },
         data: {
@@ -302,7 +304,7 @@ export class StoreSelfDeliveryService {
   }
 
   async getCustomerInfoForVerification(subscriptionDeliveryId: string) {
-    const subDelivery = await (this.prisma as Prisma.Client).subscriptionDelivery.findUnique({
+    const subDelivery = await (this.prisma as typeof prisma).subscriptionDelivery.findUnique({
       where: { id: subscriptionDeliveryId },
       include: {
         subscription: {

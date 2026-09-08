@@ -158,7 +158,7 @@ export default function StoreSelfDeliveryScreen() {
 
   const openNavigation = (lat: number, lng: number) => {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-    partnerNavigationRef.current?.navigate('Web' as never, { url } as never);
+    (partnerNavigationRef.current as any)?.navigate('Web', { url });
   };
 
   const formatPaise = (paise: number) => `₹${(paise / 100).toLocaleString('en-IN')}`;
@@ -256,10 +256,10 @@ export default function StoreSelfDeliveryScreen() {
                 <Text style={styles.customerPhone}>{d.customer.phone}</Text>
               </View>
               <View style={styles.badges}>
-                <View style={[styles.slotBadge, slotColor(d.deliverySlot)]}>
+                <View style={[styles.slotBadge, { backgroundColor: slotColor(d.deliverySlot).bg }]}>
                   <Text style={[styles.slotBadgeText, { color: slotColor(d.deliverySlot).text }]}>{d.deliverySlot}</Text>
                 </View>
-                <View style={[styles.statusBadge, statusColor(d.status)]}>
+                <View style={[styles.statusBadge, { backgroundColor: statusColor(d.status).bg }]}>
                   <Text style={[styles.statusBadgeText, { color: statusColor(d.status).text }]}>{d.status.replace('STORE_DELIVERING', 'Out')}</Text>
                 </View>
               </View>

@@ -27,7 +27,7 @@ model User {
   updatedAt           DateTime  @updatedAt
 
   riderProfile            RiderProfile?
-  offlineStore            Store?          @relation("OfflineCustomers")
+   offlineStore            Store?          @relation("OfflineCustomers", fields: [offlineStoreId], references: [id])
   orders                  Order[]
   addresses               CustomerAddress[]
   stores                  Store[]                  @relation("StoreOwner")
@@ -459,7 +459,7 @@ model DeliveryJob {
   deliveryRunStop  DeliveryRunStop?
   trustedDropEvidence TrustedDropEvidence?
   subscriptionDelivery SubscriptionDelivery?
-  storeDeliveryProof StoreDeliveryProof?
+   storeDeliveryProof   StoreDeliveryProof?     @relation("StoreDeliveryProofDeliveryJob")
 
   @@index([status, createdAt])
   @@index([currentRiderId, status])
@@ -1789,7 +1789,7 @@ model SubscriptionDelivery {
   generationAttemptRows  SubscriptionGenerationAttempt[]
   trustedDropChallenges  TrustedDropChallenge[]
   trustedDropEvidence    TrustedDropEvidence?
-  storeDeliveryProof    StoreDeliveryProof?
+   storeDeliveryProof     StoreDeliveryProof?
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
 
@@ -2256,7 +2256,7 @@ model StoreDeliveryProof {
   notes                 String?
   createdAt             DateTime  @default(now())
 
-  deliveryJob           DeliveryJob      @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  deliveryJob           DeliveryJob      @relation("StoreDeliveryProofDeliveryJob", fields: [deliveryJobId], references: [id], onDelete: Cascade)
   subscriptionDelivery  SubscriptionDelivery? @relation(fields: [subscriptionDeliveryId], references: [id], onDelete: SetNull)
   storeUser             User             @relation(fields: [storeUserId], references: [id], onDelete: Restrict)
 
