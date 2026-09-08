@@ -21,7 +21,7 @@ describe('COD subscription delivery runs production contract', () => {
       'model SubscriptionAuditEntry',
     ]) expect(schema).toContain(model);
     expect(schema).toContain('generationKey');
-    expect(schema).toContain('@@unique([subscriptionId, serviceDate])');
+    expect(schema).toContain('@@unique([subscriptionId, serviceDate, deliverySlot])');
     expect(schema).toContain('subscriptionDeliveryId String?');
     expect(schema).toContain('orderSource      OrderSource');
     expect(schema).toContain('SUBSCRIPTION_CASH_CREDIT');

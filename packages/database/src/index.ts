@@ -103,24 +103,6 @@ Object.defineProperty(prismaClient, '$transaction', {
 
 export const prisma = prismaClient as AagamPrismaClient
 
-export const Role = {
-  CUSTOMER: 'CUSTOMER',
-  RIDER: 'RIDER',
-  ADMIN: 'ADMIN',
-  STORE_OWNER: 'STORE_OWNER',
-} as const
-
-export type Role = (typeof Role)[keyof typeof Role]
-
-
-export const OrderSource = {
-  CHECKOUT: 'CHECKOUT',
-  SUBSCRIPTION: 'SUBSCRIPTION',
-  ADMIN: 'ADMIN',
-} as const
-
-export type OrderSource = (typeof OrderSource)[keyof typeof OrderSource]
-
 export const OrderStatus = {
   PENDING: 'PENDING',
   PAYMENT_PENDING: 'PAYMENT_PENDING',

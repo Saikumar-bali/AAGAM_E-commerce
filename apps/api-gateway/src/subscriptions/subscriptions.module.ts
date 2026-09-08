@@ -6,6 +6,7 @@ import { CashDepositBatchService } from './cash-deposit-batch.service';
 import { CustomerSubscriptionService } from './customer-subscription.service';
 import { DeliveryRunOperationsService } from './delivery-run-operations.service';
 import { DeliveryRunPlanningService } from './delivery-run-planning.service';
+import { OfflineCustomerService } from './offline-customer.service';
 import { AdminRegionalRoutingController, RegionalRoutingEventsController } from './regional-routing.controller';
 import { RegionalDeliveryZoneService } from './regional-delivery-zone.service';
 import { RegionalRouteNotificationService } from './regional-route-notification.service';
@@ -24,6 +25,8 @@ import { SubscriptionOrderGenerator } from './subscription-order-generator.servi
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { SubscriptionSchedulerService } from './subscription-scheduler.service';
 import { SubscriptionServiceabilityService } from './subscription-serviceability.service';
+import { StoreSelfDeliveryController } from './store-self-delivery.controller';
+import { StoreSelfDeliveryService } from './store-self-delivery.service';
 import { TrustedDropAddressPolicyInterceptor } from './trusted-drop-address-policy.interceptor';
 import { TrustedDropService } from './trusted-drop.service';
 import {
@@ -46,6 +49,7 @@ import {
     AdminSubscriptionPreparationController,
     AdminRegionalRoutingController,
     RegionalRoutingEventsController,
+    StoreSelfDeliveryController,
   ],
   providers: [
     SubscriptionCalendarService,
@@ -71,6 +75,8 @@ import {
     CashDepositBatchService,
     SubscriptionAdminReportingService,
     SubscriptionSchedulerService,
+    OfflineCustomerService,
+    StoreSelfDeliveryService,
   ],
   exports: [
     SubscriptionCalendarService,
@@ -83,6 +89,8 @@ import {
     RegionalRouteOperationsService,
     SubscriptionCashFundingService,
     SubscriptionPreparationService,
+    OfflineCustomerService,
+    StoreSelfDeliveryService,
   ],
 })
 export class SubscriptionsModule {}

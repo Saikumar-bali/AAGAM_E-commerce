@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Headers,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -16,6 +17,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   CustomerSubscriptionStatus,
+  prisma,
   Role,
   SubscriptionPlanStatus,
 } from '@aagam/database';
@@ -30,6 +32,8 @@ import { SubscriptionAdminReportingService } from './subscription-admin-reportin
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { SubscriptionSchedulerService } from './subscription-scheduler.service';
 import { TrustedDropService } from './trusted-drop.service';
+import { OfflineCustomerService } from './offline-customer.service';
+import { StoreSelfDeliveryService } from './store-self-delivery.service';
 import {
   AdminSubscriptionCorrectionDto,
   AssignDeliveryRunDto,
@@ -41,6 +45,7 @@ import {
   ConfirmRunStopReturnDto,
   CreateCashDepositBatchDto,
   CreateCustomerSubscriptionDto,
+  CreateCustomManualSubscriptionDto,
   FailRunStopDto,
   IssueTrustedDropChallengeDto,
   PauseSubscriptionDto,
@@ -52,6 +57,8 @@ import {
   ResumeSubscriptionDto,
   RunVersionDto,
   SkipSubscriptionDeliveryDto,
+  StoreDeliveryCompleteDto,
+  StoreDeliveryFailureDto,
   SubmitCashDepositBatchDto,
   UpdateSubscriptionPlanStatusDto,
   UpdateSubscriptionPreferencesDto,
@@ -386,6 +393,7 @@ export class AdminSubscriptionsController {
     private readonly planning: DeliveryRunPlanningService,
     private readonly cash: CashDepositBatchService,
     private readonly scheduler: SubscriptionSchedulerService,
+    private readonly offlineCustomers: OfflineCustomerService,
   ) {}
 
   @Get('plans')
@@ -520,5 +528,51 @@ export class AdminSubscriptionsController {
   @Patch('subscribers/:id/manual-edit')
   updateManualSubscription(@Param('id') id: string, @Body() body: UpdateAdminManualSubscriptionDto, @Req() req: AuthenticatedRequest) {
     return this.reporting.updateManualSubscription(id, body, req.user.id);
+  }
+
+  @Post('custom-subscribe')
+  createCustomManualSubscription(@Body() body: CreateCustomManualSubscriptionDto, @Req() req: AuthenticatedRequest) {
+    return this.reporting.createCustomManualSubscription(body, req.user.id);
+  }
+
+  @Get('offline-customers')
+  listOfflineCustomers(
+    @Query('search') search?: string,
+    @Query('storeId') storeId?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.offlineCustomers.listCustomers({
+      search,
+      storeId,
+      status,
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 25,
+    });
+  }
+
+  @Get('offline-customers/:customerId')
+  getOfflineCustomerDetail(@Param('customerId') customerId: string) {
+    return this.offlineCustomers.getCustomerDetail(customerId);
+  }
+
+  @Get('offline-customers/:customerId/delivery-tracker')
+  async getDeliveryTracker(@Param('customerId') customerId: string, @Query('subscriptionId') subscriptionId?: string) {
+    if (subscriptionId) {
+      return this.offlineCustomers.getDeliveryTracker(subscriptionId);
+    }
+    const sub = await prisma.customerSubscription.findFirst({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    if (!sub) throw new NotFoundException('No subscription found for this customer');
+    return this.offlineCustomers.getDeliveryTracker(sub.id);
+  }
+
+  @Post('offline-customers/:customerId/reactivate')
+  reactivateCustomer(@Param('customerId') customerId: string, @Body() body: { storeId: string }, @Req() req: AuthenticatedRequest) {
+    return this.offlineCustomers.reactivateCustomer(customerId, body.storeId, req.user.id);
   }
 }

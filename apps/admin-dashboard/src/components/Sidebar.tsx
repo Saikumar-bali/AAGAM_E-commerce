@@ -33,6 +33,8 @@ import {
   IndianRupee,
   Trees,
   FileSpreadsheet,
+  Users,
+  UserCheck,
 } from "lucide-react";
 
 import { apiClient } from "@aagam/utils";
@@ -67,6 +69,8 @@ const menuItems: Record<Role, MenuItem[]> = {
     { name: "Delivery Fee Rules", href: "/admin/delivery-fee-rules", icon: IndianRupee },
     { name: "Promotions", href: "/admin/promotions", icon: Megaphone },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: CalendarDays },
+    { name: "Offline Customers", href: "/admin/offline-customers", icon: Users },
+    { name: "Store Delivery", href: "/admin/store-delivery", icon: UserCheck },
     { name: "Route Planning", href: "/admin/route-planning", icon: Route },
     { name: "Riders", href: "/admin/riders", icon: Truck },
     { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
