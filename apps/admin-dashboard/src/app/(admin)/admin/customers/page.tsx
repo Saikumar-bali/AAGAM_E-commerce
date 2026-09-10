@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import OfflineCustomersPage from '@/components/offline-customers/OfflineCustomersPage';
@@ -99,6 +99,25 @@ const addressSearchText = (address: CustomerAddress) =>
 type CustomerTab = 'registered' | 'offline';
 
 export default function AdminCustomersPage() {
+  return (
+    <Suspense fallback={<CustomersSkeleton />}>
+      <AdminCustomersPageContent />
+    </Suspense>
+  );
+}
+
+function CustomersSkeleton() {
+  return (
+    <DashboardLayout allowedRole="ADMIN">
+      <div className="space-y-4">
+        <div className="h-28 animate-pulse rounded-2xl bg-gray-100" />
+        <div className="h-96 animate-pulse rounded-2xl bg-gray-100" />
+      </div>
+    </DashboardLayout>
+  );
+}
+
+function AdminCustomersPageContent() {
   const searchParams = useSearchParams();
   const [tab, setTabState] = useState<CustomerTab>(
     (searchParams.get('tab') as CustomerTab) === 'offline' ? 'offline' : 'registered',
