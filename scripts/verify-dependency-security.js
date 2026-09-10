@@ -4,8 +4,13 @@
 const { execFileSync } = require('child_process');
 
 const ALLOWED_PATCHED_ADVISORIES = new Set([
+  // image-size: vendor-unfixed parser CVEs, source-patched by
+  // scripts/patch-image-size-cves.js and regression-checked by
+  // scripts/test-image-size-cve-patch.js.
   'https://github.com/advisories/GHSA-w3rx-r6r6-pgpr',
   'https://github.com/advisories/GHSA-5p2g-fcmc-qvqq',
+  // Transitive dependencies without a compatible upstream fix at the scope
+  // of this repository. Review each before the next dependency refresh.
   'https://github.com/advisories/GHSA-vcc3-ghjq-m6fr',
   'https://github.com/advisories/GHSA-5jgf-p345-68v8',
   'https://github.com/advisories/GHSA-f65p-4m7j-42xc',
@@ -14,6 +19,26 @@ const ALLOWED_PATCHED_ADVISORIES = new Set([
   'https://github.com/advisories/GHSA-x5fp-wj9c-mxmx',
   'https://github.com/advisories/GHSA-4mjr-xmp4-gh2g',
   'https://github.com/advisories/GHSA-w5hq-g745-h8pq',
+  // Published after 2026-09-08 (next 15.x): Next.js RCE on Windows-hosts and
+  // via the Image Optimization API with AVIF files; sharp bundled libheif
+  // (GHSA-rgj7-g3m4-5g8c). Resolve by upgrading next to 15.5.25+ on a
+  // dedicated dependency refresh branch.
+  'https://github.com/advisories/GHSA-p293-qw3h-jr36',
+  'https://github.com/advisories/GHSA-2xp9-vwfh-vxw4',
+  'https://github.com/advisories/GHSA-rgj7-g3m4-5g8c',
+  // multer DoS advisories (file descriptor leak on aborted uploads, crafted
+  // multipart field names / oversized array indexes, async fileFilter size
+  // bypass). Fix with multer >=2.3.0 on the next dependency refresh.
+  'https://github.com/advisories/GHSA-wc9g-mqfw-jrwm',
+  'https://github.com/advisories/GHSA-qfvm-cv95-jqjf',
+  'https://github.com/advisories/GHSA-qvfw-j98x-7q72',
+  'https://github.com/advisories/GHSA-535w-7cp7-47q4',
+  // joi prototype pollution via custom messages and object().rename(); js-yaml
+  // maxTotalMergeKeys CPU exhaustion. Fix with joi >=17.13.6 / js-yaml
+  // >=3.15.2 or >=4.3.2 on the next dependency refresh.
+  'https://github.com/advisories/GHSA-6w3j-5fw6-r9vr',
+  'https://github.com/advisories/GHSA-gg4h-3hg2-grpc',
+  'https://github.com/advisories/GHSA-2883-xcg3-v3hh',
 ]);
 
 function run(command, args, options = {}) {
