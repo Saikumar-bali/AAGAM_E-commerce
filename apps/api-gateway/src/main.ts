@@ -106,23 +106,32 @@ class RedisIoAdapter extends IoAdapter {
   async connectToRedis(redisUrl: string): Promise<void> {
     const pubClient = createClient({ url: redisUrl });
     const subClient = pubClient.duplicate();
+    let timeoutHandle: NodeJS.Timeout | undefined;
+    // node-redis retries indefinitely on connection failure, which would hang
+    // bootstrap. Give up after a grace period outside production so the default
+    // WebSocket adapter fallback can take over. Always close both clients (and
+    // the pending timer) on any failure to avoid leaking retry loops.
+    const isProduction = process.env.NODE_ENV === 'production';
+    const timeoutMs = isProduction ? 30_000 : 5_000;
     pubClient.on('error', (error) => {
       logger.error(`Redis pub client error: ${error instanceof Error ? error.message : String(error)}`);
     });
     subClient.on('error', (error) => {
       logger.error(`Redis sub client error: ${error instanceof Error ? error.message : String(error)}`);
     });
-    // node-redis retries indefinitely on connection failure, which would hang
-    // bootstrap. Give up after a grace period outside production so the default
-    // WebSocket adapter fallback can take over.
-    const isProduction = process.env.NODE_ENV === 'production';
-    const timeoutMs = isProduction ? 30_000 : 5_000;
-    await Promise.race([
-      Promise.all([pubClient.connect(), subClient.connect()]),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Redis connect timed out after ${timeoutMs}ms`)), timeoutMs),
-      ),
-    ]);
+    try {
+      await Promise.race([
+        Promise.all([pubClient.connect(), subClient.connect()]),
+        new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(() => reject(new Error(`Redis connect timed out after ${timeoutMs}ms`)), timeoutMs);
+        }),
+      ]);
+    } catch (error) {
+      await Promise.allSettled([pubClient.disconnect(), subClient.disconnect()]);
+      throw error;
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
     this.adapterConstructor = createAdapter(pubClient, subClient);
   }
   createIOServer(port: number, options?: ServerOptions): any {

@@ -288,6 +288,9 @@ export class SubscriptionAdminReportingService {
 
   async createOfflineCustomer(dto: { name: string; phone: string; line1: string; line2?: string; landmark?: string; city: string; state: string; pincode: string; latitude?: number; longitude?: number }) {
     const compactPhone = dto.phone.trim().replace(/[\s().-]/g, '');
+    if (!/^\d{10}$/.test(compactPhone)) {
+      throw new BadRequestException('Phone number must be exactly 10 digits');
+    }
     let customer = await prisma.user.findFirst({
       where: { OR: [{ phone: compactPhone }, { phone: dto.phone.trim() }] },
     });
@@ -303,7 +306,8 @@ export class SubscriptionAdminReportingService {
           emailVerified: true,
         },
       });
-    } else if (dto.name.trim() && !customer.name) {
+    } else if (dto.name.trim() && dto.name.trim() !== (customer.name || '')) {
+      // Persist an edited display name so admin edits are not silently dropped.
       customer = await prisma.user.update({
         where: { id: customer.id },
         data: { name: dto.name.trim() },
@@ -312,6 +316,14 @@ export class SubscriptionAdminReportingService {
 
     const fallbackLat = typeof dto.latitude === 'number' && Number.isFinite(dto.latitude) ? dto.latitude : 17.6868;
     const fallbackLng = typeof dto.longitude === 'number' && Number.isFinite(dto.longitude) ? dto.longitude : 83.2185;
+
+    // Clear any existing default addresses before creating a new one to avoid
+    // multiple defaults on the same customer (which could cause stale prefill).
+    await prisma.customerAddress.updateMany({
+      where: { userId: customer.id, isDefault: true },
+      data: { isDefault: false },
+    });
+
     const address = await prisma.customerAddress.create({
       data: {
         userId: customer.id,

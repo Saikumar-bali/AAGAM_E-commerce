@@ -211,6 +211,7 @@ export default function AdminSubscriptionsPage() {
 
   const [offlineCustomers, setOfflineCustomers] = useState<any[]>([]);
   const [offlineCustomersLoading, setOfflineCustomersLoading] = useState(false);
+  const [offlineCustomerSearch, setOfflineCustomerSearch] = useState('');
   const [selectedOfflineCustomer, setSelectedOfflineCustomer] = useState<any>(null);
 
   const [editManualModalOpen, setEditManualModalOpen] = useState(false);
@@ -226,7 +227,7 @@ export default function AdminSubscriptionsPage() {
 
   const submitManualSubscription = async () => {
     if (!manualForm.storeId) return toast.warning('Select a store for the subscription.');
-    if (!manualForm.customerName.trim() || manualForm.customerPhone.trim().length < 10) {
+    if (!manualForm.customerName.trim() || !/^\d{10}$/.test(manualForm.customerPhone.trim().replace(/[\s().-]/g, ''))) {
       return toast.warning('Enter customer name and a 10-digit phone number.');
     }
     if (!manualForm.line1.trim() || !manualForm.city.trim() || !/^\d{6}$/.test(manualForm.pincode.trim())) {
@@ -252,9 +253,11 @@ export default function AdminSubscriptionsPage() {
       // edited; only create/re-resolve via manual-customer for new customers
       // or changed addresses (that endpoint reuses the user by phone).
       const existingAddress = selectedOfflineCustomer?.addresses?.[0];
-      const addressUnchanged = Boolean(
+      const detailsUnchanged = Boolean(
         selectedOfflineCustomer &&
         existingAddress &&
+        manualForm.customerName.trim() === (selectedOfflineCustomer.name || '') &&
+        manualForm.customerPhone.trim().replace(/[\s().-]/g, '') === (selectedOfflineCustomer.phone || '').replace(/[\s().-]/g, '') &&
         manualForm.line1.trim() === (existingAddress.line1 || '') &&
         manualForm.line2.trim() === (existingAddress.line2 || '') &&
         manualForm.city.trim() === (existingAddress.city || '') &&
@@ -264,7 +267,7 @@ export default function AdminSubscriptionsPage() {
 
       let customerId: string;
       let addressId: string;
-      if (addressUnchanged && existingAddress) {
+      if (detailsUnchanged && existingAddress) {
         customerId = selectedOfflineCustomer.id;
         addressId = existingAddress.id;
       } else {
@@ -403,7 +406,13 @@ export default function AdminSubscriptionsPage() {
     let active = true;
     setOfflineCustomersLoading(true);
     apiClient
-      .get('/admin/subscriptions/offline-customers', { params: { page: 1, pageSize: 200 } })
+      .get('/admin/subscriptions/offline-customers', {
+        params: {
+          page: 1,
+          pageSize: 200,
+          ...(offlineCustomerSearch.trim() ? { search: offlineCustomerSearch.trim() } : {}),
+        },
+      })
       .then((res) => {
         if (active) setOfflineCustomers(res.data?.customers || []);
       })
@@ -416,12 +425,26 @@ export default function AdminSubscriptionsPage() {
     return () => {
       active = false;
     };
-  }, [manualModalOpen]);
+  }, [manualModalOpen, offlineCustomerSearch]);
 
   const selectOfflineCustomer = (customerId: string) => {
     const customer = offlineCustomers.find((entry) => entry.id === customerId) || null;
     setSelectedOfflineCustomer(customer);
-    if (!customer) return;
+    if (!customer) {
+      setManualForm((current) => ({
+        ...current,
+        customerName: '',
+        customerPhone: '',
+        line1: '',
+        line2: '',
+        city: 'Anakapalle',
+        state: 'Andhra Pradesh',
+        pincode: '',
+        latitude: 0,
+        longitude: 0,
+      }));
+      return;
+    }
     const address = customer.addresses?.[0];
     const lastSubscription = customer.customerSubscriptions?.[0];
     const preferredStoreId =
@@ -673,20 +696,31 @@ export default function AdminSubscriptionsPage() {
                 <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
                   <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">Customer Information (No Login Required)</h3>
                   <Field label="Existing Offline Customer">
-                    <select
-                      value={selectedOfflineCustomer?.id || ''}
-                      onChange={(e) => selectOfflineCustomer(e.target.value)}
-                      disabled={offlineCustomersLoading}
-                    >
-                      <option value="">
-                        {offlineCustomersLoading ? 'Loading customers…' : '— New customer (enter details below) —'}
-                      </option>
-                      {offlineCustomers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name || 'Unnamed'}{c.phone ? ` — ${c.phone}` : c.email ? ` — ${c.email}` : ''}
+                    <div className="space-y-1.5">
+                      <input
+                        value={offlineCustomerSearch}
+                        onChange={(e) => setOfflineCustomerSearch(e.target.value)}
+                        placeholder="Search existing customers by name or phone…"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                      <select
+                        value={selectedOfflineCustomer?.id || ''}
+                        onChange={(e) => selectOfflineCustomer(e.target.value)}
+                        disabled={offlineCustomersLoading}
+                      >
+                        <option value="">
+                          {offlineCustomersLoading ? 'Loading customers…' : '— New customer (enter details below) —'}
                         </option>
-                      ))}
-                    </select>
+                        {offlineCustomers.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name || 'Unnamed'}{c.phone ? ` — ${c.phone}` : c.email ? ` — ${c.email}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {offlineCustomers.length === 0 && !offlineCustomersLoading && (
+                        <p className="text-[10px] font-bold text-slate-400">No existing customers match your search. Enter details below to create a new one.</p>
+                      )}
+                    </div>
                   </Field>
                   {selectedOfflineCustomer ? (
                     <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">

@@ -529,6 +529,8 @@ export class CreateManualOfflineCustomerDto {
   @IsString()
   @MinLength(10)
   @MaxLength(15)
+  @Matches(/^\d+$/, { message: 'phone must contain only digits' })
+  @Matches(/^\d{10}$/, { message: 'phone must be exactly 10 digits' })
   phone!: string;
 
   @IsString()

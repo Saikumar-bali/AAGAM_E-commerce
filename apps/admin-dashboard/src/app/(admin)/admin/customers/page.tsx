@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import OfflineCustomersPage from '@/components/offline-customers/OfflineCustomersPage';
 import { apiClient } from '@aagam/utils';
@@ -98,15 +99,21 @@ const addressSearchText = (address: CustomerAddress) =>
 type CustomerTab = 'registered' | 'offline';
 
 export default function AdminCustomersPage() {
-  const [tab, setTab] = useState<CustomerTab>('registered');
+  const searchParams = useSearchParams();
+  const [tab, setTabState] = useState<CustomerTab>(
+    (searchParams.get('tab') as CustomerTab) === 'offline' ? 'offline' : 'registered',
+  );
 
-  useEffect(() => {
-    // Allow deep-links like /admin/customers?tab=offline (the old
-    // /admin/offline-customers route redirects here).
-    if (new URLSearchParams(window.location.search).get('tab') === 'offline') {
-      setTab('offline');
+  const setTab = (newTab: CustomerTab) => {
+    setTabState(newTab);
+    const url = new URL(window.location.href);
+    if (newTab === 'registered') {
+      url.searchParams.delete('tab');
+    } else {
+      url.searchParams.set('tab', newTab);
     }
-  }, []);
+    window.history.replaceState({}, '', url.toString());
+  };
 
   return (
     <DashboardLayout allowedRole="ADMIN">

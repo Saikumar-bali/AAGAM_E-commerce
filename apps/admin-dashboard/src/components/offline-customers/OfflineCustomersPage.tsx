@@ -84,14 +84,34 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
 
   const handleSearch = () => { setPage(1); loadCustomers(1, search); };
 
+  const geocodeAddress = async (line1: string, city: string, state: string, pincode: string): Promise<{ latitude: number; longitude: number } | null> => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) return null;
+    const query = [line1, city, state, pincode].filter(Boolean).join(', ');
+    try {
+      const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`);
+      const data = await res.json();
+      if (data.status === 'OK' && data.results?.[0]?.geometry?.location) {
+        return { latitude: data.results[0].geometry.location.lat, longitude: data.results[0].geometry.location.lng };
+      }
+    } catch {}
+    return null;
+  };
+
   const handleCreateCustomer = async () => {
     if (!createForm.name.trim()) return toast.warning('Enter customer name.');
-    if (!createForm.phone.trim() || createForm.phone.trim().length < 10) return toast.warning('Enter a valid 10-digit phone number.');
+    if (!createForm.phone.trim() || !/^\d{10}$/.test(createForm.phone.trim().replace(/[\s().-]/g, ''))) return toast.warning('Enter a valid 10-digit phone number.');
     if (!createForm.line1.trim()) return toast.warning('Enter address line 1.');
     if (!createForm.pincode.trim() || !/^\d{6}$/.test(createForm.pincode.trim())) return toast.warning('Enter a valid 6-digit pincode.');
 
     setCreating(true);
     try {
+      let lat = createForm.latitude;
+      let lng = createForm.longitude;
+      if (!lat || !lng) {
+        const coords = await geocodeAddress(createForm.line1, createForm.city, createForm.state, createForm.pincode);
+        if (coords) { lat = coords.latitude; lng = coords.longitude; }
+      }
       await apiClient.post('/admin/subscriptions/manual-customer', {
         name: createForm.name.trim(),
         phone: createForm.phone.trim(),
@@ -100,8 +120,8 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
         city: createForm.city.trim(),
         state: createForm.state.trim(),
         pincode: createForm.pincode.trim(),
-        latitude: createForm.latitude || undefined,
-        longitude: createForm.longitude || undefined,
+        latitude: lat || undefined,
+        longitude: lng || undefined,
       });
       toast.success('Offline customer created successfully!');
       setCreateModalOpen(false);
