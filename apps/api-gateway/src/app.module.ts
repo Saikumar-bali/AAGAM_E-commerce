@@ -36,12 +36,21 @@ import { LocalitiesModule } from './localities/localities.module';
       { name: 'medium', ttl: 10000, limit: process.env.PLAYWRIGHT_QA === 'true' ? 2000 : 20 },
       { name: 'long', ttl: 60000, limit: process.env.PLAYWRIGHT_QA === 'true' ? 10000 : 60 },
     ]),
-    CacheModule.register({
-      isGlobal: true,
-      store: redisStore,
-      url: process.env.REDIS_URL || 'redis://localhost:6379',
-      ttl: 600,
-    }),
+    CacheModule.register(
+      process.env.REDIS_URL
+        ? {
+            isGlobal: true,
+            store: redisStore,
+            url: process.env.REDIS_URL,
+            ttl: 600,
+          }
+        : {
+            // No REDIS_URL configured — fall back to the in-memory cache store
+            // so local development can run without a Redis instance.
+            isGlobal: true,
+            ttl: 600,
+          },
+    ),
     AuthModule,
     ProductModule,
     StoreModule,

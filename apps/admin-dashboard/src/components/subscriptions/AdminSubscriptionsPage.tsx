@@ -209,6 +209,10 @@ export default function AdminSubscriptionsPage() {
   }>>([]);
   const [customTotalPrice, setCustomTotalPrice] = useState('');
 
+  const [offlineCustomers, setOfflineCustomers] = useState<any[]>([]);
+  const [offlineCustomersLoading, setOfflineCustomersLoading] = useState(false);
+  const [selectedOfflineCustomer, setSelectedOfflineCustomer] = useState<any>(null);
+
   const [editManualModalOpen, setEditManualModalOpen] = useState(false);
   const [editingSubscriber, setEditingSubscriber] = useState<any>(null);
   const [editSubscriberForm, setEditSubscriberForm] = useState({
@@ -244,19 +248,40 @@ export default function AdminSubscriptionsPage() {
 
     setSavingManual(true);
     try {
-      const custRes = await apiClient.post('/admin/subscriptions/manual-customer', {
-        name: manualForm.customerName.trim(),
-        phone: manualForm.customerPhone.trim(),
-        line1: manualForm.line1.trim(),
-        line2: manualForm.line2.trim() || undefined,
-        city: manualForm.city.trim(),
-        state: manualForm.state.trim(),
-        pincode: manualForm.pincode.trim(),
-        latitude: manualForm.latitude || undefined,
-        longitude: manualForm.longitude || undefined,
-      });
-      const customerId = custRes.data.customer.id;
-      const addressId = custRes.data.address.id;
+      // Reuse the picked offline customer's record when the address was not
+      // edited; only create/re-resolve via manual-customer for new customers
+      // or changed addresses (that endpoint reuses the user by phone).
+      const existingAddress = selectedOfflineCustomer?.addresses?.[0];
+      const addressUnchanged = Boolean(
+        selectedOfflineCustomer &&
+        existingAddress &&
+        manualForm.line1.trim() === (existingAddress.line1 || '') &&
+        manualForm.line2.trim() === (existingAddress.line2 || '') &&
+        manualForm.city.trim() === (existingAddress.city || '') &&
+        manualForm.state.trim() === (existingAddress.state || '') &&
+        manualForm.pincode.trim() === (existingAddress.pincode || ''),
+      );
+
+      let customerId: string;
+      let addressId: string;
+      if (addressUnchanged && existingAddress) {
+        customerId = selectedOfflineCustomer.id;
+        addressId = existingAddress.id;
+      } else {
+        const custRes = await apiClient.post('/admin/subscriptions/manual-customer', {
+          name: manualForm.customerName.trim(),
+          phone: manualForm.customerPhone.trim(),
+          line1: manualForm.line1.trim(),
+          line2: manualForm.line2.trim() || undefined,
+          city: manualForm.city.trim(),
+          state: manualForm.state.trim(),
+          pincode: manualForm.pincode.trim(),
+          latitude: manualForm.latitude || undefined,
+          longitude: manualForm.longitude || undefined,
+        });
+        customerId = custRes.data.customer.id;
+        addressId = custRes.data.address.id;
+      }
 
       if (manualMode === 'custom') {
         await apiClient.post('/admin/subscriptions/custom-subscribe', {
@@ -369,6 +394,54 @@ export default function AdminSubscriptionsPage() {
   useEffect(() => {
     void load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lazy-load the offline customer directory when the manual subscription
+  // modal opens, so existing customers can be picked from a dropdown instead
+  // of retyping their details every time.
+  useEffect(() => {
+    if (!manualModalOpen) return;
+    let active = true;
+    setOfflineCustomersLoading(true);
+    apiClient
+      .get('/admin/subscriptions/offline-customers', { params: { page: 1, pageSize: 200 } })
+      .then((res) => {
+        if (active) setOfflineCustomers(res.data?.customers || []);
+      })
+      .catch(() => {
+        if (active) setOfflineCustomers([]);
+      })
+      .finally(() => {
+        if (active) setOfflineCustomersLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [manualModalOpen]);
+
+  const selectOfflineCustomer = (customerId: string) => {
+    const customer = offlineCustomers.find((entry) => entry.id === customerId) || null;
+    setSelectedOfflineCustomer(customer);
+    if (!customer) return;
+    const address = customer.addresses?.[0];
+    const lastSubscription = customer.customerSubscriptions?.[0];
+    const preferredStoreId =
+      lastSubscription?.homeStore?.id && stores.some((s) => s.id === lastSubscription.homeStore.id)
+        ? lastSubscription.homeStore.id
+        : null;
+    setManualForm((current) => ({
+      ...current,
+      storeId: preferredStoreId || current.storeId,
+      customerName: customer.name || '',
+      customerPhone: customer.phone || '',
+      line1: address?.line1 || '',
+      line2: address?.line2 || '',
+      city: address?.city || 'Anakapalle',
+      state: address?.state || 'Andhra Pradesh',
+      pincode: address?.pincode || '',
+      latitude: address?.latitude || 0,
+      longitude: address?.longitude || 0,
+    }));
+  };
 
   const openCreate = () => {
     setEditing(undefined);
@@ -512,40 +585,37 @@ export default function AdminSubscriptionsPage() {
 
   return (
     <DashboardLayout allowedRole="ADMIN">
-      <div className="space-y-6 p-4 sm:p-7">
-        <section className="rounded-[30px] bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-700 p-6 text-white shadow-xl">
-          <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[.22em] text-emerald-200">Recurring delivery operations</p>
-              <h1 className="mt-3 text-3xl font-black">Subscriptions, runs & cash</h1>
-              <p className="mt-2 max-w-3xl leading-7 text-emerald-100">Customer subscriptions are shown first. Plan definitions stay separate so operational records are never confused with billing presets.</p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <button onClick={() => void load()} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-5 font-black"><RefreshCw className="h-4 w-4" /> Refresh</button>
-              <button onClick={() => setManualModalOpen(true)} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-amber-400 px-5 font-black text-slate-900 shadow-md hover:bg-amber-300"><Plus className="h-5 w-5" /> Manual Subscription</button>
-              <button onClick={openCreate} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-white px-5 font-black text-emerald-800"><Plus className="h-5 w-5" /> New plan</button>
-            </div>
+      <div className="space-y-3 p-3 sm:p-4">
+        <section className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-lg font-black text-slate-900">Subscriptions, runs & cash</h1>
+            <p className="text-xs font-semibold text-slate-500">Customer subscriptions first; plan definitions stay separate from billing presets.</p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={() => void load()} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50"><RefreshCw className="h-3.5 w-3.5" /> Refresh</button>
+            <button onClick={() => { setSelectedOfflineCustomer(null); setManualModalOpen(true); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-black text-slate-900 hover:bg-amber-300"><Plus className="h-3.5 w-3.5" /> Manual Subscription</button>
+            <button onClick={openCreate} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-xs font-black text-white hover:bg-emerald-800"><Plus className="h-3.5 w-3.5" /> New plan</button>
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {cards.map(([cardLabel, value, Icon]: any) => (
-            <div key={cardLabel} className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between"><span className="rounded-2xl bg-emerald-50 p-3 text-emerald-700"><Icon className="h-5 w-5" /></span><strong className="text-3xl text-slate-900">{value}</strong></div>
-              <p className="mt-4 text-sm font-black text-slate-600">{cardLabel}</p>
+            <div key={cardLabel} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+              <div className="flex items-center gap-2 text-emerald-700"><span className="rounded-lg bg-emerald-50 p-1.5"><Icon className="h-3.5 w-3.5" /></span><span className="text-xs font-black text-slate-600">{cardLabel}</span></div>
+              <strong className="text-lg text-slate-900">{value}</strong>
             </div>
           ))}
         </section>
 
-        <nav className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5">
+        <nav className="flex gap-0.5 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
           {tabs.map(([key, tabLabel, Icon]) => (
-            <button key={key} onClick={() => setTab(key)} className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-black ${tab === key ? 'bg-emerald-100 text-emerald-800' : 'text-slate-500 hover:bg-slate-50'}`}>
-              <Icon className="h-4 w-4" /> {tabLabel}
+            <button key={key} onClick={() => setTab(key)} className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-black ${tab === key ? 'bg-emerald-100 text-emerald-800' : 'text-slate-500 hover:bg-slate-50'}`}>
+              <Icon className="h-3.5 w-3.5" /> {tabLabel}
             </button>
           ))}
         </nav>
 
-        {loading ? <div className="flex min-h-72 items-center justify-center"><Loader2 className="h-9 w-9 animate-spin text-emerald-700" /></div> : (
+        {loading ? <div className="flex min-h-48 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-emerald-700" /></div> : (
           <main>
             {tab === 'subscribers' ? <Subscribers rows={subscribers} onEditSubscriber={openSubscriberEdit} />
               : tab === 'plans' ? <Plans plans={plans} onEdit={openEdit} onLifecycle={lifecycle} />
@@ -558,18 +628,18 @@ export default function AdminSubscriptionsPage() {
         )}
 
         {manualModalOpen ? (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="Manual offline subscription form">
-            <div className="max-h-[96vh] w-full max-w-3xl overflow-y-auto rounded-t-[28px] bg-white shadow-2xl sm:rounded-[28px]">
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-5">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Manual offline subscription form">
+            <div className="max-h-[96vh] w-full max-w-3xl overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-amber-700">Offline Customer Subscription</p>
-                  <h2 className="mt-1 text-2xl font-black text-slate-900">Create Subscription</h2>
-                  <p className="mt-1 text-sm font-semibold text-slate-500">For offline store customers. Choose plan-based or custom schedule.</p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Offline Customer Subscription</p>
+                  <h2 className="mt-0.5 text-lg font-black text-slate-900">Create Subscription</h2>
+                  <p className="text-xs font-semibold text-slate-500">For offline store customers. Choose plan-based or custom schedule.</p>
                 </div>
-                <button onClick={() => setManualModalOpen(false)} aria-label="Close form" className="rounded-xl bg-slate-100 p-3"><X className="h-5 w-5" /></button>
+                <button onClick={() => setManualModalOpen(false)} aria-label="Close form" className="rounded-lg bg-slate-100 p-2"><X className="h-4 w-4" /></button>
               </div>
 
-              <div className="space-y-5 p-5">
+              <div className="space-y-3 p-4">
                 <div className="flex gap-2 rounded-xl bg-slate-100 p-1">
                   <button onClick={() => setManualMode('plan')} className={`flex-1 rounded-lg py-2.5 text-sm font-black ${manualMode === 'plan' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>Plan-Based</button>
                   <button onClick={() => setManualMode('custom')} className={`flex-1 rounded-lg py-2.5 text-sm font-black ${manualMode === 'custom' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-500'}`}>Custom Schedule</button>
@@ -600,8 +670,29 @@ export default function AdminSubscriptionsPage() {
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
-                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-700">Customer Information (No Login Required)</h3>
+                <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">Customer Information (No Login Required)</h3>
+                  <Field label="Existing Offline Customer">
+                    <select
+                      value={selectedOfflineCustomer?.id || ''}
+                      onChange={(e) => selectOfflineCustomer(e.target.value)}
+                      disabled={offlineCustomersLoading}
+                    >
+                      <option value="">
+                        {offlineCustomersLoading ? 'Loading customers…' : '— New customer (enter details below) —'}
+                      </option>
+                      {offlineCustomers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name || 'Unnamed'}{c.phone ? ` — ${c.phone}` : c.email ? ` — ${c.email}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  {selectedOfflineCustomer ? (
+                    <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+                      Picked from the offline customer list — name, phone, address{selectedOfflineCustomer.customerSubscriptions?.[0]?.homeStore?.name ? ' and usual store' : ''} filled in. Edit any field if something changed; otherwise leave as is.
+                    </p>
+                  ) : null}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Customer Full Name">
                       <input value={manualForm.customerName} onChange={(e) => setManualForm({ ...manualForm, customerName: e.target.value })} placeholder="e.g. Ramesh Kumar" />
@@ -658,42 +749,42 @@ export default function AdminSubscriptionsPage() {
                     </Field>
                   </section>
                 ) : (
-                  <section className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
+                  <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-black uppercase tracking-wider text-amber-700">Custom Delivery Schedule</h3>
+                      <h3 className="text-xs font-black uppercase tracking-wider text-amber-700">Custom Delivery Schedule</h3>
                       <button
                         type="button"
                         onClick={() => {
                           const today = new Date().toISOString().slice(0, 10);
                           setCustomDeliveries([...customDeliveries, { date: today, slot: 'AM' as const, items: [] }]);
                         }}
-                        className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-black text-white hover:bg-amber-700"
+                        className="rounded-lg bg-amber-600 px-2.5 py-1 text-[10px] font-black text-white hover:bg-amber-700"
                       >+ Add Day</button>
                     </div>
-                    <p className="text-xs text-amber-600">Add delivery days with specific dates and slots. Example: 10 days with 5 consecutive + 5 alternating.</p>
+                    <p className="text-[10px] text-amber-600">Add delivery days with specific dates and slots. Example: 10 days with 5 consecutive + 5 alternating.</p>
                     {customDeliveries.length === 0 && (
-                      <div className="rounded-xl border border-dashed border-amber-300 bg-white p-6 text-center">
-                        <p className="text-sm font-bold text-amber-400">No delivery days added yet. Click "+ Add Day" to start.</p>
+                      <div className="rounded-lg border border-dashed border-amber-300 bg-white p-4 text-center">
+                        <p className="text-xs font-bold text-amber-400">No delivery days added yet. Click "+ Add Day" to start.</p>
                       </div>
                     )}
                     {customDeliveries.map((d, idx) => (
-                      <div key={idx} className="rounded-xl bg-white p-3 border border-amber-200 space-y-2">
-                        <div className="flex items-center gap-2">
+                      <div key={idx} className="rounded-lg bg-white p-2.5 border border-amber-200 space-y-1.5">
+                        <div className="flex items-center gap-1.5">
                           <input type="date" value={d.date} onChange={(e) => {
                             const updated = [...customDeliveries];
                             updated[idx].date = e.target.value;
                             setCustomDeliveries(updated);
-                          }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-bold" />
+                          }} className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold" />
                           <select value={d.slot} onChange={(e) => {
                             const updated = [...customDeliveries];
                             updated[idx].slot = e.target.value as 'AM' | 'PM' | 'BOTH';
                             setCustomDeliveries(updated);
-                          }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-bold">
-                            <option value="AM">AM (Morning)</option>
-                            <option value="PM">PM (Evening)</option>
+                          }} className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
                             <option value="BOTH">Both</option>
                           </select>
-                          <button type="button" onClick={() => setCustomDeliveries(customDeliveries.filter((_, i) => i !== idx))} className="rounded-lg bg-red-100 p-1.5 text-red-600 hover:bg-red-200"><X className="h-3.5 w-3.5" /></button>
+                          <button type="button" onClick={() => setCustomDeliveries(customDeliveries.filter((_, i) => i !== idx))} className="rounded bg-red-100 p-1 text-red-600 hover:bg-red-200"><X className="h-3 w-3" /></button>
                         </div>
                         <div className="space-y-1">
                           {d.items.map((item, itemIdx) => (
@@ -707,7 +798,7 @@ export default function AdminSubscriptionsPage() {
                                   pricePaise: product?.pricePaise || 0,
                                 };
                                 setCustomDeliveries(updated);
-                              }} className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs">
+                              }} className="flex-1 rounded-lg border border-slate-200 px-2 py-0.5 text-[10px]">
                                 <option value="">Select product</option>
                                 {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                               </select>
@@ -715,12 +806,12 @@ export default function AdminSubscriptionsPage() {
                                 const updated = [...customDeliveries];
                                 updated[idx].items[itemIdx].quantity = Math.max(1, parseInt(e.target.value) || 1);
                                 setCustomDeliveries(updated);
-                              }} className="w-14 rounded-lg border border-slate-200 px-1 py-1 text-xs text-center" />
+                              }} className="w-12 rounded-lg border border-slate-200 px-1 py-0.5 text-[10px] text-center" />
                               <button type="button" onClick={() => {
                                 const updated = [...customDeliveries];
                                 updated[idx].items = updated[idx].items.filter((_, i) => i !== itemIdx);
                                 setCustomDeliveries(updated);
-                              }} className="rounded bg-red-50 p-1 text-red-500 hover:bg-red-100"><X className="h-3 w-3" /></button>
+                              }} className="rounded bg-red-50 p-0.5 text-red-500 hover:bg-red-100"><X className="h-2.5 w-2.5" /></button>
                             </div>
                           ))}
                           <button type="button" onClick={() => {
@@ -731,7 +822,7 @@ export default function AdminSubscriptionsPage() {
                         </div>
                       </div>
                     ))}
-                    <div className="text-xs font-bold text-amber-600">
+                    <div className="text-[10px] font-bold text-amber-600">
                       Total delivery slots: {customDeliveries.reduce((sum, d) => sum + (d.slot === 'BOTH' ? 2 : 1), 0)}
                     </div>
                   </section>
@@ -753,10 +844,10 @@ export default function AdminSubscriptionsPage() {
                 </section>
               </div>
 
-              <div className="sticky bottom-0 flex justify-end gap-3 border-t border-slate-200 bg-white p-5">
-                <button onClick={() => setManualModalOpen(false)} className="min-h-12 rounded-2xl border border-slate-200 px-5 font-black">Cancel</button>
-                <button disabled={savingManual} onClick={() => void submitManualSubscription()} className="inline-flex min-h-12 min-w-40 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 font-black text-slate-950 disabled:opacity-50">
-                  {savingManual ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />} {manualMode === 'custom' ? 'Create Custom Subscription' : 'Create Subscription'}
+              <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white p-4">
+                <button onClick={() => setManualModalOpen(false)} className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-black">Cancel</button>
+                <button disabled={savingManual} onClick={() => void submitManualSubscription()} className="inline-flex min-h-10 min-w-32 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 text-xs font-black text-slate-950 disabled:opacity-50">
+                  {savingManual ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {manualMode === 'custom' ? 'Create Custom Subscription' : 'Create Subscription'}
                 </button>
               </div>
             </div>
@@ -764,18 +855,18 @@ export default function AdminSubscriptionsPage() {
         ) : null}
 
         {editManualModalOpen && editingSubscriber ? (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="Edit subscriber modal">
-            <div className="max-h-[96vh] w-full max-w-2xl overflow-y-auto rounded-t-[28px] bg-white shadow-2xl sm:rounded-[28px]">
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-5">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Edit subscriber modal">
+            <div className="max-h-[96vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Subscriber Management</p>
-                  <h2 className="mt-1 text-2xl font-black text-slate-900">Edit Subscription #{editingSubscriber.id.slice(-6)}</h2>
-                  <p className="mt-1 text-sm font-semibold text-slate-500">Customer: {editingSubscriber.customer?.name || editingSubscriber.customer?.email}</p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Subscriber Management</p>
+                  <h2 className="mt-0.5 text-lg font-black text-slate-900">Edit Subscription #{editingSubscriber.id.slice(-6)}</h2>
+                  <p className="text-xs font-semibold text-slate-500">Customer: {editingSubscriber.customer?.name || editingSubscriber.customer?.email}</p>
                 </div>
-                <button onClick={() => setEditManualModalOpen(false)} aria-label="Close edit form" className="rounded-xl bg-slate-100 p-3"><X className="h-5 w-5" /></button>
+                <button onClick={() => setEditManualModalOpen(false)} aria-label="Close edit form" className="rounded-lg bg-slate-100 p-2"><X className="h-4 w-4" /></button>
               </div>
 
-              <div className="space-y-4 p-5">
+              <div className="space-y-3 p-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Start Month / Date">
                     <input type="date" value={editSubscriberForm.startDate} onChange={(e) => setEditSubscriberForm({ ...editSubscriberForm, startDate: e.target.value })} />
@@ -804,10 +895,10 @@ export default function AdminSubscriptionsPage() {
                 </Field>
               </div>
 
-              <div className="sticky bottom-0 flex justify-end gap-3 border-t border-slate-200 bg-white p-5">
-                <button onClick={() => setEditManualModalOpen(false)} className="min-h-12 rounded-2xl border border-slate-200 px-5 font-black">Cancel</button>
-                <button disabled={savingManual} onClick={() => void saveSubscriberEdit()} className="inline-flex min-h-12 min-w-40 items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-5 font-black text-white disabled:opacity-50">
-                  {savingManual ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />} Save Changes
+              <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white p-4">
+                <button onClick={() => setEditManualModalOpen(false)} className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-black">Cancel</button>
+                <button disabled={savingManual} onClick={() => void saveSubscriberEdit()} className="inline-flex min-h-10 min-w-32 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-4 text-xs font-black text-white disabled:opacity-50">
+                  {savingManual ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Changes
                 </button>
               </div>
             </div>
@@ -815,15 +906,15 @@ export default function AdminSubscriptionsPage() {
         ) : null}
 
         {formOpen ? (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="Subscription plan form">
-            <div className="max-h-[96vh] w-full max-w-4xl overflow-y-auto rounded-t-[28px] bg-white shadow-2xl sm:rounded-[28px]">
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-5">
-                <div><p className="text-xs font-black uppercase tracking-wider text-emerald-700">Plan definition</p><h2 className="mt-1 text-2xl font-black text-slate-900">{editing ? 'Edit subscription plan' : 'Create subscription plan'}</h2><p className="mt-1 text-sm font-semibold text-slate-500">Technical codes, paise conversion and scheduler defaults are handled automatically.</p></div>
-                <button onClick={() => setFormOpen(false)} aria-label="Close subscription plan form" className="rounded-xl bg-slate-100 p-3"><X className="h-5 w-5" /></button>
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Subscription plan form">
+            <div className="max-h-[96vh] w-full max-w-4xl overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-4">
+                <div><p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Plan definition</p><h2 className="mt-0.5 text-lg font-black text-slate-900">{editing ? 'Edit subscription plan' : 'Create subscription plan'}</h2><p className="text-xs font-semibold text-slate-500">Technical codes, paise conversion and scheduler defaults are handled automatically.</p></div>
+                <button onClick={() => setFormOpen(false)} aria-label="Close subscription plan form" className="rounded-lg bg-slate-100 p-2"><X className="h-4 w-4" /></button>
               </div>
 
-              <div className="space-y-6 p-5">
-                <section className="grid gap-5 lg:grid-cols-2">
+              <div className="space-y-4 p-4">
+                <section className="grid gap-3 lg:grid-cols-2">
                   <Field label="Plan name"><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="e.g. Daily Milk - 30 Days" /></Field>
                   <Field label="Payment cadence" group>
                     <div className="grid grid-cols-3 gap-2">
@@ -836,51 +927,51 @@ export default function AdminSubscriptionsPage() {
                   <div className="lg:col-span-2"><Field label="Description (optional)"><textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Short customer-facing explanation" /></Field></div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-black text-slate-800">Plan image <span className="font-semibold text-slate-400">(optional)</span></p><p className="mt-1 text-xs font-semibold text-slate-500">One upload is automatically reused for mobile.</p></div><label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-white px-4 text-sm font-black text-emerald-800"><input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => void uploadPlanImage(event)} />{uploadingImage ? 'Uploading…' : form.imageUrl ? 'Replace image' : 'Upload plan image'}</label></div>
-                  {form.imageUrl ? <p className="mt-3 truncate text-xs font-semibold text-emerald-700">Image ready</p> : null}
+                <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-black text-slate-800">Plan image <span className="font-semibold text-slate-400">(optional)</span></p><p className="text-[10px] font-semibold text-slate-500">One upload is automatically reused for mobile.</p></div><label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-lg border border-dashed border-emerald-300 bg-white px-3 text-xs font-black text-emerald-800"><input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => void uploadPlanImage(event)} />{uploadingImage ? 'Uploading…' : form.imageUrl ? 'Replace image' : 'Upload plan image'}</label></div>
+                  {form.imageUrl ? <p className="mt-2 truncate text-[10px] font-semibold text-emerald-700">Image ready</p> : null}
                 </section>
 
                 <section>
-                  <h3 className="text-base font-black text-slate-900">Delivery schedule</h3>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <h3 className="text-sm font-black text-slate-900">Delivery schedule</h3>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <Field label="How often"><select value={form.deliveryFrequency} onChange={(event) => { const deliveryFrequency = event.target.value; setForm((current) => ({ ...current, deliveryFrequency, totalDeliveries: deliveryFrequency === 'DAILY' ? current.durationDays : current.totalDeliveries })); }}>{frequencyOptions.map(([value, optionLabel]) => <option key={value} value={value}>{optionLabel}</option>)}</select></Field>
                     <Field label="Plan duration (days)"><input type="number" min="1" max="366" value={form.durationDays} onChange={(event) => { const durationDays = event.target.value; setForm((current) => ({ ...current, durationDays, totalDeliveries: current.deliveryFrequency === 'DAILY' ? durationDays : current.totalDeliveries })); }} /></Field>
                     {form.deliveryFrequency === 'DAILY' ? <div className="rounded-xl bg-emerald-50 px-4 py-3"><p className="text-xs font-black uppercase tracking-wide text-emerald-700">Deliveries</p><p className="mt-2 font-black text-slate-900">{form.totalDeliveries || '0'} daily deliveries</p></div> : <Field label="Number of deliveries"><input type="number" min="1" max="366" value={form.totalDeliveries} onChange={(event) => setForm({ ...form, totalDeliveries: event.target.value })} /></Field>}
                   </div>
-                  {form.deliveryFrequency === 'SELECTED_WEEKDAYS' ? <div className="mt-4"><p className="text-sm font-black text-slate-700">Delivery days</p><div className="mt-2 flex flex-wrap gap-2">{weekdayLabels.map((day, index) => <button type="button" key={day} onClick={() => setForm((current) => ({ ...current, selectedWeekdays: current.selectedWeekdays.includes(index) ? current.selectedWeekdays.filter((value) => value !== index) : [...current.selectedWeekdays, index] }))} className={`rounded-xl px-3 py-2 text-sm font-black ${form.selectedWeekdays.includes(index) ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{day}</button>)}</div></div> : null}
+                  {form.deliveryFrequency === 'SELECTED_WEEKDAYS' ? <div className="mt-2"><p className="text-xs font-black text-slate-700">Delivery days</p><div className="mt-1.5 flex flex-wrap gap-1.5">{weekdayLabels.map((day, index) => <button type="button" key={day} onClick={() => setForm((current) => ({ ...current, selectedWeekdays: current.selectedWeekdays.includes(index) ? current.selectedWeekdays.filter((value) => value !== index) : [...current.selectedWeekdays, index] }))} className={`rounded-lg px-2.5 py-1.5 text-xs font-black ${form.selectedWeekdays.includes(index) ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{day}</button>)}</div></div> : null}
                 </section>
 
                 <section>
-                  <h3 className="text-base font-black text-slate-900">Price & delivery time</h3>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <h3 className="text-sm font-black text-slate-900">Price & delivery time</h3>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <Field label="Plan price (₹)"><input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.priceRupees} onChange={(event) => setForm({ ...form, priceRupees: event.target.value })} placeholder="499" /></Field>
                     <Field label="MRP (₹)"><input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.mrpRupees} onChange={(event) => setForm({ ...form, mrpRupees: event.target.value })} placeholder="599" /></Field>
                     <Field label="Delivery from"><input type="time" value={form.deliveryStartTime} onChange={(event) => setForm({ ...form, deliveryStartTime: event.target.value })} /></Field>
                     <Field label="Delivery until"><input type="time" value={form.deliveryEndTime} onChange={(event) => setForm({ ...form, deliveryEndTime: event.target.value })} /></Field>
                   </div>
-                  <p className="mt-2 text-xs font-semibold text-slate-500">Amounts are shown in rupees here and safely converted to paise only when sent to the backend.</p>
+                  <p className="mt-1.5 text-[10px] font-semibold text-slate-500">Amounts are shown in rupees here and safely converted to paise only when sent to the backend.</p>
                 </section>
 
                 <section>
-                  <h3 className="text-base font-black text-slate-900">Products in each delivery</h3>
-                  <div className="mt-3 space-y-2">
+                  <h3 className="text-sm font-black text-slate-900">Products in each delivery</h3>
+                  <div className="mt-2 space-y-1.5">
                     {form.items.map((item, index) => <div key={index} className="grid grid-cols-[1fr_92px_auto] gap-2"><select aria-label={`Product ${index + 1}`} value={item.productId} onChange={(event) => setForm({ ...form, items: form.items.map((current, itemIndex) => itemIndex === index ? { ...current, productId: event.target.value } : current) })} className="min-h-12 rounded-xl border border-slate-200 px-4"><option value="">Select product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select><input aria-label={`Quantity ${index + 1}`} className="min-h-12 rounded-xl border border-slate-200 px-3" type="number" min="1" value={item.quantityPerDelivery} onChange={(event) => setForm({ ...form, items: form.items.map((current, itemIndex) => itemIndex === index ? { ...current, quantityPerDelivery: event.target.value } : current) })} /><button type="button" aria-label={`Remove product ${index + 1}`} onClick={() => setForm({ ...form, items: form.items.filter((_, itemIndex) => itemIndex !== index) })} className="rounded-xl bg-red-50 px-3 text-red-700"><X className="h-4 w-4" /></button></div>)}
-                    <button type="button" onClick={() => setForm({ ...form, items: [...form.items, { productId: '', quantityPerDelivery: '1' }] })} className="min-h-10 rounded-xl bg-emerald-50 px-4 font-black text-emerald-700">+ Add product</button>
+                    <button type="button" onClick={() => setForm({ ...form, items: [...form.items, { productId: '', quantityPerDelivery: '1' }] })} className="min-h-8 rounded-lg bg-emerald-50 px-3 text-xs font-black text-emerald-700">+ Add product</button>
                   </div>
                 </section>
 
-                <details className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                  <summary className="cursor-pointer text-sm font-black text-slate-800">Availability & customer options <span className="font-semibold text-slate-400">(optional)</span></summary>
-                  <div className="mt-5 grid gap-5 lg:grid-cols-2">
+                <details className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <summary className="cursor-pointer text-xs font-black text-slate-800">Availability & customer options <span className="font-semibold text-slate-400">(optional)</span></summary>
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
                     <Field label="Limit to stores" group><Multi rows={stores} selected={form.storeIds} onChange={(storeIds) => setForm({ ...form, storeIds })} /></Field>
                     <Field label="Limit to zones" group><Multi rows={zones} selected={form.zoneIds} onChange={(zoneIds) => setForm({ ...form, zoneIds })} /></Field>
-                    <div className="lg:col-span-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{([['allowPause', 'Allow pause'], ['allowSkip', 'Allow skip'], ['allowTrustedDrop', 'Trusted drop'], ['allowPersonalHandover', 'Personal handover'], ['allowSecurityHandover', 'Security handover']] as const).map(([key, optionLabel]) => <label key={key} className="flex min-h-12 items-center gap-3 rounded-xl bg-white px-4 font-bold text-slate-700"><input type="checkbox" checked={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.checked })} />{optionLabel}</label>)}</div>
+                    <div className="lg:col-span-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{([['allowPause', 'Allow pause'], ['allowSkip', 'Allow skip'], ['allowTrustedDrop', 'Trusted drop'], ['allowPersonalHandover', 'Personal handover'], ['allowSecurityHandover', 'Security handover']] as const).map(([key, optionLabel]) => <label key={key} className="flex min-h-9 items-center gap-2 rounded-lg bg-white px-3 text-xs font-bold text-slate-700"><input type="checkbox" checked={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.checked })} />{optionLabel}</label>)}</div>
                   </div>
                 </details>
               </div>
 
-              <div className="sticky bottom-0 flex justify-end gap-3 border-t border-slate-200 bg-white p-5"><button onClick={() => setFormOpen(false)} className="min-h-12 rounded-2xl border border-slate-200 px-5 font-black">Cancel</button><button disabled={saving} onClick={() => void save()} className="inline-flex min-h-12 min-w-40 items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-5 font-black text-white disabled:opacity-50">{saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />} Save draft</button></div>
+              <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white p-4"><button onClick={() => setFormOpen(false)} className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-black">Cancel</button><button disabled={saving} onClick={() => void save()} className="inline-flex min-h-10 min-w-32 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-4 text-xs font-black text-white disabled:opacity-50">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save draft</button></div>
             </div>
           </div>
         ) : null}
@@ -892,17 +983,17 @@ export default function AdminSubscriptionsPage() {
 function Plans({ plans, onEdit, onLifecycle }: any) {
   if (!plans.length) return <EmptyState title="No subscription plans" copy="Create a plan to make it available to customers." />;
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid gap-3 xl:grid-cols-2">
       {plans.map((plan: any) => (
-        <article key={plan.id} className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-emerald-50">{plan.imageUrl ? <img src={plan.imageUrl} alt="" className="h-full w-full object-contain" /> : <CalendarDays className="h-7 w-7 text-emerald-700" />}</div>
-            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><StatusPill status={plan.status} /><span className="text-xs font-bold text-slate-400">Version {plan.versions?.[0]?.version || 0}</span></div><h2 className="mt-2 text-xl font-black text-slate-900">{plan.name}</h2>{plan.description ? <p className="mt-1 text-sm text-slate-500">{plan.description}</p> : null}</div>
+        <article key={plan.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-emerald-50">{plan.imageUrl ? <img src={plan.imageUrl} alt="" className="h-full w-full object-contain" /> : <CalendarDays className="h-5 w-5 text-emerald-700" />}</div>
+            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><StatusPill status={plan.status} /><span className="text-[10px] font-bold text-slate-400">Version {plan.versions?.[0]?.version || 0}</span></div><h2 className="mt-1 text-base font-black text-slate-900">{plan.name}</h2>{plan.description ? <p className="mt-0.5 text-xs text-slate-500 line-clamp-1">{plan.description}</p> : null}</div>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-4"><PlanFact label="Duration" value={`${plan.durationDays || '—'} days`} /><PlanFact label="Deliveries" value={String(plan.totalDeliveries ?? '—')} /><PlanFact label="Schedule" value={humanize(plan.deliveryFrequency)} /><PlanFact label="Funding" value={fundingLabel(plan.fundingCycle)} /></div>
-          <div className="mt-4 flex items-end justify-between gap-4"><div><p className="text-2xl font-black text-slate-900">{formatPaise(plan.pricePaise)}</p><p className="text-xs font-bold text-slate-400">MRP {formatPaise(plan.mrpPaise)}</p></div><p className="text-xs font-bold text-slate-400">Created {formatDate(plan.createdAt)}</p></div>
-          {(plan.items || []).length ? <div className="mt-4 flex flex-wrap gap-2">{plan.items.map((item: any) => <span key={item.productId} className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{item.quantityPerDelivery}× {item.product?.name || 'Product'}</span>)}</div> : null}
-          <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => onEdit(plan)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-black"><Edit3 className="h-4 w-4" /> Edit</button>{plan.status === 'DRAFT' ? <button onClick={() => onLifecycle(plan, 'publish')} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-black text-white"><CheckCircle2 className="h-4 w-4" /> Publish</button> : null}{plan.status === 'ACTIVE' ? <button onClick={() => onLifecycle(plan, 'pause')} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-amber-50 px-4 text-sm font-black text-amber-800"><Pause className="h-4 w-4" /> Pause</button> : null}{plan.status === 'PAUSED' || plan.status === 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'activate')} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-emerald-50 px-4 text-sm font-black text-emerald-800"><Play className="h-4 w-4" /> Activate</button> : null}{plan.status !== 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'archive')} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-slate-100 px-4 text-sm font-black text-slate-600"><Archive className="h-4 w-4" /> Archive</button> : null}</div>
+          <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-4"><PlanFact label="Duration" value={`${plan.durationDays || '—'} days`} /><PlanFact label="Deliveries" value={String(plan.totalDeliveries ?? '—')} /><PlanFact label="Schedule" value={humanize(plan.deliveryFrequency)} /><PlanFact label="Funding" value={fundingLabel(plan.fundingCycle)} /></div>
+          <div className="mt-3 flex items-end justify-between gap-3"><div><p className="text-xl font-black text-slate-900">{formatPaise(plan.pricePaise)}</p><p className="text-[10px] font-bold text-slate-400">MRP {formatPaise(plan.mrpPaise)}</p></div><p className="text-[10px] font-bold text-slate-400">Created {formatDate(plan.createdAt)}</p></div>
+          {(plan.items || []).length ? <div className="mt-3 flex flex-wrap gap-1">{plan.items.map((item: any) => <span key={item.productId} className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">{item.quantityPerDelivery}× {item.product?.name || 'Product'}</span>)}</div> : null}
+          <div className="mt-3 flex flex-wrap gap-1.5"><button onClick={() => onEdit(plan)} className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs font-black"><Edit3 className="h-3 w-3" /> Edit</button>{plan.status === 'DRAFT' ? <button onClick={() => onLifecycle(plan, 'publish')} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-emerald-700 px-3 text-xs font-black text-white"><CheckCircle2 className="h-3 w-3" /> Publish</button> : null}{plan.status === 'ACTIVE' ? <button onClick={() => onLifecycle(plan, 'pause')} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-amber-50 px-3 text-xs font-black text-amber-800"><Pause className="h-3 w-3" /> Pause</button> : null}{plan.status === 'PAUSED' || plan.status === 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'activate')} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-emerald-50 px-3 text-xs font-black text-emerald-800"><Play className="h-3 w-3" /> Activate</button> : null}{plan.status !== 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'archive')} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-slate-100 px-3 text-xs font-black text-slate-600"><Archive className="h-3 w-3" /> Archive</button> : null}</div>
         </article>
       ))}
     </div>
@@ -911,10 +1002,10 @@ function Plans({ plans, onEdit, onLifecycle }: any) {
 
 function Subscribers({ rows, onEditSubscriber }: { rows: any[]; onEditSubscriber?: (sub: any) => void }) {
   return (
-    <section className="space-y-3">
+    <section className="space-y-2">
       <div>
-        <h2 className="text-xl font-black text-slate-900">Customer subscriptions</h2>
-        <p className="mt-1 text-sm font-semibold text-slate-500">These are the actual customer subscription records (online & manual offline).</p>
+        <h2 className="text-base font-black text-slate-900">Customer subscriptions</h2>
+        <p className="text-xs font-semibold text-slate-500">These are the actual customer subscription records (online & manual offline).</p>
       </div>
       <Table
         headers={['Customer', 'Phone', 'Plan', 'Store', 'Status', 'Progress', 'Collected / due', 'Actions']}
@@ -1015,51 +1106,51 @@ function Analytics({ data }: any) {
   ];
 
   return (
-    <section className="space-y-5">
-      <div><h2 className="text-xl font-black text-slate-900">Subscription analytics</h2><p className="mt-1 text-sm font-semibold text-slate-500">Aggregates are converted into readable counts and rupee values instead of exposing raw database objects.</p></div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(([label, value]) => <div key={String(label)} className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase tracking-wider text-slate-400">{label}</p><p className="mt-3 text-3xl font-black text-slate-900">{value}</p></div>)}</div>
-      <div className="grid gap-5 xl:grid-cols-2">
+    <section className="space-y-3">
+      <div><h2 className="text-base font-black text-slate-900">Subscription analytics</h2><p className="text-xs font-semibold text-slate-500">Aggregates are converted into readable counts and rupee values instead of exposing raw database objects.</p></div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(([label, value]) => <div key={String(label)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 text-lg font-black text-slate-900">{value}</p></div>)}</div>
+      <div className="grid gap-3 xl:grid-cols-2">
         <AnalyticsGroup title="Subscriptions by status" headers={['Status', 'Count', 'Collected', 'Due']} rows={subscriptions.map((row) => [humanize(row.status), Number(row._count?._all || 0), formatPaise(Number(row._sum?.amountCollectedPaise || 0)), formatPaise(Number(row._sum?.amountDuePaise || 0))])} />
         <AnalyticsGroup title="Deliveries by status" headers={['Status', 'Count', 'Cash due']} rows={deliveries.map((row) => [humanize(row.status), Number(row._count?._all || 0), formatPaise(Number(row._sum?.cashDuePaise || 0))])} />
       </div>
       <AnalyticsGroup title="Cash batches by status" headers={['Status', 'Count', 'Expected', 'Verified', 'Variance']} rows={cash.map((row) => [humanize(row.status), Number(row._count?._all || 0), formatPaise(Number(row._sum?.expectedAmountPaise || 0)), formatPaise(Number(row._sum?.verifiedAmountPaise || 0)), formatPaise(Number(row._sum?.variancePaise || 0))])} />
-      {data?.generatedAt ? <p className="text-right text-xs font-semibold text-slate-400">Generated {new Date(data.generatedAt).toLocaleString('en-IN')}</p> : null}
+      {data?.generatedAt ? <p className="text-right text-[10px] font-semibold text-slate-400">Generated {new Date(data.generatedAt).toLocaleString('en-IN')}</p> : null}
     </section>
   );
 }
 
 function AnalyticsGroup({ title, headers, rows }: { title: string; headers: string[]; rows: any[][] }) {
-  return <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white"><div className="border-b border-slate-100 px-5 py-4"><h3 className="font-black text-slate-900">{title}</h3></div><TableBare headers={headers} rows={rows} empty="No data yet." /></div>;
+  return <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white"><div className="border-b border-slate-100 px-4 py-2.5"><h3 className="text-sm font-black text-slate-900">{title}</h3></div><TableBare headers={headers} rows={rows} empty="No data yet." /></div>;
 }
 
 function Table({ headers, rows, empty }: { headers: string[]; rows: any[][]; empty: string }) {
-  return <div className="overflow-x-auto rounded-[24px] border border-slate-200 bg-white"><TableBare headers={headers} rows={rows} empty={empty} /></div>;
+  return <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white"><TableBare headers={headers} rows={rows} empty={empty} /></div>;
 }
 
 function TableBare({ headers, rows, empty }: { headers: string[]; rows: any[][]; empty: string }) {
-  return <><table className="min-w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr>{headers.map((header) => <th key={header} className="px-5 py-4 font-black">{header}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.map((row, rowIndex) => <tr key={rowIndex} className="hover:bg-emerald-50/30">{row.map((cell, cellIndex) => <td key={cellIndex} className="whitespace-nowrap px-5 py-4 font-semibold text-slate-700">{cell ?? '—'}</td>)}</tr>)}</tbody></table>{!rows.length ? <div className="p-10 text-center text-sm font-semibold text-slate-500">{empty}</div> : null}</>;
+  return <><table className="min-w-full text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr>{headers.map((header) => <th key={header} className="px-3 py-2 font-black">{header}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.map((row, rowIndex) => <tr key={rowIndex} className="hover:bg-emerald-50/30">{row.map((cell, cellIndex) => <td key={cellIndex} className="whitespace-nowrap px-3 py-2 font-semibold text-slate-700">{cell ?? '—'}</td>)}</tr>)}</tbody></table>{!rows.length ? <div className="p-6 text-center text-xs font-semibold text-slate-500">{empty}</div> : null}</>;
 }
 
 function StatusPill({ status }: { status: unknown }) {
   const value = String(status || 'UNKNOWN');
   const tone = value === 'ACTIVE' || value === 'COMPLETED' || value === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' : value === 'PAUSED' || value === 'PAYMENT_DUE' || value === 'GRACE_PERIOD' || value === 'VARIANCE_REVIEW' ? 'bg-amber-100 text-amber-800' : value === 'FAILED' || value === 'CANCELLED' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600';
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${tone}`}>{humanize(value)}</span>;
+  return <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black ${tone}`}>{humanize(value)}</span>;
 }
 
 function PlanFact({ label, value }: { label: string; value: string }) {
-  return <div><p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 text-sm font-black text-slate-800">{value}</p></div>;
+  return <div><p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p><p className="mt-0.5 text-xs font-black text-slate-800">{value}</p></div>;
 }
 
 function EmptyState({ title, copy }: { title: string; copy: string }) {
-  return <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-12 text-center"><h2 className="text-lg font-black text-slate-800">{title}</h2><p className="mt-2 text-sm font-semibold text-slate-500">{copy}</p></div>;
+  return <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center"><h2 className="text-sm font-black text-slate-800">{title}</h2><p className="mt-1 text-xs font-semibold text-slate-500">{copy}</p></div>;
 }
 
 function Field({ label, children, group = false }: { label: string; children: ReactNode; group?: boolean }) {
-  const content = <><span>{label}</span><div className="mt-2 [&_input]:min-h-12 [&_input]:w-full [&_input]:rounded-xl [&_input]:border [&_input]:border-slate-200 [&_input]:px-4 [&_select]:min-h-12 [&_select]:w-full [&_select]:rounded-xl [&_select]:border [&_select]:border-slate-200 [&_select]:px-4 [&_textarea]:min-h-24 [&_textarea]:w-full [&_textarea]:rounded-xl [&_textarea]:border [&_textarea]:border-slate-200 [&_textarea]:p-4">{children}</div></>;
-  if (group) return <div role="group" aria-label={label} className="block text-sm font-black text-slate-700">{content}</div>;
-  return <label className="block text-sm font-black text-slate-700">{content}</label>;
+  const content = <><span className="text-xs">{label}</span><div className="mt-1.5 [&_input]:min-h-10 [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-slate-200 [&_input]:px-3 [&_input]:text-sm [&_select]:min-h-10 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-200 [&_select]:px-3 [&_select]:text-sm [&_textarea]:min-h-20 [&_textarea]:w-full [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-slate-200 [&_textarea]:p-3 [&_textarea]:text-sm">{children}</div></>;
+  if (group) return <div role="group" aria-label={label} className="block text-xs font-black text-slate-700">{content}</div>;
+  return <label className="block text-xs font-black text-slate-700">{content}</label>;
 }
 
 function Multi({ rows, selected, onChange }: { rows: any[]; selected: string[]; onChange: (ids: string[]) => void }) {
-  return <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">{rows.map((row) => <button type="button" key={row.id} onClick={() => onChange(selected.includes(row.id) ? selected.filter((id) => id !== row.id) : [...selected, row.id])} className={`rounded-full px-3 py-1.5 text-xs font-black ${selected.includes(row.id) ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{row.name}</button>)}</div>;
+  return <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">{rows.map((row) => <button type="button" key={row.id} onClick={() => onChange(selected.includes(row.id) ? selected.filter((id) => id !== row.id) : [...selected, row.id])} className={`rounded-full px-2.5 py-1 text-[10px] font-black ${selected.includes(row.id) ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{row.name}</button>)}</div>;
 }

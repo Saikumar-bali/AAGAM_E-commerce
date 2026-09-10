@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { apiClient } from '@aagam/utils';
 import DashboardLayout from '@/components/DashboardLayout';
 import { getToastErrorMessage, useToast } from '@/components/ToastProvider';
@@ -38,7 +38,7 @@ type Customer = {
   };
 };
 
-export default function OfflineCustomersPage() {
+export default function OfflineCustomersPage({ embed = false }: { embed?: boolean }) {
   const toast = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +50,19 @@ export default function OfflineCustomersPage() {
   const [trackerSubscriptionId, setTrackerSubscriptionId] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [customerDetail, setCustomerDetail] = useState<any>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    phone: '',
+    line1: '',
+    line2: '',
+    city: 'Anakapalle',
+    state: 'Andhra Pradesh',
+    pincode: '',
+    latitude: 0,
+    longitude: 0,
+  });
 
   const loadCustomers = async (p = page, q = search) => {
     setLoading(true);
@@ -71,6 +84,36 @@ export default function OfflineCustomersPage() {
 
   const handleSearch = () => { setPage(1); loadCustomers(1, search); };
 
+  const handleCreateCustomer = async () => {
+    if (!createForm.name.trim()) return toast.warning('Enter customer name.');
+    if (!createForm.phone.trim() || createForm.phone.trim().length < 10) return toast.warning('Enter a valid 10-digit phone number.');
+    if (!createForm.line1.trim()) return toast.warning('Enter address line 1.');
+    if (!createForm.pincode.trim() || !/^\d{6}$/.test(createForm.pincode.trim())) return toast.warning('Enter a valid 6-digit pincode.');
+
+    setCreating(true);
+    try {
+      await apiClient.post('/admin/subscriptions/manual-customer', {
+        name: createForm.name.trim(),
+        phone: createForm.phone.trim(),
+        line1: createForm.line1.trim(),
+        line2: createForm.line2.trim() || undefined,
+        city: createForm.city.trim(),
+        state: createForm.state.trim(),
+        pincode: createForm.pincode.trim(),
+        latitude: createForm.latitude || undefined,
+        longitude: createForm.longitude || undefined,
+      });
+      toast.success('Offline customer created successfully!');
+      setCreateModalOpen(false);
+      setCreateForm({ name: '', phone: '', line1: '', line2: '', city: 'Anakapalle', state: 'Andhra Pradesh', pincode: '', latitude: 0, longitude: 0 });
+      loadCustomers(page, search);
+    } catch (err: any) {
+      toast.error(getToastErrorMessage(err, 'Failed to create customer.'));
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const openDetail = async (customer: Customer) => {
     setSelectedCustomer(customer);
     setDetailLoading(true);
@@ -90,123 +133,128 @@ export default function OfflineCustomersPage() {
 
   const formatPaise = (paise: number) => `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 0 })}`;
 
+  // When embedded (e.g. as a tab of /admin/customers) the host page already
+  // provides the DashboardLayout shell.
+  const withLayout = (node: ReactNode) =>
+    embed ? <>{node}</> : <DashboardLayout allowedRole="ADMIN">{node}</DashboardLayout>;
+
   if (trackerSubscriptionId) {
-    return (
-      <DashboardLayout allowedRole="ADMIN">
-        <div className="mb-4">
-          <button onClick={() => setTrackerSubscriptionId(null)} className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">
-            <X className="h-4 w-4" /> Back to Customers
+    return withLayout(
+      <>
+        <div className="mb-3">
+          <button onClick={() => setTrackerSubscriptionId(null)} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
+            <X className="h-3.5 w-3.5" /> Back to Customers
           </button>
         </div>
         <OfflineCustomerTracker subscriptionId={trackerSubscriptionId} />
-      </DashboardLayout>
+      </>,
     );
   }
 
   if (selectedCustomer) {
-    return (
-      <DashboardLayout allowedRole="ADMIN">
-        <div className="mb-4">
-          <button onClick={() => { setSelectedCustomer(null); setCustomerDetail(null); }} className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">
-            <X className="h-4 w-4" /> Back to List
+    return withLayout(
+      <>
+        <div className="mb-3">
+          <button onClick={() => { setSelectedCustomer(null); setCustomerDetail(null); }} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
+            <X className="h-3.5 w-3.5" /> Back to List
           </button>
         </div>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-2xl font-black text-slate-900">{selectedCustomer.name || 'Unnamed Customer'}</h2>
-              <div className="mt-2 flex items-center gap-4 text-sm text-slate-500">
-                <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {selectedCustomer.phone || 'No phone'}</span>
+              <h2 className="text-lg font-black text-slate-900">{selectedCustomer.name || 'Unnamed Customer'}</h2>
+              <div className="mt-1 flex items-center gap-3 text-xs text-slate-500">
+                <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {selectedCustomer.phone || 'No phone'}</span>
                 <span>{selectedCustomer.email}</span>
               </div>
             </div>
             <div className="text-right">
-              <div className="text-sm text-slate-500">Customer since</div>
-              <div className="font-bold text-slate-900">{new Date(selectedCustomer.createdAt).toLocaleDateString('en-IN')}</div>
+              <div className="text-[10px] text-slate-500">Customer since</div>
+              <div className="text-xs font-bold text-slate-900">{new Date(selectedCustomer.createdAt).toLocaleDateString('en-IN')}</div>
             </div>
           </div>
 
           {selectedCustomer.addresses[0] && (
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-              <div className="text-xs font-black uppercase tracking-wider text-slate-500">Default Address</div>
-              <div className="mt-1 font-semibold text-slate-800">{selectedCustomer.addresses[0].line1}, {selectedCustomer.addresses[0].city}</div>
+            <div className="mt-3 rounded-xl bg-slate-50 p-3">
+              <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Default Address</div>
+              <div className="mt-0.5 text-xs font-semibold text-slate-800">{selectedCustomer.addresses[0].line1}, {selectedCustomer.addresses[0].city}</div>
             </div>
           )}
 
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-2xl bg-emerald-50 p-4 text-center">
-              <div className="text-2xl font-black text-emerald-700">{selectedCustomer.summary.activeSubscriptions}</div>
-              <div className="text-xs font-bold text-emerald-600">Active Subscriptions</div>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-xl bg-emerald-50 p-3 text-center">
+              <div className="text-lg font-black text-emerald-700">{selectedCustomer.summary.activeSubscriptions}</div>
+              <div className="text-[10px] font-bold text-emerald-600">Active Subs</div>
             </div>
-            <div className="rounded-2xl bg-blue-50 p-4 text-center">
-              <div className="text-2xl font-black text-blue-700">{selectedCustomer.summary.totalOrders}</div>
-              <div className="text-xs font-bold text-blue-600">Total Orders</div>
+            <div className="rounded-xl bg-blue-50 p-3 text-center">
+              <div className="text-lg font-black text-blue-700">{selectedCustomer.summary.totalOrders}</div>
+              <div className="text-[10px] font-bold text-blue-600">Total Orders</div>
             </div>
-            <div className="rounded-2xl bg-amber-50 p-4 text-center">
-              <div className="text-2xl font-black text-amber-700">{formatPaise(selectedCustomer.summary.totalCollectedPaise)}</div>
-              <div className="text-xs font-bold text-amber-600">Collected</div>
+            <div className="rounded-xl bg-amber-50 p-3 text-center">
+              <div className="text-lg font-black text-amber-700">{formatPaise(selectedCustomer.summary.totalCollectedPaise)}</div>
+              <div className="text-[10px] font-bold text-amber-600">Collected</div>
             </div>
-            <div className="rounded-2xl bg-red-50 p-4 text-center">
-              <div className="text-2xl font-black text-red-700">{formatPaise(selectedCustomer.summary.totalDuePaise)}</div>
-              <div className="text-xs font-bold text-red-600">Due</div>
+            <div className="rounded-xl bg-red-50 p-3 text-center">
+              <div className="text-lg font-black text-red-700">{formatPaise(selectedCustomer.summary.totalDuePaise)}</div>
+              <div className="text-[10px] font-bold text-red-600">Due</div>
             </div>
           </div>
         </div>
 
         {detailLoading ? (
-          <div className="flex min-h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-emerald-700" /></div>
+          <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-emerald-700" /></div>
         ) : customerDetail?.subscriptions?.length > 0 ? (
-          <div className="mt-6 space-y-4">
-            <h3 className="text-lg font-black text-slate-900">Subscriptions</h3>
+          <div className="mt-4 space-y-3">
+            <h3 className="text-sm font-black text-slate-900">Subscriptions</h3>
             {customerDetail.subscriptions.map((sub: any) => (
-              <div key={sub.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div key={sub.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-black ${
+                    <div className="flex items-center gap-1.5">
+                      <span className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-black ${
                         sub.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' :
                         sub.status === 'COMPLETED' ? 'bg-blue-100 text-blue-700' :
                         sub.status === 'PAUSED' ? 'bg-amber-100 text-amber-700' :
                         sub.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
                         'bg-slate-100 text-slate-600'
                       }`}>{sub.status}</span>
-                      {sub.isCustom && <span className="inline-flex items-center rounded-lg bg-purple-100 px-2 py-1 text-xs font-black text-purple-700">Custom</span>}
-                      {sub.storeDelivery && <span className="inline-flex items-center rounded-lg bg-orange-100 px-2 py-1 text-xs font-black text-orange-700">Store Delivery</span>}
+                      {sub.isCustom && <span className="inline-flex items-center rounded-lg bg-purple-100 px-1.5 py-0.5 text-[10px] font-black text-purple-700">Custom</span>}
+                      {sub.storeDelivery && <span className="inline-flex items-center rounded-lg bg-orange-100 px-1.5 py-0.5 text-[10px] font-black text-orange-700">Store Delivery</span>}
                     </div>
-                    <div className="mt-2 text-sm text-slate-500">
+                    <div className="mt-1.5 text-xs text-slate-500">
                       {new Date(sub.startDate).toLocaleDateString('en-IN')} - {new Date(sub.endDate).toLocaleDateString('en-IN')}
                     </div>
-                    {sub.homeStore && <div className="text-xs text-slate-400">Store: {sub.homeStore.name}</div>}
+                    {sub.homeStore && <div className="text-[10px] text-slate-400">Store: {sub.homeStore.name}</div>}
                   </div>
-                  <button onClick={() => openTracker(sub.id)} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100">
-                    <ExternalLink className="h-3.5 w-3.5" /> Track
+                  <button onClick={() => openTracker(sub.id)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[10px] font-black text-emerald-700 hover:bg-emerald-100">
+                    <ExternalLink className="h-3 w-3" /> Track
                   </button>
                 </div>
 
-                <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
+                <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
                   <div className="text-center">
-                    <div className="text-lg font-black text-slate-900">{sub._count.deliveries}</div>
+                    <div className="text-sm font-black text-slate-900">{sub._count.deliveries}</div>
                     <div className="text-[10px] font-bold text-slate-400">Total</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-black text-emerald-700">{sub.completedDeliveries}</div>
+                    <div className="text-sm font-black text-emerald-700">{sub.completedDeliveries}</div>
                     <div className="text-[10px] font-bold text-slate-400">Delivered</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-black text-amber-700">{sub._count.deliveries - sub.completedDeliveries - sub.failedDeliveries - sub.skippedDeliveries}</div>
+                    <div className="text-sm font-black text-amber-700">{sub._count.deliveries - sub.completedDeliveries - sub.failedDeliveries - sub.skippedDeliveries}</div>
                     <div className="text-[10px] font-bold text-slate-400">Pending</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-black text-red-700">{sub.failedDeliveries}</div>
+                    <div className="text-sm font-black text-red-700">{sub.failedDeliveries}</div>
                     <div className="text-[10px] font-bold text-slate-400">Failed</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-black text-blue-700">{formatPaise(sub.amountCollectedPaise)}</div>
+                    <div className="text-sm font-black text-blue-700">{formatPaise(sub.amountCollectedPaise)}</div>
                     <div className="text-[10px] font-bold text-slate-400">Collected</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-black text-red-700">{formatPaise(sub.amountDuePaise)}</div>
+                    <div className="text-sm font-black text-red-700">{formatPaise(sub.amountDuePaise)}</div>
                     <div className="text-[10px] font-bold text-slate-400">Due</div>
                   </div>
                 </div>
@@ -214,21 +262,23 @@ export default function OfflineCustomersPage() {
             ))}
           </div>
         ) : (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-            <Users className="mx-auto h-10 w-10 text-slate-300" />
-            <p className="mt-3 text-sm font-bold text-slate-400">No subscriptions found</p>
+          <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+            <Users className="mx-auto h-8 w-8 text-slate-300" />
+            <p className="mt-2 text-xs font-bold text-slate-400">No subscriptions found</p>
           </div>
         )}
-      </DashboardLayout>
+      </>,
     );
   }
 
-  return (
-    <DashboardLayout allowedRole="ADMIN">
-      <div className="mb-7">
-        <h1 className="text-2xl font-bold text-gray-900">Offline Customers</h1>
-        <p className="mt-1 font-medium text-gray-500">Manage offline/store customers and their subscriptions.</p>
-      </div>
+  return withLayout(
+    <>
+      {!embed ? (
+        <div className="mb-4">
+          <h1 className="text-xl font-bold text-gray-900">Offline Customers</h1>
+          <p className="text-xs font-medium text-gray-500">Manage offline/store customers and their subscriptions.</p>
+        </div>
+      ) : null}
 
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -243,31 +293,34 @@ export default function OfflineCustomersPage() {
             />
           </div>
           <button onClick={handleSearch} className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-black text-white hover:bg-emerald-800">Search</button>
+          <button onClick={() => setCreateModalOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-black text-slate-900 hover:bg-amber-300">
+            <Plus className="h-4 w-4" /> Create Customer
+          </button>
         </div>
         <div className="text-sm font-bold text-slate-500">{total} customers found</div>
       </div>
 
       {loading ? (
-        <div className="flex min-h-60 items-center justify-center"><Loader2 className="h-9 w-9 animate-spin text-emerald-700" /></div>
+        <div className="flex min-h-48 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-emerald-700" /></div>
       ) : customers.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-12 text-center">
-          <Users className="mx-auto h-12 w-12 text-slate-300" />
-          <p className="mt-4 text-lg font-black text-slate-400">No offline customers found</p>
-          <p className="mt-1 text-sm text-slate-400">Create manual subscriptions from the Subscriptions page to add offline customers.</p>
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+          <Users className="mx-auto h-10 w-10 text-slate-300" />
+          <p className="mt-3 text-sm font-black text-slate-400">No offline customers found</p>
+          <p className="mt-1 text-xs text-slate-400">Create manual subscriptions from the Subscriptions page to add offline customers.</p>
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {customers.map((c) => (
               <button
                 key={c.id}
                 onClick={() => openDetail(c)}
-                className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-emerald-300 hover:shadow-md"
+                className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-emerald-300 hover:shadow-md"
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="font-black text-slate-900 group-hover:text-emerald-700">{c.name || 'Unnamed'}</h3>
-                    <p className="mt-0.5 flex items-center gap-1 text-sm text-slate-500"><Phone className="h-3 w-3" /> {c.phone || 'No phone'}</p>
+                    <h3 className="text-sm font-black text-slate-900 group-hover:text-emerald-700">{c.name || 'Unnamed'}</h3>
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500"><Phone className="h-3 w-3" /> {c.phone || 'No phone'}</p>
                   </div>
                   {c.summary.activeSubscriptions > 0 ? (
                     <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2 py-1 text-xs font-black text-emerald-700">
@@ -280,37 +333,107 @@ export default function OfflineCustomersPage() {
                   )}
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
                   <div>
-                    <div className="text-sm font-black text-slate-900">{c.summary.totalSubscriptions}</div>
+                    <div className="text-xs font-black text-slate-900">{c.summary.totalSubscriptions}</div>
                     <div className="text-[10px] font-bold text-slate-400">Subs</div>
                   </div>
                   <div>
-                    <div className="text-sm font-black text-slate-900">{c.summary.totalOrders}</div>
+                    <div className="text-xs font-black text-slate-900">{c.summary.totalOrders}</div>
                     <div className="text-[10px] font-bold text-slate-400">Orders</div>
                   </div>
                   <div>
-                    <div className="text-sm font-black text-emerald-700">{formatPaise(c.summary.totalCollectedPaise)}</div>
+                    <div className="text-xs font-black text-emerald-700">{formatPaise(c.summary.totalCollectedPaise)}</div>
                     <div className="text-[10px] font-bold text-slate-400">Collected</div>
                   </div>
                 </div>
 
                 {c.addresses[0] && (
-                  <p className="mt-3 truncate text-xs text-slate-400">{c.addresses[0].line1}, {c.addresses[0].city}</p>
+                  <p className="mt-2 truncate text-[10px] text-slate-400">{c.addresses[0].line1}, {c.addresses[0].city}</p>
                 )}
               </button>
             ))}
           </div>
 
           {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
-              <button disabled={page <= 1} onClick={() => { setPage(page - 1); loadCustomers(page - 1, search); }} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold disabled:opacity-40">Previous</button>
-              <span className="text-sm font-bold text-slate-500">Page {page} of {totalPages}</span>
-              <button disabled={page >= totalPages} onClick={() => { setPage(page + 1); loadCustomers(page + 1, search); }} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold disabled:opacity-40">Next</button>
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <button disabled={page <= 1} onClick={() => { setPage(page - 1); loadCustomers(page - 1, search); }} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold disabled:opacity-40">Previous</button>
+              <span className="text-xs font-bold text-slate-500">Page {page} of {totalPages}</span>
+              <button disabled={page >= totalPages} onClick={() => { setPage(page + 1); loadCustomers(page + 1, search); }} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold disabled:opacity-40">Next</button>
             </div>
           )}
         </>
       )}
-    </DashboardLayout>
+
+      {createModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Create offline customer">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 p-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Offline Customer</p>
+                <h2 className="mt-0.5 text-lg font-black text-slate-900">Create New Customer</h2>
+              </div>
+              <button onClick={() => setCreateModalOpen(false)} className="rounded-lg bg-slate-100 p-2"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-3 p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-black text-slate-700">
+                  <span>Customer Name</span>
+                  <input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="e.g. Ramesh Kumar" className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" />
+                </label>
+                <label className="block text-xs font-black text-slate-700">
+                  <span>10-Digit Mobile</span>
+                  <input value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })} placeholder="e.g. 9876543210" maxLength={15} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" />
+                </label>
+              </div>
+              <label className="block text-xs font-black text-slate-700">
+                <span>House / Street / Flat</span>
+                <input value={createForm.line1} onChange={(e) => setCreateForm({ ...createForm, line1: e.target.value })} placeholder="Flat 201, Balaji Heights" className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" />
+              </label>
+              <label className="block text-xs font-black text-slate-700">
+                <span>Area / Locality</span>
+                <input value={createForm.line2} onChange={(e) => setCreateForm({ ...createForm, line2: e.target.value })} placeholder="Kukatpally, Main Road" className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block text-xs font-black text-slate-700">
+                  <span>City</span>
+                  <input value={createForm.city} onChange={(e) => setCreateForm({ ...createForm, city: e.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" />
+                </label>
+                <label className="block text-xs font-black text-slate-700">
+                  <span>State</span>
+                  <input value={createForm.state} onChange={(e) => setCreateForm({ ...createForm, state: e.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" />
+                </label>
+                <label className="block text-xs font-black text-slate-700">
+                  <span>Pincode</span>
+                  <input value={createForm.pincode} onChange={(e) => setCreateForm({ ...createForm, pincode: e.target.value })} placeholder="500072" maxLength={6} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" />
+                </label>
+              </div>
+              <div className="rounded-xl border border-dashed border-emerald-300 bg-white p-2">
+                <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-emerald-600">Delivery Location (Map)</div>
+                <div className="h-40 overflow-hidden rounded-lg">
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}&q=${createForm.line1 ? `${encodeURIComponent(createForm.line1)}, ${encodeURIComponent(createForm.city)}, ${encodeURIComponent(createForm.state)} ${encodeURIComponent(createForm.pincode)}` : encodeURIComponent(createForm.city || 'Anakapalle, India')}&zoom=15`}
+                  />
+                </div>
+                {createForm.latitude !== 0 && (
+                  <p className="mt-1 text-[10px] font-bold text-slate-400">Coordinates: {createForm.latitude.toFixed(6)}, {createForm.longitude.toFixed(6)}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-200 p-4">
+              <button onClick={() => setCreateModalOpen(false)} className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-black">Cancel</button>
+              <button disabled={creating} onClick={() => void handleCreateCustomer()} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-amber-500 px-4 text-xs font-black text-slate-950 disabled:opacity-50">
+                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create Customer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

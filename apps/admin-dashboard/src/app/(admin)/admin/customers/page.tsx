@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
+import OfflineCustomersPage from '@/components/offline-customers/OfflineCustomersPage';
 import { apiClient } from '@aagam/utils';
 import {
   CalendarDays,
@@ -12,6 +13,7 @@ import {
   Phone,
   Search,
   ShieldCheck,
+  Store,
   UserRound,
   Users,
   XCircle,
@@ -93,7 +95,51 @@ const addressSearchText = (address: CustomerAddress) =>
     .join(' ')
     .toLowerCase();
 
+type CustomerTab = 'registered' | 'offline';
+
 export default function AdminCustomersPage() {
+  const [tab, setTab] = useState<CustomerTab>('registered');
+
+  useEffect(() => {
+    // Allow deep-links like /admin/customers?tab=offline (the old
+    // /admin/offline-customers route redirects here).
+    if (new URLSearchParams(window.location.search).get('tab') === 'offline') {
+      setTab('offline');
+    }
+  }, []);
+
+  return (
+    <DashboardLayout allowedRole="ADMIN">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
+        <p className="mt-1 font-medium text-gray-500">
+          Registered app customers and offline store customers, side by side.
+        </p>
+        <div className="mt-4 inline-flex gap-1 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-sm">
+          {([
+            ['registered', 'Registered Customers', Users],
+            ['offline', 'Offline Customers', Store],
+          ] as const).map(([key, label, Icon]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-black transition ${
+                tab === key ? 'bg-teal-700 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              <Icon className="h-4 w-4" /> {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === 'registered' ? <RegisteredCustomersList /> : <OfflineCustomersPage embed />}
+    </DashboardLayout>
+  );
+}
+
+function RegisteredCustomersList() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -146,14 +192,7 @@ export default function AdminCustomersPage() {
   ];
 
   return (
-    <DashboardLayout allowedRole="ADMIN">
-      <div className="mb-7">
-        <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-        <p className="mt-1 font-medium text-gray-500">
-          Customer identity, account status, saved addresses and existing activity from Aagaam records.
-        </p>
-      </div>
-
+    <>
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map((stat) => (
           <div key={stat.label} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-5">
@@ -290,6 +329,6 @@ export default function AdminCustomersPage() {
           ))}
         </div>
       )}
-    </DashboardLayout>
+    </>
   );
 }

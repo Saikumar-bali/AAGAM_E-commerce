@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
@@ -29,7 +30,10 @@ interface EnvCheck {
 const ENV_CHECKS: EnvCheck[] = [
   { key: 'DATABASE_URL', requiredIn: ['production', 'development', 'test'], description: 'PostgreSQL connection string' },
   { key: 'JWT_SECRET', requiredIn: ['production', 'development', 'test'], minLen: 32, description: 'JWT signing secret (min 32 chars)' },
-  { key: 'REDIS_URL', requiredIn: ['production'], default: 'redis://localhost:6379', description: 'Redis connection string (required in prod, optional in dev)' },
+  // No default here on purpose: in development a missing REDIS_URL lets the cache
+  // module, WebSocket adapter, and scheduler each fall back / disable themselves.
+  // It is required in production anyway.
+  { key: 'REDIS_URL', requiredIn: ['production'], description: 'Redis connection string (required in prod, optional in dev)' },
   { key: 'CORS_ORIGINS', requiredIn: ['production'], description: 'Comma-separated allowed origins (required in prod)' },
   { key: 'NODE_ENV', requiredIn: [], default: 'development', description: 'Node environment (development/production/test)' },
   { key: 'PORT', requiredIn: [], default: '3005', description: 'API server port' },
@@ -108,7 +112,17 @@ class RedisIoAdapter extends IoAdapter {
     subClient.on('error', (error) => {
       logger.error(`Redis sub client error: ${error instanceof Error ? error.message : String(error)}`);
     });
-    await Promise.all([pubClient.connect(), subClient.connect()]);
+    // node-redis retries indefinitely on connection failure, which would hang
+    // bootstrap. Give up after a grace period outside production so the default
+    // WebSocket adapter fallback can take over.
+    const isProduction = process.env.NODE_ENV === 'production';
+    const timeoutMs = isProduction ? 30_000 : 5_000;
+    await Promise.race([
+      Promise.all([pubClient.connect(), subClient.connect()]),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Redis connect timed out after ${timeoutMs}ms`)), timeoutMs),
+      ),
+    ]);
     this.adapterConstructor = createAdapter(pubClient, subClient);
   }
   createIOServer(port: number, options?: ServerOptions): any {
