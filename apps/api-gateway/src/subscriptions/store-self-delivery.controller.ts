@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Body, Req, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Param, Post, Patch, Body, Req, UseGuards, ForbiddenException } from '@nestjs/common';
 import { Role } from '@aagam/database';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -53,5 +53,14 @@ export class StoreSelfDeliveryController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.storeDelivery.recordDeliveryFailure(subscriptionDeliveryId, req.user.id, body.reason);
+  }
+
+  @Patch('update/:subscriptionDeliveryId')
+  updateDelivery(
+    @Param('subscriptionDeliveryId') subscriptionDeliveryId: string,
+    @Body() body: { status?: 'DELIVERED' | 'FAILED'; cashCollectedPaise?: number; notes?: string; failureReason?: string },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.storeDelivery.updateDelivery(subscriptionDeliveryId, req.user.id, body);
   }
 }

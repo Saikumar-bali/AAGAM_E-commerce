@@ -5,6 +5,121 @@ import { randomUUID } from 'crypto';
 @Injectable()
 export class StoreSelfDeliveryService {
 
+  async updateDelivery(
+    subscriptionDeliveryId: string,
+    storeUserId: string,
+    dto: {
+      status?: 'DELIVERED' | 'FAILED';
+      cashCollectedPaise?: number;
+      notes?: string;
+      failureReason?: string;
+    },
+  ) {
+    const subDelivery = await prisma.subscriptionDelivery.findUnique({
+      where: { id: subscriptionDeliveryId },
+      include: { subscription: true, deliveryJob: true },
+    });
+
+    if (!subDelivery) throw new NotFoundException('Subscription delivery not found');
+
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const updateData: any = {};
+
+      if (dto.status === 'DELIVERED') {
+        if (!['ORDER_GENERATED', 'PREPARING', 'PACKED', 'STORE_DELIVERING'].includes(subDelivery.status)) {
+          throw new BadRequestException(`Cannot mark as delivered in status: ${subDelivery.status}`);
+        }
+        updateData.status = SubscriptionDeliveryStatus.DELIVERED;
+        updateData.deliveredAt = new Date();
+        updateData.deliveredByStoreUserId = storeUserId;
+        if (dto.cashCollectedPaise !== undefined) {
+          updateData.cashCollectedPaise = dto.cashCollectedPaise;
+          updateData.cashCollectedAt = new Date();
+        }
+
+        if (subDelivery.deliveryJobId) {
+          await tx.deliveryJob.update({
+            where: { id: subDelivery.deliveryJobId },
+            data: { status: DeliveryJobStatus.DELIVERED },
+          });
+        }
+
+        await tx.customerSubscription.update({
+          where: { id: subDelivery.subscriptionId },
+          data: { completedDeliveries: { increment: 1 } },
+        });
+
+        await tx.subscriptionAuditEntry.create({
+          data: {
+            subscriptionId: subDelivery.subscriptionId,
+            actorUserId: storeUserId,
+            actorRole: Role.STORE_OWNER,
+            action: 'STORE_DELIVERY_COMPLETED',
+            reason: dto.notes || 'Store delivery completed',
+            metadata: {
+              subscriptionDeliveryId,
+              cashCollected: dto.cashCollectedPaise || 0,
+            },
+            idempotencyKey: `store-delivery-update:${subscriptionDeliveryId}:${randomUUID()}`,
+          },
+        });
+      } else if (dto.status === 'FAILED') {
+        if (!['ORDER_GENERATED', 'PREPARING', 'PACKED', 'STORE_DELIVERING'].includes(subDelivery.status)) {
+          throw new BadRequestException(`Cannot mark as failed in status: ${subDelivery.status}`);
+        }
+        updateData.status = SubscriptionDeliveryStatus.FAILED;
+        updateData.failedAt = new Date();
+        updateData.failureReason = dto.failureReason || dto.notes || 'Delivery failed';
+
+        if (subDelivery.deliveryJobId) {
+          await tx.deliveryJob.update({
+            where: { id: subDelivery.deliveryJobId },
+            data: { status: DeliveryJobStatus.DELIVERY_FAILED },
+          });
+        }
+
+        await tx.customerSubscription.update({
+          where: { id: subDelivery.subscriptionId },
+          data: { failedDeliveries: { increment: 1 } },
+        });
+
+        await tx.subscriptionAuditEntry.create({
+          data: {
+            subscriptionId: subDelivery.subscriptionId,
+            actorUserId: storeUserId,
+            actorRole: Role.STORE_OWNER,
+            action: 'STORE_DELIVERY_FAILED',
+            reason: dto.failureReason || dto.notes || 'Delivery failed',
+            metadata: { subscriptionDeliveryId },
+            idempotencyKey: `store-delivery-fail:${subscriptionDeliveryId}:${randomUUID()}`,
+          },
+        });
+      } else if (dto.cashCollectedPaise !== undefined) {
+        updateData.cashCollectedPaise = dto.cashCollectedPaise;
+        updateData.cashCollectedAt = new Date();
+
+        await tx.subscriptionAuditEntry.create({
+          data: {
+            subscriptionId: subDelivery.subscriptionId,
+            actorUserId: storeUserId,
+            actorRole: Role.STORE_OWNER,
+            action: 'STORE_CASH_COLLECTED',
+            reason: dto.notes || 'Cash collected updated',
+            metadata: { subscriptionDeliveryId, cashCollected: dto.cashCollectedPaise },
+            idempotencyKey: `store-cash-update:${subscriptionDeliveryId}:${randomUUID()}`,
+          },
+        });
+      }
+
+      const updated = await tx.subscriptionDelivery.update({
+        where: { id: subscriptionDeliveryId },
+        data: updateData,
+      });
+
+      return { success: true, delivery: updated };
+    });
+  }
+
   async getTodayQueue(storeId: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);

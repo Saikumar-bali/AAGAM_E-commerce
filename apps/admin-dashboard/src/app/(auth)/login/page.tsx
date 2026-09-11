@@ -19,6 +19,7 @@ declare global {
     handleGoogleCredentialResponse?: (response: { credential?: string }) => void;
   }
 }
+// Note: google is declared as optional to match other declarations
 
 const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 10);
 const phoneForApi = (value: string) => `+91${digitsOnly(value)}`;

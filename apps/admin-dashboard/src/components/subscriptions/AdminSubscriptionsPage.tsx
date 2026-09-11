@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from '
 import { apiClient } from '@aagam/utils';
 import DashboardLayout from '@/components/DashboardLayout';
 import { getToastErrorMessage, useToast } from '@/components/ToastProvider';
+import OfflineCustomerTracker from '@/components/offline-customers/OfflineCustomerTracker';
 import {
   Archive,
   BarChart3,
@@ -19,6 +20,7 @@ import {
   Route,
   Save,
   ShieldAlert,
+  Truck,
   Users,
   X,
 } from 'lucide-react';
@@ -213,6 +215,7 @@ export default function AdminSubscriptionsPage() {
   const [offlineCustomersLoading, setOfflineCustomersLoading] = useState(false);
   const [offlineCustomerSearch, setOfflineCustomerSearch] = useState('');
   const [selectedOfflineCustomer, setSelectedOfflineCustomer] = useState<any>(null);
+  const [manualErrors, setManualErrors] = useState<Record<string, boolean>>({});
 
   const [editManualModalOpen, setEditManualModalOpen] = useState(false);
   const [editingSubscriber, setEditingSubscriber] = useState<any>(null);
@@ -226,25 +229,22 @@ export default function AdminSubscriptionsPage() {
   });
 
   const submitManualSubscription = async () => {
-    if (!manualForm.storeId) return toast.warning('Select a store for the subscription.');
-    if (!manualForm.customerName.trim() || !/^\d{10}$/.test(manualForm.customerPhone.trim().replace(/[\s().-]/g, ''))) {
-      return toast.warning('Enter customer name and a 10-digit phone number.');
-    }
-    if (!manualForm.line1.trim() || !manualForm.city.trim() || !/^\d{6}$/.test(manualForm.pincode.trim())) {
-      return toast.warning('Enter full delivery address and 6-digit pincode.');
-    }
+    const errors: Record<string, boolean> = {};
+    if (!manualForm.storeId) errors.storeId = true;
+    if (!manualForm.customerName.trim()) errors.customerName = true;
+    const phoneDigits = manualForm.customerPhone.trim().replace(/[\s().-]/g, '');
+    if (!/^\d{10}$/.test(phoneDigits) && !/^0\d{10}$/.test(phoneDigits)) errors.customerPhone = true;
+    if (!manualForm.line1.trim()) errors.line1 = true;
+    if (!manualForm.city.trim()) errors.city = true;
+    if (!/^\d{6}$/.test(manualForm.pincode.trim())) errors.pincode = true;
+    if (manualMode === 'plan' && !manualForm.planId) errors.planId = true;
+    if (manualMode === 'custom' && customDeliveries.length === 0) errors.customDeliveries = true;
+    if (manualMode === 'custom' && Math.round(Number(customTotalPrice || 0) * 100) < 1) errors.customTotalPrice = true;
 
-    if (manualMode === 'custom' && customDeliveries.length === 0) {
-      return toast.warning('Add at least one delivery day to the custom schedule.');
-    }
-    if (manualMode === 'custom' && Math.round(Number(customTotalPrice || 0) * 100) < 1) {
-      return toast.warning('Enter a total price for the custom subscription.');
-    }
-    if (manualMode === 'custom' && customDeliveries.some((d) => d.items.length === 0)) {
-      return toast.warning('Each delivery day needs at least one product. Add products to all days.');
-    }
-    if (manualMode === 'plan' && !manualForm.planId) {
-      return toast.warning('Select a subscription plan.');
+    setManualErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.warning('Please fill all required fields highlighted in red.');
+      return;
     }
 
     setSavingManual(true);
@@ -669,26 +669,27 @@ export default function AdminSubscriptionsPage() {
                 </div>
 
                 <section className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Target Store">
-                    <select value={manualForm.storeId} onChange={(e) => setManualForm({ ...manualForm, storeId: e.target.value })}>
+                  <Field label="Target Store" error={manualErrors.storeId}>
+                    <select value={manualForm.storeId} onChange={(e) => { setManualForm({ ...manualForm, storeId: e.target.value }); setManualErrors((prev) => ({ ...prev, storeId: false })); }} className={manualErrors.storeId ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}>
                       <option value="">Select Store</option>
                       {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </Field>
                   {manualMode === 'plan' && (
-                    <Field label="Subscription Plan">
+                    <Field label="Subscription Plan" error={manualErrors.planId}>
                       <select value={manualForm.planId} onChange={(e) => {
                         const selPlan = plans.find((p) => p.id === e.target.value);
                         setManualForm({ ...manualForm, planId: e.target.value, totalDeliveries: selPlan ? String(selPlan.totalDeliveries) : manualForm.totalDeliveries });
-                      }}>
+                        setManualErrors((prev) => ({ ...prev, planId: false }));
+                      }} className={manualErrors.planId ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}>
                         <option value="">Select Plan</option>
                         {plans.map((p) => <option key={p.id} value={p.id}>{p.name} ({formatPaise(p.pricePaise)})</option>)}
                       </select>
                     </Field>
                   )}
                   {manualMode === 'custom' && (
-                    <Field label="Total Price (₹)">
-                      <input type="number" min="0" step="1" value={customTotalPrice} onChange={(e) => setCustomTotalPrice(e.target.value)} placeholder="e.g. 1500" />
+                    <Field label="Total Price (₹)" error={manualErrors.customTotalPrice}>
+                      <input type="number" min="0" step="1" value={customTotalPrice} onChange={(e) => { setCustomTotalPrice(e.target.value); setManualErrors((prev) => ({ ...prev, customTotalPrice: false })); }} placeholder="e.g. 1500" className={manualErrors.customTotalPrice ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''} />
                     </Field>
                   )}
                 </section>
@@ -699,7 +700,10 @@ export default function AdminSubscriptionsPage() {
                     <div className="space-y-1.5">
                       <input
                         value={offlineCustomerSearch}
-                        onChange={(e) => setOfflineCustomerSearch(e.target.value)}
+                        onChange={(e) => {
+                          setOfflineCustomerSearch(e.target.value);
+                          setSelectedOfflineCustomer(null);
+                        }}
                         placeholder="Search existing customers by name or phone…"
                         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                       />
@@ -711,58 +715,43 @@ export default function AdminSubscriptionsPage() {
                         <option value="">
                           {offlineCustomersLoading ? 'Loading customers…' : '— New customer (enter details below) —'}
                         </option>
-                        {offlineCustomers.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name || 'Unnamed'}{c.phone ? ` — ${c.phone}` : c.email ? ` — ${c.email}` : ''}
-                          </option>
-                        ))}
+                        {offlineCustomers
+                          .filter((c) => {
+                            if (!offlineCustomerSearch.trim()) return true;
+                            const q = offlineCustomerSearch.trim().toLowerCase();
+                            return (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q);
+                          })
+                          .map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name || 'Unnamed'}{c.phone ? ` — ${c.phone}` : c.email ? ` — ${c.email}` : ''}
+                            </option>
+                          ))}
                       </select>
                       {offlineCustomers.length === 0 && !offlineCustomersLoading && (
                         <p className="text-[10px] font-bold text-slate-400">No existing customers match your search. Enter details below to create a new one.</p>
                       )}
                     </div>
                   </Field>
-                  {selectedOfflineCustomer ? (
-                    <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
-                      Picked from the offline customer list — name, phone, address{selectedOfflineCustomer.customerSubscriptions?.[0]?.homeStore?.name ? ' and usual store' : ''} filled in. Edit any field if something changed; otherwise leave as is.
-                    </p>
-                  ) : null}
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Customer Full Name">
-                      <input value={manualForm.customerName} onChange={(e) => setManualForm({ ...manualForm, customerName: e.target.value })} placeholder="e.g. Ramesh Kumar" />
+                    <Field label="Customer Full Name" error={manualErrors.customerName}>
+                      <input value={manualForm.customerName} onChange={(e) => { setManualForm({ ...manualForm, customerName: e.target.value }); setManualErrors((prev) => ({ ...prev, customerName: false })); }} placeholder="e.g. Ramesh Kumar" className={manualErrors.customerName ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''} />
                     </Field>
-                    <Field label="10-Digit Mobile Number">
-                      <input value={manualForm.customerPhone} onChange={(e) => setManualForm({ ...manualForm, customerPhone: e.target.value })} placeholder="e.g. 9876543210" maxLength={15} />
+                    <Field label="10-Digit Mobile Number" error={manualErrors.customerPhone}>
+                      <input value={manualForm.customerPhone} onChange={(e) => { setManualForm({ ...manualForm, customerPhone: e.target.value }); setManualErrors((prev) => ({ ...prev, customerPhone: false })); }} placeholder="e.g. 9876543210" maxLength={15} className={manualErrors.customerPhone ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''} />
                     </Field>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="House / Street / Flat">
-                      <input value={manualForm.line1} onChange={(e) => setManualForm({ ...manualForm, line1: e.target.value })} placeholder="Flat 201, Balaji Heights" />
+                    <Field label="House / Street / Flat" error={manualErrors.line1}>
+                      <input value={manualForm.line1} onChange={(e) => { setManualForm({ ...manualForm, line1: e.target.value }); setManualErrors((prev) => ({ ...prev, line1: false })); }} placeholder="Flat 201, Balaji Heights" className={manualErrors.line1 ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''} />
                     </Field>
                     <Field label="Area / Locality">
                       <input value={manualForm.line2} onChange={(e) => setManualForm({ ...manualForm, line2: e.target.value })} placeholder="Kukatpally, Main Road" />
                     </Field>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-3">
-                    <Field label="City"><input value={manualForm.city} onChange={(e) => setManualForm({ ...manualForm, city: e.target.value })} /></Field>
+                    <Field label="City" error={manualErrors.city}><input value={manualForm.city} onChange={(e) => { setManualForm({ ...manualForm, city: e.target.value }); setManualErrors((prev) => ({ ...prev, city: false })); }} className={manualErrors.city ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''} /></Field>
                     <Field label="State"><input value={manualForm.state} onChange={(e) => setManualForm({ ...manualForm, state: e.target.value })} /></Field>
-                    <Field label="Pincode"><input value={manualForm.pincode} onChange={(e) => setManualForm({ ...manualForm, pincode: e.target.value })} placeholder="500072" maxLength={6} /></Field>
-                  </div>
-                  <div className="rounded-xl border border-dashed border-emerald-300 bg-white p-2">
-                    <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-emerald-600">Delivery Location (Map)</div>
-                    <div className="h-48 overflow-hidden rounded-lg">
-                      <iframe
-                        width="100%"
-                        height="100%"
-                        style={{ border: 0 }}
-                        loading="lazy"
-                        referrerPolicy="no-referrer-when-downgrade"
-                        src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}&q=${manualForm.line1 ? `${encodeURIComponent(manualForm.line1)}, ${encodeURIComponent(manualForm.city)}, ${encodeURIComponent(manualForm.state)} ${encodeURIComponent(manualForm.pincode)}` : encodeURIComponent(manualForm.city || 'Anakapalle, India')}&zoom=15`}
-                      />
-                    </div>
-                    {manualForm.latitude !== 0 && (
-                      <p className="mt-1 text-[10px] font-bold text-slate-400">Coordinates: {manualForm.latitude.toFixed(6)}, {manualForm.longitude.toFixed(6)}</p>
-                    )}
+                    <Field label="Pincode" error={manualErrors.pincode}><input value={manualForm.pincode} onChange={(e) => { setManualForm({ ...manualForm, pincode: e.target.value }); setManualErrors((prev) => ({ ...prev, pincode: false })); }} placeholder="500072" maxLength={6} className={manualErrors.pincode ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''} /></Field>
                   </div>
                 </section>
 
@@ -783,14 +772,15 @@ export default function AdminSubscriptionsPage() {
                     </Field>
                   </section>
                 ) : (
-                  <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+                  <section className={`rounded-xl border p-3 space-y-2 ${manualErrors.customDeliveries ? 'border-red-400 bg-red-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-black uppercase tracking-wider text-amber-700">Custom Delivery Schedule</h3>
+                      <h3 className={`text-xs font-black uppercase tracking-wider ${manualErrors.customDeliveries ? 'text-red-700' : 'text-amber-700'}`}>Custom Delivery Schedule{manualErrors.customDeliveries ? ' *' : ''}</h3>
                       <button
                         type="button"
                         onClick={() => {
                           const today = new Date().toISOString().slice(0, 10);
                           setCustomDeliveries([...customDeliveries, { date: today, slot: 'AM' as const, items: [] }]);
+                          setManualErrors((prev) => ({ ...prev, customDeliveries: false }));
                         }}
                         className="rounded-lg bg-amber-600 px-2.5 py-1 text-[10px] font-black text-white hover:bg-amber-700"
                       >+ Add Day</button>
@@ -896,6 +886,28 @@ export default function AdminSubscriptionsPage() {
                   <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Subscriber Management</p>
                   <h2 className="mt-0.5 text-lg font-black text-slate-900">Edit Subscription #{editingSubscriber.id.slice(-6)}</h2>
                   <p className="text-xs font-semibold text-slate-500">Customer: {editingSubscriber.customer?.name || editingSubscriber.customer?.email}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {editingSubscriber.homeStore && (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700">
+                        Store: {editingSubscriber.homeStore.name}
+                      </span>
+                    )}
+                    {editingSubscriber.storeDelivery ? (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-700">
+                        <Truck className="h-3 w-3" /> Store Delivery
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">
+                        <Route className="h-3 w-3" /> Rider Delivery
+                      </span>
+                    )}
+                    <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">
+                      {editingSubscriber.completedDeliveries}/{editingSubscriber.fundedDeliveryCount || '—'} delivered
+                    </span>
+                    <span className="rounded-lg bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700">
+                      {formatPaise(editingSubscriber.amountCollectedPaise)} / {formatPaise(editingSubscriber.amountDuePaise)}
+                    </span>
+                  </div>
                 </div>
                 <button onClick={() => setEditManualModalOpen(false)} aria-label="Close edit form" className="rounded-lg bg-slate-100 p-2"><X className="h-4 w-4" /></button>
               </div>
@@ -1017,49 +1029,110 @@ export default function AdminSubscriptionsPage() {
 function Plans({ plans, onEdit, onLifecycle }: any) {
   if (!plans.length) return <EmptyState title="No subscription plans" copy="Create a plan to make it available to customers." />;
   return (
-    <div className="grid gap-3 xl:grid-cols-2">
-      {plans.map((plan: any) => (
-        <article key={plan.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-emerald-50">{plan.imageUrl ? <img src={plan.imageUrl} alt="" className="h-full w-full object-contain" /> : <CalendarDays className="h-5 w-5 text-emerald-700" />}</div>
-            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><StatusPill status={plan.status} /><span className="text-[10px] font-bold text-slate-400">Version {plan.versions?.[0]?.version || 0}</span></div><h2 className="mt-1 text-base font-black text-slate-900">{plan.name}</h2>{plan.description ? <p className="mt-0.5 text-xs text-slate-500 line-clamp-1">{plan.description}</p> : null}</div>
+    <Table
+      headers={['Plan', 'Status', 'Duration', 'Deliveries', 'Schedule', 'Price', 'MRP', 'Created', 'Actions']}
+      rows={plans.map((plan: any) => [
+        <div key={plan.id} className="flex items-center gap-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-emerald-50">{plan.imageUrl ? <img src={plan.imageUrl} alt="" className="h-full w-full object-contain" /> : <CalendarDays className="h-4 w-4 text-emerald-700" />}</div>
+          <div className="min-w-0">
+            <p className="font-black text-slate-900 truncate max-w-[200px]">{plan.name}</p>
+            {plan.description ? <p className="text-[10px] text-slate-500 truncate max-w-[200px]">{plan.description}</p> : null}
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-4"><PlanFact label="Duration" value={`${plan.durationDays || '—'} days`} /><PlanFact label="Deliveries" value={String(plan.totalDeliveries ?? '—')} /><PlanFact label="Schedule" value={humanize(plan.deliveryFrequency)} /><PlanFact label="Funding" value={fundingLabel(plan.fundingCycle)} /></div>
-          <div className="mt-3 flex items-end justify-between gap-3"><div><p className="text-xl font-black text-slate-900">{formatPaise(plan.pricePaise)}</p><p className="text-[10px] font-bold text-slate-400">MRP {formatPaise(plan.mrpPaise)}</p></div><p className="text-[10px] font-bold text-slate-400">Created {formatDate(plan.createdAt)}</p></div>
-          {(plan.items || []).length ? <div className="mt-3 flex flex-wrap gap-1">{plan.items.map((item: any) => <span key={item.productId} className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">{item.quantityPerDelivery}× {item.product?.name || 'Product'}</span>)}</div> : null}
-          <div className="mt-3 flex flex-wrap gap-1.5"><button onClick={() => onEdit(plan)} className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs font-black"><Edit3 className="h-3 w-3" /> Edit</button>{plan.status === 'DRAFT' ? <button onClick={() => onLifecycle(plan, 'publish')} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-emerald-700 px-3 text-xs font-black text-white"><CheckCircle2 className="h-3 w-3" /> Publish</button> : null}{plan.status === 'ACTIVE' ? <button onClick={() => onLifecycle(plan, 'pause')} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-amber-50 px-3 text-xs font-black text-amber-800"><Pause className="h-3 w-3" /> Pause</button> : null}{plan.status === 'PAUSED' || plan.status === 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'activate')} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-emerald-50 px-3 text-xs font-black text-emerald-800"><Play className="h-3 w-3" /> Activate</button> : null}{plan.status !== 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'archive')} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-slate-100 px-3 text-xs font-black text-slate-600"><Archive className="h-3 w-3" /> Archive</button> : null}</div>
-        </article>
-      ))}
-    </div>
+        </div>,
+        <StatusPill key={`status-${plan.id}`} status={plan.status} />,
+        `${plan.durationDays || '—'} days`,
+        String(plan.totalDeliveries ?? '—'),
+        humanize(plan.deliveryFrequency),
+        formatPaise(plan.pricePaise),
+        formatPaise(plan.mrpPaise),
+        formatDate(plan.createdAt),
+        <div key={`actions-${plan.id}`} className="flex flex-wrap gap-1">
+          <button onClick={() => onEdit(plan)} className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] font-black"><Edit3 className="h-3 w-3" /> Edit</button>
+          {plan.status === 'DRAFT' ? <button onClick={() => onLifecycle(plan, 'publish')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-emerald-700 px-2 text-[10px] font-black text-white"><CheckCircle2 className="h-3 w-3" /> Publish</button> : null}
+          {plan.status === 'ACTIVE' ? <button onClick={() => onLifecycle(plan, 'pause')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-amber-50 px-2 text-[10px] font-black text-amber-800"><Pause className="h-3 w-3" /> Pause</button> : null}
+          {plan.status === 'PAUSED' || plan.status === 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'activate')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-emerald-50 px-2 text-[10px] font-black text-emerald-800"><Play className="h-3 w-3" /> Activate</button> : null}
+          {plan.status !== 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'archive')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[10px] font-black text-slate-600"><Archive className="h-3 w-3" /> Archive</button> : null}
+        </div>,
+      ])}
+      empty="No subscription plans."
+    />
   );
 }
 
 function Subscribers({ rows, onEditSubscriber }: { rows: any[]; onEditSubscriber?: (sub: any) => void }) {
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'online' | 'offline'>('all');
+  const [trackerId, setTrackerId] = useState<string | null>(null);
+  const filteredRows = rows.filter((item: any) => {
+    if (sourceFilter === 'all') return true;
+    const isOffline = item.source === 'manual' || item.source === 'custom_manual' || item.customer?.email?.startsWith('offline.') || item.customer?.acquisitionSource === 'OFFLINE';
+    return sourceFilter === 'offline' ? isOffline : !isOffline;
+  });
+
+  if (trackerId) {
+    return (
+      <section className="space-y-3">
+        <button onClick={() => setTrackerId(null)} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
+          <X className="h-3.5 w-3.5" /> Back to Subscribers
+        </button>
+        <OfflineCustomerTracker subscriptionId={trackerId} />
+      </section>
+    );
+  }
+
   return (
     <section className="space-y-2">
-      <div>
-        <h2 className="text-base font-black text-slate-900">Customer subscriptions</h2>
-        <p className="text-xs font-semibold text-slate-500">These are the actual customer subscription records (online & manual offline).</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-black text-slate-900">Customer subscriptions</h2>
+          <p className="text-xs font-semibold text-slate-500">These are the actual customer subscription records (online & manual offline).</p>
+        </div>
+        <div className="flex gap-1.5">
+          {(['all', 'online', 'offline'] as const).map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setSourceFilter(filter)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-black ${sourceFilter === filter ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              {filter.charAt(0).toUpperCase() + filter.slice(1)}
+            </button>
+          ))}
+        </div>
       </div>
       <Table
-        headers={['Customer', 'Phone', 'Plan', 'Store', 'Status', 'Progress', 'Collected / due', 'Actions']}
-        rows={rows.map((item: any) => [
+        headers={['Customer', 'Phone', 'Plan', 'Store', 'Delivery', 'Status', 'Progress', 'Collected / due', 'Actions']}
+        rows={filteredRows.map((item: any) => [
           item.customer?.name || item.customer?.email,
           item.customer?.phone || item.deliveryContact?.phone || '—',
           item.plan?.name,
           item.homeStore?.name || '—',
+          item.storeDelivery ? (
+            <span key={`sd-${item.id}`} className="inline-flex items-center gap-1 rounded-lg bg-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-700">
+              <Truck className="h-3 w-3" /> Store
+            </span>
+          ) : (
+            <span key={`rd-${item.id}`} className="inline-flex items-center gap-1 rounded-lg bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">
+              <Route className="h-3 w-3" /> Rider
+            </span>
+          ),
           <StatusPill key={item.id} status={item.status} />,
           `${item.completedDeliveries}/${item.fundedDeliveryCount || item.planVersion?.totalDeliveries || '—'}`,
           `${formatPaise(item.amountCollectedPaise)} / ${formatPaise(item.amountDuePaise)}`,
-          onEditSubscriber ? (
+          <div key={`actions-${item.id}`} className="flex gap-1">
             <button
-              key={`edit-${item.id}`}
-              onClick={() => onEditSubscriber(item)}
-              className="inline-flex min-h-8 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 hover:bg-slate-100"
+              onClick={() => setTrackerId(item.id)}
+              className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-black text-emerald-700 hover:bg-emerald-100"
             >
-              <Edit3 className="h-3.5 w-3.5" /> Edit
+              <CalendarDays className="h-3 w-3" /> Track
             </button>
-          ) : null,
+            {onEditSubscriber && (
+              <button
+                onClick={() => onEditSubscriber(item)}
+                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[10px] font-black text-slate-700 hover:bg-slate-100"
+              >
+                <Edit3 className="h-3 w-3" /> Edit
+              </button>
+            )}
+          </div>,
         ])}
         empty="No customer subscriptions yet."
       />
@@ -1179,8 +1252,8 @@ function EmptyState({ title, copy }: { title: string; copy: string }) {
   return <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center"><h2 className="text-sm font-black text-slate-800">{title}</h2><p className="mt-1 text-xs font-semibold text-slate-500">{copy}</p></div>;
 }
 
-function Field({ label, children, group = false }: { label: string; children: ReactNode; group?: boolean }) {
-  const content = <><span className="text-xs">{label}</span><div className="mt-1.5 [&_input]:min-h-10 [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-slate-200 [&_input]:px-3 [&_input]:text-sm [&_select]:min-h-10 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-200 [&_select]:px-3 [&_select]:text-sm [&_textarea]:min-h-20 [&_textarea]:w-full [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-slate-200 [&_textarea]:p-3 [&_textarea]:text-sm">{children}</div></>;
+function Field({ label, children, group = false, error = false }: { label: string; children: ReactNode; group?: boolean; error?: boolean }) {
+  const content = <><span className={`text-xs ${error ? 'text-red-600' : ''}`}>{label}{error && ' *'}</span><div className="mt-1.5 [&_input]:min-h-10 [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-slate-200 [&_input]:px-3 [&_input]:text-sm [&_select]:min-h-10 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-200 [&_select]:px-3 [&_select]:text-sm [&_textarea]:min-h-20 [&_textarea]:w-full [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-slate-200 [&_textarea]:p-3 [&_textarea]:text-sm">{children}</div></>;
   if (group) return <div role="group" aria-label={label} className="block text-xs font-black text-slate-700">{content}</div>;
   return <label className="block text-xs font-black text-slate-700">{content}</label>;
 }

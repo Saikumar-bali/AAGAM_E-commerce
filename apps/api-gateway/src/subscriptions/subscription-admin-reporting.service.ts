@@ -13,6 +13,7 @@ import {
 import { randomUUID } from 'crypto';
 import { AdminSubscriptionCorrectionDto, ResolveSubscriptionIssueDto } from './subscriptions.dto';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
+import { SubscriptionPlanService } from './subscription-plan.service';
 import { isOneOf } from '../common/enum-membership';
 
 function deliveryContact(snapshot: Prisma.JsonValue) {
@@ -355,8 +356,19 @@ export class SubscriptionAdminReportingService {
       include: { versions: { orderBy: { version: 'desc' }, take: 1 }, items: { include: { product: true } } },
     });
     if (!plan) throw new NotFoundException('Subscription plan not found');
-    const version = plan.versions[0];
-    if (!version) throw new NotFoundException('Plan version missing');
+    
+    // Auto-publish draft plans to create a version
+    let version = plan.versions[0];
+    if (!version) {
+      const planService = new SubscriptionPlanService();
+      await planService.publish(plan.id, actorId);
+      const updatedPlan = await prisma.subscriptionPlan.findUnique({
+        where: { id: plan.id },
+        include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
+      });
+      if (!updatedPlan?.versions[0]) throw new NotFoundException('Failed to create plan version');
+      version = updatedPlan.versions[0];
+    }
 
     const address = await prisma.customerAddress.findUnique({ where: { id: dto.addressId } });
     if (!address) throw new NotFoundException('Delivery address not found');
