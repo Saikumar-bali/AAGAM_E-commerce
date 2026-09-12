@@ -10,6 +10,8 @@ import {
   Box,
   CheckCircle2,
   ClipboardCheck,
+  Loader2,
+  Package,
   PackageCheck,
   RefreshCw,
   Route,
@@ -82,7 +84,27 @@ type CashBatch = {
   rider?: { user?: { name?: string | null } | null } | null;
 };
 type ExceptionRow = Stop & { deliveryRun: { routeCode: string } };
-type Tab = "runs" | "forecast" | "cash" | "exceptions";
+type Tab = "prep" | "runs" | "forecast" | "cash" | "exceptions";
+
+type PreparationRow = {
+  id: string;
+  subscriptionId: string;
+  sequenceNumber: number;
+  serviceDate: string;
+  deliverySlot: string;
+  deliveryStatus: string;
+  generatedAt?: string | null;
+  store: { id: string; name: string } | null;
+  plan: { name: string; orderGenerationHoursBefore: number };
+  customer: { id: string; name?: string | null; email?: string | null; accountPhone?: string | null; deliveryPhone?: string | null };
+  address: { recipientName?: string | null; phone?: string | null; formattedAddress?: string | null; instructions?: string | null; latitude?: number | null; longitude?: number | null };
+  items: Array<{ productId: string; name: string; quantity: number }>;
+  order?: { id: string; status: string } | null;
+  run?: { id: string; routeCode: string; status: string; slotStart?: string | null; slotEnd?: string | null; rider?: { user?: { name?: string | null } | null } | null } | null;
+  readiness: { status: 'PENDING' | 'READY' | 'SHORTAGE'; note?: string | null; updatedAt?: string | null };
+  inventoryReservation: 'FORECAST_ONLY' | 'RESERVED_BY_ORDER';
+  packingAvailableNow: boolean;
+};
 
 function money(paise: number) {
   return `₹${(Number(paise || 0) / 100).toLocaleString("en-IN", {
@@ -98,11 +120,16 @@ function title(value: string) {
 
 export default function StoreSubscriptionOperationsPage() {
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>("runs");
+  const [tab, setTab] = useState<Tab>("prep");
   const [runs, setRuns] = useState<Run[]>([]);
   const [demand, setDemand] = useState<DemandRow[]>([]);
   const [cash, setCash] = useState<CashBatch[]>([]);
   const [exceptions, setExceptions] = useState<ExceptionRow[]>([]);
+  const [prepRows, setPrepRows] = useState<PreparationRow[]>([]);
+  const [prepLoading, setPrepLoading] = useState(false);
+  const [shortageNotes, setShortageNotes] = useState<Record<string, string>>({});
+  const [shortageDialogOpen, setShortageDialogOpen] = useState<string | null>(null);
+  const [prepModalOpen, setPrepModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState("");
   const [packingRun, setPackingRun] = useState<Run | null>(null);
@@ -117,7 +144,7 @@ export default function StoreSubscriptionOperationsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [runsResponse, demandResponse, cashResponse, exceptionsResponse] =
+      const [runsResponse, demandResponse, cashResponse, exceptionsResponse, prepResponse] =
         await Promise.all([
           apiClient.get("/store/subscription-operations/runs"),
           apiClient.get("/store/subscription-operations/demand", {
@@ -125,6 +152,7 @@ export default function StoreSubscriptionOperationsPage() {
           }),
           apiClient.get("/store/subscription-operations/cash-batches"),
           apiClient.get("/store/subscription-operations/exceptions"),
+          apiClient.get("/store/subscription-preparation", { params: { days: 3 } }),
         ]);
       setRuns(Array.isArray(runsResponse.data) ? runsResponse.data : []);
       setDemand(Array.isArray(demandResponse.data) ? demandResponse.data : []);
@@ -132,6 +160,7 @@ export default function StoreSubscriptionOperationsPage() {
       setExceptions(
         Array.isArray(exceptionsResponse.data) ? exceptionsResponse.data : []
       );
+      setPrepRows(Array.isArray(prepResponse.data) ? prepResponse.data : []);
     } catch (error) {
       toast.error(
         getToastErrorMessage(
@@ -205,7 +234,7 @@ export default function StoreSubscriptionOperationsPage() {
         apiClient.post(`/store/subscription-operations/runs/${run.id}/pickup`, {
           version: run.version,
         }),
-      "Store handoff confirmed. The rider must independently verify the bags before starting."
+      "store handoff confirmed. The rider must independently verify the bags before starting."
     );
 
   const verifyCash = () =>
@@ -245,6 +274,56 @@ export default function StoreSubscriptionOperationsPage() {
       "Physical cash verification recorded against individual COD ledgers."
     );
 
+  const prepPending = prepRows.filter((row) => row.readiness.status === 'PENDING').length;
+  const prepShortages = prepRows.filter((row) => row.readiness.status === 'SHORTAGE').length;
+
+  const decide = async (row: PreparationRow, decision: 'READY' | 'SHORTAGE') => {
+    if (decision === 'SHORTAGE') {
+      setShortageDialogOpen(row.id);
+      return;
+    }
+    setWorking(`${row.id}:${decision}`);
+    try {
+      const nonce = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+      await apiClient.post(
+        `/store/subscription-preparation/deliveries/${encodeURIComponent(row.id)}/readiness`,
+        { decision, note: undefined },
+        { headers: { 'Idempotency-Key': `store-preparation:${row.id}:${decision}:${nonce}` } },
+      );
+      toast.success('Stock readiness confirmed.');
+      await load();
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'Stock readiness could not be recorded.'));
+    } finally {
+      setWorking('');
+    }
+  };
+
+  const confirmShortage = async (rowId: string) => {
+    const note = shortageNotes[rowId]?.trim();
+    if (!note || note.length < 5) {
+      toast.warning('Describe the shortage so Admin can resolve it before generation or packing (min 5 characters).');
+      return;
+    }
+    setWorking(`${rowId}:SHORTAGE`);
+    try {
+      const nonce = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+      await apiClient.post(
+        `/store/subscription-preparation/deliveries/${encodeURIComponent(rowId)}/readiness`,
+        { decision: 'SHORTAGE', note },
+        { headers: { 'Idempotency-Key': `store-preparation:${rowId}:SHORTAGE:${nonce}` } },
+      );
+      toast.success('Shortage reported to Admin.');
+      setShortageDialogOpen(null);
+      setShortageNotes((prev) => ({ ...prev, [rowId]: '' }));
+      await load();
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'Shortage could not be reported.'));
+    } finally {
+      setWorking('');
+    }
+  };
+
   const totalStops = runs.reduce(
     (sum, run) => sum + Number(run.totalStopCount || run.stops.length),
     0
@@ -263,12 +342,13 @@ export default function StoreSubscriptionOperationsPage() {
   ).length;
   const tabCounts = useMemo<Record<Tab, number>>(
     () => ({
+      prep: prepPending + prepShortages,
       runs: runs.length,
       forecast: forecastItems,
       cash: pendingCashCount,
       exceptions: exceptions.length,
     }),
-    [runs.length, forecastItems, pendingCashCount, exceptions.length]
+    [prepPending, prepShortages, runs.length, forecastItems, pendingCashCount, exceptions.length]
   );
 
   return (
@@ -277,26 +357,24 @@ export default function StoreSubscriptionOperationsPage() {
         <header className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-700 p-6 text-white shadow-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[.24em] text-emerald-200">
-                Subscription fulfilment
-              </p>
-              <h1 className="mt-2 text-3xl font-black">
+              <h1 className="mt-2 text-3xl font-hero">
                 Morning Runs & Cash Control
               </h1>
-              <p className="mt-2 max-w-3xl text-sm text-emerald-100">
-                Forecast future demand without upfront reservation, pack by
-                route, verify the rider handoff, and settle physical cash
-                without replacing individual COD ledgers.
-              </p>
             </div>
             <button
               onClick={() => void load()}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white/15 px-4 text-sm font-black hover:bg-white/25"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white/15 px-4 text-sm font-nav hover:bg-white/25"
             >
               <RefreshCw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
               />
               Refresh
+            </button>
+            <button
+              onClick={() => setPrepModalOpen(true)}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600/30 px-4 text-sm font-black text-white hover:bg-emerald-600/50"
+            >
+              Open tomorrow subscription preparation
             </button>
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-4">
@@ -305,11 +383,15 @@ export default function StoreSubscriptionOperationsPage() {
             <HeroMetric label="14-day items" value={String(forecastItems)} />
             <HeroMetric label="Cash to count" value={money(submittedCash)} />
           </div>
+          <p className="mt-3 text-xs text-slate-500">
+            Stock readiness and COD-ledger settlement controls operate without replacing individual COD ledgers.
+          </p>
         </header>
 
         <nav className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           {(
             [
+              ["prep", "Tomorrow prep"],
               ["runs", "Preparation runs"],
               ["forecast", "Demand forecast"],
               ["cash", "Cash batches"],
@@ -348,126 +430,182 @@ export default function StoreSubscriptionOperationsPage() {
           />
         ) : (
           <>
-            {tab === "runs" && (
-              <section className="grid gap-4 xl:grid-cols-2">
-                {runs.length ? (
-                  runs.map((run) => (
-                    <article
-                      key={run.id}
-                      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-100 text-emerald-700">
-                          <Route className="h-6 w-6" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-black text-slate-950">
-                            {run.routeCode}
-                          </p>
-                          {run.slotStart && run.slotEnd ? <p className="mt-1 text-xs font-black text-emerald-700">{new Date(run.slotStart).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" })} · {new Date(run.slotStart).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}–{new Date(run.slotEnd).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}</p> : null}
-                          <p className="mt-1 text-xs font-bold text-emerald-700">
-                            {run.deliveryZone?.name || "Assigned region"} ·{" "}
-                            {Number(run.estimatedDistanceKm || 0).toFixed(1)} km
-                            · {run.estimatedDurationMinutes || 0} min
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {run.rider?.user?.name
-                              ? `Rider: ${run.rider.user.name}`
-                              : "Rider not assigned"}
-                          </p>
-                        </div>
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black text-slate-600">
-                          {title(run.status)}
-                        </span>
+            {tab === "prep" && (
+              <section className="space-y-3">
+                {prepRows.length ? (
+                  <>
+                    <div className="grid gap-2 sm:grid-cols-4">
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                        <p className="text-[10px] font-badge text-slate-400">Total Deliveries</p>
+                        <p className="mt-1 text-xl font-kpi text-slate-900">{prepRows.length}</p>
                       </div>
-                      <div className="mt-4 grid grid-cols-3 gap-2">
-                        <Metric
-                          label="Stops"
-                          value={String(run.totalStopCount || run.stops.length)}
-                        />
-                        <Metric
-                          label="Bags"
-                          value={String(
-                            run.expectedBagCount ||
-                              run.totalStopCount ||
-                              run.stops.length
-                          )}
-                        />
-                        <Metric
-                          label="Cash due"
-                          value={money(run.expectedCashPaise)}
-                        />
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                        <p className="text-[10px] font-badge text-slate-400">Pending</p>
+                        <p className="mt-1 text-xl font-kpi text-amber-700">{prepRows.filter((r) => r.readiness.status === 'PENDING').length}</p>
                       </div>
-                      <div className="mt-4 rounded-2xl bg-slate-50 p-3">
-                        <p className="text-xs font-black uppercase tracking-wide text-slate-500">
-                          Customer-wise bags
-                        </p>
-                        <div className="mt-2 space-y-2">
-                          {run.stops.slice(0, 5).map((stop) => (
-                            <div
-                              key={stop.id}
-                              className="flex items-center gap-2 border-b border-slate-200 pb-2 text-xs last:border-0 last:pb-0"
-                            >
-                              <span className="grid h-6 w-6 place-items-center rounded-full bg-white font-black text-slate-600">
-                                {stop.sequenceNumber}
-                              </span>
-                              <span className="min-w-0 flex-1 truncate font-bold text-slate-700">
-                                {stop.subscriptionDelivery.order?.customer
-                                  ?.name || "Customer"}{" "}
-                                · {stop.expectedParcelCount} bag
-                              </span>
-                              <span
-                                className={`font-black ${
-                                  stop.cashDuePaise > 0
-                                    ? "text-amber-700"
-                                    : "text-emerald-700"
-                                }`}
-                              >
-                                {stop.cashDuePaise > 0
-                                  ? money(stop.cashDuePaise)
-                                  : "₹0 funded"}
-                              </span>
-                            </div>
-                          ))}
-                          {run.stops.length > 5 && (
-                            <p className="text-xs font-bold text-slate-500">
-                              + {run.stops.length - 5} more stops
-                            </p>
-                          )}
-                        </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                        <p className="text-[10px] font-badge text-slate-400">Ready</p>
+                        <p className="mt-1 text-xl font-kpi text-emerald-700">{prepRows.filter((r) => r.readiness.status === 'READY').length}</p>
                       </div>
-                      {run.status === "PLANNED" && (
-                        <button
-                          onClick={() => {
-                            setPackingRun(run);
-                            setPackedBags(
-                              String(
-                                run.expectedBagCount ||
-                                  run.totalStopCount ||
-                                  run.stops.length
-                              )
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                        <p className="text-[10px] font-badge text-slate-400">Shortage</p>
+                        <p className="mt-1 text-xl font-kpi text-red-700">{prepRows.filter((r) => r.readiness.status === 'SHORTAGE').length}</p>
+                      </div>
+                    </div>
+                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                      <table className="min-w-full text-left text-xs">
+                        <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2.5 font-badge">Date</th>
+                            <th className="px-3 py-2.5 font-badge">Customer</th>
+                            <th className="px-3 py-2.5 font-badge">Phone</th>
+                            <th className="px-3 py-2.5 font-badge">Slot</th>
+                            <th className="px-3 py-2.5 font-badge">Items</th>
+                            <th className="px-3 py-2.5 font-badge">Status</th>
+                            <th className="px-3 py-2.5 font-badge">Readiness</th>
+                            <th className="px-3 py-2.5 font-badge">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {prepRows.map((row) => {
+                            const slotTime = row.run?.slotStart
+                              ? new Date(row.run.slotStart).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
+                              : null;
+                            const slotEnd = row.run?.slotEnd
+                              ? new Date(row.run.slotEnd).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
+                              : null;
+                            const slotLabel = row.deliverySlot || (slotTime ? (parseInt(slotTime) < 12 ? 'AM' : 'PM') : '—');
+                            return (
+                              <tr key={row.id} className={`hover:bg-emerald-50/30 ${row.readiness.status === 'SHORTAGE' ? 'bg-red-50/50' : ''}`}>
+                                <td className="whitespace-nowrap px-3 py-2.5 font-bold text-slate-800">
+                                  {new Date(row.serviceDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2.5 font-black text-slate-900">{row.address.recipientName || row.customer.name || 'Customer'}</td>
+                                <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-600">{row.customer.deliveryPhone || row.address.phone || '—'}</td>
+                                <td className="whitespace-nowrap px-3 py-2.5">
+                                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${slotLabel === 'PM' ? 'bg-indigo-100 text-indigo-700' : slotLabel === 'AM' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                    {slotLabel}{slotTime ? ` ${slotTime}${slotEnd ? `-${slotEnd}` : ''}` : ''}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2.5">
+                                  <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                    {row.items.slice(0, 2).map((item) => (
+                                      <span key={item.productId} className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">{item.quantity}× {item.name}</span>
+                                    ))}
+                                    {row.items.length > 2 && <span className="text-[10px] text-slate-400">+{row.items.length - 2}</span>}
+                                  </div>
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2.5">
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">{row.deliveryStatus.replaceAll('_', ' ')}</span>
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2.5">
+                                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${row.readiness.status === 'READY' ? 'bg-emerald-100 text-emerald-800' : row.readiness.status === 'SHORTAGE' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{row.readiness.status}</span>
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2.5">
+                                  {row.readiness.status === 'PENDING' ? (
+                                    <div className="flex gap-1">
+                                      <button
+                                        disabled={working.startsWith(row.id)}
+                                        onClick={() => void decide(row, 'READY')}
+                                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50"
+                                        title="Mark Ready"
+                                      >
+                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        disabled={working.startsWith(row.id)}
+                                        onClick={() => void decide(row, 'SHORTAGE')}
+                                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50"
+                                        title="Report Shortage"
+                                      >
+                                        <AlertTriangle className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : row.readiness.status === 'SHORTAGE' && row.readiness.note ? (
+                                    <p className="max-w-[150px] truncate text-[10px] text-red-600">{row.readiness.note}</p>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400">—</span>
+                                  )}
+                                </td>
+                              </tr>
                             );
-                          }}
-                          className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 font-black text-white hover:bg-emerald-800"
-                        >
-                          <PackageCheck className="h-5 w-5" />
-                          Verify route packing
-                        </button>
-                      )}
-                      {run.status === "READY_FOR_PICKUP" && (
-                        <button
-                          disabled={working === `pickup-${run.id}`}
-                          onClick={() => confirmPickup(run)}
-                          className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 font-black text-white hover:bg-teal-800 disabled:opacity-60"
-                        >
-                          <Truck className="h-5 w-5" />
-                          {working === `pickup-${run.id}`
-                            ? "Confirming…"
-                            : "Confirm store handoff"}
-                        </button>
-                      )}
-                    </article>
-                  ))
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <State
+                    icon={CheckCircle2}
+                    title="No upcoming subscription preparation"
+                    text="New subscription demand will appear here immediately and remain forecast-only until its real order is generated."
+                  />
+                )}
+              </section>
+            )}
+
+            {tab === "runs" && (
+              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                {runs.length ? (
+                  <table className="min-w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2.5 font-black">Route</th>
+                        <th className="px-3 py-2.5 font-black">Schedule</th>
+                        <th className="px-3 py-2.5 font-black">Zone</th>
+                        <th className="px-3 py-2.5 font-black">Rider</th>
+                        <th className="px-3 py-2.5 font-black">Stops</th>
+                        <th className="px-3 py-2.5 font-black">Bags</th>
+                        <th className="px-3 py-2.5 font-black">Cash Due</th>
+                        <th className="px-3 py-2.5 font-black">Status</th>
+                        <th className="px-3 py-2.5 font-black">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {runs.map((run) => (
+                        <tr key={run.id} className="hover:bg-emerald-50/30">
+                          <td className="whitespace-nowrap px-3 py-2.5 font-black text-slate-900">{run.routeCode}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-700">
+                            {run.slotStart && run.slotEnd ? (
+                              <>
+                                {new Date(run.slotStart).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" })} · {new Date(run.slotStart).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}–{new Date(run.slotEnd).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}
+                              </>
+                            ) : "—"}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-600">{run.deliveryZone?.name || "—"}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-600">{run.rider?.user?.name || "Unassigned"}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 font-bold text-slate-800">{run.totalStopCount || run.stops.length}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 font-bold text-slate-800">{run.expectedBagCount || run.totalStopCount || run.stops.length}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 font-black text-amber-700">{money(run.expectedCashPaise)}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">{title(run.status)}</span>
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2.5">
+                            {run.status === "PLANNED" && (
+                              <button
+                                onClick={() => {
+                                  setPackingRun(run);
+                                  setPackedBags(String(run.expectedBagCount || run.totalStopCount || run.stops.length));
+                                }}
+                                className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-emerald-700 px-2.5 text-[10px] font-black text-white hover:bg-emerald-800"
+                              >
+                                <PackageCheck className="h-3 w-3" /> Pack
+                              </button>
+                            )}
+                            {run.status === "READY_FOR_PICKUP" && (
+                              <button
+                                disabled={working === `pickup-${run.id}`}
+                                onClick={() => confirmPickup(run)}
+                                className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-teal-700 px-2.5 text-[10px] font-black text-white hover:bg-teal-800 disabled:opacity-60"
+                              >
+                                <Truck className="h-3 w-3" /> {working === `pickup-${run.id}` ? "Confirming…" : "Handoff"}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 ) : (
                   <State
                     icon={Route}
@@ -756,6 +894,58 @@ export default function StoreSubscriptionOperationsPage() {
               {working === "cash-verify"
                 ? "Verifying…"
                 : "Verify physical cash batch"}
+            </button>
+          </Modal>
+        )}
+
+        {shortageDialogOpen && (
+          <Modal
+            title="Report Shortage"
+            onClose={() => setShortageDialogOpen(null)}
+          >
+            <p className="text-xs text-slate-600 mb-4">Enter the shortage reason (minimum 5 characters) so Admin can resolve it before generation or packing.</p>
+            <Field label="Shortage Reason">
+              <textarea
+                value={shortageNotes[shortageDialogOpen] || ''}
+                onChange={(event) => setShortageNotes((prev) => ({ ...prev, [shortageDialogOpen]: event.target.value }))}
+                rows={3}
+                className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-red-500"
+                placeholder="Describe the shortage..."
+              />
+            </Field>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShortageDialogOpen(null)}
+                className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-black"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={working.startsWith(shortageDialogOpen)}
+                onClick={() => void confirmShortage(shortageDialogOpen)}
+                className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-red-600 text-xs font-black text-white disabled:opacity-50"
+              >
+                {working.startsWith(shortageDialogOpen) ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+                Report Shortage
+              </button>
+            </div>
+          </Modal>
+        )}
+
+        {prepModalOpen && (
+          <Modal title="Prepare before delivery day" onClose={() => setPrepModalOpen(false)}>
+            <p className="text-xs text-slate-600 mb-4">
+              Inventory is deducted only when the real subscription order is generated. This
+              preparation step ensures stock readiness without replacing individual COD ledgers.
+            </p>
+            <p className="text-sm text-slate-500">
+              Forecast only. Inventory is reserved when each actual delivery order is generated.
+            </p>
+            <button
+              onClick={() => setPrepModalOpen(false)}
+              className="min-h-10 w-full rounded-xl border border-slate-200 text-sm font-black text-slate-700 hover:bg-slate-50"
+            >
+              Close
             </button>
           </Modal>
         )}

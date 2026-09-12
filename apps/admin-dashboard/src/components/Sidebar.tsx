@@ -105,6 +105,7 @@ const menuItems: Record<Role, MenuItem[]> = {
     { name: "Dashboard", href: "/store", icon: LayoutDashboard },
     { name: "Notifications", href: "/store/notifications", icon: Bell },
     { name: "Orders", href: "/store/orders", icon: ShoppingCart },
+    { name: "Deliveries", href: "/store/deliveries", icon: Truck },
     { name: "Pickup Proof", href: "/store/pickup-proof", icon: ShieldAlert },
     { name: "Subscription Runs", href: "/store/subscriptions", icon: CalendarDays },
     { name: "Inventory", href: "/store/inventory", icon: Package },

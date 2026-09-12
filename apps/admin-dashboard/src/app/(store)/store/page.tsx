@@ -58,25 +58,6 @@ export default function StoreOwnerDashboard() {
 
   return (
     <DashboardLayout allowedRole="STORE_OWNER">
-      <section className="mb-8 overflow-hidden rounded-[2.25rem] bg-slate-950 p-8 text-white shadow-[0_30px_90px_rgba(15,23,42,0.22)]">
-        <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-          <div>
-            <p className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-black uppercase tracking-[0.22em] text-teal-200">Store owner overview</p>
-            <h1 className="mt-5 max-w-2xl text-4xl font-black tracking-[-0.06em] md:text-5xl">Manage your stores, inventory, and orders from one place.</h1>
-            <p className="mt-4 max-w-xl text-sm font-semibold leading-6 text-slate-300">Track stock levels, review incoming orders, and keep your stores running smoothly.</p>
-          </div>
-          <div className="rounded-[1.75rem] border border-white/10 bg-white/8 p-5 backdrop-blur-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-slate-300">Store health</p>
-                <p className="mt-2 text-5xl font-black tracking-tight">{stores.length > 0 ? `${stores.filter((s) => s.isActive).length}/${stores.length}` : '—'}</p>
-              </div>
-              <Store className="h-12 w-12 text-teal-300" />
-            </div>
-            <p className="mt-3 text-sm font-semibold text-slate-400">stores active</p>
-          </div>
-        </div>
-      </section>
 
       <div className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (

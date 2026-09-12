@@ -22,6 +22,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { PartnerOnboardingModule } from './partner-onboarding/partner-onboarding.module';
 import { GlobalSearchModule } from './search/search.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { GoogleSheetsModule } from './google-sheets/google-sheets.module';
 import { WhatsAppWebhookModule } from './whatsapp-webhook/whatsapp-webhook.module';
 import { LocalitiesModule } from './localities/localities.module';
 
@@ -68,6 +69,7 @@ import { LocalitiesModule } from './localities/localities.module';
     PartnerOnboardingModule,
     GlobalSearchModule,
     SubscriptionsModule,
+    GoogleSheetsModule,
     WhatsAppWebhookModule,
     LocalitiesModule,
   ],
