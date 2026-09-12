@@ -941,6 +941,12 @@ export default function StoreSubscriptionOperationsPage() {
             <p className="text-sm text-slate-500">
               Forecast only. Inventory is reserved when each actual delivery order is generated.
             </p>
+            <button
+              onClick={() => setPrepModalOpen(false)}
+              className="min-h-10 w-full rounded-xl border border-slate-200 text-sm font-black text-slate-700 hover:bg-slate-50"
+            >
+              Close
+            </button>
           </Modal>
         )}
       </div>
