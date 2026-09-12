@@ -136,6 +136,23 @@ export function todayInTimezone(timezone: string, now = new Date()) {
   return new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
 }
 
+export const DELIVERY_SLOT_WINDOWS = {
+  AM: { startMinute: 6 * 60, endMinute: 9 * 60 },
+  PM: { startMinute: 17 * 60, endMinute: 20 * 60 },
+} as const;
+
+/**
+ * Resolves the delivery window minutes for an AM/PM delivery slot. Returns
+ * null when the slot is unknown so callers can fall back to the
+ * subscription-level window (used by schedules without per-occurrence slots).
+ */
+export function deliverySlotWindowMinutes(
+  slot: string | null | undefined,
+): { startMinute: number; endMinute: number } | null {
+  const upper = String(slot ?? '').trim().toUpperCase();
+  return upper === 'AM' || upper === 'PM' ? DELIVERY_SLOT_WINDOWS[upper] : null;
+}
+
 export function formatWindowMetadata(
   serviceDate: Date,
   startMinute: number,

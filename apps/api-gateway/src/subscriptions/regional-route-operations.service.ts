@@ -785,6 +785,10 @@ export class RegionalRouteOperationsService {
           serviceDate: { gte: from, lt: to },
           status: SubscriptionDeliveryStatus.ORDER_GENERATED,
           runStop: null,
+          // Store-delivery subscriptions are fulfilled by the store queue, not
+          // the rider network: exclude them from the unassigned rider workload
+          // (same predicate the delivery-run planners already apply).
+          subscription: { storeDelivery: { not: true } },
         },
         include: {
           subscription: { include: { address: true } },

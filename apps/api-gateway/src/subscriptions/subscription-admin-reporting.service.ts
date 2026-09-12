@@ -373,6 +373,18 @@ export class SubscriptionAdminReportingService {
       version = updatedPlan.versions[0];
     }
 
+    // A store-delivery/other manual subscription must never be attached to a
+    // store that the plan's applicability snapshot excludes: the generator
+    // resolves store-delivery serviceability against the home store, so a
+    // mismatched store/plan pair would defer the subscription forever.
+    const applicabilityRecord = (version.applicabilitySnapshot ?? {}) as Record<string, unknown>;
+    const allowedStoreIds = Array.isArray(applicabilityRecord.storeIds) ? applicabilityRecord.storeIds.map(String) : [];
+    if (allowedStoreIds.length > 0 && !allowedStoreIds.includes(store.id)) {
+      throw new BadRequestException(
+        `The selected store is not allowed by this plan (allowed stores: ${allowedStoreIds.join(', ')})`,
+      );
+    }
+
     const address = await prisma.customerAddress.findUnique({ where: { id: dto.addressId } });
     if (!address) throw new NotFoundException('Delivery address not found');
 

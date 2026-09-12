@@ -76,7 +76,16 @@ export class SubscriptionServiceabilityService {
       // the store already knows the customer, so route/zone/coordinate
       // constraints (which would otherwise block offline addresses without
       // coordinates) do not apply.
-      const storeId = input.preferredStoreId || (input.allowedStoreIds?.length ? input.allowedStoreIds[0] : undefined);
+      const allowedStoreIds = input.allowedStoreIds ?? [];
+      if (input.preferredStoreId && allowedStoreIds.length > 0 && !allowedStoreIds.includes(input.preferredStoreId)) {
+        deferred(
+          SERVICEABILITY_REASONS.STORE_UNAVAILABLE,
+          'The home store for this subscription is not allowed by the subscription plan',
+        );
+      }
+      const storeId = input.preferredStoreId
+        || allowedStoreIds[0]
+        || undefined;
       if (!storeId) deferred(SERVICEABILITY_REASONS.STORE_UNAVAILABLE, 'No home store is configured for this subscription');
       const store = await db.store.findUnique({ where: { id: storeId } });
       if (!store || !store.isActive || store.deletedAt) {
