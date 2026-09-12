@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@aagam/utils';
 import { useCart } from '@/hooks/useCart';
@@ -12,7 +12,6 @@ import OfferBanner from '@/components/customer/OfferBanner';
 import PromotionHeroCarousel from '@/components/customer/PromotionHeroCarousel';
 import type { PromotionPlacements } from '@/components/customer/promotion-types';
 import ProductCard from '@/components/customer/ProductCard';
-import CartSheet from '@/components/customer/CartSheet';
 import EmptyState from '@/components/customer/EmptyState';
 import { Package, SlidersHorizontal, ArrowRight, CalendarDays, ShoppingCart } from 'lucide-react';
 import SubscriptionPlanCard from '@/components/subscriptions/SubscriptionPlanCard';
@@ -56,10 +55,9 @@ export default function ShopPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [sort, setSort] = useState('newest');
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
   const [promotions, setPromotions] = useState<PromotionPlacements>(emptyPlacements);
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
-  const { cart, addToCart, updateQuantity, removeFromCart, totalPrice, totalItems } = useCart();
+  const { cart, addToCart, updateQuantity, totalPrice, totalItems } = useCart();
   const wishlist = useWishlist();
   const router = useRouter();
 
@@ -383,17 +381,6 @@ export default function ShopPage() {
           )}
         </div>
       </CustomerShell>
-
-      <CartSheet
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        cart={cart}
-        totalItems={totalItems}
-        totalPrice={totalPrice}
-        onIncrement={(id) => { const item = cart.find((i) => i.id === id); if (item) updateQuantity(id, item.quantity + 1); }}
-        onDecrement={(id) => { const item = cart.find((i) => i.id === id); if (item) updateQuantity(id, item.quantity - 1); }}
-        onRemove={removeFromCart}
-      />
     </DashboardLayout>
   );
 }

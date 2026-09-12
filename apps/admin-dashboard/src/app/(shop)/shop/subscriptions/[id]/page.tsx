@@ -242,6 +242,8 @@ export default function SubscriptionDetailsPage() {
         {(() => {
           const endDate = s?.endDate ? new Date(s.endDate) : null;
           if (!endDate) return null;
+          const terminal = s.status === "CANCELLED" || s.status === "COMPLETED";
+          if (terminal) return null;
           const now = new Date();
           const msDiff = endDate.getTime() - now.getTime();
           const daysUntilExpiry = Math.ceil(msDiff / 86_400_000);

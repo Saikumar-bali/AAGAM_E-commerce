@@ -262,8 +262,14 @@ export class NotificationRoutingService {
     eventType: NotificationEventTypeType,
     context: { shortOrder: string; storeName: string; paymentMethod?: string; title?: string; body?: string },
   ) {
-    if (eventType === 'ADMIN_BROADCAST') {
-      return { title: context.title || 'AAGAM update', body: context.body || 'There is a new service update.' };
+    if (eventType === 'ADMIN_BROADCAST' || eventType === 'SUBSCRIPTION_EXPIRING') {
+      // Operational producers (admin broadcast, subscription expiry) already
+      // build plan-specific copy in the outbox payload; fall back only when
+      // the payload does not carry it.
+      return {
+        title: context.title || (eventType === 'SUBSCRIPTION_EXPIRING' ? 'Subscription expiring soon' : 'AAGAM update'),
+        body: context.body || (eventType === 'SUBSCRIPTION_EXPIRING' ? 'Your subscription is expiring soon. Please review your plan before the end date.' : 'There is a new service update.'),
+      };
     }
     const templates: Record<NotificationEventTypeType, { title: string; body: string }> = {
       ORDER_PLACED: { title: 'New order received', body: `${context.shortOrder} was placed for ${context.storeName}.` },

@@ -20,6 +20,14 @@ function daysUntil(date: string | undefined | null) {
   return Math.ceil((new Date(date).getTime() - Date.now()) / 86_400_000);
 }
 
+const TERMINAL_STATUSES = new Set(['CANCELLED', 'COMPLETED']);
+
+function isExpiringSoon(item: { status?: string; endDate?: string | null }) {
+  if (!item.status || TERMINAL_STATUSES.has(item.status)) return false;
+  const d = daysUntil(item.endDate);
+  return d >= 1 && d <= 3;
+}
+
 export default function CustomerSubscriptionsPage() {
   const toast = useToast();
   const [plans, setPlans] = useState<any[]>([]);
