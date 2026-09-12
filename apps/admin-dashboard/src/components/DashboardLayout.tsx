@@ -117,13 +117,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
 
   if (!ready) {
     return (
-      <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
-        <div className="absolute inset-0 enterprise-subtle-grid opacity-20" />
-        <div className="relative flex min-h-screen items-center justify-center px-6">
-          <div className="enterprise-card max-w-md p-8 text-center text-slate-950">
-            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-2xl shadow-slate-950/25"><Loader2 className="h-6 w-6 animate-spin" /></div>
-            <p className="enterprise-kicker mx-auto w-fit">Secure session</p>
-            <h1 className="mt-4 text-2xl font-black tracking-tight">Opening your workspace</h1>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <img src="/brand/aagam-logo-full.png" alt="Aagaam" className="h-24 w-24 rounded-3xl object-cover shadow-lg" />
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin text-teal-600" />
+            <p className="text-sm font-semibold text-slate-500">Loading...</p>
           </div>
         </div>
       </div>

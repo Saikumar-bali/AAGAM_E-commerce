@@ -177,10 +177,10 @@ export default function GoogleMapPicker({ latitude, longitude, onChange, height 
         <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       </div>
       <div className="flex items-center justify-between gap-3 px-4 py-3 text-xs font-bold text-slate-600">
-        <span>Drag the pin or tap the map to set the entrance.</span>
+        {/* <span>Drag the pin or tap the map to set the entrance.</span>
         <span className="font-mono text-[10px] text-slate-400">
           {latitude.toFixed(5)}, {longitude.toFixed(5)}
-        </span>
+        </span> */}
       </div>
     </div>
   );

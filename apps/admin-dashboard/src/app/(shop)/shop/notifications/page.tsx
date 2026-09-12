@@ -35,10 +35,19 @@ export default function CustomerNotificationsPage() {
     <DashboardLayout allowedRole="CUSTOMER">
       <main className="mx-auto max-w-4xl space-y-5 p-1 pb-24 sm:p-4">
         <section className="flex flex-col gap-4 rounded-3xl bg-slate-950 p-6 text-white md:flex-row md:items-center md:justify-between">
-          <div><p className="text-xs font-black uppercase text-teal-300">Communication center</p><h1 className="mt-2 text-3xl font-black">Notifications</h1><p className="mt-2 text-sm text-slate-300">Order updates, delivery events, support and post-delivery messages.</p></div>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Bell className="h-8 w-8" />
+              {unreadCount > 0 && (
+                <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-teal-400 px-1 text-[10px] font-black text-slate-950">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </div>
+            <h1 className="text-3xl font-black">Notifications</h1>
+          </div>
           <div className="flex flex-wrap items-center gap-2"><PushNotificationManager /><button onClick={() => void fetchInbox()} className="inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-slate-950"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh</button></div>
         </section>
-        <section className="rounded-2xl border bg-white p-4 shadow-sm"><p className="text-xs font-black uppercase text-slate-400">Unread</p><p className="mt-1 text-3xl font-black text-teal-700">{unreadCount}</p></section>
         {message && <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-900">{message}</div>}
         {loading && <div className="rounded-2xl bg-slate-100 p-8 text-center text-sm font-bold text-slate-500">Loading notifications...</div>}
         {!loading && items.length === 0 && <div className="rounded-3xl border border-dashed bg-white p-12 text-center"><Bell className="mx-auto h-12 w-12 text-slate-300" /><p className="mt-4 text-lg font-black">No notifications yet</p></div>}

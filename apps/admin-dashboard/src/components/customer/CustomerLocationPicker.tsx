@@ -75,8 +75,10 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
       }
       const token = getMapboxToken();
       if (!token) { setSearchResults([]); return; }
+      // Bounding box around Anakapalle and nearby areas (Visakhapatnam region)
+      const bbox = '82.7,17.5,83.3,17.9';
       const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${longitude},${latitude}`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${longitude},${latitude}&bbox=${bbox}`
       );
       const data = await res.json();
       const features = (data.features || []).map((f: any) => ({
@@ -210,10 +212,10 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
         <div ref={containerRef} className="h-full w-full" />
       </div>
       <div className="flex items-center justify-between gap-3 px-4 py-3 text-xs font-bold text-slate-600">
-        <span>Drag the pin or tap the map to set the entrance.</span>
+        {/* <span>Drag the pin or tap the map to set the entrance.</span>
         <span className="font-mono text-[10px] text-slate-400">
           {latitude.toFixed(5)}, {longitude.toFixed(5)}
-        </span>
+        </span> */}
       </div>
     </div>
   );
