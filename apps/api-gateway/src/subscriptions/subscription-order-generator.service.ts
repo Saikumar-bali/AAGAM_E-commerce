@@ -216,7 +216,8 @@ export class SubscriptionOrderGenerator {
           allowedStoreIds: Array.isArray(applicability.storeIds) ? applicability.storeIds.map(String) : [],
           preferredStoreId: subscription.homeStoreId,
           excludeDeliveryId: delivery.id,
-          requireWeight: true,
+          requireWeight: !subscription.storeDelivery,
+          storeDelivery: subscription.storeDelivery === true,
         }, tx);
         const store = await tx.store.findUnique({ where: { id: serviceability.storeId }, select: { id: true, name: true, latitude: true, longitude: true } });
         if (!store) this.deferred(SERVICEABILITY_REASONS.STORE_UNAVAILABLE, 'Resolved subscription store is unavailable');
@@ -301,16 +302,21 @@ export class SubscriptionOrderGenerator {
             serviceDate: delivery.serviceDate.toISOString(),
           },
         });
-        const job = await this.deliveryJobs.ensureForSubscriptionOrder(
-          order.id,
-          { id: subscription.customerId, role: Role.CUSTOMER },
-          tx,
-        );
+        // Store-delivery subscriptions are fulfilled directly by the store, not
+        // a regional rider: keep the generated order (for cash/ledger) but do
+        // not create a rider delivery job so the run planner never picks them up.
+        const job = subscription.storeDelivery
+          ? null
+          : await this.deliveryJobs.ensureForSubscriptionOrder(
+              order.id,
+              { id: subscription.customerId, role: Role.CUSTOMER },
+              tx,
+            );
         const updated = await tx.subscriptionDelivery.update({
           where: { id: delivery.id },
           data: {
             status: SubscriptionDeliveryStatus.ORDER_GENERATED,
-            deliveryJobId: job?.id,
+            deliveryJobId: job?.id ?? null,
             storeId: store!.id,
             deliveryZoneId: serviceability.zoneId,
             generatedAt: new Date(),

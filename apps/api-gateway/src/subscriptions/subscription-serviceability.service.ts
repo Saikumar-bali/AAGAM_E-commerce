@@ -42,6 +42,7 @@ type ResolverInput = {
   preferredStoreId?: string | null;
   excludeDeliveryId?: string;
   requireWeight?: boolean;
+  storeDelivery?: boolean;
 };
 
 function deferred(reason: ServiceabilityReason, message: string): never {
@@ -67,10 +68,38 @@ export class SubscriptionServiceabilityService {
   constructor(private readonly calendar: SubscriptionCalendarService) {}
 
   async resolve(input: ResolverInput, db: Db = prisma) {
+    if (!input.serviceDates.length) throw new BadRequestException('At least one service date is required');
+    const storeDelivery = input.storeDelivery === true;
+
+    if (storeDelivery) {
+      // Store-delivery subscriptions are fulfilled by the home store itself:
+      // the store already knows the customer, so route/zone/coordinate
+      // constraints (which would otherwise block offline addresses without
+      // coordinates) do not apply.
+      const storeId = input.preferredStoreId || (input.allowedStoreIds?.length ? input.allowedStoreIds[0] : undefined);
+      if (!storeId) deferred(SERVICEABILITY_REASONS.STORE_UNAVAILABLE, 'No home store is configured for this subscription');
+      const store = await db.store.findUnique({ where: { id: storeId } });
+      if (!store || !store.isActive || store.deletedAt) {
+        deferred(SERVICEABILITY_REASONS.STORE_UNAVAILABLE, 'The home store for this subscription is not active');
+      }
+      return {
+        zoneId: null,
+        zoneCode: null,
+        timezone: DEFAULT_DELIVERY_TIMEZONE,
+        storeId: store!.id,
+        checkedServiceDates: input.serviceDates.map((serviceDate) => serviceDate.toISOString().slice(0, 10)),
+        localDeliveryWindow: [],
+        utcWindow: [],
+        inventoryDecision: { available: true },
+        capacityDecision: { available: true, checks: [] },
+        storeDistanceKm: 0,
+        slotEndBufferMinutes: 0,
+      };
+    }
+
     if (!Number.isFinite(input.address.latitude) || !Number.isFinite(input.address.longitude)) {
       deferred(SERVICEABILITY_REASONS.ZONE_UNSERVICEABLE, 'Authoritative delivery coordinates are missing');
     }
-    if (!input.serviceDates.length) throw new BadRequestException('At least one service date is required');
     if (!input.items.length || input.items.some((item) => !item.productId || !Number.isInteger(item.quantity) || item.quantity < 1)) {
       throw new BadRequestException('Subscription items are invalid');
     }

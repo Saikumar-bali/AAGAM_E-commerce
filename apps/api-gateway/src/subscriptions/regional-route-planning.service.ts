@@ -151,6 +151,7 @@ export class RegionalRoutePlanningService {
       status: SubscriptionDeliveryStatus.ORDER_GENERATED,
       deliveryJobId: { not: null },
       runStop: null,
+      subscription: { storeDelivery: { not: true } },
       ...(options?.serviceDate ? {
         serviceDate: {
           gte: new Date(Date.UTC(

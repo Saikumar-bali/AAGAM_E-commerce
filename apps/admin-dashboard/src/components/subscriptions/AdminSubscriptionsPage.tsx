@@ -201,7 +201,7 @@ export default function AdminSubscriptionsPage() {
     deliverySlot: 'MORNING' as 'MORNING' | 'EVENING' | 'BOTH',
     initialCashRupees: '0',
     note: '',
-    storeDelivery: false,
+    storeDelivery: true,
   });
 
   const [customDeliveries, setCustomDeliveries] = useState<Array<{
@@ -312,6 +312,7 @@ export default function AdminSubscriptionsPage() {
           totalDeliveries: Number(manualForm.totalDeliveries || 30),
           deliverySlot: manualForm.deliverySlot,
           initialCashCollectedPaise: Math.round(Number(manualForm.initialCashRupees || 0) * 100),
+          storeDelivery: manualForm.storeDelivery,
           note: manualForm.note.trim() || undefined,
         });
       }

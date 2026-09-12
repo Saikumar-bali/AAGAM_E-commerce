@@ -347,7 +347,7 @@ export class SubscriptionAdminReportingService {
     return { customer, address };
   }
 
-  async createManualSubscription(dto: { storeId: string; planId: string; customerId: string; addressId: string; startDate: string; totalDeliveries: number; deliverySlot?: 'MORNING' | 'EVENING' | 'BOTH'; initialCashCollectedPaise?: number; note?: string }, actorId: string) {
+  async createManualSubscription(dto: { storeId: string; planId: string; customerId: string; addressId: string; startDate: string; totalDeliveries: number; deliverySlot?: 'MORNING' | 'EVENING' | 'BOTH'; initialCashCollectedPaise?: number; storeDelivery?: boolean; note?: string }, actorId: string) {
     const store = await prisma.store.findUnique({ where: { id: dto.storeId } });
     if (!store) throw new NotFoundException('Store not found');
 
@@ -405,6 +405,7 @@ export class SubscriptionAdminReportingService {
           deliveryWindowStartMinute: slotStartMinute,
           deliveryWindowEndMinute: slotEndMinute,
           deliveryMethod: 'PERSONAL_HANDOVER',
+          storeDelivery: dto.storeDelivery ?? false,
           priceSnapshot: { pricePaise, mrpPaise: plan.mrpPaise, currency: 'INR', manualNote: dto.note },
           itemsSnapshot: plan.items.map((i) => ({ productId: i.productId, quantityPerDelivery: i.quantityPerDelivery, name: i.product.name })),
           addressSnapshot: {
@@ -412,9 +413,12 @@ export class SubscriptionAdminReportingService {
             phoneE164: address.phoneE164,
             line1: address.line1,
             line2: address.line2,
+            landmark: address.landmark,
             city: address.city,
             state: address.state,
             pincode: address.pincode,
+            latitude: address.latitude,
+            longitude: address.longitude,
           },
           policySnapshot: { allowPause: plan.allowPause, allowSkip: plan.allowSkip },
           fundedDeliveryCount: dto.totalDeliveries,
@@ -429,10 +433,14 @@ export class SubscriptionAdminReportingService {
       const deliveriesData: Prisma.SubscriptionDeliveryCreateManyInput[] = [];
       let curDate = new Date(start);
       for (let seq = 1; seq <= dto.totalDeliveries; seq++) {
+        const deliverySlot = dto.deliverySlot === 'EVENING' ? 'PM'
+          : dto.deliverySlot === 'BOTH' ? (seq % 2 === 1 ? 'AM' : 'PM')
+          : 'AM';
         deliveriesData.push({
           subscriptionId: subscription.id,
           serviceDate: new Date(curDate),
           sequenceNumber: seq,
+          deliverySlot,
           status: SubscriptionDeliveryStatus.SCHEDULED,
           generationKey: `manual:${subscription.id}:${seq}:${curDate.toISOString().slice(0, 10)}`,
           storeId: store.id,
@@ -636,9 +644,12 @@ export class SubscriptionAdminReportingService {
             phoneE164: address.phoneE164,
             line1: address.line1,
             line2: address.line2,
+            landmark: address.landmark,
             city: address.city,
             state: address.state,
             pincode: address.pincode,
+            latitude: address.latitude,
+            longitude: address.longitude,
           },
           policySnapshot: { allowPause: false, allowSkip: false, isCustom: true },
           fundedDeliveryCount: totalDeliveries,

@@ -19,7 +19,7 @@ export class StoreSelfDeliveryService {
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const subDelivery = await tx.subscriptionDelivery.findUnique({
         where: { id: subscriptionDeliveryId },
-        include: { subscription: { include: { customer: true } }, deliveryJob: true },
+        include: { subscription: { include: { customer: true } }, deliveryJob: true, order: { select: { id: true } } },
       });
 
       if (!subDelivery) throw new NotFoundException('Subscription delivery not found');
@@ -100,19 +100,20 @@ export class StoreSelfDeliveryService {
       }
 
       if (newStatus === SubscriptionDeliveryStatus.DELIVERED) {
+        const orderId = subDelivery.deliveryJob?.orderId || subDelivery.order?.id || null;
         if (subDelivery.deliveryJobId) {
           await tx.deliveryJob.update({
             where: { id: subDelivery.deliveryJobId },
             data: { status: DeliveryJobStatus.DELIVERED },
           });
-
-          if (subDelivery.deliveryJob?.orderId) {
-            await tx.order.update({
-              where: { id: subDelivery.deliveryJob.orderId },
-              data: { status: 'DELIVERED', deliveredAt: new Date() },
-            });
-          }
-
+        }
+        if (orderId) {
+          await tx.order.update({
+            where: { id: orderId },
+            data: { status: 'DELIVERED', deliveredAt: new Date() },
+          });
+        }
+        if (subDelivery.deliveryJobId) {
           await tx.storeDeliveryProof.create({
             data: {
               deliveryJobId: subDelivery.deliveryJobId,
@@ -132,10 +133,17 @@ export class StoreSelfDeliveryService {
           data: { completedDeliveries: { increment: 1 } },
         });
       } else if (newStatus === SubscriptionDeliveryStatus.FAILED) {
+        const orderId = subDelivery.deliveryJob?.orderId || subDelivery.order?.id || null;
         if (subDelivery.deliveryJobId) {
           await tx.deliveryJob.update({
             where: { id: subDelivery.deliveryJobId },
             data: { status: DeliveryJobStatus.DELIVERY_FAILED },
+          });
+        }
+        if (orderId) {
+          await tx.order.update({
+            where: { id: orderId },
+            data: { status: 'CANCELLED' },
           });
         }
 
@@ -328,6 +336,7 @@ export class StoreSelfDeliveryService {
           include: { customer: { select: { name: true, phone: true } } },
         },
         deliveryJob: true,
+        order: { select: { id: true } },
       },
     });
 
@@ -353,19 +362,21 @@ export class StoreSelfDeliveryService {
         },
       });
 
+      const orderId = subDelivery.deliveryJob?.orderId || subDelivery.order?.id || null;
       if (subDelivery.deliveryJobId) {
         await tx.deliveryJob.update({
           where: { id: subDelivery.deliveryJobId },
           data: { status: DeliveryJobStatus.DELIVERED },
         });
+      }
+      if (orderId) {
+        await tx.order.update({
+          where: { id: orderId },
+          data: { status: 'DELIVERED', deliveredAt: new Date() },
+        });
+      }
 
-        if (subDelivery.deliveryJob?.orderId) {
-          await tx.order.update({
-            where: { id: subDelivery.deliveryJob.orderId },
-            data: { status: 'DELIVERED', deliveredAt: new Date() },
-          });
-        }
-
+      if (subDelivery.deliveryJobId) {
         await tx.storeDeliveryProof.create({
           data: {
             deliveryJobId: subDelivery.deliveryJobId,

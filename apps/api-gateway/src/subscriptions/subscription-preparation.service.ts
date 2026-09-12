@@ -397,6 +397,7 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
         subscriptionId: delivery.subscriptionId,
         sequenceNumber: delivery.sequenceNumber,
         serviceDate: delivery.serviceDate,
+        deliverySlot: delivery.deliverySlot,
         deliveryStatus: delivery.status,
         generatedAt: delivery.generatedAt,
         store: delivery.store || delivery.subscription.homeStore,
