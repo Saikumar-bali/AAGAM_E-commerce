@@ -19,13 +19,13 @@ export class StoreSelfDeliveryService {
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const subDelivery = await tx.subscriptionDelivery.findUnique({
         where: { id: subscriptionDeliveryId },
-        include: { subscription: { include: { customer: true } }, deliveryJob: true, order: { select: { id: true } } },
+        include: { subscription: { include: { customer: true } }, deliveryJob: true, runStop: true, order: { select: { id: true } } },
       });
 
       if (!subDelivery) throw new NotFoundException('Subscription delivery not found');
 
-      if (subDelivery.subscription.storeDelivery !== true) {
-        throw new BadRequestException('This subscription is not configured for store delivery');
+      if (!this.storeFulfillable(subDelivery)) {
+        throw new BadRequestException('This delivery is not assigned to store self-fulfilment');
       }
 
       if (actorRole !== Role.ADMIN) {
@@ -260,7 +260,19 @@ export class StoreSelfDeliveryService {
         ],
         serviceDate: { gte: today, lt: tomorrow },
         status: { in: ['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED', 'STORE_DELIVERING', 'DELIVERED', 'FAILED'] },
-        subscription: { storeDelivery: true },
+        // The store fulfils every one of its own subscription deliveries that
+        // is not claimed by the rider network: explicitly store-delivery rows
+        // plus rows with no rider job and no run stop (e.g. offline plans
+        // created before subscription.storeDelivery was set, or store-assigned
+        // plans whose rows have not been rider-linked yet).
+        AND: [
+          {
+            OR: [
+              { subscription: { storeDelivery: true } },
+              { AND: [{ deliveryJobId: null }, { runStop: null }] },
+            ],
+          },
+        ],
       },
       include: {
         subscription: {
@@ -348,11 +360,11 @@ export class StoreSelfDeliveryService {
   async startDelivery(subscriptionDeliveryId: string, storeUserId: string) {
     const subDelivery = await prisma.subscriptionDelivery.findUnique({
       where: { id: subscriptionDeliveryId },
-      include: { subscription: true, deliveryJob: true },
+      include: { subscription: true, deliveryJob: true, runStop: true },
     });
 
     if (!subDelivery) throw new NotFoundException('Subscription delivery not found');
-    if (!subDelivery.subscription.storeDelivery) throw new BadRequestException('This subscription is not configured for store delivery');
+    if (!this.storeFulfillable(subDelivery)) throw new BadRequestException('This delivery is not assigned to store self-fulfilment');
     if (!['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED'].includes(subDelivery.status)) {
       throw new BadRequestException(`Cannot start delivery in status: ${subDelivery.status}`);
     }
@@ -505,10 +517,11 @@ export class StoreSelfDeliveryService {
   ) {
     const subDelivery = await prisma.subscriptionDelivery.findUnique({
       where: { id: subscriptionDeliveryId },
-      include: { subscription: true },
+      include: { subscription: true, deliveryJob: true, runStop: true },
     });
 
     if (!subDelivery) throw new NotFoundException('Subscription delivery not found');
+    if (!this.storeFulfillable(subDelivery)) throw new BadRequestException('This delivery is not assigned to store self-fulfilment');
     if (!['STORE_DELIVERING', 'PREPARING', 'PACKED', 'ORDER_GENERATED'].includes(subDelivery.status)) {
       throw new BadRequestException(`Cannot record failure in status: ${subDelivery.status}`);
     }
@@ -581,5 +594,21 @@ export class StoreSelfDeliveryService {
         pincode: subDelivery.subscription.address.pincode,
       },
     };
+  }
+
+  /**
+   * A subscription delivery is store-fulfillable when the subscription is
+   * explicitly marked for store delivery, or when the platform has not claimed
+   * it for the rider network (no rider job and no delivery-run stop). Offline /
+   * store-created plans whose rows were never rider-linked fall into the second
+   * bucket, so the store can always fulfil its own deliveries.
+   */
+  private storeFulfillable(subDelivery: {
+    subscription: { storeDelivery: boolean };
+    deliveryJobId?: string | null;
+    runStop?: unknown | null;
+  }): boolean {
+    return subDelivery.subscription.storeDelivery === true
+      || (subDelivery.deliveryJobId == null && subDelivery.runStop == null);
   }
 }
