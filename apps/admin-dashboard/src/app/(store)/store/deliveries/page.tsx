@@ -116,7 +116,7 @@ export default function StoreDeliveriesPage() {
     try {
       await apiClient.post(`/store-self-delivery/start/${deliveryId}`);
       toast.success('Delivery started. Verify customer on arrival.');
-      await loadDeliveries();
+      if (selectedStoreId) await loadDeliveries(selectedStoreId);
     } catch (err) {
       toast.error(getToastErrorMessage(err, 'Failed to start delivery'));
     } finally {
@@ -153,7 +153,7 @@ export default function StoreDeliveriesPage() {
       });
       toast.success('Delivery completed and verified.');
       setVerifyModal(null);
-      await loadDeliveries();
+      if (selectedStoreId) await loadDeliveries(selectedStoreId);
     } catch (err) {
       toast.error(getToastErrorMessage(err, 'Failed to complete delivery'));
     } finally {
@@ -170,7 +170,7 @@ export default function StoreDeliveriesPage() {
     try {
       await apiClient.post(`/store-self-delivery/fail/${deliveryId}`, { reason: reason.trim() });
       toast.success('Delivery marked as failed.');
-      await loadDeliveries();
+      if (selectedStoreId) await loadDeliveries(selectedStoreId);
     } catch (err) {
       toast.error(getToastErrorMessage(err, 'Failed to record failure'));
     } finally {
@@ -260,7 +260,7 @@ export default function StoreDeliveriesPage() {
               </select>
             )}
             <button
-              onClick={() => void loadDeliveries()}
+              onClick={() => { if (selectedStoreId) void loadDeliveries(selectedStoreId); }}
               disabled={!selectedStoreId}
               className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >

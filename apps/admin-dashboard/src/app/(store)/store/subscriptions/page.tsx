@@ -886,6 +886,40 @@ export default function StoreSubscriptionOperationsPage() {
             </button>
           </Modal>
         )}
+
+        {shortageDialogOpen && (
+          <Modal
+            title="Report Shortage"
+            onClose={() => setShortageDialogOpen(null)}
+          >
+            <p className="text-xs text-slate-600 mb-4">Enter the shortage reason (minimum 5 characters) so Admin can resolve it before generation or packing.</p>
+            <Field label="Shortage Reason">
+              <textarea
+                value={shortageNotes[shortageDialogOpen] || ''}
+                onChange={(event) => setShortageNotes((prev) => ({ ...prev, [shortageDialogOpen]: event.target.value }))}
+                rows={3}
+                className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-red-500"
+                placeholder="Describe the shortage..."
+              />
+            </Field>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShortageDialogOpen(null)}
+                className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-black"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={working.startsWith(shortageDialogOpen)}
+                onClick={() => void confirmShortage(shortageDialogOpen)}
+                className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-red-600 text-xs font-black text-white disabled:opacity-50"
+              >
+                {working.startsWith(shortageDialogOpen) ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+                Report Shortage
+              </button>
+            </div>
+          </Modal>
+        )}
       </div>
     </DashboardLayout>
   );
