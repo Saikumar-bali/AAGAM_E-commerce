@@ -5,6 +5,7 @@ import { prisma } from '@aagam/database';
 import { enqueueOutboxEvent } from '../notifications/outbox.service';
 import { SubscriptionOrderGenerator } from './subscription-order-generator.service';
 import { RegionalRoutePlanningService } from './regional-route-planning.service';
+import { SubscriptionExpirationService } from './subscription-expiration.service';
 
 const QUEUE_NAME = 'subscription-production';
 const CYCLE_JOB = 'subscription-cycle';
@@ -20,6 +21,7 @@ export class SubscriptionSchedulerService implements OnModuleInit, OnModuleDestr
   constructor(
     private readonly generator: SubscriptionOrderGenerator,
     private readonly runPlanning: RegionalRoutePlanningService,
+    private readonly expiration: SubscriptionExpirationService,
   ) {}
 
   async onModuleInit() {
@@ -116,6 +118,7 @@ export class SubscriptionSchedulerService implements OnModuleInit, OnModuleDestr
   }
 
   private async executeCycle(correlationId: string) {
+    await this.expiration.checkAndNotify();
     const generated = await this.generator.generateDue(new Date(), 250, correlationId);
     // D-1 route planning is intentionally separated from live rider dispatch. The
     // preparation service performs final live rider assignment close to the slot,

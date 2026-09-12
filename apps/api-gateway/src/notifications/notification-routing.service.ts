@@ -285,6 +285,7 @@ export class NotificationRoutingService {
       ROUTE_ASSIGNED: { title: 'Route assigned', body: 'A subscription delivery route was assigned to you. Refresh before starting.' },
       ROUTE_REMOVED: { title: 'Route updated', body: 'A subscription route was removed or reassigned. Refresh before continuing.' },
       SUBSCRIPTION_WORKER_FAILED: { title: 'Subscription worker needs attention', body: 'A subscription generation job exhausted automatic retries.' },
+      SUBSCRIPTION_EXPIRING: { title: 'Subscription expiring soon', body: 'Your subscription is expiring soon. Please review your plan before the end date.' },
       ADMIN_BROADCAST: { title: context.title || 'AAGAM update', body: context.body || 'There is a new service update.' },
     };
     return templates[eventType];

@@ -29,6 +29,7 @@ const EVENT_AUDIENCES: Record<NotificationEventTypeType, readonly Role[]> = {
   ROUTE_ASSIGNED: [Role.RIDER],
   ROUTE_REMOVED: [Role.RIDER],
   SUBSCRIPTION_WORKER_FAILED: [Role.ADMIN],
+  SUBSCRIPTION_EXPIRING: [Role.CUSTOMER, Role.ADMIN],
   ADMIN_BROADCAST: [],
 };
 
