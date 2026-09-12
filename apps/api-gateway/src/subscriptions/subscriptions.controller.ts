@@ -29,6 +29,7 @@ import { CustomerSubscriptionService } from './customer-subscription.service';
 import { DeliveryRunOperationsService } from './delivery-run-operations.service';
 import { DeliveryRunPlanningService } from './delivery-run-planning.service';
 import { SubscriptionAdminReportingService } from './subscription-admin-reporting.service';
+import { SubscriptionExpirationService } from './subscription-expiration.service';
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { SubscriptionSchedulerService } from './subscription-scheduler.service';
 import { TrustedDropService } from './trusted-drop.service';

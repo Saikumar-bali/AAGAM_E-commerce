@@ -163,6 +163,7 @@ export class NotificationRoutingService {
       case 'SUBSCRIPTION_WORKER_FAILED':
         addAdmins();
         break;
+      case 'SUBSCRIPTION_EXPIRING':
       case 'ADMIN_BROADCAST': {
         // Server-originated operational workflows can target exact users while
         // still using the durable outbox/retry/push pipeline. The public Admin
