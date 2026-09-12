@@ -29,7 +29,6 @@ import { CustomerSubscriptionService } from './customer-subscription.service';
 import { DeliveryRunOperationsService } from './delivery-run-operations.service';
 import { DeliveryRunPlanningService } from './delivery-run-planning.service';
 import { SubscriptionAdminReportingService } from './subscription-admin-reporting.service';
-import { SubscriptionExpirationService } from './subscription-expiration.service';
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { SubscriptionSchedulerService } from './subscription-scheduler.service';
 import { TrustedDropService } from './trusted-drop.service';
@@ -105,7 +104,6 @@ export class CustomerSubscriptionsController {
   constructor(
     private readonly subscriptions: CustomerSubscriptionService,
     private readonly trustedDrop: TrustedDropService,
-    private readonly expiration: SubscriptionExpirationService,
   ) {}
 
   @Post()
@@ -191,6 +189,7 @@ export class CustomerSubscriptionsController {
   @Get(':id/expiry')
   expiry(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.subscriptions.getMine(req.user.id, id).then((sub) => {
+      const terminal = sub.status === CustomerSubscriptionStatus.CANCELLED || sub.status === CustomerSubscriptionStatus.COMPLETED;
       const now = new Date();
       const endDate = new Date(sub.endDate);
       const daysUntilExpiry = Math.ceil((endDate.getTime() - now.getTime()) / 86_400_000);
@@ -199,7 +198,7 @@ export class CustomerSubscriptionsController {
         planName: sub.plan?.name,
         endDate: sub.endDate,
         daysUntilExpiry,
-        expiringSoon: daysUntilExpiry >= 1 && daysUntilExpiry <= 3,
+        expiringSoon: !terminal && daysUntilExpiry >= 1 && daysUntilExpiry <= 3,
         status: sub.status,
       };
     });
