@@ -3,7 +3,7 @@ name: OpenHands Auto-Fix
 # LLM Provider Setup (choose one, set secrets in repo Settings > Secrets):
 #
 # Option 1: OpenHands Cloud (RECOMMENDED — your sk-oh- key)
-#   Secret: LLM_MODEL = openhands/claude-sonnet-4-5-20250929
+#   Secret: LLM_MODEL = openhands/deepseek-v4-flash
 #   Secret: LLM_API_KEY = your sk-oh- key from app.all-hands.dev/settings/api-keys
 #   No base URL needed — auto-configured via model prefix
 #   Pricing: pay-per-token, no rate limits
@@ -53,7 +53,7 @@ concurrency:
 
 env:
   OPENHANDS_SUPPRESS_BANNER: "1"
-  LLM_MODEL: ${{ secrets.LLM_MODEL || 'openhands/claude-sonnet-4-5-20250929' }}
+  LLM_MODEL: ${{ secrets.LLM_MODEL || 'openhands/deepseek-v4-flash' }}
   LLM_API_KEY: ${{ secrets.LLM_API_KEY || secrets.OPENHANDS_LLM_KEY }}
   LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || '' }}
 
