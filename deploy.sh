@@ -16,6 +16,7 @@ DEPLOY_SWAP_FILE="${DEPLOY_SWAP_FILE:-/var/tmp/aagam-deploy.swap}"
 DEPLOY_SUPPLEMENTAL_SWAP_MB="${DEPLOY_SUPPLEMENTAL_SWAP_MB:-512}"
 DEPLOY_SUPPLEMENTAL_SWAP_FILE="${DEPLOY_SUPPLEMENTAL_SWAP_FILE:-${DEPLOY_SWAP_FILE}.extra}"
 DEPLOY_NODE_HEAP_MB="${DEPLOY_NODE_HEAP_MB:-1536}"
+DEPLOY_BUILD_NODE_HEAP_MB="${DEPLOY_BUILD_NODE_HEAP_MB:-$(( DEPLOY_NODE_HEAP_MB + 1024 ))}"
 
 cd "$APP_DIR"
 
@@ -365,7 +366,7 @@ npx prisma validate --schema packages/database/prisma/schema.prisma
 # restart step. The old release only runs the (previous) JS output; stopping it
 # frees RAM without losing state, and pm2 brings all three apps back.
 BUILD_STOPPED_PROCESSES=0
-build_required_mb=$(( DEPLOY_NODE_HEAP_MB * 2 + 512 ))
+build_required_mb=$(( DEPLOY_BUILD_NODE_HEAP_MB * 2 + 512 ))
 build_available_mb="$(available_memory_mb)"
 echo "Build memory available: ${build_available_mb} MB (required budget: ${build_required_mb} MB)"
 if (( build_available_mb < build_required_mb )); then
@@ -378,8 +379,15 @@ if (( build_available_mb < build_required_mb )); then
   echo "Build memory available after stopping old release: ${build_available_mb} MB"
 fi
 
-# Build one workspace at a time. NODE_OPTIONS already carries an explicit heap
-# cap (set above), which nest build's tsc child inherits.
+# Build one workspace at a time. `nest build` (used by @aagam/api-gateway)
+# spawns a tsc child that needs a larger heap than the runtime cap: the
+# codebase keeps growing (e.g. subscriptions/store-delivery), and the default
+# 1536 MB runtime cap is now below tsc's compile-time peak. Use a larger heap
+# for the build phase only, then restore the runtime cap before pm2 restarts.
+# Strip any previous max-old-space-size so the larger value unambiguously wins.
+RUNTIME_NODE_OPTIONS="$NODE_OPTIONS"
+export NODE_OPTIONS="$(printf '%s' "$NODE_OPTIONS" | sed -E 's/--max-old-space-size=[0-9]+//')"
+export NODE_OPTIONS="${NODE_OPTIONS:+${NODE_OPTIONS} }--max-old-space-size=${DEPLOY_BUILD_NODE_HEAP_MB}"
 npx turbo build \
   --filter=@aagam/api-gateway \
   --filter=@aagam/admin-dashboard \
@@ -387,6 +395,8 @@ npx turbo build \
   --cache-dir=.turbo \
   --concurrency=1 \
   --force
+# Restore the original NODE_OPTIONS (runtime heap cap) for the pm2 restart.
+export NODE_OPTIONS="$RUNTIME_NODE_OPTIONS"
 
 if [[ "$BUILD_STOPPED_PROCESSES" == "1" ]]; then
   echo "Build finished; restoring old release before migrations/restart."
