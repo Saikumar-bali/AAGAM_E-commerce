@@ -23,6 +23,13 @@ on_error() {
   local exit_code=$?
   trap - ERR
   echo "Deployment failed with exit code $exit_code."
+  # If the build phase stopped the old release, bring it back so a failed
+  # deploy never leaves production down.
+  if [[ "${BUILD_STOPPED_PROCESSES:-0}" == "1" ]]; then
+    echo "Restoring old pm2 processes after failed deployment."
+    pm2 startOrReload ecosystem.config.js --update-env --interpreter "$(command -v node)" >/dev/null 2>&1 || true
+    pm2 restart admin-dashboard --update-env >/dev/null 2>&1 || true
+  fi
   if [[ -r /proc/meminfo ]]; then
     awk '/MemAvailable:|SwapFree:|SwapTotal:/ { printf "%s %s %s\n", $1, $2, $3 }' /proc/meminfo || true
   fi
@@ -350,8 +357,29 @@ npm ci --include=dev --no-audit --no-fund
 npx prisma generate --schema packages/database/prisma/schema.prisma
 npx prisma validate --schema packages/database/prisma/schema.prisma
 
-# The production VPS is intentionally small. Build one workspace at a time so
-# npm/Next/Turbo cannot exhaust RAM even when the previous release remains live.
+# The production VPS is intentionally small. Building the new release while the
+# old one is live can OOM the host: `nest build` spawns a tsc child whose heap is
+# capped independently of the parent, so one workspace can need up to ~2x the
+# heap cap plus overhead. When the host cannot offer that much headroom, stop
+# the old release for the duration of the build and bring it back before the
+# restart step. The old release only runs the (previous) JS output; stopping it
+# frees RAM without losing state, and pm2 brings all three apps back.
+BUILD_STOPPED_PROCESSES=0
+build_required_mb=$(( DEPLOY_NODE_HEAP_MB * 2 + 512 ))
+build_available_mb="$(available_memory_mb)"
+echo "Build memory available: ${build_available_mb} MB (required budget: ${build_required_mb} MB)"
+if (( build_available_mb < build_required_mb )); then
+  echo "Memory is tight; stopping old pm2 processes to free RAM for the build."
+  pm2 stop admin-dashboard --update-env >/dev/null 2>&1 || true
+  pm2 stop api-gateway --update-env >/dev/null 2>&1 || true
+  pm2 stop worker-service --update-env >/dev/null 2>&1 || true
+  BUILD_STOPPED_PROCESSES=1
+  build_available_mb="$(available_memory_mb)"
+  echo "Build memory available after stopping old release: ${build_available_mb} MB"
+fi
+
+# Build one workspace at a time. NODE_OPTIONS already carries an explicit heap
+# cap (set above), which nest build's tsc child inherits.
 npx turbo build \
   --filter=@aagam/api-gateway \
   --filter=@aagam/admin-dashboard \
@@ -359,6 +387,12 @@ npx turbo build \
   --cache-dir=.turbo \
   --concurrency=1 \
   --force
+
+if [[ "$BUILD_STOPPED_PROCESSES" == "1" ]]; then
+  echo "Build finished; restoring old release before migrations/restart."
+  pm2 startOrReload ecosystem.config.js --update-env --interpreter "$(command -v node)" >/dev/null 2>&1 || true
+  pm2 restart admin-dashboard --update-env >/dev/null 2>&1 || true
+fi
 
 # Next.js keeps its incremental/full-route cache (.next/cache) across releases.
 # A stale prerender - e.g. a 404 cached while a route did not exist in an older
