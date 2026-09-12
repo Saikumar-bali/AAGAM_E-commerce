@@ -24,10 +24,23 @@ on_error() {
   local exit_code=$?
   trap - ERR
   echo "Deployment failed with exit code $exit_code."
-  # If the build phase stopped the old release, bring it back so a failed
-  # deploy never leaves production down.
-  if [[ "${BUILD_STOPPED_PROCESSES:-0}" == "1" ]]; then
-    echo "Restoring old pm2 processes after failed deployment."
+  # Restore the previously-live build artifacts so a failed build (which can
+  # wipe dist via nest deleteOutDir) never leaves the VPS unable to serve the
+  # old release. Always restore to disk, then bring processes back.
+  if [[ -n "${DIST_BACKUP_DIR:-}" && -d "$DIST_BACKUP_DIR" ]]; then
+    echo "Restoring previous build artifacts from $DIST_BACKUP_DIR"
+    for rel_dir in "apps/api-gateway/dist" "apps/worker-service/dist" "apps/admin-dashboard/.next"; do
+      if [[ -e "$DIST_BACKUP_DIR/$rel_dir" ]]; then
+        rm -rf "$rel_dir" || true
+        cp -a "$DIST_BACKUP_DIR/$rel_dir" "$rel_dir" 2>/dev/null || true
+      fi
+    done
+    rm -rf "$DIST_BACKUP_DIR" || true
+  fi
+  # Bring the (restored) old release back up so a failed deploy never leaves
+  # production down.
+  if [[ "${BUILD_STOPPED_PROCESSES:-0}" == "1" ]] || [[ -n "${DIST_BACKUP_DIR:-}" ]]; then
+    echo "Restoring pm2 processes to the previous release."
     pm2 startOrReload ecosystem.config.js --update-env --interpreter "$(command -v node)" >/dev/null 2>&1 || true
     pm2 restart admin-dashboard --update-env >/dev/null 2>&1 || true
   fi
@@ -353,6 +366,19 @@ ensure_deploy_memory
 
 # Build tooling is stored in devDependencies, so production deployment must
 # install it before compiling. Runtime processes still run with NODE_ENV=production.
+# Back up the currently-live build artifacts first: nest build uses deleteOutDir,
+# so a failed compile can wipe the dist that the old release is running from.
+# The backup lets a failed deploy restore the previous release instead of
+# leaving the VPS with only a 502.
+DIST_BACKUP_DIR="$(mktemp -d)"
+echo "Backing up current build artifacts to $DIST_BACKUP_DIR"
+for rel_dir in "apps/api-gateway/dist" "apps/worker-service/dist" "apps/admin-dashboard/.next"; do
+  if [[ -d "$rel_dir" ]]; then
+    mkdir -p "$DIST_BACKUP_DIR/$(dirname "$rel_dir")"
+    cp -a "$rel_dir" "$DIST_BACKUP_DIR/$rel_dir" 2>/dev/null || true
+  fi
+done
+
 npm ci --include=dev --no-audit --no-fund
 
 npx prisma generate --schema packages/database/prisma/schema.prisma

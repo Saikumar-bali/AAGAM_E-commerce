@@ -61,6 +61,23 @@ for app_name in "${required_apps[@]}"; do
     continue
   fi
 
+  # A previous failed build may have deleted the compiled output (nest's
+  # deleteOutDir), so `pm2 start` would fail with "Script not found". The app
+  # is recreated after the build succeeds; skip it for now instead of failing
+  # the whole deploy in the pre-build phase.
+  app_script="$(
+    APP_NAME="$app_name" node -e '
+      const fs = require("fs");
+      const apps = JSON.parse(fs.readFileSync(0, "utf8"));
+      const app = apps.find((candidate) => candidate.name === process.env.APP_NAME);
+      if (app && app.pm2_env?.pm_exec_path) process.stdout.write(app.pm2_env.pm_exec_path);
+    ' < <(pm2 jlist)
+  )"
+  if [[ -n "$app_script" && ! -e "$app_script" ]]; then
+    echo "PM2 process $app_name script $app_script is missing (stale build output); skipping pre-build recreate. It will be (re)created after the build."
+    continue
+  fi
+
   echo "Recreating $app_name with managed Node 22 (current runtime: $current_runtime)."
   pm2 delete "$app_name" >/dev/null 2>&1 || true
   pm2 start ecosystem.config.js --only "$app_name" --update-env
