@@ -129,8 +129,8 @@ test.describe('Public reference landing UI', () => {
     await expect(page.getByRole('link', { name: 'Sign in to subscribe' })).toHaveAttribute('href', '/login');
     await expect(page.getByRole('link', { name: 'Sign in for all plans' })).toHaveAttribute('href', '/login');
     await expect(page.getByRole('link', { name: /Shop now/ }).first()).toHaveAttribute('href', '#offers');
-    await expect(page.getByRole('link', { name: 'Terms & Conditions' })).toHaveAttribute('href', '/terms');
-    await expect(page.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy');
+    await expect(page.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms');
+    await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy');
     await expect(page.getByLabel('Newsletter email')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Subscribe', exact: true })).toHaveCount(0);
   });

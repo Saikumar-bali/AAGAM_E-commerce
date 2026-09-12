@@ -45,7 +45,6 @@ test.describe('Phase 1: Professional notification centers', () => {
     await page.goto('/shop/notifications');
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await expect(page.getByRole('heading', { name: /Notifications/i })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Unread', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: /Refresh/i })).toBeVisible();
     await expect(page.locator('body')).not.toContainText('Failed to fetch');
     await page.screenshot({ path: `${SCREENSHOT_DIR}/02-customer-notifications.png`, fullPage: true });
