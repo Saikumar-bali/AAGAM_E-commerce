@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;1,9..40,400&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700&family=Space+Grotesk:wght@700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;1,9..40,400&family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600&family=Space+Grotesk:wght@600&display=swap');
 
 :root {
   --ink: 15 23 42;
@@ -32,21 +32,21 @@ body {
 
 /* Font System */
 @layer base {
-  /* Main Banner / Hero Text - Plus Jakarta Sans Bold */
+  /* Main Banner / Hero Text */
   .font-hero {
     font-family: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
-  /* KPI Numbers / Metrics - Inter SemiBold with tabular nums */
+  /* KPI Numbers / Metrics */
   .font-kpi {
     font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
-    font-weight: 600;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
 
-  /* Navigation & Labels - DM Sans */
+  /* Navigation & Labels */
   .font-nav {
     font-family: "DM Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
     font-weight: 500;
@@ -57,12 +57,12 @@ body {
     font-weight: 400;
   }
 
-  /* Badges / Micro Tags - Space Grotesk Bold */
+  /* Badges / Micro Tags */
   .font-badge {
     font-family: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
-    font-weight: 700;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.04em;
   }
 }
 

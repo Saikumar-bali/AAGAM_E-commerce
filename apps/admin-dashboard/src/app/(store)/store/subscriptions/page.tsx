@@ -10,6 +10,7 @@ import {
   Box,
   CheckCircle2,
   ClipboardCheck,
+  Loader2,
   Package,
   PackageCheck,
   RefreshCw,
@@ -128,6 +129,7 @@ export default function StoreSubscriptionOperationsPage() {
   const [prepLoading, setPrepLoading] = useState(false);
   const [shortageNotes, setShortageNotes] = useState<Record<string, string>>({});
   const [shortageDialogOpen, setShortageDialogOpen] = useState<string | null>(null);
+  const [prepModalOpen, setPrepModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState("");
   const [packingRun, setPackingRun] = useState<Run | null>(null);
@@ -232,7 +234,7 @@ export default function StoreSubscriptionOperationsPage() {
         apiClient.post(`/store/subscription-operations/runs/${run.id}/pickup`, {
           version: run.version,
         }),
-      "Store handoff confirmed. The rider must independently verify the bags before starting."
+      "store handoff confirmed. The rider must independently verify the bags before starting."
     );
 
   const verifyCash = () =>
@@ -355,18 +357,24 @@ export default function StoreSubscriptionOperationsPage() {
         <header className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-700 p-6 text-white shadow-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h1 className="mt-2 text-3xl font-black">
+              <h1 className="mt-2 text-3xl font-hero">
                 Morning Runs & Cash Control
               </h1>
             </div>
             <button
               onClick={() => void load()}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white/15 px-4 text-sm font-black hover:bg-white/25"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white/15 px-4 text-sm font-nav hover:bg-white/25"
             >
               <RefreshCw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
               />
               Refresh
+            </button>
+            <button
+              onClick={() => setPrepModalOpen(true)}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600/30 px-4 text-sm font-black text-white hover:bg-emerald-600/50"
+            >
+              Open tomorrow subscription preparation
             </button>
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-4">
@@ -918,6 +926,18 @@ export default function StoreSubscriptionOperationsPage() {
                 Report Shortage
               </button>
             </div>
+          </Modal>
+        )}
+
+        {prepModalOpen && (
+          <Modal title="Prepare before delivery day" onClose={() => setPrepModalOpen(false)}>
+            <p className="text-xs text-slate-600 mb-4">
+              Inventory is deducted only when the real subscription order is generated. This
+              preparation step ensures stock readiness without replacing individual COD ledgers.
+            </p>
+            <p className="text-sm text-slate-500">
+              Forecast only. Inventory is reserved when each actual delivery order is generated.
+            </p>
           </Modal>
         )}
       </div>
