@@ -176,7 +176,10 @@ export class StoreSelfDeliveryService {
 
     const deliveries = await prisma.subscriptionDelivery.findMany({
       where: {
-        storeId,
+        OR: [
+          { storeId },
+          { subscription: { homeStoreId: storeId } },
+        ],
         serviceDate: { gte: today, lt: tomorrow },
         status: { in: ['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED', 'STORE_DELIVERING', 'DELIVERED', 'FAILED'] },
         subscription: { storeDelivery: true },
