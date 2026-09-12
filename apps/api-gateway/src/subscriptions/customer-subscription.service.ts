@@ -311,6 +311,7 @@ export class CustomerSubscriptionService {
               serviceDate,
               sequenceNumber: index + 1,
               generationKey: `subscription:${requestKey}:${index + 1}:${serviceDate.toISOString().slice(0, 10)}`,
+              deliverySlot: (windowStart ?? 0) < 12 * 60 ? 'AM' : 'PM',
               cashDuePaise: this.cashDueForSequence(plan, index + 1),
               proofMode: this.proofMode(dto.deliveryMethod),
               deliveryZoneId: serviceability.zoneId,
