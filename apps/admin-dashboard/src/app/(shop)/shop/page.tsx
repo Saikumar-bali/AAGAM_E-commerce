@@ -52,11 +52,11 @@ export default function ShopPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isCartOpen, setIsCartOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [sort, setSort] = useState('newest');
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const [promotions, setPromotions] = useState<PromotionPlacements>(emptyPlacements);
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
   const { cart, addToCart, updateQuantity, removeFromCart, totalPrice, totalItems } = useCart();
@@ -180,10 +180,8 @@ export default function ShopPage() {
   return (
     <DashboardLayout allowedRole="CUSTOMER">
       <CustomerShell
-        totalItems={totalItems}
         query={query}
         onQueryChange={setQuery}
-        onCartOpen={() => setIsCartOpen(true)}
       >
         <div className="space-y-6 pb-24 md:pb-8">
           <PromotionHeroCarousel campaigns={promotions.HOME_HERO} />
@@ -395,7 +393,6 @@ export default function ShopPage() {
         onIncrement={(id) => { const item = cart.find((i) => i.id === id); if (item) updateQuantity(id, item.quantity + 1); }}
         onDecrement={(id) => { const item = cart.find((i) => i.id === id); if (item) updateQuantity(id, item.quantity - 1); }}
         onRemove={removeFromCart}
-        onCheckout={() => { setIsCartOpen(false); router.push('/shop/checkout'); }}
       />
     </DashboardLayout>
   );
