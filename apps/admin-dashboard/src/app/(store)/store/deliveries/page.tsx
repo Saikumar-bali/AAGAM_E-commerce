@@ -245,15 +245,15 @@ export default function StoreDeliveriesPage() {
       <div className="space-y-4 p-3 sm:p-4">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-lg font-black text-slate-900">Store Deliveries</h1>
-            <p className="text-xs font-semibold text-slate-500">Manage subscription deliveries assigned to your store.</p>
+            <h1 className="text-lg font-hero text-slate-900">Store Deliveries</h1>
+            <p className="text-xs font-label text-slate-500">Manage subscription deliveries assigned to your store.</p>
           </div>
           <div className="flex gap-2">
             {stores.length > 1 && (
               <select
                 value={selectedStoreId}
                 onChange={(e) => setSelectedStoreId(e.target.value)}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold"
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-nav"
               >
                 <option value="">Select Store</option>
                 {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -262,7 +262,7 @@ export default function StoreDeliveriesPage() {
             <button
               onClick={() => { if (selectedStoreId) void loadDeliveries(selectedStoreId); }}
               disabled={!selectedStoreId}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-nav text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
             </button>
@@ -271,20 +271,20 @@ export default function StoreDeliveriesPage() {
 
         <section className="grid gap-2 sm:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-            <p className="text-[10px] font-black uppercase text-slate-400">Today's Deliveries</p>
-            <p className="mt-1 text-xl font-black text-slate-900">{counts.all}</p>
+            <p className="text-[10px] font-badge text-slate-400">Today's Deliveries</p>
+            <p className="mt-1 text-xl font-kpi text-slate-900">{counts.all}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-            <p className="text-[10px] font-black uppercase text-slate-400">Pending</p>
-            <p className="mt-1 text-xl font-black text-blue-700">{counts.pending}</p>
+            <p className="text-[10px] font-badge text-slate-400">Pending</p>
+            <p className="mt-1 text-xl font-kpi text-blue-700">{counts.pending}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-            <p className="text-[10px] font-black uppercase text-slate-400">Out for Delivery</p>
-            <p className="mt-1 text-xl font-black text-orange-700">{counts.delivering}</p>
+            <p className="text-[10px] font-badge text-slate-400">Out for Delivery</p>
+            <p className="mt-1 text-xl font-kpi text-orange-700">{counts.delivering}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-            <p className="text-[10px] font-black uppercase text-slate-400">Cash to Collect</p>
-            <p className="mt-1 text-xl font-black text-emerald-700">{money(totalCash)}</p>
+            <p className="text-[10px] font-badge text-slate-400">Cash to Collect</p>
+            <p className="mt-1 text-xl font-kpi text-emerald-700">{money(totalCash)}</p>
           </div>
         </section>
 
@@ -293,7 +293,7 @@ export default function StoreDeliveriesPage() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-black ${filter === f ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              className={`rounded-lg px-3 py-1.5 text-xs font-nav ${filter === f ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)} ({counts[f]})
             </button>

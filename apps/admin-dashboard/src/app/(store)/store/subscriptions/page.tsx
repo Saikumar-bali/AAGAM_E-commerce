@@ -433,34 +433,34 @@ export default function StoreSubscriptionOperationsPage() {
                   <>
                     <div className="grid gap-2 sm:grid-cols-4">
                       <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                        <p className="text-[10px] font-black uppercase text-slate-400">Total Deliveries</p>
-                        <p className="mt-1 text-xl font-black text-slate-900">{prepRows.length}</p>
+                        <p className="text-[10px] font-badge text-slate-400">Total Deliveries</p>
+                        <p className="mt-1 text-xl font-kpi text-slate-900">{prepRows.length}</p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                        <p className="text-[10px] font-black uppercase text-slate-400">Pending</p>
-                        <p className="mt-1 text-xl font-black text-amber-700">{prepRows.filter((r) => r.readiness.status === 'PENDING').length}</p>
+                        <p className="text-[10px] font-badge text-slate-400">Pending</p>
+                        <p className="mt-1 text-xl font-kpi text-amber-700">{prepRows.filter((r) => r.readiness.status === 'PENDING').length}</p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                        <p className="text-[10px] font-black uppercase text-slate-400">Ready</p>
-                        <p className="mt-1 text-xl font-black text-emerald-700">{prepRows.filter((r) => r.readiness.status === 'READY').length}</p>
+                        <p className="text-[10px] font-badge text-slate-400">Ready</p>
+                        <p className="mt-1 text-xl font-kpi text-emerald-700">{prepRows.filter((r) => r.readiness.status === 'READY').length}</p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                        <p className="text-[10px] font-black uppercase text-slate-400">Shortage</p>
-                        <p className="mt-1 text-xl font-black text-red-700">{prepRows.filter((r) => r.readiness.status === 'SHORTAGE').length}</p>
+                        <p className="text-[10px] font-badge text-slate-400">Shortage</p>
+                        <p className="mt-1 text-xl font-kpi text-red-700">{prepRows.filter((r) => r.readiness.status === 'SHORTAGE').length}</p>
                       </div>
                     </div>
                     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                       <table className="min-w-full text-left text-xs">
                         <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
                           <tr>
-                            <th className="px-3 py-2.5 font-black">Date</th>
-                            <th className="px-3 py-2.5 font-black">Customer</th>
-                            <th className="px-3 py-2.5 font-black">Phone</th>
-                            <th className="px-3 py-2.5 font-black">Slot</th>
-                            <th className="px-3 py-2.5 font-black">Items</th>
-                            <th className="px-3 py-2.5 font-black">Status</th>
-                            <th className="px-3 py-2.5 font-black">Readiness</th>
-                            <th className="px-3 py-2.5 font-black">Actions</th>
+                            <th className="px-3 py-2.5 font-badge">Date</th>
+                            <th className="px-3 py-2.5 font-badge">Customer</th>
+                            <th className="px-3 py-2.5 font-badge">Phone</th>
+                            <th className="px-3 py-2.5 font-badge">Slot</th>
+                            <th className="px-3 py-2.5 font-badge">Items</th>
+                            <th className="px-3 py-2.5 font-badge">Status</th>
+                            <th className="px-3 py-2.5 font-badge">Readiness</th>
+                            <th className="px-3 py-2.5 font-badge">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
