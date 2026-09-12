@@ -2,29 +2,34 @@ name: OpenHands Auto-Fix
 
 # LLM Provider Setup (choose one, set secrets in repo Settings > Secrets):
 #
-# Option 1: OpenRouter (free tier: 100 req/day)
-#   Secret: OPENROUTER_API_KEY = your_openrouter_key
-#   Default model: openrouter/anthropic/claude-3.5-sonnet
+# Option 1: OpenHands Cloud (RECOMMENDED — your sk-oh- key)
+#   Secret: LLM_MODEL = openhands/claude-sonnet-4-5-20250929
+#   Secret: LLM_API_KEY = your sk-oh- key from app.all-hands.dev/settings/api-keys
+#   No base URL needed — auto-configured via model prefix
+#   Pricing: pay-per-token, no rate limits
 #
-# Option 2: Ollama (FREE, unlimited, local — recommended)
+# Option 2: OpenRouter (free tier: 100 req/day)
+#   Secret: LLM_MODEL = openrouter/anthropic/claude-3.5-sonnet
+#   Secret: LLM_API_KEY = your_openrouter_key
+#
+# Option 3: Ollama (FREE, unlimited, local)
 #   Secret: LLM_MODEL = ollama/llama3.1
 #   No API key needed
-#   Setup: install Ollama on self-hosted runner or use ollama image
 #
-# Option 3: Anthropic Direct ($5 free credits for new accounts)
+# Option 4: Anthropic Direct ($5 free credits)
 #   Secret: LLM_MODEL = claude-3.5-sonnet-20241022
 #   Secret: LLM_API_KEY = your_anthropic_key
 #
-# Option 4: Google Gemini (free tier: 15 RPM)
+# Option 5: Google Gemini (free tier: 15 RPM)
 #   Secret: LLM_MODEL = google/gemini-2.0-flash
 #   Secret: LLM_API_KEY = your_gemini_key
 #
-# Option 5: GitHub Models (free tier available)
+# Option 6: GitHub Models (free tier)
 #   Secret: LLM_MODEL = github/models/gpt-4o-mini
 #   Secret: LLM_API_KEY = ${{ secrets.GITHUB_TOKEN }}
 #
 # To switch providers, just change the secret values — no workflow changes needed.
-# LLM_BASE_URL is only needed for custom endpoints (e.g., Ollama host URL).
+# LLM_BASE_URL is only needed for custom endpoints (e.g., self-hosted Ollama URL).
 
 on:
   check_suite:
@@ -48,8 +53,8 @@ concurrency:
 
 env:
   OPENHANDS_SUPPRESS_BANNER: "1"
-  LLM_MODEL: ${{ secrets.LLM_MODEL || 'openrouter/anthropic/claude-3.5-sonnet' }}
-  LLM_API_KEY: ${{ secrets.LLM_API_KEY || secrets.OPENROUTER_API_KEY }}
+  LLM_MODEL: ${{ secrets.LLM_MODEL || 'openhands/claude-sonnet-4-5-20250929' }}
+  LLM_API_KEY: ${{ secrets.LLM_API_KEY || secrets.OPENHANDS_LLM_KEY }}
   LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || '' }}
 
 jobs:
