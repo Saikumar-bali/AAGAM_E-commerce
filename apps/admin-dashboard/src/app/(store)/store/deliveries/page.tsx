@@ -77,7 +77,7 @@ export default function StoreDeliveriesPage() {
 
   const loadStores = async () => {
     try {
-      const res = await apiClient.get('/stores');
+      const res = await apiClient.get('/stores/mine');
       const storeList = Array.isArray(res.data) ? res.data : res.data?.items || [];
       setStores(storeList.map((s: any) => ({ id: s.id, name: s.name })));
       if (storeList.length === 1) setSelectedStoreId(storeList[0].id);
@@ -86,21 +86,30 @@ export default function StoreDeliveriesPage() {
     }
   };
 
-  const loadDeliveries = async () => {
-    if (!selectedStoreId) return;
+  const loadDeliveries = async (storeId: string, abortSignal?: AbortSignal) => {
+    if (!storeId) return;
     setLoading(true);
     try {
-      const res = await apiClient.get(`/store-self-delivery/queue/${selectedStoreId}`);
-      setDeliveries(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
+      const res = await apiClient.get(`/store-self-delivery/queue/${storeId}`, { signal: abortSignal });
+      if (!abortSignal?.aborted) {
+        setDeliveries(Array.isArray(res.data) ? res.data : []);
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError' || err.name === 'CanceledError') return;
       toast.error(getToastErrorMessage(err, 'Failed to load deliveries'));
     } finally {
-      setLoading(false);
+      if (!abortSignal?.aborted) setLoading(false);
     }
   };
 
   useEffect(() => { void loadStores(); }, []);
-  useEffect(() => { if (selectedStoreId) void loadDeliveries(); }, [selectedStoreId]);
+  
+  useEffect(() => {
+    if (!selectedStoreId) return;
+    const controller = new AbortController();
+    void loadDeliveries(selectedStoreId, controller.signal);
+    return () => controller.abort();
+  }, [selectedStoreId]);
 
   const startDelivery = async (deliveryId: string) => {
     setWorking(deliveryId);
@@ -177,15 +186,19 @@ export default function StoreDeliveriesPage() {
   const openEdit = (delivery: DeliveryItem) => {
     setEditModal(delivery);
     setEditStatus(delivery.status === 'FAILED' ? 'FAILED' : 'DELIVERED');
-    setEditCash(delivery.order ? String(delivery.order.grandTotalPaise / 100) : '');
+    setEditCash(delivery.order ? String(delivery.order.grandTotalPaise / 100) : '0');
     setEditNotes('');
   };
 
   const submitEdit = async () => {
     if (!editModal) return;
-    const cashNum = editCash ? Math.round(parseFloat(editCash) * 100) : undefined;
-    if (editCash && (!Number.isFinite(cashNum) || cashNum! < 0)) {
+    const cashNum = editCash ? Math.round(parseFloat(editCash) * 100) : 0;
+    if (editCash && (!Number.isFinite(cashNum) || cashNum < 0)) {
       toast.warning('Enter a valid cash amount.');
+      return;
+    }
+    if (editStatus === 'FAILED' && !editNotes.trim()) {
+      toast.warning('Enter a failure reason.');
       return;
     }
     setWorking(editModal.id);
@@ -198,7 +211,7 @@ export default function StoreDeliveriesPage() {
       });
       toast.success(`Delivery marked as ${editStatus.toLowerCase()}.`);
       setEditModal(null);
-      await loadDeliveries();
+      await loadDeliveries(selectedStoreId);
     } catch (err) {
       toast.error(getToastErrorMessage(err, 'Failed to update delivery'));
     } finally {

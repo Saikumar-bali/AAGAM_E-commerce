@@ -14,33 +14,116 @@ export class StoreSelfDeliveryService {
       notes?: string;
       failureReason?: string;
     },
+    actorRole: Role,
   ) {
-    const subDelivery = await prisma.subscriptionDelivery.findUnique({
-      where: { id: subscriptionDeliveryId },
-      include: { subscription: true, deliveryJob: true },
-    });
-
-    if (!subDelivery) throw new NotFoundException('Subscription delivery not found');
-
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const updateData: any = {};
+      const subDelivery = await tx.subscriptionDelivery.findUnique({
+        where: { id: subscriptionDeliveryId },
+        include: { subscription: { include: { customer: true } }, deliveryJob: true },
+      });
+
+      if (!subDelivery) throw new NotFoundException('Subscription delivery not found');
+
+      if (subDelivery.subscription.storeDelivery !== true) {
+        throw new BadRequestException('This subscription is not configured for store delivery');
+      }
+
+      if (actorRole !== Role.ADMIN) {
+        if (subDelivery.storeId) {
+          const store = await tx.store.findUnique({
+            where: { id: subDelivery.storeId },
+            select: { ownerId: true },
+          });
+          if (!store || store.ownerId !== storeUserId) {
+            throw new ForbiddenException('You do not have access to this store');
+          }
+        }
+      }
+
+      const eligibleFromStatuses = ['ORDER_GENERATED', 'PREPARING', 'PACKED', 'STORE_DELIVERING'];
+      const isTerminal = subDelivery.status === SubscriptionDeliveryStatus.DELIVERED || subDelivery.status === SubscriptionDeliveryStatus.FAILED;
+
+      let action: 'STORE_DELIVERY_COMPLETED' | 'STORE_DELIVERY_FAILED' | 'STORE_CASH_COLLECTED';
+      let newStatus: SubscriptionDeliveryStatus | undefined;
+      let cashToRecord = dto.cashCollectedPaise;
+      let failureReason: string | undefined;
 
       if (dto.status === 'DELIVERED') {
-        if (!['ORDER_GENERATED', 'PREPARING', 'PACKED', 'STORE_DELIVERING'].includes(subDelivery.status)) {
+        if (!eligibleFromStatuses.includes(subDelivery.status) && !isTerminal) {
           throw new BadRequestException(`Cannot mark as delivered in status: ${subDelivery.status}`);
         }
-        updateData.status = SubscriptionDeliveryStatus.DELIVERED;
-        updateData.deliveredAt = new Date();
-        updateData.deliveredByStoreUserId = storeUserId;
-        if (dto.cashCollectedPaise !== undefined) {
-          updateData.cashCollectedPaise = dto.cashCollectedPaise;
-          updateData.cashCollectedAt = new Date();
+        newStatus = SubscriptionDeliveryStatus.DELIVERED;
+        action = 'STORE_DELIVERY_COMPLETED';
+        if (cashToRecord === undefined) cashToRecord = 0;
+      } else if (dto.status === 'FAILED') {
+        if (!eligibleFromStatuses.includes(subDelivery.status) && !isTerminal) {
+          throw new BadRequestException(`Cannot mark as failed in status: ${subDelivery.status}`);
         }
+        newStatus = SubscriptionDeliveryStatus.FAILED;
+        action = 'STORE_DELIVERY_FAILED';
+        failureReason = dto.failureReason || dto.notes || 'Delivery failed';
+        if (cashToRecord === undefined) cashToRecord = 0;
+      } else {
+        action = 'STORE_CASH_COLLECTED';
+        if (cashToRecord === undefined) {
+          throw new BadRequestException('Either status or cashCollectedPaise must be provided');
+        }
+      }
 
+      const updatedDelivery = await tx.subscriptionDelivery.updateMany({
+        where: {
+          id: subscriptionDeliveryId,
+          status: isTerminal ? { in: [SubscriptionDeliveryStatus.DELIVERED, SubscriptionDeliveryStatus.FAILED] } : { in: eligibleFromStatuses as SubscriptionDeliveryStatus[] },
+        },
+        data: (() => {
+          const data: any = {};
+          if (newStatus) {
+            data.status = newStatus;
+            if (newStatus === SubscriptionDeliveryStatus.DELIVERED) {
+              data.deliveredAt = new Date();
+              data.deliveredByStoreUserId = storeUserId;
+            } else {
+              data.failedAt = new Date();
+              data.failureReason = failureReason;
+            }
+          }
+          if (cashToRecord !== undefined) {
+            data.cashCollectedPaise = cashToRecord;
+            data.cashCollectedAt = new Date();
+          }
+          return data;
+        })(),
+      });
+
+      if (updatedDelivery.count === 0) {
+        throw new BadRequestException('Delivery status changed concurrently or invalid transition');
+      }
+
+      if (newStatus === SubscriptionDeliveryStatus.DELIVERED) {
         if (subDelivery.deliveryJobId) {
           await tx.deliveryJob.update({
             where: { id: subDelivery.deliveryJobId },
             data: { status: DeliveryJobStatus.DELIVERED },
+          });
+
+          if (subDelivery.deliveryJob?.orderId) {
+            await tx.order.update({
+              where: { id: subDelivery.deliveryJob.orderId },
+              data: { status: 'DELIVERED', deliveredAt: new Date() },
+            });
+          }
+
+          await tx.storeDeliveryProof.create({
+            data: {
+              deliveryJobId: subDelivery.deliveryJobId,
+              subscriptionDeliveryId,
+              storeUserId,
+              customerNameVerified: true,
+              customerPhoneVerified: true,
+              verifiedCustomerName: subDelivery.subscription.customer?.name || '',
+              verifiedCustomerPhone: subDelivery.subscription.customer?.phone || '',
+              notes: dto.notes,
+            },
           });
         }
 
@@ -48,29 +131,7 @@ export class StoreSelfDeliveryService {
           where: { id: subDelivery.subscriptionId },
           data: { completedDeliveries: { increment: 1 } },
         });
-
-        await tx.subscriptionAuditEntry.create({
-          data: {
-            subscriptionId: subDelivery.subscriptionId,
-            actorUserId: storeUserId,
-            actorRole: Role.STORE_OWNER,
-            action: 'STORE_DELIVERY_COMPLETED',
-            reason: dto.notes || 'Store delivery completed',
-            metadata: {
-              subscriptionDeliveryId,
-              cashCollected: dto.cashCollectedPaise || 0,
-            },
-            idempotencyKey: `store-delivery-update:${subscriptionDeliveryId}:${randomUUID()}`,
-          },
-        });
-      } else if (dto.status === 'FAILED') {
-        if (!['ORDER_GENERATED', 'PREPARING', 'PACKED', 'STORE_DELIVERING'].includes(subDelivery.status)) {
-          throw new BadRequestException(`Cannot mark as failed in status: ${subDelivery.status}`);
-        }
-        updateData.status = SubscriptionDeliveryStatus.FAILED;
-        updateData.failedAt = new Date();
-        updateData.failureReason = dto.failureReason || dto.notes || 'Delivery failed';
-
+      } else if (newStatus === SubscriptionDeliveryStatus.FAILED) {
         if (subDelivery.deliveryJobId) {
           await tx.deliveryJob.update({
             where: { id: subDelivery.deliveryJobId },
@@ -82,41 +143,28 @@ export class StoreSelfDeliveryService {
           where: { id: subDelivery.subscriptionId },
           data: { failedDeliveries: { increment: 1 } },
         });
-
-        await tx.subscriptionAuditEntry.create({
-          data: {
-            subscriptionId: subDelivery.subscriptionId,
-            actorUserId: storeUserId,
-            actorRole: Role.STORE_OWNER,
-            action: 'STORE_DELIVERY_FAILED',
-            reason: dto.failureReason || dto.notes || 'Delivery failed',
-            metadata: { subscriptionDeliveryId },
-            idempotencyKey: `store-delivery-fail:${subscriptionDeliveryId}:${randomUUID()}`,
-          },
-        });
-      } else if (dto.cashCollectedPaise !== undefined) {
-        updateData.cashCollectedPaise = dto.cashCollectedPaise;
-        updateData.cashCollectedAt = new Date();
-
-        await tx.subscriptionAuditEntry.create({
-          data: {
-            subscriptionId: subDelivery.subscriptionId,
-            actorUserId: storeUserId,
-            actorRole: Role.STORE_OWNER,
-            action: 'STORE_CASH_COLLECTED',
-            reason: dto.notes || 'Cash collected updated',
-            metadata: { subscriptionDeliveryId, cashCollected: dto.cashCollectedPaise },
-            idempotencyKey: `store-cash-update:${subscriptionDeliveryId}:${randomUUID()}`,
-          },
-        });
       }
 
-      const updated = await tx.subscriptionDelivery.update({
-        where: { id: subscriptionDeliveryId },
-        data: updateData,
+      await tx.subscriptionAuditEntry.create({
+        data: {
+          subscriptionId: subDelivery.subscriptionId,
+          actorUserId: storeUserId,
+          actorRole,
+          action,
+          reason: dto.notes || (newStatus === SubscriptionDeliveryStatus.DELIVERED ? 'Store delivery completed' : newStatus === SubscriptionDeliveryStatus.FAILED ? 'Delivery failed' : 'Cash collected updated'),
+          metadata: {
+            subscriptionDeliveryId,
+            cashCollected: cashToRecord,
+            status: newStatus,
+            failureReason,
+          },
+          idempotencyKey: `store-delivery-update:${subscriptionDeliveryId}:${randomUUID()}`,
+        },
       });
 
-      return { success: true, delivery: updated };
+      const refreshed = await tx.subscriptionDelivery.findUnique({ where: { id: subscriptionDeliveryId } });
+
+      return { success: true, delivery: refreshed };
     });
   }
 
@@ -130,7 +178,7 @@ export class StoreSelfDeliveryService {
       where: {
         storeId,
         serviceDate: { gte: today, lt: tomorrow },
-        status: { in: ['ORDER_GENERATED', 'PREPARING', 'PACKED', 'STORE_DELIVERING'] },
+        status: { in: ['ORDER_GENERATED', 'PREPARING', 'PACKED', 'STORE_DELIVERING', 'DELIVERED', 'FAILED'] },
         subscription: { storeDelivery: true },
       },
       include: {
@@ -143,6 +191,7 @@ export class StoreSelfDeliveryService {
             deliveryWindowEndMinute: true,
             customer: { select: { id: true, name: true, phone: true } },
             address: true,
+            storeDelivery: true,
           },
         },
         order: {
@@ -210,6 +259,7 @@ export class StoreSelfDeliveryService {
           : null,
         deliveryJobId: d.deliveryJob?.id || null,
         deliveryJobStatus: d.deliveryJob?.status || null,
+        subscription: { storeDelivery: d.subscription.storeDelivery },
       };
     });
   }

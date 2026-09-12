@@ -35,6 +35,15 @@ export class GoogleSheetsService implements OnModuleInit {
     return this.sheets !== null && this.spreadsheetId !== null;
   }
 
+  private sanitizeForSheets(value: string): string {
+    if (!value) return '';
+    const trimmed = String(value).trim();
+    if (trimmed.startsWith('=') || trimmed.startsWith('+') || trimmed.startsWith('-') || trimmed.startsWith('@')) {
+      return `'${trimmed}`;
+    }
+    return trimmed;
+  }
+
   async appendOrder(order: {
     id: string;
     shortId: string;
@@ -57,7 +66,13 @@ export class GoogleSheetsService implements OnModuleInit {
     if (!this.isConnected) return false;
 
     try {
+      const existingRow = await this.findRowByOrderId(order.id);
+      if (existingRow) {
+        return this.updateOrderStatus(order.shortId, order.status);
+      }
+
       const values = [
+        order.id,
         order.shortId,
         new Date(order.createdAt).toLocaleDateString('en-IN', {
           day: '2-digit',
@@ -69,20 +84,20 @@ export class GoogleSheetsService implements OnModuleInit {
           minute: '2-digit',
           hour12: true,
         }),
-        order.customerName,
-        order.customerPhone,
-        order.address,
-        order.itemsSummary,
+        this.sanitizeForSheets(order.customerName),
+        this.sanitizeForSheets(order.customerPhone),
+        this.sanitizeForSheets(order.address),
+        this.sanitizeForSheets(order.itemsSummary),
         order.subtotal,
         order.deliveryFee,
         order.discountAmount,
         order.taxAmount,
         order.grandTotal,
-        order.paymentMethod,
-        order.paymentStatus,
-        order.status,
-        order.riderName || 'Unassigned',
-        order.storeName,
+        this.sanitizeForSheets(order.paymentMethod),
+        this.sanitizeForSheets(order.paymentStatus),
+        this.sanitizeForSheets(order.status),
+        this.sanitizeForSheets(order.riderName || 'Unassigned'),
+        this.sanitizeForSheets(order.storeName),
         new Date(order.createdAt).toLocaleString('en-IN'),
         new Date().toLocaleString('en-IN'),
         'NEW',
@@ -91,7 +106,7 @@ export class GoogleSheetsService implements OnModuleInit {
       await this.sheets!.spreadsheets.values.append({
         spreadsheetId: this.spreadsheetId!,
         range: 'Live Orders!A:T',
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: [values] },
       });
@@ -104,6 +119,28 @@ export class GoogleSheetsService implements OnModuleInit {
     }
   }
 
+  private async findRowByOrderId(orderId: string): Promise<number | null> {
+    if (!this.isConnected) return null;
+
+    try {
+      const response = await this.sheets!.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId!,
+        range: 'Live Orders!A:A',
+      });
+
+      const rows = response.data.values || [];
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i][0] === orderId) {
+          return i + 1;
+        }
+      }
+      return null;
+    } catch (error) {
+      this.logger.error(`Failed to find order row: ${error}`);
+      return null;
+    }
+  }
+
   async updateOrderStatus(
     shortId: string,
     newStatus: string,
@@ -113,7 +150,7 @@ export class GoogleSheetsService implements OnModuleInit {
     try {
       const response = await this.sheets!.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId!,
-        range: 'Live Orders!A:F',
+        range: 'Live Orders!B:B',
       });
 
       const rows = response.data.values || [];
@@ -123,7 +160,7 @@ export class GoogleSheetsService implements OnModuleInit {
           await this.sheets!.spreadsheets.values.update({
             spreadsheetId: this.spreadsheetId!,
             range: `Live Orders!O${rowNum}`,
-            valueInputOption: 'USER_ENTERED',
+            valueInputOption: 'RAW',
             requestBody: { values: [[newStatus]] },
           });
           this.logger.log(`Order ${shortId} status updated to ${newStatus} in Google Sheets`);

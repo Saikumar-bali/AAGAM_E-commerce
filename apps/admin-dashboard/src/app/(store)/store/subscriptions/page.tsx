@@ -127,6 +127,7 @@ export default function StoreSubscriptionOperationsPage() {
   const [prepRows, setPrepRows] = useState<PreparationRow[]>([]);
   const [prepLoading, setPrepLoading] = useState(false);
   const [shortageNotes, setShortageNotes] = useState<Record<string, string>>({});
+  const [shortageDialogOpen, setShortageDialogOpen] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState("");
   const [packingRun, setPackingRun] = useState<Run | null>(null);
@@ -275,9 +276,8 @@ export default function StoreSubscriptionOperationsPage() {
   const prepShortages = prepRows.filter((row) => row.readiness.status === 'SHORTAGE').length;
 
   const decide = async (row: PreparationRow, decision: 'READY' | 'SHORTAGE') => {
-    const note = shortageNotes[row.id]?.trim();
-    if (decision === 'SHORTAGE' && (!note || note.length < 5)) {
-      toast.warning('Describe the shortage so Admin can resolve it before generation or packing.');
+    if (decision === 'SHORTAGE') {
+      setShortageDialogOpen(row.id);
       return;
     }
     setWorking(`${row.id}:${decision}`);
@@ -285,13 +285,38 @@ export default function StoreSubscriptionOperationsPage() {
       const nonce = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
       await apiClient.post(
         `/store/subscription-preparation/deliveries/${encodeURIComponent(row.id)}/readiness`,
-        { decision, note: decision === 'SHORTAGE' ? note : undefined },
+        { decision, note: undefined },
         { headers: { 'Idempotency-Key': `store-preparation:${row.id}:${decision}:${nonce}` } },
       );
-      toast.success(decision === 'READY' ? 'Stock readiness confirmed.' : 'Shortage reported to Admin.');
+      toast.success('Stock readiness confirmed.');
       await load();
     } catch (error) {
       toast.error(getToastErrorMessage(error, 'Stock readiness could not be recorded.'));
+    } finally {
+      setWorking('');
+    }
+  };
+
+  const confirmShortage = async (rowId: string) => {
+    const note = shortageNotes[rowId]?.trim();
+    if (!note || note.length < 5) {
+      toast.warning('Describe the shortage so Admin can resolve it before generation or packing (min 5 characters).');
+      return;
+    }
+    setWorking(`${rowId}:SHORTAGE`);
+    try {
+      const nonce = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+      await apiClient.post(
+        `/store/subscription-preparation/deliveries/${encodeURIComponent(rowId)}/readiness`,
+        { decision: 'SHORTAGE', note },
+        { headers: { 'Idempotency-Key': `store-preparation:${rowId}:SHORTAGE:${nonce}` } },
+      );
+      toast.success('Shortage reported to Admin.');
+      setShortageDialogOpen(null);
+      setShortageNotes((prev) => ({ ...prev, [rowId]: '' }));
+      await load();
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'Shortage could not be reported.'));
     } finally {
       setWorking('');
     }

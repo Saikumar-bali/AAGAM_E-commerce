@@ -253,11 +253,12 @@ export default function AdminSubscriptionsPage() {
       // edited; only create/re-resolve via manual-customer for new customers
       // or changed addresses (that endpoint reuses the user by phone).
       const existingAddress = selectedOfflineCustomer?.addresses?.[0];
+      const normalizedPhone = phoneDigits.replace(/^0/, '');
       const detailsUnchanged = Boolean(
         selectedOfflineCustomer &&
         existingAddress &&
         manualForm.customerName.trim() === (selectedOfflineCustomer.name || '') &&
-        manualForm.customerPhone.trim().replace(/[\s().-]/g, '') === (selectedOfflineCustomer.phone || '').replace(/[\s().-]/g, '') &&
+        normalizedPhone === (selectedOfflineCustomer.phone || '').replace(/[\s().-]/g, '').replace(/^0/, '') &&
         manualForm.line1.trim() === (existingAddress.line1 || '') &&
         manualForm.line2.trim() === (existingAddress.line2 || '') &&
         manualForm.city.trim() === (existingAddress.city || '') &&
@@ -273,7 +274,7 @@ export default function AdminSubscriptionsPage() {
       } else {
         const custRes = await apiClient.post('/admin/subscriptions/manual-customer', {
           name: manualForm.customerName.trim(),
-          phone: manualForm.customerPhone.trim(),
+          phone: normalizedPhone,
           line1: manualForm.line1.trim(),
           line2: manualForm.line2.trim() || undefined,
           city: manualForm.city.trim(),
@@ -451,6 +452,7 @@ export default function AdminSubscriptionsPage() {
       lastSubscription?.homeStore?.id && stores.some((s) => s.id === lastSubscription.homeStore.id)
         ? lastSubscription.homeStore.id
         : null;
+    const normalizedCustomerPhone = (customer.phone || '').replace(/[\s().-]/g, '').replace(/^0/, '');
     setManualForm((current) => ({
       ...current,
       storeId: preferredStoreId || current.storeId,

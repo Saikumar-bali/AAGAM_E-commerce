@@ -745,3 +745,24 @@ export class StoreDeliveryFailureDto {
   reason!: string;
 }
 
+export class UpdateStoreDeliveryDto {
+  @IsOptional()
+  @IsEnum(['DELIVERED', 'FAILED'])
+  status?: 'DELIVERED' | 'FAILED';
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  cashCollectedPaise?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  failureReason?: string;
+}
+

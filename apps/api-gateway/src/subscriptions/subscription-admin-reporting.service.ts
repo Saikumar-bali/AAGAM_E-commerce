@@ -360,6 +360,9 @@ export class SubscriptionAdminReportingService {
     // Auto-publish draft plans to create a version
     let version = plan.versions[0];
     if (!version) {
+      if (plan.status !== 'DRAFT') {
+        throw new BadRequestException('Cannot create subscription from a plan without versions that is not in DRAFT status');
+      }
       const planService = new SubscriptionPlanService();
       await planService.publish(plan.id, actorId);
       const updatedPlan = await prisma.subscriptionPlan.findUnique({

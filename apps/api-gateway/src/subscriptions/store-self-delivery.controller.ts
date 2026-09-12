@@ -4,7 +4,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { StoreSelfDeliveryService } from './store-self-delivery.service';
-import { StoreDeliveryCompleteDto, StoreDeliveryFailureDto } from './subscriptions.dto';
+import { StoreDeliveryCompleteDto, StoreDeliveryFailureDto, UpdateStoreDeliveryDto } from './subscriptions.dto';
 import { prisma } from '@aagam/database';
 
 type AuthenticatedRequest = { user: { id: string; role: Role; storeId?: string } };
@@ -58,9 +58,9 @@ export class StoreSelfDeliveryController {
   @Patch('update/:subscriptionDeliveryId')
   updateDelivery(
     @Param('subscriptionDeliveryId') subscriptionDeliveryId: string,
-    @Body() body: { status?: 'DELIVERED' | 'FAILED'; cashCollectedPaise?: number; notes?: string; failureReason?: string },
+    @Body() dto: UpdateStoreDeliveryDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.storeDelivery.updateDelivery(subscriptionDeliveryId, req.user.id, body);
+    return this.storeDelivery.updateDelivery(subscriptionDeliveryId, req.user.id, dto, req.user.role);
   }
 }
