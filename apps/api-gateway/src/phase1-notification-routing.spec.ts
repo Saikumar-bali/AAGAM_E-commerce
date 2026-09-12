@@ -178,4 +178,60 @@ describe('Phase 1 notification routing matrix and offer expiry', () => {
     expect(second.backfilledExpiryEvents).toBe(0);
     expect(await prisma.deliveryEvent.count({ where: { assignmentId: data.assignment.id, eventType: 'ASSIGNMENT_EXPIRED' } })).toBe(1);
   });
+
+  it('routes SUBSCRIPTION_EXPIRING to only the targeted active customer and preserves plan-specific copy', async () => {
+    const data = await seed();
+    const otherCustomer = await prisma.user.create({
+      data: { email: `${PREFIX}other_customer_${Date.now()}_${Math.random().toString(36).slice(2)}@test.com`, role: Role.CUSTOMER, name: 'Other Customer' },
+    });
+    const inactiveTarget = await prisma.user.update({
+      where: { id: data.customer.id },
+      data: { isActive: false },
+    });
+
+    const routing = new NotificationRoutingService();
+    const routed = await routing.route({
+      id: `event_SUBSCRIPTION_EXPIRING_${Date.now()}`,
+      eventType: 'SUBSCRIPTION_EXPIRING',
+      aggregateType: 'SYSTEM',
+      aggregateId: 'sub_123',
+      payload: {
+        title: 'Subscription expiring in 2 days',
+        body: 'Daily Essentials plan subscription ends on 2026-09-14. Consider renewing or pausing before the end date.',
+        audience: 'TARGETED',
+        deepLink: '/shop/subscriptions',
+        targetRecipients: [
+          { userId: data.customer.id, role: Role.CUSTOMER },
+          { userId: otherCustomer.id, role: Role.CUSTOMER },
+        ],
+        metadata: { kind: 'SUBSCRIPTION_EXPIRING', daysUntilExpiry: 2 },
+      },
+    });
+
+    const recipientUserId = new Set(routed.recipients.map((recipient) => recipient.userId));
+    expect(recipientUserId.has(otherCustomer.id)).toBe(true);
+    expect(recipientUserId.has(inactiveTarget.id)).toBe(false);
+    expect(routed.title).toBe('Subscription expiring in 2 days');
+    expect(routed.body).toContain('Daily Essentials plan');
+    expect((routed.data as any).daysUntilExpiry).toBe(2);
+
+    await prisma.user.delete({ where: { id: otherCustomer.id } });
+  });
+
+  it('falls back to generic copy for SUBSCRIPTION_EXPIRING when the payload has no title or body', async () => {
+    const routing = new NotificationRoutingService();
+    const routed = await routing.route({
+      id: `event_SUBSCRIPTION_EXPIRING_${Date.now()}`,
+      eventType: 'SUBSCRIPTION_EXPIRING',
+      aggregateType: 'SYSTEM',
+      aggregateId: 'sub_456',
+      payload: {
+        audience: 'TARGETED',
+        targetRecipients: [],
+      },
+    });
+
+    expect(routed.title).toBe('Subscription expiring soon');
+    expect(routed.body).toContain('Please review your plan');
+  });
 });

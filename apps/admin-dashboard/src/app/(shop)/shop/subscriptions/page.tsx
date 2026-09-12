@@ -20,6 +20,14 @@ function daysUntil(date: string | undefined | null) {
   return Math.ceil((new Date(date).getTime() - Date.now()) / 86_400_000);
 }
 
+const TERMINAL_STATUSES = new Set(['CANCELLED', 'COMPLETED']);
+
+function isExpiringSoon(item: { status?: string; endDate?: string | null }) {
+  if (!item.status || TERMINAL_STATUSES.has(item.status)) return false;
+  const d = daysUntil(item.endDate);
+  return d >= 1 && d <= 3;
+}
+
 export default function CustomerSubscriptionsPage() {
   const toast = useToast();
   const [plans, setPlans] = useState<any[]>([]);
@@ -51,10 +59,8 @@ export default function CustomerSubscriptionsPage() {
   );
 
   const expiringItems = useMemo(
-    () => subscriptions.filter((item) => {
-      const d = daysUntil(item.endDate);
-      return d >= 1 && d <= 3;
-    }), [subscriptions]);
+    () => subscriptions.filter(isExpiringSoon),
+    [subscriptions]);
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
@@ -114,7 +120,7 @@ export default function CustomerSubscriptionsPage() {
                 const total = Number(item.planVersion?.totalDeliveries || item.completedDeliveries + item.remainingFundedDeliveries || 1);
                 const progress = Math.min(100, Math.round(Number(item.completedDeliveries || 0) / total * 100));
                 const d = daysUntil(item.endDate);
-                const isExpiring = d >= 1 && d <= 3;
+                const isExpiring = isExpiringSoon(item);
                 return (
                   <Link
                     key={item.id}

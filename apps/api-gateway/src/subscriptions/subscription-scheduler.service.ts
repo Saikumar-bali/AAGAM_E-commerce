@@ -118,7 +118,15 @@ export class SubscriptionSchedulerService implements OnModuleInit, OnModuleDestr
   }
 
   private async executeCycle(correlationId: string) {
-    await this.expiration.checkAndNotify();
+    // Expiration notifications are auxiliary: a failure here must not abort
+    // core order generation or route planning.
+    try {
+      await this.expiration.checkAndNotify();
+    } catch (error: unknown) {
+      this.logger.error(
+        `subscription-worker correlation=${correlationId} expiration-check-failed=${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     const generated = await this.generator.generateDue(new Date(), 250, correlationId);
     // D-1 route planning is intentionally separated from live rider dispatch. The
     // preparation service performs final live rider assignment close to the slot,
