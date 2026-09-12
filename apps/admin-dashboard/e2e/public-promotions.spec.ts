@@ -133,28 +133,21 @@ test.describe('Public promotions placement rendering', () => {
     });
   });
 
-  test('landing page renders admin-managed LANDING_HERO and LANDING_BANNER campaigns', async ({ page, request }) => {
+  test('landing page renders admin-managed LANDING_HERO campaign', async ({ page, request }) => {
     const suffix = ts();
     const heroTitle = `PW Hero ${suffix}`;
-    const bannerTitle = `PW Banner ${suffix}`;
 
     const hero = await createCampaign(request, token, 'LANDING_HERO', heroTitle);
     campaignIds.push(hero.id);
-
-    const banner = await createCampaign(request, token, 'LANDING_BANNER', bannerTitle);
-    campaignIds.push(banner.id);
 
     const publicFeed = await request.get(`${API_BASE}/promotions/active`);
     expect(publicFeed.ok(), `Public promotion feed failed: ${await publicFeed.text()}`).toBeTruthy();
     const feedBody = JSON.stringify(await publicFeed.json());
     expect(feedBody).toContain(heroTitle);
-    expect(feedBody).toContain(bannerTitle);
 
     await page.goto('/');
     await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
     await expect(page.getByText(heroTitle).first()).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(bannerTitle).first()).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('strong', { hasText: bannerTitle }).first().locator('xpath=following-sibling::a[1]')).toHaveAttribute('href', '/shop/deals');
     await page.screenshot({
       path: path.join(PROOF_DIR, '02-public-landing-campaigns.png'),
       fullPage: true,

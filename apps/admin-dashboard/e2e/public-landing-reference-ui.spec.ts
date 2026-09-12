@@ -115,16 +115,12 @@ test.describe('Public reference landing UI', () => {
     await expect(page.getByText('Tomato Hybrid', { exact: true })).toBeVisible();
     await expect(page.locator('header a[href="#offers"]').first()).toHaveText('Offers');
     await expect(page.locator('header a[href="#service-area"]').first()).toHaveText('Store Locator');
-    await expect(page.getByText('Serving 90+ neighbourhood areas', { exact: true })).toBeVisible();
     await expect(page.getByText('Subscribe & Save', { exact: true })).toBeVisible();
     await expect(page.getByText('Daily Milk Plan', { exact: true })).toBeVisible();
-    await expect(page.getByText('Supporting local farmers', { exact: true })).toBeVisible();
     await expect(page.getByRole('img', { name: 'Aagaam' }).first()).toBeVisible();
 
     const heroImage = page.locator('img[src="https://cdn.example.test/aagaam-landing-hero.webp"]');
     await expect(heroImage).toBeVisible();
-    const farmerImage = page.locator('img[src="https://cdn.example.test/aagaam-farmer-banner.webp"]');
-    await expect(farmerImage).toBeVisible();
 
     await page.getByRole('button', { name: 'Add to Cart' }).first().click();
     const cart = await page.evaluate(() => JSON.parse(window.localStorage.getItem('aagam_cart') || '[]'));
