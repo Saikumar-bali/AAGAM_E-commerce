@@ -12,6 +12,7 @@ import {
   Prisma,
   Role,
   SubscriptionDeliveryStatus,
+  SubscriptionProofMode,
   prisma,
 } from '@aagam/database';
 import { DeliveryJobStatus } from '@aagam/types';
@@ -55,6 +56,24 @@ function routeCode(key: string) {
   return `AAGAM-RUN-${key.slice(0, 10).replace(/-/g, '')}-${digest}`;
 }
 
+/**
+ * Offline / store-deivery rows carry an explicit AM/PM slot, but the row's
+ * subscription window describes only one slot. Derive each row's effective
+ * window from its deliverySlot so AM and PM rows split into separate runs:
+ * PM rows use the evening window (17:00-20:00) regardless of the subscription
+ * window; everything else keeps the subscription's own window.
+ */
+export function deliverySlotWindow(delivery: {
+  deliverySlot?: string | null;
+  subscription: { deliveryWindowStartMinute: number; deliveryWindowEndMinute: number };
+}) {
+  if (delivery.deliverySlot === 'PM') return { startMinute: 17 * 60, endMinute: 20 * 60 };
+  return {
+    startMinute: delivery.subscription.deliveryWindowStartMinute,
+    endMinute: delivery.subscription.deliveryWindowEndMinute,
+  };
+}
+
 @Injectable()
 export class DeliveryRunPlanningService {
   constructor(
@@ -79,15 +98,13 @@ export class DeliveryRunPlanningService {
     const groups = new Map<string, typeof deliveries>();
     for (const delivery of deliveries) {
       if (!delivery.storeId || !delivery.order || !delivery.deliveryJobId) continue;
-      const window = serviceWindow(
-        delivery.serviceDate,
-        delivery.subscription.deliveryWindowStartMinute,
-        delivery.subscription.deliveryWindowEndMinute,
-      );
+      const slotWindow = deliverySlotWindow(delivery);
+      const window = serviceWindow(delivery.serviceDate, slotWindow.startMinute, slotWindow.endMinute);
       const cluster = clusterFromAddress(delivery.subscription.addressSnapshot);
       const key = [
         delivery.serviceDate.toISOString().slice(0, 10),
         delivery.storeId,
+        delivery.deliverySlot ?? 'AM',
         window.start.toISOString(),
         cluster,
       ].join('|');
@@ -98,11 +115,8 @@ export class DeliveryRunPlanningService {
       runs.push(await prisma.$transaction(async (tx) => {
         await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run:${key}`}))`);
         const first = group[0];
-        const window = serviceWindow(
-          first.serviceDate,
-          first.subscription.deliveryWindowStartMinute,
-          first.subscription.deliveryWindowEndMinute,
-        );
+        const slotWindow = deliverySlotWindow(first);
+        const window = serviceWindow(first.serviceDate, slotWindow.startMinute, slotWindow.endMinute);
         const cluster = clusterFromAddress(first.subscription.addressSnapshot);
         let run = await tx.deliveryRun.findFirst({
           where: {
@@ -135,7 +149,9 @@ export class DeliveryRunPlanningService {
                 deliveryJobId: delivery.deliveryJobId!,
                 subscriptionDeliveryId: delivery.id,
                 sequenceNumber: sequence,
-                proofMode: delivery.proofMode,
+                proofMode: delivery.subscription.storeDelivery === true
+                  ? SubscriptionProofMode.RIDER_PHOTO_GPS
+                  : delivery.proofMode,
                 cashDuePaise: delivery.cashDuePaise,
                 expectedItemCount: expectedItems,
                 expectedParcelCount: 1,
