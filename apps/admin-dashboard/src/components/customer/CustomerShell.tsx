@@ -3,17 +3,15 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, ChevronDown, MapPin, Search, ShoppingCart, User } from "lucide-react";
+import { Bell, ChevronDown, MapPin, Search, User } from "lucide-react";
 
 type CustomerShellProps = {
-  totalItems: number;
   query: string;
   onQueryChange: (q: string) => void;
-  onCartOpen: () => void;
   children: React.ReactNode;
 };
 
-export default function CustomerShell({ totalItems, query, onQueryChange, onCartOpen, children }: CustomerShellProps) {
+export default function CustomerShell({ query, onQueryChange, children }: CustomerShellProps) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-teal-50/80 via-white to-slate-50">
       <header className="sticky top-0 z-40 border-b border-teal-100/60 bg-white/95 shadow-[0_1px_12px_rgba(15,23,42,0.04)] backdrop-blur-xl">
@@ -29,8 +27,8 @@ export default function CustomerShell({ totalItems, query, onQueryChange, onCart
               </span>
             </Link>
 
-            <Link href="/shop/addresses" className="hidden items-center gap-2 rounded-xl border border-teal-100 bg-teal-50/80 px-3 py-2 text-xs font-bold text-teal-800 transition-colors hover:bg-teal-100 md:flex">
-              <MapPin className="h-3.5 w-3.5" />
+            <Link href="/shop/addresses" className="flex items-center gap-1.5 rounded-xl border border-teal-100 bg-teal-50/80 px-2.5 py-1.5 text-[11px] font-bold text-teal-800 transition-colors hover:bg-teal-100">
+              <MapPin className="h-3 w-3" />
               <span>Delivery address</span>
               <ChevronDown className="h-3 w-3" />
             </Link>
@@ -55,11 +53,6 @@ export default function CustomerShell({ totalItems, query, onQueryChange, onCart
               <Link href="/shop/notifications" aria-label="Open notifications" className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:text-teal-700">
                 <Bell className="h-[18px] w-[18px]" />
               </Link>
-              <button onClick={onCartOpen} aria-label={`Open cart with ${totalItems} items`} className="relative flex h-10 items-center gap-2 rounded-xl bg-slate-950 px-3 text-sm font-black text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 hover:bg-teal-700 sm:px-4">
-                <ShoppingCart className="h-[18px] w-[18px]" />
-                <span className="hidden sm:inline">Cart</span>
-                {totalItems > 0 && <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-amber-400 px-1 text-[10px] font-black text-slate-950 shadow-sm">{totalItems > 99 ? '99+' : totalItems}</span>}
-              </button>
             </div>
           </div>
         </div>

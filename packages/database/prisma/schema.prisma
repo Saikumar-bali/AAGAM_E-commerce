@@ -360,6 +360,7 @@ model RiderProfile {
   supportTickets           RiderSupportTicket[]
   trustedDropEvidence      TrustedDropEvidence[]
   geofenceProofs           RunStopGeofenceProof[]
+  riderPhotoProofs         RiderPhotoProof[]
   deliveryRuns             DeliveryRun[]
   cashDepositBatches       CashDepositBatch[]
   homeZone                  DeliveryZone?               @relation(fields: [homeZoneId], references: [id], onDelete: SetNull)
@@ -460,6 +461,7 @@ model DeliveryJob {
   trustedDropEvidence TrustedDropEvidence?
   subscriptionDelivery SubscriptionDelivery?
    storeDeliveryProof   StoreDeliveryProof?     @relation("StoreDeliveryProofDeliveryJob")
+  riderPhotoProof   RiderPhotoProof?            @relation("RiderPhotoProofDeliveryJob")
 
   @@index([status, createdAt])
   @@index([currentRiderId, status])
@@ -1081,6 +1083,7 @@ enum NotificationEventType {
   ROUTE_ASSIGNED
   ROUTE_REMOVED
   SUBSCRIPTION_WORKER_FAILED
+  SUBSCRIPTION_EXPIRING
   ADMIN_BROADCAST
 }
 
@@ -1487,6 +1490,7 @@ enum SubscriptionProofMode {
   TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO
   PERSONAL_OTP_GPS
   SECURITY_RECEPTION_OTP_GPS
+  RIDER_PHOTO_GPS
 }
 
 enum DeliveryRunStatus {
@@ -1790,6 +1794,7 @@ model SubscriptionDelivery {
   trustedDropChallenges  TrustedDropChallenge[]
   trustedDropEvidence    TrustedDropEvidence?
    storeDeliveryProof     StoreDeliveryProof?
+  riderPhotoProof        RiderPhotoProof?
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
 
@@ -1829,6 +1834,7 @@ model DeliveryRun {
   slotStart                DateTime
   slotEnd                  DateTime
   deliveryCluster          String
+  deliverySlot             String                @default("AM")
   status                   DeliveryRunStatus     @default(PLANNED)
   totalStopCount           Int                   @default(0)
   completedStopCount       Int                   @default(0)
@@ -1884,7 +1890,7 @@ model DeliveryRun {
   auditDestinationEntries DeliveryRunAuditEntry[] @relation("DeliveryRunAuditDestination")
   routeEvents             DeliveryRouteEvent[]
 
-  @@unique([storeId, serviceDate, slotStart, deliveryCluster])
+  @@unique([storeId, serviceDate, slotStart, deliveryCluster, deliverySlot])
   @@index([riderId, serviceDate, status])
   @@index([storeId, serviceDate, status])
   @@index([deliveryZoneId, serviceDate, status])
@@ -1927,6 +1933,7 @@ model DeliveryRunStop {
   routeEvents            DeliveryRouteEvent[]
   geofenceProofs         RunStopGeofenceProof[]
   trustedDropEvidence    TrustedDropEvidence?
+  riderPhotoProof        RiderPhotoProof?
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
 
@@ -2261,4 +2268,28 @@ model StoreDeliveryProof {
   storeUser             User             @relation(fields: [storeUserId], references: [id], onDelete: Restrict)
 
   @@index([storeUserId, handedOffAt])
+}
+
+model RiderPhotoProof {
+  id                    String    @id @default(cuid())
+  deliveryRunStopId     String    @unique
+  deliveryJobId         String    @unique
+  subscriptionDeliveryId String   @unique
+  riderProfileId        String
+  storageKey            String
+  mimeType              String?
+  sizeBytes             Int?
+  capturedAt            DateTime
+  gpsLat                Float?
+  gpsLng                Float?
+  accuracyMetres        Float?
+  cashCollectedPaise    Int?
+  createdAt             DateTime  @default(now())
+
+  deliveryRunStop      DeliveryRunStop      @relation(fields: [deliveryRunStopId], references: [id], onDelete: Cascade)
+  deliveryJob          DeliveryJob          @relation("RiderPhotoProofDeliveryJob", fields: [deliveryJobId], references: [id], onDelete: Cascade)
+  subscriptionDelivery SubscriptionDelivery @relation(fields: [subscriptionDeliveryId], references: [id], onDelete: Cascade)
+  riderProfile         RiderProfile         @relation(fields: [riderProfileId], references: [id], onDelete: Restrict)
+
+  @@index([riderProfileId, createdAt])
 }

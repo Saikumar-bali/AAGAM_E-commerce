@@ -239,6 +239,29 @@ export default function SubscriptionDetailsPage() {
             </button>
           </section>
         ) : null}
+        {(() => {
+          const endDate = s?.endDate ? new Date(s.endDate) : null;
+          if (!endDate) return null;
+          const now = new Date();
+          const msDiff = endDate.getTime() - now.getTime();
+          const daysUntilExpiry = Math.ceil(msDiff / 86_400_000);
+          if (daysUntilExpiry < 1 || daysUntilExpiry > 3) return null;
+          return (
+            <section className="flex flex-col gap-4 rounded-[24px] border border-amber-300 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider text-amber-700">
+                  Subscription expiring in {daysUntilExpiry} day{daysUntilExpiry > 1 ? "s" : ""}
+                </p>
+                <h2 className="mt-1 text-lg font-black text-slate-900">
+                  {s.plan?.name} ends {new Date(s.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                </h2>
+                <p className="mt-1 text-sm font-semibold text-slate-600">
+                  Consider renewing or pausing before the end date to avoid interruption.
+                </p>
+              </div>
+            </section>
+          );
+        })()}
         <section className="grid gap-4 md:grid-cols-[1fr_auto]">
           <div className="rounded-[24px] border border-slate-200 bg-white p-5">
             <div className="flex items-start gap-4">

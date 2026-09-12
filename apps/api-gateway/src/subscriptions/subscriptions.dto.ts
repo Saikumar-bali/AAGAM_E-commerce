@@ -607,6 +607,10 @@ export class CreateAdminManualSubscriptionDto {
   initialCashCollectedPaise?: number;
 
   @IsOptional()
+  @IsBoolean()
+  storeDelivery?: boolean;
+
+  @IsOptional()
   @IsString()
   @MaxLength(500)
   note?: string;

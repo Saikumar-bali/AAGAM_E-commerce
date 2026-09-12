@@ -376,6 +376,13 @@ export default function StoreSubscriptionOperationsPage() {
             >
               Open tomorrow subscription preparation
             </button>
+            <a
+              href="/store/deliveries"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-emerald-900 shadow hover:bg-emerald-50"
+            >
+              <Truck className="h-4 w-4" />
+              Deliver at store · Start now
+            </a>
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-4">
             <HeroMetric label="Routes today" value={String(runs.length)} />

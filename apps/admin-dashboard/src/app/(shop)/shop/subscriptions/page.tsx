@@ -8,12 +8,41 @@ import SubscriptionPlanCard, { formatDate, formatPaise } from '@/components/subs
 import { CalendarClock, ChevronRight, Loader2, PauseCircle, Plus, RefreshCw, WalletCards } from 'lucide-react';
 import { useToast, getToastErrorMessage } from '@/components/ToastProvider';
 
-const segments: Record<string, string[]> = { Active: ['ACTIVE','PAYMENT_DUE','GRACE_PERIOD'], Upcoming: ['PENDING_CASH_COLLECTION'], Paused: ['PAUSED'], Completed: ['COMPLETED','CANCELLED'] };
+const segments: Record<string, string[]> = {
+  Active: ['ACTIVE', 'PAYMENT_DUE', 'GRACE_PERIOD'],
+  Upcoming: ['PENDING_CASH_COLLECTION'],
+  Paused: ['PAUSED'],
+  Completed: ['COMPLETED', 'CANCELLED'],
+};
+
+function daysUntil(date: string | undefined | null) {
+  if (!date) return -1;
+  return Math.ceil((new Date(date).getTime() - Date.now()) / 86_400_000);
+}
 
 export default function CustomerSubscriptionsPage() {
   const toast = useToast();
-  const [plans, setPlans] = useState<any[]>([]); const [subscriptions, setSubscriptions] = useState<any[]>([]); const [loading, setLoading] = useState(true); const [segment, setSegment] = useState('Active');
-  const load = async () => { setLoading(true); try { const [p,s] = await Promise.all([apiClient.get('/subscriptions/plans'), apiClient.get('/customer/subscriptions')]); setPlans(Array.isArray(p.data) ? p.data : []); setSubscriptions(Array.isArray(s.data) ? s.data : []); } catch (error) { toast.error(getToastErrorMessage(error, 'Subscriptions could not be loaded.')); } finally { setLoading(false); } };
+  const [plans, setPlans] = useState<any[]>([]);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [segment, setSegment] = useState('Active');
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [p, s] = await Promise.all([
+        apiClient.get('/subscriptions/plans'),
+        apiClient.get('/customer/subscriptions'),
+      ]);
+      setPlans(Array.isArray(p.data) ? p.data : []);
+      setSubscriptions(Array.isArray(s.data) ? s.data : []);
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'Subscriptions could not be loaded.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => { void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const filtered = useMemo(() => subscriptions.filter((item) => segments[segment].includes(item.status)), [segment, subscriptions]);
   return <DashboardLayout allowedRole="CUSTOMER"><div className="mx-auto max-w-7xl space-y-8 p-4 sm:p-7">
@@ -24,4 +53,3 @@ export default function CustomerSubscriptionsPage() {
     <section id="available-plans"><div className="mb-5"><p className="text-xs font-black uppercase tracking-[.18em] text-emerald-700">Discover</p><h2 className="mt-2 text-2xl font-black text-slate-900">Available plans</h2></div>{plans.length ? <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">{plans.map((plan) => <SubscriptionPlanCard key={plan.id} plan={plan}/>)}</div> : <div className="rounded-3xl bg-white p-10 text-center text-slate-500">No active plans are published yet.</div>}</section>
   </div></DashboardLayout>;
 }
-function Metric({ icon,label,value }:{icon:React.ReactNode;label:string;value:string}) { return <div className="rounded-2xl bg-slate-50 p-3 text-slate-600"><div className="text-emerald-700">{icon}</div><p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 truncate text-xs font-black text-slate-800">{value}</p></div>; }
