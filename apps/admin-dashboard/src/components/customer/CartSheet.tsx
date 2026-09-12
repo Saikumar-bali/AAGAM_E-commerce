@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Minus, Plus, ShoppingBag, ArrowRight, Truck, Tag } from 'lucide-react';
+import { X, Minus, Plus, ShoppingBag, Truck } from 'lucide-react';
 import { formatINR } from '@/lib/currency';
 import { getProductImage } from '@aagam/utils';
 import type { CartItem } from '@/hooks/useCart';
@@ -15,10 +15,9 @@ type CartSheetProps = {
   onIncrement: (id: string) => void;
   onDecrement: (id: string) => void;
   onRemove: (id: string) => void;
-  onCheckout: () => void;
 };
 
-export default function CartSheet({ isOpen, onClose, cart, totalItems, totalPrice, onIncrement, onDecrement, onRemove, onCheckout }: CartSheetProps) {
+export default function CartSheet({ isOpen, onClose, cart, totalItems, totalPrice, onIncrement, onDecrement, onRemove }: CartSheetProps) {
   if (!isOpen) return null;
 
   return (
@@ -91,26 +90,6 @@ export default function CartSheet({ isOpen, onClose, cart, totalItems, totalPric
               </div>
             )}
           </div>
-
-          {cart.length > 0 && (
-            <div className="border-t border-slate-100 p-6 bg-gradient-to-b from-white to-teal-50/30">
-              <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 mb-4">
-                <Tag className="h-4 w-4 text-amber-600" />
-                <span className="text-xs font-bold text-amber-800">Free delivery on your first order!</span>
-              </div>
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-bold text-slate-600">Subtotal</span>
-                <span className="text-xl font-black text-slate-950">{formatINR(totalPrice)}</span>
-              </div>
-              <button
-                onClick={onCheckout}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-teal-700 py-4 text-sm font-black text-white shadow-lg shadow-teal-900/15 transition-all hover:bg-teal-800 hover:-translate-y-0.5"
-              >
-                Proceed to Checkout
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>

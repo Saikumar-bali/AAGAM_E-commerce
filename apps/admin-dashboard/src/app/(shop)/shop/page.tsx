@@ -395,7 +395,6 @@ export default function ShopPage() {
         onIncrement={(id) => { const item = cart.find((i) => i.id === id); if (item) updateQuantity(id, item.quantity + 1); }}
         onDecrement={(id) => { const item = cart.find((i) => i.id === id); if (item) updateQuantity(id, item.quantity - 1); }}
         onRemove={removeFromCart}
-        onCheckout={() => { setIsCartOpen(false); router.push('/shop/checkout'); }}
       />
     </DashboardLayout>
   );
