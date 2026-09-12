@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { apiClient } from '@aagam/utils';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -60,4 +60,13 @@ export default function CustomerSubscriptionsPage() {
     </section>
     <section id="available-plans"><div className="mb-5"><p className="text-xs font-black uppercase tracking-[.18em] text-emerald-700">Discover</p><h2 className="mt-2 text-2xl font-black text-slate-900">Available plans</h2></div>{plans.length ? <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">{plans.map((plan) => <SubscriptionPlanCard key={plan.id} plan={plan}/>)}</div> : <div className="rounded-3xl bg-white p-10 text-center text-slate-500">No active plans are published yet.</div>}</section>
   </div></DashboardLayout>;
+}
+function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1 rounded-xl bg-slate-50 p-2 text-center">
+      <span className="text-emerald-700">{icon}</span>
+      <p className="truncate text-sm font-black text-slate-900">{value}</p>
+      <p className="text-[9px] font-black uppercase tracking-wide text-slate-500">{label}</p>
+    </div>
+  );
 }
