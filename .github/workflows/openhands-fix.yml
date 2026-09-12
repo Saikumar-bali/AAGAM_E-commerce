@@ -16,6 +16,9 @@ on:
         description: 'PR URL to fix (optional)'
         required: false
 
+permissions:
+  contents: read
+
 concurrency:
   group: openhands-fix-${{ github.event.pull_request.number || github.event.issue.number || 'manual' }}
   cancel-in-progress: true
