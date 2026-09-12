@@ -1,0 +1,363 @@
+name: OpenHands Auto-Fix
+
+on:
+  check_suite:
+    types: [completed]
+  pull_request:
+    types: [labeled, opened, synchronize, reopened]
+  issue:
+    types: [labeled, opened]
+  workflow_dispatch:
+    inputs:
+      task_prompt:
+        description: 'Task for OpenHands'
+        required: true
+      pr_url:
+        description: 'PR URL to fix (optional)'
+        required: false
+
+concurrency:
+  group: openhands-fix-${{ github.event.pull_request.number || github.event.issue.number || 'manual' }}
+  cancel-in-progress: true
+
+env:
+  OPENHANDS_SUPPRESS_BANNER: "1"
+  LLM_MODEL: "openrouter/anthropic/claude-3.5-sonnet"
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    outputs:
+      should_fix: ${{ steps.check.outputs.should_fix }}
+      task_prompt: ${{ steps.build-prompt.outputs.task_prompt }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine trigger context
+        id: check
+        run: |
+          SHOULD_FIX="false"
+
+          if [ "${{ github.event_name }}" = "check_suite" ]; then
+            CONCLUSION="${{ github.event.check_suite.conclusion }}"
+            SUITE_NAME="${{ github.event.check_suite.name }}"
+            if [ "$CONCLUSION" = "failure" ] && [ "$SUITE_NAME" != "OpenHands Auto-Fix" ]; then
+              SHOULD_FIX="true"
+              echo "Trigger: CI check suite failure"
+            fi
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            LABELS="${{ toJson(github.event.pull_request.labels) }}"
+            if echo "$LABELS" | grep -qiE '"(bug|fix|ci-failure|auto-fix|needs-fix)"'; then
+              SHOULD_FIX="true"
+              echo "Trigger: PR has bug/fix label"
+            elif [ "${{ github.event.action }}" = "opened" ] || [ "${{ github.event.action }}" = "reopened" ]; then
+              SHOULD_FIX="true"
+              echo "Trigger: PR opened/reopened"
+            elif [ "${{ github.event.action }}" = "synchronize" ]; then
+              SHOULD_FIX="true"
+              echo "Trigger: PR updated (synchronize)"
+            fi
+          elif [ "${{ github.event_name }}" = "issue" ]; then
+            LABELS="${{ toJson(github.event.issue.labels) }}"
+            if echo "$LABELS" | grep -qiE '"(bug|fix|auto-fix|needs-fix)"'; then
+              SHOULD_FIX="true"
+              echo "Trigger: Issue has bug/fix label"
+            fi
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SHOULD_FIX="true"
+            echo "Trigger: Manual dispatch"
+          fi
+
+          echo "should_fix=$SHOULD_FIX" >> $GITHUB_OUTPUT
+
+      - name: Skip if already in progress
+        if: steps.check.outputs.should_fix == 'true'
+        run: |
+          LABELS="${{ toJson(github.event.pull_request.labels || github.event.issue.labels || '[]') }}"
+          if echo "$LABELS" | grep -q "auto-fix-in-progress"; then
+            echo "Already in progress, skipping"
+            echo "should_fix=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build task prompt
+        id: build-prompt
+        if: steps.check.outputs.should_fix == 'true'
+        run: |
+          PROMPT=""
+
+          if [ "${{ github.event_name }}" = "check_suite" ]; then
+            FAILED_JOBS="${{ github.event.check_suite.jobs }}"
+            PROMPT="CI check suite '${{ github.event.check_suite.name }}' failed for PR ${{ github.event.pull_request.html_url || 'N/A' }}.
+
+Failed jobs and details:
+${FAILED_JOBS}"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_BODY="${{ github.event.pull_request.body || '' }}"
+            PR_TITLE="${{ github.event.pull_request.title || '' }}"
+            PR_URL="${{ github.event.pull_request.html_url || '' }}"
+            LABELS="${{ toJson(github.event.pull_request.labels || []) }}"
+            COMMITS="${{ github.event.pull_request.commits || '' }}"
+
+            PROMPT="A PR needs attention:
+Title: ${PR_TITLE}
+URL: ${PR_URL}
+Labels: ${LABELS}
+
+PR Description:
+${PR_BODY}
+
+The following commits are part of this PR:
+${COMMITS}
+
+Please review the code changes, identify any bugs, CI failures, code quality issues, or suggestions from code review bots (CodeRabbit, Qodo, etc.), and fix all of them. Make the PR mergeable (green CI)."
+          elif [ "${{ github.event_name }}" = "issue" ]; then
+            ISSUE_BODY="${{ github.event.issue.body || '' }}"
+            ISSUE_TITLE="${{ github.event.issue.title || '' }}"
+            ISSUE_URL="${{ github.event.issue.html_url || '' }}"
+            LABELS="${{ toJson(github.event.issue.labels || []) }}"
+
+            PROMPT="An issue needs attention:
+Title: ${ISSUE_TITLE}
+URL: ${ISSUE_URL}
+Labels: ${LABELS}
+
+Issue Description:
+${ISSUE_BODY}
+
+Please fix the issue described above. If this is a code bug, find and fix it in the repository. Make sure all CI checks pass."
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PROMPT="${{ github.event.inputs.task_prompt }}"
+          fi
+
+          # Escape newlines for GitHub Actions output
+          PROMPT=$(echo "$PROMPT" | sed ':a;N;$!ba;s/\n/\\n/g')
+          echo "task_prompt=$PROMPT" >> $GITHUB_OUTPUT
+
+      - name: Add in-progress label
+        if: steps.check.outputs.should_fix == 'true' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: labels } = await octokit.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const hasLabel = labels.some(l => l.name === 'auto-fix-in-progress');
+            if (!hasLabel) {
+              await octokit.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: ['auto-fix-in-progress'],
+              });
+            }
+
+  openhands:
+    needs: analyze
+    if: needs.analyze.outputs.should_fix == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python & uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          python-version: '3.12'
+
+      - name: Install OpenHands
+        run: uv tool install openhands --python 3.12
+
+      - name: Run OpenHands Task
+        env:
+          LLM_MODEL: ${{ env.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENHANDS_SUPPRESS_BANNER: ${{ env.OPENHANDS_SUPPRESS_BANNER }}
+          CI_FAIL_CONTEXT: ${{ needs.analyze.outputs.task_prompt }}
+        run: |
+          TASK_PROMPT="${{ needs.analyze.outputs.task_prompt }}"
+
+          # Decode escaped newlines
+          TASK_PROMPT=$(echo "$TASK_PROMPT" | sed 's/\\n/\n/g')
+
+          echo "Running OpenHands with the following task:"
+          echo "$TASK_PROMPT" | head -20
+          echo "..."
+
+          openhands --headless \
+            --json \
+            --override-with-envs \
+            --exit-without-confirmation \
+            -t "$TASK_PROMPT"
+
+      - name: Check for changes
+        id: changes
+        run: |
+          CHANGED=$(git diff --name-only 2>/dev/null | wc -l)
+          STAGED=$(git diff --cached --name-only 2>/dev/null | wc -l)
+          TOTAL=$((CHANGED + STAGED))
+          echo "changed_files=$TOTAL" >> $GITHUB_OUTPUT
+          echo "Changed files: $TOTAL"
+          git diff --name-only 2>/dev/null
+          git diff --cached --name-only 2>/dev/null
+
+      - name: Commit and push fixes
+        if: steps.changes.outputs.changed_files > '0'
+        run: |
+          git config user.name "openhands[bot]"
+          git config user.email "openhands-bot@users.noreply.github.com"
+
+          # Stage all changes including deletions
+          git add -A
+
+          # Check if there are actually changes to commit
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            COMMIT_MSG="fix: automated fix by OpenHands
+
+Automated fix triggered by: ${{ github.event_name }}
+Fixes CI failures and code quality issues identified by bots."
+            git commit -m "$COMMIT_MSG"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+
+            # Push to the PR branch or current branch
+            if [ -n "${{ github.event.pull_request.head.ref }}" ]; then
+              BRANCH="${{ github.event.pull_request.head.ref }}"
+            else
+              BRANCH="openhands-fix-${{ github.run_id }}"
+              git checkout -b "$BRANCH"
+            fi
+
+            git push origin "$BRANCH" --force-with-lease
+            echo "Pushed to branch: $BRANCH"
+          fi
+
+      - name: Remove in-progress label
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await octokit.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: 'auto-fix-in-progress',
+              });
+            } catch (e) {
+              console.log('Label not found or already removed');
+            }
+
+      - name: Add fix status label
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const hasChanges = '${{ steps.changes.outputs.has_changes }}' === 'true';
+            const label = hasChanges ? 'auto-fix-applied' : 'auto-fix-no-changes';
+            try {
+              await octokit.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: [label],
+              });
+            } catch (e) {
+              console.log('Could not add label:', e.message);
+            }
+
+      - name: Comment on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const hasChanges = '${{ steps.changes.outputs.has_changes }}' === 'true';
+            const changedFiles = '${{ steps.changes.outputs.changed_files }}';
+
+            let body = hasChanges
+              ? `## 🤖 OpenHands Auto-Fix Applied
+
+            OpenHands has analyzed and applied fixes for this PR.
+
+            **Files changed:** ${changedFiles}
+
+            The changes have been pushed to the branch. Please review and verify that all CI checks pass.`
+              : `## 🤖 OpenHands Auto-Fix
+
+            OpenHands analyzed this PR but did not find any changes to make.
+
+            If there are still issues, please review the CI failure logs or code review comments manually.`;
+
+            await octokit.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body,
+            });
+
+  verify:
+    needs: [analyze, openhands]
+    if: needs.openhands.outputs.has_changes == 'true' && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fixed code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.sha }}
+
+      - name: Run CI checks
+        run: |
+          echo "Verifying fixes by running CI..."
+          echo "This job would run the CI pipeline to verify the fixes."
+          echo "In a full implementation, this would trigger the ci.yml workflow."
+
+      - name: Check CI status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: checks } = await octokit.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.payload.pull_request.head.sha,
+            });
+
+            let allPassed = true;
+            let failedChecks = [];
+
+            for (const check of checks.check_runs) {
+              if (check.conclusion === 'failure') {
+                allPassed = false;
+                failedChecks.push(check.name);
+              }
+            }
+
+            if (allPassed) {
+              await octokit.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: ['ci-passed'],
+              });
+              console.log('All CI checks passed!');
+            } else {
+              await octokit.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: ['ci-still-failing'],
+              });
+              console.log('Some CI checks still failing:', failedChecks.join(', '));
+            }
