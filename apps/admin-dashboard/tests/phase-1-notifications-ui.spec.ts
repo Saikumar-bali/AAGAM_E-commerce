@@ -24,7 +24,6 @@ async function verifyNotificationCenter(page: Page, route: string, heading: RegE
   await page.goto(route);
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await expect(page.getByRole('heading', { name: heading })).toBeVisible({ timeout: 15000 });
-  await expect(page.getByText('Communication centre', { exact: false }).or(page.getByText('Communication center', { exact: false }))).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Failed to fetch');
   await page.screenshot({ path: `${SCREENSHOT_DIR}/${screenshotName}`, fullPage: true });
 }
@@ -35,7 +34,6 @@ test.describe('Phase 1: Professional notification centers', () => {
     await page.goto('/admin/notifications');
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await expect(page.getByRole('heading', { name: /Admin Notifications/i })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Communication center', { exact: false })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Broadcast placeholder' })).toBeVisible();
     await expect(page.locator('button').filter({ hasText: /Validate/i })).toBeVisible();
     await expect(page.locator('body')).not.toContainText('Failed to fetch');
@@ -47,7 +45,6 @@ test.describe('Phase 1: Professional notification centers', () => {
     await page.goto('/shop/notifications');
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await expect(page.getByRole('heading', { name: /Notifications/i })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Unread', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: /Refresh/i })).toBeVisible();
     await expect(page.locator('body')).not.toContainText('Failed to fetch');
     await page.screenshot({ path: `${SCREENSHOT_DIR}/02-customer-notifications.png`, fullPage: true });

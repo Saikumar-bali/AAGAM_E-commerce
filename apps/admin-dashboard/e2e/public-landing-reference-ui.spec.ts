@@ -115,16 +115,12 @@ test.describe('Public reference landing UI', () => {
     await expect(page.getByText('Tomato Hybrid', { exact: true })).toBeVisible();
     await expect(page.locator('header a[href="#offers"]').first()).toHaveText('Offers');
     await expect(page.locator('header a[href="#service-area"]').first()).toHaveText('Store Locator');
-    await expect(page.getByText('Serving 90+ neighbourhood areas', { exact: true })).toBeVisible();
     await expect(page.getByText('Subscribe & Save', { exact: true })).toBeVisible();
     await expect(page.getByText('Daily Milk Plan', { exact: true })).toBeVisible();
-    await expect(page.getByText('Supporting local farmers', { exact: true })).toBeVisible();
     await expect(page.getByRole('img', { name: 'Aagaam' }).first()).toBeVisible();
 
     const heroImage = page.locator('img[src="https://cdn.example.test/aagaam-landing-hero.webp"]');
     await expect(heroImage).toBeVisible();
-    const farmerImage = page.locator('img[src="https://cdn.example.test/aagaam-farmer-banner.webp"]');
-    await expect(farmerImage).toBeVisible();
 
     await page.getByRole('button', { name: 'Add to Cart' }).first().click();
     const cart = await page.evaluate(() => JSON.parse(window.localStorage.getItem('aagam_cart') || '[]'));
@@ -133,8 +129,8 @@ test.describe('Public reference landing UI', () => {
     await expect(page.getByRole('link', { name: 'Sign in to subscribe' })).toHaveAttribute('href', '/login');
     await expect(page.getByRole('link', { name: 'Sign in for all plans' })).toHaveAttribute('href', '/login');
     await expect(page.getByRole('link', { name: /Shop now/ }).first()).toHaveAttribute('href', '#offers');
-    await expect(page.getByRole('link', { name: 'Terms & Conditions' })).toHaveAttribute('href', '/terms');
-    await expect(page.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy');
+    await expect(page.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms');
+    await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy');
     await expect(page.getByLabel('Newsletter email')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Subscribe', exact: true })).toHaveCount(0);
   });

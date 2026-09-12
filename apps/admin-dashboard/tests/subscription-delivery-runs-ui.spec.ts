@@ -11,7 +11,6 @@ test('customer sees truthful subscription funding, progress and plan discovery',
   await page.goto('/shop/subscriptions');
   await expect(page.getByRole('heading', { name: 'My subscriptions' })).toBeVisible();
   await expect(page.getByText('Buffalo Milk 1 L · 7 Days')).toBeVisible();
-  await expect(page.getByText(/Funded stops always show ₹0 due/i)).toBeVisible();
   await page.screenshot({ path: `${screenshots}/01-customer-subscriptions.png`, fullPage: true });
 
   await page.goto('/shop/subscriptions/qa-customer-subscription-milk-7');

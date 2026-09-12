@@ -92,7 +92,9 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, go
     var debounceTimer = null;
     var API_BASE = '${normalizedApiBase}';
     function renderMapboxResults(query) {
-      fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}')
+      // Bounding box around Anakapalle and nearby areas (Visakhapatnam region)
+      var bbox = '82.7,17.5,83.3,17.9';
+      fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}&bbox=' + bbox)
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (!data.features || data.features.length === 0) { searchResults.style.display = 'none'; return; }

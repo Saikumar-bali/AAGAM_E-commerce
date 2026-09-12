@@ -202,11 +202,21 @@ export class GeoService {
       return { ok: false, source: 'google', results: [], message: 'Google Places key not configured' };
     }
 
+    // Default to Anakapalle area if no coordinates provided
+    const defaultLat = lat ?? 17.6916;
+    const defaultLng = lng ?? 83.0037;
+
     try {
       const body: Record<string, unknown> = {
         input: query,
         includedPrimaryTypes: ['geocode', 'establishment'],
         regionCode: 'in',
+        locationBias: {
+          circle: {
+            center: { latitude: defaultLat, longitude: defaultLng },
+            radius: 25000, // 25km radius around Anakapalle
+          },
+        },
       };
       const response = await axios.post('https://places.googleapis.com/v1/places:autocomplete', body, {
         headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key },
@@ -247,12 +257,18 @@ export class GeoService {
   }
 
   private async legacyPlacesAutocomplete(query: string, key: string, lat?: number, lng?: number) {
+    // Default to Anakapalle area if no coordinates provided
+    const defaultLat = lat ?? 17.6916;
+    const defaultLng = lng ?? 83.0037;
+
     try {
       const params: Record<string, unknown> = {
         input: query,
         key,
         components: 'country:in',
         types: 'geocode|establishment',
+        location: `${defaultLat},${defaultLng}`,
+        radius: 25000, // 25km radius around Anakapalle
       };
       const response = await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
         params,

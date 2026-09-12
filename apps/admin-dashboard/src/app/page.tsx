@@ -303,11 +303,6 @@ export default function LandingPage() {
               </span>}
               <a href="#subscriptions" className="inline-flex h-10 items-center rounded-lg border border-white/45 px-7 text-[11px] font-black text-white backdrop-blur-sm">Explore subscriptions</a>
             </div>
-            <div className="mt-5 grid max-w-[535px] grid-cols-3 divide-x divide-white/20 text-white">
-              <div className="flex items-center gap-2 pr-4"><Truck className="h-5 w-5 shrink-0 text-emerald-200" /><span className="text-[10px] font-bold leading-4">Free delivery<br />on eligible orders</span></div>
-              <div className="flex items-center gap-2 px-4"><MapPin className="h-5 w-5 shrink-0 text-emerald-200" /><span className="text-[10px] font-bold leading-4">Delivering in<br />90+ areas</span></div>
-              <div className="flex items-center gap-2 pl-4"><ShieldCheck className="h-5 w-5 shrink-0 text-emerald-200" /><span className="text-[10px] font-bold leading-4">Best quality<br />always</span></div>
-            </div>
           </div>
           <div className="absolute bottom-4 right-6 hidden items-center gap-3 rounded-full border border-white/20 bg-[#173c39]/90 px-4 py-2.5 shadow-xl backdrop-blur-md md:flex">
             <span className="grid h-10 w-10 place-items-center rounded-full bg-[#eaf8f3] text-[#087765]"><Truck className="h-5 w-5" /></span>
@@ -383,20 +378,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="service-area" className="scroll-mt-28 mx-5 mb-4 rounded-2xl border border-emerald-100 bg-[linear-gradient(135deg,#effbf7,#ffffff)] px-5 py-5 xl:scroll-mt-20 lg:mx-16 lg:flex lg:items-center lg:justify-between lg:px-8">
-          <div className="flex items-start gap-4">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#087765] text-white"><MapPin className="h-6 w-6" /></span>
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#078b70]">Aagaam near you</span>
-              <h2 className="mt-1 text-lg font-black">Serving 90+ neighbourhood areas</h2>
-              <p className="mt-1 max-w-2xl text-[11px] font-semibold leading-5 text-slate-600">We fulfil from verified local partner stores and match each order to the nearest serviceable location. Browse the public catalogue here; sign in only when you are ready to confirm an address and checkout.</p>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2 lg:mt-0 lg:pl-8">
-            <a href="#categories" className="inline-flex h-10 items-center rounded-xl border border-emerald-200 bg-white px-5 text-[11px] font-black text-[#087765]">Browse areas & categories</a>
-            <Link href="/login" className="inline-flex h-10 items-center rounded-xl bg-[#087765] px-5 text-[11px] font-black text-white">Sign in to check address</Link>
-          </div>
-        </section>
 
         <section id="subscriptions" className="scroll-mt-28 mx-5 mb-0 rounded-[10px] bg-[#f5f7f6] p-3 xl:scroll-mt-20 lg:mx-10 lg:px-6">
           <div className="grid gap-3 lg:grid-cols-[180px_1fr_1fr_1fr]">
@@ -436,29 +417,17 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="about" className="scroll-mt-28 grid min-h-[94px] items-stretch border-b border-[#e4e8e6] bg-[#f7faf8] xl:scroll-mt-20 lg:grid-cols-[1.15fr_1.65fr_1.25fr]">
-          <div className="flex items-center gap-3 px-6 py-4 lg:px-12">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#dcefe7] text-[#087765]"><User className="h-5 w-5" /></span>
-            <div><div className="text-[11px] tracking-[0.08em] text-amber-500">★★★★★</div><p className="mt-1 text-[11px] font-semibold leading-4 text-slate-600">&ldquo;Aagaam never disappoints! Vegetables are always fresh and delivery is super reliable.&rdquo;</p><strong className="mt-1 block text-[10px] text-[#087765]">— Priya S., Bengaluru</strong></div>
-          </div>
-          <div className="grid grid-cols-4 items-center border-y border-[#e4e8e6] px-3 py-3 lg:border-x lg:border-y-0">
-            {proofStats.map((stat) => <div key={stat.label} className="text-center"><strong className="block text-[16px] font-black">{stat.value}</strong><span className="mt-0.5 block text-[10px] font-semibold text-slate-500">{stat.label}</span></div>)}
-          </div>
-          <div className="relative min-h-[94px] overflow-hidden px-6 py-4 lg:px-8" style={landingBanner?.backgroundColor ? { backgroundColor: landingBanner.backgroundColor } : undefined}>
-            {landingBanner ? <CampaignPicture campaign={landingBanner} /> : null}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#f7faf8]/95 via-[#f7faf8]/80 to-transparent" />
-            <div className="relative max-w-[250px]"><strong className="text-[11px]" style={landingBanner?.textColor ? { color: landingBanner.textColor } : { color: '#087765' }}>{landingBanner?.title || 'Supporting local farmers'}</strong><p className="mt-1 text-[10px] font-semibold leading-4 text-slate-600">{landingBanner?.subtitle || landingBanner?.description || 'We work directly with farmers to bring you fresh produce and a better tomorrow.'}</p>{landingBanner?.targetUrl ? <Link href={landingBanner.targetUrl} className="mt-2 inline-flex items-center gap-2 text-[10px] font-black" style={landingBanner?.textColor ? { color: landingBanner.textColor } : { color: '#087765' }}>{landingBanner?.ctaLabel || 'Know more'} <ArrowRight className="h-3 w-3" /></Link> : null}</div>
-          </div>
-        </section>
       </div>
 
       <footer className="bg-[#063b3a] text-white">
-        <div className="mx-auto grid max-w-[1448px] gap-7 px-6 py-6 md:grid-cols-2 lg:grid-cols-[1.25fr_.8fr_.8fr_1.2fr_1.1fr] lg:px-10">
-          <div><AagamLogo inverse compact label="Fresh, quality and trust" /><p className="mt-3 max-w-[230px] text-[10px] font-semibold leading-4 text-white/70">Your trusted neighbourhood partner for fresh groceries and everyday essentials.</p><p className="mt-4 text-[10px] text-white/50">&copy; 2026 Aagaam Retail Pvt. Ltd. All rights reserved.</p></div>
-          <div><h3 className="text-[11px] font-black">Shop</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><Link href="/shop">All Categories</Link><Link href="/shop?category=Fruits+%26+Vegetables">Fruits & Vegetables</Link><Link href="/shop?category=Dairy+%26+Eggs">Dairy & Eggs</Link><Link href="/shop/deals">Deals</Link><Link href="/shop?category=Beverages">Beverages</Link></div></div>
-          <div><h3 className="text-[11px] font-black">Help & Support</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><a href="tel:+918340064486">Contact Us</a><a href="#offers">Browse catalogue</a><a href="#offers">Current offers</a><a href="#subscriptions">Subscription plans</a></div></div>
-          <div><h3 className="text-[11px] font-black">Company</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><a href="#service-area">Store Locator</a><Link href="/terms">Terms & Conditions</Link><Link href="/privacy">Privacy Policy</Link></div></div>
-          <div><h3 className="text-[11px] font-black">Offers & updates</h3><p className="mt-1 text-[10px] font-semibold text-white/60">Browse current promotions and savings directly on this public page.</p><a href="#offers" className="mt-2 inline-flex h-8 items-center gap-2 rounded-md bg-[#20bfa6] px-4 text-[10px] font-black text-white">View current offers <ArrowRight className="h-3 w-3" /></a></div>
+        <div className="mx-auto max-w-[1448px] px-6 py-8 lg:px-10">
+          <div className="grid grid-cols-2 gap-6 md:grid-cols-3 lg:grid-cols-5">
+            <div className="col-span-2 md:col-span-3 lg:col-span-1"><AagamLogo inverse compact label="Fresh, quality and trust" /><p className="mt-3 max-w-[230px] text-[10px] font-semibold leading-4 text-white/70">Your trusted neighbourhood partner for fresh groceries and everyday essentials.</p><p className="mt-4 text-[10px] text-white/50">&copy; 2026 Aagaam Retail Pvt. Ltd. All rights reserved.</p></div>
+            <div><h3 className="text-[11px] font-black">Shop</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><Link href="/shop">All Categories</Link><Link href="/shop?category=Fruits+%26+Vegetables">Fruits & Vegetables</Link><Link href="/shop?category=Dairy+%26+Eggs">Dairy & Eggs</Link><Link href="/shop/deals">Deals</Link><Link href="/shop?category=Beverages">Beverages</Link></div></div>
+            <div><h3 className="text-[11px] font-black">Help</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><a href="tel:+918340064486">Contact Us</a><a href="#offers">Browse catalogue</a><a href="#offers">Current offers</a><a href="#subscriptions">Subscription plans</a></div></div>
+            <div><h3 className="text-[11px] font-black">Company</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></div></div>
+            <div><h3 className="text-[11px] font-black">Updates</h3><p className="mt-1 text-[10px] font-semibold text-white/60">Browse current promotions and savings.</p><a href="#offers" className="mt-2 inline-flex h-8 items-center gap-2 rounded-md bg-[#20bfa6] px-4 text-[10px] font-black text-white">View offers <ArrowRight className="h-3 w-3" /></a></div>
+          </div>
         </div>
       </footer>
 
