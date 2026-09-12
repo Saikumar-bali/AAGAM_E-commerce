@@ -12,7 +12,6 @@ import OfferBanner from '@/components/customer/OfferBanner';
 import PromotionHeroCarousel from '@/components/customer/PromotionHeroCarousel';
 import type { PromotionPlacements } from '@/components/customer/promotion-types';
 import ProductCard from '@/components/customer/ProductCard';
-import CartSheet from '@/components/customer/CartSheet';
 import EmptyState from '@/components/customer/EmptyState';
 import { Package, SlidersHorizontal, ArrowRight, CalendarDays, ShoppingCart } from 'lucide-react';
 import SubscriptionPlanCard from '@/components/subscriptions/SubscriptionPlanCard';
@@ -52,7 +51,6 @@ export default function ShopPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isCartOpen, setIsCartOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [sort, setSort] = useState('newest');
@@ -180,10 +178,8 @@ export default function ShopPage() {
   return (
     <DashboardLayout allowedRole="CUSTOMER">
       <CustomerShell
-        totalItems={totalItems}
         query={query}
         onQueryChange={setQuery}
-        onCartOpen={() => setIsCartOpen(true)}
       >
         <div className="space-y-6 pb-24 md:pb-8">
           <PromotionHeroCarousel campaigns={promotions.HOME_HERO} />
