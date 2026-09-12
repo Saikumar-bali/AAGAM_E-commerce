@@ -119,7 +119,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
-          <AagamLogo href="#" label="fresh, quality and trust" />
+          <img src="/brand/aagam-logo-full.png" alt="Aagaam" className="h-24 w-24 rounded-3xl object-cover shadow-lg" />
           <div className="flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin text-teal-600" />
             <p className="text-sm font-semibold text-slate-500">Loading...</p>
