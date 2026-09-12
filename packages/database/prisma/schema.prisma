@@ -461,7 +461,7 @@ model DeliveryJob {
   trustedDropEvidence TrustedDropEvidence?
   subscriptionDelivery SubscriptionDelivery?
    storeDeliveryProof   StoreDeliveryProof?     @relation("StoreDeliveryProofDeliveryJob")
-  riderPhotoProofs  RiderPhotoProof[]           @relation("RiderPhotoProofDeliveryJob")
+  riderPhotoProof   RiderPhotoProof?            @relation("RiderPhotoProofDeliveryJob")
 
   @@index([status, createdAt])
   @@index([currentRiderId, status])
@@ -1833,6 +1833,7 @@ model DeliveryRun {
   slotStart                DateTime
   slotEnd                  DateTime
   deliveryCluster          String
+  deliverySlot             String                @default("AM")
   status                   DeliveryRunStatus     @default(PLANNED)
   totalStopCount           Int                   @default(0)
   completedStopCount       Int                   @default(0)
@@ -1888,7 +1889,7 @@ model DeliveryRun {
   auditDestinationEntries DeliveryRunAuditEntry[] @relation("DeliveryRunAuditDestination")
   routeEvents             DeliveryRouteEvent[]
 
-  @@unique([storeId, serviceDate, slotStart, deliveryCluster])
+  @@unique([storeId, serviceDate, slotStart, deliveryCluster, deliverySlot])
   @@index([riderId, serviceDate, status])
   @@index([storeId, serviceDate, status])
   @@index([deliveryZoneId, serviceDate, status])

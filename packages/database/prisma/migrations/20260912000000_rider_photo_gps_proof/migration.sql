@@ -25,3 +25,15 @@ CREATE TABLE "RiderPhotoProof" (
 );
 
 CREATE INDEX "RiderPhotoProof_riderProfileId_createdAt_idx" ON "RiderPhotoProof"("riderProfileId", "createdAt");
+
+-- Persist the delivery slot on runs so AM and PM runs are always distinct even
+-- when their effective windows coincide.
+ALTER TABLE "DeliveryRun" ADD COLUMN "deliverySlot" TEXT NOT NULL DEFAULT 'AM';
+ALTER TABLE "DeliveryRun" ADD CONSTRAINT "DeliveryRun_deliverySlot_check"
+  CHECK ("deliverySlot" IN ('AM', 'PM', 'BOTH'));
+
+-- Replace the old (storeId, serviceDate, slotStart, deliveryCluster) unique with a
+-- slot-aware one so AM/PM deliveries never share a persisted run.
+ALTER TABLE "DeliveryRun" DROP CONSTRAINT IF EXISTS "DeliveryRun_storeId_serviceDate_slotStart_deliveryCluster_key";
+CREATE UNIQUE INDEX "DeliveryRun_storeId_serviceDate_slotStart_deliveryCluster_deliverySlot_key"
+  ON "DeliveryRun"("storeId", "serviceDate", "slotStart", "deliveryCluster", "deliverySlot");
