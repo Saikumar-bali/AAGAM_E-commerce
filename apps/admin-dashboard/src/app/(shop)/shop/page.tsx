@@ -12,6 +12,7 @@ import OfferBanner from '@/components/customer/OfferBanner';
 import PromotionHeroCarousel from '@/components/customer/PromotionHeroCarousel';
 import type { PromotionPlacements } from '@/components/customer/promotion-types';
 import ProductCard from '@/components/customer/ProductCard';
+import CartSheet from '@/components/customer/CartSheet';
 import EmptyState from '@/components/customer/EmptyState';
 import { Package, SlidersHorizontal, ArrowRight, CalendarDays, ShoppingCart } from 'lucide-react';
 import SubscriptionPlanCard from '@/components/subscriptions/SubscriptionPlanCard';
@@ -55,6 +56,7 @@ export default function ShopPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [sort, setSort] = useState('newest');
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const [promotions, setPromotions] = useState<PromotionPlacements>(emptyPlacements);
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
   const { cart, addToCart, updateQuantity, removeFromCart, totalPrice, totalItems } = useCart();
