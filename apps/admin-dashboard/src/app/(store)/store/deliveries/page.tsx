@@ -221,7 +221,7 @@ export default function StoreDeliveriesPage() {
 
   const filteredDeliveries = deliveries.filter((d) => {
     if (filter === 'all') return true;
-    if (filter === 'pending') return ['ORDER_GENERATED', 'PREPARING', 'PACKED'].includes(d.status);
+    if (filter === 'pending') return ['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED'].includes(d.status);
     if (filter === 'delivering') return d.status === 'STORE_DELIVERING';
     if (filter === 'delivered') return d.status === 'DELIVERED';
     if (filter === 'failed') return d.status === 'FAILED';
@@ -230,7 +230,7 @@ export default function StoreDeliveriesPage() {
 
   const counts = {
     all: deliveries.length,
-    pending: deliveries.filter((d) => ['ORDER_GENERATED', 'PREPARING', 'PACKED'].includes(d.status)).length,
+    pending: deliveries.filter((d) => ['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED'].includes(d.status)).length,
     delivering: deliveries.filter((d) => d.status === 'STORE_DELIVERING').length,
     delivered: deliveries.filter((d) => d.status === 'DELIVERED').length,
     failed: deliveries.filter((d) => d.status === 'FAILED').length,
@@ -364,7 +364,7 @@ export default function StoreDeliveriesPage() {
                 </div>
 
                 <div className="mt-3 flex gap-2">
-                  {['ORDER_GENERATED', 'PREPARING', 'PACKED'].includes(d.status) && (
+                  {['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED'].includes(d.status) && (
                     <button
                       disabled={working === d.id}
                       onClick={() => void startDelivery(d.id)}

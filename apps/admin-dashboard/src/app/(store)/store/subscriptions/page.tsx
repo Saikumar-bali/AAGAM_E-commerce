@@ -383,6 +383,9 @@ export default function StoreSubscriptionOperationsPage() {
             <HeroMetric label="14-day items" value={String(forecastItems)} />
             <HeroMetric label="Cash to count" value={money(submittedCash)} />
           </div>
+          <p className="mt-3 text-xs text-slate-500">
+            Stock readiness and COD-ledger settlement controls operate without replacing individual COD ledgers.
+          </p>
         </header>
 
         <nav className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">

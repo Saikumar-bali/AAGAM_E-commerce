@@ -178,7 +178,7 @@ export class StoreSelfDeliveryService {
       where: {
         storeId,
         serviceDate: { gte: today, lt: tomorrow },
-        status: { in: ['ORDER_GENERATED', 'PREPARING', 'PACKED', 'STORE_DELIVERING', 'DELIVERED', 'FAILED'] },
+        status: { in: ['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED', 'STORE_DELIVERING', 'DELIVERED', 'FAILED'] },
         subscription: { storeDelivery: true },
       },
       include: {
@@ -272,20 +272,20 @@ export class StoreSelfDeliveryService {
 
     if (!subDelivery) throw new NotFoundException('Subscription delivery not found');
     if (!subDelivery.subscription.storeDelivery) throw new BadRequestException('This subscription is not configured for store delivery');
-    if (!['ORDER_GENERATED', 'PREPARING', 'PACKED'].includes(subDelivery.status)) {
+    if (!['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED'].includes(subDelivery.status)) {
       throw new BadRequestException(`Cannot start delivery in status: ${subDelivery.status}`);
     }
 
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const updated = await tx.subscriptionDelivery.updateMany({
-        where: { id: subscriptionDeliveryId, status: { in: ['ORDER_GENERATED', 'PREPARING', 'PACKED'] } },
+        where: { id: subscriptionDeliveryId, status: { in: ['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED'] } },
         data: { status: SubscriptionDeliveryStatus.STORE_DELIVERING },
       });
       if (updated.count === 0) throw new BadRequestException('Delivery already started or status changed');
 
       if (subDelivery.deliveryJobId) {
         await tx.deliveryJob.updateMany({
-          where: { id: subDelivery.deliveryJobId, status: { in: ['ORDER_GENERATED', 'PREPARING', 'PACKED'] as any } },
+          where: { id: subDelivery.deliveryJobId, status: { in: ['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED'] as any } },
           data: { status: DeliveryJobStatus.STORE_DELIVERING },
         });
       }
