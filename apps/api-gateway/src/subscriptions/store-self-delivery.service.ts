@@ -282,6 +282,7 @@ export class StoreSelfDeliveryService {
             deliveryMethod: true,
             deliveryWindowStartMinute: true,
             deliveryWindowEndMinute: true,
+            amountDuePaise: true,
             customer: { select: { id: true, name: true, phone: true } },
             address: true,
             storeDelivery: true,
@@ -350,7 +351,7 @@ export class StoreSelfDeliveryService {
               })),
             }
           : null,
-        expectedAmountPaise: d.order?.grandTotalPaise ?? d.cashDuePaise,
+        expectedAmountPaise: d.order?.grandTotalPaise ?? (d.cashDuePaise || d.subscription.amountDuePaise),
         deliveryJobId: d.deliveryJob?.id || null,
         deliveryJobStatus: d.deliveryJob?.status || null,
         subscription: { storeDelivery: d.subscription.storeDelivery },
