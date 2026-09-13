@@ -221,6 +221,15 @@ export class StoreSelfDeliveryService {
           where: { id: subDelivery.subscriptionId },
           data: { failedDeliveries: { increment: 1 } },
         });
+      } else if (action === 'STORE_CASH_COLLECTED' && cashToRecord !== undefined) {
+        const previousCash = subDelivery.cashCollectedPaise || 0;
+        const cashDelta = cashToRecord - previousCash;
+        if (cashDelta !== 0) {
+          await tx.customerSubscription.update({
+            where: { id: subDelivery.subscriptionId },
+            data: { amountCollectedPaise: { increment: cashDelta } },
+          });
+        }
       }
 
       await tx.subscriptionAuditEntry.create({
@@ -352,6 +361,7 @@ export class StoreSelfDeliveryService {
             }
           : null,
         expectedAmountPaise: d.order?.grandTotalPaise ?? (d.cashDuePaise || d.subscription.amountDuePaise),
+        cashCollectedPaise: d.cashCollectedPaise || 0,
         deliveryJobId: d.deliveryJob?.id || null,
         deliveryJobStatus: d.deliveryJob?.status || null,
         subscription: { storeDelivery: d.subscription.storeDelivery },
