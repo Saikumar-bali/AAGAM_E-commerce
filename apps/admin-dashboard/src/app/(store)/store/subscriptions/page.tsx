@@ -1159,7 +1159,7 @@ export default function StoreSubscriptionOperationsPage() {
         )}
 
         {viewingHistory && (
-          <Modal title={`${viewingHistory.customer.name || 'Customer'} History`} onClose={() => { setViewingHistory(null); setHistoryData(null); }}>
+          <Modal title={`${viewingHistory.customer.name || 'Customer'} History`} onClose={() => { setViewingHistory(null); setHistoryData(null); }} wide>
             {historyLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
@@ -1181,61 +1181,7 @@ export default function StoreSubscriptionOperationsPage() {
                   </div>
                 </div>
                 
-                <div>
-                  <h3 className="mb-2 text-xs font-badge uppercase text-slate-500">Delivery Calendar</h3>
-                  <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200">
-                    <table className="min-w-full text-xs">
-                      <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
-                        <tr>
-                          <th className="px-2 py-1.5 text-left">Date</th>
-                          <th className="px-2 py-1.5 text-left">Status</th>
-                          <th className="px-2 py-1.5 text-right">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {(historyData.deliveries || []).map((d: any) => (
-                          <tr key={d.id} className={d.status === 'DELIVERED' ? 'bg-emerald-50/30' : d.status === 'FAILED' ? 'bg-red-50/30' : ''}>
-                            <td className="whitespace-nowrap px-2 py-1.5">{formatDate(d.serviceDate)}</td>
-                            <td className="whitespace-nowrap px-2 py-1.5">
-                              <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black ${d.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' : d.status === 'FAILED' ? 'bg-red-100 text-red-700' : d.status === 'SKIPPED' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-700'}`}>
-                                {d.status}
-                              </span>
-                            </td>
-                            <td className="whitespace-nowrap px-2 py-1.5 text-right font-bold">{d.cashDuePaise ? formatPaise(d.cashDuePaise) : '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {historyData.orders?.length > 0 && (
-                  <div>
-                    <h3 className="mb-2 text-xs font-badge uppercase text-slate-500">Orders</h3>
-                    <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200">
-                      <table className="min-w-full text-xs">
-                        <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
-                          <tr>
-                            <th className="px-2 py-1.5 text-left">Date</th>
-                            <th className="px-2 py-1.5 text-left">Status</th>
-                            <th className="px-2 py-1.5 text-right">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {historyData.orders.map((o: any) => (
-                            <tr key={o.id}>
-                              <td className="whitespace-nowrap px-2 py-1.5">{formatDate(o.createdAt)}</td>
-                              <td className="whitespace-nowrap px-2 py-1.5">
-                                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-black">{o.status}</span>
-                              </td>
-                              <td className="whitespace-nowrap px-2 py-1.5 text-right font-bold">{formatPaise(o.grandTotalPaise)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
+                <DeliveryCalendar deliveries={historyData.deliveries || []} />
               </div>
             ) : (
               <p className="text-center text-sm text-slate-500 py-4">No history data available</p>
@@ -1705,14 +1651,16 @@ function Modal({
   title,
   onClose,
   children,
+  wide,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  wide?: boolean;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 sm:items-center sm:p-5">
-      <div className="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl">
+      <div className={`max-h-[94vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl ${wide ? 'max-w-3xl' : 'max-w-xl'}`}>
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-black text-slate-950">{title}</h2>
           <button
@@ -1723,6 +1671,103 @@ function Modal({
           </button>
         </div>
         <div className="mt-5 space-y-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function DeliveryCalendar({ deliveries }: { deliveries: any[] }) {
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+
+  const deliveryMap = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    for (const d of deliveries) {
+      const key = new Date(d.serviceDate).toISOString().slice(0, 10);
+      if (!map[key]) map[key] = [];
+      map[key].push(d);
+    }
+    return map;
+  }, [deliveries]);
+
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const days = [];
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
+
+  const statusColor: Record<string, string> = {
+    DELIVERED: 'bg-emerald-500',
+    FAILED: 'bg-red-500',
+    SKIPPED: 'bg-slate-400',
+    SCHEDULED: 'bg-amber-400',
+    ORDER_GENERATED: 'bg-blue-400',
+    PREPARING: 'bg-indigo-400',
+    PACKED: 'bg-purple-400',
+    STORE_DELIVERING: 'bg-orange-400',
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-200 p-3">
+      <div className="flex items-center justify-between mb-3">
+        <button onClick={() => setCurrentMonth(new Date(year, month - 1, 1))} className="rounded-lg p-1 hover:bg-slate-100">
+          <span className="text-lg font-bold text-slate-600">&lt;</span>
+        </button>
+        <h3 className="text-sm font-badge text-slate-800">
+          {currentMonth.toLocaleString('en-IN', { month: 'long', year: 'numeric' })}
+        </h3>
+        <button onClick={() => setCurrentMonth(new Date(year, month + 1, 1))} className="rounded-lg p-1 hover:bg-slate-100">
+          <span className="text-lg font-bold text-slate-600">&gt;</span>
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+          <div key={d} className="text-center text-[9px] font-badge uppercase text-slate-400 py-1">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((day, i) => {
+          if (!day) return <div key={`empty-${i}`} />;
+          const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const dayDeliveries = deliveryMap[dateKey] || [];
+          const hasDelivery = dayDeliveries.length > 0;
+          const today = new Date();
+          const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
+
+          return (
+            <div
+              key={dateKey}
+              className={`relative min-h-[40px] rounded-lg p-1 text-center ${isToday ? 'ring-2 ring-emerald-500' : ''} ${hasDelivery ? 'bg-slate-50' : ''}`}
+            >
+              <span className={`text-xs font-bold ${isToday ? 'text-emerald-700' : 'text-slate-700'}`}>{day}</span>
+              {hasDelivery && (
+                <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
+                  {dayDeliveries.slice(0, 3).map((d: any) => (
+                    <div
+                      key={d.id}
+                      className={`h-1.5 w-1.5 rounded-full ${statusColor[d.status] || 'bg-slate-300'}`}
+                      title={`${d.status}${d.cashDuePaise ? ` - ${formatPaise(d.cashDuePaise)}` : ''}`}
+                    />
+                  ))}
+                  {dayDeliveries.length > 3 && <span className="text-[7px] text-slate-400">+{dayDeliveries.length - 3}</span>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-slate-100">
+        {Object.entries(statusColor).filter(([s]) => deliveries.some((d) => d.status === s)).map(([status, color]) => (
+          <div key={status} className="flex items-center gap-1">
+            <div className={`h-2 w-2 rounded-full ${color}`} />
+            <span className="text-[9px] text-slate-500">{humanize(status)}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
