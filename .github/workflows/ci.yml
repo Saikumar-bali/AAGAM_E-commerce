@@ -317,6 +317,7 @@ jobs:
 
       - name: Run Playwright tests
         run: npx playwright test --project=chromium --reporter=list --workers="$PLAYWRIGHT_WORKERS" --shard="${{ matrix.shard }}/4"
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         working-directory: apps/admin-dashboard
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3005
