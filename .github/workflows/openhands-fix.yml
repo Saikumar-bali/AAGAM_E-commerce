@@ -225,13 +225,14 @@ jobs:
 
       - name: Run OpenHands Task
         env:
-          LLM_MODEL: ${{ env.LLM_MODEL }}
-          LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY || secrets.ANTHROPIC_API_KEY || secrets.OPENAI_API_KEY }}
+          LLM_MODEL: ${{ secrets.OPENHANDS_API_KEY != '' && 'openhands/deepseek-v4-flash' || env.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.OPENHANDS_API_KEY || secrets.OPENROUTER_API_KEY || secrets.ANTHROPIC_API_KEY || secrets.OPENAI_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.OPENHANDS_API_KEY != '' && 'https://llm-proxy.all-hands.dev' || '' }}
           OPENHANDS_SUPPRESS_BANNER: ${{ env.OPENHANDS_SUPPRESS_BANNER }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -z "$LLM_API_KEY" ]; then
-            echo "Error: No LLM API key configured (OPENROUTER_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY required in repo secrets)."
+            echo "Error: No LLM API key configured (OPENHANDS_API_KEY, OPENROUTER_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY required in repo secrets)."
             exit 1
           fi
 

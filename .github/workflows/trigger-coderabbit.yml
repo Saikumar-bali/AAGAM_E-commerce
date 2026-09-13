@@ -1,0 +1,25 @@
+name: Auto Trigger CodeRabbit
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  request-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request review from CodeRabbit
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Automatically post @coderabbitai review on PR open
+            await octokit.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '@coderabbitai review',
+            });
