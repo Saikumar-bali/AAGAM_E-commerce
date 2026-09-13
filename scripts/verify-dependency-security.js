@@ -42,10 +42,12 @@ const ALLOWED_PATCHED_ADVISORIES = new Set([
 ]);
 
 function run(command, args, options = {}) {
+  const isCmd = typeof command === 'string' && command.toLowerCase().endsWith('.cmd');
   return execFileSync(command, args, {
     cwd: process.cwd(),
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    shell: options.shell !== undefined ? options.shell : (process.platform === 'win32' && isCmd),
     ...options,
   });
 }

@@ -1,12 +1,14 @@
 name: OpenHands Auto-Fix
 
 on:
-  check_suite:
-    types: [completed]
   pull_request:
     types: [labeled, opened, synchronize, reopened]
-  issue:
-    types: [labeled, opened]
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+  check_suite:
+    types: [completed]
   workflow_dispatch:
     inputs:
       task_prompt:
@@ -17,7 +19,10 @@ on:
         required: false
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
+  issues: write
+  checks: read
 
 concurrency:
   group: openhands-fix-${{ github.event.pull_request.number || github.event.issue.number || 'manual' }}
@@ -33,43 +38,45 @@ jobs:
     outputs:
       should_fix: ${{ steps.check.outputs.should_fix }}
       task_prompt: ${{ steps.build-prompt.outputs.task_prompt }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
+      branch_ref: ${{ steps.check.outputs.branch_ref }}
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Determine trigger context
         id: check
         run: |
           SHOULD_FIX="false"
+          PR_NUMBER=""
+          BRANCH_REF=""
 
-          if [ "${{ github.event_name }}" = "check_suite" ]; then
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            BRANCH_REF="${{ github.event.pull_request.head.ref }}"
+            LABELS="${{ toJson(github.event.pull_request.labels) }}"
+            if echo "$LABELS" | grep -qiE '"(bug|fix|ci-failure|auto-fix|needs-fix)"'; then
+              SHOULD_FIX="true"
+              echo "Trigger: PR labeled for auto-fix"
+            fi
+          elif [ "${{ github.event_name }}" = "issue_comment" ] && [ -n "${{ github.event.issue.pull_request.url }}" ]; then
+            PR_NUMBER="${{ github.event.issue.number }}"
+            COMMENT_BODY="${{ github.event.comment.body }}"
+            if echo "$COMMENT_BODY" | grep -qiE '(/fix|/openhands|@openhands)'; then
+              SHOULD_FIX="true"
+              echo "Trigger: PR comment command"
+            fi
+          elif [ "${{ github.event_name }}" = "pull_request_review" ]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            BRANCH_REF="${{ github.event.pull_request.head.ref }}"
+            REVIEW_AUTHOR="${{ github.event.review.user.login }}"
+            if echo "$REVIEW_AUTHOR" | grep -qiE '(coderabbit|qodo|bot)'; then
+              SHOULD_FIX="true"
+              echo "Trigger: Bot review submitted by $REVIEW_AUTHOR"
+            fi
+          elif [ "${{ github.event_name }}" = "check_suite" ]; then
             CONCLUSION="${{ github.event.check_suite.conclusion }}"
             SUITE_NAME="${{ github.event.check_suite.name }}"
             if [ "$CONCLUSION" = "failure" ] && [ "$SUITE_NAME" != "OpenHands Auto-Fix" ]; then
               SHOULD_FIX="true"
               echo "Trigger: CI check suite failure"
-            fi
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            LABELS="${{ toJson(github.event.pull_request.labels) }}"
-            if echo "$LABELS" | grep -qiE '"(bug|fix|ci-failure|auto-fix|needs-fix)"'; then
-              SHOULD_FIX="true"
-              echo "Trigger: PR has bug/fix label"
-            elif [ "${{ github.event.action }}" = "opened" ] || [ "${{ github.event.action }}" = "reopened" ]; then
-              SHOULD_FIX="true"
-              echo "Trigger: PR opened/reopened"
-            elif [ "${{ github.event.action }}" = "synchronize" ]; then
-              SHOULD_FIX="true"
-              echo "Trigger: PR updated (synchronize)"
-            fi
-          elif [ "${{ github.event_name }}" = "issue" ]; then
-            LABELS="${{ toJson(github.event.issue.labels) }}"
-            if echo "$LABELS" | grep -qiE '"(bug|fix|auto-fix|needs-fix)"'; then
-              SHOULD_FIX="true"
-              echo "Trigger: Issue has bug/fix label"
             fi
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             SHOULD_FIX="true"
@@ -77,89 +84,118 @@ jobs:
           fi
 
           echo "should_fix=$SHOULD_FIX" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "branch_ref=$BRANCH_REF" >> $GITHUB_OUTPUT
 
       - name: Skip if already in progress
-        if: steps.check.outputs.should_fix == 'true'
-        run: |
-          LABELS="${{ toJson(github.event.pull_request.labels || github.event.issue.labels || '[]') }}"
-          if echo "$LABELS" | grep -q "auto-fix-in-progress"; then
-            echo "Already in progress, skipping"
-            echo "should_fix=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build task prompt
-        id: build-prompt
-        if: steps.check.outputs.should_fix == 'true'
-        run: |
-          PROMPT=""
-
-          if [ "${{ github.event_name }}" = "check_suite" ]; then
-            FAILED_JOBS="${{ github.event.check_suite.jobs }}"
-            PROMPT="CI check suite '${{ github.event.check_suite.name }}' failed for PR ${{ github.event.pull_request.html_url || 'N/A' }}.
-
-Failed jobs and details:
-${FAILED_JOBS}"
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            PR_BODY="${{ github.event.pull_request.body || '' }}"
-            PR_TITLE="${{ github.event.pull_request.title || '' }}"
-            PR_URL="${{ github.event.pull_request.html_url || '' }}"
-            LABELS="${{ toJson(github.event.pull_request.labels || []) }}"
-            COMMITS="${{ github.event.pull_request.commits || '' }}"
-
-            PROMPT="A PR needs attention:
-Title: ${PR_TITLE}
-URL: ${PR_URL}
-Labels: ${LABELS}
-
-PR Description:
-${PR_BODY}
-
-The following commits are part of this PR:
-${COMMITS}
-
-Please review the code changes, identify any bugs, CI failures, code quality issues, or suggestions from code review bots (CodeRabbit, Qodo, etc.), and fix all of them. Make the PR mergeable (green CI)."
-          elif [ "${{ github.event_name }}" = "issue" ]; then
-            ISSUE_BODY="${{ github.event.issue.body || '' }}"
-            ISSUE_TITLE="${{ github.event.issue.title || '' }}"
-            ISSUE_URL="${{ github.event.issue.html_url || '' }}"
-            LABELS="${{ toJson(github.event.issue.labels || []) }}"
-
-            PROMPT="An issue needs attention:
-Title: ${ISSUE_TITLE}
-URL: ${ISSUE_URL}
-Labels: ${LABELS}
-
-Issue Description:
-${ISSUE_BODY}
-
-Please fix the issue described above. If this is a code bug, find and fix it in the repository. Make sure all CI checks pass."
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            PROMPT="${{ github.event.inputs.task_prompt }}"
-          fi
-
-          # Escape newlines for GitHub Actions output
-          PROMPT=$(echo "$PROMPT" | sed ':a;N;$!ba;s/\n/\\n/g')
-          echo "task_prompt=$PROMPT" >> $GITHUB_OUTPUT
-
-      - name: Add in-progress label
-        if: steps.check.outputs.should_fix == 'true' && github.event_name == 'pull_request'
+        if: steps.check.outputs.should_fix == 'true' && steps.check.outputs.pr_number != ''
+        id: skip-check
         uses: actions/github-script@v7
         with:
           script: |
+            const prNumber = parseInt('${{ steps.check.outputs.pr_number }}', 10);
             const { data: labels } = await octokit.rest.issues.listLabelsOnIssue({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: prNumber,
             });
             const hasLabel = labels.some(l => l.name === 'auto-fix-in-progress');
-            if (!hasLabel) {
+            if (hasLabel) {
+              core.setOutput('skip', 'true');
+            } else {
+              core.setOutput('skip', 'false');
+            }
+
+      - name: Fetch PR Review Bot Feedback & Build Prompt
+        id: build-prompt
+        if: steps.check.outputs.should_fix == 'true' && steps.skip-check.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.check.outputs.pr_number }}', 10);
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            let botFeedback = [];
+
+            if (prNumber) {
+              try {
+                const { data: comments } = await octokit.rest.issues.listComments({
+                  owner,
+                  repo,
+                  issue_number: prNumber,
+                  per_page: 50,
+                });
+                for (const c of comments) {
+                  const login = (c.user?.login || '').toLowerCase();
+                  if (login.includes('[bot]') || login.includes('coderabbit') || login.includes('qodo')) {
+                    botFeedback.push(`### Bot Comment from @${c.user?.login}:\n${c.body}`);
+                  }
+                }
+              } catch (e) {
+                console.log('Error fetching comments:', e.message);
+              }
+
+              try {
+                const { data: reviewComments } = await octokit.rest.pulls.listReviewComments({
+                  owner,
+                  repo,
+                  pull_number: prNumber,
+                  per_page: 50,
+                });
+                for (const rc of reviewComments) {
+                  const login = (rc.user?.login || '').toLowerCase();
+                  if (login.includes('[bot]') || login.includes('coderabbit') || login.includes('qodo')) {
+                    botFeedback.push(`### Inline Bot Comment from @${rc.user?.login} on \`${rc.path}:${rc.line || rc.original_line}\`:\n${rc.body}`);
+                  }
+                }
+              } catch (e) {
+                console.log('Error fetching review comments:', e.message);
+              }
+            }
+
+            let prompt = '';
+            if ('${{ github.event_name }}' === 'workflow_dispatch') {
+              prompt = '${{ github.event.inputs.task_prompt }}';
+            } else if (botFeedback.length > 0) {
+              prompt = `You are fixing bugs and addressing automated code review feedback for Pull Request #${prNumber}.\n\n` +
+                `Here is the automated review feedback from bots (CodeRabbit, Qodo, etc.):\n\n` +
+                botFeedback.join('\n\n---\n\n') +
+                `\n\n### Instructions:\n` +
+                `1. Check each bot suggestion against the repository codebase and current business logic.\n` +
+                `2. If the suggestion is valid (real bug, security issue, or regression), fix it cleanly in the code.\n` +
+                `3. If the suggestion is a false positive or not applicable, ignore it.\n` +
+                `4. Run build and tests to verify everything passes without breaking any other features.\n`;
+            } else {
+              prompt = `Inspect the latest changes in Pull Request #${prNumber || 'active branch'}. Identify any syntax errors, build issues, or regressions, and fix them.`;
+            }
+
+            const fs = require('fs');
+            fs.writeFileSync('task_prompt.txt', prompt, 'utf8');
+
+      - name: Add in-progress label
+        if: steps.check.outputs.should_fix == 'true' && steps.check.outputs.pr_number != '' && steps.skip-check.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.check.outputs.pr_number }}', 10);
+            try {
               await octokit.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
+                issue_number: prNumber,
                 labels: ['auto-fix-in-progress'],
               });
+            } catch (e) {
+              console.log('Error adding label:', e.message);
             }
+
+      - name: Upload prompt artifact
+        if: steps.check.outputs.should_fix == 'true' && steps.skip-check.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openhands-prompt
+          path: task_prompt.txt
 
   openhands:
     needs: analyze
@@ -170,9 +206,14 @@ Please fix the issue described above. If this is a code bug, find and fix it in 
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          ref: ${{ needs.analyze.outputs.branch_ref || github.head_ref || github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download prompt artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: openhands-prompt
 
       - name: Set up Python & uv
         uses: astral-sh/setup-uv@v2
@@ -185,24 +226,24 @@ Please fix the issue described above. If this is a code bug, find and fix it in 
       - name: Run OpenHands Task
         env:
           LLM_MODEL: ${{ env.LLM_MODEL }}
-          LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          LLM_API_KEY: ${{ secrets.OPENROUTER_API_KEY || secrets.ANTHROPIC_API_KEY || secrets.OPENAI_API_KEY }}
           OPENHANDS_SUPPRESS_BANNER: ${{ env.OPENHANDS_SUPPRESS_BANNER }}
-          CI_FAIL_CONTEXT: ${{ needs.analyze.outputs.task_prompt }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TASK_PROMPT="${{ needs.analyze.outputs.task_prompt }}"
+          if [ -z "$LLM_API_KEY" ]; then
+            echo "Error: No LLM API key configured (OPENROUTER_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY required in repo secrets)."
+            exit 1
+          fi
 
-          # Decode escaped newlines
-          TASK_PROMPT=$(echo "$TASK_PROMPT" | sed 's/\\n/\n/g')
-
-          echo "Running OpenHands with the following task:"
-          echo "$TASK_PROMPT" | head -20
+          echo "Running OpenHands with prompt from task_prompt.txt..."
+          head -n 20 task_prompt.txt
           echo "..."
 
           openhands --headless \
             --json \
             --override-with-envs \
             --exit-without-confirmation \
-            -t "$TASK_PROMPT"
+            -t "$(cat task_prompt.txt)"
 
       - name: Check for changes
         id: changes
@@ -213,51 +254,34 @@ Please fix the issue described above. If this is a code bug, find and fix it in 
           echo "changed_files=$TOTAL" >> $GITHUB_OUTPUT
           echo "Changed files: $TOTAL"
           git diff --name-only 2>/dev/null
-          git diff --cached --name-only 2>/dev/null
 
       - name: Commit and push fixes
+        id: push
         if: steps.changes.outputs.changed_files > '0'
         run: |
           git config user.name "openhands[bot]"
           git config user.email "openhands-bot@users.noreply.github.com"
 
-          # Stage all changes including deletions
           git add -A
+          COMMIT_MSG="fix: automated fix by OpenHands for review bot findings"
+          git commit -m "$COMMIT_MSG"
 
-          # Check if there are actually changes to commit
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-          else
-            COMMIT_MSG="fix: automated fix by OpenHands
-
-Automated fix triggered by: ${{ github.event_name }}
-Fixes CI failures and code quality issues identified by bots."
-            git commit -m "$COMMIT_MSG"
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-
-            # Push to the PR branch or current branch
-            if [ -n "${{ github.event.pull_request.head.ref }}" ]; then
-              BRANCH="${{ github.event.pull_request.head.ref }}"
-            else
-              BRANCH="openhands-fix-${{ github.run_id }}"
-              git checkout -b "$BRANCH"
-            fi
-
-            git push origin "$BRANCH" --force-with-lease
-            echo "Pushed to branch: $BRANCH"
-          fi
+          BRANCH="${{ needs.analyze.outputs.branch_ref || github.head_ref || github.ref_name }}"
+          git push origin "$BRANCH"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          echo "Pushed to $BRANCH"
 
       - name: Remove in-progress label
-        if: always() && github.event_name == 'pull_request'
+        if: always() && needs.analyze.outputs.pr_number != ''
         uses: actions/github-script@v7
         with:
           script: |
+            const prNumber = parseInt('${{ needs.analyze.outputs.pr_number }}', 10);
             try {
               await octokit.rest.issues.removeLabel({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
+                issue_number: prNumber,
                 name: 'auto-fix-in-progress',
               });
             } catch (e) {
@@ -265,17 +289,18 @@ Fixes CI failures and code quality issues identified by bots."
             }
 
       - name: Add fix status label
-        if: always() && github.event_name == 'pull_request'
+        if: always() && needs.analyze.outputs.pr_number != ''
         uses: actions/github-script@v7
         with:
           script: |
-            const hasChanges = '${{ steps.changes.outputs.has_changes }}' === 'true';
+            const prNumber = parseInt('${{ needs.analyze.outputs.pr_number }}', 10);
+            const hasChanges = '${{ steps.push.outputs.has_changes }}' === 'true';
             const label = hasChanges ? 'auto-fix-applied' : 'auto-fix-no-changes';
             try {
               await octokit.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
+                issue_number: prNumber,
                 labels: [label],
               });
             } catch (e) {
@@ -283,84 +308,25 @@ Fixes CI failures and code quality issues identified by bots."
             }
 
       - name: Comment on PR
-        if: always() && github.event_name == 'pull_request'
+        if: always() && needs.analyze.outputs.pr_number != ''
         uses: actions/github-script@v7
         with:
           script: |
-            const hasChanges = '${{ steps.changes.outputs.has_changes }}' === 'true';
+            const prNumber = parseInt('${{ needs.analyze.outputs.pr_number }}', 10);
+            const hasChanges = '${{ steps.push.outputs.has_changes }}' === 'true';
             const changedFiles = '${{ steps.changes.outputs.changed_files }}';
 
             let body = hasChanges
-              ? `## 🤖 OpenHands Auto-Fix Applied
+              ? `### 🤖 OpenHands Auto-Fix Applied\n\nOpenHands analyzed the review bot feedback and applied fixes.\n\n- **Files changed:** ${changedFiles}\n- **Branch updated:** fixes pushed directly to this branch.\n\nPlease review the commit and verify all CI checks pass.`
+              : `### 🤖 OpenHands Auto-Fix\n\nOpenHands reviewed the code and bot comments, but did not find any valid actionable code changes to apply (comments may be false positives or already satisfied).`;
 
-            OpenHands has analyzed and applied fixes for this PR.
-
-            **Files changed:** ${changedFiles}
-
-            The changes have been pushed to the branch. Please review and verify that all CI checks pass.`
-              : `## 🤖 OpenHands Auto-Fix
-
-            OpenHands analyzed this PR but did not find any changes to make.
-
-            If there are still issues, please review the CI failure logs or code review comments manually.`;
-
-            await octokit.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: body,
-            });
-
-  verify:
-    needs: [analyze, openhands]
-    if: needs.openhands.outputs.has_changes == 'true' && github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout fixed code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref || github.sha }}
-
-      - name: Run CI checks
-        run: |
-          echo "Verifying fixes by running CI..."
-          echo "This job would run the CI pipeline to verify the fixes."
-          echo "In a full implementation, this would trigger the ci.yml workflow."
-
-      - name: Check CI status
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: checks } = await octokit.rest.checks.listForRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: context.payload.pull_request.head.sha,
-            });
-
-            let allPassed = true;
-            let failedChecks = [];
-
-            for (const check of checks.check_runs) {
-              if (check.conclusion === 'failure') {
-                allPassed = false;
-                failedChecks.push(check.name);
-              }
-            }
-
-            if (allPassed) {
-              await octokit.rest.issues.addLabels({
+            try {
+              await octokit.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
-                labels: ['ci-passed'],
+                issue_number: prNumber,
+                body: body,
               });
-              console.log('All CI checks passed!');
-            } else {
-              await octokit.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                labels: ['ci-still-failing'],
-              });
-              console.log('Some CI checks still failing:', failedChecks.join(', '));
+            } catch (e) {
+              console.log('Could not comment on PR:', e.message);
             }
