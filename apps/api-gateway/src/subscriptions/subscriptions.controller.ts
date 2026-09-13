@@ -437,6 +437,15 @@ export class StoreSubscriptionsController {
   analytics(@Req() req: AuthenticatedRequest) {
     return this.reporting.storeAnalytics(req.user);
   }
+
+  @Post('subscribers/:id/renew')
+  renewSubscription(
+    @Param('id') id: string,
+    @Body() body: { additionalDeliveries: number; additionalAmountPaise?: number; note?: string },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reporting.renewSubscription(id, body, req.user.id, req.user.role);
+  }
 }
 
 @Controller('admin/subscriptions')
@@ -584,6 +593,15 @@ export class AdminSubscriptionsController {
   @Patch('subscribers/:id/manual-edit')
   updateManualSubscription(@Param('id') id: string, @Body() body: UpdateAdminManualSubscriptionDto, @Req() req: AuthenticatedRequest) {
     return this.reporting.updateManualSubscription(id, body, req.user.id);
+  }
+
+  @Post('subscribers/:id/renew')
+  renewSubscription(
+    @Param('id') id: string,
+    @Body() body: { additionalDeliveries: number; additionalAmountPaise?: number; note?: string },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reporting.renewSubscription(id, body, req.user.id);
   }
 
   @Post('custom-subscribe')

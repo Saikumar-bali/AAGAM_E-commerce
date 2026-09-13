@@ -844,5 +844,93 @@ export class SubscriptionAdminReportingService {
       return subscription;
     });
   }
+
+  async renewSubscription(
+    subscriptionId: string,
+    dto: {
+      additionalDeliveries: number;
+      additionalAmountPaise?: number;
+      note?: string;
+    },
+    actorId: string,
+    actorRole: Role = Role.ADMIN,
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const subscription = await tx.customerSubscription.findUnique({
+        where: { id: subscriptionId },
+        include: {
+          planVersion: { select: { pricePaise: true, totalDeliveries: true } },
+          deliveries: { orderBy: { sequenceNumber: 'desc' }, take: 1 },
+        },
+      });
+
+      if (!subscription) throw new NotFoundException('Subscription not found');
+      if (subscription.status === CustomerSubscriptionStatus.CANCELLED) {
+        throw new BadRequestException('Cannot renew a cancelled subscription');
+      }
+
+      const lastDelivery = subscription.deliveries[0];
+      const lastSequence = lastDelivery?.sequenceNumber ?? 0;
+      const lastDate = lastDelivery?.serviceDate ?? subscription.endDate;
+
+      const newDeliveries = [];
+      for (let i = 1; i <= dto.additionalDeliveries; i++) {
+        const serviceDate = new Date(lastDate.getTime() + i * 86_400_000);
+        const windowStart = subscription.deliveryWindowStartMinute;
+        newDeliveries.push({
+          subscriptionId: subscription.id,
+          serviceDate,
+          sequenceNumber: lastSequence + i,
+          generationKey: `renewal:${subscription.id}:${lastSequence + i}:${serviceDate.toISOString().slice(0, 10)}`,
+          deliverySlot: (windowStart ?? 0) < 12 * 60 ? 'AM' as const : 'PM' as const,
+          status: SubscriptionDeliveryStatus.SCHEDULED,
+          cashDuePaise: 0,
+          proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
+          storeId: subscription.homeStoreId,
+        });
+      }
+
+      await tx.subscriptionDelivery.createMany({ data: newDeliveries, skipDuplicates: true });
+
+      const additionalAmount = dto.additionalAmountPaise ??
+        Math.round((subscription.planVersion?.pricePaise ?? 0) * dto.additionalDeliveries / (subscription.planVersion?.totalDeliveries ?? 1));
+
+      const newEndDate = new Date(lastDate.getTime() + dto.additionalDeliveries * 86_400_000);
+
+      const updated = await tx.customerSubscription.update({
+        where: { id: subscriptionId },
+        data: {
+          endDate: newEndDate,
+          fundedDeliveryCount: subscription.fundedDeliveryCount + dto.additionalDeliveries,
+          remainingFundedDeliveries: subscription.remainingFundedDeliveries + dto.additionalDeliveries,
+          amountDuePaise: subscription.amountDuePaise + additionalAmount,
+          status: subscription.status === CustomerSubscriptionStatus.COMPLETED
+            ? CustomerSubscriptionStatus.ACTIVE
+            : subscription.status,
+        },
+      });
+
+      await tx.subscriptionAuditEntry.create({
+        data: {
+          subscriptionId: subscription.id,
+          actorUserId: actorId,
+          actorRole,
+          action: 'SUBSCRIPTION_RENEWED',
+          reason: dto.note || `Renewed with ${dto.additionalDeliveries} additional deliveries`,
+          metadata: {
+            additionalDeliveries: dto.additionalDeliveries,
+            additionalAmountPaise: additionalAmount,
+            previousEndDate: subscription.endDate.toISOString(),
+            newEndDate: newEndDate.toISOString(),
+            previousFundedCount: subscription.fundedDeliveryCount,
+            newFundedCount: subscription.fundedDeliveryCount + dto.additionalDeliveries,
+          },
+          idempotencyKey: `renewal:${subscription.id}:${Date.now()}`,
+        },
+      });
+
+      return updated;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
 }
 

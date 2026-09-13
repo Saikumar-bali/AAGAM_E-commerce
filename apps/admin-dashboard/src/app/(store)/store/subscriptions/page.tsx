@@ -228,7 +228,7 @@ export default function StoreSubscriptionOperationsPage() {
   const [calendar, setCalendar] = useState<CalendarRow[]>([]);
   const [analytics, setAnalytics] = useState<StoreAnalytics | null>(null);
   const [editingSubscriber, setEditingSubscriber] = useState<SubscriberRow | null>(null);
-  const [editForm, setEditForm] = useState({ amountDueRupees: "", amountCollectedRupees: "", note: "" });
+  const [editForm, setEditForm] = useState({ amountDueRupees: "", amountCollectedRupees: "", note: "", mode: "edit" as "edit" | "renew", additionalDeliveries: "", additionalAmountRupees: "" });
   const [viewingHistory, setViewingHistory] = useState<SubscriberRow | null>(null);
   const [historyData, setHistoryData] = useState<any>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -529,7 +529,7 @@ export default function StoreSubscriptionOperationsPage() {
             {tab === "subscribers" && (
               <SubscribersSection 
                 rows={subscribers} 
-                onEdit={(sub) => { setEditingSubscriber(sub); setEditForm({ amountDueRupees: String((sub.amountDuePaise || 0) / 100), amountCollectedRupees: String((sub.amountCollectedPaise || 0) / 100), note: "" }); }}
+                onEdit={(sub) => { setEditingSubscriber(sub); setEditForm({ amountDueRupees: String((sub.amountDuePaise || 0) / 100), amountCollectedRupees: String((sub.amountCollectedPaise || 0) / 100), note: "", mode: "edit", additionalDeliveries: "", additionalAmountRupees: "" }); }}
                 onViewHistory={async (sub) => { setViewingHistory(sub); setHistoryLoading(true); try { const res = await apiClient.get(`/store/subscriptions/subscribers/${sub.id}/history`); setHistoryData(res.data); } catch { setHistoryData(null); } finally { setHistoryLoading(false); } }}
               />
             )}
@@ -1070,72 +1070,156 @@ export default function StoreSubscriptionOperationsPage() {
           <Modal title={`Edit ${editingSubscriber.customer.name || 'Subscriber'}`} onClose={() => setEditingSubscriber(null)}>
             <div className="space-y-4">
               <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs font-bold text-slate-600">{editingSubscriber.plan.name}</p>
-                <p className="text-[10px] text-slate-400">
-                  {editingSubscriber._count?.deliveries ?? 0} deliveries · {formatPaise(editingSubscriber.amountCollectedPaise || 0)} collected
-                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-slate-600">{editingSubscriber.plan.name}</p>
+                    <p className="text-[10px] text-slate-400">
+                      {editingSubscriber.completedDeliveries ?? 0}/{editingSubscriber.fundedDeliveryCount || '—'} delivered · {formatPaise(editingSubscriber.amountCollectedPaise || 0)} collected
+                    </p>
+                  </div>
+                  <StatusPill status={editingSubscriber.status} />
+                </div>
               </div>
-              <Field label="Amount Due (₹)">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={editForm.amountDueRupees}
-                  onChange={(e) => setEditForm({ ...editForm, amountDueRupees: e.target.value })}
-                  className="h-10 w-full rounded-xl border border-slate-300 px-3 font-bold outline-none focus:border-emerald-500"
-                />
-              </Field>
-              <Field label="Amount Collected (₹)">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={editForm.amountCollectedRupees}
-                  onChange={(e) => setEditForm({ ...editForm, amountCollectedRupees: e.target.value })}
-                  className="h-10 w-full rounded-xl border border-slate-300 px-3 font-bold outline-none focus:border-emerald-500"
-                />
-              </Field>
-              <Field label="Note">
-                <textarea
-                  value={editForm.note}
-                  onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
-                  rows={2}
-                  placeholder="Optional note"
-                  className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-emerald-500"
-                />
-              </Field>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setEditingSubscriber(null)}
-                  className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-black"
-                >
-                  Cancel
-                </button>
-                <button
-                  disabled={working === "edit-subscriber"}
-                  onClick={async () => {
-                    setWorking("edit-subscriber");
-                    try {
-                      await apiClient.patch(`/admin/subscriptions/subscribers/${editingSubscriber.id}/manual-edit`, {
-                        amountDuePaise: Math.round(Number(editForm.amountDueRupees || 0) * 100),
-                        amountCollectedPaise: Math.round(Number(editForm.amountCollectedRupees || 0) * 100),
-                        note: editForm.note.trim() || undefined,
-                      });
-                      toast.success("Subscriber updated");
-                      setEditingSubscriber(null);
-                      await load();
-                    } catch (error) {
-                      toast.error(getToastErrorMessage(error, "Update failed"));
-                    } finally {
-                      setWorking("");
-                    }
-                  }}
-                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-black text-white disabled:opacity-50"
-                >
-                  {working === "edit-subscriber" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Save Changes
-                </button>
+
+              <div className="flex gap-2 rounded-xl bg-slate-100 p-1">
+                <button onClick={() => setEditForm({ ...editForm, mode: 'edit' })} className={`flex-1 rounded-lg py-2 text-xs font-black ${editForm.mode === 'edit' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>Edit Details</button>
+                <button onClick={() => setEditForm({ ...editForm, mode: 'renew' })} className={`flex-1 rounded-lg py-2 text-xs font-black ${editForm.mode === 'renew' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>Renew Plan</button>
               </div>
+
+              {editForm.mode === 'renew' ? (
+                <>
+                  <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3">
+                    <p className="text-xs font-black text-emerald-800">Renew Subscription</p>
+                    <p className="text-[10px] text-emerald-600 mt-1">Extend this subscription with additional deliveries. Progress continues from where it left off.</p>
+                  </div>
+                  <Field label="Additional Deliveries">
+                    <input
+                      type="number"
+                      min="1"
+                      value={editForm.additionalDeliveries}
+                      onChange={(e) => setEditForm({ ...editForm, additionalDeliveries: e.target.value })}
+                      placeholder="e.g. 7"
+                      className="h-10 w-full rounded-xl border border-slate-300 px-3 font-bold outline-none focus:border-emerald-500"
+                    />
+                  </Field>
+                  <Field label="Additional Amount (₹) - leave blank to auto-calculate">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editForm.additionalAmountRupees}
+                      onChange={(e) => setEditForm({ ...editForm, additionalAmountRupees: e.target.value })}
+                      placeholder="Auto-calculated if empty"
+                      className="h-10 w-full rounded-xl border border-slate-300 px-3 font-bold outline-none focus:border-emerald-500"
+                    />
+                  </Field>
+                  <Field label="Note">
+                    <textarea
+                      value={editForm.note}
+                      onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+                      rows={2}
+                      placeholder="Reason for renewal"
+                      className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-emerald-500"
+                    />
+                  </Field>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditingSubscriber(null)}
+                      className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-black"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      disabled={working === "renew-subscriber" || !editForm.additionalDeliveries}
+                      onClick={async () => {
+                        setWorking("renew-subscriber");
+                        try {
+                          await apiClient.post(`/store/subscriptions/subscribers/${editingSubscriber.id}/renew`, {
+                            additionalDeliveries: Number(editForm.additionalDeliveries),
+                            additionalAmountPaise: editForm.additionalAmountRupees ? Math.round(Number(editForm.additionalAmountRupees) * 100) : undefined,
+                            note: editForm.note.trim() || undefined,
+                          });
+                          toast.success("Subscription renewed successfully");
+                          setEditingSubscriber(null);
+                          await load();
+                        } catch (error) {
+                          toast.error(getToastErrorMessage(error, "Renewal failed"));
+                        } finally {
+                          setWorking("");
+                        }
+                      }}
+                      className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-black text-white disabled:opacity-50"
+                    >
+                      {working === "renew-subscriber" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      Renew Subscription
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Field label="Amount Due (₹)">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editForm.amountDueRupees}
+                      onChange={(e) => setEditForm({ ...editForm, amountDueRupees: e.target.value })}
+                      className="h-10 w-full rounded-xl border border-slate-300 px-3 font-bold outline-none focus:border-emerald-500"
+                    />
+                  </Field>
+                  <Field label="Amount Collected (₹)">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editForm.amountCollectedRupees}
+                      onChange={(e) => setEditForm({ ...editForm, amountCollectedRupees: e.target.value })}
+                      className="h-10 w-full rounded-xl border border-slate-300 px-3 font-bold outline-none focus:border-emerald-500"
+                    />
+                  </Field>
+                  <Field label="Note">
+                    <textarea
+                      value={editForm.note}
+                      onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+                      rows={2}
+                      placeholder="Optional note"
+                      className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-emerald-500"
+                    />
+                  </Field>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditingSubscriber(null)}
+                      className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-black"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      disabled={working === "edit-subscriber"}
+                      onClick={async () => {
+                        setWorking("edit-subscriber");
+                        try {
+                          await apiClient.patch(`/admin/subscriptions/subscribers/${editingSubscriber.id}/manual-edit`, {
+                            amountDuePaise: Math.round(Number(editForm.amountDueRupees || 0) * 100),
+                            amountCollectedPaise: Math.round(Number(editForm.amountCollectedRupees || 0) * 100),
+                            note: editForm.note.trim() || undefined,
+                          });
+                          toast.success("Subscriber updated");
+                          setEditingSubscriber(null);
+                          await load();
+                        } catch (error) {
+                          toast.error(getToastErrorMessage(error, "Update failed"));
+                        } finally {
+                          setWorking("");
+                        }
+                      }}
+                      className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-black text-white disabled:opacity-50"
+                    >
+                      {working === "edit-subscriber" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      Save Changes
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </Modal>
         )}
