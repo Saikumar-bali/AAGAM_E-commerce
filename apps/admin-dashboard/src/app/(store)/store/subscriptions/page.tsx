@@ -103,6 +103,7 @@ type SubscriberRow = {
   completedDeliveries?: number;
   fundedDeliveryCount?: number;
   deliveryMethod?: string | null;
+  storeDelivery?: boolean;
   homeStore: { id: string; name: string } | null;
   customer: { id: string; name: string | null; email: string | null; phone: string | null };
   deliveryContact?: { phone: string; name?: string | null } | null;
@@ -457,80 +458,61 @@ export default function StoreSubscriptionOperationsPage() {
   return (
     <DashboardLayout allowedRole="STORE_OWNER">
       <div className="space-y-6">
-        <header className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-700 p-6 text-white shadow-xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h1 className="mt-2 text-3xl font-hero">
-                Subscriptions, Runs & Cash
-              </h1>
-            </div>
-            <button
-              onClick={() => void load()}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white/15 px-4 text-sm font-nav hover:bg-white/25"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </button>
-            <button
-              onClick={() => setPrepModalOpen(true)}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600/30 px-4 text-sm font-black text-white hover:bg-emerald-600/50"
-            >
-              Open tomorrow subscription preparation
-            </button>
-            <a
-              href="/store/deliveries"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-emerald-900 shadow hover:bg-emerald-50"
-            >
-              <Truck className="h-4 w-4" />
-              Deliver at store · Start now
-            </a>
+        <section className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-lg font-black text-slate-900">Subscriptions, runs & cash</h1>
+            <p className="text-xs font-semibold text-slate-500">Store subscription operations, delivery runs and cash settlement.</p>
           </div>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <HeroMetric label="Subscribers" value={String(subscribers.length)} />
-            <HeroMetric label="Active plans" value={String(plans.length)} />
-            <HeroMetric label="Routes today" value={String(runs.length)} />
-            <HeroMetric label="Cash to count" value={money(submittedCash)} />
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={() => void load()} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50"><RefreshCw className="h-3.5 w-3.5" /> Refresh</button>
+            <button onClick={() => setPrepModalOpen(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-black text-slate-900 hover:bg-amber-300"><ClipboardCheck className="h-3.5 w-3.5" /> Tomorrow Prep</button>
+            <a href="/store/deliveries" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-xs font-black text-white hover:bg-emerald-800"><Truck className="h-3.5 w-3.5" /> Deliver at store</a>
           </div>
-          <p className="mt-3 text-xs text-slate-500">
-            Stock readiness and COD-ledger settlement controls operate without replacing individual COD ledgers.
-          </p>
-        </header>
+        </section>
 
-        <nav className="flex gap-1.5 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <div className="flex items-center gap-2 text-emerald-700"><span className="rounded-lg bg-emerald-50 p-1.5"><Users className="h-3.5 w-3.5" /></span><span className="text-xs font-black text-slate-600">Subscribers</span></div>
+            <strong className="text-lg text-slate-900">{subscribers.length}</strong>
+          </div>
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <div className="flex items-center gap-2 text-emerald-700"><span className="rounded-lg bg-emerald-50 p-1.5"><Archive className="h-3.5 w-3.5" /></span><span className="text-xs font-black text-slate-600">Active plans</span></div>
+            <strong className="text-lg text-slate-900">{plans.length}</strong>
+          </div>
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <div className="flex items-center gap-2 text-emerald-700"><span className="rounded-lg bg-emerald-50 p-1.5"><Route className="h-3.5 w-3.5" /></span><span className="text-xs font-black text-slate-600">Routes today</span></div>
+            <strong className="text-lg text-slate-900">{runs.length}</strong>
+          </div>
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <div className="flex items-center gap-2 text-emerald-700"><span className="rounded-lg bg-emerald-50 p-1.5"><Banknote className="h-3.5 w-3.5" /></span><span className="text-xs font-black text-slate-600">Cash to count</span></div>
+            <strong className="text-lg text-slate-900">{money(submittedCash)}</strong>
+          </div>
+        </section>
+
+        <nav className="flex gap-0.5 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
           {(
             [
-              ["subscribers", "Subscribers"],
-              ["prep", "Tomorrow Prep"],
-              ["forecast", "Demand"],
-              ["plans", "Plans"],
-              ["calendar", "Calendar"],
-              ["runs", "Runs"],
-              ["cash", "Cash"],
-              ["exceptions", "Exceptions"],
-              ["analytics", "Analytics"],
-            ] as Array<[Tab, string]>
-          ).map(([value, label]) => (
+              ["subscribers", "Subscribers", Users],
+              ["prep", "Tomorrow Prep", ClipboardCheck],
+              ["forecast", "Demand", BarChart3],
+              ["plans", "Plans", Archive],
+              ["calendar", "Calendar", CalendarDays],
+              ["runs", "Runs", Route],
+              ["cash", "Cash", Banknote],
+              ["exceptions", "Exceptions", AlertTriangle],
+              ["analytics", "Analytics", BarChart3],
+            ] as Array<[Tab, string, any]>
+          ).map(([value, label, Icon]) => (
             <button
               key={value}
               onClick={() => setTab(value)}
-              className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-nav ${
+              className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-black ${
                 tab === value
-                  ? "bg-emerald-700 text-white"
-                  : "text-slate-600 hover:bg-slate-50"
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "text-slate-500 hover:bg-slate-50"
               }`}
             >
-              {label}
-              {tabCounts[value] > 0 && (
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-[9px] ${
-                    tab === value ? "bg-white/20" : "bg-slate-100"
-                  }`}
-                >
-                  {tabCounts[value] > 999 ? "999+" : tabCounts[value]}
-                </span>
-              )}
+              <Icon className="h-3.5 w-3.5" /> {label}
             </button>
           ))}
         </nav>
@@ -1221,10 +1203,34 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function SubscribersSection({ rows, onEdit, onViewHistory }: { rows: SubscriberRow[]; onEdit?: (sub: SubscriberRow) => void; onViewHistory?: (sub: SubscriberRow) => void }) {
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'online' | 'offline'>('all');
+  const filteredRows = rows.filter((row) => {
+    if (sourceFilter === 'all') return true;
+    const isOffline = row.deliveryMethod === 'PERSONAL_HANDOVER' || row.customer?.email?.startsWith('offline.');
+    return sourceFilter === 'offline' ? isOffline : !isOffline;
+  });
+
   return (
-    <section className="space-y-3">
-      {rows.length ? (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+    <section className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-black text-slate-900">Customer subscriptions</h2>
+          <p className="text-xs font-semibold text-slate-500">Store subscription records for your assigned stores.</p>
+        </div>
+        <div className="flex gap-1.5">
+          {(['all', 'online', 'offline'] as const).map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setSourceFilter(filter)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-black ${sourceFilter === filter ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              {filter.charAt(0).toUpperCase() + filter.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {filteredRows.length ? (
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="min-w-full text-left text-xs">
             <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
               <tr>
@@ -1232,24 +1238,18 @@ function SubscribersSection({ rows, onEdit, onViewHistory }: { rows: SubscriberR
                 <th className="px-3 py-2.5 font-badge">Phone</th>
                 <th className="px-3 py-2.5 font-badge">Plan</th>
                 <th className="px-3 py-2.5 font-badge">Store</th>
+                <th className="px-3 py-2.5 font-badge">Delivery</th>
                 <th className="px-3 py-2.5 font-badge">Status</th>
                 <th className="px-3 py-2.5 font-badge text-right">Progress</th>
                 <th className="px-3 py-2.5 font-badge text-right">Collected / due</th>
-                <th className="px-3 py-2.5 font-badge">Started</th>
-                {onEdit && <th className="px-3 py-2.5 font-badge">Actions</th>}
+                <th className="px-3 py-2.5 font-badge">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((row) => (
+              {filteredRows.map((row) => (
                 <tr key={row.id} className="hover:bg-emerald-50/30">
-                  <td className="whitespace-nowrap px-3 py-2.5">
-                    {onViewHistory ? (
-                      <button onClick={() => onViewHistory(row)} className="font-black text-emerald-700 hover:underline">
-                        {row.customer.name || row.deliveryContact?.name || "Customer"}
-                      </button>
-                    ) : (
-                      <span className="font-black text-slate-900">{row.customer.name || row.deliveryContact?.name || "Customer"}</span>
-                    )}
+                  <td className="whitespace-nowrap px-3 py-2.5 font-black text-slate-900">
+                    {row.customer.name || row.deliveryContact?.name || "Customer"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-600">
                     {row.customer.phone || row.deliveryContact?.phone || "—"}
@@ -1262,6 +1262,17 @@ function SubscribersSection({ rows, onEdit, onViewHistory }: { rows: SubscriberR
                     {row.homeStore?.name || "—"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5">
+                    {row.storeDelivery ? (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-700">
+                        <Truck className="h-3 w-3" /> Store
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">
+                        <Route className="h-3 w-3" /> Rider
+                      </span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5">
                     <StatusPill status={row.status} />
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right font-black text-slate-800">
@@ -1272,30 +1283,36 @@ function SubscribersSection({ rows, onEdit, onViewHistory }: { rows: SubscriberR
                     <span className="text-slate-400"> / </span>
                     <span className="font-black text-amber-700">{formatPaise(Number(row.amountDuePaise || 0))}</span>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">
-                    {formatDate(row.startDate || row.createdAt)}
+                  <td className="whitespace-nowrap px-3 py-2.5">
+                    <div className="flex gap-1">
+                      {onViewHistory && (
+                        <button
+                          onClick={() => onViewHistory(row)}
+                          className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-black text-emerald-700 hover:bg-emerald-100"
+                        >
+                          <CalendarDays className="h-3 w-3" /> Track
+                        </button>
+                      )}
+                      {onEdit && (
+                        <button
+                          onClick={() => onEdit(row)}
+                          className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[10px] font-black text-slate-700 hover:bg-slate-100"
+                        >
+                          <Edit3 className="h-3 w-3" /> Edit
+                        </button>
+                      )}
+                    </div>
                   </td>
-                  {onEdit && (
-                    <td className="whitespace-nowrap px-3 py-2.5">
-                      <button
-                        onClick={() => onEdit(row)}
-                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] font-black hover:bg-slate-50"
-                      >
-                        <Edit3 className="h-3 w-3" /> Edit
-                      </button>
-                    </td>
-                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : (
-        <State
-          icon={Users}
-          title="No subscribers yet"
-          text="Subscriptions tied to your stores will appear here."
-        />
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+          <h2 className="text-sm font-black text-slate-800">No subscribers yet</h2>
+          <p className="mt-1 text-xs font-semibold text-slate-500">Subscriptions tied to your stores will appear here.</p>
+        </div>
       )}
     </section>
   );
