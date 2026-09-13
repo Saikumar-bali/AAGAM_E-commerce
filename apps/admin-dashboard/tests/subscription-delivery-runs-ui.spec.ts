@@ -81,12 +81,12 @@ test('store sees D-1 stock readiness, forecast, route preparation and individual
   await page.getByRole('button', { name: /Subscribers/i }).first().click();
   await expect(page.getByText(/Subscribers ·|No subscribers yet/i).first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Open tomorrow subscription preparation' }).click();
+  await page.getByRole('button', { name: /Tomorrow (Prep|preparation)|Open tomorrow/i }).first().click();
   await expect(page.getByRole('heading', { name: 'Prepare before delivery day' })).toBeVisible();
   await expect(page.getByText(/Inventory is deducted only when the real subscription order is generated/i)).toBeVisible();
   await page.getByRole('button', { name: 'Close' }).click();
 
-  await page.getByRole('button', { name: /Demand forecast/i }).click();
+  await page.getByRole('button', { name: 'Demand', exact: true }).click();
   await expect(page.getByText(/Forecast only|No forecast demand/i).first()).toBeVisible();
   await page.screenshot({ path: `${screenshots}/05-store-subscription-operations.png`, fullPage: true });
 });
