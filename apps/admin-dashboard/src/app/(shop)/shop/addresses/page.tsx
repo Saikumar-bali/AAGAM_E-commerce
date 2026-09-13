@@ -8,6 +8,7 @@ import { apiClient } from '@aagam/utils';
 import { useToast } from '@/components/ToastProvider';
 import {
   Plus,
+  Check,
   MapPin,
   Phone,
   Pencil,
@@ -405,6 +406,51 @@ export default function AddressesPage() {
     }
   };
 
+  const handleMakeDefault = async (id: string) => {
+    // Snapshot the previous default and stored selection so a failed PATCH can
+    // roll back instead of leaving a non-default address selected on next visit.
+    const previousDefaultId = addresses.find((a) => a.isDefault)?.id ?? null;
+    const previousStoredId = (() => {
+      if (typeof window === 'undefined') return null;
+      try {
+        return localStorage.getItem('aagam_selected_address_id');
+      } catch {
+        return null;
+      }
+    })();
+    setAddresses((prev) =>
+      prev.map((a) => ({
+        ...a,
+        isDefault: a.id === id,
+      })),
+    );
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('aagam_selected_address_id', id);
+      } catch {}
+    }
+    try {
+      await apiClient.patch(`/customer/addresses/${id}`, { isDefault: true });
+      toast.success('Default address updated.');
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'Failed to update default address');
+      setAddresses((prev) =>
+        prev.map((a) => ({
+          ...a,
+          isDefault: a.id === previousDefaultId,
+        })),
+      );
+      if (typeof window !== 'undefined') {
+        try {
+          if (previousStoredId) localStorage.setItem('aagam_selected_address_id', previousStoredId);
+          else localStorage.removeItem('aagam_selected_address_id');
+        } catch {}
+      }
+      toast.error('Could not update default address. Please try again.');
+      await fetchAddresses();
+    }
+  };
+
   /* -------------------------------- render -------------------------------- */
 
   if (loading) {
@@ -510,6 +556,18 @@ export default function AddressesPage() {
                         >
                           <Pencil className="h-3.5 w-3.5" /> Edit
                         </button>
+                        {!addr.isDefault && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleMakeDefault(addr.id);
+                              setMenuOpenId(null);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2.5 text-xs font-bold text-teal-800 hover:bg-teal-50"
+                          >
+                            <Check className="h-3.5 w-3.5" /> Set as default
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

@@ -354,7 +354,7 @@ export default function LandingPage() {
                         src={getProductImage(product)}
                         alt={product.name}
                         className="h-full w-full object-contain transition hover:scale-105"
-                        onError={(e) => { (e.target as HTMLImageElement).src = '/brand/aagam-mark'; }}
+                        onError={(e) => { (e.target as HTMLImageElement).src = '/brand/aagam-logo-full.png'; }}
                       />
                     </div>
                     <div className="mt-1 line-clamp-1 text-[11px] font-black text-[#17231f]">{product.name}</div>

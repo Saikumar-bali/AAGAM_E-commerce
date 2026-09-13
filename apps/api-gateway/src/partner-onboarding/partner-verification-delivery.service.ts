@@ -355,7 +355,7 @@ export class PartnerVerificationDeliveryService {
       name:
         process.env.PARTNER_VERIFICATION_FROM_NAME?.trim() ||
         rawName ||
-        'AAGAM Verification',
+        'AAGAAM Verification',
     };
   }
 
@@ -409,19 +409,19 @@ export class PartnerVerificationDeliveryService {
   }
 
   private subject(input: PartnerVerificationDeliveryInput): string {
-    return `AAGAM verification code for ${input.applicationNumber}`;
+    return `AAGAAM verification code for ${input.applicationNumber}`;
   }
 
   private message(input: PartnerVerificationDeliveryInput): string {
     const minutes = Math.max(1, Math.ceil((input.expiresAt.getTime() - Date.now()) / 60_000));
-    return `Your AAGAM partner verification code is ${input.code}. It expires in ${minutes} minutes. Application: ${input.applicationNumber}. Do not share this code.`;
+    return `Your AAGAAM partner verification code is ${input.code}. It expires in ${minutes} minutes. Application: ${input.applicationNumber}. Do not share this code.`;
   }
 
   private htmlMessage(input: PartnerVerificationDeliveryInput): string {
     const minutes = Math.max(1, Math.ceil((input.expiresAt.getTime() - Date.now()) / 60_000));
     const applicationNumber = this.escapeHtml(input.applicationNumber);
     const code = this.escapeHtml(input.code);
-    return `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a"><div style="max-width:560px;margin:32px auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:32px"><div style="font-size:22px;font-weight:800">AAGAM verification</div><p style="color:#475569;line-height:1.6">Enter this code to verify your partner application.</p><div style="font-size:34px;font-weight:900;letter-spacing:8px;text-align:center;padding:20px;background:#f0fdfa;border-radius:12px;color:#0f766e">${code}</div><p style="color:#475569;line-height:1.6">This code expires in ${minutes} minutes.</p><p style="font-size:13px;color:#64748b">Application: ${applicationNumber}</p><p style="font-size:12px;color:#94a3b8">Do not share this code. AAGAM support will never ask for it.</p></div></body></html>`;
+    return `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a"><div style="max-width:560px;margin:32px auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:32px"><div style="font-size:22px;font-weight:800">AAGAAM verification</div><p style="color:#475569;line-height:1.6">Enter this code to verify your partner application.</p><div style="font-size:34px;font-weight:900;letter-spacing:8px;text-align:center;padding:20px;background:#f0fdfa;border-radius:12px;color:#0f766e">${code}</div><p style="color:#475569;line-height:1.6">This code expires in ${minutes} minutes.</p><p style="font-size:13px;color:#64748b">Application: ${applicationNumber}</p><p style="font-size:12px;color:#94a3b8">Do not share this code. AAGAAM support will never ask for it.</p></div></body></html>`;
   }
 
   private escapeHtml(value: string): string {

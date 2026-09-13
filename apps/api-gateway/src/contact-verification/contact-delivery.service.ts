@@ -140,7 +140,7 @@ export class ContactDeliveryService {
             {
               From: sender,
               To: [{ Email: input.destination }],
-              Subject: 'Your AAGAM verification code',
+              Subject: input.purpose === 'PASSWORD_RESET' ? 'Reset your AAGAAM password' : 'Your AAGAAM verification code',
               TextPart: this.text(input),
               HTMLPart: this.html(input),
               CustomID: input.correlationId,
@@ -194,7 +194,7 @@ export class ContactDeliveryService {
         body: JSON.stringify({
           from: sender.Name ? `${sender.Name} <${sender.Email}>` : sender.Email,
           to: [input.destination],
-          subject: input.purpose === 'PASSWORD_RESET' ? 'Reset your AAGAM password' : 'Your AAGAM verification code',
+          subject: input.purpose === 'PASSWORD_RESET' ? 'Reset your AAGAAM password' : 'Your AAGAAM verification code',
           text: this.text(input),
           html: this.html(input),
         }),
@@ -221,20 +221,20 @@ export class ContactDeliveryService {
     const minutes = Math.max(1, Math.ceil((input.expiresAt.getTime() - Date.now()) / 60_000));
     const action =
       input.purpose === 'PASSWORD_RESET'
-        ? 'reset your AAGAM password'
+        ? 'reset your AAGAAM password'
         : input.purpose === 'PARTNER_RESUME'
         ? 'resume your Partner application'
         : input.purpose === 'CUSTOMER_SIGNUP'
           ? 'create your Customer account'
-          : 'sign in to AAGAM';
+          : 'sign in to AAGAAM';
     const reference = input.reference ? ` Reference: ${input.reference}.` : '';
-    return `Your AAGAM code is ${input.code}. Use it to ${action}. It expires in ${minutes} minutes.${reference} Do not share this code.`;
+    return `Your AAGAAM code is ${input.code}. Use it to ${action}. It expires in ${minutes} minutes.${reference} Do not share this code.`;
   }
 
   private html(input: ContactDeliveryInput) {
     const text = this.escape(this.text(input));
     const code = this.escape(input.code);
-    return `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a"><div style="max-width:560px;margin:32px auto;background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:32px"><div style="font-size:23px;font-weight:800">AAGAM verification</div><p style="color:#475569;line-height:1.6">${text}</p><div style="font-size:34px;font-weight:900;letter-spacing:8px;text-align:center;padding:20px;background:#f0fdfa;border-radius:12px;color:#0f766e">${code}</div><p style="font-size:12px;color:#94a3b8">AAGAM support will never ask for this code.</p></div></body></html>`;
+    return `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a"><div style="max-width:560px;margin:32px auto;background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:32px"><div style="font-size:23px;font-weight:800">AAGAAM verification</div><p style="color:#475569;line-height:1.6">${text}</p><div style="font-size:34px;font-weight:900;letter-spacing:8px;text-align:center;padding:20px;background:#f0fdfa;border-radius:12px;color:#0f766e">${code}</div><p style="font-size:12px;color:#94a3b8">AAGAAM support will never ask for this code.</p></div></body></html>`;
   }
 
   private sender(): { Email: string; Name: string } | null {
@@ -248,7 +248,7 @@ export class ContactDeliveryService {
       Name:
         process.env.PARTNER_VERIFICATION_FROM_NAME?.trim() ||
         match?.[1]?.replace(/^['"]|['"]$/g, '').trim() ||
-        'AAGAM Verification',
+        'AAGAAM Verification',
     };
   }
 

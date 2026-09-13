@@ -53,7 +53,7 @@ const emptyDraft = (): AddressDraft => ({
 export default function CheckoutPage() {
   const router = useRouter();
   const toast = useToast();
-  const { cart, clearCart, totalPrice, isLoaded } = useCart();
+  const { cart, removeFromCart, clearCart, totalPrice, isLoaded } = useCart();
   const itemsPayload = useMemo(
     () => cart.map((item) => ({ productId: item.id, quantity: item.quantity })),
     [cart],
@@ -209,13 +209,31 @@ export default function CheckoutPage() {
     }
   }, []);
 
+  const refreshAddresses = useCallback(async () => {
+    const response = await apiClient.get('/customer/addresses');
+    const list = Array.isArray(response.data) ? (response.data as Address[]) : [];
+    setAddresses(list);
+    let storedSelectedId: string | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        storedSelectedId = localStorage.getItem('aagam_selected_address_id');
+      } catch {
+        // Storage can be blocked (privacy mode / disabled cookies); the
+        // server-side default must still take over instead of failing.
+      }
+    }
+    const initialSelected =
+      (storedSelectedId && list.find((address) => address.id === storedSelectedId)) ||
+      list.find((address) => address.isDefault) ||
+      list[0] ||
+      null;
+    setSelectedAddressId(initialSelected?.id || null);
+  }, []);
+
   useEffect(() => {
     const loadAddresses = async () => {
       try {
-        const response = await apiClient.get('/customer/addresses');
-        const list = Array.isArray(response.data) ? (response.data as Address[]) : [];
-        setAddresses(list);
-        setSelectedAddressId(list.find((address) => address.isDefault)?.id || list[0]?.id || null);
+        await refreshAddresses();
       } catch (cause: any) {
         setError(cause?.response?.data?.message || cause?.message || 'Failed to load addresses.');
       } finally {
@@ -223,7 +241,7 @@ export default function CheckoutPage() {
       }
     };
     void loadAddresses();
-  }, []);
+  }, [refreshAddresses]);
 
   useEffect(() => {
     if (!selectedAddressId || itemsPayload.length === 0 || orderId) return;
@@ -247,14 +265,33 @@ export default function CheckoutPage() {
         }
       } catch (cause: any) {
         if (!active) return;
-        const message = cause?.response?.data?.message || cause?.message || 'Failed to calculate invoice.';
+        const responseData = cause?.response?.data;
+        const rawMessage = responseData?.message || cause?.message || 'Failed to calculate invoice.';
+        const missingIds: string[] =
+          (Array.isArray(responseData?.missingProductIds) && responseData.missingProductIds) ||
+          (typeof rawMessage === 'string' && rawMessage.includes('Missing or unavailable products:')
+            ? rawMessage
+                .split('Missing or unavailable products:')[1]
+                .split(',')
+                .map((s: string) => s.trim())
+                .filter(Boolean)
+            : []);
+
+        if (missingIds.length > 0) {
+          for (const id of missingIds) {
+            removeFromCart(id);
+          }
+          setQuote(null);
+          return;
+        }
+
         if (appliedCouponCode) {
-          setCouponError(message);
+          setCouponError(rawMessage);
           setAppliedCouponCode('');
           sessionStorage.removeItem('aagam_coupon_code');
         } else {
           setQuote(null);
-          setError(message);
+          setError(rawMessage);
         }
       } finally {
         if (active) setLoadingQuote(false);
@@ -426,7 +463,11 @@ export default function CheckoutPage() {
       pincode: pincodeClean,
       latitude: draft.latitude ?? undefined,
       longitude: draft.longitude ?? undefined,
-      isDefault: addresses.length === 0 ? true : draft.isDefault,
+      // Any address saved during checkout becomes the active delivery address,
+      // so persist it as the user's default. This keeps the saved selection in
+      // sync with the backend (via the transaction in createAddress/updateAddress)
+      // instead of leaving a locally-selected but server-non-default address.
+      isDefault: true,
       // localityId no longer required — using Mapbox geocoding coordinates
       localityId: undefined,
       locationSource: draft.locationSource === 'LEGACY_UNKNOWN' ? undefined : draft.locationSource,
@@ -445,6 +486,11 @@ export default function CheckoutPage() {
         );
       });
       setSelectedAddressId(saved.id);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('aagam_selected_address_id', saved.id);
+        } catch {}
+      }
       setShowAddressForm(false);
       setEditingAddressId(null);
       setDraft(emptyDraft());
@@ -462,11 +508,84 @@ export default function CheckoutPage() {
       await apiClient.delete(`/customer/addresses/${addressId}`);
       const remaining = addresses.filter((address) => address.id !== addressId);
       setAddresses(remaining);
-      if (selectedAddressId === addressId) setSelectedAddressId(remaining[0]?.id || null);
+      if (selectedAddressId === addressId) {
+        const nextAddr = remaining.find((a) => a.isDefault) || remaining[0];
+        const nextId = nextAddr?.id || null;
+        setSelectedAddressId(nextId);
+        if (nextId) {
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('aagam_selected_address_id', nextId);
+            } catch {}
+          }
+          setAddresses(remaining.map((a) => ({ ...a, isDefault: a.id === nextId })));
+          // If promoting the replacement default fails, reload authoritative
+          // state instead of leaving an optimistic default the backend rejects.
+          try {
+            await apiClient.patch(`/customer/addresses/${nextId}`, { isDefault: true });
+          } catch {
+            await refreshAddresses();
+            toast.error('Could not promote the replacement default address. Please try again.');
+          }
+        } else {
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.removeItem('aagam_selected_address_id');
+            } catch {}
+          }
+        }
+      }
     } catch (cause: any) {
       setError(cause?.response?.data?.message || 'Failed to delete address.');
     }
   };
+
+  const handleSelectAddress = useCallback((id: string) => {
+    // Snapshot the pre-optimistic selection so a failed PATCH can roll back to
+    // a consistent state instead of leaving an unconfirmed default behind.
+    const previousSelectedId = selectedAddressId;
+    const previousDefaultId = addresses.find((address) => address.isDefault)?.id ?? null;
+    const previousStoredId = (() => {
+      if (typeof window === 'undefined') return null;
+      try {
+        return localStorage.getItem('aagam_selected_address_id');
+      } catch {
+        return null;
+      }
+    })();
+
+    setSelectedAddressId(id);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('aagam_selected_address_id', id);
+      } catch {}
+    }
+    // Instantly reflect the default badge on the selected address in local state
+    setAddresses((current) =>
+      current.map((addr) => ({
+        ...addr,
+        isDefault: addr.id === id,
+      })),
+    );
+    // Persist as default to the backend database so it remains default on refresh
+    apiClient.patch(`/customer/addresses/${id}`, { isDefault: true }).catch((err) => {
+      setSelectedAddressId(previousSelectedId);
+      setAddresses((current) =>
+        current.map((addr) => ({
+          ...addr,
+          isDefault: addr.id === previousDefaultId,
+        })),
+      );
+      if (typeof window !== 'undefined') {
+        try {
+          if (previousStoredId) localStorage.setItem('aagam_selected_address_id', previousStoredId);
+          else localStorage.removeItem('aagam_selected_address_id');
+        } catch {}
+      }
+      toast.error('Could not set default address. Please try again.');
+      console.warn('Failed to set default address in backend:', err);
+    });
+  }, [toast, addresses, selectedAddressId]);
 
   const applyCoupon = () => {
     const code = couponInput.trim().toUpperCase();
@@ -513,7 +632,25 @@ export default function CheckoutPage() {
       sessionStorage.removeItem('aagam_coupon_code');
       clearCart();
     } catch (cause: any) {
-      setError(cause?.response?.data?.message || cause?.message || 'Failed to place order.');
+      const responseData = cause?.response?.data;
+      const rawMessage = responseData?.message || cause?.message || 'Failed to place order.';
+      const missingIds: string[] =
+        (Array.isArray(responseData?.missingProductIds) && responseData.missingProductIds) ||
+        (typeof rawMessage === 'string' && rawMessage.includes('Missing or unavailable products:')
+          ? rawMessage
+              .split('Missing or unavailable products:')[1]
+              .split(',')
+              .map((s: string) => s.trim())
+              .filter(Boolean)
+          : []);
+
+      if (missingIds.length > 0) {
+        for (const id of missingIds) {
+          removeFromCart(id);
+        }
+        return;
+      }
+      setError(rawMessage);
     } finally {
       setPlacingOrder(false);
     }
@@ -575,7 +712,7 @@ export default function CheckoutPage() {
     onBrowseDeals: () => router.push('/shop/deals'),
     onViewOrder: () => router.push('/shop/orders'),
 
-    onSelectAddress: (id: string) => setSelectedAddressId(id),
+    onSelectAddress: handleSelectAddress,
     onOpenNewAddress: openNewAddress,
     onOpenEditAddress: openEditAddress,
     onCloseAddressForm: closeAddressForm,

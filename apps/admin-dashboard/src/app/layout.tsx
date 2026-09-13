@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   title: "Aagaam Commerce",
   description: "Professional quick-commerce shopping, store operations, and delivery tracking.",
   icons: {
-    icon: "/brand/aagam-mark",
-    shortcut: "/brand/aagam-mark",
-    apple: "/brand/aagam-mark",
+    icon: "/brand/aagam-logo-full.png",
+    shortcut: "/brand/aagam-logo-full.png",
+    apple: "/brand/aagam-logo-full.png",
   },
 };
 

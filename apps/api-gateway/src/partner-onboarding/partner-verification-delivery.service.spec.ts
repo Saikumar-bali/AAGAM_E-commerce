@@ -52,7 +52,7 @@ describe('PartnerVerificationDeliveryService', () => {
     process.env.MAILJET_API_KEY = 'mailjet-public';
     process.env.MAILJET_SECRET_KEY = 'mailjet-secret';
     process.env.PARTNER_VERIFICATION_FROM_EMAIL = 'AAGAM Team <verified@example.com>';
-    process.env.PARTNER_VERIFICATION_FROM_NAME = 'AAGAM Verification';
+    process.env.PARTNER_VERIFICATION_FROM_NAME = 'AAGAAM Verification';
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -81,9 +81,9 @@ describe('PartnerVerificationDeliveryService', () => {
     );
     const body = JSON.parse(options.body);
     expect(body.Messages[0]).toMatchObject({
-      From: { Email: 'verified@example.com', Name: 'AAGAM Verification' },
+      From: { Email: 'verified@example.com', Name: 'AAGAAM Verification' },
       To: [{ Email: 'partner@example.com' }],
-      Subject: 'AAGAM verification code for AAG-RID-2026-ABC123',
+      Subject: 'AAGAAM verification code for AAG-RID-2026-ABC123',
     });
     expect(body.Messages[0].TextPart).toContain('123456');
     expect(body.Messages[0].HTMLPart).toContain('123456');

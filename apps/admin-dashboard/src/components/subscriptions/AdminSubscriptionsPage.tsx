@@ -624,7 +624,7 @@ export default function AdminSubscriptionsPage() {
           </div>
         </section>
 
-        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-2 xl:grid-cols-4">
           {cards.map(([cardLabel, value, Icon]: any) => (
             <div key={cardLabel} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
               <div className="flex items-center gap-2 text-emerald-700"><span className="rounded-lg bg-emerald-50 p-1.5"><Icon className="h-3.5 w-3.5" /></span><span className="text-xs font-black text-slate-600">{cardLabel}</span></div>

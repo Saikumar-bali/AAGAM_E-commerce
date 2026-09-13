@@ -461,8 +461,6 @@ export default function StoreSubscriptionOperationsPage() {
         <section className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-lg font-black text-slate-900">Subscriptions, runs & cash</h1>
-            <p className="text-xs font-semibold text-slate-500">Store subscription operations, delivery runs and cash settlement.</p>
-            <p className="mt-1 text-xs text-slate-500">Stock prep and COD settlements operate without replacing individual COD ledgers.</p>
           </div>
           <div className="flex flex-wrap gap-1.5">
             <button onClick={() => void load()} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50"><RefreshCw className="h-3.5 w-3.5" /> Refresh</button>
@@ -471,7 +469,7 @@ export default function StoreSubscriptionOperationsPage() {
           </div>
         </section>
 
-        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-2 xl:grid-cols-4">
           <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
             <div className="flex items-center gap-2 text-emerald-700"><span className="rounded-lg bg-emerald-50 p-1.5"><Users className="h-3.5 w-3.5" /></span><span className="text-xs font-black text-slate-600">Subscribers</span></div>
             <strong className="text-lg text-slate-900">{subscribers.length}</strong>
@@ -551,7 +549,7 @@ export default function StoreSubscriptionOperationsPage() {
               <section className="space-y-3">
                 {prepRows.length ? (
                   <>
-                    <div className="grid gap-2 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
                         <p className="text-[10px] font-badge text-slate-400">Total Deliveries</p>
                         <p className="mt-1 text-xl font-kpi text-slate-900">{prepRows.length}</p>
@@ -569,8 +567,8 @@ export default function StoreSubscriptionOperationsPage() {
                         <p className="mt-1 text-xl font-kpi text-red-700">{prepRows.filter((r) => r.readiness.status === 'SHORTAGE').length}</p>
                       </div>
                     </div>
-                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                      <table className="min-w-full text-left text-xs">
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                      <table className="min-w-[750px] w-full text-left text-xs">
                         <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
                           <tr>
                             <th className="px-3 py-2.5 font-badge">Date</th>
@@ -662,9 +660,9 @@ export default function StoreSubscriptionOperationsPage() {
             )}
 
             {tab === "runs" && (
-              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
                 {runs.length ? (
-                  <table className="min-w-full text-left text-xs">
+                  <table className="min-w-[750px] w-full text-left text-xs">
                     <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
                       <tr>
                         <th className="px-3 py-2.5 font-black">Route</th>
@@ -1316,7 +1314,7 @@ function SubscribersSection({ rows, onEdit, onViewHistory }: { rows: SubscriberR
       </div>
       {filteredRows.length ? (
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table className="min-w-full text-left text-xs">
+          <table className="min-w-[850px] w-full text-left text-xs">
             <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-2.5 font-badge">Customer</th>

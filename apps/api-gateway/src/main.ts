@@ -1,7 +1,10 @@
+import './instrument';
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
+import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
+import { SentryExceptionFilter } from './common/filters/sentry-exception.filter';
 import cookieParser = require('cookie-parser');
 import { ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
@@ -10,6 +13,7 @@ import { createClient } from 'redis';
 import { createAdapter } from '@socket.io/redis-adapter';
 
 const logger = new Logger('Bootstrap');
+logger.log('Sentry error tracking and profiling initialized');
 
 // Backward-compatible repair for the WILIO_FROM_PHONE typo used in an earlier
 // deployment setup. TWILIO_FROM_PHONE is the canonical variable going forward.
@@ -166,6 +170,7 @@ async function bootstrap() {
 
     app.use(cookieParser());
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalFilters(new SentryExceptionFilter());
     const corsOrigins = isProduction
       ? process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean) || []
       : [

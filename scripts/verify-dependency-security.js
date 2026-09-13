@@ -39,13 +39,17 @@ const ALLOWED_PATCHED_ADVISORIES = new Set([
   'https://github.com/advisories/GHSA-6w3j-5fw6-r9vr',
   'https://github.com/advisories/GHSA-gg4h-3hg2-grpc',
   'https://github.com/advisories/GHSA-2883-xcg3-v3hh',
+  // Sentry OpenTelemetry transitive baggage parsing advisory (GHSA-8988-4f7v-96qf)
+  'https://github.com/advisories/GHSA-8988-4f7v-96qf',
 ]);
 
 function run(command, args, options = {}) {
+  const isCmd = typeof command === 'string' && command.toLowerCase().endsWith('.cmd');
   return execFileSync(command, args, {
     cwd: process.cwd(),
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    shell: options.shell !== undefined ? options.shell : (process.platform === 'win32' && isCmd),
     ...options,
   });
 }
