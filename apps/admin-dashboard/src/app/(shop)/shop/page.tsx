@@ -15,6 +15,7 @@ import ProductCard from '@/components/customer/ProductCard';
 import EmptyState from '@/components/customer/EmptyState';
 import { Package, SlidersHorizontal, ArrowRight, CalendarDays, ShoppingCart } from 'lucide-react';
 import SubscriptionPlanCard from '@/components/subscriptions/SubscriptionPlanCard';
+import CartSheet from '@/components/customer/CartSheet';
 
 const emptyPlacements = (): PromotionPlacements => ({
   HOME_HERO: [],
@@ -57,7 +58,8 @@ export default function ShopPage() {
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [promotions, setPromotions] = useState<PromotionPlacements>(emptyPlacements);
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
-  const { cart, addToCart, updateQuantity, totalPrice, totalItems } = useCart();
+  const { cart, addToCart, removeFromCart, updateQuantity, clearCart, totalPrice, totalItems } = useCart();
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const wishlist = useWishlist();
   const router = useRouter();
 
@@ -352,24 +354,37 @@ export default function ShopPage() {
             <>
               <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 hidden px-4 md:mx-auto md:block md:max-w-md md:px-0">
                 <div className="pointer-events-auto flex items-center justify-between rounded-2xl bg-slate-950 px-5 py-3.5 shadow-2xl shadow-slate-950/30">
-                  <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setIsCartOpen(true)}
+                    className="flex items-center gap-3 text-left transition hover:opacity-90"
+                    aria-label="Open cart drawer"
+                  >
                     <div className="flex items-center gap-1 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-black text-white">
                       <Package className="h-3.5 w-3.5" />
                       {totalItems} item{totalItems !== 1 ? 's' : ''}
                     </div>
                     <span className="text-lg font-black text-white">₹{totalPrice.toFixed(0)}</span>
-                  </div>
-                  <button
-                    onClick={() => router.push('/shop/checkout')}
-                    className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-teal-900/20 transition-all hover:-translate-y-0.5 hover:bg-teal-500"
-                  >
-                    Checkout →
                   </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsCartOpen(true)}
+                      className="rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-xs font-bold text-white transition hover:bg-white/20"
+                    >
+                      View Cart
+                    </button>
+                    <button
+                      onClick={() => router.push('/shop/checkout')}
+                      className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-teal-900/20 transition-all hover:-translate-y-0.5 hover:bg-teal-500"
+                    >
+                      Checkout →
+                    </button>
+                  </div>
                 </div>
               </div>
               <button
-                onClick={() => router.push('/shop/checkout')}
+                onClick={() => setIsCartOpen(true)}
                 className="fixed bottom-24 right-4 z-50 flex items-center gap-2 rounded-full bg-teal-600 px-4 py-3 text-xs font-black text-white shadow-xl shadow-teal-900/30 transition-all hover:-translate-y-0.5 hover:bg-teal-500 md:hidden"
+                aria-label="Open cart drawer"
               >
                 <ShoppingCart className="h-4 w-4" />
                 <span>{totalItems}</span>
@@ -379,6 +394,28 @@ export default function ShopPage() {
               </button>
             </>
           )}
+
+          <CartSheet
+            isOpen={isCartOpen}
+            onClose={() => setIsCartOpen(false)}
+            cart={cart}
+            totalItems={totalItems}
+            totalPrice={totalPrice}
+            onIncrement={(id) => {
+              const currentItem = cart.find((item) => item.id === id);
+              if (currentItem) updateQuantity(id, currentItem.quantity + 1);
+            }}
+            onDecrement={(id) => {
+              const currentItem = cart.find((item) => item.id === id);
+              if (currentItem) updateQuantity(id, currentItem.quantity - 1);
+            }}
+            onRemove={(id) => removeFromCart(id)}
+            onClear={clearCart}
+            onCheckout={() => {
+              setIsCartOpen(false);
+              router.push('/shop/checkout');
+            }}
+          />
         </div>
       </CustomerShell>
     </DashboardLayout>

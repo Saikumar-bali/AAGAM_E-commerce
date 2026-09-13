@@ -15,16 +15,29 @@ type CartSheetProps = {
   onIncrement: (id: string) => void;
   onDecrement: (id: string) => void;
   onRemove: (id: string) => void;
+  onClear?: () => void;
+  onCheckout?: () => void;
 };
 
-export default function CartSheet({ isOpen, onClose, cart, totalItems, totalPrice, onIncrement, onDecrement, onRemove }: CartSheetProps) {
+export default function CartSheet({
+  isOpen,
+  onClose,
+  cart,
+  totalItems,
+  totalPrice,
+  onIncrement,
+  onDecrement,
+  onRemove,
+  onClear,
+  onCheckout,
+}: CartSheetProps) {
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
-      <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
       <div className="absolute inset-y-0 right-0 flex max-w-full">
-        <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right">
+        <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
           <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-white to-teal-50/50">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-100 text-teal-700">
@@ -35,7 +48,7 @@ export default function CartSheet({ isOpen, onClose, cart, totalItems, totalPric
                 <p className="text-xs font-bold text-slate-500">{totalItems} item{totalItems !== 1 ? 's' : ''}</p>
               </div>
             </div>
-            <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors">
+            <button onClick={onClose} aria-label="Close cart" className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -56,30 +69,30 @@ export default function CartSheet({ isOpen, onClose, cart, totalItems, totalPric
               <div className="space-y-4">
                 <div className="flex items-center gap-2 rounded-xl bg-teal-50 border border-teal-100 px-3 py-2">
                   <Truck className="h-4 w-4 text-teal-700" />
-                  <span className="text-xs font-bold text-teal-800">Delivery in 10 minutes</span>
+                  <span className="text-xs font-bold text-teal-800">Fast doorstep delivery</span>
                 </div>
 
                 {cart.map((item) => {
                   const image = item.image || getProductImage(item);
                   return (
-                    <div key={item.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                    <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 shadow-xs">
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
                         <img src={image} alt={item.name} className="h-full w-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
-                          <h4 className="text-sm font-black text-slate-950 truncate">{item.name}</h4>
-                          <button onClick={() => onRemove(item.id)} className="shrink-0 text-slate-300 hover:text-red-500 transition-colors">
+                          <h4 className="text-sm font-bold text-slate-900 truncate">{item.name}</h4>
+                          <button onClick={() => onRemove(item.id)} aria-label={`Remove ${item.name}`} className="shrink-0 p-1 text-slate-300 hover:text-red-500 transition-colors">
                             <X className="h-4 w-4" />
                           </button>
                         </div>
-                        <div className="mt-1 text-sm font-black text-teal-700">{formatINR(item.price)}</div>
-                        <div className="mt-2 inline-flex items-center rounded-lg border border-teal-200 bg-teal-50">
-                          <button onClick={() => onDecrement(item.id)} className="h-7 w-7 grid place-items-center hover:bg-teal-100 rounded-l-lg text-teal-800 transition-colors">
+                        <div className="mt-1 text-sm font-extrabold text-teal-800">{formatINR(item.price)}</div>
+                        <div className="mt-2.5 inline-flex items-center rounded-xl border border-teal-200 bg-teal-50 shadow-2xs">
+                          <button onClick={() => onDecrement(item.id)} aria-label="Decrease quantity" className="h-7 w-7 grid place-items-center hover:bg-teal-100 rounded-l-xl text-teal-800 transition-colors">
                             <Minus className="h-3 w-3" />
                           </button>
-                          <span className="w-7 text-center text-xs font-black text-teal-900">{item.quantity}</span>
-                          <button onClick={() => onIncrement(item.id)} className="h-7 w-7 grid place-items-center hover:bg-teal-100 rounded-r-lg text-teal-800 transition-colors">
+                          <span className="w-8 text-center text-xs font-black text-teal-900 tabular-nums">{item.quantity}</span>
+                          <button onClick={() => onIncrement(item.id)} aria-label="Increase quantity" className="h-7 w-7 grid place-items-center hover:bg-teal-100 rounded-r-xl text-teal-800 transition-colors">
                             <Plus className="h-3 w-3" />
                           </button>
                         </div>
@@ -90,6 +103,32 @@ export default function CartSheet({ isOpen, onClose, cart, totalItems, totalPric
               </div>
             )}
           </div>
+
+          {cart.length > 0 && (
+            <div className="border-t border-slate-100 bg-white p-5 space-y-3 shadow-lg">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-slate-500">Subtotal ({totalItems} {totalItems === 1 ? 'item' : 'items'})</span>
+                <span className="text-lg font-black text-slate-950 tabular-nums">{formatINR(totalPrice)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {onClear && (
+                  <button
+                    onClick={onClear}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-xs font-bold text-slate-600 transition hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                  >
+                    Clear
+                  </button>
+                )}
+                <button
+                  onClick={onCheckout || onClose}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-teal-950/15 transition hover:bg-teal-900"
+                >
+                  <span>Proceed to Checkout</span>
+                  <span>→</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -27,10 +27,14 @@ function extractMessage(value: any, fallback = 'Something went wrong. Please try
   if (/must be a valid ISO 8601 date string/i.test(text)) {
     return 'Please select a valid start date (tomorrow or later).';
   }
+  if (/missing or unavailable products/i.test(text)) {
+    return 'Some items in your basket are no longer available and were removed.';
+  }
   return text;
 }
 
-function errorTitle(status?: number) {
+function errorTitle(status?: number, message?: string) {
+  if (message && /basket|unavailable/i.test(message)) return 'Basket updated';
   if (status === 409) return 'Action could not be completed';
   if (status === 401) return 'Session expired';
   if (status === 403) return 'Access denied';
@@ -121,7 +125,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       (error) => {
         if (!shouldSkipGlobalErrorToast(error)) {
           const status = error?.response?.status;
-          show({ kind: status === 422 || status === 400 ? 'warning' : 'error', title: errorTitle(status), message: extractMessage(error) });
+          const msg = extractMessage(error);
+          show({ kind: status === 422 || status === 400 ? 'warning' : 'error', title: errorTitle(status, msg), message: msg });
         }
         return Promise.reject(error);
       },

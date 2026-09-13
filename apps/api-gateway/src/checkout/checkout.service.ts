@@ -336,7 +336,11 @@ export class CheckoutService {
 
     const missing = productIds.filter((id) => !byId.has(id));
     if (missing.length) {
-      throw new BadRequestException(`Missing or unavailable products: ${missing.join(', ')}`);
+      throw new BadRequestException({
+        statusCode: 400,
+        message: `Missing or unavailable products: ${missing.join(', ')}`,
+        missingProductIds: missing,
+      });
     }
 
     let storeId: string | null = null;

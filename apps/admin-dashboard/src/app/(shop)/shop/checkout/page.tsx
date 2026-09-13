@@ -53,7 +53,7 @@ const emptyDraft = (): AddressDraft => ({
 export default function CheckoutPage() {
   const router = useRouter();
   const toast = useToast();
-  const { cart, clearCart, totalPrice, isLoaded } = useCart();
+  const { cart, removeFromCart, clearCart, totalPrice, isLoaded } = useCart();
   const itemsPayload = useMemo(
     () => cart.map((item) => ({ productId: item.id, quantity: item.quantity })),
     [cart],
@@ -254,14 +254,33 @@ export default function CheckoutPage() {
         }
       } catch (cause: any) {
         if (!active) return;
-        const message = cause?.response?.data?.message || cause?.message || 'Failed to calculate invoice.';
+        const responseData = cause?.response?.data;
+        const rawMessage = responseData?.message || cause?.message || 'Failed to calculate invoice.';
+        const missingIds: string[] =
+          (Array.isArray(responseData?.missingProductIds) && responseData.missingProductIds) ||
+          (typeof rawMessage === 'string' && rawMessage.includes('Missing or unavailable products:')
+            ? rawMessage
+                .split('Missing or unavailable products:')[1]
+                .split(',')
+                .map((s: string) => s.trim())
+                .filter(Boolean)
+            : []);
+
+        if (missingIds.length > 0) {
+          for (const id of missingIds) {
+            removeFromCart(id);
+          }
+          setQuote(null);
+          return;
+        }
+
         if (appliedCouponCode) {
-          setCouponError(message);
+          setCouponError(rawMessage);
           setAppliedCouponCode('');
           sessionStorage.removeItem('aagam_coupon_code');
         } else {
           setQuote(null);
-          setError(message);
+          setError(rawMessage);
         }
       } finally {
         if (active) setLoadingQuote(false);
@@ -564,7 +583,25 @@ export default function CheckoutPage() {
       sessionStorage.removeItem('aagam_coupon_code');
       clearCart();
     } catch (cause: any) {
-      setError(cause?.response?.data?.message || cause?.message || 'Failed to place order.');
+      const responseData = cause?.response?.data;
+      const rawMessage = responseData?.message || cause?.message || 'Failed to place order.';
+      const missingIds: string[] =
+        (Array.isArray(responseData?.missingProductIds) && responseData.missingProductIds) ||
+        (typeof rawMessage === 'string' && rawMessage.includes('Missing or unavailable products:')
+          ? rawMessage
+              .split('Missing or unavailable products:')[1]
+              .split(',')
+              .map((s: string) => s.trim())
+              .filter(Boolean)
+          : []);
+
+      if (missingIds.length > 0) {
+        for (const id of missingIds) {
+          removeFromCart(id);
+        }
+        return;
+      }
+      setError(rawMessage);
     } finally {
       setPlacingOrder(false);
     }
