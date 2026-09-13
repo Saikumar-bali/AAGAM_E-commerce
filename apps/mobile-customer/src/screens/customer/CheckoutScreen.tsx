@@ -306,6 +306,14 @@ export const CheckoutScreen = () => {
   };
   const locationError = addressErrors.latitude || addressErrors.longitude;
 
+  const selectAddress = (id: string) => {
+    setSelectedAddressId(id);
+    queryClient.setQueryData(['addresses'], (old: any[] = []) =>
+      old.map((addr) => ({ ...addr, isDefault: addr.id === id })),
+    );
+    void apiClient.patch(`/customer/addresses/${id}`, { isDefault: true }).catch(() => {});
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.checkoutHeader}>
@@ -317,7 +325,24 @@ export const CheckoutScreen = () => {
       <Text style={styles.sectionTitle}>Delivery Address</Text>
       {addresses.map((address: any) => {
         const active = selectedAddressId === address.id;
-        return <TouchableOpacity testID="checkout_address_card" key={address.id} style={[styles.addressCard, active && styles.addressCardActive]} onPress={() => setSelectedAddressId(address.id)}><Text style={styles.addressLabel}>{address.label || 'Address'} {active ? '• Selected' : ''}</Text><Text style={styles.addressName}>{address.recipientName}</Text><Text style={styles.addressText}>{address.line1}{address.line2 ? `, ${address.line2}` : ''}</Text><Text style={styles.addressText}>{address.city}, {address.state} - {address.pincode}</Text><Text style={styles.addressPhone}>{address.phoneE164}</Text></TouchableOpacity>;
+        return (
+          <TouchableOpacity
+            testID="checkout_address_card"
+            key={address.id}
+            style={[styles.addressCard, active && styles.addressCardActive]}
+            onPress={() => selectAddress(address.id)}
+          >
+            <Text style={styles.addressLabel}>
+              {address.label || 'Address'}
+              {address.isDefault ? ' • Default' : ''}
+              {active && !address.isDefault ? ' • Selected' : ''}
+            </Text>
+            <Text style={styles.addressName}>{address.recipientName}</Text>
+            <Text style={styles.addressText}>{address.line1}{address.line2 ? `, ${address.line2}` : ''}</Text>
+            <Text style={styles.addressText}>{address.city}, {address.state} - {address.pincode}</Text>
+            <Text style={styles.addressPhone}>{address.phoneE164}</Text>
+          </TouchableOpacity>
+        );
       })}
       {addresses.length === 0 ? <View style={styles.noticeCard}><Text style={styles.noticeTitle}>No saved address yet</Text><Text style={styles.noticeText}>Add and pin a delivery address without leaving checkout.</Text><TouchableOpacity testID="checkout_inline_address_button" style={styles.inlineAddressButton} onPress={() => { setAddressErrors({}); setAddressFormStep('map'); setShowAddressForm(true); }}><Text style={styles.inlineAddressButtonText}>Add delivery address</Text></TouchableOpacity></View> : null}
       {addresses.length > 0 ? <TouchableOpacity testID="checkout_add_another_address" style={styles.addAnotherButton} onPress={() => { setAddressErrors({}); setAddressFormStep('map'); setShowAddressForm((value) => !value); }}><Text style={styles.addAnotherText}>{showAddressForm ? 'Close address form' : '+ Add another address'}</Text></TouchableOpacity> : null}

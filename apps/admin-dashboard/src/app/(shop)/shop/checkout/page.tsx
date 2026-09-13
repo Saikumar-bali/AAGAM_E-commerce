@@ -215,7 +215,14 @@ export default function CheckoutPage() {
         const response = await apiClient.get('/customer/addresses');
         const list = Array.isArray(response.data) ? (response.data as Address[]) : [];
         setAddresses(list);
-        setSelectedAddressId(list.find((address) => address.isDefault)?.id || list[0]?.id || null);
+        const storedSelectedId =
+          typeof window !== 'undefined' ? localStorage.getItem('aagam_selected_address_id') : null;
+        const initialSelected =
+          (storedSelectedId && list.find((address) => address.id === storedSelectedId)) ||
+          list.find((address) => address.isDefault) ||
+          list[0] ||
+          null;
+        setSelectedAddressId(initialSelected?.id || null);
       } catch (cause: any) {
         setError(cause?.response?.data?.message || cause?.message || 'Failed to load addresses.');
       } finally {
@@ -445,6 +452,11 @@ export default function CheckoutPage() {
         );
       });
       setSelectedAddressId(saved.id);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('aagam_selected_address_id', saved.id);
+        } catch {}
+      }
       setShowAddressForm(false);
       setEditingAddressId(null);
       setDraft(emptyDraft());
@@ -462,11 +474,50 @@ export default function CheckoutPage() {
       await apiClient.delete(`/customer/addresses/${addressId}`);
       const remaining = addresses.filter((address) => address.id !== addressId);
       setAddresses(remaining);
-      if (selectedAddressId === addressId) setSelectedAddressId(remaining[0]?.id || null);
+      if (selectedAddressId === addressId) {
+        const nextAddr = remaining.find((a) => a.isDefault) || remaining[0];
+        const nextId = nextAddr?.id || null;
+        setSelectedAddressId(nextId);
+        if (nextId) {
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('aagam_selected_address_id', nextId);
+            } catch {}
+          }
+          setAddresses(remaining.map((a) => ({ ...a, isDefault: a.id === nextId })));
+          void apiClient.patch(`/customer/addresses/${nextId}`, { isDefault: true }).catch(() => {});
+        } else {
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.removeItem('aagam_selected_address_id');
+            } catch {}
+          }
+        }
+      }
     } catch (cause: any) {
       setError(cause?.response?.data?.message || 'Failed to delete address.');
     }
   };
+
+  const handleSelectAddress = useCallback((id: string) => {
+    setSelectedAddressId(id);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('aagam_selected_address_id', id);
+      } catch {}
+    }
+    // Instantly reflect the default badge on the selected address in local state
+    setAddresses((current) =>
+      current.map((addr) => ({
+        ...addr,
+        isDefault: addr.id === id,
+      })),
+    );
+    // Persist as default to the backend database so it remains default on refresh
+    apiClient.patch(`/customer/addresses/${id}`, { isDefault: true }).catch((err) => {
+      console.warn('Failed to set default address in backend:', err);
+    });
+  }, []);
 
   const applyCoupon = () => {
     const code = couponInput.trim().toUpperCase();
@@ -575,7 +626,7 @@ export default function CheckoutPage() {
     onBrowseDeals: () => router.push('/shop/deals'),
     onViewOrder: () => router.push('/shop/orders'),
 
-    onSelectAddress: (id: string) => setSelectedAddressId(id),
+    onSelectAddress: handleSelectAddress,
     onOpenNewAddress: openNewAddress,
     onOpenEditAddress: openEditAddress,
     onCloseAddressForm: closeAddressForm,
