@@ -227,7 +227,7 @@ export class CheckoutService {
         name: resolved.store.name,
       },
       distanceKm: resolved.distanceKm,
-      deliveryFee: deliveryPricing.payableFeePaise / 100,
+      deliveryFee: deliveryPricing.serviceable ? deliveryPricing.payableFeePaise / 100 : 0,
       deliveryFeePaise: deliveryPricing.payableFeePaise,
       deliveryPricing,
       etaMinutes: computeEtaMinutes(resolved.distanceKm),
@@ -411,7 +411,7 @@ export class CheckoutService {
           firstOrderEligible,
           deliveryFeeRule ? this.deliveryFeeRules.toOverrides(deliveryFeeRule) : {},
         );
-    const deliveryFeePaise = deliveryPricing?.payableFeePaise ?? 0;
+    const deliveryFeePaise = deliveryPricing?.serviceable ? deliveryPricing.payableFeePaise : 0;
     const deliveryFee = deliveryFeePaise / 100;
     const promotionPricing = storeId && this.promotionsService
       ? await this.promotionsService.calculateDiscount({
@@ -432,7 +432,7 @@ export class CheckoutService {
 
     return {
       currency: 'INR',
-      serviceable,
+      serviceable: deliveryPricing ? deliveryPricing.serviceable : serviceable,
       store: storeId ? { id: storeId, name: storeName } : null,
       distanceKm,
       etaMinutes: computeEtaMinutes(distanceKm),

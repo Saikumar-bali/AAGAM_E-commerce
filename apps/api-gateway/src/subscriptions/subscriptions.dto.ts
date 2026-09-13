@@ -209,7 +209,7 @@ export class QuoteSubscriptionDto {
   @IsString()
   addressId!: string;
 
-  @IsDateString()
+  @IsDateString({}, { message: 'Start date must be a valid date (YYYY-MM-DD)' })
   startDate!: string;
 
   @IsOptional()
@@ -589,7 +589,7 @@ export class CreateAdminManualSubscriptionDto {
   @MinLength(1)
   addressId!: string;
 
-  @IsDateString()
+  @IsDateString({}, { message: 'Start date must be a valid date (YYYY-MM-DD)' })
   startDate!: string;
 
   @IsInt()

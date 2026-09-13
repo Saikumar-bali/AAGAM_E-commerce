@@ -32,6 +32,7 @@ type DeliveryItem = {
   address: { line1: string; line2: string; city: string; pincode: string; latitude: number; longitude: number; landmark: string };
   order: { id: string; status: string; grandTotalPaise: number; items: Array<{ name: string; quantity: number; pricePaise: number }> } | null;
   expectedAmountPaise: number;
+  cashCollectedPaise?: number;
   deliveryJobId: string | null;
   deliveryJobStatus: string | null;
   subscription: { storeDelivery: boolean } | null;
@@ -187,7 +188,7 @@ export default function StoreDeliveriesPage() {
   const openEdit = (delivery: DeliveryItem) => {
     setEditModal(delivery);
     setEditStatus(delivery.status === 'FAILED' ? 'FAILED' : 'DELIVERED');
-    setEditCash(String(delivery.expectedAmountPaise / 100));
+    setEditCash(String((delivery.cashCollectedPaise || delivery.expectedAmountPaise) / 100));
     setEditNotes('');
   };
 
@@ -357,8 +358,22 @@ export default function StoreDeliveriesPage() {
                   </div>
                   <div className="text-right">
                     {statusBadge(d.status)}
-                    <p className="mt-1 text-xs text-slate-500">{d.window}</p>
-                    <p className="mt-1 text-sm font-black text-slate-900">{money(d.expectedAmountPaise)}</p>
+                    <div className="mt-1 flex items-center justify-end gap-1.5">
+                      <span className={`rounded-lg px-1.5 py-0.5 text-[10px] font-black ${
+                        d.deliverySlot === 'AM' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'
+                      }`}>{d.deliverySlot}</span>
+                      <span className="text-xs text-slate-500">{d.window}</span>
+                    </div>
+                    {d.status === 'DELIVERED' && d.cashCollectedPaise ? (
+                      <div className="mt-1">
+                        <p className="text-sm font-black text-emerald-700">{money(d.cashCollectedPaise)}</p>
+                        {d.cashCollectedPaise !== d.expectedAmountPaise && (
+                          <p className="text-[10px] text-slate-400">Expected: {money(d.expectedAmountPaise)}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-sm font-black text-slate-900">{money(d.expectedAmountPaise)}</p>
+                    )}
                   </div>
                 </div>
 

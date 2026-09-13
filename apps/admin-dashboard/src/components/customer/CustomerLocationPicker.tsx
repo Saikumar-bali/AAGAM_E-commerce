@@ -93,12 +93,14 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${longitude},${latitude}&bbox=${bbox}`
       );
       const data = await res.json();
-      const features = (data.features || []).map((f: any) => ({
-        displayName: f.place_name || f.text || '',
-        lat: f.center?.[1] ?? 0,
-        lng: f.center?.[0] ?? 0,
-        type: f.place_type?.[0] || 'place',
-      }));
+      const features = (data.features || [])
+        .map((f: any) => ({
+          displayName: f.place_name || f.text || '',
+          lat: f.center?.[1],
+          lng: f.center?.[0],
+          type: f.place_type?.[0] || 'place',
+        }))
+        .filter((f: any) => Number.isFinite(f.lat) && Number.isFinite(f.lng) && !(Math.abs(f.lat) < 0.0001 && Math.abs(f.lng) < 0.0001));
       setSearchResults(features);
     } catch {
       setSearchResults([]);
@@ -116,10 +118,10 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
   const handleSelectResult = async (result: SearchResult) => {
     setSearchQuery(result.displayName);
     setSearchResults([]);
-    if (result.placeId && (!result.lat || !result.lng)) {
+    if (result.placeId && (!result.lat || !result.lng || (Math.abs(result.lat) < 0.0001 && Math.abs(result.lng) < 0.0001))) {
       try {
         const { data } = await apiClient.get('/geo/places/details', { params: { placeId: result.placeId } });
-        if (data?.ok && Number.isFinite(data.lat) && Number.isFinite(data.lng)) {
+        if (data?.ok && Number.isFinite(data.lat) && Number.isFinite(data.lng) && !(Math.abs(data.lat) < 0.0001 && Math.abs(data.lng) < 0.0001)) {
           flyTo(data.lat, data.lng);
         }
       } catch {
@@ -127,7 +129,9 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
       }
       return;
     }
-    flyTo(result.lat, result.lng);
+    if (Number.isFinite(result.lat) && Number.isFinite(result.lng) && !(Math.abs(result.lat) < 0.0001 && Math.abs(result.lng) < 0.0001)) {
+      flyTo(result.lat, result.lng);
+    }
   };
 
   useEffect(() => {

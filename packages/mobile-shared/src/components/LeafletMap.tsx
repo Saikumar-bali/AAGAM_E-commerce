@@ -29,6 +29,9 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, go
   // Normalize API base without regex to avoid CodeQL polynomial ReDoS on uncontrolled input.
   const rawApiBase = apiBaseUrl || 'https://aagaam.in/api';
   let normalizedApiBase = rawApiBase.trim();
+  if (!normalizedApiBase || normalizedApiBase.includes('accesscam.org')) {
+    normalizedApiBase = 'https://aagaam.in/api';
+  }
   while (normalizedApiBase.endsWith('/')) {
     normalizedApiBase = normalizedApiBase.slice(0, -1);
   }
@@ -91,99 +94,166 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, go
     var searchClear = document.getElementById('search-clear');
     var debounceTimer = null;
     var API_BASE = '${normalizedApiBase}';
+
+    function renderGoogleResults(results) {
+      if (!Array.isArray(results) || results.length === 0) {
+        searchResults.style.display = 'none';
+        return;
+      }
+      searchResults.innerHTML = '';
+      results.forEach(function(p) {
+        var div = document.createElement('div');
+        div.className = 'search-result-item';
+        var pType = document.createElement('div');
+        pType.className = 'search-result-type';
+        pType.textContent = String(p.type || 'place').replace(/_/g, ' ');
+        var pName = document.createElement('div');
+        pName.className = 'search-result-name';
+        pName.textContent = String(p.displayName || p.name || '');
+        div.appendChild(pType);
+        div.appendChild(pName);
+        div.addEventListener('click', function() {
+          if (p.lat != null && p.lng != null && p.lat !== 0 && p.lng !== 0) {
+            map.flyTo({ center: [p.lng, p.lat], zoom: 16 });
+            marker.setLngLat([p.lng, p.lat]);
+            searchInput.value = p.displayName || p.name;
+            searchResults.style.display = 'none';
+            searchClear.style.display = 'block';
+            sendPos({ lat: p.lat, lng: p.lng });
+          } else if (p.placeId) {
+            fetch(API_BASE + '/geo/places/details?placeId=' + encodeURIComponent(p.placeId))
+              .then(function(r) { return r.json(); })
+              .then(function(detail) {
+                if (detail && detail.ok && detail.lat != null && detail.lng != null) {
+                  map.flyTo({ center: [detail.lng, detail.lat], zoom: 16 });
+                  marker.setLngLat([detail.lng, detail.lat]);
+                  searchInput.value = detail.formattedAddress || p.displayName || p.name;
+                  searchResults.style.display = 'none';
+                  searchClear.style.display = 'block';
+                  sendPos({ lat: detail.lat, lng: detail.lng });
+                } else {
+                  searchInput.value = p.displayName || p.name;
+                  searchResults.style.display = 'none';
+                }
+              })
+              .catch(function() {
+                searchInput.value = p.displayName || p.name;
+                searchResults.style.display = 'none';
+              });
+          }
+        });
+        searchResults.appendChild(div);
+      });
+      searchResults.style.display = 'block';
+    }
+
+    function renderMapboxFeatures(features) {
+      if (!Array.isArray(features) || features.length === 0) {
+        searchResults.style.display = 'none';
+        return;
+      }
+      searchResults.innerHTML = '';
+      features.forEach(function(f) {
+        var div = document.createElement('div');
+        div.className = 'search-result-item';
+        var fType = document.createElement('div');
+        fType.className = 'search-result-type';
+        fType.textContent = String((f.place_type && f.place_type[0]) || 'place');
+        var fName = document.createElement('div');
+        fName.className = 'search-result-name';
+        fName.textContent = String(f.place_name || f.text || '');
+        div.appendChild(fType);
+        div.appendChild(fName);
+        div.addEventListener('click', function() {
+          if (!f.center || f.center.length < 2 || (f.center[0] === 0 && f.center[1] === 0)) return;
+          var lng2 = f.center[0];
+          var lat2 = f.center[1];
+          map.flyTo({ center: [lng2, lat2], zoom: 16 });
+          marker.setLngLat([lng2, lat2]);
+          searchInput.value = f.place_name || f.text;
+          searchResults.style.display = 'none';
+          searchClear.style.display = 'block';
+          sendPos({ lat: lat2, lng: lng2 });
+        });
+        searchResults.appendChild(div);
+      });
+      searchResults.style.display = 'block';
+    }
+
     function renderMapboxResults(query) {
-      // Bounding box around Anakapalle and nearby areas (Visakhapatnam region)
       var bbox = '82.7,17.5,83.3,17.9';
       fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}&bbox=' + bbox)
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (!data.features || data.features.length === 0) { searchResults.style.display = 'none'; return; }
-          searchResults.innerHTML = '';
-          data.features.forEach(function(f) {
-            var div = document.createElement('div');
-            div.className = 'search-result-item';
-            var fType = document.createElement('div');
-            fType.className = 'search-result-type';
-            fType.textContent = String((f.place_type && f.place_type[0]) || '');
-            var fName = document.createElement('div');
-            fName.className = 'search-result-name';
-            fName.textContent = String(f.place_name || '');
-            div.appendChild(fType);
-            div.appendChild(fName);
-            div.addEventListener('click', function() {
-              var lng2 = f.center[0];
-              var lat2 = f.center[1];
-              map.flyTo({ center: [lng2, lat2], zoom: 16 });
-              marker.setLngLat([lng2, lat2]);
-              searchInput.value = f.place_name;
-              searchResults.style.display = 'none';
-              searchClear.style.display = 'block';
-              sendPos({ lat: lat2, lng: lng2 });
-            });
-            searchResults.appendChild(div);
-          });
-          searchResults.style.display = 'block';
+          if (data && data.features && data.features.length > 0) {
+            renderMapboxFeatures(data.features);
+          } else {
+            // If bbox returned nothing, try without bounding box across India
+            fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}')
+              .then(function(r2) { return r2.json(); })
+              .then(function(data2) {
+                if (data2 && data2.features && data2.features.length > 0) {
+                  renderMapboxFeatures(data2.features);
+                } else {
+                  searchResults.style.display = 'none';
+                }
+              })
+              .catch(function() { searchResults.style.display = 'none'; });
+          }
         })
-        .catch(function() { searchResults.style.display = 'none'; });
+        .catch(function() {
+          fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}')
+            .then(function(r2) { return r2.json(); })
+            .then(function(data2) {
+              if (data2 && data2.features && data2.features.length > 0) {
+                renderMapboxFeatures(data2.features);
+              } else {
+                searchResults.style.display = 'none';
+              }
+            })
+            .catch(function() { searchResults.style.display = 'none'; });
+        });
     }
+
     searchInput.addEventListener('input', function() {
       var query = this.value.trim();
       searchClear.style.display = query.length > 0 ? 'block' : 'none';
       if (debounceTimer) clearTimeout(debounceTimer);
       if (query.length < 3) { searchResults.style.display = 'none'; return; }
       debounceTimer = setTimeout(function() {
-        // Exact same as web: gateway Google Places first, Mapbox fallback
+        // Step 1: Google Places Autocomplete via API Gateway (same as web CustomerLocationPicker)
         fetch(API_BASE + '/geo/places/autocomplete?q=' + encodeURIComponent(query) + '&lat=${lat}&lng=${lng}')
           .then(function(r) { return r.json(); })
           .then(function(data) {
             if (data && data.ok && Array.isArray(data.results) && data.results.length > 0) {
-              searchResults.innerHTML = '';
-              data.results.forEach(function(p) {
-                var div = document.createElement('div');
-                div.className = 'search-result-item';
-                var pType = document.createElement('div');
-                pType.className = 'search-result-type';
-                pType.textContent = String(p.type || '').replace(/_/g, ' ');
-                var pName = document.createElement('div');
-                pName.className = 'search-result-name';
-                pName.textContent = String(p.displayName || '');
-                div.appendChild(pType);
-                div.appendChild(pName);
-                div.addEventListener('click', function() {
-                  if (p.lat != null && p.lng != null) {
-                    map.flyTo({ center: [p.lng, p.lat], zoom: 16 });
-                    marker.setLngLat([p.lng, p.lat]);
-                    searchInput.value = p.displayName;
-                    searchResults.style.display = 'none';
-                    searchClear.style.display = 'block';
-                    sendPos({ lat: p.lat, lng: p.lng });
-                  } else if (p.placeId) {
-                    fetch(API_BASE + '/geo/places/details?placeId=' + encodeURIComponent(p.placeId))
-                      .then(function(r) { return r.json(); })
-                      .then(function(detail) {
-                        if (detail && detail.ok && detail.lat != null && detail.lng != null) {
-                          map.flyTo({ center: [detail.lng, detail.lat], zoom: 16 });
-                          marker.setLngLat([detail.lng, detail.lat]);
-                          searchInput.value = detail.formattedAddress || p.displayName;
-                          searchResults.style.display = 'none';
-                          searchClear.style.display = 'block';
-                          sendPos({ lat: detail.lat, lng: detail.lng });
-                        } else {
-                          searchInput.value = p.displayName;
-                          searchResults.style.display = 'none';
-                        }
-                      })
-                      .catch(function() { searchInput.value = p.displayName; searchResults.style.display = 'none'; });
-                  }
-                });
-                searchResults.appendChild(div);
-              });
-              searchResults.style.display = 'block';
+              renderGoogleResults(data.results);
             } else {
-              renderMapboxResults(query);
+              // Step 2: Google Places Text Search fallback (same as web)
+              fetch(API_BASE + '/geo/places/textsearch?q=' + encodeURIComponent(query) + '&lat=${lat}&lng=${lng}')
+                .then(function(r2) { return r2.json(); })
+                .then(function(data2) {
+                  if (data2 && data2.ok && Array.isArray(data2.results) && data2.results.length > 0) {
+                    renderGoogleResults(data2.results);
+                  } else {
+                    renderMapboxResults(query);
+                  }
+                })
+                .catch(function() { renderMapboxResults(query); });
             }
           })
-          .catch(function() { renderMapboxResults(query); });
+          .catch(function() {
+            // Autocomplete failed or offline, try textsearch then Mapbox
+            fetch(API_BASE + '/geo/places/textsearch?q=' + encodeURIComponent(query) + '&lat=${lat}&lng=${lng}')
+              .then(function(r2) { return r2.json(); })
+              .then(function(data2) {
+                if (data2 && data2.ok && Array.isArray(data2.results) && data2.results.length > 0) {
+                  renderGoogleResults(data2.results);
+                } else {
+                  renderMapboxResults(query);
+                }
+              })
+              .catch(function() { renderMapboxResults(query); });
+          });
       }, 300);
     });
 
@@ -214,6 +284,7 @@ export const LeafletMap = ({ latitude, longitude, onPinChange, style, mapboxToke
     (event: any) => {
       try {
         const data = JSON.parse(event.nativeEvent.data);
+        if (Math.abs(data.lat) < 0.0001 && Math.abs(data.lng) < 0.0001) return;
         const key = `${data.lat.toFixed(6)},${data.lng.toFixed(6)}`;
         if (key !== lastSentRef.current) {
           lastSentRef.current = key;

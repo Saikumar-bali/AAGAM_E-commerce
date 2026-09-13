@@ -1,6 +1,6 @@
 export const DELIVERY_RATE_PAISE_PER_KM = 200;
 export const FREE_DELIVERY_MINIMUM_PAISE = 9_900;
-export const DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM = 15;
+export const DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM = 25;
 
 export type DeliveryFeeRuleOverrides = {
   ruleId?: string | null;
@@ -68,7 +68,7 @@ export function calculateDeliveryPricing(
   const validDistance = Number.isFinite(distanceKm) && distanceKm >= 0;
   const serviceable = validDistance
     && distanceKm <= maximumDistanceKm;
-  const distanceFeePaise = validDistance
+  const distanceFeePaise = validDistance && serviceable
     ? flatFeePaise !== null
       ? flatFeePaise
       : Math.max(0, Math.round(distanceKm * ratePaisePerKm))
@@ -86,7 +86,7 @@ export function calculateDeliveryPricing(
     distanceFeePaise,
     waivedByThreshold,
     waivedByFirstOrder,
-    payableFeePaise: waivedByThreshold || waivedByFirstOrder ? 0 : distanceFeePaise,
+    payableFeePaise: !serviceable ? 0 : (waivedByThreshold || waivedByFirstOrder ? 0 : distanceFeePaise),
     appliedRule: overrides.ruleId
       ? { id: overrides.ruleId, name: overrides.ruleName ?? '', matchType: overrides.matchType ?? '' }
       : null,

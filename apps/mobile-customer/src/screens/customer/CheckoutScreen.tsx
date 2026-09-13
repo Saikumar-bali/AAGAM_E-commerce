@@ -176,8 +176,9 @@ export const CheckoutScreen = () => {
     // else if (localities.length > 0 && !localities.some((loc) => loc.pincode === addressDraft.pincode.trim())) next.pincode = 'This pincode is not serviceable in your area.';
     const latitude = Number(addressDraft.latitude);
     const longitude = Number(addressDraft.longitude);
-    if (!addressDraft.latitude.trim() || !Number.isFinite(latitude) || latitude < -90 || latitude > 90) next.latitude = 'Pin a valid delivery location.';
-    if (!addressDraft.longitude.trim() || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) next.longitude = 'Pin a valid delivery location.';
+    const isZero = Math.abs(latitude) < 0.0001 && Math.abs(longitude) < 0.0001;
+    if (!addressDraft.latitude.trim() || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 || isZero) next.latitude = 'Pin a valid delivery location.';
+    if (!addressDraft.longitude.trim() || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 || isZero) next.longitude = 'Pin a valid delivery location.';
     setAddressErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -401,17 +402,38 @@ export const CheckoutScreen = () => {
 
       <Text style={styles.sectionTitle}>Order Summary</Text>
       <View style={styles.summaryCard}>
-        <View style={[styles.freeDeliveryCard, freeDeliveryRemainingPaise === 0 && styles.freeDeliveryUnlocked]}><Text style={styles.freeDeliveryTitle}>{freeDeliveryRemainingPaise === 0 ? 'Free delivery unlocked' : `Add ${formatCheckoutMoney(freeDeliveryRemainingPaise / 100)} for free delivery`}</Text><Text style={styles.freeDeliveryText}>{deliveryRatePaisePerKm != null ? `Delivery at ${formatCheckoutMoney(deliveryRatePaisePerKm / 100)}/km. ` : ''}Free on orders of {formatCheckoutMoney(freeDeliveryMinimumPaise / 100)} or more.</Text></View>
+        {quote?.serviceable === false ? (
+          <View style={[styles.freeDeliveryCard, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+            <Text style={[styles.freeDeliveryTitle, { color: '#B91C1C' }]}>Delivery Unavailable</Text>
+            <Text style={[styles.freeDeliveryText, { color: '#991B1B' }]}>
+              This address is outside our 25 km delivery range{quote?.distanceKm != null ? ` (${Number(quote.distanceKm).toFixed(1)} km away)` : ''}. Please select or add an address closer to our store.
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.freeDeliveryCard, freeDeliveryRemainingPaise === 0 && styles.freeDeliveryUnlocked]}>
+            <Text style={styles.freeDeliveryTitle}>{freeDeliveryRemainingPaise === 0 ? 'Free delivery unlocked' : `Add ${formatCheckoutMoney(freeDeliveryRemainingPaise / 100)} for free delivery`}</Text>
+            <Text style={styles.freeDeliveryText}>{deliveryRatePaisePerKm != null ? `Delivery at ${formatCheckoutMoney(deliveryRatePaisePerKm / 100)}/km. ` : ''}Free on orders of {formatCheckoutMoney(freeDeliveryMinimumPaise / 100)} or more.</Text>
+          </View>
+        )}
         {items.map((item) => <View key={item.product.id} style={styles.summaryRow}><Text style={styles.summaryText}>{item.product.name} x {item.quantity}</Text><Text style={styles.summaryAmount}>₹{item.product.price * item.quantity}</Text></View>)}
         <View style={styles.summaryDivider} />
         <View style={styles.summaryRow}><Text style={styles.summaryText}>Subtotal</Text><Text style={styles.summaryAmount}>{formatCheckoutMoney(Number(quote?.invoice?.subtotal ?? total()))}</Text></View>
-        <View style={styles.summaryRow}><Text style={styles.summaryText}>Delivery Fee{quote?.distanceKm != null ? ` · ${Number(quote.distanceKm).toFixed(1)} km` : ''}</Text><Text style={[styles.summaryAmount, (quote?.invoice?.deliveryFee ?? 0) === 0 && styles.freeDeliveryValue]}>{(quote?.invoice?.deliveryFee ?? 0) === 0 ? 'FREE' : formatCheckoutMoney(Number(quote?.invoice?.deliveryFee || 0))}</Text></View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryText}>Delivery Fee{quote?.distanceKm != null ? ` · ${Number(quote.distanceKm).toFixed(1)} km` : ''}</Text>
+          <Text style={[styles.summaryAmount, quote?.serviceable === false ? { color: '#B91C1C' } : (quote?.invoice?.deliveryFee ?? 0) === 0 && styles.freeDeliveryValue]}>
+            {quote?.serviceable === false
+              ? 'Not serviceable'
+              : (quote?.invoice?.deliveryFee ?? 0) === 0
+                ? 'FREE'
+                : formatCheckoutMoney(Number(quote?.invoice?.deliveryFee || 0))}
+          </Text>
+        </View>
         {discountAmount > 0 ? <View style={styles.summaryRow}><Text style={styles.discountLabel}>Offer discount</Text><Text style={styles.discountValue}>-{formatCheckoutMoney(discountAmount)}</Text></View> : null}
         <View style={styles.summaryRow}><Text style={styles.totalLabel}>Grand Total</Text><Text style={styles.totalValue}>{formatCheckoutMoney(Number(quote?.invoice?.grandTotal ?? total()))}</Text></View>
         {quote && quote.serviceable === false ? <Text style={styles.errorText}>This address is currently outside the delivery radius.</Text> : null}
         {quoteFailure ? <Text style={styles.errorText}>{quoteFailure}</Text> : null}
       </View>
-      <TouchableOpacity testID="checkout_place_order_button" style={[styles.placeOrderButton, orderDisabled && styles.placeOrderButtonDisabled]} onPress={() => placeOrderMutation.mutate()} disabled={orderDisabled}>{loadingQuote || placeOrderMutation.isPending ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.placeOrderText}>{paymentMethod === 'COD' ? 'Place COD Order' : 'Continue to Pay'}</Text>}</TouchableOpacity>
+      <TouchableOpacity testID="checkout_place_order_button" style={[styles.placeOrderButton, orderDisabled && styles.placeOrderButtonDisabled]} onPress={() => placeOrderMutation.mutate()} disabled={orderDisabled}>{loadingQuote || placeOrderMutation.isPending ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.placeOrderText}>{quote?.serviceable === false ? 'Address not serviceable' : paymentMethod === 'COD' ? 'Place COD Order' : 'Continue to Pay'}</Text>}</TouchableOpacity>
     </ScrollView>
   );
 };
