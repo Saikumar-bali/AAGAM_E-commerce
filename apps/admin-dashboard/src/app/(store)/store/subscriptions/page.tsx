@@ -1685,7 +1685,10 @@ function DeliveryCalendar({ deliveries }: { deliveries: any[] }) {
   const deliveryMap = useMemo(() => {
     const map: Record<string, any[]> = {};
     for (const d of deliveries) {
-      const key = new Date(d.serviceDate).toISOString().slice(0, 10);
+      if (!d.serviceDate) continue;
+      const date = new Date(d.serviceDate);
+      if (isNaN(date.getTime())) continue;
+      const key = date.toISOString().slice(0, 10);
       if (!map[key]) map[key] = [];
       map[key].push(d);
     }
