@@ -224,6 +224,8 @@ export default function StoreSubscriptionOperationsPage() {
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [calendar, setCalendar] = useState<CalendarRow[]>([]);
   const [analytics, setAnalytics] = useState<StoreAnalytics | null>(null);
+  const [editingSubscriber, setEditingSubscriber] = useState<SubscriberRow | null>(null);
+  const [editForm, setEditForm] = useState({ amountDueRupees: "", amountCollectedRupees: "", note: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -538,7 +540,7 @@ export default function StoreSubscriptionOperationsPage() {
         ) : (
           <>
             {tab === "subscribers" && (
-              <SubscribersSection rows={subscribers} />
+              <SubscribersSection rows={subscribers} onEdit={(sub) => { setEditingSubscriber(sub); setEditForm({ amountDueRupees: String((sub.amountDuePaise || 0) / 100), amountCollectedRupees: String((sub.amountCollectedPaise || 0) / 100), note: "" }); }} />
             )}
 
             {tab === "plans" && (
@@ -1072,6 +1074,80 @@ export default function StoreSubscriptionOperationsPage() {
             </button>
           </Modal>
         )}
+
+        {editingSubscriber && (
+          <Modal title={`Edit ${editingSubscriber.customer.name || 'Subscriber'}`} onClose={() => setEditingSubscriber(null)}>
+            <div className="space-y-4">
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-xs font-bold text-slate-600">{editingSubscriber.plan.name}</p>
+                <p className="text-[10px] text-slate-400">
+                  {editingSubscriber._count?.deliveries ?? 0} deliveries · {formatPaise(editingSubscriber.amountCollectedPaise || 0)} collected
+                </p>
+              </div>
+              <Field label="Amount Due (₹)">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editForm.amountDueRupees}
+                  onChange={(e) => setEditForm({ ...editForm, amountDueRupees: e.target.value })}
+                  className="h-10 w-full rounded-xl border border-slate-300 px-3 font-bold outline-none focus:border-emerald-500"
+                />
+              </Field>
+              <Field label="Amount Collected (₹)">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editForm.amountCollectedRupees}
+                  onChange={(e) => setEditForm({ ...editForm, amountCollectedRupees: e.target.value })}
+                  className="h-10 w-full rounded-xl border border-slate-300 px-3 font-bold outline-none focus:border-emerald-500"
+                />
+              </Field>
+              <Field label="Note">
+                <textarea
+                  value={editForm.note}
+                  onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+                  rows={2}
+                  placeholder="Optional note"
+                  className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-emerald-500"
+                />
+              </Field>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEditingSubscriber(null)}
+                  className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-black"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={working === "edit-subscriber"}
+                  onClick={async () => {
+                    setWorking("edit-subscriber");
+                    try {
+                      await apiClient.patch(`/admin/subscriptions/subscribers/${editingSubscriber.id}/manual-edit`, {
+                        amountDuePaise: Math.round(Number(editForm.amountDueRupees || 0) * 100),
+                        amountCollectedPaise: Math.round(Number(editForm.amountCollectedRupees || 0) * 100),
+                        note: editForm.note.trim() || undefined,
+                      });
+                      toast.success("Subscriber updated");
+                      setEditingSubscriber(null);
+                      await load();
+                    } catch (error) {
+                      toast.error(getToastErrorMessage(error, "Update failed"));
+                    } finally {
+                      setWorking("");
+                    }
+                  }}
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-black text-white disabled:opacity-50"
+                >
+                  {working === "edit-subscriber" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
       </div>
     </DashboardLayout>
   );
@@ -1085,17 +1161,26 @@ function StatusPill({ status }: { status: string }) {
     ONLINE: "bg-emerald-50 text-emerald-700 ring-emerald-200",
     OFFLINE: "bg-slate-100 text-slate-600 ring-slate-200",
     DRAFT: "bg-slate-100 text-slate-600 ring-slate-200",
+    PENDING_CASH_COLLECTION: "bg-amber-50 text-amber-700 ring-amber-200",
+    PAYMENT_DUE: "bg-amber-50 text-amber-700 ring-amber-200",
+    GRACE_PERIOD: "bg-orange-50 text-orange-700 ring-orange-200",
   };
+  const shortLabels: Record<string, string> = {
+    PENDING_CASH_COLLECTION: "Pending",
+    PAYMENT_DUE: "Payment Due",
+    GRACE_PERIOD: "Grace",
+  };
+  const label = shortLabels[status] || humanize(status);
   return (
     <span
       className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ${colors[status] || "bg-slate-50 text-slate-600 ring-slate-200"}`}
     >
-      {humanize(status)}
+      {label}
     </span>
   );
 }
 
-function SubscribersSection({ rows }: { rows: SubscriberRow[] }) {
+function SubscribersSection({ rows, onEdit }: { rows: SubscriberRow[]; onEdit?: (sub: SubscriberRow) => void }) {
   return (
     <section className="space-y-3">
       {rows.length ? (
@@ -1121,6 +1206,7 @@ function SubscribersSection({ rows }: { rows: SubscriberRow[] }) {
                   <th className="px-3 py-2.5 font-badge text-right">Collected</th>
                   <th className="px-3 py-2.5 font-badge text-right">Due</th>
                   <th className="px-3 py-2.5 font-badge">Started</th>
+                  {onEdit && <th className="px-3 py-2.5 font-badge">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1154,6 +1240,16 @@ function SubscribersSection({ rows }: { rows: SubscriberRow[] }) {
                     <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">
                       {formatDate(row.startDate || row.createdAt)}
                     </td>
+                    {onEdit && (
+                      <td className="whitespace-nowrap px-3 py-2.5">
+                        <button
+                          onClick={() => onEdit(row)}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] font-black hover:bg-slate-50"
+                        >
+                          <Edit3 className="h-3 w-3" /> Edit
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
