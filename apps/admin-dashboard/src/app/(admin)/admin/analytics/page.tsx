@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
+import { DataTable } from '@/components/DataTable';
 import { apiClient } from '@aagam/utils';
 import { BarChart3, Bike, Headphones, IndianRupee, PackageCheck, RefreshCw, Store, Star, TrendingUp, Users } from 'lucide-react';
 
@@ -59,6 +60,38 @@ export default function AdminAnalyticsPage() {
     ];
   }, [data]);
 
+  const trendColumns = [
+    { key: 'date', header: 'Date', align: 'left' as const, render: (row: any) => <span className="font-black">{row.date}</span> },
+    { key: 'orders', header: 'Orders', align: 'right' as const, render: (row: any) => <span className="font-bold">{row.orders}</span> },
+    { key: 'delivered', header: 'Delivered', align: 'right' as const, render: (row: any) => <span className="font-bold text-emerald-700">{row.delivered}</span> },
+    { key: 'revenue', header: 'Revenue', align: 'right' as const, render: (row: any) => <span className="font-black text-teal-700">{moneyPaise(row.revenuePaise)}</span> },
+  ];
+
+  const statusColumns = [
+    { key: 'status', header: 'Status', align: 'left' as const, render: (row: any) => <span className="font-black">{row.status.replace(/_/g, ' ')}</span> },
+    { key: 'count', header: 'Count', align: 'right' as const, render: (row: any) => <span className="font-black">{row.count}</span> },
+  ];
+
+  const storeColumns = [
+    { key: 'name', header: 'Store', align: 'left' as const, render: (row: any) => <span className="font-black">{row.storeName}</span> },
+    { key: 'orders', header: 'Orders', align: 'right' as const, render: (row: any) => <span className="font-bold">{row.orders}</span> },
+    { key: 'delivered', header: 'Delivered', align: 'right' as const, render: (row: any) => <span className="font-bold text-emerald-700">{row.delivered}</span> },
+    { key: 'cancelled', header: 'Cancelled', align: 'right' as const, render: (row: any) => <span className="font-bold text-red-700">{row.cancelled}</span> },
+    { key: 'revenue', header: 'Revenue', align: 'right' as const, render: (row: any) => <span className="font-black text-emerald-700">{money(row.revenue)}</span> },
+  ];
+
+  const riderColumns = [
+    { key: 'name', header: 'Rider', align: 'left' as const, render: (row: any) => <span className="font-black">{row.riderName}</span> },
+    { key: 'assigned', header: 'Assigned', align: 'right' as const, render: (row: any) => <span className="font-bold">{row.assigned}</span> },
+    { key: 'delivered', header: 'Delivered', align: 'right' as const, render: (row: any) => <span className="font-bold text-emerald-700">{row.delivered}</span> },
+    { key: 'active', header: 'Active', align: 'right' as const, render: (row: any) => <span className="font-bold">{row.active}</span> },
+  ];
+
+  const supportCategoryColumns = [
+    { key: 'category', header: 'Category', align: 'left' as const, render: (row: any) => <span className="font-black">{row.category}</span> },
+    { key: 'count', header: 'Tickets', align: 'right' as const, render: (row: any) => <span className="font-black">{row.count}</span> },
+  ];
+
   return (
     <DashboardLayout allowedRole="ADMIN">
       <main className="space-y-5 p-4 pb-24">
@@ -90,25 +123,77 @@ export default function AdminAnalyticsPage() {
             <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
               <article className="rounded-3xl border bg-white p-5 shadow-sm">
                 <h2 className="text-lg font-black">Order Status Mix</h2>
-                <div className="mt-4 space-y-2">{Object.entries(data.statusCounts).map(([status, count]) => <div key={status} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3"><span className="text-xs font-black text-slate-600">{status.replace(/_/g, ' ')}</span><span className="text-sm font-black text-slate-950">{count}</span></div>)}</div>
+                <div className="mt-4">
+                  <DataTable
+                    columns={statusColumns}
+                    data={Object.entries(data.statusCounts).map(([status, count]) => ({ status, count }))}
+                    keyExtractor={(row) => row.status}
+                    emptyText="No status data available."
+                    compact
+                    bordered={false}
+                  />
+                </div>
               </article>
 
               <article className="rounded-3xl border bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-black">7-Day Trend</h2>
-                <div className="mt-4 space-y-2">{data.trend.map((row) => <div key={row.date} className="rounded-2xl bg-slate-50 p-3"><div className="flex items-center justify-between text-xs font-black text-slate-600"><span>{row.date}</span><span>{row.orders} orders · {moneyPaise(row.revenuePaise)}</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-teal-600" style={{ width: `${Math.min(100, row.orders * 12)}%` }} /></div></div>)}</div>
+                <h2 className="text-lg font-black">Trend</h2>
+                <div className="mt-4">
+                  <DataTable
+                    columns={trendColumns}
+                    data={data.trend}
+                    keyExtractor={(row) => row.date}
+                    emptyText="No trend data in this period."
+                    compact
+                    bordered={false}
+                  />
+                </div>
               </article>
             </section>
 
             <section className="grid gap-5 xl:grid-cols-2">
-              <article className="rounded-3xl border bg-white p-5 shadow-sm"><div className="mb-4 flex items-center gap-2"><Store className="h-5 w-5 text-teal-600" /><h2 className="text-lg font-black">Store Performance</h2></div><div className="space-y-3">{data.storePerformance.length === 0 && <p className="text-sm font-bold text-slate-500">No store data in this range.</p>}{data.storePerformance.map((store) => <div key={store.storeId} className="rounded-2xl border border-slate-100 p-4"><div className="flex items-center justify-between"><div><p className="text-sm font-black text-slate-950">{store.storeName}</p><p className="text-xs font-bold text-slate-500">{store.orders} orders · {store.delivered} delivered · {store.cancelled} cancelled</p></div><p className="text-sm font-black text-emerald-700">{money(store.revenue)}</p></div></div>)}</div></article>
+              <article className="rounded-3xl border bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-2"><Store className="h-5 w-5 text-teal-600" /><h2 className="text-lg font-black">Store Performance</h2></div>
+                <div className="mt-2">
+                  <DataTable
+                    columns={storeColumns}
+                    data={data.storePerformance}
+                    keyExtractor={(row) => row.storeId}
+                    emptyText="No store data in this range."
+                    compact
+                  />
+                </div>
+              </article>
 
-              <article className="rounded-3xl border bg-white p-5 shadow-sm"><div className="mb-4 flex items-center gap-2"><Bike className="h-5 w-5 text-indigo-600" /><h2 className="text-lg font-black">Rider Performance</h2></div><div className="space-y-3">{data.riderPerformance.length === 0 && <p className="text-sm font-bold text-slate-500">No rider data in this range.</p>}{data.riderPerformance.map((rider) => <div key={rider.riderProfileId} className="rounded-2xl border border-slate-100 p-4"><div className="flex items-center justify-between"><div><p className="text-sm font-black text-slate-950">{rider.riderName}</p><p className="text-xs font-bold text-slate-500">{rider.assigned} assigned · {rider.delivered} delivered · {rider.active} active</p></div><span className="rounded-full bg-indigo-50 px-2 py-1 text-[11px] font-black text-indigo-700">Delivery</span></div></div>)}</div></article>
+              <article className="rounded-3xl border bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-2"><Bike className="h-5 w-5 text-indigo-600" /><h2 className="text-lg font-black">Rider Performance</h2></div>
+                <div className="mt-2">
+                  <DataTable
+                    columns={riderColumns}
+                    data={data.riderPerformance}
+                    keyExtractor={(row) => row.riderProfileId}
+                    emptyText="No rider data in this range."
+                    compact
+                  />
+                </div>
+              </article>
             </section>
 
             <section className="rounded-3xl border bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center gap-2"><Headphones className="h-5 w-5 text-red-600" /><h2 className="text-lg font-black">Support Analytics</h2></div>
-              <div className="grid gap-4 md:grid-cols-2"><div className="rounded-2xl bg-red-50 p-4"><p className="text-xs font-black uppercase text-red-400">Total tickets</p><p className="mt-2 text-2xl font-black text-red-700">{data.support.total}</p></div><div className="rounded-2xl bg-yellow-50 p-4"><p className="text-xs font-black uppercase text-yellow-600">Rating count</p><p className="mt-2 text-2xl font-black text-yellow-800">{data.ratings.count}</p></div></div>
-              <div className="mt-4 grid gap-2 md:grid-cols-3">{Object.entries(data.support.byCategory).map(([category, count]) => <div key={category} className="rounded-2xl bg-slate-50 px-4 py-3"><p className="text-xs font-black text-slate-500">{category}</p><p className="text-lg font-black text-slate-950">{count}</p></div>)}</div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl bg-red-50 p-4"><p className="text-xs font-black uppercase text-red-400">Total tickets</p><p className="mt-2 text-2xl font-black text-red-700">{data.support.total}</p></div>
+                <div className="rounded-2xl bg-yellow-50 p-4"><p className="text-xs font-black uppercase text-yellow-600">Rating count</p><p className="mt-2 text-2xl font-black text-yellow-800">{data.ratings.count}</p></div>
+              </div>
+              <div className="mt-4">
+                <DataTable
+                  columns={supportCategoryColumns}
+                  data={Object.entries(data.support.byCategory).map(([category, count]) => ({ category, count }))}
+                  keyExtractor={(row) => row.category}
+                  emptyText="No support category data."
+                  compact
+                  bordered={false}
+                />
+              </div>
             </section>
           </>
         )}
