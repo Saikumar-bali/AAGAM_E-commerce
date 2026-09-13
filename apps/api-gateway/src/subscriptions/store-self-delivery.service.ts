@@ -152,7 +152,7 @@ export class StoreSelfDeliveryService {
 
         await tx.customerSubscription.update({
           where: { id: subDelivery.subscriptionId },
-          data: { completedDeliveries: { increment: 1 } },
+          data: { completedDeliveries: { increment: 1 }, amountCollectedPaise: { increment: cashToRecord || 0 } },
         });
       } else if (newStatus === SubscriptionDeliveryStatus.FAILED) {
         const orderId = subDelivery.deliveryJob?.orderId || subDelivery.order?.id || null;
@@ -479,7 +479,7 @@ export class StoreSelfDeliveryService {
 
       await tx.customerSubscription.update({
         where: { id: subDelivery.subscriptionId },
-        data: { completedDeliveries: { increment: 1 } },
+        data: { completedDeliveries: { increment: 1 }, amountCollectedPaise: { increment: dto.cashCollectedPaise || 0 } },
       });
 
       await tx.subscriptionAuditEntry.create({
