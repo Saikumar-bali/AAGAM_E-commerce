@@ -46,7 +46,7 @@ export default function DeliveryZonesPage() {
       <div className="flex items-center justify-center gap-1">
         <button onClick={() => void move(index, -1)} type="button" disabled={index === 0} className="rounded-xl border p-2 disabled:opacity-25" title="Move up"><ChevronUp className="h-4 w-4" /></button>
         <button onClick={() => void move(index, 1)} type="button" disabled={index === zones.length - 1} className="rounded-xl border p-2 disabled:opacity-25" title="Move down"><ChevronDown className="h-4 w-4" /></button>
-        <button onClick={() => void toggle(zone)} type="button" className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black ${row.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`} title={row.isActive ? 'Hide' : 'Show'}><Power className="h-3.5 w-3.5" />{row.isActive ? 'Active' : 'Inactive'}</button>
+        <button onClick={() => void toggle(row)} type="button" className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black ${row.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`} title={row.isActive ? 'Hide' : 'Show'}><Power className="h-3.5 w-3.5" />{row.isActive ? 'Active' : 'Inactive'}</button>
       </div>
     ) },
   ];
