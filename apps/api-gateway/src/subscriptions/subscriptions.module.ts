@@ -35,6 +35,7 @@ import {
   CustomerSubscriptionsController,
   RiderDeliveryRunsController,
   StoreSubscriptionOperationsController,
+  StoreSubscriptionsController,
   SubscriptionPlanPublicController,
 } from './subscriptions.controller';
 
@@ -45,6 +46,7 @@ import {
     CustomerSubscriptionsController,
     RiderDeliveryRunsController,
     StoreSubscriptionOperationsController,
+    StoreSubscriptionsController,
     StoreSubscriptionPreparationController,
     AdminSubscriptionsController,
     AdminSubscriptionPreparationController,

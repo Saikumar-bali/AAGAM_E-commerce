@@ -6,17 +6,24 @@ import { getToastErrorMessage, useToast } from "@/components/ToastProvider";
 import { apiClient } from "@aagam/utils";
 import {
   AlertTriangle,
+  Archive,
   Banknote,
+  BarChart3,
   Box,
+  CalendarDays,
   CheckCircle2,
   ClipboardCheck,
+  Edit3,
   Loader2,
   Package,
   PackageCheck,
+  Pause,
+  Play,
   RefreshCw,
   Route,
   ScanLine,
   Truck,
+  Users,
   X,
 } from "lucide-react";
 
@@ -84,8 +91,78 @@ type CashBatch = {
   rider?: { user?: { name?: string | null } | null } | null;
 };
 type ExceptionRow = Stop & { deliveryRun: { routeCode: string } };
-type Tab = "prep" | "runs" | "forecast" | "cash" | "exceptions";
+type Tab = "subscribers" | "plans" | "calendar" | "prep" | "runs" | "forecast" | "cash" | "exceptions" | "analytics";
 
+type SubscriberRow = {
+  id: string;
+  status: string;
+  startDate: string;
+  createdAt: string;
+  amountCollectedPaise?: number;
+  amountDuePaise?: number;
+  deliveryMethod?: string | null;
+  homeStore: { id: string; name: string } | null;
+  customer: { id: string; name: string | null; email: string | null; phone: string | null };
+  deliveryContact?: { phone: string; name?: string | null } | null;
+  plan: { id: string; code: string; name: string };
+  planVersion: {
+    id: string;
+    version: number;
+    pricePaise?: number;
+    totalDeliveries?: number;
+  } | null;
+  _count?: { deliveries?: number; issues?: number };
+};
+
+type PlanRow = {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  status: string;
+  pricePaise: number;
+  mrpPaise: number;
+  currency: string;
+  fundingCycle: string;
+  totalDeliveries: number;
+  items: Array<{
+    productId: string;
+    quantityPerDelivery: number;
+    product: { id: string; name: string; image?: string | null; weightGrams?: number | null };
+  }>;
+  stores: Array<{ storeId: string; store?: { id: string; name: string } | null }>;
+  zones: Array<{ zoneId: string }>;
+  _count?: { subscriptions?: number };
+};
+
+type CalendarRow = {
+  id: string;
+  serviceDate: string;
+  sequenceNumber: number;
+  status: string;
+  cashDuePaise?: number;
+  deliverySlot?: string | null;
+  subscription: {
+    id: string;
+    customer: { name: string | null; phone: string | null };
+    plan: { name: string; code: string };
+  };
+  store?: { name: string } | null;
+  order?: { id: string; status: string } | null;
+  runStop?: {
+    id: string;
+    deliveryRun: { routeCode: string; status: string; riderId: string | null };
+  } | null;
+};
+
+type StoreAnalytics = {
+  subscriptions: Array<{ status: string; _count: { _all: number }; _sum: { amountCollectedPaise: number | null; amountDuePaise: number | null } }>;
+  deliveries: Array<{ status: string; _count: { _all: number }; _sum: { cashDuePaise: number | null } }>;
+  cash: Array<{ status: string; _count: { _all: number }; _sum: { expectedAmountPaise: number | null; verifiedAmountPaise: number | null; variancePaise: number | null } }>;
+  upcomingSevenDayDemand: number;
+  generatedAt: string;
+};
 type PreparationRow = {
   id: string;
   subscriptionId: string;
@@ -117,10 +194,13 @@ function title(value: string) {
     .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
+const formatPaise = (paise: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(Number(paise || 0) / 100);
+const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
+const humanize = (value: unknown) => String(value || "Unknown").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 export default function StoreSubscriptionOperationsPage() {
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>("prep");
+  const [tab, setTab] = useState<Tab>("subscribers");
   const [runs, setRuns] = useState<Run[]>([]);
   const [demand, setDemand] = useState<DemandRow[]>([]);
   const [cash, setCash] = useState<CashBatch[]>([]);
@@ -140,11 +220,15 @@ export default function StoreSubscriptionOperationsPage() {
   const [verifiedAmount, setVerifiedAmount] = useState("");
   const [settlementReference, setSettlementReference] = useState("");
   const [varianceReason, setVarianceReason] = useState("");
+  const [subscribers, setSubscribers] = useState<SubscriberRow[]>([]);
+  const [plans, setPlans] = useState<PlanRow[]>([]);
+  const [calendar, setCalendar] = useState<CalendarRow[]>([]);
+  const [analytics, setAnalytics] = useState<StoreAnalytics | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [runsResponse, demandResponse, cashResponse, exceptionsResponse, prepResponse] =
+      const [runsResponse, demandResponse, cashResponse, exceptionsResponse, prepResponse, subscribersResponse, plansResponse, calendarResponse, analyticsResponse] =
         await Promise.all([
           apiClient.get("/store/subscription-operations/runs"),
           apiClient.get("/store/subscription-operations/demand", {
@@ -153,6 +237,10 @@ export default function StoreSubscriptionOperationsPage() {
           apiClient.get("/store/subscription-operations/cash-batches"),
           apiClient.get("/store/subscription-operations/exceptions"),
           apiClient.get("/store/subscription-preparation", { params: { days: 3 } }),
+          apiClient.get("/store/subscriptions/subscribers"),
+          apiClient.get("/store/subscriptions/plans"),
+          apiClient.get("/store/subscriptions/calendar"),
+          apiClient.get("/store/subscriptions/analytics"),
         ]);
       setRuns(Array.isArray(runsResponse.data) ? runsResponse.data : []);
       setDemand(Array.isArray(demandResponse.data) ? demandResponse.data : []);
@@ -161,6 +249,10 @@ export default function StoreSubscriptionOperationsPage() {
         Array.isArray(exceptionsResponse.data) ? exceptionsResponse.data : []
       );
       setPrepRows(Array.isArray(prepResponse.data) ? prepResponse.data : []);
+      setSubscribers(Array.isArray(subscribersResponse.data) ? subscribersResponse.data : []);
+      setPlans(Array.isArray(plansResponse.data) ? plansResponse.data : []);
+      setCalendar(Array.isArray(calendarResponse.data) ? calendarResponse.data : []);
+      setAnalytics(analyticsResponse.data ?? null);
     } catch (error) {
       toast.error(
         getToastErrorMessage(
@@ -342,13 +434,17 @@ export default function StoreSubscriptionOperationsPage() {
   ).length;
   const tabCounts = useMemo<Record<Tab, number>>(
     () => ({
+      subscribers: subscribers.length,
+      plans: plans.length,
+      calendar: 0,
       prep: prepPending + prepShortages,
       runs: runs.length,
       forecast: forecastItems,
       cash: pendingCashCount,
       exceptions: exceptions.length,
+      analytics: 0,
     }),
-    [prepPending, prepShortages, runs.length, forecastItems, pendingCashCount, exceptions.length]
+    [subscribers.length, plans.length, prepPending, prepShortages, runs.length, forecastItems, pendingCashCount, exceptions.length]
   );
 
   return (
@@ -358,7 +454,7 @@ export default function StoreSubscriptionOperationsPage() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h1 className="mt-2 text-3xl font-hero">
-                Morning Runs & Cash Control
+                Subscriptions, Runs & Cash
               </h1>
             </div>
             <button
@@ -384,10 +480,10 @@ export default function StoreSubscriptionOperationsPage() {
               Deliver at store · Start now
             </a>
           </div>
-          <div className="mt-6 grid gap-3 sm:grid-cols-4">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <HeroMetric label="Subscribers" value={String(subscribers.length)} />
+            <HeroMetric label="Active plans" value={String(plans.length)} />
             <HeroMetric label="Routes today" value={String(runs.length)} />
-            <HeroMetric label="Customer bags" value={String(totalStops)} />
-            <HeroMetric label="14-day items" value={String(forecastItems)} />
             <HeroMetric label="Cash to count" value={money(submittedCash)} />
           </div>
           <p className="mt-3 text-xs text-slate-500">
@@ -398,11 +494,15 @@ export default function StoreSubscriptionOperationsPage() {
         <nav className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           {(
             [
-              ["prep", "Tomorrow prep"],
-              ["runs", "Preparation runs"],
-              ["forecast", "Demand forecast"],
-              ["cash", "Cash batches"],
+              ["subscribers", "Subscribers"],
+              ["plans", "Plans"],
+              ["calendar", "Calendar"],
+              ["runs", "Delivery runs"],
+              ["cash", "Cash control"],
               ["exceptions", "Exceptions"],
+              ["analytics", "Analytics"],
+              ["prep", "Tomorrow prep"],
+              ["forecast", "Demand forecast"],
             ] as Array<[Tab, string]>
           ).map(([value, label]) => (
             <button
@@ -437,6 +537,22 @@ export default function StoreSubscriptionOperationsPage() {
           />
         ) : (
           <>
+            {tab === "subscribers" && (
+              <SubscribersSection rows={subscribers} />
+            )}
+
+            {tab === "plans" && (
+              <PlansSection rows={plans} />
+            )}
+
+            {tab === "calendar" && (
+              <CalendarSection rows={calendar} upcomingDemand={analytics?.upcomingSevenDayDemand ?? null} onReload={() => void load()} />
+            )}
+
+            {tab === "analytics" && (
+              <AnalyticsSection analytics={analytics} runs={runs} cash={cash} subscribers={subscribers} />
+            )}
+
             {tab === "prep" && (
               <section className="space-y-3">
                 {prepRows.length ? (
@@ -958,6 +1074,391 @@ export default function StoreSubscriptionOperationsPage() {
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    ACTIVE: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    PAUSED: "bg-amber-50 text-amber-700 ring-amber-200",
+    CANCELLED: "bg-red-50 text-red-700 ring-red-200",
+    ONLINE: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    OFFLINE: "bg-slate-100 text-slate-600 ring-slate-200",
+    DRAFT: "bg-slate-100 text-slate-600 ring-slate-200",
+  };
+  return (
+    <span
+      className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ${colors[status] || "bg-slate-50 text-slate-600 ring-slate-200"}`}
+    >
+      {humanize(status)}
+    </span>
+  );
+}
+
+function SubscribersSection({ rows }: { rows: SubscriberRow[] }) {
+  return (
+    <section className="space-y-3">
+      {rows.length ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-black text-slate-800">
+              Subscribers · {rows.length}
+            </h2>
+            <p className="text-xs text-slate-500">
+              Every subscription fulfilled from your stores.
+            </p>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {rows.map((row) => (
+              <article
+                key={row.id}
+                className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-black text-slate-900">
+                      {row.customer.name || row.deliveryContact?.name || "Customer"}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {row.customer.phone || row.deliveryContact?.phone || "No phone"}
+                    </p>
+                  </div>
+                  <StatusPill status={row.status} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">{row.plan.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {row.homeStore?.name || "No store"} · Started{" "}
+                    {formatDate(row.startDate || row.createdAt)}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-xl bg-slate-50 p-2">
+                    <p className="text-slate-500">Deliveries</p>
+                    <p className="font-black text-slate-800">
+                      {row._count?.deliveries ?? "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-2">
+                    <p className="text-slate-500">Collected</p>
+                    <p className="font-black text-emerald-700">
+                      {formatPaise(Number(row.amountCollectedPaise || 0))}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-2">
+                    <p className="text-slate-500">Due</p>
+                    <p className="font-black text-amber-700">
+                      {formatPaise(Number(row.amountDuePaise || 0))}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-2">
+                    <p className="text-slate-500">Plan</p>
+                    <p className="truncate font-bold text-slate-700">
+                      {row.plan.code || "—"}
+                    </p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
+      ) : (
+        <State
+          icon={Users}
+          title="No subscribers yet"
+          text="Subscriptions tied to your stores will appear here."
+        />
+      )}
+    </section>
+  );
+}
+
+function PlansSection({ rows }: { rows: PlanRow[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const actives = rows.filter((row) => row.status === "ACTIVE").length;
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-black text-slate-800">
+          Plans · {rows.length} ({actives} active)
+        </h2>
+        <p className="text-xs text-slate-500">
+          Subscription plans assigned to your stores.
+        </p>
+      </div>
+      {rows.length ? (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {rows.map((plan) => (
+            <article
+              key={plan.id}
+              className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-black text-slate-900">{plan.name}</p>
+                  <p className="text-xs text-slate-500">{plan.code}</p>
+                </div>
+                <StatusPill status={plan.status} />
+              </div>
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-xl font-black text-slate-900">
+                  {formatPaise(plan.pricePaise)}
+                </span>
+                {Number(plan.mrpPaise) > Number(plan.pricePaise) ? (
+                  <span className="text-sm font-bold text-slate-400 line-through">
+                    {formatPaise(plan.mrpPaise)}
+                  </span>
+                ) : null}
+                <span className="text-xs text-slate-500">
+                  · {humanize(plan.fundingCycle)} · {plan.totalDeliveries} deliveries
+                </span>
+              </div>
+              {plan.description ? (
+                <p className="text-sm text-slate-600">{plan.description}</p>
+              ) : null}
+              <ul className="space-y-1 text-xs text-slate-600">
+                {plan.items.slice(0, expanded === plan.id ? undefined : 2).map((item) => (
+                  <li key={item.productId} className="flex justify-between gap-2">
+                    <span className="truncate">{item.product.name}</span>
+                    <span className="shrink-0 font-bold">
+                      {item.quantityPerDelivery} × {item.product.weightGrams ? `${item.product.weightGrams}g` : "unit"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {plan.items.length > 2 ? (
+                <button
+                  onClick={() => setExpanded(expanded === plan.id ? null : plan.id)}
+                  className="text-left text-xs font-black text-emerald-700"
+                >
+                  {expanded === plan.id ? "Show less" : `Show ${plan.items.length - 2} more`}
+                </button>
+              ) : null}
+              <div className="mt-auto flex flex-wrap gap-2 text-xs text-slate-500">
+                <span>{plan.stores?.length ?? 0} stores</span>
+                <span>· {plan.zones?.length ?? 0} zones</span>
+                <span>· {plan._count?.subscriptions ?? 0} subscribers</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <State
+          icon={Archive}
+          title="No plans assigned"
+          text="Plans are assigned to stores by the admin hub."
+        />
+      )}
+    </section>
+  );
+}
+
+function CalendarSection({ rows, upcomingDemand, onReload }: { rows: CalendarRow[]; upcomingDemand?: number | null; onReload: () => void }) {
+  const [dateFilter, setDateFilter] = useState("next14");
+  const scopeStart = useMemo(() => {
+    const now = new Date();
+    if (dateFilter === "next14") return new Date(now.getTime());
+    if (dateFilter === "past14") return new Date(now.getTime() - 14 * 86_400_000);
+    return new Date(now.getTime() - 60 * 86_400_000);
+  }, [dateFilter]);
+  const scopeEnd = useMemo(() => {
+    const now = new Date();
+    if (dateFilter === "next14") return new Date(now.getTime() + 14 * 86_400_000);
+    if (dateFilter === "past14") return new Date(now.getTime());
+    return new Date(now.getTime() + 60 * 86_400_000);
+  }, [dateFilter]);
+  const filtered = rows
+    .filter((row) => {
+      const date = new Date(row.serviceDate).getTime();
+      return date >= scopeStart.getTime() && date <= scopeEnd.getTime();
+    })
+    .sort((a, b) => a.serviceDate.localeCompare(b.serviceDate));
+  const byDate = useMemo(() => {
+    const map = new Map<string, CalendarRow[]>();
+    for (const row of filtered) {
+      const key = row.serviceDate.slice(0, 10);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(row);
+    }
+    return [...map.entries()];
+  }, [filtered]);
+  const scheduled = filtered.filter((row) => row.status === "SCHEDULED").length;
+  const cashDue = filtered.reduce((sum, row) => sum + Number(row.cashDuePaise || 0), 0);
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-black text-slate-800">
+          Delivery calendar · {filtered.length} deliveries
+        </h2>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1">
+            {(["next14", "past14", "all"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setDateFilter(mode)}
+                className={`rounded-lg px-3 py-1 text-xs font-black ${dateFilter === mode ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+              >
+                {mode === "next14" ? "Next 14 days" : mode === "past14" ? "Past 14 days" : "All"}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={onReload}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-600 hover:bg-slate-50"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </button>
+        </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <div className="rounded-2xl bg-slate-900 p-4 text-white">
+          <p className="text-xs text-slate-300">Scheduled</p>
+          <p className="mt-1 text-2xl font-black">{scheduled}</p>
+        </div>
+        <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+          <p className="text-xs text-slate-500">Cash due</p>
+          <p className="mt-1 text-2xl font-black text-slate-900">{formatPaise(cashDue)}</p>
+        </div>
+        <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+          <p className="text-xs text-slate-500">Upcoming 7-day demand</p>
+          <p className="mt-1 text-2xl font-black text-slate-900">
+            {upcomingDemand !== null && upcomingDemand !== undefined ? upcomingDemand : "—"}
+          </p>
+        </div>
+      </div>
+      {byDate.length ? (
+        byDate.map(([date, dayRows]) => (
+          <div key={date} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h3 className="font-black text-slate-800">
+                {new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" })}
+              </h3>
+              <span className="text-xs font-bold text-slate-500">{dayRows.length} deliveries</span>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {dayRows.map((row) => (
+                <div key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+                  <span className="font-bold text-slate-800">
+                    {row.subscription.customer.name || "Customer"}
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {row.subscription.plan.name}
+                  </span>
+                  <span className="text-xs text-slate-400">#{row.sequenceNumber}</span>
+                  <StatusPill status={row.status} />
+                  {row.runStop?.deliveryRun ? (
+                    <span className="text-xs text-slate-500">
+                      {row.runStop.deliveryRun.routeCode}
+                    </span>
+                  ) : null}
+                  <span className="ml-auto text-xs font-bold text-slate-600">
+                    {formatPaise(Number(row.cashDuePaise || 0))}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      ) : (
+        <State icon={CalendarDays} title="No deliveries in range" text="Adjust the calendar range to see scheduled deliveries." />
+      )}
+    </section>
+  );
+}
+
+function AnalyticsSection({
+  analytics,
+  runs,
+  cash,
+  subscribers,
+}: {
+  analytics: StoreAnalytics | null;
+  runs: Run[];
+  cash: CashBatch[];
+  subscribers: SubscriberRow[];
+}) {
+  const activeSubs = useMemo(() => {
+    if (analytics) {
+      const row = analytics.subscriptions.find((r) => r.status === "ACTIVE");
+      return row?._count?._all ?? 0;
+    }
+    return subscribers.filter((s) => s.status === "ACTIVE").length;
+  }, [analytics, subscribers]);
+  const collected = useMemo(() => {
+    if (analytics) {
+      return analytics.subscriptions.reduce((sum, row) => sum + Number(row._sum?.amountCollectedPaise || 0), 0);
+    }
+    return 0;
+  }, [analytics]);
+  const due = useMemo(() => {
+    if (analytics) {
+      return analytics.subscriptions.reduce((sum, row) => sum + Number(row._sum?.amountDuePaise || 0), 0);
+    }
+    return 0;
+  }, [analytics]);
+  const pendingBatches = cash.filter((batch) => batch.status === "SUBMITTED").length;
+  const openRuns = runs.filter((run) => run.status !== "COMPLETED" && run.status !== "CANCELLED").length;
+  const plannedDeliveries = runs.reduce((sum, run) => sum + (run.totalStopCount || run.stops?.length || 0), 0);
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-black text-slate-800">Store analytics</h2>
+        <span className="text-xs text-slate-400">
+          {analytics?.generatedAt ? `Updated ${formatDate(analytics.generatedAt)}` : ""}
+        </span>
+      </div>
+      {analytics ? (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <AnalyticCard label="Active subscribers" value={String(activeSubs)} icon={Users} tone="emerald" />
+            <AnalyticCard label="Cash collected" value={formatPaise(collected)} icon={Banknote} tone="emerald" />
+            <AnalyticCard label="Cash due" value={formatPaise(due)} icon={Banknote} tone="amber" />
+            <AnalyticCard label="Upcoming 7-day demand" value={String(analytics.upcomingSevenDayDemand ?? 0)} icon={Truck} tone="slate" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <AnalyticCard label="Open runs" value={String(openRuns)} icon={Route} tone="slate" />
+            <AnalyticCard label="Batches pending verify" value={String(pendingBatches)} icon={ClipboardCheck} tone="amber" />
+            <AnalyticCard label="Total subscribers" value={String(subscribers.length)} icon={Users} tone="slate" />
+            <AnalyticCard label="Planned deliveries" value={String(plannedDeliveries)} icon={Package} tone="slate" />
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <AnalyticsTable title="Subscriptions by status" rows={analytics.subscriptions.map((row) => ({ status: row.status, count: row._count?._all ?? 0, amount: Number(row._sum?.amountCollectedPaise || 0) }))} />
+            <AnalyticsTable title="Deliveries by status" rows={analytics.deliveries.map((row) => ({ status: row.status, count: row._count?._all ?? 0, amount: Number(row._sum?.cashDuePaise || 0) }))} />
+            <AnalyticsTable title="Cash batches by status" rows={analytics.cash.map((row) => ({ status: row.status, count: row._count?._all ?? 0, amount: Number(row._sum?.verifiedAmountPaise || 0) }))} />
+          </div>
+        </>
+      ) : (
+        <State icon={BarChart3} title="Analytics unavailable" text="Aggregated store analytics will appear here." />
+      )}
+    </section>
+  );
+}
+
+function AnalyticCard({ label, value, icon: Icon, tone = "slate" }: { label: string; value: string; icon: typeof Users; tone?: "emerald" | "amber" | "slate" }) {
+  return (
+    <div className={`rounded-2xl p-4 ring-1 ${tone === "emerald" ? "bg-emerald-50 ring-emerald-100" : tone === "amber" ? "bg-amber-50 ring-amber-100" : "bg-white ring-slate-200"}`}>
+      <Icon className={`h-4 w-4 ${tone === "emerald" ? "text-emerald-700" : tone === "amber" ? "text-amber-700" : "text-slate-500"}`} />
+      <p className="mt-2 text-xs font-bold text-slate-500">{label}</p>
+      <p className="text-xl font-black text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function AnalyticsTable({ title: heading, rows }: { title: string; rows: Array<{ status: string; count: number; amount: number }> }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <h3 className="mb-2 font-black text-slate-800">{heading}</h3>
+      <div className="divide-y divide-slate-100">
+        {rows.length ? rows.map((row) => (
+          <div key={row.status} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+            <span className="text-slate-600">{humanize(row.status)}</span>
+            <span className="font-black text-slate-800">{row.count}</span>
+          </div>
+        )) : (
+          <p className="py-2 text-xs text-slate-400">No data</p>
+        )}
+      </div>
+    </div>
   );
 }
 
