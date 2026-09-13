@@ -408,11 +408,17 @@ export class StoreSubscriptionsController {
   constructor(
     private readonly planService: SubscriptionPlanService,
     private readonly reporting: SubscriptionAdminReportingService,
+    private readonly offlineCustomers: OfflineCustomerService,
   ) {}
 
   @Get('subscribers')
   subscribers(@Req() req: AuthenticatedRequest) {
     return this.reporting.storeSubscribers(req.user);
+  }
+
+  @Get('subscribers/:subscriptionId/history')
+  subscriberHistory(@Param('subscriptionId') subscriptionId: string) {
+    return this.offlineCustomers.getDeliveryTracker(subscriptionId);
   }
 
   @Get('plans')

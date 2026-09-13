@@ -228,6 +228,9 @@ export default function StoreSubscriptionOperationsPage() {
   const [analytics, setAnalytics] = useState<StoreAnalytics | null>(null);
   const [editingSubscriber, setEditingSubscriber] = useState<SubscriberRow | null>(null);
   const [editForm, setEditForm] = useState({ amountDueRupees: "", amountCollectedRupees: "", note: "" });
+  const [viewingHistory, setViewingHistory] = useState<SubscriberRow | null>(null);
+  const [historyData, setHistoryData] = useState<any>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -542,7 +545,11 @@ export default function StoreSubscriptionOperationsPage() {
         ) : (
           <>
             {tab === "subscribers" && (
-              <SubscribersSection rows={subscribers} onEdit={(sub) => { setEditingSubscriber(sub); setEditForm({ amountDueRupees: String((sub.amountDuePaise || 0) / 100), amountCollectedRupees: String((sub.amountCollectedPaise || 0) / 100), note: "" }); }} />
+              <SubscribersSection 
+                rows={subscribers} 
+                onEdit={(sub) => { setEditingSubscriber(sub); setEditForm({ amountDueRupees: String((sub.amountDuePaise || 0) / 100), amountCollectedRupees: String((sub.amountCollectedPaise || 0) / 100), note: "" }); }}
+                onViewHistory={async (sub) => { setViewingHistory(sub); setHistoryLoading(true); try { const res = await apiClient.get(`/store/subscriptions/subscribers/${sub.id}/history`); setHistoryData(res.data); } catch { setHistoryData(null); } finally { setHistoryLoading(false); } }}
+              />
             )}
 
             {tab === "plans" && (
@@ -1150,6 +1157,91 @@ export default function StoreSubscriptionOperationsPage() {
             </div>
           </Modal>
         )}
+
+        {viewingHistory && (
+          <Modal title={`${viewingHistory.customer.name || 'Customer'} History`} onClose={() => { setViewingHistory(null); setHistoryData(null); }}>
+            {historyLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+              </div>
+            ) : historyData ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-xl bg-slate-50 p-2 text-center">
+                    <p className="text-[10px] text-slate-500">Progress</p>
+                    <p className="font-kpi text-sm">{historyData.completedDeliveries || 0}/{historyData.fundedDeliveryCount || historyData.totalDeliveries || '—'}</p>
+                  </div>
+                  <div className="rounded-xl bg-emerald-50 p-2 text-center">
+                    <p className="text-[10px] text-emerald-600">Collected</p>
+                    <p className="font-kpi text-sm text-emerald-700">{formatPaise(historyData.amountCollectedPaise || 0)}</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-50 p-2 text-center">
+                    <p className="text-[10px] text-amber-600">Due</p>
+                    <p className="font-kpi text-sm text-amber-700">{formatPaise(historyData.amountDuePaise || 0)}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="mb-2 text-xs font-badge uppercase text-slate-500">Delivery Calendar</h3>
+                  <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200">
+                    <table className="min-w-full text-xs">
+                      <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
+                        <tr>
+                          <th className="px-2 py-1.5 text-left">Date</th>
+                          <th className="px-2 py-1.5 text-left">Status</th>
+                          <th className="px-2 py-1.5 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {(historyData.deliveries || []).map((d: any) => (
+                          <tr key={d.id} className={d.status === 'DELIVERED' ? 'bg-emerald-50/30' : d.status === 'FAILED' ? 'bg-red-50/30' : ''}>
+                            <td className="whitespace-nowrap px-2 py-1.5">{formatDate(d.serviceDate)}</td>
+                            <td className="whitespace-nowrap px-2 py-1.5">
+                              <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black ${d.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' : d.status === 'FAILED' ? 'bg-red-100 text-red-700' : d.status === 'SKIPPED' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-700'}`}>
+                                {d.status}
+                              </span>
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-1.5 text-right font-bold">{d.cashDuePaise ? formatPaise(d.cashDuePaise) : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {historyData.orders?.length > 0 && (
+                  <div>
+                    <h3 className="mb-2 text-xs font-badge uppercase text-slate-500">Orders</h3>
+                    <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200">
+                      <table className="min-w-full text-xs">
+                        <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
+                          <tr>
+                            <th className="px-2 py-1.5 text-left">Date</th>
+                            <th className="px-2 py-1.5 text-left">Status</th>
+                            <th className="px-2 py-1.5 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {historyData.orders.map((o: any) => (
+                            <tr key={o.id}>
+                              <td className="whitespace-nowrap px-2 py-1.5">{formatDate(o.createdAt)}</td>
+                              <td className="whitespace-nowrap px-2 py-1.5">
+                                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-black">{o.status}</span>
+                              </td>
+                              <td className="whitespace-nowrap px-2 py-1.5 text-right font-bold">{formatPaise(o.grandTotalPaise)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-center text-sm text-slate-500 py-4">No history data available</p>
+            )}
+          </Modal>
+        )}
       </div>
     </DashboardLayout>
   );
@@ -1182,80 +1274,76 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function SubscribersSection({ rows, onEdit }: { rows: SubscriberRow[]; onEdit?: (sub: SubscriberRow) => void }) {
+function SubscribersSection({ rows, onEdit, onViewHistory }: { rows: SubscriberRow[]; onEdit?: (sub: SubscriberRow) => void; onViewHistory?: (sub: SubscriberRow) => void }) {
   return (
     <section className="space-y-3">
       {rows.length ? (
-        <>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-black text-slate-800">
-              Subscribers · {rows.length}
-            </h2>
-            <p className="text-xs text-slate-500">
-              Every subscription fulfilled from your stores.
-            </p>
-          </div>
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <table className="min-w-full text-left text-xs">
-              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-3 py-2.5 font-badge">Customer</th>
-                  <th className="px-3 py-2.5 font-badge">Phone</th>
-                  <th className="px-3 py-2.5 font-badge">Plan</th>
-                  <th className="px-3 py-2.5 font-badge">Store</th>
-                  <th className="px-3 py-2.5 font-badge">Status</th>
-                  <th className="px-3 py-2.5 font-badge text-right">Progress</th>
-                  <th className="px-3 py-2.5 font-badge text-right">Collected / due</th>
-                  <th className="px-3 py-2.5 font-badge">Started</th>
-                  {onEdit && <th className="px-3 py-2.5 font-badge">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => (
-                  <tr key={row.id} className="hover:bg-emerald-50/30">
-                    <td className="whitespace-nowrap px-3 py-2.5 font-black text-slate-900">
-                      {row.customer.name || row.deliveryContact?.name || "Customer"}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-600">
-                      {row.customer.phone || row.deliveryContact?.phone || "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5">
-                      <p className="font-bold text-slate-800">{row.plan.name}</p>
-                      <p className="text-[10px] text-slate-400">{row.plan.code || "—"}</p>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">
-                      {row.homeStore?.name || "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5">
-                      <StatusPill status={row.status} />
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-black text-slate-800">
-                      {row.completedDeliveries ?? 0}/{row.fundedDeliveryCount || row.planVersion?.totalDeliveries || "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right">
-                      <span className="font-black text-emerald-700">{formatPaise(Number(row.amountCollectedPaise || 0))}</span>
-                      <span className="text-slate-400"> / </span>
-                      <span className="font-black text-amber-700">{formatPaise(Number(row.amountDuePaise || 0))}</span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">
-                      {formatDate(row.startDate || row.createdAt)}
-                    </td>
-                    {onEdit && (
-                      <td className="whitespace-nowrap px-3 py-2.5">
-                        <button
-                          onClick={() => onEdit(row)}
-                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] font-black hover:bg-slate-50"
-                        >
-                          <Edit3 className="h-3 w-3" /> Edit
-                        </button>
-                      </td>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <table className="min-w-full text-left text-xs">
+            <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-3 py-2.5 font-badge">Customer</th>
+                <th className="px-3 py-2.5 font-badge">Phone</th>
+                <th className="px-3 py-2.5 font-badge">Plan</th>
+                <th className="px-3 py-2.5 font-badge">Store</th>
+                <th className="px-3 py-2.5 font-badge">Status</th>
+                <th className="px-3 py-2.5 font-badge text-right">Progress</th>
+                <th className="px-3 py-2.5 font-badge text-right">Collected / due</th>
+                <th className="px-3 py-2.5 font-badge">Started</th>
+                {onEdit && <th className="px-3 py-2.5 font-badge">Actions</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((row) => (
+                <tr key={row.id} className="hover:bg-emerald-50/30">
+                  <td className="whitespace-nowrap px-3 py-2.5">
+                    {onViewHistory ? (
+                      <button onClick={() => onViewHistory(row)} className="font-black text-emerald-700 hover:underline">
+                        {row.customer.name || row.deliveryContact?.name || "Customer"}
+                      </button>
+                    ) : (
+                      <span className="font-black text-slate-900">{row.customer.name || row.deliveryContact?.name || "Customer"}</span>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-600">
+                    {row.customer.phone || row.deliveryContact?.phone || "—"}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5">
+                    <p className="font-bold text-slate-800">{row.plan.name}</p>
+                    <p className="text-[10px] text-slate-400">{row.plan.code || "—"}</p>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">
+                    {row.homeStore?.name || "—"}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5">
+                    <StatusPill status={row.status} />
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-black text-slate-800">
+                    {row.completedDeliveries ?? 0}/{row.fundedDeliveryCount || row.planVersion?.totalDeliveries || "—"}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right">
+                    <span className="font-black text-emerald-700">{formatPaise(Number(row.amountCollectedPaise || 0))}</span>
+                    <span className="text-slate-400"> / </span>
+                    <span className="font-black text-amber-700">{formatPaise(Number(row.amountDuePaise || 0))}</span>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">
+                    {formatDate(row.startDate || row.createdAt)}
+                  </td>
+                  {onEdit && (
+                    <td className="whitespace-nowrap px-3 py-2.5">
+                      <button
+                        onClick={() => onEdit(row)}
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] font-black hover:bg-slate-50"
+                      >
+                        <Edit3 className="h-3 w-3" /> Edit
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <State
           icon={Users}
