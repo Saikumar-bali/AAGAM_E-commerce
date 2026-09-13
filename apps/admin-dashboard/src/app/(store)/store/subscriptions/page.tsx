@@ -491,24 +491,24 @@ export default function StoreSubscriptionOperationsPage() {
           </p>
         </header>
 
-        <nav className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        <nav className="flex gap-1.5 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
           {(
             [
               ["subscribers", "Subscribers"],
+              ["prep", "Tomorrow Prep"],
+              ["forecast", "Demand"],
               ["plans", "Plans"],
               ["calendar", "Calendar"],
-              ["runs", "Delivery runs"],
-              ["cash", "Cash control"],
+              ["runs", "Runs"],
+              ["cash", "Cash"],
               ["exceptions", "Exceptions"],
               ["analytics", "Analytics"],
-              ["prep", "Tomorrow prep"],
-              ["forecast", "Demand forecast"],
             ] as Array<[Tab, string]>
           ).map(([value, label]) => (
             <button
               key={value}
               onClick={() => setTab(value)}
-              className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-black ${
+              className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-nav ${
                 tab === value
                   ? "bg-emerald-700 text-white"
                   : "text-slate-600 hover:bg-slate-50"
@@ -517,7 +517,7 @@ export default function StoreSubscriptionOperationsPage() {
               {label}
               {tabCounts[value] > 0 && (
                 <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] ${
+                  className={`rounded-full px-1.5 py-0.5 text-[9px] ${
                     tab === value ? "bg-white/20" : "bg-slate-100"
                   }`}
                 >
