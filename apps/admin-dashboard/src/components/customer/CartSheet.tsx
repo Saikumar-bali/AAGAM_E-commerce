@@ -172,10 +172,9 @@ export default function CartSheet({
               </div>
             </div>
           )}
-            </div>
-          </div>
         </div>
-      </div>,
-      document.body,
-    );
-  }
+      </div>
+    </div>,
+    document.body,
+  );
+}
