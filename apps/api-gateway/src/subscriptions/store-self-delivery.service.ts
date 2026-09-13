@@ -350,6 +350,7 @@ export class StoreSelfDeliveryService {
               })),
             }
           : null,
+        expectedAmountPaise: d.order?.grandTotalPaise ?? d.cashDuePaise,
         deliveryJobId: d.deliveryJob?.id || null,
         deliveryJobStatus: d.deliveryJob?.status || null,
         subscription: { storeDelivery: d.subscription.storeDelivery },

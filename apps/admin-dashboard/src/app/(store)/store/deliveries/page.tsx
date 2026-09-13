@@ -31,6 +31,7 @@ type DeliveryItem = {
   customer: { id: string; name: string; phone: string };
   address: { line1: string; line2: string; city: string; pincode: string; latitude: number; longitude: number; landmark: string };
   order: { id: string; status: string; grandTotalPaise: number; items: Array<{ name: string; quantity: number; pricePaise: number }> } | null;
+  expectedAmountPaise: number;
   deliveryJobId: string | null;
   deliveryJobStatus: string | null;
   subscription: { storeDelivery: boolean } | null;
@@ -129,7 +130,7 @@ export default function StoreDeliveriesPage() {
     setVerifyName(delivery.customer.name || '');
     setVerifyPhone(delivery.customer.phone || '');
     setVerifyNotes('');
-    setVerifyCash('');
+    setVerifyCash(String(delivery.expectedAmountPaise / 100));
   };
 
   const completeDelivery = async () => {
@@ -186,7 +187,7 @@ export default function StoreDeliveriesPage() {
   const openEdit = (delivery: DeliveryItem) => {
     setEditModal(delivery);
     setEditStatus(delivery.status === 'FAILED' ? 'FAILED' : 'DELIVERED');
-    setEditCash(delivery.order ? String(delivery.order.grandTotalPaise / 100) : '0');
+    setEditCash(String(delivery.expectedAmountPaise / 100));
     setEditNotes('');
   };
 
@@ -238,7 +239,7 @@ export default function StoreDeliveriesPage() {
 
   const totalCash = deliveries
     .filter((d) => d.status === 'DELIVERED')
-    .reduce((sum, d) => sum + (d.order?.grandTotalPaise || 0), 0);
+    .reduce((sum, d) => sum + (d.expectedAmountPaise || 0), 0);
 
   return (
     <DashboardLayout allowedRole="STORE_OWNER">
@@ -357,9 +358,7 @@ export default function StoreDeliveriesPage() {
                   <div className="text-right">
                     {statusBadge(d.status)}
                     <p className="mt-1 text-xs text-slate-500">{d.window}</p>
-                    {d.order && (
-                      <p className="mt-1 text-sm font-black text-slate-900">{money(d.order.grandTotalPaise)}</p>
-                    )}
+                    <p className="mt-1 text-sm font-black text-slate-900">{money(d.expectedAmountPaise)}</p>
                   </div>
                 </div>
 
@@ -426,7 +425,7 @@ export default function StoreDeliveriesPage() {
                 <div className="rounded-xl bg-emerald-50 p-3">
                   <p className="text-[10px] font-black uppercase text-emerald-700">Order Total</p>
                   <p className="mt-1 text-2xl font-black text-emerald-900">
-                    {verifyModal.order ? money(verifyModal.order.grandTotalPaise) : 'N/A'}
+                    {money(verifyModal.expectedAmountPaise)}
                   </p>
                 </div>
 

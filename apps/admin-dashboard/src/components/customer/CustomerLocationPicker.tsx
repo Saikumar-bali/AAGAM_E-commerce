@@ -71,7 +71,19 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
           return;
         }
       } catch {
-        // proxy unavailable (or Places not enabled) — fall back to Mapbox below
+        // proxy unavailable (or Places not enabled) — fall back below
+      }
+      // Google Places Text Search — finds specific POIs that autocomplete misses
+      try {
+        const { data } = await apiClient.get('/geo/places/textsearch', {
+          params: { q: query.trim(), lat: latitude, lng: longitude },
+        });
+        if (data?.ok && Array.isArray(data.results) && data.results.length > 0) {
+          setSearchResults(data.results);
+          return;
+        }
+      } catch {
+        // fall back to Mapbox below
       }
       const token = getMapboxToken();
       if (!token) { setSearchResults([]); return; }

@@ -292,10 +292,78 @@ export class GeoService {
         type: String(p.types?.[0] || 'place').replace(/_/g, ' '),
       }));
 
-      return { ok: true, source: 'google', results };
+      if (results.length > 0) return { ok: true, source: 'google', results };
+      return this.textSearch(query, lat, lng);
     } catch (e: any) {
       return { ok: false, source: 'google', results: [], message: e?.message || 'Search failed' };
     }
+  }
+
+  async textSearch(query: string, lat?: number, lng?: number) {
+    const key = getGooglePlacesKey();
+    if (!key) {
+      return { ok: false, source: 'google', results: [], message: 'Google Places key not configured' };
+    }
+
+    const defaultLat = lat ?? 17.6916;
+    const defaultLng = lng ?? 83.0037;
+
+    try {
+      const response = await axios.get('https://maps.googleapis.com/maps/api/place/textsearch/json', {
+        params: {
+          query,
+          key,
+          location: `${defaultLat},${defaultLng}`,
+          radius: 25000,
+        },
+        timeout: 10000,
+        validateStatus: () => true,
+      });
+
+      const status = response.data?.status;
+      if (status !== 'OK' && status !== 'ZERO_RESULTS') {
+        return {
+          ok: false,
+          source: 'google',
+          message: response.data?.error_message || status || 'Google Places text search failed',
+          results: [],
+        };
+      }
+
+      const results = (response.data?.results || []).slice(0, 5).map((r: any) => ({
+        placeId: r.place_id as string,
+        displayName: r.name && r.formatted_address ? `${r.name}, ${r.formatted_address}` : r.formatted_address || r.name || '',
+        name: r.name as string,
+        lat: r.geometry?.location?.lat ?? 0,
+        lng: r.geometry?.location?.lng ?? 0,
+        type: this.mapGooglePlaceType(r.types || []),
+      }));
+
+      return { ok: true, source: 'google', results };
+    } catch (e: any) {
+      return { ok: false, source: 'google', results: [], message: e?.message || 'Text search failed' };
+    }
+  }
+
+  private mapGooglePlaceType(types: string[]): string {
+    const priority = [
+      'restaurant', 'food', 'cafe',
+      'store', 'grocery_or_supermarket', 'shopping_mall',
+      'hindu_temple', 'place_of_worship',
+      'point_of_interest', 'establishment',
+    ];
+    for (const p of priority) {
+      if (types.includes(p)) {
+        const map: Record<string, string> = {
+          restaurant: 'Restaurant', food: 'Restaurant', cafe: 'Cafe',
+          store: 'Store', grocery_or_supermarket: 'Store', shopping_mall: 'Shopping Mall',
+          hindu_temple: 'Temple', place_of_worship: 'Place of Worship',
+          point_of_interest: 'Point of Interest', establishment: 'Place',
+        };
+        return map[p];
+      }
+    }
+    return 'Place';
   }
 
   async placeDetails(placeId: string) {

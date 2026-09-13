@@ -350,7 +350,7 @@ export default function ShopPage() {
 
           {totalItems > 0 && (
             <>
-              <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 hidden px-4 md:mx-auto md:block md:max-w-7xl md:px-0">
+              <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 hidden px-4 md:mx-auto md:block md:max-w-md md:px-0">
                 <div className="pointer-events-auto flex items-center justify-between rounded-2xl bg-slate-950 px-5 py-3.5 shadow-2xl shadow-slate-950/30">
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-black text-white">
