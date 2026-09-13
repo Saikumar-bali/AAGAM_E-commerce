@@ -1,3 +1,4 @@
+import './instrument';
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
@@ -12,15 +13,7 @@ import { createClient } from 'redis';
 import { createAdapter } from '@socket.io/redis-adapter';
 
 const logger = new Logger('Bootstrap');
-
-if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV || 'production',
-    tracesSampleRate: 0.1,
-  });
-  logger.log('Sentry error tracking initialized');
-}
+logger.log('Sentry error tracking and profiling initialized');
 
 // Backward-compatible repair for the WILIO_FROM_PHONE typo used in an earlier
 // deployment setup. TWILIO_FROM_PHONE is the canonical variable going forward.
