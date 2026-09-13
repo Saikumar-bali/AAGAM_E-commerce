@@ -134,6 +134,21 @@ export class SubscriptionPlanService {
     });
   }
 
+  /** Store-scoped plans: plans explicitly assigned to the owner's stores. */
+  listForStore(ownerId: string) {
+    return prisma.subscriptionPlan.findMany({
+      where: {
+        stores: { some: { store: { ownerId } } },
+      },
+      orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
+      include: {
+        ...planInclude,
+        _count: { select: { subscriptions: true } },
+      },
+      take: 500,
+    });
+  }
+
   async getAdmin(id: string) {
     const plan = await prisma.subscriptionPlan.findUnique({
       where: { id },

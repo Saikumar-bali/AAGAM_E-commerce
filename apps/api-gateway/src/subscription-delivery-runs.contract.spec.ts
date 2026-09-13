@@ -99,16 +99,25 @@ describe('COD subscription delivery runs production contract', () => {
 
   it('exposes role-scoped customer, rider, store and admin APIs', () => {
     const controller = api('subscriptions/subscriptions.controller.ts');
+    const reporting = api('subscriptions/subscription-admin-reporting.service.ts');
     for (const scope of [
       "@Controller('customer/subscriptions')",
       "@Controller('rider/delivery-runs')",
       "@Controller('store/subscription-operations')",
+      "@Controller('store/subscriptions')",
       "@Controller('admin/subscriptions')",
     ]) expect(controller).toContain(scope);
     expect(controller).toContain('@Roles(Role.CUSTOMER)');
     expect(controller).toContain('@Roles(Role.RIDER)');
     expect(controller).toContain('@Roles(Role.STORE_OWNER, Role.ADMIN)');
     expect(controller).toContain('@Roles(Role.ADMIN)');
+    expect(controller).toContain('storeDeliveryCalendar(req.user, from, to)');
+    expect(controller).toContain('storeSubscribers(req.user)');
+    expect(controller).toContain('storeAnalytics(req.user)');
+    expect(controller).toContain('listForStore(req.user.id)');
+    // Store-scoped views must never scan every subscription/delivery in the database.
+    expect(reporting).toContain('homeStore: { ownerId: actor.id }');
+    expect(reporting).toContain('store: { ownerId: actor.id }');
   });
 
   it('renders truthful ₹0 funded-delivery messaging and real operational controls across web and Android', () => {

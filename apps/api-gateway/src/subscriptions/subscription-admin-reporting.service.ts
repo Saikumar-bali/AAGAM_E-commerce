@@ -104,6 +104,99 @@ export class SubscriptionAdminReportingService {
     }));
   }
 
+  /** Store-scoped subscriber list: only subscriptions tied to the owner's stores. */
+  storeSubscribers(actor: { id: string; role: Role }) {
+    const storeFilter = actor.role === Role.ADMIN ? {} : { homeStore: { ownerId: actor.id } };
+    return prisma.customerSubscription.findMany({
+      where: storeFilter,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        customer: { select: { id: true, name: true, email: true, phone: true } },
+        plan: { select: { id: true, code: true, name: true } },
+        planVersion: { select: { id: true, version: true, pricePaise: true, totalDeliveries: true } },
+        homeStore: { select: { id: true, name: true } },
+        _count: { select: { deliveries: true, issues: true } },
+      },
+      take: 500,
+    }).then((rows) => rows.map((row) => {
+      const contact = deliveryContact(row.addressSnapshot);
+      return {
+        ...row,
+        customer: {
+          ...row.customer,
+          phone: row.customer.phone || contact.phone,
+        },
+        deliveryContact: contact,
+      };
+    }));
+  }
+
+  /** Store-scoped delivery calendar for deliveries fulfilled from the owner's stores. */
+  storeDeliveryCalendar(actor: { id: string; role: Role }, from?: string, to?: string) {
+    const start = from ? new Date(from) : new Date(Date.now() - 7 * 86_400_000);
+    const end = to ? new Date(to) : new Date(Date.now() + 31 * 86_400_000);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      throw new BadRequestException('Invalid delivery-calendar range');
+    }
+    const storeFilter = actor.role === Role.ADMIN ? {} : {
+      OR: [
+        { store: { ownerId: actor.id } },
+        { subscription: { homeStore: { ownerId: actor.id } } },
+      ],
+    };
+    return prisma.subscriptionDelivery.findMany({
+      where: { serviceDate: { gte: start, lte: end }, ...storeFilter },
+      orderBy: [{ serviceDate: 'asc' }, { sequenceNumber: 'asc' }],
+      include: {
+        subscription: { include: { customer: { select: { name: true, phone: true } }, plan: { select: { name: true, code: true } } } },
+        store: { select: { name: true } },
+        order: { select: { id: true, status: true } },
+        runStop: { include: { deliveryRun: { select: { routeCode: true, status: true, riderId: true } } } },
+      },
+      take: 2000,
+    });
+  }
+
+  /** Store-scoped aggregate analytics for the owner's stores. */
+  async storeAnalytics(actor: { id: string; role: Role }) {
+    const storeFilter = actor.role === Role.ADMIN ? {} : { homeStore: { ownerId: actor.id } };
+    const deliveryWhere = actor.role === Role.ADMIN ? {} : {
+      OR: [
+        { store: { ownerId: actor.id } },
+        { subscription: { homeStore: { ownerId: actor.id } } },
+      ],
+    };
+    const cashWhere = actor.role === Role.ADMIN ? {} : { store: { ownerId: actor.id } };
+    const [subscriptions, deliveries, cash, demand] = await Promise.all([
+      prisma.customerSubscription.groupBy({
+        where: storeFilter,
+        by: ['status'],
+        _count: { _all: true },
+        _sum: { amountCollectedPaise: true, amountDuePaise: true },
+      }),
+      prisma.subscriptionDelivery.groupBy({
+        where: deliveryWhere,
+        by: ['status'],
+        _count: { _all: true },
+        _sum: { cashDuePaise: true },
+      }),
+      prisma.cashDepositBatch.groupBy({
+        where: cashWhere,
+        by: ['status'],
+        _count: { _all: true },
+        _sum: { expectedAmountPaise: true, verifiedAmountPaise: true, variancePaise: true },
+      }),
+      prisma.subscriptionDelivery.count({
+        where: {
+          serviceDate: { gte: new Date(), lte: new Date(Date.now() + 7 * 86_400_000) },
+          status: SubscriptionDeliveryStatus.SCHEDULED,
+          ...deliveryWhere,
+        },
+      }),
+    ]);
+    return { subscriptions, deliveries, cash, upcomingSevenDayDemand: demand, generatedAt: new Date() };
+  }
+
   async subscription(id: string) {
     const subscription = await prisma.customerSubscription.findUnique({
       where: { id },

@@ -401,6 +401,38 @@ export class StoreSubscriptionOperationsController {
   }
 }
 
+@Controller('store/subscriptions')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.STORE_OWNER, Role.ADMIN)
+export class StoreSubscriptionsController {
+  constructor(
+    private readonly planService: SubscriptionPlanService,
+    private readonly reporting: SubscriptionAdminReportingService,
+  ) {}
+
+  @Get('subscribers')
+  subscribers(@Req() req: AuthenticatedRequest) {
+    return this.reporting.storeSubscribers(req.user);
+  }
+
+  @Get('plans')
+  plans(@Req() req: AuthenticatedRequest) {
+    // Admins see all plans; store owners only see plans assigned to their stores.
+    if (req.user.role === Role.ADMIN) return this.planService.listAdmin();
+    return this.planService.listForStore(req.user.id);
+  }
+
+  @Get('calendar')
+  calendar(@Req() req: AuthenticatedRequest, @Query('from') from?: string, @Query('to') to?: string) {
+    return this.reporting.storeDeliveryCalendar(req.user, from, to);
+  }
+
+  @Get('analytics')
+  analytics(@Req() req: AuthenticatedRequest) {
+    return this.reporting.storeAnalytics(req.user);
+  }
+}
+
 @Controller('admin/subscriptions')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
