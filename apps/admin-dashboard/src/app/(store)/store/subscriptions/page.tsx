@@ -100,6 +100,8 @@ type SubscriberRow = {
   createdAt: string;
   amountCollectedPaise?: number;
   amountDuePaise?: number;
+  completedDeliveries?: number;
+  fundedDeliveryCount?: number;
   deliveryMethod?: string | null;
   homeStore: { id: string; name: string } | null;
   customer: { id: string; name: string | null; email: string | null; phone: string | null };
@@ -1202,9 +1204,8 @@ function SubscribersSection({ rows, onEdit }: { rows: SubscriberRow[]; onEdit?: 
                   <th className="px-3 py-2.5 font-badge">Plan</th>
                   <th className="px-3 py-2.5 font-badge">Store</th>
                   <th className="px-3 py-2.5 font-badge">Status</th>
-                  <th className="px-3 py-2.5 font-badge text-right">Deliveries</th>
-                  <th className="px-3 py-2.5 font-badge text-right">Collected</th>
-                  <th className="px-3 py-2.5 font-badge text-right">Due</th>
+                  <th className="px-3 py-2.5 font-badge text-right">Progress</th>
+                  <th className="px-3 py-2.5 font-badge text-right">Collected / due</th>
                   <th className="px-3 py-2.5 font-badge">Started</th>
                   {onEdit && <th className="px-3 py-2.5 font-badge">Actions</th>}
                 </tr>
@@ -1229,13 +1230,12 @@ function SubscribersSection({ rows, onEdit }: { rows: SubscriberRow[]; onEdit?: 
                       <StatusPill status={row.status} />
                     </td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-right font-black text-slate-800">
-                      {row._count?.deliveries ?? "—"}
+                      {row.completedDeliveries ?? 0}/{row.fundedDeliveryCount || row.planVersion?.totalDeliveries || "—"}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-black text-emerald-700">
-                      {formatPaise(Number(row.amountCollectedPaise || 0))}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-black text-amber-700">
-                      {formatPaise(Number(row.amountDuePaise || 0))}
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right">
+                      <span className="font-black text-emerald-700">{formatPaise(Number(row.amountCollectedPaise || 0))}</span>
+                      <span className="text-slate-400"> / </span>
+                      <span className="font-black text-amber-700">{formatPaise(Number(row.amountDuePaise || 0))}</span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">
                       {formatDate(row.startDate || row.createdAt)}
