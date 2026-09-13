@@ -462,6 +462,7 @@ export default function StoreSubscriptionOperationsPage() {
           <div>
             <h1 className="text-lg font-black text-slate-900">Subscriptions, runs & cash</h1>
             <p className="text-xs font-semibold text-slate-500">Store subscription operations, delivery runs and cash settlement.</p>
+            <p className="mt-1 text-xs text-slate-500">Stock prep and COD settlements operate without replacing individual COD ledgers.</p>
           </div>
           <div className="flex flex-wrap gap-1.5">
             <button onClick={() => void load()} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50"><RefreshCw className="h-3.5 w-3.5" /> Refresh</button>
