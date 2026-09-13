@@ -32,8 +32,8 @@ for (const [name, source] of [
   ['shared web logo', webLogo],
   ['customer web shell', customerShell],
 ]) {
-  if (!source.includes('/brand/aagam-mark')) {
-    throw new Error(`${name} must use the shared Android-backed web brand route.`);
+  if (!source.includes('/brand/aagam-logo-full.png')) {
+    throw new Error(`${name} must use the authoritative aagam-logo-full.png brand asset.`);
   }
 }
 
