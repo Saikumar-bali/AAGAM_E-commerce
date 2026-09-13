@@ -265,9 +265,17 @@ export class ProductService {
     if (!existing) throw new NotFoundException('Category not found');
     if (existing._count.products > 0) throw new BadRequestException('Move or delete products in this category before deleting it.');
     // Soft-deleted (tombstoned) products still reference the category and block the
-    // FK delete. They are invisible to customers, so hard-delete them together with the
-    // category to honor the "no products" guard.
+    // FK delete (Product.categoryId is required/Restrict). They are invisible to
+    // customers, so prune their restrictive inventory dependents and hard-delete them
+    // together with the category to honor the "no products" guard.
+    const tombstoneIds = await prisma.product.findMany({
+      where: { categoryId: id, deletedAt: { not: null } },
+      select: { id: true },
+    });
+    const ids = tombstoneIds.map((product) => product.id);
     await prisma.$transaction([
+      ...(ids.length ? [prisma.inventory.deleteMany({ where: { productId: { in: ids } } })] : []),
+      ...(ids.length ? [prisma.inventoryLedger.deleteMany({ where: { productId: { in: ids } } })] : []),
       prisma.product.deleteMany({ where: { categoryId: id, deletedAt: { not: null } } }),
       prisma.category.delete({ where: { id } }),
     ]);
