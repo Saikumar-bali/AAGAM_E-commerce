@@ -462,26 +462,28 @@ function Step({ n, title, done, doneSummary, isLast, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <li className="relative pl-14">
-      {!isLast ? <span aria-hidden className="absolute left-[17px] top-11 bottom-2 w-px bg-slate-200" /> : null}
+    <li className="relative pl-12 sm:pl-14">
+      {!isLast ? <span aria-hidden className="absolute left-[15px] sm:left-[17px] top-10 bottom-2 w-px bg-slate-200" /> : null}
       {done ? (
         <span
           aria-hidden
-          className="absolute left-0 top-0 grid h-9 w-9 place-items-center rounded-full border border-teal-700 bg-teal-700 text-white"
+          className="absolute left-0 top-0 grid h-8 w-8 sm:h-9 sm:w-9 place-items-center rounded-full border border-teal-700 bg-teal-700 text-white shadow-xs"
         >
-          <Check key={`done-${n}`} className="aagam-check-pop h-5 w-5" strokeWidth={3} />
+          <Check key={`done-${n}`} className="aagam-check-pop h-4 w-4 sm:h-5 sm:w-5" strokeWidth={3} />
         </span>
       ) : (
         <span
           aria-hidden
-          className="absolute left-0 top-0 grid h-9 w-9 place-items-center rounded-full border border-slate-300 bg-white text-sm font-extrabold text-slate-500"
+          className="absolute left-0 top-0 grid h-8 w-8 sm:h-9 sm:w-9 place-items-center rounded-full border border-slate-300 bg-white text-xs sm:text-sm font-extrabold text-slate-500 shadow-xs"
         >
           {n}
         </span>
       )}
-      <div className="flex min-h-9 flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="text-base font-extrabold tracking-[-0.01em] text-teal-950 sm:text-lg">{title}</h2>
-        {done && doneSummary ? <p className="text-xs font-bold text-teal-700 sm:text-sm">{doneSummary}</p> : null}
+      <div className="flex flex-col justify-center min-h-[2rem]">
+        <h2 className="text-base font-extrabold tracking-tight text-teal-950 sm:text-lg">{title}</h2>
+        {done && doneSummary ? (
+          <p className="mt-0.5 text-xs font-semibold text-teal-700 leading-normal">{doneSummary}</p>
+        ) : null}
       </div>
       <div className="mt-4">{children}</div>
     </li>
@@ -494,7 +496,7 @@ function AddressStep({ state, actions }: { state: CheckoutViewState; actions: Ch
     <div role="group" aria-label="Choose a delivery address">
       {loadingAddresses ? (
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading saved addresses…
+          <Loader2 className="h-4 w-4 animate-spin text-teal-700" /> Loading saved addresses…
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -503,49 +505,67 @@ function AddressStep({ state, actions }: { state: CheckoutViewState; actions: Ch
             return (
               <div
                 key={address.id}
-                className={`relative rounded-2xl border p-4 transition ${
-                  selected ? 'border-teal-600 bg-teal-50/50' : 'border-slate-200 bg-white hover:border-teal-300'
+                className={`relative flex flex-col justify-between rounded-2xl border p-4 transition-all duration-150 ${
+                  selected
+                    ? 'border-teal-600 bg-teal-50/40 shadow-xs ring-1 ring-teal-600/30'
+                    : 'border-slate-200 bg-white shadow-xs hover:border-teal-300'
                 }`}
               >
                 <button
                   type="button"
                   aria-pressed={selected}
                   onClick={() => actions.onSelectAddress(address.id)}
-                  className="block w-full text-left"
+                  className="block w-full text-left focus:outline-none"
                 >
-                  <span className="flex items-start justify-between gap-2">
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full border border-teal-100 bg-teal-50 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-teal-800">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="rounded-full border border-teal-200/80 bg-teal-50/90 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-teal-800">
                         {address.label || 'Address'}
                       </span>
                       {address.isDefault ? (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">Default</span>
+                        <span className="rounded-full bg-teal-800 px-2.5 py-0.5 text-[10px] font-extrabold text-white shadow-xs">
+                          Default
+                        </span>
                       ) : null}
-                    </span>
+                    </div>
                     <RadioDot selected={selected} />
-                  </span>
-                  <span className="mt-2 block text-sm font-extrabold text-slate-900">{address.recipientName}</span>
-                  <span className="mt-1 block text-xs leading-5 text-slate-600">
-                    {address.line1}
-                    {address.line2 ? `, ${address.line2}` : ''}, {address.city} — {address.pincode}
-                  </span>
-                  <span className="mt-1.5 flex items-center gap-1 text-xs font-bold text-slate-500">
-                    <PhoneGlyph className="h-3 w-3" />
-                    {address.phoneE164}
-                  </span>
+                  </div>
+                  <div className="mt-2.5">
+                    <p className="text-sm font-extrabold text-slate-900">{address.recipientName}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                      <span>{address.line1}{address.line2 ? `, ${address.line2}` : ''}</span>
+                      <span className="block text-slate-500 font-medium">
+                        {address.city}, {address.state} {address.pincode ? `• ${address.pincode}` : ''}
+                      </span>
+                    </p>
+                    <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                      <PhoneGlyph className="h-3.5 w-3.5 text-slate-400" />
+                      <span>{address.phoneE164}</span>
+                    </div>
+                  </div>
                 </button>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3.5 flex items-center gap-2 border-t border-slate-100 pt-3">
                   <button
-                    onClick={() => actions.onOpenEditAddress(address)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-extrabold text-slate-600 transition hover:border-teal-300 hover:text-teal-800"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      actions.onOpenEditAddress(address);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:border-teal-300 hover:bg-slate-50 hover:text-teal-800"
                   >
-                    <Pencil className="h-3 w-3" /> Edit
+                    <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Edit</span>
                   </button>
                   <button
-                    onClick={() => actions.onDeleteAddress(address.id)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-red-100 bg-white px-2.5 py-1.5 text-[11px] font-extrabold text-red-600 transition hover:border-red-300 hover:bg-red-50"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      actions.onDeleteAddress(address.id);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-transparent px-3 py-1.5 text-xs font-bold text-slate-500 transition hover:border-red-100 hover:bg-red-50 hover:text-red-600"
                   >
-                    <Trash2 className="h-3 w-3" /> Delete
+                    <Trash2 className="h-3.5 w-3.5 text-slate-400" />
+                    <span>Delete</span>
                   </button>
                 </div>
               </div>
@@ -555,11 +575,13 @@ function AddressStep({ state, actions }: { state: CheckoutViewState; actions: Ch
           <button
             type="button"
             onClick={actions.onOpenNewAddress}
-            className="flex min-h-[7rem] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white/60 p-4 text-slate-500 transition hover:border-teal-400 hover:text-teal-800"
+            className="group flex min-h-[7rem] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white/70 p-4 text-slate-500 shadow-xs transition hover:border-teal-500 hover:bg-teal-50/30 hover:text-teal-900"
           >
-            <Plus className="h-5 w-5" />
-            <span className="text-sm font-extrabold">Add new address</span>
-            <span className="text-xs font-semibold">Pin it on the map for accurate delivery</span>
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-teal-50 text-teal-700 transition group-hover:bg-teal-100 group-hover:scale-105">
+              <Plus className="h-4 w-4" strokeWidth={2.5} />
+            </span>
+            <span className="text-sm font-extrabold text-slate-800 group-hover:text-teal-950">Add new address</span>
+            <span className="text-xs font-medium text-slate-500">Pin it on the map for accurate delivery</span>
           </button>
         </div>
       )}
@@ -603,7 +625,7 @@ function DeliveryTimeStep({ state, actions }: { state: CheckoutViewState; action
         </div>
       ) : null}
 
-      <div className={`grid gap-3 ${storeClosed ? 'grid-cols-1 sm:max-w-md' : 'grid-cols-2'}`}>
+      <div className={`grid gap-3 ${storeClosed ? 'grid-cols-1 sm:max-w-md' : 'grid-cols-1 sm:grid-cols-2'}`}>
         {!storeClosed ? (
           <OptionTile
             selected={fulfillmentType === 'IMMEDIATE'}
@@ -671,7 +693,7 @@ function DeliveryTimeStep({ state, actions }: { state: CheckoutViewState; action
 function PaymentStep({ state, actions }: { state: CheckoutViewState; actions: CheckoutViewActions }) {
   const { paymentMethod } = state;
   return (
-    <div role="group" aria-label="Choose a payment method" className="grid grid-cols-2 gap-3">
+    <div role="group" aria-label="Choose a payment method" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <OptionTile
         selected={paymentMethod === 'COD'}
         onClick={() => actions.onSetPayment('COD')}
@@ -702,17 +724,21 @@ function OptionTile({ selected, onClick, icon, title, subtitle }: {
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${
-        selected ? 'border-teal-600 bg-teal-50/50' : 'border-slate-200 bg-white hover:border-teal-300'
+      className={`flex items-center gap-3.5 rounded-2xl border p-4 text-left transition-all duration-150 ${
+        selected
+          ? 'border-teal-600 bg-teal-50/40 shadow-xs ring-1 ring-teal-600/30'
+          : 'border-slate-200 bg-white shadow-xs hover:border-teal-300'
       }`}
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-teal-100 bg-teal-50">{icon}</span>
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-teal-100 bg-teal-50 text-teal-800 shadow-xs">
+        {icon}
+      </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center justify-between gap-2">
           <span className="text-sm font-extrabold text-slate-900">{title}</span>
           <RadioDot selected={selected} />
         </span>
-        <span className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500">{subtitle}</span>
+        <span className="mt-0.5 block text-xs font-medium leading-5 text-slate-500">{subtitle}</span>
       </span>
     </button>
   );
@@ -722,8 +748,8 @@ function RadioDot({ selected }: { selected: boolean }) {
   return (
     <span
       aria-hidden
-      className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 transition-colors ${
-        selected ? 'border-teal-700' : 'border-slate-300'
+      className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 transition-colors ${
+        selected ? 'border-teal-700 bg-white' : 'border-slate-300 bg-white'
       }`}
     >
       {selected ? <span className="h-2.5 w-2.5 rounded-full bg-teal-700" /> : null}
