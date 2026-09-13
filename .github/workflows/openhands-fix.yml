@@ -7,6 +7,8 @@ on:
     types: [submitted]
   issue_comment:
     types: [created]
+  issues:
+    types: [opened, labeled]
   check_suite:
     types: [completed]
   workflow_dispatch:
@@ -118,6 +120,13 @@ jobs:
             if [ "$CHECK_CONCLUSION" = "failure" ] && [ "$CHECK_SUITE_NAME" != "OpenHands Auto-Fix" ]; then
               SHOULD_FIX="true"
               echo "Trigger: CI check suite failure"
+            fi
+          elif [ "$EVENT_NAME" = "issues" ]; then
+            OUT_PR_NUMBER="$EVENT_PR_NUMBER"
+            ISSUE_LABELS='${{ toJson(github.event.issue.labels) }}'
+            if echo "$ISSUE_LABELS" | grep -qiE '"(bug|fix|auto-fix|sentry|crash)"'; then
+              SHOULD_FIX="true"
+              echo "Trigger: Issue labeled for auto-fix"
             fi
           elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             SHOULD_FIX="true"
@@ -231,6 +240,17 @@ jobs:
             const eventName = JSON.parse('${{ toJson(github.event_name) }}');
             if (eventName === 'workflow_dispatch') {
               prompt = JSON.parse('${{ toJson(github.event.inputs.task_prompt || '') }}');
+            } else if (eventName === 'issues') {
+              const issueTitle = context.payload.issue?.title || '';
+              const issueBody = context.payload.issue?.body || '';
+              prompt = `A production crash / error issue was reported in Issue #${prNumber}:\n\n` +
+                `Title: ${issueTitle}\n\n` +
+                `Details & Stack Trace:\n${issueBody}\n\n` +
+                `Instructions:\n` +
+                `1. Inspect the stack trace, locate the exact file(s) and function(s) causing the failure.\n` +
+                `2. Implement a robust fix that handles the edge case or error.\n` +
+                `3. Run tests to ensure everything compiles and passes.\n` +
+                `4. Make the necessary code modifications.`;
             } else if (botFeedback.length > 0) {
               prompt = `You are fixing bugs and addressing automated code review feedback for Pull Request #${prNumber}.\n\n` +
                 `Here is the automated review feedback from bots (CodeRabbit, Qodo, etc.):\n\n` +
@@ -345,8 +365,18 @@ jobs:
           COMMIT_MSG="fix: automated fix by OpenHands for review bot findings"
           git commit -m "$COMMIT_MSG"
 
-          BRANCH="${BRANCH_REF_SAFE:-main}"
-          git push origin "$BRANCH"
+          if [ -n "$BRANCH_REF_SAFE" ]; then
+            BRANCH="$BRANCH_REF_SAFE"
+            git push origin "$BRANCH"
+          else
+            BRANCH="fix/issue-${{ needs.analyze.outputs.pr_number }}"
+            git checkout -b "$BRANCH"
+            git push origin "$BRANCH" --force-with-lease
+            GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" gh pr create \
+              --title "fix: resolve #${{ needs.analyze.outputs.pr_number }}" \
+              --body "Automated fix by OpenHands for Issue #${{ needs.analyze.outputs.pr_number }}.\n\nCloses #${{ needs.analyze.outputs.pr_number }}." \
+              --base main --head "$BRANCH" || true
+          fi
           echo "has_changes=true" >> $GITHUB_OUTPUT
           echo "Pushed to $BRANCH"
 
