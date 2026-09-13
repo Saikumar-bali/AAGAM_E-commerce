@@ -261,13 +261,19 @@ export class ProductService {
   }
 
   async deleteCategory(id: string) {
-    const existing = await prisma.category.findUnique({ where: { id }, include: { _count: { select: { products: true } } } });
+    const existing = await prisma.category.findUnique({ where: { id }, include: { _count: { select: { products: { where: { deletedAt: null } } } } } });
     if (!existing) throw new NotFoundException('Category not found');
     if (existing._count.products > 0) throw new BadRequestException('Move or delete products in this category before deleting it.');
-    const deleted = await prisma.category.delete({ where: { id } });
+    // Soft-deleted (tombstoned) products still reference the category and block the
+    // FK delete. They are invisible to customers, so hard-delete them together with the
+    // category to honor the "no products" guard.
+    await prisma.$transaction([
+      prisma.product.deleteMany({ where: { categoryId: id, deletedAt: { not: null } } }),
+      prisma.category.delete({ where: { id } }),
+    ]);
     await this.cacheManager.del('all_categories:v2');
     await this.clearProductCache();
-    return deleted;
+    return existing;
   }
 
   async reorderCategories(ids: string[]) {
