@@ -101,9 +101,11 @@ describe('subscription production completion contracts', () => {
     expect(planner).toContain('enqueueOutboxEvent');
   });
 
-  it('surfaces authoritative local windows and operational exceptions in customer/admin UX', () => {
-    expect(customerReview).toContain('localDeliveryWindow');
-    expect(customerReview).toContain('serviceability.timezone');
+  it('surfaces AM/PM delivery-slot selection and operational exceptions in customer/admin UX', () => {
+    expect(customerReview).toContain('DELIVERY_WINDOWS');
+    expect(customerReview).toContain('deliverySlot');
+    expect(customerReview).toContain('slotButtonAM');
+    expect(customerReview).toContain('slotButtonPM');
     expect(admin).toContain('Upload plan image');
     expect(admin).toContain('workerFailures');
     expect(admin).toContain('deferredReason');
