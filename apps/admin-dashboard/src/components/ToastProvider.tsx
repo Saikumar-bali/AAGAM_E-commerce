@@ -17,6 +17,8 @@ type ToastApi = {
 
 const ToastContext = createContext<ToastApi | null>(null);
 
+const UNSUPPORTED_PRODUCTS_MESSAGE = 'Some items in your basket are no longer available and were removed.';
+
 function extractMessage(value: any, fallback = 'Something went wrong. Please try again.') {
   const raw = value?.response?.data?.message ?? value?.message ?? value;
   let text = fallback;
@@ -28,13 +30,15 @@ function extractMessage(value: any, fallback = 'Something went wrong. Please try
     return 'Please select a valid start date (tomorrow or later).';
   }
   if (/missing or unavailable products/i.test(text)) {
-    return 'Some items in your basket are no longer available and were removed.';
+    return UNSUPPORTED_PRODUCTS_MESSAGE;
   }
   return text;
 }
 
 function errorTitle(status?: number, message?: string) {
-  if (message && /basket|unavailable/i.test(message)) return 'Basket updated';
+  // Only the exact normalized message describes a basket update; a generic
+  // "basket"/"unavailable" substring match would mislabel unrelated errors.
+  if (message && message === UNSUPPORTED_PRODUCTS_MESSAGE) return 'Basket updated';
   if (status === 409) return 'Action could not be completed';
   if (status === 401) return 'Session expired';
   if (status === 403) return 'Access denied';

@@ -37,9 +37,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should_fix: ${{ steps.check.outputs.should_fix }}
+      skip: ${{ steps.skip-check.outputs.skip }}
       task_prompt: ${{ steps.build-prompt.outputs.task_prompt }}
       pr_number: ${{ steps.check.outputs.pr_number }}
-      branch_ref: ${{ steps.check.outputs.branch_ref }}
+      branch_ref: ${{ steps.branch-resolver.outputs.branch_ref }}
     steps:
       - name: Determine trigger context
         id: check
@@ -53,7 +54,10 @@ jobs:
           PR_LABELS: ${{ toJson(github.event.pull_request.labels) }}
           ISSUE_PR_URL: ${{ github.event.issue.pull_request.url || '' }}
           COMMENT_BODY: ${{ github.event.comment.body || '' }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login || '' }}
+          COMMENT_AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association || '' }}
           REVIEW_AUTHOR: ${{ github.event.review.user.login || '' }}
+          REVIEW_USER_TYPE: ${{ github.event.review.user.type || '' }}
           CHECK_CONCLUSION: ${{ github.event.check_suite.conclusion || '' }}
           CHECK_SUITE_NAME: ${{ github.event.check_suite.name || '' }}
           PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || '' }}
@@ -79,17 +83,37 @@ jobs:
             fi
           elif [ "$EVENT_NAME" = "issue_comment" ] && [ -n "$ISSUE_PR_URL" ]; then
             OUT_PR_NUMBER="$EVENT_PR_NUMBER"
+            # Only the PR author or a collaborator (OWNER/MEMBER/COLLABORATOR/
+            # CONTRIBUTOR) may trigger a fix run; random users are denied to
+            # avoid leaking the write token + LLM key to unauthenticated input.
+            case "$COMMENT_AUTHOR_ASSOCIATION" in
+              OWNER|MEMBER|COLLABORATOR|CONTRIBUTOR|AUTHOR) ;;
+              *)
+                echo "Skipping comment from non-collaborator association '$COMMENT_AUTHOR_ASSOCIATION' ($COMMENT_AUTHOR)."
+                exit 0
+                ;;
+            esac
             if echo "$COMMENT_BODY" | grep -qiE '(/fix|/openhands|@openhands)'; then
               SHOULD_FIX="true"
-              echo "Trigger: PR comment command"
+              echo "Trigger: PR comment command by $COMMENT_AUTHOR"
             fi
           elif [ "$EVENT_NAME" = "pull_request_review" ]; then
             OUT_PR_NUMBER="$EVENT_PR_NUMBER"
             OUT_BRANCH_REF="$EVENT_BRANCH_REF"
-            if echo "$REVIEW_AUTHOR" | grep -qiE '(coderabbit|qodo|bot)'; then
-              SHOULD_FIX="true"
-              echo "Trigger: Bot review submitted by $REVIEW_AUTHOR"
-            fi
+            # Require an actual GitHub bot account (user.type == Bot) and an
+            # exact reviewer allowlist instead of the broad "bot" substring so
+            # a human whose login merely contains "bot" cannot trigger runs.
+            case "$REVIEW_USER_TYPE" in
+              Bot) : ;;
+              *) exit 0 ;;
+            esac
+            case "$REVIEW_AUTHOR" in
+              coderabbitai[bot]|qodo-code-review[bot]|qodo-merge[bot]|github-advanced-security[bot])
+                SHOULD_FIX="true"
+                echo "Trigger: Bot review submitted by $REVIEW_AUTHOR"
+                ;;
+              *) echo "Skipping review from non-allowlisted bot '$REVIEW_AUTHOR'." ;;
+            esac
           elif [ "$EVENT_NAME" = "check_suite" ]; then
             if [ "$CHECK_CONCLUSION" = "failure" ] && [ "$CHECK_SUITE_NAME" != "OpenHands Auto-Fix" ]; then
               SHOULD_FIX="true"
@@ -122,6 +146,38 @@ jobs:
             } else {
               core.setOutput('skip', 'false');
             }
+
+      - name: Resolve pull request head branch
+        id: branch-resolver
+        if: steps.check.outputs.should_fix == 'true' && steps.skip-check.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        env:
+          # Fallbacks come from runner-injected env vars, never interpolated
+          # from untrusted event fields into the script source.
+          FALLBACK_BRANCH_REF: ${{ github.ref_name || '' }}
+        with:
+          script: |
+            const prNumber = JSON.parse('${{ toJson(steps.check.outputs.pr_number) }}');
+            let branchRef = '';
+            if (prNumber) {
+              try {
+                const { data: pr } = await octokit.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                });
+                branchRef = pr.head.ref;
+              } catch (e) {
+                console.log('Could not resolve PR branch from API:', e.message);
+              }
+            }
+            if (!branchRef) {
+              // `GITHUB_HEAD_REF` is set to the head ref on pull_request events;
+              // `FALLBACK_BRANCH_REF` covers direct branch triggers. Both are
+              // runner-controlled (not attacker input).
+              branchRef = process.env.GITHUB_HEAD_REF || process.env.FALLBACK_BRANCH_REF || 'main';
+            }
+            core.setOutput('branch_ref', branchRef);
 
       - name: Fetch PR Review Bot Feedback & Build Prompt
         id: build-prompt
@@ -217,7 +273,7 @@ jobs:
 
   openhands:
     needs: analyze
-    if: needs.analyze.outputs.should_fix == 'true'
+    if: needs.analyze.outputs.should_fix == 'true' && needs.analyze.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -225,7 +281,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ needs.analyze.outputs.branch_ref || github.head_ref || github.ref_name }}
+          ref: ${{ needs.analyze.outputs.branch_ref || github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download prompt artifact
@@ -277,6 +333,10 @@ jobs:
       - name: Commit and push fixes
         id: push
         if: steps.changes.outputs.changed_files > '0'
+        env:
+          # Resolved by the analyze job via the GitHub API from the PR number;
+          # never interpolated from untrusted event context into the shell.
+          BRANCH_REF_SAFE: ${{ needs.analyze.outputs.branch_ref || '' }}
         run: |
           git config user.name "openhands[bot]"
           git config user.email "openhands-bot@users.noreply.github.com"
@@ -285,7 +345,7 @@ jobs:
           COMMIT_MSG="fix: automated fix by OpenHands for review bot findings"
           git commit -m "$COMMIT_MSG"
 
-          BRANCH="${{ needs.analyze.outputs.branch_ref || github.head_ref || github.ref_name }}"
+          BRANCH="${BRANCH_REF_SAFE:-main}"
           git push origin "$BRANCH"
           echo "has_changes=true" >> $GITHUB_OUTPUT
           echo "Pushed to $BRANCH"
@@ -308,13 +368,19 @@ jobs:
             }
 
       - name: Add fix status label
-        if: always() && needs.analyze.outputs.pr_number != ''
+        if: always() && needs.analyze.outputs.pr_number != '' && steps.push.outputs.has_changes != 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const prNumber = JSON.parse('${{ toJson(needs.analyze.outputs.pr_number) }}');
-            const hasChanges = '${{ steps.push.outputs.has_changes }}' === 'true';
-            const label = hasChanges ? 'auto-fix-applied' : 'auto-fix-no-changes';
+            let label;
+            if (job.status === 'success' && steps.changes.outputs.changed_files === '0') {
+              label = 'auto-fix-no-changes';
+            } else if (job.status === 'success') {
+              label = 'auto-fix-applied';
+            } else {
+              label = 'auto-fix-failed';
+            }
             try {
               await octokit.rest.issues.addLabels({
                 owner: context.repo.owner,
@@ -327,17 +393,21 @@ jobs:
             }
 
       - name: Comment on PR
-        if: always() && needs.analyze.outputs.pr_number != ''
+        if: always() && needs.analyze.outputs.pr_number != '' && steps.push.outputs.has_changes != 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const prNumber = JSON.parse('${{ toJson(needs.analyze.outputs.pr_number) }}');
-            const hasChanges = '${{ steps.push.outputs.has_changes }}' === 'true';
             const changedFiles = '${{ steps.changes.outputs.changed_files }}';
 
-            let body = hasChanges
-              ? `### 🤖 OpenHands Auto-Fix Applied\n\nOpenHands analyzed the review bot feedback and applied fixes.\n\n- **Files changed:** ${changedFiles}\n- **Branch updated:** fixes pushed directly to this branch.\n\nPlease review the commit and verify all CI checks pass.`
-              : `### 🤖 OpenHands Auto-Fix\n\nOpenHands reviewed the code and bot comments, but did not find any valid actionable code changes to apply (comments may be false positives or already satisfied).`;
+            let body;
+            if (job.status !== 'success') {
+              body = `### 🤖 OpenHands Auto-Fix Failed\n\nOpenHands could not complete the automation for this PR (job status: \`${job.status}\`). Please check the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions) and fix the failure.`;
+            } else if (changedFiles !== '0') {
+              body = `### 🤖 OpenHands Auto-Fix Applied\n\nOpenHands analyzed the review bot feedback and applied fixes.\n\n- **Files changed:** ${changedFiles}\n- **Branch updated:** fixes pushed directly to this branch.\n\nPlease review the commit and verify all CI checks pass.`;
+            } else {
+              body = `### 🤖 OpenHands Auto-Fix\n\nOpenHands reviewed the code and bot comments, but did not find any valid actionable code changes to apply (comments may be false positives or already satisfied).`;
+            }
 
             try {
               await octokit.rest.issues.createComment({

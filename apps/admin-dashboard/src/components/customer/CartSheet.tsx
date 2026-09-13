@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Minus, Plus, ShoppingBag, Truck } from 'lucide-react';
 import { formatINR } from '@/lib/currency';
 import { getProductImage } from '@aagam/utils';
@@ -31,13 +32,55 @@ export default function CartSheet({
   onClear,
   onCheckout,
 }: CartSheetProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    restoreFocusRef.current = document.activeElement as HTMLElement | null;
+    // Move focus into the sheet so desktop users cannot tab through the page
+    // controls behind the overlay while the cart is open.
+    panelRef.current?.querySelector<HTMLElement>('button')?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      // Trap Tab and Shift+Tab within the sheet.
+      if (e.key !== 'Tab' || !panelRef.current) return;
+      const focusables = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+      ).filter((el) => !el.hasAttribute('disabled') && el.getAttribute('aria-hidden') !== 'true');
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      restoreFocusRef.current?.focus?.();
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 overflow-hidden">
       <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      <div className="absolute inset-y-0 right-0 flex max-w-full">
-        <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+      <div className="absolute inset-y-0 right-0 flex max-w-full" role="dialog" aria-modal="true" aria-label="Shopping cart">
+        <div ref={panelRef} className="w-screen max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
           <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-white to-teal-50/50">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-100 text-teal-700">
@@ -129,8 +172,10 @@ export default function CartSheet({
               </div>
             </div>
           )}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  );
-}
+      </div>,
+      document.body,
+    );
+  }

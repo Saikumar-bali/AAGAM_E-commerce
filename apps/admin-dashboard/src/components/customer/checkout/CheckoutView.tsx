@@ -515,7 +515,7 @@ function AddressStep({ state, actions }: { state: CheckoutViewState; actions: Ch
                   type="button"
                   aria-pressed={selected}
                   onClick={() => actions.onSelectAddress(address.id)}
-                  className="block w-full text-left focus:outline-none"
+                  className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 focus-visible:rounded-xl"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-1.5">

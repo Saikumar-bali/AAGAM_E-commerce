@@ -35,7 +35,7 @@ export const CheckoutScreen = () => {
   const user = useAuthStore((state) => state.user);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { items, total, clearCart, couponCode, setCouponCode } = useCartStore();
+  const { items, total, clearCart, couponCode, setCouponCode, removeItem } = useCartStore();
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const paymentMethod = 'COD' as const;
   const [couponInput, setCouponInput] = useState(couponCode || '');
@@ -112,6 +112,28 @@ export const CheckoutScreen = () => {
     enabled: itemsPayload.length > 0 && Boolean(selectedAddressId),
     retry: false,
   });
+
+  useEffect(() => {
+    if (!quoteError) return;
+    const responseData = (quoteError as { response?: { data?: unknown } })?.response?.data as
+      | { missingProductIds?: unknown; message?: unknown }
+      | undefined;
+    const rawMessage = typeof responseData?.message === 'string' ? responseData.message : '';
+    const missingIds: string[] =
+      (Array.isArray(responseData?.missingProductIds) ? responseData.missingProductIds.filter((id): id is string => typeof id === 'string') : []) ||
+      (rawMessage.includes('Missing or unavailable products:')
+        ? rawMessage
+            .split('Missing or unavailable products:')[1]
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter(Boolean)
+        : []);
+
+    if (missingIds.length === 0) return;
+    for (const id of missingIds) removeItem(id);
+    notify.warning('Some items are unavailable', 'Unavailable items were removed from your cart.');
+    void refetchQuote();
+  }, [quoteError, removeItem, refetchQuote]);
 
   const clearAddressError = (field: CheckoutAddressField) => setAddressErrors((current) => ({ ...current, [field]: undefined }));
 

@@ -209,27 +209,31 @@ export default function CheckoutPage() {
     }
   }, []);
 
+  const refreshAddresses = useCallback(async () => {
+    const response = await apiClient.get('/customer/addresses');
+    const list = Array.isArray(response.data) ? (response.data as Address[]) : [];
+    setAddresses(list);
+    let storedSelectedId: string | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        storedSelectedId = localStorage.getItem('aagam_selected_address_id');
+      } catch {
+        // Storage can be blocked (privacy mode / disabled cookies); the
+        // server-side default must still take over instead of failing.
+      }
+    }
+    const initialSelected =
+      (storedSelectedId && list.find((address) => address.id === storedSelectedId)) ||
+      list.find((address) => address.isDefault) ||
+      list[0] ||
+      null;
+    setSelectedAddressId(initialSelected?.id || null);
+  }, []);
+
   useEffect(() => {
     const loadAddresses = async () => {
       try {
-        const response = await apiClient.get('/customer/addresses');
-        const list = Array.isArray(response.data) ? (response.data as Address[]) : [];
-        setAddresses(list);
-        let storedSelectedId: string | null = null;
-        if (typeof window !== 'undefined') {
-          try {
-            storedSelectedId = localStorage.getItem('aagam_selected_address_id');
-          } catch {
-            // Storage can be blocked (privacy mode / disabled cookies); the
-            // server-side default must still take over instead of failing.
-          }
-        }
-        const initialSelected =
-          (storedSelectedId && list.find((address) => address.id === storedSelectedId)) ||
-          list.find((address) => address.isDefault) ||
-          list[0] ||
-          null;
-        setSelectedAddressId(initialSelected?.id || null);
+        await refreshAddresses();
       } catch (cause: any) {
         setError(cause?.response?.data?.message || cause?.message || 'Failed to load addresses.');
       } finally {
@@ -237,7 +241,7 @@ export default function CheckoutPage() {
       }
     };
     void loadAddresses();
-  }, []);
+  }, [refreshAddresses]);
 
   useEffect(() => {
     if (!selectedAddressId || itemsPayload.length === 0 || orderId) return;
@@ -515,7 +519,14 @@ export default function CheckoutPage() {
             } catch {}
           }
           setAddresses(remaining.map((a) => ({ ...a, isDefault: a.id === nextId })));
-          void apiClient.patch(`/customer/addresses/${nextId}`, { isDefault: true }).catch(() => {});
+          // If promoting the replacement default fails, reload authoritative
+          // state instead of leaving an optimistic default the backend rejects.
+          try {
+            await apiClient.patch(`/customer/addresses/${nextId}`, { isDefault: true });
+          } catch {
+            await refreshAddresses();
+            toast.error('Could not promote the replacement default address. Please try again.');
+          }
         } else {
           if (typeof window !== 'undefined') {
             try {
