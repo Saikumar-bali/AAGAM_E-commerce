@@ -293,18 +293,21 @@ export default function CheckoutView({ state, actions }: { state: CheckoutViewSt
   const stepPaymentDone = Boolean(paymentMethod);
 
   const slotMissing = fulfillmentType === 'SCHEDULED' && !selectedSlotId;
+  const isUnserviceable = Boolean(quote && quote.serviceable === false);
   const canPlace = Boolean(quote && quote.serviceable) && !slotMissing;
   const placeLabel = placingOrder
     ? 'Placing order…'
-    : fulfillmentType === 'SCHEDULED'
-      ? 'Reserve delivery window'
-      : paymentMethod === 'COD'
-        ? 'Place COD order'
-        : 'Continue to pay';
+    : isUnserviceable
+      ? 'Address not serviceable'
+      : fulfillmentType === 'SCHEDULED'
+        ? 'Reserve delivery window'
+        : paymentMethod === 'COD'
+          ? 'Place COD order'
+          : 'Continue to pay';
   const placeHint = !quote || loadingQuote
     ? null
-    : !quote.serviceable
-      ? 'We cannot deliver to this address yet. Try another saved address.'
+    : isUnserviceable
+      ? 'This address is outside our 25 km delivery range. Try another saved address.'
       : slotMissing
         ? 'Choose a delivery window to continue.'
         : null;
@@ -753,7 +756,7 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
   const { quote, loadingQuote, cartLines, selectedAddressId, addresses, couponInput, couponError, placingOrder } = state;
   const couponInputId = useId();
   const showSkeleton = loadingQuote && !quote && cartLines.length > 0;
-
+  const isUnserviceable = Boolean(quote && quote.serviceable === false);
   const pricing = quote?.deliveryPricing || null;
   const firstOrderFree = Boolean(pricing?.waivedByFirstOrder);
   const freeMinimum = pricing ? pricing.freeDeliveryMinimumPaise / 100 : null;
@@ -809,7 +812,17 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
 
         <div className="my-4 border-t border-dashed border-slate-200" aria-hidden />
 
-        {firstOrderFree ? (
+        {isUnserviceable ? (
+          <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+            <div>
+              <p className="text-xs font-extrabold text-rose-900">Delivery Unavailable</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-rose-700">
+                This address is outside our 25 km delivery range{quote?.distanceKm != null ? ` (${quote.distanceKm.toFixed(1)} km away)` : ''}. Please select an address closer to our store.
+              </p>
+            </div>
+          </div>
+        ) : firstOrderFree ? (
           <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
             <Tag className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
             <div>
@@ -840,8 +853,8 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
             <span className="flex items-center gap-1.5 font-semibold text-slate-500">
               <Truck className="h-3.5 w-3.5" /> Delivery fee
             </span>
-            <span className={`font-extrabold tabular-nums ${deliveryFee === 0 ? 'text-emerald-700' : 'text-slate-950'}`}>
-              {deliveryFee === 0 ? 'FREE' : money(deliveryFee)}
+            <span className={`font-extrabold tabular-nums ${isUnserviceable ? 'text-rose-600' : deliveryFee === 0 ? 'text-emerald-700' : 'text-slate-950'}`}>
+              {isUnserviceable ? 'Not serviceable' : deliveryFee === 0 ? 'FREE' : money(deliveryFee)}
             </span>
           </div>
           {discount > 0 ? (

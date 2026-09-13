@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { API_URL } from '@env';
 
-const BASE_URL = (API_URL || 'https://aagaam.in/api').replace(/\/+$/, '');
+const rawUrl = (API_URL || '').trim();
+const normalizedUrl = !rawUrl || rawUrl.includes('accesscam.org') ? 'https://aagaam.in/api' : rawUrl;
+const BASE_URL = normalizedUrl.replace(/\/+$/, '');
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

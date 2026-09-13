@@ -19,9 +19,15 @@ const ToastContext = createContext<ToastApi | null>(null);
 
 function extractMessage(value: any, fallback = 'Something went wrong. Please try again.') {
   const raw = value?.response?.data?.message ?? value?.message ?? value;
-  if (Array.isArray(raw)) return raw.filter(Boolean).join(', ');
-  if (raw && typeof raw === 'object') return String(raw.message || raw.error || JSON.stringify(raw));
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : fallback;
+  let text = fallback;
+  if (Array.isArray(raw)) text = raw.filter(Boolean).join(', ');
+  else if (raw && typeof raw === 'object') text = String(raw.message || raw.error || JSON.stringify(raw));
+  else if (typeof raw === 'string' && raw.trim()) text = raw.trim();
+
+  if (/must be a valid ISO 8601 date string/i.test(text)) {
+    return 'Please select a valid start date (tomorrow or later).';
+  }
+  return text;
 }
 
 function errorTitle(status?: number) {
@@ -69,7 +75,7 @@ const visual = {
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const nextId = useRef(1);
-  const lastToast = useRef({ key: '', at: 0 });
+  const lastToast = useRef({ key: '', messageKey: '', at: 0 });
 
   const remove = useCallback((id: number) => setItems((current) => current.filter((item) => item.id !== id)), []);
   const show = useCallback((input: ToastInput | string) => {
@@ -78,9 +84,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     if (!message) return;
     const kind = normalized.kind || 'info';
     const dedupeKey = `${kind}:${normalized.title || ''}:${message}`;
+    const messageKey = message.toLowerCase();
     const now = Date.now();
-    if (lastToast.current.key === dedupeKey && now - lastToast.current.at < 1200) return;
-    lastToast.current = { key: dedupeKey, at: now };
+    if ((lastToast.current.key === dedupeKey || lastToast.current.messageKey === messageKey) && now - lastToast.current.at < 1500) return;
+    lastToast.current = { key: dedupeKey, messageKey, at: now };
     const item: ToastItem = { id: nextId.current++, kind, title: normalized.title, message, duration: normalized.duration ?? (kind === 'error' ? 6500 : 4200) };
     setItems((current) => [...current.slice(-3), item]);
     window.setTimeout(() => remove(item.id), item.duration);

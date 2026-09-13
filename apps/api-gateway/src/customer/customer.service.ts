@@ -53,6 +53,13 @@ export class CustomerService {
     if ((latitude == null) !== (longitude == null)) {
       throw new BadRequestException('Latitude and longitude must be provided together');
     }
+    if (latitude != null && longitude != null) {
+      const lat = Number(latitude);
+      const lng = Number(longitude);
+      if (Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001) {
+        throw new BadRequestException('Invalid coordinates (0, 0). Please pin a valid location on the map.');
+      }
+    }
   }
 
   private verifiedCoordinates(input: AddressLocationInput, source: 'LIVE_GPS' | 'MAP_PIN'): ResolvedAddressLocation {

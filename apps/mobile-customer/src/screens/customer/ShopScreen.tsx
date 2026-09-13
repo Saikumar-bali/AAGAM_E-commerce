@@ -25,7 +25,6 @@ import {
   Plus,
   Search,
   ShieldCheck,
-  ShoppingCart,
   CalendarDays,
 } from 'lucide-react-native';
 import { getProductImage } from '@aagam/utils';
@@ -228,12 +227,36 @@ export const ShopScreen = () => {
         <View style={styles.catalogHeader}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Home')} accessibilityLabel="Back to home"><ArrowLeft size={22} color="#0F172A" /></TouchableOpacity>
           <Text style={styles.catalogTitle}>Categories</Text>
-          <View style={styles.headerActions}><TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Alerts')} accessibilityLabel="Open notifications"><Bell size={21} color="#0F766E" /></TouchableOpacity><TouchableOpacity style={styles.cartButton} onPress={() => navigation.navigate('Cart')} accessibilityLabel={`Open cart with ${cartCount} items`}><ShoppingCart size={22} color="#115E59" />{cartCount > 0 ? <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cartCount > 99 ? '99+' : cartCount}</Text></View> : null}</TouchableOpacity></View>
+          <View style={styles.headerActions}><TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Alerts')} accessibilityLabel="Open notifications"><Bell size={21} color="#0F766E" /></TouchableOpacity></View>
         </View>
       ) : (
         <>
-          <View style={styles.brandRow}><AagamBrand compact /><View style={styles.headerActions}><TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Alerts')} accessibilityLabel="Open notifications"><Bell size={21} color="#0F766E" /></TouchableOpacity><TouchableOpacity style={styles.cartButton} onPress={() => navigation.navigate('Cart')} accessibilityLabel={`Open cart with ${cartCount} items`}><ShoppingCart size={22} color="#115E59" />{cartCount > 0 ? <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cartCount > 99 ? '99+' : cartCount}</Text></View> : null}</TouchableOpacity></View></View>
-          <TouchableOpacity style={styles.locationCard} onPress={() => navigation.navigate('SavedAddresses')} activeOpacity={0.85}><View style={styles.locationIcon}><MapPin size={21} color="#FFFFFF" /></View><View style={styles.locationCopy}><Text style={styles.greeting}>Good morning, {user?.name?.split(' ')[0] || 'there'} 👋</Text><Text style={styles.delivering}>Delivering to <Text style={styles.deliveringStrong}>{defaultAddress?.label || 'Add an address'}{defaultAddress?.city ? ` - ${defaultAddress.city}` : ''}</Text></Text></View><ChevronDown size={19} color="#0F766E" /></TouchableOpacity>
+          <View style={styles.brandRow}>
+            <AagamBrand compact />
+            <TouchableOpacity
+              testID="shop_header_location"
+              style={styles.headerLocation}
+              onPress={() => navigation.navigate('SavedAddresses')}
+              activeOpacity={0.85}
+              accessibilityLabel={`Delivering to ${defaultAddress?.label || 'your address'}`}
+            >
+              <Text style={styles.headerGreeting} numberOfLines={1}>
+                Good morning, {user?.name?.split(' ')[0] || 'there'} 👋
+              </Text>
+              <View style={styles.headerLocationBottom}>
+                <MapPin size={13} color="#0F766E" />
+                <Text style={styles.headerLocationText} numberOfLines={1}>
+                  Delivering to <Text style={styles.headerLocationStrong}>{defaultAddress?.label || 'Add an address'}{defaultAddress?.city ? ` - ${defaultAddress.city}` : ''}</Text>
+                </Text>
+                <ChevronDown size={13} color="#0F766E" />
+              </View>
+            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Alerts')} accessibilityLabel="Open notifications">
+                <Bell size={21} color="#0F766E" />
+              </TouchableOpacity>
+            </View>
+          </View>
           <TouchableOpacity testID="shop_subscribe_and_save" style={styles.subscriptionHero} onPress={() => navigation.navigate('SubscriptionPlans')} activeOpacity={0.9}><View style={styles.subscriptionHeroIcon}><CalendarDays size={25} color="#FFFFFF" /></View><View style={styles.subscriptionHeroCopy}><Text style={styles.subscriptionHeroEyebrow}>SUBSCRIBE & SAVE</Text><Text style={styles.subscriptionHeroTitle}>Milk, fruit and essentials on schedule</Text><Text style={styles.subscriptionHeroText}>First or weekly verified cash funding. Other funded deliveries are ₹0 due.</Text></View><ArrowRight size={20} color="#FFFFFF" /></TouchableOpacity>
           <PromotionCarousel campaigns={promotionsQuery.data?.HOME_HERO} onPress={openPromotion} />
           {searchInput}
@@ -260,7 +283,17 @@ export const ShopScreen = () => {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#FFFFFF' }, list: { flex: 1 }, content: { paddingHorizontal: 16, paddingBottom: 170 }, header: { paddingTop: 14, paddingBottom: 6 }, center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#FFFFFF' },
-  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 }, headerActions: { flexDirection: 'row', alignItems: 'center', gap: 9 }, iconButton: { width: 46, height: 46, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DDE7EA', alignItems: 'center', justifyContent: 'center' }, cartButton: { position: 'relative', width: 48, height: 48, borderRadius: 17, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, cartBadge: { position: 'absolute', right: -4, top: -4, minWidth: 21, height: 21, borderRadius: 11, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }, cartBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
+  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15, gap: 10 },
+  headerLocation: { flex: 1, justifyContent: 'center', paddingVertical: 2 },
+  headerGreeting: { color: '#0F172A', fontSize: 11, fontWeight: '700' },
+  headerLocationBottom: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
+  headerLocationText: { flex: 1, color: '#475569', fontSize: 12, fontWeight: '700' },
+  headerLocationStrong: { color: '#0F766E', fontWeight: '900' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  iconButton: { width: 46, height: 46, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DDE7EA', alignItems: 'center', justifyContent: 'center' },
+  cartButton: { position: 'relative', width: 48, height: 48, borderRadius: 17, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' },
+  cartBadge: { position: 'absolute', right: -4, top: -4, minWidth: 21, height: 21, borderRadius: 11, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  cartBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
   locationCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDFA', borderRadius: 20, padding: 12, gap: 10, marginBottom: 15 }, locationIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' }, locationCopy: { flex: 1 }, greeting: { color: '#0F172A', fontSize: 12, fontWeight: '700' }, delivering: { marginTop: 4, color: '#475569', fontSize: 12, fontWeight: '700' }, deliveringStrong: { color: '#0F766E', fontWeight: '900' },
   catalogHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 12 }, backButton: { width: 48, height: 48, borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }, catalogTitle: { flex: 1, color: '#0F172A', fontSize: 25, fontWeight: '900' },
   subscriptionHero: { minHeight: 102, borderRadius: 22, padding: 15, backgroundColor: '#087B5B', flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },

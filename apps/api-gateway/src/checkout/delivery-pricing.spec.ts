@@ -46,33 +46,36 @@ describe('distance delivery pricing', () => {
   });
 
   it('does not mark an out-of-range first order as a free deliverable order', () => {
-    expect(calculateDeliveryPricing(15.001, 6_000, true, defaultRule)).toMatchObject({
+    expect(calculateDeliveryPricing(25.001, 6_000, true, defaultRule)).toMatchObject({
       serviceable: false,
       waivedByFirstOrder: false,
+      payableFeePaise: 0,
     });
   });
 
   it('recalculates the distance fee when the cart drops below ₹99', () => {
-    expect(DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM).toBe(15);
-    expect(calculateDeliveryPricing(35.7, 12_000, false, defaultRule)).toMatchObject({
-      serviceable: false,
-      distanceFeePaise: 7_140,
-      waivedByThreshold: false,
-      payableFeePaise: 7_140,
+    expect(DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM).toBe(25);
+    expect(calculateDeliveryPricing(10, 12_000, false, defaultRule)).toMatchObject({
+      serviceable: true,
+      distanceFeePaise: 2_000,
+      waivedByThreshold: true,
+      payableFeePaise: 0,
     });
-    expect(calculateDeliveryPricing(35.7, 6_000, false, defaultRule)).toMatchObject({
-      serviceable: false,
-      distanceFeePaise: 7_140,
+    expect(calculateDeliveryPricing(10, 6_000, false, defaultRule)).toMatchObject({
+      serviceable: true,
+      distanceFeePaise: 2_000,
       waivedByThreshold: false,
-      payableFeePaise: 7_140,
+      payableFeePaise: 2_000,
     });
   });
 
-  it('uses a 15 kilometre default service radius', () => {
-    expect(calculateDeliveryPricing(15, 6_000, false, defaultRule).serviceable).toBe(true);
-    expect(calculateDeliveryPricing(15.001, 6_000, false, defaultRule)).toMatchObject({
+  it('uses a 25 kilometre default service radius', () => {
+    expect(calculateDeliveryPricing(25, 6_000, false, defaultRule).serviceable).toBe(true);
+    expect(calculateDeliveryPricing(25.001, 6_000, false, defaultRule)).toMatchObject({
       serviceable: false,
-      maximumDistanceKm: 15,
+      maximumDistanceKm: 25,
+      distanceFeePaise: 0,
+      payableFeePaise: 0,
     });
   });
 
@@ -83,8 +86,8 @@ describe('distance delivery pricing', () => {
       expect(calculateDeliveryPricing(8.001, 7_000, false, defaultRule)).toMatchObject({
         serviceable: false,
         maximumDistanceKm: 8,
-        distanceFeePaise: 1_600,
-        payableFeePaise: 1_600,
+        distanceFeePaise: 0,
+        payableFeePaise: 0,
       });
     } finally {
       if (previous === undefined) delete process.env.DELIVERY_MAX_DISTANCE_KM;
