@@ -19,7 +19,7 @@ export default function CustomerShell({ query, onQueryChange, children }: Custom
           <div className="flex h-16 items-center gap-2 sm:gap-4">
             <Link href="/shop" className="flex shrink-0 items-center gap-2 sm:gap-2.5" aria-label="Aagaam shop home">
               <span className="h-10 w-10 shrink-0 overflow-hidden rounded-xl shadow-md">
-                <Image src="/brand/aagam-mark" width={80} height={80} alt="Aagaam" className="block h-full w-full object-cover" priority unoptimized />
+                <Image src="/brand/aagam-logo-full.png" width={80} height={80} alt="Aagaam" className="block h-full w-full object-cover" priority unoptimized />
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-black leading-none tracking-tight text-slate-950 sm:text-lg">Aagaam</span>

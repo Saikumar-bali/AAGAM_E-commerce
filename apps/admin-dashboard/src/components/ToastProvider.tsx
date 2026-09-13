@@ -92,7 +92,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     const now = Date.now();
     if ((lastToast.current.key === dedupeKey || lastToast.current.messageKey === messageKey) && now - lastToast.current.at < 1500) return;
     lastToast.current = { key: dedupeKey, messageKey, at: now };
-    const item: ToastItem = { id: nextId.current++, kind, title: normalized.title, message, duration: normalized.duration ?? (kind === 'error' ? 6500 : 4200) };
+    const item: ToastItem = { id: nextId.current++, kind, title: normalized.title, message, duration: normalized.duration ?? 2000 };
     setItems((current) => [...current.slice(-3), item]);
     window.setTimeout(() => remove(item.id), item.duration);
   }, [remove]);
@@ -156,12 +156,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 </div>
                 <button type="button" onClick={() => remove(item.id)} aria-label="Dismiss notification" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"><X className="h-4 w-4" /></button>
               </div>
-              <div className="mt-3 h-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full origin-left bg-current opacity-25" style={{ animation: `aagam-toast-progress ${item.duration}ms linear forwards` }} /></div>
             </div>
           );
         })}
       </div>
-      <style jsx global>{`@keyframes aagam-toast-progress { from { transform: scaleX(1); } to { transform: scaleX(0); } }`}</style>
     </ToastContext.Provider>
   );
 }

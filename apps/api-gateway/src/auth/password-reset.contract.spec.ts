@@ -25,7 +25,7 @@ describe('password reset contracts', () => {
     expect(auth).toContain('dto.password !== dto.confirmPassword');
     expect(auth).toContain('bcrypt.hash(dto.password, 12)');
     expect(delivery).toContain("'PASSWORD_RESET'");
-    expect(delivery).toContain('Reset your AAGAM password');
+    expect(delivery).toContain('Reset your AAGAAM password');
     expect(migration).toContain("'PASSWORD_RESET'");
   });
 });
