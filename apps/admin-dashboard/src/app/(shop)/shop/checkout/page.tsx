@@ -215,8 +215,15 @@ export default function CheckoutPage() {
         const response = await apiClient.get('/customer/addresses');
         const list = Array.isArray(response.data) ? (response.data as Address[]) : [];
         setAddresses(list);
-        const storedSelectedId =
-          typeof window !== 'undefined' ? localStorage.getItem('aagam_selected_address_id') : null;
+        let storedSelectedId: string | null = null;
+        if (typeof window !== 'undefined') {
+          try {
+            storedSelectedId = localStorage.getItem('aagam_selected_address_id');
+          } catch {
+            // Storage can be blocked (privacy mode / disabled cookies); the
+            // server-side default must still take over instead of failing.
+          }
+        }
         const initialSelected =
           (storedSelectedId && list.find((address) => address.id === storedSelectedId)) ||
           list.find((address) => address.isDefault) ||
@@ -452,7 +459,11 @@ export default function CheckoutPage() {
       pincode: pincodeClean,
       latitude: draft.latitude ?? undefined,
       longitude: draft.longitude ?? undefined,
-      isDefault: addresses.length === 0 ? true : draft.isDefault,
+      // Any address saved during checkout becomes the active delivery address,
+      // so persist it as the user's default. This keeps the saved selection in
+      // sync with the backend (via the transaction in createAddress/updateAddress)
+      // instead of leaving a locally-selected but server-non-default address.
+      isDefault: true,
       // localityId no longer required — using Mapbox geocoding coordinates
       localityId: undefined,
       locationSource: draft.locationSource === 'LEGACY_UNKNOWN' ? undefined : draft.locationSource,
@@ -519,6 +530,19 @@ export default function CheckoutPage() {
   };
 
   const handleSelectAddress = useCallback((id: string) => {
+    // Snapshot the pre-optimistic selection so a failed PATCH can roll back to
+    // a consistent state instead of leaving an unconfirmed default behind.
+    const previousSelectedId = selectedAddressId;
+    const previousDefaultId = addresses.find((address) => address.isDefault)?.id ?? null;
+    const previousStoredId = (() => {
+      if (typeof window === 'undefined') return null;
+      try {
+        return localStorage.getItem('aagam_selected_address_id');
+      } catch {
+        return null;
+      }
+    })();
+
     setSelectedAddressId(id);
     if (typeof window !== 'undefined') {
       try {
@@ -534,9 +558,23 @@ export default function CheckoutPage() {
     );
     // Persist as default to the backend database so it remains default on refresh
     apiClient.patch(`/customer/addresses/${id}`, { isDefault: true }).catch((err) => {
+      setSelectedAddressId(previousSelectedId);
+      setAddresses((current) =>
+        current.map((addr) => ({
+          ...addr,
+          isDefault: addr.id === previousDefaultId,
+        })),
+      );
+      if (typeof window !== 'undefined') {
+        try {
+          if (previousStoredId) localStorage.setItem('aagam_selected_address_id', previousStoredId);
+          else localStorage.removeItem('aagam_selected_address_id');
+        } catch {}
+      }
+      toast.error('Could not set default address. Please try again.');
       console.warn('Failed to set default address in backend:', err);
     });
-  }, []);
+  }, [toast, addresses, selectedAddressId]);
 
   const applyCoupon = () => {
     const code = couponInput.trim().toUpperCase();

@@ -307,11 +307,21 @@ export const CheckoutScreen = () => {
   const locationError = addressErrors.latitude || addressErrors.longitude;
 
   const selectAddress = (id: string) => {
+    // Snapshot the pre-optimistic selection so a failed PATCH can roll back to
+    // a consistent state instead of leaving an unconfirmed default behind.
+    const previousSelectedId = selectedAddressId;
+    const previousCache = queryClient.getQueryData<any[]>(['addresses']);
+
     setSelectedAddressId(id);
     queryClient.setQueryData(['addresses'], (old: any[] = []) =>
       old.map((addr) => ({ ...addr, isDefault: addr.id === id })),
     );
-    void apiClient.patch(`/customer/addresses/${id}`, { isDefault: true }).catch(() => {});
+    void apiClient.patch(`/customer/addresses/${id}`, { isDefault: true }).catch(() => {
+      setSelectedAddressId(previousSelectedId);
+      if (previousCache) queryClient.setQueryData(['addresses'], previousCache);
+      else queryClient.invalidateQueries({ queryKey: ['addresses'] });
+      notify.error('Could not set default address. Please try again.');
+    });
   };
 
   return (
