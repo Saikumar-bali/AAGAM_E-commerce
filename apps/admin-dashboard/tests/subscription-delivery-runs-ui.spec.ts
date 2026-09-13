@@ -76,13 +76,13 @@ test('store sees D-1 stock readiness, forecast, route preparation and individual
   await loginWithCookieSession(page, 'STORE_OWNER');
   await page.goto('/store/subscriptions');
   await expect(page.getByRole('heading', { name: /Subscriptions, runs & cash/i })).toBeVisible();
-  await expect(page.getByText(/without replacing individual COD ledgers/i)).toBeVisible();
 
   await page.getByRole('button', { name: /Subscribers/i }).first().click();
   await expect(page.getByText(/Subscribers ·|No subscribers yet/i).first()).toBeVisible();
 
   await page.getByRole('button', { name: /Tomorrow (Prep|preparation)|Open tomorrow/i }).first().click();
   await expect(page.getByRole('heading', { name: 'Prepare before delivery day' })).toBeVisible();
+  await expect(page.getByText(/without replacing individual COD ledgers/i)).toBeVisible();
   await expect(page.getByText(/Inventory is deducted only when the real subscription order is generated/i)).toBeVisible();
   await page.getByRole('button', { name: 'Close' }).click();
 
