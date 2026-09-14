@@ -138,19 +138,59 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
     const container = containerRef.current;
     if (!container) return;
     const token = getMapboxToken();
-    if (!token) {
-      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</div>';
-      return;
+    const hasMapboxToken = Boolean(token && token.startsWith('pk.') && token !== 'pk.test-dummy-token-for-jest');
+    if (hasMapboxToken && token) {
+      mapboxgl.accessToken = token;
+    } else {
+      mapboxgl.accessToken = 'pk.eyJ1IjoiZmFsbGJhY2siLCJhIjoiY20wMCJ9.none';
     }
-    mapboxgl.accessToken = token;
+
+    const osmFallbackStyle: any = {
+      version: 8,
+      sources: {
+        'osm-tiles': {
+          type: 'raster',
+          tiles: [
+            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          ],
+          tileSize: 256,
+          attribution: '&copy; OpenStreetMap contributors',
+        },
+      },
+      layers: [
+        {
+          id: 'osm-tiles-layer',
+          type: 'raster',
+          source: 'osm-tiles',
+          minzoom: 0,
+          maxzoom: 19,
+        },
+      ],
+    };
 
     const map = new mapboxgl.Map({
       container,
-      style: 'mapbox://styles/mapbox/satellite-streets-v12',
+      style: hasMapboxToken ? 'mapbox://styles/mapbox/satellite-streets-v12' : osmFallbackStyle,
       center: [longitude, latitude],
       zoom: 17,
       attributionControl: true,
     });
+
+    let hasFallenBack = false;
+    map.on('error', (e: any) => {
+      if (hasFallenBack) return;
+      const status = e?.error?.status || e?.status;
+      const msg = String(e?.error?.message || e?.message || '');
+      if (status === 401 || msg.includes('401') || msg.includes('Not Authorized') || msg.includes('Invalid Token')) {
+        hasFallenBack = true;
+        try {
+          map.setStyle(osmFallbackStyle);
+        } catch {}
+      }
+    });
+
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
     mapRef.current = map;
 
