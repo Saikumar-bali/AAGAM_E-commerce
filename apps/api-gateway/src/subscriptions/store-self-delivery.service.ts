@@ -161,7 +161,12 @@ export class StoreSelfDeliveryService {
             where: { id: orderId },
             include: { payment: true },
           });
-          if (order?.payment && order.payment.status !== PaymentStatus.CAPTURED && cashToRecord && cashToRecord > 0) {
+          if (
+            order?.payment &&
+            order.payment.status !== PaymentStatus.CAPTURED &&
+            (order.payment.method === 'COD' || (order.payment.method as any) === 'CASH') &&
+            cashToRecord >= (order.totalAmount || 0)
+          ) {
             await tx.payment.update({
               where: { id: order.payment.id },
               data: { status: PaymentStatus.CAPTURED, verifiedAt: new Date() },
@@ -470,20 +475,21 @@ export class StoreSelfDeliveryService {
     const customerPhoneMatch = phoneDigits.endsWith(storedPhone.slice(-4)) || storedPhone.endsWith(phoneDigits.slice(-4));
 
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const prevCash = subDelivery.cashCollectedPaise || 0;
+      const cashToRecord = dto.cashCollectedPaise !== undefined ? dto.cashCollectedPaise : prevCash;
+      const cashDelta = cashToRecord - prevCash;
+
       await tx.subscriptionDelivery.update({
         where: { id: subscriptionDeliveryId },
         data: {
           status: SubscriptionDeliveryStatus.DELIVERED,
           deliveredAt: new Date(),
           deliveredByStoreUserId: storeUserId,
-          cashCollectedPaise: dto.cashCollectedPaise || 0,
-          cashCollectedAt: dto.cashCollectedPaise ? new Date() : undefined,
+          cashCollectedPaise: cashToRecord,
+          cashCollectedAt: cashDelta > 0 ? new Date() : (subDelivery.cashCollectedAt || undefined),
         },
       });
 
-      const prevCash = subDelivery.cashCollectedPaise || 0;
-      const cashToRecord = dto.cashCollectedPaise || 0;
-      const cashDelta = cashToRecord - prevCash;
       if (cashDelta !== 0) {
         const sub = await tx.customerSubscription.findUnique({
           where: { id: subDelivery.subscriptionId },
@@ -521,7 +527,12 @@ export class StoreSelfDeliveryService {
           where: { id: orderId },
           include: { payment: true },
         });
-        if (order?.payment && order.payment.status !== PaymentStatus.CAPTURED && cashToRecord > 0) {
+        if (
+          order?.payment &&
+          order.payment.status !== PaymentStatus.CAPTURED &&
+          (order.payment.method === 'COD' || (order.payment.method as any) === 'CASH') &&
+          cashToRecord >= (order.totalAmount || 0)
+        ) {
           await tx.payment.update({
             where: { id: order.payment.id },
             data: { status: PaymentStatus.CAPTURED, verifiedAt: new Date() },

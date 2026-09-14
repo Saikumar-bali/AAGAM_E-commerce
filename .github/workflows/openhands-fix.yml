@@ -403,10 +403,11 @@ jobs:
         with:
           script: |
             const prNumber = JSON.parse('${{ toJson(needs.analyze.outputs.pr_number) }}');
+            const jobStatus = '${{ job.status }}';
             let label;
-            if (job.status === 'success' && steps.changes.outputs.changed_files === '0') {
+            if (jobStatus === 'success' && steps.changes.outputs.changed_files === '0') {
               label = 'auto-fix-no-changes';
-            } else if (job.status === 'success') {
+            } else if (jobStatus === 'success') {
               label = 'auto-fix-applied';
             } else {
               label = 'auto-fix-failed';
@@ -429,10 +430,11 @@ jobs:
           script: |
             const prNumber = JSON.parse('${{ toJson(needs.analyze.outputs.pr_number) }}');
             const changedFiles = '${{ steps.changes.outputs.changed_files }}';
+            const jobStatus = '${{ job.status }}';
 
             let body;
-            if (job.status !== 'success') {
-              body = `### 🤖 OpenHands Auto-Fix Failed\n\nOpenHands could not complete the automation for this PR (job status: \`${job.status}\`). Please check the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions) and fix the failure.`;
+            if (jobStatus !== 'success') {
+              body = `### 🤖 OpenHands Auto-Fix Failed\n\nOpenHands could not complete the automation for this PR (job status: \`${jobStatus}\`). Please check the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions) and fix the failure.`;
             } else if (changedFiles !== '0') {
               body = `### 🤖 OpenHands Auto-Fix Applied\n\nOpenHands analyzed the review bot feedback and applied fixes.\n\n- **Files changed:** ${changedFiles}\n- **Branch updated:** fixes pushed directly to this branch.\n\nPlease review the commit and verify all CI checks pass.`;
             } else {

@@ -455,8 +455,8 @@ export class StoreSubscriptionsController {
   }
 
   @Get('customer/:id/statement')
-  customerStatement(@Param('id') id: string) {
-    return this.milkGrid.getCustomerStatement(id);
+  customerStatement(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.milkGrid.getCustomerStatement(req.user, id);
   }
 
   @Get('grid/export-csv')
@@ -561,16 +561,26 @@ export class StoreSubscriptionsController {
   }
 
   @Get('offline-customers')
-  listOfflineCustomers(
+  async listOfflineCustomers(
+    @Req() req: AuthenticatedRequest,
     @Query('search') search?: string,
     @Query('storeId') storeId?: string,
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
+    const userEmail = (req.user as any)?.email;
+    const isMaster = req.user.role === Role.ADMIN || (userEmail && (userEmail === 'aagaam@gmail.com' || userEmail === 'store@aagam.com'));
+    let effectiveStoreId = storeId;
+    if (!isMaster) {
+      const ownedStore = await prisma.store.findFirst({ where: { ownerId: req.user.id } });
+      if (!ownedStore) return { customers: [], total: 0, page: 1, pageSize: 25 };
+      effectiveStoreId = ownedStore.id;
+    }
+
     return this.offlineCustomers.listCustomers({
       search,
-      storeId,
+      storeId: effectiveStoreId,
       status,
       page: page ? parseInt(page, 10) : 1,
       pageSize: pageSize ? parseInt(pageSize, 10) : 25,

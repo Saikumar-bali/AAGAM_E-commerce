@@ -175,7 +175,7 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
   const handleQuickAction = async (
     deliveryId: string,
     actionType: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT',
-    options?: { extraQuantity?: string; amountPaise?: number; paymentMode?: 'CASH' | 'PHONE_PE'; note?: string },
+    options?: { extraQuantity?: string; amountPaise?: number; extraPaise?: number; paymentMode?: 'CASH' | 'PHONE_PE'; note?: string },
   ) => {
     setActionLoading(true);
     try {
@@ -1057,12 +1057,18 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
                     </select>
                     <button
                       disabled={actionLoading}
-                      onClick={() =>
+                      onClick={() => {
+                        const pricePaise =
+                          extraQuantity === '+0.5L CM' ? 3500 :
+                          extraQuantity === '+1L CM' ? 7000 :
+                          extraQuantity === '+0.5L BM' ? 4000 :
+                          extraQuantity === '+2L BM' ? 16000 : 8000;
                         handleQuickAction(selectedCell.cell!.deliveryId, 'EXTRA_MILK', {
                           extraQuantity,
-                          amountPaise: extraQuantity.includes('0.5') ? 4000 : extraQuantity.includes('2') ? 16000 : 8000,
-                        })
-                      }
+                          extraPaise: pricePaise,
+                          amountPaise: pricePaise,
+                        });
+                      }}
                       className="rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-black text-white hover:bg-amber-700"
                     >
                       Add Extra

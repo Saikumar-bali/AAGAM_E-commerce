@@ -44,18 +44,12 @@ export class StoreMilkGridService {
    */
   async getGrid(actor: { id: string; role: Role; email?: string }, year?: number, month?: number) {
     const now = new Date();
-    const targetYear = year ?? now.getFullYear();
-    const targetMonth = month !== undefined ? month : now.getMonth(); // 0-indexed
+    const targetYear = year ?? now.getUTCFullYear();
+    const targetMonth = month !== undefined ? month : now.getUTCMonth(); // 0-indexed
 
-    const startOfMonth = new Date(Date.now());
-    startOfMonth.setFullYear(targetYear, targetMonth, 1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    const endOfMonth = new Date(startOfMonth);
-    endOfMonth.setMonth(targetMonth + 1, 0);
-    endOfMonth.setHours(23, 59, 59, 999);
-
-    const daysInMonth = endOfMonth.getDate();
+    const startOfMonth = new Date(Date.UTC(targetYear, targetMonth, 1, 0, 0, 0, 0));
+    const endOfMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0, 23, 59, 59, 999));
+    const daysInMonth = endOfMonth.getUTCDate();
 
     const isMaster = actor.role === Role.ADMIN || (actor.email && (actor.email.includes('aagaam') || actor.email.includes('aagam') || actor.email.includes('store@')));
     const storeFilter = isMaster ? {} : { homeStore: { ownerId: actor.id } };
@@ -104,7 +98,7 @@ export class StoreMilkGridService {
 
       for (const d of sub.deliveries) {
         const dDate = new Date(d.serviceDate);
-        const dayNum = dDate.getDate();
+        const dayNum = dDate.getUTCDate();
 
         // Parse extra milk if recorded in deferredReason
         let extraMilk: string | null = null;
@@ -228,13 +222,26 @@ export class StoreMilkGridService {
 
     if (action.type === 'TOGGLE_DELIVERED') {
       const isCurrentlyDelivered = delivery.status === 'DELIVERED';
+      const wasSkipped = delivery.status === 'SKIPPED';
       const newStatus = isCurrentlyDelivered ? SubscriptionDeliveryStatus.SCHEDULED : SubscriptionDeliveryStatus.DELIVERED;
       const countDelta = isCurrentlyDelivered ? -1 : 1;
       const newCompleted = Math.max(0, (sub.completedDeliveries || 0) + countDelta);
+      const newSkipped = wasSkipped ? Math.max(0, (sub.skippedDeliveries || 0) - 1) : (sub.skippedDeliveries || 0);
 
-      // If completing, optionally collect cash
-      const cashDelta = (!isCurrentlyDelivered && action.amountPaise) ? action.amountPaise : 0;
-      const updatedCashCollected = (delivery.cashCollectedPaise || 0) + cashDelta;
+      // If completing, optionally collect positive cash. If untoggling, rollback this delivery's collected cash.
+      let cashDelta = 0;
+      let updatedCashCollected = delivery.cashCollectedPaise || 0;
+      if (!isCurrentlyDelivered) {
+        if (action.amountPaise && action.amountPaise > 0) {
+          cashDelta = action.amountPaise;
+          updatedCashCollected = (delivery.cashCollectedPaise || 0) + cashDelta;
+        }
+      } else {
+        if (delivery.cashCollectedPaise && delivery.cashCollectedPaise > 0) {
+          cashDelta = -delivery.cashCollectedPaise;
+          updatedCashCollected = 0;
+        }
+      }
 
       const updated = await prisma.$transaction([
         prisma.subscriptionDelivery.update({
@@ -244,14 +251,15 @@ export class StoreMilkGridService {
             deliveredAt: isCurrentlyDelivered ? null : new Date(),
             deliveredByStoreUserId: isCurrentlyDelivered ? null : actor.id,
             cashCollectedPaise: updatedCashCollected,
-            cashCollectedAt: cashDelta > 0 ? new Date() : delivery.cashCollectedAt,
+            cashCollectedAt: cashDelta > 0 ? new Date() : (isCurrentlyDelivered ? null : delivery.cashCollectedAt),
           },
         }),
         prisma.customerSubscription.update({
           where: { id: sub.id },
           data: {
             completedDeliveries: newCompleted,
-            amountCollectedPaise: (sub.amountCollectedPaise || 0) + cashDelta,
+            skippedDeliveries: newSkipped,
+            amountCollectedPaise: Math.max(0, (sub.amountCollectedPaise || 0) + cashDelta),
             amountDuePaise: Math.max(0, (sub.amountDuePaise || 0) - cashDelta),
           },
         }),
@@ -261,6 +269,21 @@ export class StoreMilkGridService {
     }
 
     if (action.type === 'SKIP') {
+      const wasDelivered = delivery.status === 'DELIVERED';
+      const wasSkipped = delivery.status === 'SKIPPED';
+      if (wasSkipped) {
+        return { success: true, delivery, subscription: sub }; // already skipped
+      }
+      const newCompleted = wasDelivered ? Math.max(0, (sub.completedDeliveries || 0) - 1) : (sub.completedDeliveries || 0);
+      const newSkipped = (sub.skippedDeliveries || 0) + 1;
+
+      let cashDelta = 0;
+      let updatedCashCollected = delivery.cashCollectedPaise || 0;
+      if (wasDelivered && delivery.cashCollectedPaise && delivery.cashCollectedPaise > 0) {
+        cashDelta = -delivery.cashCollectedPaise;
+        updatedCashCollected = 0;
+      }
+
       const updated = await prisma.$transaction([
         prisma.subscriptionDelivery.update({
           where: { id: deliveryId },
@@ -268,12 +291,18 @@ export class StoreMilkGridService {
             status: SubscriptionDeliveryStatus.SKIPPED,
             skippedAt: new Date(),
             skipReason: action.note?.trim() || 'Not taken / Skipped by customer',
+            deliveredAt: null,
+            deliveredByStoreUserId: null,
+            cashCollectedPaise: updatedCashCollected,
           },
         }),
         prisma.customerSubscription.update({
           where: { id: sub.id },
           data: {
-            skippedDeliveries: (sub.skippedDeliveries || 0) + 1,
+            completedDeliveries: newCompleted,
+            skippedDeliveries: newSkipped,
+            amountCollectedPaise: Math.max(0, (sub.amountCollectedPaise || 0) + cashDelta),
+            amountDuePaise: Math.max(0, (sub.amountDuePaise || 0) - cashDelta),
           },
         }),
       ]);
@@ -283,7 +312,11 @@ export class StoreMilkGridService {
 
     if (action.type === 'EXTRA_MILK') {
       const extraQty = action.extraQuantity?.trim() || '+1L';
-      const extraPaise = action.extraPaise || (extraQty.includes('0.5') ? 4000 : 8000);
+      const extraPaise = action.extraPaise || action.amountPaise || (
+        extraQty.includes('0.5') ? (extraQty.includes('CM') ? 3500 : 4000)
+        : extraQty.includes('2') ? 16000
+        : (extraQty.includes('CM') ? 7000 : 8000)
+      );
       const notePrefix = `[EXTRA: ${extraQty}|${extraPaise}]`;
       const fullNote = `${notePrefix} ${action.note?.trim() || 'Extra milk requested'}`.trim();
 
@@ -352,10 +385,8 @@ export class StoreMilkGridService {
    */
   async getDispatchSummary(actor: { id: string; role: Role; email?: string }, dateStr?: string) {
     const targetDate = dateStr ? new Date(dateStr) : new Date();
-    const dayStart = new Date(targetDate);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(targetDate);
-    dayEnd.setHours(23, 59, 59, 999);
+    const dayStart = new Date(Date.UTC(targetDate.getUTCFullYear(), targetDate.getUTCMonth(), targetDate.getUTCDate(), 0, 0, 0, 0));
+    const dayEnd = new Date(Date.UTC(targetDate.getUTCFullYear(), targetDate.getUTCMonth(), targetDate.getUTCDate(), 23, 59, 59, 999));
 
     const isMaster = actor.role === Role.ADMIN || (actor.email && (actor.email.includes('aagaam') || actor.email.includes('aagam') || actor.email.includes('store@')));
     const storeFilter = isMaster ? {} : { homeStore: { ownerId: actor.id } };
@@ -527,13 +558,13 @@ export class StoreMilkGridService {
   /**
    * Generates a clean WhatsApp bill statement for offline customers.
    */
-  async getCustomerStatement(subscriptionId: string) {
+  async getCustomerStatement(actor: { id: string; role: Role; email?: string }, subscriptionId: string) {
     const sub = await prisma.customerSubscription.findUnique({
       where: { id: subscriptionId },
       include: {
         customer: { select: { id: true, name: true, phone: true } },
         plan: { select: { id: true, name: true, code: true } },
-        homeStore: { select: { id: true, name: true } },
+        homeStore: { select: { id: true, name: true, ownerId: true } },
         deliveries: {
           orderBy: { serviceDate: 'asc' },
         },
@@ -541,6 +572,11 @@ export class StoreMilkGridService {
     });
 
     if (!sub) throw new NotFoundException('Subscription not found');
+
+    const isMaster = actor.role === Role.ADMIN || (actor.email && (actor.email === 'aagaam@gmail.com' || actor.email === 'store@aagam.com'));
+    if (!isMaster && sub.homeStore?.ownerId !== actor.id) {
+      throw new ForbiddenException('You do not have permission to view statements for this subscription');
+    }
 
     const customerName = sub.customer.name || 'Valued Customer';
     const planName = sub.plan.name;
