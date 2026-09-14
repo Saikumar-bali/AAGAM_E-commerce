@@ -14,14 +14,34 @@ jest.mock('@aagam/database', () => ({
     DELIVERED: 'DELIVERED',
     FAILED: 'FAILED',
   },
+  PaymentStatus: { CAPTURED: 'CAPTURED', CREATED: 'CREATED', PENDING_COD: 'PENDING_COD' },
+  CustomerSubscriptionStatus: { ACTIVE: 'ACTIVE', PENDING_CASH_COLLECTION: 'PENDING_CASH_COLLECTION', PAYMENT_DUE: 'PAYMENT_DUE' },
   DeliveryJobStatus: { SCHEDULED: 'SCHEDULED', STORE_DELIVERING: 'STORE_DELIVERING' },
   prisma: {
     subscriptionDelivery: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
       updateMany: jest.fn(),
+      update: jest.fn(),
     },
-    deliveryJob: { updateMany: jest.fn() },
+    customerSubscription: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    order: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    payment: {
+      update: jest.fn(),
+    },
+    store: {
+      findUnique: jest.fn(),
+    },
+    storeDeliveryProof: {
+      create: jest.fn(),
+    },
+    deliveryJob: { updateMany: jest.fn(), update: jest.fn() },
     subscriptionAuditEntry: { create: jest.fn() },
     $transaction: jest.fn(),
   },
@@ -134,5 +154,63 @@ describe('StoreSelfDeliveryService — store fulfillment queue', () => {
     (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(row);
 
     await expect(service.startDelivery('delivery-1', 'store-user')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('returns cashDuePaise, cashCollectedPaise, and cashCollectedAt in queue', async () => {
+    const collectedAt = new Date('2026-09-14T10:00:00.000Z');
+    findMany.mockResolvedValue([
+      baseDelivery({
+        id: 'delivery-cash',
+        cashDuePaise: 20000,
+        cashCollectedPaise: 20000,
+        cashCollectedAt: collectedAt,
+      }),
+    ]);
+
+    const queue = await service.getTodayQueue(storeId);
+    expect(queue[0].cashDuePaise).toBe(20000);
+    expect(queue[0].cashCollectedPaise).toBe(20000);
+    expect(queue[0].cashCollectedAt).toEqual(collectedAt);
+  });
+
+  it('updateDelivery records cash and updates customerSubscription amountCollected and amountDue', async () => {
+    const row = baseDelivery({
+      id: 'delivery-1',
+      status: 'STORE_DELIVERING',
+      cashDuePaise: 20000,
+      cashCollectedPaise: 0,
+      subscriptionId: 'sub-1',
+    });
+    (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(row);
+    (prisma.subscriptionDelivery.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+    (prisma.customerSubscription.findUnique as jest.Mock).mockResolvedValue({
+      id: 'sub-1',
+      amountCollectedPaise: 0,
+      amountDuePaise: 20000,
+      status: 'PENDING_CASH_COLLECTION',
+    });
+    (prisma.customerSubscription.update as jest.Mock).mockResolvedValue({});
+    (prisma.subscriptionAuditEntry.create as jest.Mock).mockResolvedValue({});
+    (prisma.store.findUnique as jest.Mock).mockResolvedValue({ ownerId: 'store-user' });
+    prisma.$transaction = jest.fn().mockImplementation(async (cb: any) => cb(prisma));
+
+    const result = await service.updateDelivery(
+      'delivery-1',
+      'store-user',
+      { status: 'DELIVERED', cashCollectedPaise: 20000 },
+      'STORE_OWNER' as any,
+    );
+
+    expect(result.success).toBe(true);
+    expect(prisma.customerSubscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'sub-1' },
+        data: expect.objectContaining({
+          amountCollectedPaise: 20000,
+          amountDuePaise: 0,
+          status: 'ACTIVE',
+        }),
+      }),
+    );
   });
 });

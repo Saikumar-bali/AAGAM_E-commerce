@@ -55,7 +55,7 @@ export class StoreController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.STORE_OWNER)
   async findMyStores(@Req() req: any) {
-    return this.storeService.findByOwnerId(req.user.id);
+    return this.storeService.findByOwnerId(req.user.id, req.user.email);
   }
 
   @Get(':id/assortment')

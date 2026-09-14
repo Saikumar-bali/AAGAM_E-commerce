@@ -11,9 +11,11 @@ import {
   BarChart3,
   Box,
   CalendarDays,
+  Check,
   CheckCircle2,
   ClipboardCheck,
   Edit3,
+  FileSpreadsheet,
   Loader2,
   Package,
   PackageCheck,
@@ -23,9 +25,11 @@ import {
   Route,
   ScanLine,
   Truck,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
+import MilkDeliveryGrid from "@/components/MilkDeliveryGrid";
 
 type RunStatus =
   | "PLANNED"
@@ -91,7 +95,7 @@ type CashBatch = {
   rider?: { user?: { name?: string | null } | null } | null;
 };
 type ExceptionRow = Stop & { deliveryRun: { routeCode: string } };
-type Tab = "subscribers" | "plans" | "calendar" | "prep" | "runs" | "forecast" | "cash" | "exceptions" | "analytics";
+type Tab = "grid" | "subscribers" | "plans" | "calendar" | "prep" | "runs" | "forecast" | "cash" | "exceptions" | "analytics";
 
 type SubscriberRow = {
   id: string;
@@ -161,9 +165,10 @@ type CalendarRow = {
 
 type StoreAnalytics = {
   subscriptions: Array<{ status: string; _count: { _all: number }; _sum: { amountCollectedPaise: number | null; amountDuePaise: number | null } }>;
-  deliveries: Array<{ status: string; _count: { _all: number }; _sum: { cashDuePaise: number | null } }>;
+  deliveries: Array<{ status: string; _count: { _all: number }; _sum: { cashDuePaise: number | null; cashCollectedPaise?: number | null } }>;
   cash: Array<{ status: string; _count: { _all: number }; _sum: { expectedAmountPaise: number | null; verifiedAmountPaise: number | null; variancePaise: number | null } }>;
   upcomingSevenDayDemand: number;
+  todayStoreCashPaise?: number;
   generatedAt: string;
 };
 type PreparationRow = {
@@ -203,7 +208,7 @@ const humanize = (value: unknown) => String(value || "Unknown").replaceAll("_", 
 
 export default function StoreSubscriptionOperationsPage() {
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>("subscribers");
+  const [tab, setTab] = useState<Tab>("grid");
   const [runs, setRuns] = useState<Run[]>([]);
   const [demand, setDemand] = useState<DemandRow[]>([]);
   const [cash, setCash] = useState<CashBatch[]>([]);
@@ -232,12 +237,29 @@ export default function StoreSubscriptionOperationsPage() {
   const [viewingHistory, setViewingHistory] = useState<SubscriberRow | null>(null);
   const [historyData, setHistoryData] = useState<any>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [storesList, setStoresList] = useState<Array<{ id: string; name: string; address?: string }>>([]);
+  const [addCustomerModalOpen, setAddCustomerModalOpen] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [customerForm, setCustomerForm] = useState({
+    name: "",
+    phone: "",
+    address: "",
+    city: "Anakapalle",
+    storeId: "",
+    planId: "",
+    deliverySlot: "MORNING" as "MORNING" | "EVENING" | "BOTH",
+    startDate: new Date().toISOString().slice(0, 10),
+    totalDeliveries: "30",
+    amountCollectedRupees: "0",
+    paymentMode: "CASH" as "CASH" | "PHONE_PE" | "DUE",
+    note: "",
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [runsResponse, demandResponse, cashResponse, exceptionsResponse, prepResponse, subscribersResponse, plansResponse, calendarResponse, analyticsResponse] =
-        await Promise.all([
+        await Promise.allSettled([
           apiClient.get("/store/subscription-operations/runs"),
           apiClient.get("/store/subscription-operations/demand", {
             params: { days: 14 },
@@ -250,17 +272,30 @@ export default function StoreSubscriptionOperationsPage() {
           apiClient.get("/store/subscriptions/calendar"),
           apiClient.get("/store/subscriptions/analytics"),
         ]);
-      setRuns(Array.isArray(runsResponse.data) ? runsResponse.data : []);
-      setDemand(Array.isArray(demandResponse.data) ? demandResponse.data : []);
-      setCash(Array.isArray(cashResponse.data) ? cashResponse.data : []);
-      setExceptions(
-        Array.isArray(exceptionsResponse.data) ? exceptionsResponse.data : []
-      );
-      setPrepRows(Array.isArray(prepResponse.data) ? prepResponse.data : []);
-      setSubscribers(Array.isArray(subscribersResponse.data) ? subscribersResponse.data : []);
-      setPlans(Array.isArray(plansResponse.data) ? plansResponse.data : []);
-      setCalendar(Array.isArray(calendarResponse.data) ? calendarResponse.data : []);
-      setAnalytics(analyticsResponse.data ?? null);
+      if (runsResponse.status === "fulfilled") setRuns(Array.isArray(runsResponse.value.data) ? runsResponse.value.data : []);
+      if (demandResponse.status === "fulfilled") setDemand(Array.isArray(demandResponse.value.data) ? demandResponse.value.data : []);
+      if (cashResponse.status === "fulfilled") setCash(Array.isArray(cashResponse.value.data) ? cashResponse.value.data : []);
+      if (exceptionsResponse.status === "fulfilled") setExceptions(Array.isArray(exceptionsResponse.value.data) ? exceptionsResponse.value.data : []);
+      if (prepResponse.status === "fulfilled") setPrepRows(Array.isArray(prepResponse.value.data) ? prepResponse.value.data : []);
+      if (subscribersResponse.status === "fulfilled") setSubscribers(Array.isArray(subscribersResponse.value.data) ? subscribersResponse.value.data : []);
+      const loadedPlans = plansResponse.status === "fulfilled" && Array.isArray(plansResponse.value.data) ? plansResponse.value.data : [];
+      setPlans(loadedPlans);
+      if (calendarResponse.status === "fulfilled") setCalendar(Array.isArray(calendarResponse.value.data) ? calendarResponse.value.data : []);
+      if (analyticsResponse.status === "fulfilled") setAnalytics(analyticsResponse.value.data ?? null);
+
+      try {
+        const storesRes = await apiClient.get("/stores/my-stores");
+        if (Array.isArray(storesRes.data) && storesRes.data.length) {
+          setStoresList(storesRes.data);
+          setCustomerForm((prev) => ({
+            ...prev,
+            storeId: prev.storeId || storesRes.data[0].id,
+            planId: prev.planId || (loadedPlans[0]?.id ?? ""),
+          }));
+        }
+      } catch (err) {
+        console.warn('Could not fetch stores list:', err);
+      }
     } catch (error) {
       toast.error(
         getToastErrorMessage(
@@ -291,6 +326,85 @@ export default function StoreSubscriptionOperationsPage() {
       toast.error(getToastErrorMessage(error, "The store operation failed."));
     } finally {
       setWorking("");
+    }
+  };
+
+  const saveOfflineCustomer = async () => {
+    if (!customerForm.name.trim()) {
+      toast.error("Please enter customer name");
+      return;
+    }
+    const cleanPhone = customerForm.phone.replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      toast.error("Phone number must be exactly 10 digits");
+      return;
+    }
+    if (!customerForm.address.trim()) {
+      toast.error("Please enter delivery address or locality");
+      return;
+    }
+    const storeId = customerForm.storeId || storesList[0]?.id || (subscribers[0] as any)?.homeStoreId || (subscribers[0] as any)?.homeStore?.id;
+    if (!storeId) {
+      toast.error("No store found to link subscription");
+      return;
+    }
+    const planId = customerForm.planId || plans[0]?.id;
+    if (!planId) {
+      toast.error("No active subscription plan selected");
+      return;
+    }
+
+    setSavingCustomer(true);
+    try {
+      const custRes = await apiClient.post("/store/subscriptions/manual-customer", {
+        name: customerForm.name.trim(),
+        phone: cleanPhone,
+        line1: customerForm.address.trim(),
+        city: customerForm.city.trim() || "Anakapalle",
+        state: "Andhra Pradesh",
+        pincode: "531001",
+      });
+      const customer = custRes.data.customer;
+      const address = custRes.data.address;
+
+      const amountPaise = Math.round(Number(customerForm.amountCollectedRupees || 0) * 100);
+      const paymentModeLabel = customerForm.paymentMode === "PHONE_PE" ? "PhonePe" : customerForm.paymentMode === "CASH" ? "Cash" : "Payment Due";
+      const paymentNote = `[${paymentModeLabel}] ${customerForm.note || ""}`.trim();
+
+      await apiClient.post("/store/subscriptions/manual-subscribe", {
+        storeId,
+        planId,
+        customerId: customer.id,
+        addressId: address.id,
+        startDate: customerForm.startDate || new Date().toISOString().slice(0, 10),
+        totalDeliveries: Number(customerForm.totalDeliveries || 30),
+        deliverySlot: customerForm.deliverySlot,
+        initialCashCollectedPaise: customerForm.paymentMode === "DUE" ? 0 : amountPaise,
+        storeDelivery: true,
+        note: paymentNote,
+      });
+
+      toast.success("Offline customer created successfully!");
+      setAddCustomerModalOpen(false);
+      setCustomerForm({
+        name: "",
+        phone: "",
+        address: "",
+        city: "Anakapalle",
+        storeId: storesList[0]?.id || "",
+        planId: plans[0]?.id || "",
+        deliverySlot: "MORNING",
+        startDate: new Date().toISOString().slice(0, 10),
+        totalDeliveries: "30",
+        amountCollectedRupees: "0",
+        paymentMode: "CASH",
+        note: "",
+      });
+      await load();
+    } catch (err) {
+      toast.error(getToastErrorMessage(err, "Failed to create offline customer subscription"));
+    } finally {
+      setSavingCustomer(false);
     }
   };
 
@@ -434,14 +548,17 @@ export default function StoreSubscriptionOperationsPage() {
       row.productTotals.reduce((itemSum, item) => itemSum + item.quantity, 0),
     0
   );
-  const submittedCash = cash
-    .filter((batch) => batch.status === "SUBMITTED")
-    .reduce((sum, batch) => sum + Number(batch.submittedAmountPaise || 0), 0);
+  const submittedCash =
+    cash
+      .filter((batch) => batch.status === "SUBMITTED")
+      .reduce((sum, batch) => sum + Number(batch.submittedAmountPaise || 0), 0) +
+    Number(analytics?.todayStoreCashPaise || 0);
   const pendingCashCount = cash.filter(
     (batch) => batch.status === "SUBMITTED"
   ).length;
   const tabCounts = useMemo<Record<Tab, number>>(
     () => ({
+      grid: subscribers.length,
       subscribers: subscribers.length,
       plans: plans.length,
       calendar: 0,
@@ -491,6 +608,7 @@ export default function StoreSubscriptionOperationsPage() {
         <nav className="flex gap-0.5 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
           {(
             [
+              ["grid", "Milk Grid (Sheet View)", FileSpreadsheet],
               ["subscribers", "Subscribers", Users],
               ["prep", "Tomorrow Prep", ClipboardCheck],
               ["forecast", "Demand", BarChart3],
@@ -516,7 +634,9 @@ export default function StoreSubscriptionOperationsPage() {
           ))}
         </nav>
 
-        {loading ? (
+        {tab === "grid" ? (
+          <MilkDeliveryGrid onReload={() => void load()} />
+        ) : loading ? (
           <State
             icon={RefreshCw}
             title="Loading subscription operations"
@@ -525,11 +645,13 @@ export default function StoreSubscriptionOperationsPage() {
           />
         ) : (
           <>
+
             {tab === "subscribers" && (
               <SubscribersSection 
                 rows={subscribers} 
                 onEdit={(sub) => { setEditingSubscriber(sub); setEditForm({ amountDueRupees: String((sub.amountDuePaise || 0) / 100), amountCollectedRupees: String((sub.amountCollectedPaise || 0) / 100), note: "", mode: "edit", additionalDeliveries: "", additionalAmountRupees: "" }); }}
                 onViewHistory={async (sub) => { setViewingHistory(sub); setHistoryLoading(true); try { const res = await apiClient.get(`/store/subscriptions/subscribers/${sub.id}/history`); setHistoryData(res.data); } catch { setHistoryData(null); } finally { setHistoryLoading(false); } }}
+                onAddOfflineCustomer={() => setAddCustomerModalOpen(true)}
               />
             )}
 
@@ -1197,7 +1319,7 @@ export default function StoreSubscriptionOperationsPage() {
                       onClick={async () => {
                         setWorking("edit-subscriber");
                         try {
-                          await apiClient.patch(`/admin/subscriptions/subscribers/${editingSubscriber.id}/manual-edit`, {
+                          await apiClient.patch(`/store/subscriptions/subscribers/${editingSubscriber.id}/manual-edit`, {
                             amountDuePaise: Math.round(Number(editForm.amountDueRupees || 0) * 100),
                             amountCollectedPaise: Math.round(Number(editForm.amountCollectedRupees || 0) * 100),
                             note: editForm.note.trim() || undefined,
@@ -1234,15 +1356,15 @@ export default function StoreSubscriptionOperationsPage() {
                 <div className="grid grid-cols-3 gap-2">
                   <div className="rounded-xl bg-slate-50 p-2 text-center">
                     <p className="text-[10px] text-slate-500">Progress</p>
-                    <p className="font-kpi text-sm">{historyData.completedDeliveries || 0}/{historyData.fundedDeliveryCount || historyData.totalDeliveries || '—'}</p>
+                    <p className="font-kpi text-sm">{historyData.completedDeliveries ?? historyData.summary?.deliveredDays ?? 0}/{historyData.fundedDeliveryCount || historyData.totalDeliveries || historyData.summary?.totalDays || '—'}</p>
                   </div>
                   <div className="rounded-xl bg-emerald-50 p-2 text-center">
                     <p className="text-[10px] text-emerald-600">Collected</p>
-                    <p className="font-kpi text-sm text-emerald-700">{formatPaise(historyData.amountCollectedPaise || 0)}</p>
+                    <p className="font-kpi text-sm text-emerald-700">{formatPaise(historyData.amountCollectedPaise ?? historyData.summary?.collectedPaise ?? 0)}</p>
                   </div>
                   <div className="rounded-xl bg-amber-50 p-2 text-center">
                     <p className="text-[10px] text-amber-600">Due</p>
-                    <p className="font-kpi text-sm text-amber-700">{formatPaise(historyData.amountDuePaise || 0)}</p>
+                    <p className="font-kpi text-sm text-amber-700">{formatPaise(historyData.amountDuePaise ?? historyData.summary?.duePaise ?? 0)}</p>
                   </div>
                 </div>
                 
@@ -1251,6 +1373,176 @@ export default function StoreSubscriptionOperationsPage() {
             ) : (
               <p className="text-center text-sm text-slate-500 py-4">No history data available</p>
             )}
+          </Modal>
+        )}
+
+        {addCustomerModalOpen && (
+          <Modal title="Add Offline Customer & Subscription" onClose={() => setAddCustomerModalOpen(false)} wide>
+            <div className="space-y-4">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-900">
+                <p className="font-black text-emerald-800">Add milk customer directly for store delivery and cash / PhonePe tracking.</p>
+                <p className="text-[11px] text-emerald-700 mt-0.5">Schedules deliveries on the calendar and reconciles milk cash flow accurately.</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Customer Full Name *">
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Saikumar Bali"
+                    value={customerForm.name}
+                    onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500"
+                  />
+                </Field>
+                <Field label="Mobile Number (10 Digits) *">
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    placeholder="e.g. 7842204844"
+                    value={customerForm.phone}
+                    onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500"
+                  />
+                </Field>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Delivery Address / Locality *">
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Bowluwada / Riksha Colony"
+                    value={customerForm.address}
+                    onChange={(e) => setCustomerForm({ ...customerForm, address: e.target.value })}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500"
+                  />
+                </Field>
+                <Field label="City / Town">
+                  <input
+                    type="text"
+                    placeholder="Anakapalle"
+                    value={customerForm.city}
+                    onChange={(e) => setCustomerForm({ ...customerForm, city: e.target.value })}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500"
+                  />
+                </Field>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label="Subscription Plan *">
+                  <select
+                    value={customerForm.planId}
+                    onChange={(e) => {
+                      const selected = plans.find(p => p.id === e.target.value);
+                      setCustomerForm({
+                        ...customerForm,
+                        planId: e.target.value,
+                        totalDeliveries: String(selected?.totalDeliveries || 30),
+                        amountCollectedRupees: selected ? String(selected.pricePaise / 100) : customerForm.amountCollectedRupees,
+                      });
+                    }}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500"
+                  >
+                    {plans.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({formatPaise(p.pricePaise)})
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Delivery Slot *">
+                  <select
+                    value={customerForm.deliverySlot}
+                    onChange={(e) => setCustomerForm({ ...customerForm, deliverySlot: e.target.value as any })}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500"
+                  >
+                    <option value="MORNING">Morning (AM Slot: 6 AM - 9 AM)</option>
+                    <option value="EVENING">Evening (PM Slot: 5 PM - 8 PM)</option>
+                    <option value="BOTH">Both (AM + PM)</option>
+                  </select>
+                </Field>
+
+                <Field label="Start Date *">
+                  <input
+                    type="date"
+                    required
+                    value={customerForm.startDate}
+                    onChange={(e) => setCustomerForm({ ...customerForm, startDate: e.target.value })}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500"
+                  />
+                </Field>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label="Total Days / Deliveries">
+                  <input
+                    type="number"
+                    min="1"
+                    max="366"
+                    value={customerForm.totalDeliveries}
+                    onChange={(e) => setCustomerForm({ ...customerForm, totalDeliveries: e.target.value })}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500"
+                  />
+                </Field>
+
+                <Field label="Payment Mode">
+                  <select
+                    value={customerForm.paymentMode}
+                    onChange={(e) => setCustomerForm({ ...customerForm, paymentMode: e.target.value as any })}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500"
+                  >
+                    <option value="CASH">Cash Payment</option>
+                    <option value="PHONE_PE">PhonePe / UPI</option>
+                    <option value="DUE">Payment Due (Pay Later)</option>
+                  </select>
+                </Field>
+
+                <Field label="Amount Collected (₹)">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    disabled={customerForm.paymentMode === "DUE"}
+                    placeholder="0"
+                    value={customerForm.amountCollectedRupees}
+                    onChange={(e) => setCustomerForm({ ...customerForm, amountCollectedRupees: e.target.value })}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500 disabled:bg-slate-100"
+                  />
+                </Field>
+              </div>
+
+              <Field label="Remarks / Operational Notes">
+                <input
+                  type="text"
+                  placeholder="e.g. 1L Buffalo Milk AM, Riksha Colony"
+                  value={customerForm.note}
+                  onChange={(e) => setCustomerForm({ ...customerForm, note: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500"
+                />
+              </Field>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setAddCustomerModalOpen(false)}
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={savingCustomer}
+                  onClick={() => void saveOfflineCustomer()}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-5 py-2.5 text-xs font-black text-white hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  {savingCustomer ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 stroke-[3]" />}
+                  Create Customer & Subscription
+                </button>
+              </div>
+            </div>
           </Modal>
         )}
       </div>
@@ -1285,7 +1577,17 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function SubscribersSection({ rows, onEdit, onViewHistory }: { rows: SubscriberRow[]; onEdit?: (sub: SubscriberRow) => void; onViewHistory?: (sub: SubscriberRow) => void }) {
+function SubscribersSection({
+  rows,
+  onEdit,
+  onViewHistory,
+  onAddOfflineCustomer,
+}: {
+  rows: SubscriberRow[];
+  onEdit?: (sub: SubscriberRow) => void;
+  onViewHistory?: (sub: SubscriberRow) => void;
+  onAddOfflineCustomer?: () => void;
+}) {
   const [sourceFilter, setSourceFilter] = useState<'all' | 'online' | 'offline'>('all');
   const filteredRows = rows.filter((row) => {
     if (sourceFilter === 'all') return true;
@@ -1295,21 +1597,31 @@ function SubscribersSection({ rows, onEdit, onViewHistory }: { rows: SubscriberR
 
   return (
     <section className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-black text-slate-900">Customer subscriptions</h2>
           <p className="text-xs font-semibold text-slate-500">Store subscription records for your assigned stores.</p>
         </div>
-        <div className="flex gap-1.5">
-          {(['all', 'online', 'offline'] as const).map((filter) => (
+        <div className="flex items-center gap-2">
+          {onAddOfflineCustomer && (
             <button
-              key={filter}
-              onClick={() => setSourceFilter(filter)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-black ${sourceFilter === filter ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              onClick={onAddOfflineCustomer}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3.5 py-1.5 text-xs font-black text-white hover:bg-emerald-800 shadow-sm transition-all"
             >
-              {filter.charAt(0).toUpperCase() + filter.slice(1)}
+              <UserPlus className="h-3.5 w-3.5" /> Add Offline Customer
             </button>
-          ))}
+          )}
+          <div className="flex gap-1.5">
+            {(['all', 'online', 'offline'] as const).map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setSourceFilter(filter)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-black ${sourceFilter === filter ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              >
+                {filter.charAt(0).toUpperCase() + filter.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       {filteredRows.length ? (
@@ -1345,8 +1657,8 @@ function SubscribersSection({ rows, onEdit, onViewHistory }: { rows: SubscriberR
                     {row.homeStore?.name || "—"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5">
-                    {row.storeDelivery ? (
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-700">
+                    {row.storeDelivery || row.deliveryMethod === 'PERSONAL_HANDOVER' ? (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700">
                         <Truck className="h-3 w-3" /> Store
                       </span>
                     ) : (
@@ -1395,6 +1707,14 @@ function SubscribersSection({ rows, onEdit, onViewHistory }: { rows: SubscriberR
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
           <h2 className="text-sm font-black text-slate-800">No subscribers yet</h2>
           <p className="mt-1 text-xs font-semibold text-slate-500">Subscriptions tied to your stores will appear here.</p>
+          {onAddOfflineCustomer && (
+            <button
+              onClick={onAddOfflineCustomer}
+              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-black text-white hover:bg-emerald-800 shadow-sm transition-all"
+            >
+              <UserPlus className="h-4 w-4" /> Add Offline Customer
+            </button>
+          )}
         </div>
       )}
     </section>
@@ -1782,15 +2102,25 @@ function DeliveryCalendar({ deliveries }: { deliveries: any[] }) {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const [selectedDate, setSelectedDate] = useState<string>(todayKey);
+
   const deliveryMap = useMemo(() => {
     const map: Record<string, any[]> = {};
     for (const d of deliveries) {
-      if (!d.serviceDate) continue;
-      const date = new Date(d.serviceDate);
+      const rawDate = d.serviceDate || d.date;
+      if (!rawDate) continue;
+      const date = new Date(rawDate);
       if (isNaN(date.getTime())) continue;
-      const key = date.toISOString().slice(0, 10);
-      if (!map[key]) map[key] = [];
-      map[key].push(d);
+      const localKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      const utcKey = date.toISOString().slice(0, 10);
+      if (!map[localKey]) map[localKey] = [];
+      if (!map[localKey].includes(d)) map[localKey].push(d);
+      if (utcKey !== localKey) {
+        if (!map[utcKey]) map[utcKey] = [];
+        if (!map[utcKey].includes(d)) map[utcKey].push(d);
+      }
     }
     return map;
   }, [deliveries]);
@@ -1815,9 +2145,11 @@ function DeliveryCalendar({ deliveries }: { deliveries: any[] }) {
     STORE_DELIVERING: 'bg-orange-400',
   };
 
+  const selectedDeliveries = deliveryMap[selectedDate] || [];
+
   return (
-    <div className="rounded-xl border border-slate-200 p-3">
-      <div className="flex items-center justify-between mb-3">
+    <div className="rounded-xl border border-slate-200 p-3 space-y-3">
+      <div className="flex items-center justify-between">
         <button onClick={() => setCurrentMonth(new Date(year, month - 1, 1))} className="rounded-lg p-1 hover:bg-slate-100">
           <span className="text-lg font-bold text-slate-600">&lt;</span>
         </button>
@@ -1839,33 +2171,118 @@ function DeliveryCalendar({ deliveries }: { deliveries: any[] }) {
           const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const dayDeliveries = deliveryMap[dateKey] || [];
           const hasDelivery = dayDeliveries.length > 0;
-          const today = new Date();
           const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
+          const isSelected = selectedDate === dateKey;
+          const isDelivered = dayDeliveries.some((d: any) => d.status === 'DELIVERED');
 
           return (
-            <div
+            <button
               key={dateKey}
-              className={`relative min-h-[40px] rounded-lg p-1 text-center ${isToday ? 'ring-2 ring-emerald-500' : ''} ${hasDelivery ? 'bg-slate-50' : ''}`}
+              type="button"
+              onClick={() => setSelectedDate(dateKey)}
+              className={`relative min-h-[48px] rounded-lg p-1 text-center transition-all ${
+                isSelected
+                  ? 'ring-2 ring-emerald-600 bg-emerald-50'
+                  : isToday
+                  ? 'ring-1 ring-emerald-400 bg-slate-50'
+                  : hasDelivery
+                  ? 'bg-slate-50 hover:bg-slate-100'
+                  : 'hover:bg-slate-50'
+              }`}
             >
-              <span className={`text-xs font-bold ${isToday ? 'text-emerald-700' : 'text-slate-700'}`}>{day}</span>
+              <span className={`text-xs font-bold block ${isToday ? 'text-emerald-700' : 'text-slate-700'}`}>{day}</span>
               {hasDelivery && (
-                <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
-                  {dayDeliveries.slice(0, 3).map((d: any) => (
-                    <div
-                      key={d.id}
-                      className={`h-1.5 w-1.5 rounded-full ${statusColor[d.status] || 'bg-slate-300'}`}
-                      title={`${d.status}${d.cashDuePaise ? ` - ${formatPaise(d.cashDuePaise)}` : ''}`}
-                    />
-                  ))}
-                  {dayDeliveries.length > 3 && <span className="text-[7px] text-slate-400">+{dayDeliveries.length - 3}</span>}
+                <div className="flex flex-col items-center justify-center mt-1">
+                  {isDelivered ? (
+                    <span
+                      className="flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 text-emerald-700 shadow-sm ring-1 ring-emerald-300"
+                      title={dayDeliveries.map((d: any) => `#${d.sequenceNumber}: Delivered${d.cashCollectedPaise ? ` (Collected: ${formatPaise(d.cashCollectedPaise)})` : ''}`).join('\n')}
+                    >
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
+                    </span>
+                  ) : dayDeliveries.some((d: any) => d.status === 'FAILED') ? (
+                    <span className="flex items-center justify-center h-5 w-5 rounded-full bg-red-100 text-red-700 shadow-sm" title="Delivery Failed">
+                      <X className="h-3.5 w-3.5 stroke-[3]" />
+                    </span>
+                  ) : dayDeliveries.some((d: any) => d.status === 'SKIPPED') ? (
+                    <span className="flex items-center justify-center h-5 w-5 rounded-full bg-slate-100 text-slate-600 shadow-sm" title="Delivery Skipped">
+                      <Pause className="h-3 w-3 stroke-[2.5]" />
+                    </span>
+                  ) : (
+                    <div className="flex flex-wrap justify-center gap-0.5">
+                      {dayDeliveries.slice(0, 3).map((d: any) => (
+                        <span
+                          key={d.id}
+                          className={`h-2 w-2 rounded-full ${statusColor[d.status] || 'bg-slate-300'}`}
+                          title={`#${d.sequenceNumber}: ${d.status}${d.cashCollectedPaise ? ` (Collected: ${formatPaise(d.cashCollectedPaise)})` : ''}`}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+            </button>
           );
         })}
       </div>
-      <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-slate-100">
-        {Object.entries(statusColor).filter(([s]) => deliveries.some((d) => d.status === s)).map(([status, color]) => (
+
+      {selectedDeliveries.length > 0 ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3 space-y-2">
+          <p className="text-[11px] font-black uppercase text-emerald-900">
+            Deliveries on {formatDate(selectedDate)}
+          </p>
+          <div className="space-y-1.5">
+            {selectedDeliveries.map((d: any) => (
+              <div key={d.id} className="flex items-center justify-between rounded-lg bg-white p-2.5 shadow-sm border border-slate-100 text-xs">
+                <div className="flex items-center gap-2">
+                  {d.status === 'DELIVERED' ? (
+                    <span className="flex items-center justify-center h-4 w-4 rounded-full bg-emerald-100 text-emerald-700">
+                      <Check className="h-3 w-3 stroke-[3]" />
+                    </span>
+                  ) : (
+                    <span className={`h-2.5 w-2.5 rounded-full ${statusColor[d.status] || 'bg-slate-300'}`} />
+                  )}
+                  <div>
+                    <span className="font-black text-slate-900">Delivery #{d.sequenceNumber}</span>
+                    <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+                      {d.deliverySlot || 'AM'}
+                    </span>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Status: <strong className="font-semibold text-slate-700">{humanize(d.status)}</strong></p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  {d.cashCollectedPaise > 0 ? (
+                    <div>
+                      <p className="font-black text-emerald-700">{formatPaise(d.cashCollectedPaise)}</p>
+                      <p className="text-[9px] text-slate-400">Cash Collected</p>
+                    </div>
+                  ) : d.cashDuePaise > 0 ? (
+                    <div>
+                      <p className="font-black text-amber-700">{formatPaise(d.cashDuePaise)}</p>
+                      <p className="text-[9px] text-slate-400">Cash Due</p>
+                    </div>
+                  ) : (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Pre-funded</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-slate-100 bg-slate-50 p-2.5 text-center text-xs text-slate-500">
+          {selectedDate ? `No deliveries scheduled on ${formatDate(selectedDate)}` : 'Select a date to view delivery details'}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+        <div className="flex items-center gap-1.5">
+          <span className="flex items-center justify-center h-3.5 w-3.5 rounded-full bg-emerald-100 text-emerald-700">
+            <Check className="h-2.5 w-2.5 stroke-[3]" />
+          </span>
+          <span className="text-[10px] font-bold text-slate-700">Delivered</span>
+        </div>
+        {Object.entries(statusColor).filter(([s]) => s !== 'DELIVERED' && deliveries.some((d) => d.status === s)).map(([status, color]) => (
           <div key={status} className="flex items-center gap-1">
             <div className={`h-2 w-2 rounded-full ${color}`} />
             <span className="text-[9px] text-slate-500">{humanize(status)}</span>

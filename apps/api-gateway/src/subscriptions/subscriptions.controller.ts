@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Headers,
   NotFoundException,
@@ -10,11 +11,13 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import {
   CustomerSubscriptionStatus,
   prisma,
@@ -34,6 +37,7 @@ import { SubscriptionSchedulerService } from './subscription-scheduler.service';
 import { TrustedDropService } from './trusted-drop.service';
 import { OfflineCustomerService } from './offline-customer.service';
 import { StoreSelfDeliveryService } from './store-self-delivery.service';
+import { StoreMilkGridService } from './store-milk-grid.service';
 import {
   AdminSubscriptionCorrectionDto,
   AssignDeliveryRunDto,
@@ -409,7 +413,71 @@ export class StoreSubscriptionsController {
     private readonly planService: SubscriptionPlanService,
     private readonly reporting: SubscriptionAdminReportingService,
     private readonly offlineCustomers: OfflineCustomerService,
+    private readonly milkGrid: StoreMilkGridService,
   ) {}
+
+  @Get('grid')
+  grid(
+    @Req() req: AuthenticatedRequest,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    return this.milkGrid.getGrid(
+      req.user,
+      year ? parseInt(year, 10) : undefined,
+      month !== undefined && month !== '' ? parseInt(month, 10) : undefined,
+    );
+  }
+
+  @Post('deliveries/:id/quick-action')
+  quickAction(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      type: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT';
+      extraQuantity?: string;
+      extraPaise?: number;
+      paymentMode?: 'CASH' | 'PHONE_PE';
+      amountPaise?: number;
+      note?: string;
+    },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.milkGrid.executeQuickAction(req.user, id, body);
+  }
+
+  @Get('dispatch-summary')
+  dispatchSummary(
+    @Req() req: AuthenticatedRequest,
+    @Query('date') date?: string,
+  ) {
+    return this.milkGrid.getDispatchSummary(req.user, date);
+  }
+
+  @Get('customer/:id/statement')
+  customerStatement(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.milkGrid.getCustomerStatement(req.user, id);
+  }
+
+  @Get('grid/export-csv')
+  async exportCsv(
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    const csv = await this.milkGrid.exportCsv(
+      req.user,
+      year ? parseInt(year, 10) : undefined,
+      month !== undefined && month !== '' ? parseInt(month, 10) : undefined,
+    );
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="aagam-milk-grid-${year || '2026'}-${month !== undefined ? month : 'month'}.csv"`,
+    );
+    res.send(csv);
+  }
 
   @Get('subscribers')
   subscribers(@Req() req: AuthenticatedRequest) {
@@ -445,6 +513,78 @@ export class StoreSubscriptionsController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.reporting.renewSubscription(id, body, req.user.id, req.user.role);
+  }
+
+  @Patch('subscribers/:id/manual-edit')
+  async updateManualSubscription(
+    @Param('id') id: string,
+    @Body() body: UpdateAdminManualSubscriptionDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (req.user.role !== Role.ADMIN) {
+      const sub = await prisma.customerSubscription.findUnique({
+        where: { id },
+        include: { homeStore: { select: { ownerId: true } } },
+      });
+      if (!sub || sub.homeStore?.ownerId !== req.user.id) {
+        throw new ForbiddenException('You do not have access to this subscription');
+      }
+    }
+    return this.reporting.updateManualSubscription(id, body, req.user.id);
+  }
+
+  @Post('manual-customer')
+  createOfflineCustomer(@Body() body: CreateManualOfflineCustomerDto) {
+    return this.reporting.createOfflineCustomer(body);
+  }
+
+  @Post('manual-subscribe')
+  async createManualSubscription(@Body() body: CreateAdminManualSubscriptionDto, @Req() req: AuthenticatedRequest) {
+    if (req.user.role !== Role.ADMIN) {
+      const store = await prisma.store.findUnique({ where: { id: body.storeId } });
+      if (!store || store.ownerId !== req.user.id) {
+        throw new ForbiddenException('You do not own this store');
+      }
+    }
+    return this.reporting.createManualSubscription(body, req.user.id);
+  }
+
+  @Post('custom-subscribe')
+  async createCustomManualSubscription(@Body() body: CreateCustomManualSubscriptionDto, @Req() req: AuthenticatedRequest) {
+    if (req.user.role !== Role.ADMIN) {
+      const store = await prisma.store.findUnique({ where: { id: body.storeId } });
+      if (!store || store.ownerId !== req.user.id) {
+        throw new ForbiddenException('You do not own this store');
+      }
+    }
+    return this.reporting.createCustomManualSubscription(body, req.user.id);
+  }
+
+  @Get('offline-customers')
+  async listOfflineCustomers(
+    @Req() req: AuthenticatedRequest,
+    @Query('search') search?: string,
+    @Query('storeId') storeId?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    const userEmail = (req.user as any)?.email;
+    const isMaster = req.user.role === Role.ADMIN || (userEmail && (userEmail === 'aagaam@gmail.com' || userEmail === 'store@aagam.com'));
+    let effectiveStoreId = storeId;
+    if (!isMaster) {
+      const ownedStore = await prisma.store.findFirst({ where: { ownerId: req.user.id } });
+      if (!ownedStore) return { customers: [], total: 0, page: 1, pageSize: 25 };
+      effectiveStoreId = ownedStore.id;
+    }
+
+    return this.offlineCustomers.listCustomers({
+      search,
+      storeId: effectiveStoreId,
+      status,
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 25,
+    });
   }
 }
 

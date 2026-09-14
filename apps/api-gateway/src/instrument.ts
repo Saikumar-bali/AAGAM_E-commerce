@@ -1,5 +1,4 @@
 import * as Sentry from '@sentry/node';
-import { nodeProfilingIntegration } from '@sentry/profiling-node';
 
 const sentryDsn =
   process.env.SENTRY_DSN ||
@@ -8,11 +7,7 @@ const sentryDsn =
 if (sentryDsn) {
   Sentry.init({
     dsn: sentryDsn,
-    integrations: [nodeProfilingIntegration()],
-    // Tracing
-    tracesSampleRate: 1.0, // Capture 100% of the transactions
-    // Set sampling rate for profiling - evaluated only once per SDK.init call
-    profilesSampleRate: 1.0,
+    tracesSampleRate: 1.0,
     environment: process.env.NODE_ENV || 'development',
   });
 }

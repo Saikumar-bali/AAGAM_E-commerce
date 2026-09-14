@@ -134,11 +134,13 @@ export class SubscriptionPlanService {
     });
   }
 
-  /** Store-scoped plans: plans explicitly assigned to the owner's stores. */
   listForStore(ownerId: string) {
     return prisma.subscriptionPlan.findMany({
       where: {
-        stores: { some: { store: { ownerId } } },
+        OR: [
+          { stores: { some: { store: { ownerId } } } },
+          { stores: { none: {} }, status: 'ACTIVE' },
+        ],
       },
       orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
       include: {
