@@ -362,10 +362,8 @@ jobs:
           echo "..."
 
           openhands --headless \
-            --json \
             --override-with-envs \
-            --exit-without-confirmation \
-            -t "$(cat task_prompt.txt)"
+            -f task_prompt.txt
 
       - name: Check for changes
         id: changes

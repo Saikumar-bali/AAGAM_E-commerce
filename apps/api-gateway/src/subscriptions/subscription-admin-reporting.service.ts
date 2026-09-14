@@ -1040,6 +1040,22 @@ export class SubscriptionAdminReportingService {
       const currentCycle = typeof prevPriceSnapshot.cycleNumber === 'number' ? prevPriceSnapshot.cycleNumber : 1;
       const nextCycleNumber = currentCycle + 1;
 
+      // Idempotency: prevent double-clicks or rapid retries from creating duplicate cycles
+      const recentDuplicate = await tx.customerSubscription.findFirst({
+        where: {
+          customerId: existing.customerId,
+          source: 'renewal',
+          createdAt: { gte: new Date(Date.now() - 60_000) },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (recentDuplicate) {
+        const ps = (recentDuplicate.priceSnapshot as any) || {};
+        if (ps.previousSubscriptionId === existing.id) {
+          return recentDuplicate;
+        }
+      }
+
       // Calculate start and end dates
       const lastDelivery = existing.deliveries[0];
       const lastDate = lastDelivery?.serviceDate ?? existing.endDate;
@@ -1263,9 +1279,23 @@ export class SubscriptionAdminReportingService {
       });
       if (!sub) throw new NotFoundException('Subscription not found');
 
+      const outstandingDue = sub.amountDuePaise || 0;
+      if (outstandingDue <= 0) {
+        throw new BadRequestException('This subscription has no outstanding due balance to collect');
+      }
+
       const amountToCredit = Math.max(0, dto.amountPaise);
+      if (amountToCredit <= 0) {
+        throw new BadRequestException('Payment amount must be greater than zero');
+      }
+      if (amountToCredit > outstandingDue) {
+        throw new BadRequestException(
+          `Payment amount (₹${(amountToCredit / 100).toFixed(2)}) cannot exceed outstanding due balance of ₹${(outstandingDue / 100).toFixed(2)}`,
+        );
+      }
+
       const newCollected = (sub.amountCollectedPaise || 0) + amountToCredit;
-      const newDue = Math.max(0, (sub.amountDuePaise || 0) - amountToCredit);
+      const newDue = Math.max(0, outstandingDue - amountToCredit);
       const newStatus = newDue === 0 && sub.status === CustomerSubscriptionStatus.PENDING_CASH_COLLECTION
         ? CustomerSubscriptionStatus.ACTIVE
         : sub.status;
