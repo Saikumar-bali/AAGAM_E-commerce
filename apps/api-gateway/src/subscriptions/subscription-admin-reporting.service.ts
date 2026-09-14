@@ -439,8 +439,8 @@ export class SubscriptionAdminReportingService {
       });
     }
 
-    const fallbackLat = typeof dto.latitude === 'number' && Number.isFinite(dto.latitude) ? dto.latitude : 17.6868;
-    const fallbackLng = typeof dto.longitude === 'number' && Number.isFinite(dto.longitude) ? dto.longitude : 83.2185;
+    const fallbackLat = typeof dto.latitude === 'number' && Number.isFinite(dto.latitude) ? dto.latitude : 17.6913;
+    const fallbackLng = typeof dto.longitude === 'number' && Number.isFinite(dto.longitude) ? dto.longitude : 83.0039;
 
     // Clear any existing default addresses before creating a new one to avoid
     // multiple defaults on the same customer (which could cause stale prefill).

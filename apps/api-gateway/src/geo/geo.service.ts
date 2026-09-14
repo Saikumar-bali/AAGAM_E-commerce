@@ -202,14 +202,13 @@ export class GeoService {
       return { ok: false, source: 'google', results: [], message: 'Google Places key not configured' };
     }
 
-    // Default to Anakapalle area if no coordinates provided
-    const defaultLat = lat ?? 17.6916;
-    const defaultLng = lng ?? 83.0037;
+    // Default to Anakapalle center area if no coordinates provided
+    const defaultLat = lat ?? 17.6913;
+    const defaultLng = lng ?? 83.0039;
 
     try {
       const body: Record<string, unknown> = {
         input: query,
-        includedPrimaryTypes: ['geocode', 'establishment'],
         regionCode: 'in',
         locationBias: {
           circle: {
@@ -225,17 +224,8 @@ export class GeoService {
       });
 
       if (response.status < 200 || response.status >= 300) {
-        // Places API (New) not enabled for this key's project — retry via legacy Places
-        if (response.status === 403) {
-          return this.legacyPlacesAutocomplete(query, key, lat, lng);
-        }
-        return {
-          ok: false,
-          source: 'google',
-          status: response.status,
-          message: response.data?.error?.message || 'Google Places autocomplete failed',
-          results: [],
-        };
+        // Places API (New) not enabled or rejected — retry via legacy Places
+        return this.legacyPlacesAutocomplete(query, key, defaultLat, defaultLng);
       }
 
       const results = (response.data?.suggestions || [])
@@ -247,26 +237,25 @@ export class GeoService {
           displayName: p.structuredFormat?.mainText?.text && p.structuredFormat?.secondaryText?.text
             ? `${p.structuredFormat.mainText.text}, ${p.structuredFormat.secondaryText.text}`
             : p.text?.text || '',
-          type: String(p.types?.[0] || 'place').replace(/_/g, ' '),
+          type: this.mapGooglePlaceType(p.types || []),
         }));
 
       return { ok: true, source: 'google', results };
     } catch (e: any) {
-      return { ok: false, source: 'google', results: [], message: e?.message || 'Search failed' };
+      return this.legacyPlacesAutocomplete(query, key, defaultLat, defaultLng);
     }
   }
 
   private async legacyPlacesAutocomplete(query: string, key: string, lat?: number, lng?: number) {
     // Default to Anakapalle area if no coordinates provided
-    const defaultLat = lat ?? 17.6916;
-    const defaultLng = lng ?? 83.0037;
+    const defaultLat = lat ?? 17.6913;
+    const defaultLng = lng ?? 83.0039;
 
     try {
       const params: Record<string, unknown> = {
         input: query,
         key,
         components: 'country:in',
-        types: 'geocode|establishment',
         location: `${defaultLat},${defaultLng}`,
         radius: 25000, // 25km radius around Anakapalle
       };
@@ -278,24 +267,19 @@ export class GeoService {
 
       const status = response.data?.status;
       if (status !== 'OK' && status !== 'ZERO_RESULTS') {
-        return {
-          ok: false,
-          source: 'google',
-          message: response.data?.error_message || status || 'Google Places autocomplete failed',
-          results: [],
-        };
+        return this.textSearch(query, defaultLat, defaultLng);
       }
 
       const results = (response.data?.predictions || []).slice(0, 5).map((p: any) => ({
         placeId: p.place_id as string,
         displayName: p.description || p.formatted_address || '',
-        type: String(p.types?.[0] || 'place').replace(/_/g, ' '),
+        type: this.mapGooglePlaceType(p.types || []),
       }));
 
       if (results.length > 0) return { ok: true, source: 'google', results };
-      return this.textSearch(query, lat, lng);
+      return this.textSearch(query, defaultLat, defaultLng);
     } catch (e: any) {
-      return { ok: false, source: 'google', results: [], message: e?.message || 'Search failed' };
+      return this.textSearch(query, defaultLat, defaultLng);
     }
   }
 
@@ -305,8 +289,8 @@ export class GeoService {
       return { ok: false, source: 'google', results: [], message: 'Google Places key not configured' };
     }
 
-    const defaultLat = lat ?? 17.6916;
-    const defaultLng = lng ?? 83.0037;
+    const defaultLat = lat ?? 17.6913;
+    const defaultLng = lng ?? 83.0039;
 
     try {
       const response = await axios.get('https://maps.googleapis.com/maps/api/place/textsearch/json', {
@@ -347,20 +331,28 @@ export class GeoService {
 
   private mapGooglePlaceType(types: string[]): string {
     const priority = [
-      'restaurant', 'food', 'cafe',
-      'store', 'grocery_or_supermarket', 'shopping_mall',
-      'hindu_temple', 'place_of_worship',
+      'hospital', 'doctor', 'pharmacy', 'health',
+      'school', 'secondary_school', 'primary_school', 'university',
+      'restaurant', 'food', 'cafe', 'bakery', 'meal_takeaway',
+      'supermarket', 'grocery_or_supermarket', 'convenience_store', 'store', 'shopping_mall',
+      'hindu_temple', 'place_of_worship', 'church', 'mosque',
+      'bank', 'atm',
+      'park', 'lodging', 'gym', 'train_station', 'bus_station',
       'point_of_interest', 'establishment',
     ];
     for (const p of priority) {
       if (types.includes(p)) {
         const map: Record<string, string> = {
-          restaurant: 'Restaurant', food: 'Restaurant', cafe: 'Cafe',
-          store: 'Store', grocery_or_supermarket: 'Store', shopping_mall: 'Shopping Mall',
-          hindu_temple: 'Temple', place_of_worship: 'Place of Worship',
-          point_of_interest: 'Point of Interest', establishment: 'Place',
+          hospital: 'Hospital', doctor: 'Clinic', pharmacy: 'Pharmacy', health: 'Healthcare',
+          school: 'School', secondary_school: 'School', primary_school: 'School', university: 'College',
+          restaurant: 'Restaurant', food: 'Restaurant', cafe: 'Cafe', bakery: 'Bakery', meal_takeaway: 'Restaurant',
+          supermarket: 'Supermarket', store: 'Store', grocery_or_supermarket: 'Store', convenience_store: 'Store', shopping_mall: 'Shopping Mall',
+          hindu_temple: 'Temple', place_of_worship: 'Place of Worship', church: 'Church', mosque: 'Mosque',
+          bank: 'Bank', atm: 'ATM',
+          park: 'Park', lodging: 'Hotel', gym: 'Gym', train_station: 'Railway Station', bus_station: 'Bus Station',
+          point_of_interest: 'Landmark', establishment: 'Place',
         };
-        return map[p];
+        return map[p] || 'Place';
       }
     }
     return 'Place';
@@ -381,15 +373,7 @@ export class GeoService {
 
       if (response.status < 200 || response.status >= 300) {
         // Places API (New) not enabled for this key's project — retry via legacy Place Details
-        if (response.status === 403) {
-          return this.legacyPlaceDetails(placeId, key);
-        }
-        return {
-          ok: false,
-          source: 'google',
-          status: response.status,
-          message: response.data?.error?.message || 'Google Places details failed',
-        };
+        return this.legacyPlaceDetails(placeId, key);
       }
 
       return {
@@ -400,7 +384,7 @@ export class GeoService {
         formattedAddress: response.data?.formattedAddress,
       };
     } catch (e: any) {
-      return { ok: false, source: 'google', message: e?.message || 'Details failed' };
+      return this.legacyPlaceDetails(placeId, key);
     }
   }
 
