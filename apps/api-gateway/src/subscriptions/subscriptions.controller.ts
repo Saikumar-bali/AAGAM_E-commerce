@@ -436,12 +436,14 @@ export class StoreSubscriptionsController {
     @Param('id') id: string,
     @Body()
     body: {
-      type: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT';
+      type: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT' | 'ATTACH_EVENING_MILK';
       extraQuantity?: string;
       extraPaise?: number;
       paymentMode?: 'CASH' | 'PHONE_PE';
       amountPaise?: number;
       note?: string;
+      consecutiveDays?: number;
+      targetSlot?: 'AM' | 'PM';
     },
     @Req() req: AuthenticatedRequest,
   ) {

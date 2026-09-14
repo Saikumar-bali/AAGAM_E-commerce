@@ -216,12 +216,14 @@ export class StoreMilkGridService {
     actor: { id: string; role: Role; email?: string },
     deliveryId: string,
     action: {
-      type: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT';
+      type: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT' | 'ATTACH_EVENING_MILK';
       extraQuantity?: string;
       extraPaise?: number;
       paymentMode?: 'CASH' | 'PHONE_PE';
       amountPaise?: number;
       note?: string;
+      consecutiveDays?: number;
+      targetSlot?: 'AM' | 'PM';
     },
   ) {
     const delivery = await prisma.subscriptionDelivery.findUnique({
@@ -334,8 +336,49 @@ export class StoreMilkGridService {
       return { success: true, delivery: updated[0], subscription: updated[1] };
     }
 
+    if (action.type === 'ATTACH_EVENING_MILK') {
+      const extraQty = action.extraQuantity?.trim() || '+1L BM';
+      const count = Math.max(1, Math.min(30, action.consecutiveDays || 4));
+      const extraPaise = action.extraPaise || (
+        extraQty.includes('0.5') ? 4000 : extraQty.includes('2') ? 16000 : 8000
+      );
+      const note = `[EVENING BUFFALO MILK: ${extraQty}|${extraPaise}] ${action.note || ''}`.trim();
+
+      const targetDeliveries = await prisma.subscriptionDelivery.findMany({
+        where: {
+          subscriptionId: sub.id,
+          sequenceNumber: {
+            gte: delivery.sequenceNumber,
+            lt: delivery.sequenceNumber + count,
+          },
+        },
+        orderBy: { sequenceNumber: 'asc' },
+      });
+
+      const totalExtraPaise = extraPaise * targetDeliveries.length;
+      await prisma.$transaction([
+        prisma.subscriptionDelivery.updateMany({
+          where: { id: { in: targetDeliveries.map((d) => d.id) } },
+          data: {
+            deliverySlot: 'PM',
+            deferredReason: note,
+            cashDuePaise: { increment: extraPaise },
+          },
+        }),
+        prisma.customerSubscription.update({
+          where: { id: sub.id },
+          data: {
+            amountDuePaise: (sub.amountDuePaise || 0) + totalExtraPaise,
+          },
+        }),
+      ]);
+
+      return { success: true, count: targetDeliveries.length, message: `Attached evening buffalo milk for ${targetDeliveries.length} days!` };
+    }
+
     if (action.type === 'EXTRA_MILK') {
       const extraQty = action.extraQuantity?.trim() || '+1L';
+      const count = Math.max(1, Math.min(30, action.consecutiveDays || 1));
       const extraPaise = action.extraPaise || action.amountPaise || (
         extraQty.includes('0.5') ? (extraQty.includes('CM') ? 3500 : 4000)
         : extraQty.includes('2') ? 16000
@@ -344,32 +387,60 @@ export class StoreMilkGridService {
       const notePrefix = `[EXTRA: ${extraQty}|${extraPaise}]`;
       const fullNote = `${notePrefix} ${action.note?.trim() || 'Extra milk requested'}`.trim();
 
+      const targetDeliveries = count > 1
+        ? await prisma.subscriptionDelivery.findMany({
+            where: {
+              subscriptionId: sub.id,
+              sequenceNumber: {
+                gte: delivery.sequenceNumber,
+                lt: delivery.sequenceNumber + count,
+              },
+            },
+          })
+        : [delivery];
+
+      const totalExtraPaise = extraPaise * targetDeliveries.length;
       const updated = await prisma.$transaction([
-        prisma.subscriptionDelivery.update({
-          where: { id: deliveryId },
+        prisma.subscriptionDelivery.updateMany({
+          where: { id: { in: targetDeliveries.map((d) => d.id) } },
           data: {
             deferredReason: fullNote,
-            cashDuePaise: (delivery.cashDuePaise || 0) + extraPaise,
+            cashDuePaise: { increment: extraPaise },
           },
         }),
         prisma.customerSubscription.update({
           where: { id: sub.id },
           data: {
-            amountDuePaise: (sub.amountDuePaise || 0) + extraPaise,
+            amountDuePaise: (sub.amountDuePaise || 0) + totalExtraPaise,
           },
         }),
       ]);
 
-      return { success: true, delivery: updated[0], subscription: updated[1] };
+      return { success: true, count: targetDeliveries.length, subscription: updated[1] };
     }
 
     if (action.type === 'TOGGLE_SLOT') {
-      const newSlot = delivery.deliverySlot === 'AM' ? 'PM' : 'AM';
-      const updated = await prisma.subscriptionDelivery.update({
-        where: { id: deliveryId },
+      const count = Math.max(1, Math.min(30, action.consecutiveDays || 1));
+      const newSlot = action.targetSlot || (delivery.deliverySlot === 'AM' ? 'PM' : 'AM');
+
+      const targetDeliveries = count > 1
+        ? await prisma.subscriptionDelivery.findMany({
+            where: {
+              subscriptionId: sub.id,
+              sequenceNumber: {
+                gte: delivery.sequenceNumber,
+                lt: delivery.sequenceNumber + count,
+              },
+            },
+          })
+        : [delivery];
+
+      await prisma.subscriptionDelivery.updateMany({
+        where: { id: { in: targetDeliveries.map((d) => d.id) } },
         data: { deliverySlot: newSlot },
       });
-      return { success: true, delivery: updated };
+
+      return { success: true, count: targetDeliveries.length, newSlot };
     }
 
     if (action.type === 'RECORD_PAYMENT') {

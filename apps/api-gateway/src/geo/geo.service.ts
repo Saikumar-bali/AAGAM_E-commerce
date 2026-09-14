@@ -53,6 +53,17 @@ const NOMINATIM_HEADERS = {
   Accept: 'application/json',
 };
 
+function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 @Injectable()
 export class GeoService {
   async reverse(lat: number, lng: number) {
@@ -202,7 +213,7 @@ export class GeoService {
       return { ok: false, source: 'google', results: [], message: 'Google Places key not configured' };
     }
 
-    // Default to Anakapalle center area if no coordinates provided
+    // Default to Anakapalle center area (17.6913, 83.0039)
     const defaultLat = lat ?? 17.6913;
     const defaultLng = lng ?? 83.0039;
 
@@ -210,10 +221,11 @@ export class GeoService {
       const body: Record<string, unknown> = {
         input: query,
         regionCode: 'in',
-        locationBias: {
+        // Strictly restrict results to Anakapalle and surrounding villages (20km radius)
+        locationRestriction: {
           circle: {
             center: { latitude: defaultLat, longitude: defaultLng },
-            radius: 25000, // 25km radius around Anakapalle
+            radius: 20000.0,
           },
         },
       };
@@ -257,7 +269,8 @@ export class GeoService {
         key,
         components: 'country:in',
         location: `${defaultLat},${defaultLng}`,
-        radius: 25000, // 25km radius around Anakapalle
+        radius: 20000, // 20km radius around Anakapalle
+        strictbounds: true, // Strictly restrict to Anakapalle and surrounding villages only
       };
       const response = await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
         params,
@@ -293,12 +306,14 @@ export class GeoService {
     const defaultLng = lng ?? 83.0039;
 
     try {
+      // Append Anakapalle if user query doesn't explicitly mention it to focus search on local POIs
+      const localQuery = query.toLowerCase().includes('anakapalle') ? query : `${query}, Anakapalle`;
       const response = await axios.get('https://maps.googleapis.com/maps/api/place/textsearch/json', {
         params: {
-          query,
+          query: localQuery,
           key,
           location: `${defaultLat},${defaultLng}`,
-          radius: 25000,
+          radius: 20000,
         },
         timeout: 10000,
         validateStatus: () => true,
@@ -314,14 +329,21 @@ export class GeoService {
         };
       }
 
-      const results = (response.data?.results || []).slice(0, 5).map((r: any) => ({
-        placeId: r.place_id as string,
-        displayName: r.name && r.formatted_address ? `${r.name}, ${r.formatted_address}` : r.formatted_address || r.name || '',
-        name: r.name as string,
-        lat: r.geometry?.location?.lat ?? 0,
-        lng: r.geometry?.location?.lng ?? 0,
-        type: this.mapGooglePlaceType(r.types || []),
-      }));
+      const results = (response.data?.results || [])
+        .map((r: any) => ({
+          placeId: r.place_id as string,
+          displayName: r.name && r.formatted_address ? `${r.name}, ${r.formatted_address}` : r.formatted_address || r.name || '',
+          name: r.name as string,
+          lat: r.geometry?.location?.lat ?? 0,
+          lng: r.geometry?.location?.lng ?? 0,
+          type: this.mapGooglePlaceType(r.types || []),
+        }))
+        // Filter strictly to Anakapalle and nearby villages within 25km radius
+        .filter((r: any) => {
+          if (!r.lat || !r.lng || (Math.abs(r.lat) < 0.0001 && Math.abs(r.lng) < 0.0001)) return true;
+          return haversineDistanceKm(defaultLat, defaultLng, r.lat, r.lng) <= 25;
+        })
+        .slice(0, 5);
 
       return { ok: true, source: 'google', results };
     } catch (e: any) {
