@@ -7,6 +7,7 @@ import { CustomerSubscriptionService } from './customer-subscription.service';
 import { DeliveryRunOperationsService } from './delivery-run-operations.service';
 import { DeliveryRunPlanningService } from './delivery-run-planning.service';
 import { OfflineCustomerService } from './offline-customer.service';
+import { StoreMilkGridService } from './store-milk-grid.service';
 import { AdminRegionalRoutingController, RegionalRoutingEventsController } from './regional-routing.controller';
 import { RegionalDeliveryZoneService } from './regional-delivery-zone.service';
 import { RegionalRouteNotificationService } from './regional-route-notification.service';
@@ -81,6 +82,7 @@ import {
     SubscriptionSchedulerService,
     OfflineCustomerService,
     StoreSelfDeliveryService,
+    StoreMilkGridService,
   ],
   exports: [
     SubscriptionCalendarService,
@@ -95,6 +97,7 @@ import {
     SubscriptionPreparationService,
     OfflineCustomerService,
     StoreSelfDeliveryService,
+    StoreMilkGridService,
   ],
 })
 export class SubscriptionsModule {}

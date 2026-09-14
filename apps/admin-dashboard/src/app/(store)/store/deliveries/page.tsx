@@ -131,7 +131,7 @@ export default function StoreDeliveriesPage() {
     setVerifyName(delivery.customer.name || '');
     setVerifyPhone(delivery.customer.phone || '');
     setVerifyNotes('');
-    setVerifyCash(String(delivery.expectedAmountPaise / 100));
+    setVerifyCash(String((delivery.cashCollectedPaise || delivery.expectedAmountPaise) / 100));
   };
 
   const completeDelivery = async () => {
@@ -240,7 +240,7 @@ export default function StoreDeliveriesPage() {
 
   const totalCash = deliveries
     .filter((d) => d.status === 'DELIVERED')
-    .reduce((sum, d) => sum + (d.expectedAmountPaise || 0), 0);
+    .reduce((sum, d) => sum + (d.cashCollectedPaise || d.expectedAmountPaise || 0), 0);
 
   return (
     <DashboardLayout allowedRole="STORE_OWNER">

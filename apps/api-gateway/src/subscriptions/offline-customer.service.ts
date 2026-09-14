@@ -210,6 +210,7 @@ export class OfflineCustomerService {
 
       return {
         id: d.id,
+        serviceDate: d.serviceDate,
         date: d.serviceDate,
         sequenceNumber: d.sequenceNumber,
         deliverySlot: d.deliverySlot,
@@ -241,15 +242,19 @@ export class OfflineCustomerService {
       };
     });
 
+    const totalCashCollectedOnDeliveries = subscription.deliveries.reduce((sum: number, d: { cashCollectedPaise?: number | null }) => sum + (d.cashCollectedPaise || 0), 0);
+    const effectiveCollectedPaise = Math.max(subscription.amountCollectedPaise || 0, totalCashCollectedOnDeliveries);
+    const effectiveDuePaise = Math.max(0, (subscription.amountDuePaise || 0) - (effectiveCollectedPaise - (subscription.amountCollectedPaise || 0)));
+
     const summary = {
       totalDays: subscription.deliveries.length,
       deliveredDays: subscription.deliveries.filter((d: { status: string }) => d.status === 'DELIVERED').length,
       pendingDays: subscription.deliveries.filter((d: { status: string }) => d.status === 'SCHEDULED').length,
       failedDays: subscription.deliveries.filter((d: { status: string }) => d.status === 'FAILED').length,
       skippedDays: subscription.deliveries.filter((d: { status: string }) => d.status === 'SKIPPED').length,
-      totalAmountPaise: subscription.deliveries.reduce((sum: number, d: { cashDuePaise: number }) => sum + d.cashDuePaise, 0) + subscription.amountCollectedPaise,
-      collectedPaise: subscription.amountCollectedPaise,
-      duePaise: subscription.amountDuePaise,
+      totalAmountPaise: subscription.deliveries.reduce((sum: number, d: { cashDuePaise: number }) => sum + d.cashDuePaise, 0) + effectiveCollectedPaise,
+      collectedPaise: effectiveCollectedPaise,
+      duePaise: effectiveDuePaise,
     };
 
     return {
@@ -267,6 +272,11 @@ export class OfflineCustomerService {
       address: subscription.address,
       summary,
       deliveries,
+      completedDeliveries: subscription.completedDeliveries || summary.deliveredDays,
+      fundedDeliveryCount: subscription.fundedDeliveryCount || subscription.deliveries.length,
+      totalDeliveries: subscription.deliveries.length,
+      amountCollectedPaise: effectiveCollectedPaise,
+      amountDuePaise: effectiveDuePaise,
     };
   }
 

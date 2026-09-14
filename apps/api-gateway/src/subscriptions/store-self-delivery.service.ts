@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { Prisma, Role, SubscriptionDeliveryStatus, DeliveryJobStatus, prisma } from '@aagam/database';
+import { CustomerSubscriptionStatus, DeliveryJobStatus, PaymentStatus, Prisma, Role, SubscriptionDeliveryStatus, prisma } from '@aagam/database';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -121,6 +121,29 @@ export class StoreSelfDeliveryService {
         throw new BadRequestException('Delivery status changed concurrently or invalid transition');
       }
 
+      const previousCash = subDelivery.cashCollectedPaise || 0;
+      const cashDelta = cashToRecord !== undefined ? cashToRecord - previousCash : 0;
+      if (cashDelta !== 0) {
+        const sub = await tx.customerSubscription.findUnique({
+          where: { id: subDelivery.subscriptionId },
+          select: { amountCollectedPaise: true, amountDuePaise: true, status: true },
+        });
+        if (sub) {
+          const nextCollected = Math.max(0, (sub.amountCollectedPaise || 0) + cashDelta);
+          const nextDue = Math.max(0, (sub.amountDuePaise || 0) - cashDelta);
+          const shouldActivate = (sub.status === CustomerSubscriptionStatus.PENDING_CASH_COLLECTION || sub.status === CustomerSubscriptionStatus.PAYMENT_DUE) && nextDue === 0;
+
+          await tx.customerSubscription.update({
+            where: { id: subDelivery.subscriptionId },
+            data: {
+              amountCollectedPaise: nextCollected,
+              amountDuePaise: nextDue,
+              ...(shouldActivate ? { status: CustomerSubscriptionStatus.ACTIVE } : {}),
+            },
+          });
+        }
+      }
+
       if (newStatus === SubscriptionDeliveryStatus.DELIVERED) {
         const orderId = subDelivery.deliveryJob?.orderId || subDelivery.order?.id || null;
         if (subDelivery.deliveryJobId) {
@@ -134,6 +157,16 @@ export class StoreSelfDeliveryService {
             where: { id: orderId },
             data: { status: 'DELIVERED', deliveredAt: new Date() },
           });
+          const order = await tx.order.findUnique({
+            where: { id: orderId },
+            include: { payment: true },
+          });
+          if (order?.payment && order.payment.status !== PaymentStatus.CAPTURED && cashToRecord && cashToRecord > 0) {
+            await tx.payment.update({
+              where: { id: order.payment.id },
+              data: { status: PaymentStatus.CAPTURED, verifiedAt: new Date() },
+            });
+          }
         }
         if (subDelivery.deliveryJobId) {
           await tx.storeDeliveryProof.create({
@@ -351,6 +384,9 @@ export class StoreSelfDeliveryService {
             }
           : null,
         expectedAmountPaise: d.order?.grandTotalPaise ?? d.cashDuePaise,
+        cashDuePaise: d.cashDuePaise,
+        cashCollectedPaise: d.cashCollectedPaise,
+        cashCollectedAt: d.cashCollectedAt,
         deliveryJobId: d.deliveryJob?.id || null,
         deliveryJobStatus: d.deliveryJob?.status || null,
         subscription: { storeDelivery: d.subscription.storeDelivery },
@@ -445,6 +481,30 @@ export class StoreSelfDeliveryService {
         },
       });
 
+      const prevCash = subDelivery.cashCollectedPaise || 0;
+      const cashToRecord = dto.cashCollectedPaise || 0;
+      const cashDelta = cashToRecord - prevCash;
+      if (cashDelta !== 0) {
+        const sub = await tx.customerSubscription.findUnique({
+          where: { id: subDelivery.subscriptionId },
+          select: { amountCollectedPaise: true, amountDuePaise: true, status: true },
+        });
+        if (sub) {
+          const nextCollected = Math.max(0, (sub.amountCollectedPaise || 0) + cashDelta);
+          const nextDue = Math.max(0, (sub.amountDuePaise || 0) - cashDelta);
+          const shouldActivate = (sub.status === CustomerSubscriptionStatus.PENDING_CASH_COLLECTION || sub.status === CustomerSubscriptionStatus.PAYMENT_DUE) && nextDue === 0;
+
+          await tx.customerSubscription.update({
+            where: { id: subDelivery.subscriptionId },
+            data: {
+              amountCollectedPaise: nextCollected,
+              amountDuePaise: nextDue,
+              ...(shouldActivate ? { status: CustomerSubscriptionStatus.ACTIVE } : {}),
+            },
+          });
+        }
+      }
+
       const orderId = subDelivery.deliveryJob?.orderId || subDelivery.order?.id || null;
       if (subDelivery.deliveryJobId) {
         await tx.deliveryJob.update({
@@ -457,6 +517,16 @@ export class StoreSelfDeliveryService {
           where: { id: orderId },
           data: { status: 'DELIVERED', deliveredAt: new Date() },
         });
+        const order = await tx.order.findUnique({
+          where: { id: orderId },
+          include: { payment: true },
+        });
+        if (order?.payment && order.payment.status !== PaymentStatus.CAPTURED && cashToRecord > 0) {
+          await tx.payment.update({
+            where: { id: order.payment.id },
+            data: { status: PaymentStatus.CAPTURED, verifiedAt: new Date() },
+          });
+        }
       }
 
       if (subDelivery.deliveryJobId) {

@@ -115,13 +115,24 @@ export class SubscriptionAdminReportingService {
         plan: { select: { id: true, code: true, name: true } },
         planVersion: { select: { id: true, version: true, pricePaise: true, totalDeliveries: true } },
         homeStore: { select: { id: true, name: true } },
+        deliveries: { select: { cashCollectedPaise: true, status: true } },
         _count: { select: { deliveries: true, issues: true } },
       },
       take: 500,
     }).then((rows) => rows.map((row) => {
       const contact = deliveryContact(row.addressSnapshot);
+      const deliveryCash = row.deliveries ? row.deliveries.reduce((sum, d) => sum + (d.cashCollectedPaise || 0), 0) : 0;
+      const completedCount = row.deliveries ? row.deliveries.filter((d) => d.status === 'DELIVERED').length : row.completedDeliveries;
+      const amountCollectedPaise = Math.max(row.amountCollectedPaise || 0, deliveryCash);
+      const amountDuePaise = Math.max(0, (row.amountDuePaise || 0) - (amountCollectedPaise - (row.amountCollectedPaise || 0)));
+      const completedDeliveries = Math.max(row.completedDeliveries || 0, completedCount);
+      const status = (amountDuePaise === 0 && row.status === 'PENDING_CASH_COLLECTION') ? 'ACTIVE' : row.status;
       return {
         ...row,
+        status,
+        amountCollectedPaise,
+        amountDuePaise,
+        completedDeliveries,
         customer: {
           ...row.customer,
           phone: row.customer.phone || contact.phone,
@@ -167,7 +178,12 @@ export class SubscriptionAdminReportingService {
       ],
     };
     const cashWhere = actor.role === Role.ADMIN ? {} : { store: { ownerId: actor.id } };
-    const [subscriptions, deliveries, cash, demand] = await Promise.all([
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const [subscriptions, deliveries, cash, demand, todayStoreDeliveries] = await Promise.all([
       prisma.customerSubscription.groupBy({
         where: storeFilter,
         by: ['status'],
@@ -178,7 +194,7 @@ export class SubscriptionAdminReportingService {
         where: deliveryWhere,
         by: ['status'],
         _count: { _all: true },
-        _sum: { cashDuePaise: true },
+        _sum: { cashDuePaise: true, cashCollectedPaise: true },
       }),
       prisma.cashDepositBatch.groupBy({
         where: cashWhere,
@@ -193,8 +209,23 @@ export class SubscriptionAdminReportingService {
           ...deliveryWhere,
         },
       }),
+      prisma.subscriptionDelivery.aggregate({
+        where: {
+          ...deliveryWhere,
+          serviceDate: { gte: today, lt: tomorrow },
+          status: SubscriptionDeliveryStatus.DELIVERED,
+        },
+        _sum: { cashCollectedPaise: true },
+      }),
     ]);
-    return { subscriptions, deliveries, cash, upcomingSevenDayDemand: demand, generatedAt: new Date() };
+    return {
+      subscriptions,
+      deliveries,
+      cash,
+      upcomingSevenDayDemand: demand,
+      todayStoreCashPaise: todayStoreDeliveries._sum.cashCollectedPaise || 0,
+      generatedAt: new Date(),
+    };
   }
 
   async subscription(id: string) {
