@@ -410,54 +410,69 @@ jobs:
       - name: Remove in-progress label
         if: always() && needs.analyze.outputs.pr_number != ''
         uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ needs.analyze.outputs.pr_number }}
         with:
           script: |
-            const prNumber = JSON.parse('${{ toJson(needs.analyze.outputs.pr_number) }}');
-            try {
-              await octokit.rest.issues.removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                name: 'auto-fix-in-progress',
-              });
-            } catch (e) {
-              console.log('Label not found or already removed');
+            const prNumber = process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : null;
+            if (prNumber) {
+              try {
+                await octokit.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  name: 'auto-fix-in-progress',
+                });
+              } catch (e) {
+                console.log('Label not found or already removed');
+              }
             }
 
       - name: Add fix status label
         if: always() && needs.analyze.outputs.pr_number != '' && steps.push.outputs.has_changes != 'true'
         uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ needs.analyze.outputs.pr_number }}
+          JOB_STATUS: ${{ job.status }}
+          CHANGED_FILES: ${{ steps.changes.outputs.changed_files }}
         with:
           script: |
-            const prNumber = JSON.parse('${{ toJson(needs.analyze.outputs.pr_number) }}');
-            const jobStatus = '${{ job.status }}';
+            const prNumber = process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : null;
+            const jobStatus = process.env.JOB_STATUS;
+            const changedFiles = process.env.CHANGED_FILES || '0';
             let label;
-            if (jobStatus === 'success' && steps.changes.outputs.changed_files === '0') {
+            if (jobStatus === 'success' && changedFiles === '0') {
               label = 'auto-fix-no-changes';
             } else if (jobStatus === 'success') {
               label = 'auto-fix-applied';
             } else {
               label = 'auto-fix-failed';
             }
-            try {
-              await octokit.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                labels: [label],
-              });
-            } catch (e) {
-              console.log('Could not add label:', e.message);
+            if (prNumber) {
+              try {
+                await octokit.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  labels: [label],
+                });
+              } catch (e) {
+                console.log('Could not add label:', e.message);
+              }
             }
 
       - name: Comment on PR
         if: always() && needs.analyze.outputs.pr_number != '' && steps.push.outputs.has_changes != 'true'
         uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ needs.analyze.outputs.pr_number }}
+          JOB_STATUS: ${{ job.status }}
+          CHANGED_FILES: ${{ steps.changes.outputs.changed_files }}
         with:
           script: |
-            const prNumber = JSON.parse('${{ toJson(needs.analyze.outputs.pr_number) }}');
-            const changedFiles = '${{ steps.changes.outputs.changed_files }}';
-            const jobStatus = '${{ job.status }}';
+            const prNumber = process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : null;
+            const changedFiles = process.env.CHANGED_FILES || '0';
+            const jobStatus = process.env.JOB_STATUS;
 
             let body;
             if (jobStatus !== 'success') {
@@ -468,13 +483,16 @@ jobs:
               body = `### 🤖 OpenHands Auto-Fix\n\nOpenHands reviewed the code and bot comments, but did not find any valid actionable code changes to apply (comments may be false positives or already satisfied).`;
             }
 
-            try {
-              await octokit.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: body,
-              });
-            } catch (e) {
-              console.log('Could not comment on PR:', e.message);
+            if (prNumber) {
+              try {
+                await octokit.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: body,
+                });
+              } catch (e) {
+                console.log('Could not comment on PR:', e.message);
+              }
             }
+
