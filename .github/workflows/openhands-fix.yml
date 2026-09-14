@@ -64,6 +64,7 @@ jobs:
           CHECK_SUITE_NAME: ${{ github.event.check_suite.name || '' }}
           PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || '' }}
           PR_TITLE: ${{ github.event.pull_request.title || '' }}
+          ISSUE_LABELS: ${{ toJson(github.event.issue.labels) }}
         run: |
           SHOULD_FIX="false"
           OUT_PR_NUMBER=""
@@ -130,7 +131,6 @@ jobs:
             fi
           elif [ "$EVENT_NAME" = "issues" ]; then
             OUT_PR_NUMBER="$EVENT_PR_NUMBER"
-            ISSUE_LABELS='${{ toJson(github.event.issue.labels) }}'
             if echo "$ISSUE_LABELS" | grep -qiE '"(bug|fix|auto-fix|sentry|crash)"'; then
               SHOULD_FIX="true"
               echo "Trigger: Issue labeled for auto-fix"
