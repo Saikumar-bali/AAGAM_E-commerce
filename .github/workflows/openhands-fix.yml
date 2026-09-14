@@ -151,15 +151,35 @@ jobs:
         with:
           script: |
             const prNumber = JSON.parse('${{ toJson(steps.check.outputs.pr_number) }}');
-            const { data: labels } = await octokit.rest.issues.listLabelsOnIssue({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-            const hasLabel = labels.some(l => l.name === 'auto-fix-in-progress');
-            if (hasLabel) {
+            let isRunning = false;
+            try {
+              const { data: runs } = await octokit.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                status: 'in_progress',
+                per_page: 20,
+              });
+              const otherActiveRun = runs.workflow_runs.some(r => r.id !== context.runId && r.name === 'OpenHands Auto-Fix');
+              if (otherActiveRun) {
+                isRunning = true;
+              }
+            } catch (e) {
+              console.log('Error checking workflow runs:', e.message);
+            }
+
+            if (isRunning) {
+              console.log('Another OpenHands run is actively in progress. Skipping.');
               core.setOutput('skip', 'true');
             } else {
+              // Clean up any stale in-progress label from previous cancelled runs
+              try {
+                await octokit.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  name: 'auto-fix-in-progress',
+                });
+              } catch (e) {}
               core.setOutput('skip', 'false');
             }
 
