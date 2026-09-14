@@ -63,6 +63,7 @@ jobs:
           CHECK_CONCLUSION: ${{ github.event.check_suite.conclusion || '' }}
           CHECK_SUITE_NAME: ${{ github.event.check_suite.name || '' }}
           PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || '' }}
+          PR_TITLE: ${{ github.event.pull_request.title || '' }}
         run: |
           SHOULD_FIX="false"
           OUT_PR_NUMBER=""
@@ -82,6 +83,12 @@ jobs:
             if echo "$PR_LABELS" | grep -qiE '"(bug|fix|ci-failure|auto-fix|needs-fix)"'; then
               SHOULD_FIX="true"
               echo "Trigger: PR labeled for auto-fix"
+            elif echo "$EVENT_BRANCH_REF" | grep -qiE '(bug|fix)'; then
+              SHOULD_FIX="true"
+              echo "Trigger: PR branch ref '$EVENT_BRANCH_REF' contains bug/fix"
+            elif echo "$PR_TITLE" | grep -qiE '(bug|fix)'; then
+              SHOULD_FIX="true"
+              echo "Trigger: PR title contains bug/fix"
             fi
           elif [ "$EVENT_NAME" = "issue_comment" ] && [ -n "$ISSUE_PR_URL" ]; then
             OUT_PR_NUMBER="$EVENT_PR_NUMBER"
