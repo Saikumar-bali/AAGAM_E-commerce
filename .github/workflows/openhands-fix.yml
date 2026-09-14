@@ -110,7 +110,7 @@ jobs:
               *) exit 0 ;;
             esac
             case "$REVIEW_AUTHOR" in
-              coderabbitai[bot]|qodo-code-review[bot]|qodo-merge[bot]|github-advanced-security[bot])
+              "coderabbitai[bot]"|"qodo-code-review[bot]"|"qodo-merge[bot]"|"github-advanced-security[bot]"|*qodo*|*coderabbit*)
                 SHOULD_FIX="true"
                 echo "Trigger: Bot review submitted by $REVIEW_AUTHOR"
                 ;;

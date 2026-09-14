@@ -1,8 +1,9 @@
 import axios from 'axios';
 
 function getBaseUrl() {
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
+  const win = typeof globalThis !== 'undefined' ? (globalThis as any).window : undefined;
+  if (win && win.location) {
+    const host = win.location.hostname;
     if (host === 'localhost' || host === '127.0.0.1') {
       return 'http://127.0.0.1:3005';
     }
@@ -20,8 +21,9 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use(async (config) => {
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
+  const win = typeof globalThis !== 'undefined' ? (globalThis as any).window : undefined;
+  if (win && win.location) {
+    const host = win.location.hostname;
     if (host === 'localhost' || host === '127.0.0.1') {
       if (!config.baseURL || config.baseURL.includes('aagaam.in') || config.baseURL.includes('localhost:3005')) {
         config.baseURL = 'http://127.0.0.1:3005';
