@@ -237,8 +237,18 @@ jobs:
                 });
                 for (const c of comments) {
                   const login = (c.user?.login || '').toLowerCase();
+                  const body = c.body || '';
+                  if (
+                    body.includes('usage limits') ||
+                    body.includes('does not receive automatic reviews') ||
+                    body.includes('OpenHands Auto-Fix') ||
+                    body.trim() === '@coderabbitai review' ||
+                    body.trim() === '/fix'
+                  ) {
+                    continue;
+                  }
                   if (login.includes('[bot]') || login.includes('coderabbit') || login.includes('qodo')) {
-                    botFeedback.push(`### Bot Comment from @${c.user?.login}:\n${c.body}`);
+                    botFeedback.push(`### Bot Comment from @${c.user?.login}:\n${body}`);
                   }
                 }
               } catch (e) {
