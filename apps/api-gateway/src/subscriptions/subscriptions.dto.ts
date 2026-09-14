@@ -11,6 +11,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsIn,
   Max,
   MaxLength,
   Min,
@@ -211,6 +212,10 @@ export class QuoteSubscriptionDto {
 
   @IsDateString({}, { message: 'Start date must be a valid date (YYYY-MM-DD)' })
   startDate!: string;
+
+  @IsOptional()
+  @IsIn(['AM', 'PM'])
+  deliverySlot?: 'AM' | 'PM';
 
   @IsOptional()
   @IsInt()
