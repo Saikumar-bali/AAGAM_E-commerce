@@ -90,15 +90,38 @@ export class StoreMilkGridService {
       const planName = sub.plan.name || 'Milk Plan';
       const isBuffalo = planName.toLowerCase().includes('buffalo') || planName.toLowerCase().includes('bm');
       const baseQty = planName.toLowerCase().includes('0.5') || planName.toLowerCase().includes('500') ? '0.5L' : '1L';
-      const baseMultiplier = baseQty === '0.5L' ? 0.5 : 1.0;
+      const defaultBaseMultiplier = baseQty === '0.5L' ? 0.5 : 1.0;
+
+      const splitItems = (sub.priceSnapshot as any)?.splitItems;
+      const cycleNumber = (sub.priceSnapshot as any)?.cycleNumber || 1;
+      let dailyQuantityLabel = `${baseQty} ${isBuffalo ? 'BM' : 'CM'}`;
+      if (splitItems) {
+        dailyQuantityLabel = `AM: ${splitItems.amQuantity || '0.5L'} ${splitItems.amProductName || 'CM'} | PM: ${splitItems.pmQuantity || '1L'} ${splitItems.pmProductName || 'BM'}`;
+      } else if (cycleNumber > 1) {
+        dailyQuantityLabel = `${baseQty} ${isBuffalo ? 'BM' : 'CM'} (Cycle #${cycleNumber})`;
+      }
 
       const daysMap: Record<number, GridCell | null> = {};
       let totalDeliveredDays = 0;
       let totalExtraLiters = 0;
+      let calculatedDeliveredLiters = 0;
 
       for (const d of sub.deliveries) {
         const dDate = new Date(d.serviceDate);
         const dayNum = dDate.getUTCDate();
+
+        // Calculate delivery base multiplier (accounting for split items)
+        let deliveryBaseMultiplier = defaultBaseMultiplier;
+        let cellBaseQty = baseQty;
+        if (splitItems) {
+          if (d.deliverySlot === 'AM') {
+            cellBaseQty = splitItems.amQuantity || '0.5L';
+            deliveryBaseMultiplier = cellBaseQty.includes('0.5') ? 0.5 : 1.0;
+          } else {
+            cellBaseQty = splitItems.pmQuantity || '1L';
+            deliveryBaseMultiplier = cellBaseQty.includes('0.5') ? 0.5 : (cellBaseQty.includes('2') ? 2.0 : 1.0);
+          }
+        }
 
         // Parse extra milk if recorded in deferredReason
         let extraMilk: string | null = null;
@@ -124,7 +147,7 @@ export class StoreMilkGridService {
           sequenceNumber: d.sequenceNumber,
           status: d.status,
           deliverySlot: d.deliverySlot,
-          baseQuantity: baseQty,
+          baseQuantity: cellBaseQty,
           extraMilk,
           cashCollectedPaise: d.cashCollectedPaise || 0,
           cashDuePaise: d.cashDuePaise || 0,
@@ -137,9 +160,10 @@ export class StoreMilkGridService {
         if (d.status === 'DELIVERED') {
           totalDeliveredDays++;
           totalExtraLiters += extraLiters;
+          calculatedDeliveredLiters += deliveryBaseMultiplier + extraLiters;
           if (dailyTotals[dayNum]) {
             dailyTotals[dayNum].deliveredCount++;
-            dailyTotals[dayNum].totalLiters += baseMultiplier + extraLiters;
+            dailyTotals[dayNum].totalLiters += deliveryBaseMultiplier + extraLiters;
             dailyTotals[dayNum].cashCollectedPaise += d.cashCollectedPaise || 0;
           }
         } else if (d.status === 'SCHEDULED') {
@@ -149,7 +173,7 @@ export class StoreMilkGridService {
         }
       }
 
-      const totalLiters = totalDeliveredDays * baseMultiplier + totalExtraLiters;
+      const totalLiters = calculatedDeliveredLiters;
 
       rows.push({
         subscriptionId: sub.id,
@@ -163,9 +187,9 @@ export class StoreMilkGridService {
           id: sub.plan.id,
           name: sub.plan.name,
           code: sub.plan.code,
-          dailyQuantity: `${baseQty} ${isBuffalo ? 'BM' : 'CM'}`,
+          dailyQuantity: dailyQuantityLabel,
         },
-        slot: sub.deliveryWindowStartMinute >= 900 ? 'PM' : 'AM',
+        slot: splitItems ? 'AM+PM' : (sub.deliveryWindowStartMinute >= 900 ? 'PM' : 'AM'),
         days: daysMap,
         totalDeliveredDays,
         totalExtraLiters,

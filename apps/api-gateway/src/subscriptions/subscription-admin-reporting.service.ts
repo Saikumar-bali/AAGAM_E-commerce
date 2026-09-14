@@ -471,7 +471,22 @@ export class SubscriptionAdminReportingService {
     return { customer, address };
   }
 
-  async createManualSubscription(dto: { storeId: string; planId: string; customerId: string; addressId: string; startDate: string; totalDeliveries: number; deliverySlot?: 'MORNING' | 'EVENING' | 'BOTH'; initialCashCollectedPaise?: number; storeDelivery?: boolean; note?: string }, actorId: string) {
+  async createManualSubscription(dto: {
+    storeId: string;
+    planId: string;
+    customerId: string;
+    addressId: string;
+    startDate: string;
+    totalDeliveries: number;
+    deliverySlot?: 'MORNING' | 'EVENING' | 'BOTH';
+    initialCashCollectedPaise?: number;
+    storeDelivery?: boolean;
+    note?: string;
+    frequency?: 'DAILY' | 'ALTERNATE_DAYS' | 'WEEKDAYS' | 'SELECTED_WEEKDAYS';
+    selectedWeekdays?: number[];
+    vacationRange?: { fromDate?: string; toDate?: string; policy?: 'EXTEND_PLAN' | 'DEDUCT_BILL' };
+    splitItems?: { amProductName?: string; amQuantity?: string; pmProductName?: string; pmQuantity?: string };
+  }, actorId: string) {
     const store = await prisma.store.findUnique({ where: { id: dto.storeId } });
     if (!store) throw new NotFoundException('Store not found');
 
@@ -515,7 +530,16 @@ export class SubscriptionAdminReportingService {
     const start = new Date(dto.startDate);
     if (isNaN(start.getTime())) throw new BadRequestException('Invalid start date');
 
-    const durationDays = Math.ceil(dto.totalDeliveries / (dto.deliverySlot === 'BOTH' ? 2 : 1));
+    const frequency = dto.frequency || 'DAILY';
+    const stepDays = frequency === 'ALTERNATE_DAYS' ? 2 : 1;
+    const isSlotBoth = dto.deliverySlot === 'BOTH';
+    const rawSlot = dto.deliverySlot || 'MORNING';
+
+    const vacationFrom = dto.vacationRange?.fromDate ? new Date(dto.vacationRange.fromDate) : null;
+    const vacationTo = dto.vacationRange?.toDate ? new Date(dto.vacationRange.toDate) : null;
+    const vacationPolicy = dto.vacationRange?.policy || 'EXTEND_PLAN';
+
+    const durationDays = Math.ceil(dto.totalDeliveries / (isSlotBoth ? 2 : 1)) * stepDays;
     const end = new Date(start.getTime() + durationDays * 86_400_000);
 
     const pricePaise = plan.pricePaise;
@@ -523,8 +547,8 @@ export class SubscriptionAdminReportingService {
     const amountDuePaise = Math.max(0, pricePaise - initialCash);
     const initialStatus = initialCash >= pricePaise ? CustomerSubscriptionStatus.ACTIVE : CustomerSubscriptionStatus.PENDING_CASH_COLLECTION;
 
-    const slotStartMinute = dto.deliverySlot === 'EVENING' ? 17 * 60 : 6 * 60;
-    const slotEndMinute = dto.deliverySlot === 'EVENING' ? 20 * 60 : 9 * 60;
+    const slotStartMinute = rawSlot === 'EVENING' ? 17 * 60 : 6 * 60;
+    const slotEndMinute = rawSlot === 'EVENING' ? 20 * 60 : 9 * 60;
 
     return prisma.$transaction(async (tx) => {
       const subscription = await tx.customerSubscription.create({
@@ -542,8 +566,21 @@ export class SubscriptionAdminReportingService {
           deliveryWindowEndMinute: slotEndMinute,
           deliveryMethod: 'PERSONAL_HANDOVER',
           storeDelivery: dto.storeDelivery ?? false,
-          priceSnapshot: { pricePaise, mrpPaise: plan.mrpPaise, currency: 'INR', manualNote: dto.note },
-          itemsSnapshot: plan.items.map((i) => ({ productId: i.productId, quantityPerDelivery: i.quantityPerDelivery, name: i.product.name })),
+          priceSnapshot: {
+            pricePaise,
+            mrpPaise: plan.mrpPaise,
+            currency: 'INR',
+            cycleNumber: 1,
+            frequency,
+            splitItems: dto.splitItems || null,
+            manualNote: dto.note,
+          },
+          itemsSnapshot: dto.splitItems
+            ? [
+                { name: dto.splitItems.amProductName || 'AM Milk', quantity: dto.splitItems.amQuantity || '1L', slot: 'AM' },
+                { name: dto.splitItems.pmProductName || 'PM Milk', quantity: dto.splitItems.pmQuantity || '1L', slot: 'PM' },
+              ]
+            : plan.items.map((i) => ({ productId: i.productId, quantityPerDelivery: i.quantityPerDelivery, name: i.product.name })),
           addressSnapshot: {
             recipientName: address.recipientName,
             phoneE164: address.phoneE164,
@@ -565,29 +602,82 @@ export class SubscriptionAdminReportingService {
         },
       });
 
-      // Generate delivery calendar rows - proofMode required, use PERSONAL_OTP_GPS for PERSONAL_HANDOVER
+      // Generate delivery calendar rows with automated frequency stepping and vacation skips
       const deliveriesData: Prisma.SubscriptionDeliveryCreateManyInput[] = [];
       let curDate = new Date(start);
-      for (let seq = 1; seq <= dto.totalDeliveries; seq++) {
-        const deliverySlot = dto.deliverySlot === 'EVENING' ? 'PM'
-          : dto.deliverySlot === 'BOTH' ? (seq % 2 === 1 ? 'AM' : 'PM')
-          : 'AM';
+      let seq = 1;
+      let lastGeneratedDate = new Date(start);
+
+      while (seq <= dto.totalDeliveries) {
+        const dayOfWeek = curDate.getUTCDay();
+
+        // Skip weekends if WEEKDAYS
+        if (frequency === 'WEEKDAYS' && (dayOfWeek === 0 || dayOfWeek === 6)) {
+          curDate = new Date(curDate.getTime() + 86_400_000);
+          continue;
+        }
+
+        // Skip non-selected weekdays
+        if (frequency === 'SELECTED_WEEKDAYS' && dto.selectedWeekdays?.length && !dto.selectedWeekdays.includes(dayOfWeek)) {
+          curDate = new Date(curDate.getTime() + 86_400_000);
+          continue;
+        }
+
+        // Check if falls in planned vacation
+        const isVacation = Boolean(vacationFrom && vacationTo && curDate >= vacationFrom && curDate <= vacationTo);
+        if (isVacation && vacationPolicy === 'EXTEND_PLAN') {
+          curDate = new Date(curDate.getTime() + 86_400_000);
+          continue;
+        }
+
+        let deliverySlot = 'AM';
+        if (isSlotBoth) {
+          deliverySlot = seq % 2 === 1 ? 'AM' : 'PM';
+        } else {
+          deliverySlot = rawSlot === 'EVENING' ? 'PM' : 'AM';
+        }
+
+        const dateStr = curDate.toISOString().slice(0, 10);
+        let deferredReason: string | null = null;
+        if (dto.splitItems) {
+          const itemText = deliverySlot === 'AM'
+            ? `${dto.splitItems.amQuantity || '1L'} ${dto.splitItems.amProductName || 'Milk'}`
+            : `${dto.splitItems.pmQuantity || '1L'} ${dto.splitItems.pmProductName || 'Milk'}`;
+          deferredReason = `[SPLIT_ITEM: ${itemText}]`;
+        }
+
         deliveriesData.push({
           subscriptionId: subscription.id,
           serviceDate: new Date(curDate),
           sequenceNumber: seq,
           deliverySlot,
-          status: SubscriptionDeliveryStatus.SCHEDULED,
-          generationKey: `manual:${subscription.id}:${seq}:${curDate.toISOString().slice(0, 10)}`,
+          status: isVacation ? SubscriptionDeliveryStatus.SKIPPED : SubscriptionDeliveryStatus.SCHEDULED,
+          skipReason: isVacation ? 'Planned Vacation' : null,
+          generationKey: `manual:${subscription.id}:${seq}:${dateStr}:${deliverySlot}`,
           storeId: store.id,
           cashDuePaise: seq === 1 ? amountDuePaise : 0,
           proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
+          deferredReason,
         });
-        if (dto.deliverySlot !== 'BOTH' || seq % 2 === 0) {
-          curDate.setDate(curDate.getDate() + 1);
+
+        lastGeneratedDate = new Date(curDate);
+        seq++;
+
+        if (isSlotBoth) {
+          if (seq % 2 === 1) {
+            curDate = new Date(curDate.getTime() + stepDays * 86_400_000);
+          }
+        } else {
+          curDate = new Date(curDate.getTime() + stepDays * 86_400_000);
         }
       }
       await tx.subscriptionDelivery.createMany({ data: deliveriesData, skipDuplicates: true });
+
+      // Update endDate to match actual last generated delivery date
+      await tx.customerSubscription.update({
+        where: { id: subscription.id },
+        data: { endDate: lastGeneratedDate },
+      });
 
       await tx.subscriptionAuditEntry.create({
         data: {
@@ -879,89 +969,345 @@ export class SubscriptionAdminReportingService {
   async renewSubscription(
     subscriptionId: string,
     dto: {
-      additionalDeliveries: number;
+      additionalDeliveries?: number;
       additionalAmountPaise?: number;
+      totalDeliveries?: number;
+      startDate?: string;
+      isSamePlan?: boolean;
+      newPlanId?: string;
+      deliverySlot?: 'MORNING' | 'EVENING' | 'BOTH' | 'AM' | 'PM';
+      frequency?: 'DAILY' | 'ALTERNATE_DAYS' | 'WEEKDAYS' | 'SELECTED_WEEKDAYS';
+      selectedWeekdays?: number[];
+      vacationRange?: {
+        fromDate?: string;
+        toDate?: string;
+        policy?: 'EXTEND_PLAN' | 'DEDUCT_BILL';
+      };
+      splitItems?: {
+        amProductName?: string;
+        amQuantity?: string;
+        pmProductName?: string;
+        pmQuantity?: string;
+      };
+      initialCashCollectedPaise?: number;
+      paymentMode?: 'CASH' | 'PHONE_PE';
       note?: string;
     },
     actorId: string,
     actorRole: Role = Role.ADMIN,
   ) {
     return prisma.$transaction(async (tx) => {
-      const subscription = await tx.customerSubscription.findUnique({
+      const existing = await tx.customerSubscription.findUnique({
         where: { id: subscriptionId },
         include: {
-          planVersion: { select: { pricePaise: true, totalDeliveries: true } },
-          deliveries: { orderBy: { sequenceNumber: 'desc' }, take: 1 },
+          plan: {
+            include: {
+              items: { include: { product: true } },
+              versions: { orderBy: { version: 'desc' }, take: 1 },
+            },
+          },
+          planVersion: true,
+          customer: true,
+          address: true,
+          homeStore: true,
+          deliveries: { orderBy: { serviceDate: 'desc' }, take: 1 },
         },
       });
 
-      if (!subscription) throw new NotFoundException('Subscription not found');
-      if (subscription.status === CustomerSubscriptionStatus.CANCELLED) {
+      if (!existing) throw new NotFoundException('Subscription not found');
+      if (existing.status === CustomerSubscriptionStatus.CANCELLED) {
         throw new BadRequestException('Cannot renew a cancelled subscription');
       }
 
-      const lastDelivery = subscription.deliveries[0];
-      const lastSequence = lastDelivery?.sequenceNumber ?? 0;
-      const lastDate = lastDelivery?.serviceDate ?? subscription.endDate;
-
-      const newDeliveries = [];
-      for (let i = 1; i <= dto.additionalDeliveries; i++) {
-        const serviceDate = new Date(lastDate.getTime() + i * 86_400_000);
-        const windowStart = subscription.deliveryWindowStartMinute;
-        newDeliveries.push({
-          subscriptionId: subscription.id,
-          serviceDate,
-          sequenceNumber: lastSequence + i,
-          generationKey: `renewal:${subscription.id}:${lastSequence + i}:${serviceDate.toISOString().slice(0, 10)}`,
-          deliverySlot: (windowStart ?? 0) < 12 * 60 ? 'AM' as const : 'PM' as const,
-          status: SubscriptionDeliveryStatus.SCHEDULED,
-          cashDuePaise: 0,
-          proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
-          storeId: subscription.homeStoreId,
+      // Resolve the target plan (same plan by default, or switched product/plan)
+      let targetPlan = existing.plan;
+      let targetVersion = existing.planVersion;
+      if (dto.newPlanId && dto.newPlanId !== existing.planId) {
+        const foundPlan = await tx.subscriptionPlan.findUnique({
+          where: { id: dto.newPlanId },
+          include: {
+            items: { include: { product: true } },
+            versions: { orderBy: { version: 'desc' }, take: 1 },
+          },
         });
+        if (!foundPlan) throw new NotFoundException(`Target plan ${dto.newPlanId} not found`);
+        targetPlan = foundPlan;
+        targetVersion = foundPlan.versions[0] || existing.planVersion;
+      }
+
+      // Calculate cycle number in chain
+      const prevPriceSnapshot = (existing.priceSnapshot as any) || {};
+      const currentCycle = typeof prevPriceSnapshot.cycleNumber === 'number' ? prevPriceSnapshot.cycleNumber : 1;
+      const nextCycleNumber = currentCycle + 1;
+
+      // Calculate start and end dates
+      const lastDelivery = existing.deliveries[0];
+      const lastDate = lastDelivery?.serviceDate ?? existing.endDate;
+      let startDate: Date;
+      if (dto.startDate) {
+        startDate = new Date(dto.startDate);
+        if (isNaN(startDate.getTime())) throw new BadRequestException('Invalid start date');
+      } else {
+        startDate = new Date(lastDate.getTime() + 86_400_000);
+      }
+      startDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate(), 0, 0, 0, 0));
+
+      const totalDeliveries = dto.totalDeliveries || dto.additionalDeliveries || targetPlan.totalDeliveries || 30;
+      const rawSlot = dto.deliverySlot || (existing.deliveryWindowStartMinute >= 900 ? 'PM' : 'AM');
+      const isSlotBoth = rawSlot === 'BOTH';
+      const durationDays = isSlotBoth ? Math.ceil(totalDeliveries / 2) : totalDeliveries;
+      const endDate = new Date(startDate.getTime() + (durationDays - 1) * 86_400_000);
+
+      // Financials for this specific renewal cycle
+      let cyclePricePaise = targetPlan.pricePaise;
+      if (dto.additionalAmountPaise !== undefined && dto.additionalAmountPaise > 0) {
+        cyclePricePaise = dto.additionalAmountPaise;
+      }
+
+      const initialCash = dto.initialCashCollectedPaise || 0;
+      const cycleDuePaise = Math.max(0, cyclePricePaise - initialCash);
+      const initialStatus = initialCash >= cyclePricePaise
+        ? CustomerSubscriptionStatus.ACTIVE
+        : CustomerSubscriptionStatus.PENDING_CASH_COLLECTION;
+
+      const slotStartMinute = rawSlot === 'EVENING' || rawSlot === 'PM' ? 17 * 60 : 6 * 60;
+      const slotEndMinute = rawSlot === 'EVENING' || rawSlot === 'PM' ? 20 * 60 : 9 * 60;
+
+      // Close previous subscription gracefully as completed if active
+      if (existing.status === CustomerSubscriptionStatus.ACTIVE || existing.status === CustomerSubscriptionStatus.PENDING_CASH_COLLECTION) {
+        await tx.customerSubscription.update({
+          where: { id: existing.id },
+          data: { status: CustomerSubscriptionStatus.COMPLETED },
+        });
+      }
+
+      // Create new CustomerSubscription for this renewal cycle (isolated financials)
+      const renewalSub = await tx.customerSubscription.create({
+        data: {
+          customerId: existing.customerId,
+          planId: targetPlan.id,
+          planVersionId: targetVersion?.id || targetPlan.versions[0]?.id || existing.planVersionId,
+          addressId: existing.addressId,
+          homeStoreId: existing.homeStoreId,
+          deliveryZoneId: existing.deliveryZoneId,
+          source: 'renewal',
+          status: initialStatus,
+          startDate,
+          endDate,
+          nextDeliveryDate: startDate,
+          deliveryWindowStartMinute: slotStartMinute,
+          deliveryWindowEndMinute: slotEndMinute,
+          deliveryMethod: existing.deliveryMethod,
+          storeDelivery: existing.storeDelivery,
+          priceSnapshot: {
+            pricePaise: cyclePricePaise,
+            mrpPaise: targetPlan.mrpPaise,
+            currency: 'INR',
+            cycleNumber: nextCycleNumber,
+            previousSubscriptionId: existing.id,
+            renewalNote: dto.note || null,
+            splitItems: dto.splitItems || null,
+            initialPaymentMode: dto.paymentMode || (initialCash > 0 ? 'CASH' : null),
+          },
+          itemsSnapshot: dto.splitItems
+            ? [
+                { name: dto.splitItems.amProductName || 'AM Milk', quantity: dto.splitItems.amQuantity || '1L', slot: 'AM' },
+                { name: dto.splitItems.pmProductName || 'PM Milk', quantity: dto.splitItems.pmQuantity || '1L', slot: 'PM' },
+              ]
+            : targetPlan.items.map((i) => ({ productId: i.productId, quantityPerDelivery: i.quantityPerDelivery, name: i.product.name })),
+          addressSnapshot: existing.addressSnapshot as any,
+          policySnapshot: existing.policySnapshot as any,
+          fundedDeliveryCount: totalDeliveries,
+          remainingFundedDeliveries: totalDeliveries,
+          amountDuePaise: cycleDuePaise,
+          amountCollectedPaise: initialCash,
+          fundingCycle: targetPlan.fundingCycle,
+        },
+      });
+
+      // Frequency & Vacation scheduling settings
+      const frequency = dto.frequency || 'DAILY';
+      const stepDays = frequency === 'ALTERNATE_DAYS' ? 2 : 1;
+      const vacationFrom = dto.vacationRange?.fromDate ? new Date(dto.vacationRange.fromDate) : null;
+      const vacationTo = dto.vacationRange?.toDate ? new Date(dto.vacationRange.toDate) : null;
+      const vacationPolicy = dto.vacationRange?.policy || 'EXTEND_PLAN';
+
+      // Generate delivery rows for this new cycle with automated frequency stepping
+      const newDeliveries: Prisma.SubscriptionDeliveryCreateManyInput[] = [];
+      let curDate = new Date(startDate);
+      let seq = 1;
+      let lastGeneratedDate = new Date(startDate);
+
+      while (seq <= totalDeliveries) {
+        const dayOfWeek = curDate.getUTCDay();
+
+        // Skip weekends if WEEKDAYS
+        if (frequency === 'WEEKDAYS' && (dayOfWeek === 0 || dayOfWeek === 6)) {
+          curDate = new Date(curDate.getTime() + 86_400_000);
+          continue;
+        }
+
+        // Skip non-selected weekdays
+        if (frequency === 'SELECTED_WEEKDAYS' && dto.selectedWeekdays?.length && !dto.selectedWeekdays.includes(dayOfWeek)) {
+          curDate = new Date(curDate.getTime() + 86_400_000);
+          continue;
+        }
+
+        // Check if falls in planned vacation
+        const isVacation = Boolean(vacationFrom && vacationTo && curDate >= vacationFrom && curDate <= vacationTo);
+        if (isVacation && vacationPolicy === 'EXTEND_PLAN') {
+          // Skip calendar day to extend plan duration
+          curDate = new Date(curDate.getTime() + 86_400_000);
+          continue;
+        }
+
+        let deliverySlot = 'AM';
+        if (isSlotBoth) {
+          deliverySlot = seq % 2 === 1 ? 'AM' : 'PM';
+        } else {
+          deliverySlot = rawSlot === 'EVENING' || rawSlot === 'PM' ? 'PM' : 'AM';
+        }
+
+        const dateStr = curDate.toISOString().slice(0, 10);
+        let deferredReason: string | null = null;
+        if (dto.splitItems) {
+          const itemText = deliverySlot === 'AM'
+            ? `${dto.splitItems.amQuantity || '1L'} ${dto.splitItems.amProductName || 'Milk'}`
+            : `${dto.splitItems.pmQuantity || '1L'} ${dto.splitItems.pmProductName || 'Milk'}`;
+          deferredReason = `[SPLIT_ITEM: ${itemText}]`;
+        }
+
+        newDeliveries.push({
+          subscriptionId: renewalSub.id,
+          serviceDate: new Date(curDate),
+          sequenceNumber: seq,
+          deliverySlot,
+          status: isVacation ? SubscriptionDeliveryStatus.SKIPPED : SubscriptionDeliveryStatus.SCHEDULED,
+          skipReason: isVacation ? 'Planned Vacation' : null,
+          generationKey: `renewal:${renewalSub.id}:${seq}:${dateStr}:${deliverySlot}`,
+          cashDuePaise: 0,
+          cashCollectedPaise: seq === 1 && initialCash > 0 ? initialCash : 0,
+          proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
+          storeId: renewalSub.homeStoreId,
+          deferredReason,
+        });
+
+        lastGeneratedDate = new Date(curDate);
+        seq++;
+
+        // Step date forward based on frequency
+        if (isSlotBoth) {
+          if (seq % 2 === 1) {
+            curDate = new Date(curDate.getTime() + stepDays * 86_400_000);
+          }
+        } else {
+          curDate = new Date(curDate.getTime() + stepDays * 86_400_000);
+        }
       }
 
       await tx.subscriptionDelivery.createMany({ data: newDeliveries, skipDuplicates: true });
 
-      const additionalAmount = dto.additionalAmountPaise ??
-        Math.round((subscription.planVersion?.pricePaise ?? 0) * dto.additionalDeliveries / (subscription.planVersion?.totalDeliveries ?? 1));
+      // Update endDate to match actual last generated delivery date
+      await tx.customerSubscription.update({
+        where: { id: renewalSub.id },
+        data: { endDate: lastGeneratedDate },
+      });
 
-      const newEndDate = new Date(lastDate.getTime() + dto.additionalDeliveries * 86_400_000);
+      // Record audit entry
+      await tx.subscriptionAuditEntry.create({
+        data: {
+          subscriptionId: renewalSub.id,
+          actorUserId: actorId,
+          actorRole,
+          action: 'SUBSCRIPTION_RENEWED',
+          reason: dto.note || `Renewed for cycle #${nextCycleNumber} with ${totalDeliveries} deliveries`,
+          metadata: {
+            previousSubscriptionId: existing.id,
+            cycleNumber: nextCycleNumber,
+            totalDeliveries,
+            cyclePricePaise,
+            initialCashCollectedPaise: initialCash,
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            splitItems: dto.splitItems || null,
+          },
+          idempotencyKey: `renewal:${renewalSub.id}:${Date.now()}`,
+        },
+      });
+
+      return {
+        renewalSubscription: renewalSub,
+        cycleNumber: nextCycleNumber,
+        previousSubscriptionId: existing.id,
+        status: renewalSub.status,
+        amountDuePaise: cycleDuePaise,
+        amountCollectedPaise: initialCash,
+      };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  async recordCustomerPayment(
+    subscriptionId: string,
+    dto: {
+      amountPaise: number;
+      paymentMode?: 'CASH' | 'PHONE_PE';
+      reference?: string;
+      note?: string;
+    },
+    actorId: string,
+    actorRole: Role = Role.ADMIN,
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const sub = await tx.customerSubscription.findUnique({
+        where: { id: subscriptionId },
+      });
+      if (!sub) throw new NotFoundException('Subscription not found');
+
+      const amountToCredit = Math.max(0, dto.amountPaise);
+      const newCollected = (sub.amountCollectedPaise || 0) + amountToCredit;
+      const newDue = Math.max(0, (sub.amountDuePaise || 0) - amountToCredit);
+      const newStatus = newDue === 0 && sub.status === CustomerSubscriptionStatus.PENDING_CASH_COLLECTION
+        ? CustomerSubscriptionStatus.ACTIVE
+        : sub.status;
 
       const updated = await tx.customerSubscription.update({
         where: { id: subscriptionId },
         data: {
-          endDate: newEndDate,
-          fundedDeliveryCount: subscription.fundedDeliveryCount + dto.additionalDeliveries,
-          remainingFundedDeliveries: subscription.remainingFundedDeliveries + dto.additionalDeliveries,
-          amountDuePaise: subscription.amountDuePaise + additionalAmount,
-          status: subscription.status === CustomerSubscriptionStatus.COMPLETED
-            ? CustomerSubscriptionStatus.ACTIVE
-            : subscription.status,
+          amountCollectedPaise: newCollected,
+          amountDuePaise: newDue,
+          status: newStatus,
         },
       });
 
       await tx.subscriptionAuditEntry.create({
         data: {
-          subscriptionId: subscription.id,
+          subscriptionId: sub.id,
           actorUserId: actorId,
           actorRole,
-          action: 'SUBSCRIPTION_RENEWED',
-          reason: dto.note || `Renewed with ${dto.additionalDeliveries} additional deliveries`,
+          action: 'PAYMENT_RECORDED',
+          reason: dto.note || `Recorded payment of ₹${(amountToCredit / 100).toFixed(2)} via ${dto.paymentMode || 'CASH'}`,
           metadata: {
-            additionalDeliveries: dto.additionalDeliveries,
-            additionalAmountPaise: additionalAmount,
-            previousEndDate: subscription.endDate.toISOString(),
-            newEndDate: newEndDate.toISOString(),
-            previousFundedCount: subscription.fundedDeliveryCount,
-            newFundedCount: subscription.fundedDeliveryCount + dto.additionalDeliveries,
+            amountPaise: amountToCredit,
+            paymentMode: dto.paymentMode || 'CASH',
+            reference: dto.reference || null,
+            previousCollectedPaise: sub.amountCollectedPaise,
+            newCollectedPaise: newCollected,
+            previousDuePaise: sub.amountDuePaise,
+            newDuePaise: newDue,
           },
-          idempotencyKey: `renewal:${subscription.id}:${Date.now()}`,
+          idempotencyKey: `payment:${sub.id}:${Date.now()}:${randomUUID()}`,
         },
       });
 
-      return updated;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      return {
+        subscriptionId: sub.id,
+        amountCollectedPaise: newCollected,
+        amountDuePaise: newDue,
+        status: newStatus,
+        paymentRecordedPaise: amountToCredit,
+        paymentMode: dto.paymentMode || 'CASH',
+      };
+    });
   }
 }
 

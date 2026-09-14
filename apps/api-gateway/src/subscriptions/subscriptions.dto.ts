@@ -619,6 +619,29 @@ export class CreateAdminManualSubscriptionDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  frequency?: 'DAILY' | 'ALTERNATE_DAYS' | 'WEEKDAYS' | 'SELECTED_WEEKDAYS';
+
+  @IsOptional()
+  @IsArray()
+  selectedWeekdays?: number[];
+
+  @IsOptional()
+  vacationRange?: {
+    fromDate?: string;
+    toDate?: string;
+    policy?: 'EXTEND_PLAN' | 'DEDUCT_BILL';
+  };
+
+  @IsOptional()
+  splitItems?: {
+    amProductName?: string;
+    amQuantity?: string;
+    pmProductName?: string;
+    pmQuantity?: string;
+  };
 }
 
 export class UpdateAdminManualSubscriptionDto {
@@ -774,4 +797,94 @@ export class UpdateStoreDeliveryDto {
   @MaxLength(500)
   failureReason?: string;
 }
+
+export class RenewSubscriptionDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  additionalDeliveries?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  additionalAmountPaise?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  totalDeliveries?: number;
+
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isSamePlan?: boolean;
+
+  @IsOptional()
+  @IsString()
+  newPlanId?: string;
+
+  @IsOptional()
+  @IsString()
+  deliverySlot?: 'MORNING' | 'EVENING' | 'BOTH' | 'AM' | 'PM';
+
+  @IsOptional()
+  splitItems?: {
+    amProductName?: string;
+    amQuantity?: string;
+    pmProductName?: string;
+    pmQuantity?: string;
+  };
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  initialCashCollectedPaise?: number;
+
+  @IsOptional()
+  @IsString()
+  paymentMode?: 'CASH' | 'PHONE_PE';
+
+  @IsOptional()
+  @IsString()
+  frequency?: 'DAILY' | 'ALTERNATE_DAYS' | 'WEEKDAYS' | 'SELECTED_WEEKDAYS';
+
+  @IsOptional()
+  selectedWeekdays?: number[];
+
+  @IsOptional()
+  vacationRange?: {
+    fromDate?: string;
+    toDate?: string;
+    policy?: 'EXTEND_PLAN' | 'DEDUCT_BILL';
+  };
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
+export class RecordCustomerPaymentDto {
+  @IsInt()
+  @Min(1)
+  amountPaise!: number;
+
+  @IsOptional()
+  @IsString()
+  paymentMode?: 'CASH' | 'PHONE_PE';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  reference?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
 

@@ -72,6 +72,8 @@ import {
   CreateManualOfflineCustomerDto,
   CreateAdminManualSubscriptionDto,
   UpdateAdminManualSubscriptionDto,
+  RenewSubscriptionDto,
+  RecordCustomerPaymentDto,
 } from './subscriptions.dto';
 
 type AuthenticatedRequest = { user: { id: string; role: Role } };
@@ -509,10 +511,19 @@ export class StoreSubscriptionsController {
   @Post('subscribers/:id/renew')
   renewSubscription(
     @Param('id') id: string,
-    @Body() body: { additionalDeliveries: number; additionalAmountPaise?: number; note?: string },
+    @Body() body: RenewSubscriptionDto,
     @Req() req: AuthenticatedRequest,
   ) {
     return this.reporting.renewSubscription(id, body, req.user.id, req.user.role);
+  }
+
+  @Post('subscribers/:id/record-payment')
+  recordPayment(
+    @Param('id') id: string,
+    @Body() body: RecordCustomerPaymentDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reporting.recordCustomerPayment(id, body, req.user.id, req.user.role);
   }
 
   @Patch('subscribers/:id/manual-edit')
@@ -738,10 +749,19 @@ export class AdminSubscriptionsController {
   @Post('subscribers/:id/renew')
   renewSubscription(
     @Param('id') id: string,
-    @Body() body: { additionalDeliveries: number; additionalAmountPaise?: number; note?: string },
+    @Body() body: RenewSubscriptionDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.reporting.renewSubscription(id, body, req.user.id);
+    return this.reporting.renewSubscription(id, body, req.user.id, req.user.role);
+  }
+
+  @Post('subscribers/:id/record-payment')
+  recordPayment(
+    @Param('id') id: string,
+    @Body() body: RecordCustomerPaymentDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reporting.recordCustomerPayment(id, body, req.user.id, req.user.role);
   }
 
   @Post('custom-subscribe')

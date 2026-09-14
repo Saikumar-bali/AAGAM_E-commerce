@@ -1145,12 +1145,34 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
               <p className="text-xs text-slate-500 py-4 text-center">No scheduled delivery record for this date.</p>
             )}
 
-            <div className="pt-2">
+            <div className="pt-2 flex gap-2">
               <button
                 onClick={() => setSelectedCell(null)}
-                className="w-full rounded-xl border border-slate-200 py-2 text-xs font-black text-slate-600 hover:bg-slate-50"
+                className="flex-1 rounded-xl border border-slate-200 py-2 text-xs font-black text-slate-600 hover:bg-slate-50"
               >
                 Close
+              </button>
+              <button
+                disabled={actionLoading}
+                onClick={async () => {
+                  try {
+                    setActionLoading(true);
+                    await apiClient.post(`/store/subscriptions/subscribers/${selectedCell.row.subscriptionId}/renew`, {
+                      isSamePlan: true,
+                      totalDeliveries: 30,
+                    });
+                    toast.success(`Plan renewed for ${selectedCell.row.customer.name}!`);
+                    setSelectedCell(null);
+                    void loadGrid();
+                  } catch (err: any) {
+                    toast.error(err.response?.data?.message || 'Renewal failed');
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }}
+                className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl bg-emerald-700 py-2 text-xs font-black text-white hover:bg-emerald-800"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Renew Next Cycle
               </button>
             </div>
           </div>

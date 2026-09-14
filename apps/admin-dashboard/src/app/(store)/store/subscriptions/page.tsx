@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import DashboardLayout from "@/components/DashboardLayout";
 import { getToastErrorMessage, useToast } from "@/components/ToastProvider";
 import { apiClient } from "@aagam/utils";
@@ -17,6 +18,9 @@ import {
   Edit3,
   FileSpreadsheet,
   Loader2,
+  MapPin,
+  Moon,
+  Navigation,
   Package,
   PackageCheck,
   Pause,
@@ -24,12 +28,18 @@ import {
   RefreshCw,
   Route,
   ScanLine,
+  Sun,
   Truck,
   UserPlus,
   Users,
   X,
 } from "lucide-react";
 import MilkDeliveryGrid from "@/components/MilkDeliveryGrid";
+
+const CustomerLocationPicker = dynamic(
+  () => import("@/components/customer/CustomerLocationPicker"),
+  { ssr: false }
+);
 
 type RunStatus =
   | "PLANNED"
@@ -233,10 +243,33 @@ export default function StoreSubscriptionOperationsPage() {
   const [calendar, setCalendar] = useState<CalendarRow[]>([]);
   const [analytics, setAnalytics] = useState<StoreAnalytics | null>(null);
   const [editingSubscriber, setEditingSubscriber] = useState<SubscriberRow | null>(null);
-  const [editForm, setEditForm] = useState({ amountDueRupees: "", amountCollectedRupees: "", note: "", mode: "edit" as "edit" | "renew", additionalDeliveries: "", additionalAmountRupees: "" });
+  const [editForm, setEditForm] = useState({
+    mode: "renew" as "renew" | "schedule" | "cashflow" | "edit",
+    renewalType: "same" as "same" | "switch" | "split",
+    newPlanId: "",
+    frequency: "DAILY" as "DAILY" | "ALTERNATE_DAYS" | "WEEKDAYS",
+    vacationFrom: "",
+    vacationTo: "",
+    vacationPolicy: "EXTEND_PLAN" as "EXTEND_PLAN" | "DEDUCT_BILL",
+    startDate: new Date().toISOString().slice(0, 10),
+    totalDeliveries: "30",
+    deliverySlot: "MORNING" as "MORNING" | "EVENING" | "BOTH",
+    amProductName: "Cow Milk",
+    amQuantity: "0.5L",
+    pmProductName: "Buffalo Milk",
+    pmQuantity: "1.0L",
+    initialCollectedRupees: "0",
+    paymentMode: "CASH" as "CASH" | "PHONE_PE" | "DUE",
+    amountDueRupees: "",
+    amountCollectedRupees: "",
+    note: "",
+    additionalDeliveries: "30",
+    additionalAmountRupees: "",
+  });
   const [viewingHistory, setViewingHistory] = useState<SubscriberRow | null>(null);
   const [historyData, setHistoryData] = useState<any>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [productList, setProductList] = useState<Array<{ id: string; name: string }>>([]);
   const [storesList, setStoresList] = useState<Array<{ id: string; name: string; address?: string }>>([]);
   const [addCustomerModalOpen, setAddCustomerModalOpen] = useState(false);
   const [savingCustomer, setSavingCustomer] = useState(false);
@@ -244,16 +277,126 @@ export default function StoreSubscriptionOperationsPage() {
     name: "",
     phone: "",
     address: "",
+    landmark: "",
     city: "Anakapalle",
+    state: "Andhra Pradesh",
+    pincode: "531001",
+    latitude: 17.6868,
+    longitude: 83.2185,
+    hasLocation: false,
+    locating: false,
+    showMap: true,
     storeId: "",
     planId: "",
     deliverySlot: "MORNING" as "MORNING" | "EVENING" | "BOTH",
+    frequency: "DAILY" as "DAILY" | "ALTERNATE_DAYS" | "WEEKDAYS",
+    enableSplitItems: false,
+    amProductName: "Cow Milk",
+    amQuantity: "500ml",
+    pmProductName: "Buffalo Milk",
+    pmQuantity: "1L",
+    enableVacation: false,
+    vacationFrom: "",
+    vacationTo: "",
+    vacationPolicy: "EXTEND_PLAN" as "EXTEND_PLAN" | "DEDUCT_BILL",
     startDate: new Date().toISOString().slice(0, 10),
     totalDeliveries: "30",
     amountCollectedRupees: "0",
     paymentMode: "CASH" as "CASH" | "PHONE_PE" | "DUE",
     note: "",
   });
+
+  const availableProducts = useMemo(() => {
+    const list: Array<{ id: string; name: string }> = [...productList];
+    for (const plan of plans) {
+      if (Array.isArray(plan.items)) {
+        for (const item of plan.items) {
+          if (item.product?.name && !list.some((p) => p.name.toLowerCase() === item.product.name.toLowerCase())) {
+            list.push({ id: item.productId, name: item.product.name });
+          }
+        }
+      }
+    }
+    if (list.length === 0) {
+      return [
+        { id: "cm-1", name: "Cow Milk" },
+        { id: "bm-1", name: "Buffalo Milk" },
+      ];
+    }
+    return list;
+  }, [productList, plans]);
+
+  const handleUseLiveLocation = useCallback(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+    setCustomerForm((prev) => ({ ...prev, locating: true }));
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        try {
+          const res = await apiClient.get('/geo/reverse', { params: { lat, lng } });
+          const addr = res.data?.address;
+          setCustomerForm((prev) => ({
+            ...prev,
+            latitude: lat,
+            longitude: lng,
+            hasLocation: true,
+            locating: false,
+            showMap: true,
+            address: addr?.line1 || prev.address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+            landmark: addr?.landmark || prev.landmark,
+            city: addr?.city || prev.city || "Anakapalle",
+            state: addr?.state || prev.state || "Andhra Pradesh",
+            pincode: addr?.pincode || prev.pincode || "531001",
+          }));
+          toast.success("Live GPS coordinates captured!");
+        } catch {
+          setCustomerForm((prev) => ({
+            ...prev,
+            latitude: lat,
+            longitude: lng,
+            hasLocation: true,
+            locating: false,
+            showMap: true,
+          }));
+          toast.success("GPS location captured!");
+        }
+      },
+      (err) => {
+        setCustomerForm((prev) => ({ ...prev, locating: false }));
+        toast.error(err.message || "Failed to get live location");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+    );
+  }, [toast]);
+
+  const handleMapPinChange = useCallback(async (lat: number, lng: number) => {
+    setCustomerForm((prev) => ({
+      ...prev,
+      latitude: lat,
+      longitude: lng,
+      hasLocation: true,
+    }));
+    try {
+      const res = await apiClient.get('/geo/reverse', { params: { lat, lng } });
+      const addr = res.data?.address;
+      if (addr) {
+        setCustomerForm((prev) => ({
+          ...prev,
+          address: addr.line1 || prev.address,
+          landmark: addr.landmark || prev.landmark,
+          city: addr.city || prev.city,
+          state: addr.state || prev.state,
+          pincode: addr.pincode || prev.pincode,
+        }));
+      }
+    } catch {
+      // Keep coordinates even if reverse geocoding is unavailable
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -282,6 +425,16 @@ export default function StoreSubscriptionOperationsPage() {
       setPlans(loadedPlans);
       if (calendarResponse.status === "fulfilled") setCalendar(Array.isArray(calendarResponse.value.data) ? calendarResponse.value.data : []);
       if (analyticsResponse.status === "fulfilled") setAnalytics(analyticsResponse.value.data ?? null);
+
+      try {
+        const prodRes = await apiClient.get("/products");
+        const items = Array.isArray(prodRes.data) ? prodRes.data : (prodRes.data?.items || []);
+        if (Array.isArray(items) && items.length) {
+          setProductList(items.map((p: any) => ({ id: p.id, name: p.name })));
+        }
+      } catch (err) {
+        console.warn('Could not fetch products:', err);
+      }
 
       try {
         const storesRes = await apiClient.get("/stores/my-stores");
@@ -360,9 +513,12 @@ export default function StoreSubscriptionOperationsPage() {
         name: customerForm.name.trim(),
         phone: cleanPhone,
         line1: customerForm.address.trim(),
+        landmark: customerForm.landmark.trim() || undefined,
         city: customerForm.city.trim() || "Anakapalle",
-        state: "Andhra Pradesh",
-        pincode: "531001",
+        state: customerForm.state.trim() || "Andhra Pradesh",
+        pincode: customerForm.pincode.trim() || "531001",
+        latitude: customerForm.latitude,
+        longitude: customerForm.longitude,
       });
       const customer = custRes.data.customer;
       const address = custRes.data.address;
@@ -379,21 +535,51 @@ export default function StoreSubscriptionOperationsPage() {
         startDate: customerForm.startDate || new Date().toISOString().slice(0, 10),
         totalDeliveries: Number(customerForm.totalDeliveries || 30),
         deliverySlot: customerForm.deliverySlot,
+        frequency: customerForm.frequency,
+        splitItems: customerForm.enableSplitItems ? {
+          amProductName: customerForm.amProductName,
+          amQuantity: customerForm.amQuantity,
+          pmProductName: customerForm.pmProductName,
+          pmQuantity: customerForm.pmQuantity,
+        } : undefined,
+        vacationRange: customerForm.enableVacation && customerForm.vacationFrom && customerForm.vacationTo ? {
+          fromDate: customerForm.vacationFrom,
+          toDate: customerForm.vacationTo,
+          policy: customerForm.vacationPolicy,
+        } : undefined,
         initialCashCollectedPaise: customerForm.paymentMode === "DUE" ? 0 : amountPaise,
         storeDelivery: true,
         note: paymentNote,
       });
 
-      toast.success("Offline customer created successfully!");
+      toast.success("Offline customer created successfully with GPS location!");
       setAddCustomerModalOpen(false);
       setCustomerForm({
         name: "",
         phone: "",
         address: "",
+        landmark: "",
         city: "Anakapalle",
+        state: "Andhra Pradesh",
+        pincode: "531001",
+        latitude: 17.6868,
+        longitude: 83.2185,
+        hasLocation: false,
+        locating: false,
+        showMap: true,
         storeId: storesList[0]?.id || "",
         planId: plans[0]?.id || "",
         deliverySlot: "MORNING",
+        frequency: "DAILY",
+        enableSplitItems: false,
+        amProductName: availableProducts[0]?.name || "Cow Milk",
+        amQuantity: "500ml",
+        pmProductName: availableProducts[1]?.name || availableProducts[0]?.name || "Buffalo Milk",
+        pmQuantity: "1L",
+        enableVacation: false,
+        vacationFrom: "",
+        vacationTo: "",
+        vacationPolicy: "EXTEND_PLAN",
         startDate: new Date().toISOString().slice(0, 10),
         totalDeliveries: "30",
         amountCollectedRupees: "0",
@@ -649,7 +835,33 @@ export default function StoreSubscriptionOperationsPage() {
             {tab === "subscribers" && (
               <SubscribersSection 
                 rows={subscribers} 
-                onEdit={(sub) => { setEditingSubscriber(sub); setEditForm({ amountDueRupees: String((sub.amountDuePaise || 0) / 100), amountCollectedRupees: String((sub.amountCollectedPaise || 0) / 100), note: "", mode: "edit", additionalDeliveries: "", additionalAmountRupees: "" }); }}
+                onEdit={(sub) => {
+                  setEditingSubscriber(sub);
+                  const isCompleted = sub.status === 'COMPLETED' || (sub.completedDeliveries && sub.completedDeliveries >= (sub.fundedDeliveryCount || 30));
+                  setEditForm({
+                    mode: isCompleted ? "renew" : "renew",
+                    renewalType: "same",
+                    newPlanId: sub.plan.id,
+                    frequency: "DAILY",
+                    vacationFrom: "",
+                    vacationTo: "",
+                    vacationPolicy: "EXTEND_PLAN",
+                    startDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+                    totalDeliveries: String(sub.fundedDeliveryCount || sub.planVersion?.totalDeliveries || 30),
+                    deliverySlot: sub.deliveryMethod === 'PERSONAL_HANDOVER' ? "MORNING" : "MORNING",
+                    amProductName: "Cow Milk",
+                    amQuantity: "0.5L",
+                    pmProductName: "Buffalo Milk",
+                    pmQuantity: "1.0L",
+                    initialCollectedRupees: "0",
+                    paymentMode: "CASH",
+                    amountDueRupees: String((sub.amountDuePaise || 0) / 100),
+                    amountCollectedRupees: String((sub.amountCollectedPaise || 0) / 100),
+                    note: "",
+                    additionalDeliveries: "30",
+                    additionalAmountRupees: "",
+                  });
+                }}
                 onViewHistory={async (sub) => { setViewingHistory(sub); setHistoryLoading(true); try { const res = await apiClient.get(`/store/subscriptions/subscribers/${sub.id}/history`); setHistoryData(res.data); } catch { setHistoryData(null); } finally { setHistoryLoading(false); } }}
                 onAddOfflineCustomer={() => setAddCustomerModalOpen(true)}
               />
@@ -1188,79 +1400,350 @@ export default function StoreSubscriptionOperationsPage() {
         )}
 
         {editingSubscriber && (
-          <Modal title={`Edit ${editingSubscriber.customer.name || 'Subscriber'}`} onClose={() => setEditingSubscriber(null)}>
-            <div className="space-y-4">
-              <div className="rounded-xl bg-slate-50 p-3">
-                <div className="flex items-center justify-between">
+          <Modal title={`Manage: ${editingSubscriber.customer.name || 'Subscriber'}`} onClose={() => setEditingSubscriber(null)}>
+            <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+              {/* Customer Profile Banner */}
+              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
+                <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-bold text-slate-600">{editingSubscriber.plan.name}</p>
-                    <p className="text-[10px] text-slate-400">
-                      {editingSubscriber.completedDeliveries ?? 0}/{editingSubscriber.fundedDeliveryCount || '—'} delivered · {formatPaise(editingSubscriber.amountCollectedPaise || 0)} collected
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-slate-900 text-sm">{editingSubscriber.customer.name || 'Subscriber'}</span>
+                      <span className="text-xs text-slate-500 font-semibold">{editingSubscriber.customer.phone || '—'}</span>
+                    </div>
+                    <p className="text-xs font-bold text-emerald-700 mt-0.5">{editingSubscriber.plan.name}</p>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Progress: <span className="font-bold text-slate-800">{editingSubscriber.completedDeliveries ?? 0}/{editingSubscriber.fundedDeliveryCount || '—'} delivered</span>
+                      {' · '}Collected: <span className="font-bold text-emerald-700">{formatPaise(editingSubscriber.amountCollectedPaise || 0)}</span>
+                      {' · '}Due: <span className="font-bold text-red-700">{formatPaise(editingSubscriber.amountDuePaise || 0)}</span>
                     </p>
                   </div>
                   <StatusPill status={editingSubscriber.status} />
                 </div>
               </div>
 
-              <div className="flex gap-2 rounded-xl bg-slate-100 p-1">
-                <button onClick={() => setEditForm({ ...editForm, mode: 'edit' })} className={`flex-1 rounded-lg py-2 text-xs font-black ${editForm.mode === 'edit' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>Edit Details</button>
-                <button onClick={() => setEditForm({ ...editForm, mode: 'renew' })} className={`flex-1 rounded-lg py-2 text-xs font-black ${editForm.mode === 'renew' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>Renew Plan</button>
+              {/* Modal Navigation Tabs */}
+              <div className="flex gap-1.5 rounded-xl bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setEditForm((prev) => ({ ...prev, mode: 'renew' }))}
+                  className={`flex-1 rounded-lg py-2 text-xs font-black transition-all ${editForm.mode === 'renew' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  🔄 Renew Plan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditForm((prev) => ({ ...prev, mode: 'schedule' }))}
+                  className={`flex-1 rounded-lg py-2 text-xs font-black transition-all ${editForm.mode === 'schedule' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  ⚙️ Split AM/PM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditForm((prev) => ({ ...prev, mode: 'cashflow' }))}
+                  className={`flex-1 rounded-lg py-2 text-xs font-black transition-all ${editForm.mode === 'cashflow' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  💰 Cash Flow
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditForm((prev) => ({ ...prev, mode: 'edit' }))}
+                  className={`flex-1 rounded-lg py-2 text-xs font-black transition-all ${editForm.mode === 'edit' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  ✏️ Edit Balances
+                </button>
               </div>
 
-              {editForm.mode === 'renew' ? (
-                <>
+              {/* TAB 1: RENEW PLAN */}
+              {editForm.mode === 'renew' && (
+                <div className="space-y-3.5">
                   <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3">
-                    <p className="text-xs font-black text-emerald-800">Renew Subscription</p>
-                    <p className="text-[10px] text-emerald-600 mt-1">Extend this subscription with additional deliveries. Progress continues from where it left off.</p>
+                    <p className="text-xs font-black text-emerald-900">Start Next Renewal Cycle</p>
+                    <p className="text-[10px] text-emerald-700 mt-0.5">
+                      Creates a clean new delivery & cash flow cycle. Previous cycle history and collected cash remain completely preserved.
+                    </p>
                   </div>
-                  <Field label="Additional Deliveries">
+
+                  {/* Plan / Product Option */}
+                  <div>
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-500">Renewal Option</label>
+                    <div className="mt-1.5 grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditForm((prev) => ({ ...prev, renewalType: 'same', newPlanId: editingSubscriber.plan.id }))}
+                        className={`rounded-xl border p-2.5 text-left text-xs transition-all ${editForm.renewalType === 'same' ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                      >
+                        <p className="font-black text-slate-800">Same Plan</p>
+                        <p className="text-[10px] text-slate-500 truncate">{editingSubscriber.plan.name}</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditForm((prev) => ({ ...prev, renewalType: 'switch' }))}
+                        className={`rounded-xl border p-2.5 text-left text-xs transition-all ${editForm.renewalType === 'switch' ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                      >
+                        <p className="font-black text-slate-800">Switch Plan</p>
+                        <p className="text-[10px] text-slate-500">Change product / size</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditForm((prev) => ({ ...prev, renewalType: 'split' }))}
+                        className={`rounded-xl border p-2.5 text-left text-xs transition-all ${editForm.renewalType === 'split' ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                      >
+                        <p className="font-black text-slate-800">Split AM/PM</p>
+                        <p className="text-[10px] text-slate-500">Cow + Buffalo milk</p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* If Switch Plan is chosen */}
+                  {editForm.renewalType === 'switch' && (
+                    <Field label="Choose New Plan">
+                      <select
+                        value={editForm.newPlanId || editingSubscriber.plan.id}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, newPlanId: e.target.value }))}
+                        className="h-10 w-full rounded-xl border border-slate-300 px-3 text-xs font-bold outline-none focus:border-emerald-500 bg-white"
+                      >
+                        {plans.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} · {formatPaise(p.pricePaise)} ({p.totalDeliveries} deliveries)
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+
+                  {/* If Split AM/PM is chosen */}
+                  {editForm.renewalType === 'split' && (
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-3 space-y-2">
+                      <p className="text-xs font-black text-indigo-900">Custom AM & PM Milk Setup</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-600">Morning Product (AM)</label>
+                          <select
+                            value={editForm.amProductName}
+                            onChange={(e) => setEditForm((prev) => ({ ...prev, amProductName: e.target.value }))}
+                            className="h-8 w-full rounded-lg border border-slate-300 px-2 text-xs font-semibold bg-white outline-none focus:border-indigo-500"
+                          >
+                            {availableProducts.map((p) => (
+                              <option key={p.id} value={p.name}>{p.name}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={editForm.amQuantity}
+                            onChange={(e) => setEditForm((prev) => ({ ...prev, amQuantity: e.target.value }))}
+                            className="mt-1 h-8 w-full rounded-lg border border-slate-300 px-2 text-xs font-semibold bg-white"
+                          >
+                            <option value="0.5L">0.5 Liter</option>
+                            <option value="1.0L">1.0 Liter</option>
+                            <option value="1.5L">1.5 Liters</option>
+                            <option value="2.0L">2.0 Liters</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-600">Evening Product (PM)</label>
+                          <select
+                            value={editForm.pmProductName}
+                            onChange={(e) => setEditForm((prev) => ({ ...prev, pmProductName: e.target.value }))}
+                            className="h-8 w-full rounded-lg border border-slate-300 px-2 text-xs font-semibold bg-white outline-none focus:border-indigo-500"
+                          >
+                            {availableProducts.map((p) => (
+                              <option key={p.id} value={p.name}>{p.name}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={editForm.pmQuantity}
+                            onChange={(e) => setEditForm((prev) => ({ ...prev, pmQuantity: e.target.value }))}
+                            className="mt-1 h-8 w-full rounded-lg border border-slate-300 px-2 text-xs font-semibold bg-white"
+                          >
+                            <option value="0.5L">0.5 Liter</option>
+                            <option value="1.0L">1.0 Liter</option>
+                            <option value="1.5L">1.5 Liters</option>
+                            <option value="2.0L">2.0 Liters</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Delivery Frequency (Automated Scheduling - No Manual Skipping needed!) */}
+                  <div>
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                      Delivery Frequency (Automated Schedule)
+                    </label>
+                    <div className="mt-1.5 grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditForm((prev) => ({ ...prev, frequency: 'DAILY' }))}
+                        className={`rounded-xl border p-2 text-center text-xs transition-all ${editForm.frequency === 'DAILY' ? 'border-emerald-600 bg-emerald-50/50 font-black text-emerald-900 ring-1 ring-emerald-500/20' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold'}`}
+                      >
+                        Daily (All 7 Days)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditForm((prev) => ({ ...prev, frequency: 'ALTERNATE_DAYS' }))}
+                        className={`rounded-xl border p-2 text-center text-xs transition-all ${editForm.frequency === 'ALTERNATE_DAYS' ? 'border-emerald-600 bg-emerald-50/50 font-black text-emerald-900 ring-1 ring-emerald-500/20' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold'}`}
+                      >
+                        Alternate Days (Every 2nd Day)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditForm((prev) => ({ ...prev, frequency: 'WEEKDAYS' }))}
+                        className={`rounded-xl border p-2 text-center text-xs transition-all ${editForm.frequency === 'WEEKDAYS' ? 'border-emerald-600 bg-emerald-50/50 font-black text-emerald-900 ring-1 ring-emerald-500/20' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold'}`}
+                      >
+                        Weekdays Only (Mon–Fri)
+                      </button>
+                    </div>
+                    {editForm.frequency === 'ALTERNATE_DAYS' && (
+                      <p className="mt-1 text-[10px] text-emerald-700 font-bold">
+                        ✓ System automatically schedules deliveries on alternating days (e.g. Day 1, 3, 5...). No manual skipping required.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Planned Vacation / Temporary Pause (Optional) */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-black text-slate-800">Planned Vacation / Leave (Optional)</span>
+                      <span className="text-[10px] text-slate-500">Auto-skip in advance</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500">Vacation From</label>
+                        <input
+                          type="date"
+                          value={editForm.vacationFrom}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, vacationFrom: e.target.value }))}
+                          className="h-8 w-full rounded-lg border border-slate-300 px-2 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500">Vacation To</label>
+                        <input
+                          type="date"
+                          value={editForm.vacationTo}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, vacationTo: e.target.value }))}
+                          className="h-8 w-full rounded-lg border border-slate-300 px-2 text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dates & Schedule */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field label="Cycle Start Date">
+                      <input
+                        type="date"
+                        value={editForm.startDate}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, startDate: e.target.value }))}
+                        className="h-10 w-full rounded-xl border border-slate-300 px-3 text-xs font-bold outline-none focus:border-emerald-500"
+                      />
+                    </Field>
+                    <Field label="Total Deliveries">
+                      <input
+                        type="number"
+                        min="1"
+                        value={editForm.totalDeliveries}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, totalDeliveries: e.target.value }))}
+                        className="h-10 w-full rounded-xl border border-slate-300 px-3 text-xs font-bold outline-none focus:border-emerald-500"
+                      />
+                    </Field>
+                  </div>
+
+                  {/* Cash Flow for this Renewal */}
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-600">Past Cycle Dues:</span>
+                      <span className="font-black text-red-700">{formatPaise(editingSubscriber.amountDuePaise || 0)}</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs border-t border-amber-200/60 pt-2">
+                      <span className="font-bold text-slate-800">Initial Payment Collected Now:</span>
+                      <div className="flex items-center gap-1.5">
+                        <span>₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editForm.initialCollectedRupees}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, initialCollectedRupees: e.target.value }))}
+                          placeholder="0"
+                          className="h-8 w-24 rounded-lg border border-slate-300 px-2 text-right font-black text-slate-900"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs">
+                      <span className="text-[11px] font-semibold text-slate-500">Payment Mode:</span>
+                      <div className="flex gap-1">
+                        {(['CASH', 'PHONE_PE', 'DUE'] as const).map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setEditForm((prev) => ({ ...prev, paymentMode: m }))}
+                            className={`rounded px-2 py-0.5 text-[10px] font-black ${editForm.paymentMode === m ? 'bg-emerald-700 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+                          >
+                            {m === 'PHONE_PE' ? 'PhonePe' : m === 'CASH' ? 'Cash' : 'Post-Paid'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Field label="Renewal Note">
                     <input
-                      type="number"
-                      min="1"
-                      value={editForm.additionalDeliveries}
-                      onChange={(e) => setEditForm({ ...editForm, additionalDeliveries: e.target.value })}
-                      placeholder="e.g. 7"
-                      className="h-10 w-full rounded-xl border border-slate-300 px-3 font-bold outline-none focus:border-emerald-500"
-                    />
-                  </Field>
-                  <Field label="Additional Amount (₹) - leave blank to auto-calculate">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={editForm.additionalAmountRupees}
-                      onChange={(e) => setEditForm({ ...editForm, additionalAmountRupees: e.target.value })}
-                      placeholder="Auto-calculated if empty"
-                      className="h-10 w-full rounded-xl border border-slate-300 px-3 font-bold outline-none focus:border-emerald-500"
-                    />
-                  </Field>
-                  <Field label="Note">
-                    <textarea
+                      type="text"
                       value={editForm.note}
-                      onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
-                      rows={2}
-                      placeholder="Reason for renewal"
-                      className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-emerald-500"
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, note: e.target.value }))}
+                      placeholder="e.g. Renewed for April month"
+                      className="h-10 w-full rounded-xl border border-slate-300 px-3 text-xs outline-none focus:border-emerald-500"
                     />
                   </Field>
-                  <div className="flex gap-2">
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-2">
                     <button
+                      type="button"
                       onClick={() => setEditingSubscriber(null)}
-                      className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-black"
+                      className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-black hover:bg-slate-50"
                     >
                       Cancel
                     </button>
                     <button
-                      disabled={working === "renew-subscriber" || !editForm.additionalDeliveries}
+                      type="button"
+                      disabled={working === "renew-subscriber"}
                       onClick={async () => {
                         setWorking("renew-subscriber");
                         try {
+                          const initialCashPaise = Math.round(Number(editForm.initialCollectedRupees || 0) * 100);
+                          const splitItems = editForm.renewalType === 'split'
+                            ? {
+                                amProductName: editForm.amProductName,
+                                amQuantity: editForm.amQuantity,
+                                pmProductName: editForm.pmProductName,
+                                pmQuantity: editForm.pmQuantity,
+                              }
+                            : undefined;
+
+                          const vacationRange = editForm.vacationFrom && editForm.vacationTo
+                            ? {
+                                fromDate: editForm.vacationFrom,
+                                toDate: editForm.vacationTo,
+                                policy: editForm.vacationPolicy,
+                              }
+                            : undefined;
+
                           await apiClient.post(`/store/subscriptions/subscribers/${editingSubscriber.id}/renew`, {
-                            additionalDeliveries: Number(editForm.additionalDeliveries),
-                            additionalAmountPaise: editForm.additionalAmountRupees ? Math.round(Number(editForm.additionalAmountRupees) * 100) : undefined,
+                            isSamePlan: editForm.renewalType === 'same',
+                            newPlanId: editForm.renewalType === 'switch' ? editForm.newPlanId : undefined,
+                            frequency: editForm.frequency,
+                            vacationRange,
+                            startDate: editForm.startDate,
+                            totalDeliveries: Number(editForm.totalDeliveries || 30),
+                            deliverySlot: editForm.renewalType === 'split' ? 'BOTH' : editForm.deliverySlot,
+                            splitItems,
+                            initialCashCollectedPaise: initialCashPaise > 0 ? initialCashPaise : undefined,
+                            paymentMode: editForm.paymentMode !== 'DUE' ? editForm.paymentMode : undefined,
                             note: editForm.note.trim() || undefined,
                           });
-                          toast.success("Subscription renewed successfully");
+
+                          toast.success("Subscription renewed successfully for next cycle!");
                           setEditingSubscriber(null);
                           await load();
                         } catch (error) {
@@ -1269,15 +1752,206 @@ export default function StoreSubscriptionOperationsPage() {
                           setWorking("");
                         }
                       }}
-                      className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-black text-white disabled:opacity-50"
+                      className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-black text-white hover:bg-emerald-800 disabled:opacity-50"
                     >
                       {working === "renew-subscriber" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      Renew Subscription
+                      Confirm Renewal
                     </button>
                   </div>
-                </>
-              ) : (
-                <>
+                </div>
+              )}
+
+              {/* TAB 2: SPLIT AM/PM SCHEDULE */}
+              {editForm.mode === 'schedule' && (
+                <div className="space-y-3.5">
+                  <div className="rounded-xl bg-indigo-50 border border-indigo-200 p-3">
+                    <p className="text-xs font-black text-indigo-900">Split Morning & Evening Shift Setup</p>
+                    <p className="text-[10px] text-indigo-700 mt-0.5">
+                      Configure different products and quantities for morning vs evening delivery runs.
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-3">
+                    <div>
+                      <div className="flex items-center gap-1.5 font-black text-slate-800 text-xs">
+                        <Sun className="h-3.5 w-3.5 text-amber-500" /> Morning Run (AM)
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <select
+                          value={editForm.amProductName}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, amProductName: e.target.value }))}
+                          className="h-9 w-full rounded-lg border border-slate-300 px-2.5 text-xs font-semibold bg-white outline-none focus:border-indigo-500"
+                        >
+                          {availableProducts.map((p) => (
+                            <option key={p.id} value={p.name}>{p.name}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={editForm.amQuantity}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, amQuantity: e.target.value }))}
+                          className="h-9 w-full rounded-lg border border-slate-300 px-2.5 text-xs font-semibold bg-white"
+                        >
+                          <option value="0.5L">0.5 Liter</option>
+                          <option value="1.0L">1.0 Liter</option>
+                          <option value="1.5L">1.5 Liters</option>
+                          <option value="2.0L">2.0 Liters</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-3">
+                      <div className="flex items-center gap-1.5 font-black text-slate-800 text-xs">
+                        <Moon className="h-3.5 w-3.5 text-indigo-500" /> Evening Run (PM)
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <select
+                          value={editForm.pmProductName}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, pmProductName: e.target.value }))}
+                          className="h-9 w-full rounded-lg border border-slate-300 px-2.5 text-xs font-semibold bg-white outline-none focus:border-indigo-500"
+                        >
+                          {availableProducts.map((p) => (
+                            <option key={p.id} value={p.name}>{p.name}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={editForm.pmQuantity}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, pmQuantity: e.target.value }))}
+                          className="h-9 w-full rounded-lg border border-slate-300 px-2.5 text-xs font-semibold bg-white"
+                        >
+                          <option value="0.5L">0.5 Liter</option>
+                          <option value="1.0L">1.0 Liter</option>
+                          <option value="1.5L">1.5 Liters</option>
+                          <option value="2.0L">2.0 Liters</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-100 p-3 text-center text-xs">
+                    <span className="font-bold text-slate-600">Combined Daily Total: </span>
+                    <span className="font-black text-emerald-800">
+                      {editForm.amQuantity} {editForm.amProductName} + {editForm.pmQuantity} {editForm.pmProductName}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingSubscriber(null)}
+                      className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-black hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditForm((prev) => ({ ...prev, mode: 'renew', renewalType: 'split' }));
+                        toast.info("Split AM/PM setup saved. Proceed with Renewal.");
+                      }}
+                      className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-black text-white hover:bg-emerald-800"
+                    >
+                      Apply to Renewal
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: CASH FLOW & DUES */}
+              {editForm.mode === 'cashflow' && (
+                <div className="space-y-3.5">
+                  <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                    <p className="text-xs font-black text-slate-900">Customer Account Ledger</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-center">
+                      <div className="rounded-lg bg-emerald-100/60 p-2">
+                        <p className="text-[10px] font-bold text-emerald-800">Total Collected</p>
+                        <p className="text-base font-black text-emerald-900">{formatPaise(editingSubscriber.amountCollectedPaise || 0)}</p>
+                      </div>
+                      <div className="rounded-lg bg-red-100/60 p-2">
+                        <p className="text-[10px] font-bold text-red-800">Balance Due</p>
+                        <p className="text-base font-black text-red-900">{formatPaise(editingSubscriber.amountDuePaise || 0)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Record Payment Box */}
+                  <div className="rounded-xl border border-emerald-300 bg-emerald-50/40 p-3 space-y-2.5">
+                    <p className="text-xs font-black text-emerald-950">Record Customer Payment</p>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold text-slate-600">Amount (₹)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="0.01"
+                          value={editForm.additionalAmountRupees}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, additionalAmountRupees: e.target.value }))}
+                          placeholder={String((editingSubscriber.amountDuePaise || 0) / 100)}
+                          className="h-9 w-full rounded-lg border border-slate-300 px-2.5 text-xs font-bold bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-600">Payment Mode</label>
+                        <select
+                          value={editForm.paymentMode === 'DUE' ? 'CASH' : editForm.paymentMode}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, paymentMode: e.target.value as any }))}
+                          className="h-9 rounded-lg border border-slate-300 px-2 text-xs font-bold bg-white"
+                        >
+                          <option value="CASH">Cash</option>
+                          <option value="PHONE_PE">PhonePe / UPI</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <input
+                      type="text"
+                      value={editForm.note}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, note: e.target.value }))}
+                      placeholder="Optional reference / note (e.g. UPI Ref #8932)"
+                      className="h-8 w-full rounded-lg border border-slate-300 px-2 text-xs bg-white"
+                    />
+
+                    <button
+                      type="button"
+                      disabled={working === "record-payment" || !editForm.additionalAmountRupees || Number(editForm.additionalAmountRupees) <= 0}
+                      onClick={async () => {
+                        setWorking("record-payment");
+                        try {
+                          await apiClient.post(`/store/subscriptions/subscribers/${editingSubscriber.id}/record-payment`, {
+                            amountPaise: Math.round(Number(editForm.additionalAmountRupees) * 100),
+                            paymentMode: editForm.paymentMode === 'PHONE_PE' ? 'PHONE_PE' : 'CASH',
+                            note: editForm.note.trim() || undefined,
+                          });
+                          toast.success("Payment recorded successfully!");
+                          setEditingSubscriber(null);
+                          await load();
+                        } catch (error) {
+                          toast.error(getToastErrorMessage(error, "Payment recording failed"));
+                        } finally {
+                          setWorking("");
+                        }
+                      }}
+                      className="w-full inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-700 text-xs font-black text-white hover:bg-emerald-800 disabled:opacity-50"
+                    >
+                      {working === "record-payment" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
+                      Record Payment Now
+                    </button>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingSubscriber(null)}
+                      className="min-h-9 px-4 rounded-xl border border-slate-200 text-xs font-black hover:bg-slate-50"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: EDIT BALANCES */}
+              {editForm.mode === 'edit' && (
+                <div className="space-y-3">
                   <Field label="Amount Due (₹)">
                     <input
                       type="number"
@@ -1307,14 +1981,16 @@ export default function StoreSubscriptionOperationsPage() {
                       className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-emerald-500"
                     />
                   </Field>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 pt-2">
                     <button
+                      type="button"
                       onClick={() => setEditingSubscriber(null)}
                       className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-black"
                     >
                       Cancel
                     </button>
                     <button
+                      type="button"
                       disabled={working === "edit-subscriber"}
                       onClick={async () => {
                         setWorking("edit-subscriber");
@@ -1324,7 +2000,7 @@ export default function StoreSubscriptionOperationsPage() {
                             amountCollectedPaise: Math.round(Number(editForm.amountCollectedRupees || 0) * 100),
                             note: editForm.note.trim() || undefined,
                           });
-                          toast.success("Subscriber updated");
+                          toast.success("Subscriber balances updated");
                           setEditingSubscriber(null);
                           await load();
                         } catch (error) {
@@ -1339,7 +2015,7 @@ export default function StoreSubscriptionOperationsPage() {
                       Save Changes
                     </button>
                   </div>
-                </>
+                </div>
               )}
             </div>
           </Modal>
@@ -1408,29 +2084,120 @@ export default function StoreSubscriptionOperationsPage() {
                 </Field>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Delivery Address / Locality *">
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Bowluwada / Riksha Colony"
-                    value={customerForm.address}
-                    onChange={(e) => setCustomerForm({ ...customerForm, address: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500"
-                  />
-                </Field>
-                <Field label="City / Town">
-                  <input
-                    type="text"
-                    placeholder="Anakapalle"
-                    value={customerForm.city}
-                    onChange={(e) => setCustomerForm({ ...customerForm, city: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500"
-                  />
-                </Field>
+              {/* Mapbox & Google Places Location Picker (Exact replica of /shop/checkout) */}
+              <div className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50/50 via-white to-slate-50 p-3.5 sm:p-4 space-y-3 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-1.5 font-black text-slate-900 text-xs">
+                      <MapPin className="h-4 w-4 text-teal-700" />
+                      <span>Delivery Location & Map Pin</span>
+                      <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[9px] font-black text-teal-800 uppercase tracking-wider">
+                        Google & Mapbox Search
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Search address or drag pin. Exact GPS coordinates & address details are captured automatically.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleUseLiveLocation}
+                      disabled={customerForm.locating}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-teal-300 bg-teal-700 px-3 py-1.5 text-xs font-black text-white shadow-sm hover:bg-teal-800 active:scale-95 disabled:opacity-60 transition"
+                      title="Capture exact device GPS coordinates"
+                    >
+                      {customerForm.locating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Navigation className="h-3.5 w-3.5" />}
+                      {customerForm.locating ? "Locating GPS..." : "📍 Use Live GPS"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCustomerForm((prev) => ({ ...prev, showMap: !prev.showMap }))}
+                      className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-xs"
+                    >
+                      {customerForm.showMap ? "Hide Map" : "Show Map"}
+                    </button>
+                  </div>
+                </div>
+
+                {customerForm.showMap && (
+                  <div className="overflow-hidden rounded-xl border border-teal-200 shadow-sm">
+                    <CustomerLocationPicker
+                      latitude={customerForm.latitude}
+                      longitude={customerForm.longitude}
+                      onChange={handleMapPinChange}
+                    />
+                  </div>
+                )}
+
+                {/* Live GPS / Coordinate indicator */}
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white p-2.5 text-[11px] border border-slate-200 shadow-2xs">
+                  <div className="flex items-center gap-2 font-mono text-slate-700 font-semibold text-xs">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100 animate-pulse"></span>
+                    <span>GPS Lat: {customerForm.latitude.toFixed(6)}, Lng: {customerForm.longitude.toFixed(6)}</span>
+                  </div>
+                  {customerForm.hasLocation && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      <Check className="h-3 w-3 stroke-[3]" /> Auto-Geocoded from Map
+                    </span>
+                  )}
+                </div>
+
+                {/* Auto-filled address inputs */}
+                <div className="grid gap-3 sm:grid-cols-2 pt-1">
+                  <Field label="Delivery Address / Door No / Street *">
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Flat 301, Sri Sai Residency / Main Road"
+                      value={customerForm.address}
+                      onChange={(e) => setCustomerForm({ ...customerForm, address: e.target.value })}
+                      className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-teal-500"
+                    />
+                  </Field>
+                  <Field label="Landmark (Optional)">
+                    <input
+                      type="text"
+                      placeholder="e.g. Near Ganesh Temple / Opp Water Tank"
+                      value={customerForm.landmark}
+                      onChange={(e) => setCustomerForm({ ...customerForm, landmark: e.target.value })}
+                      className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-teal-500"
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Field label="City / Town">
+                    <input
+                      type="text"
+                      placeholder="Anakapalle"
+                      value={customerForm.city}
+                      onChange={(e) => setCustomerForm({ ...customerForm, city: e.target.value })}
+                      className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-teal-500"
+                    />
+                  </Field>
+                  <Field label="State">
+                    <input
+                      type="text"
+                      placeholder="Andhra Pradesh"
+                      value={customerForm.state}
+                      onChange={(e) => setCustomerForm({ ...customerForm, state: e.target.value })}
+                      className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-teal-500"
+                    />
+                  </Field>
+                  <Field label="Pincode">
+                    <input
+                      type="text"
+                      placeholder="531001"
+                      value={customerForm.pincode}
+                      onChange={(e) => setCustomerForm({ ...customerForm, pincode: e.target.value })}
+                      className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-teal-500"
+                    />
+                  </Field>
+                </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Field label="Subscription Plan *">
                   <select
                     value={customerForm.planId}
@@ -1462,6 +2229,18 @@ export default function StoreSubscriptionOperationsPage() {
                     <option value="MORNING">Morning (AM Slot: 6 AM - 9 AM)</option>
                     <option value="EVENING">Evening (PM Slot: 5 PM - 8 PM)</option>
                     <option value="BOTH">Both (AM + PM)</option>
+                  </select>
+                </Field>
+
+                <Field label="Delivery Frequency *">
+                  <select
+                    value={customerForm.frequency}
+                    onChange={(e) => setCustomerForm({ ...customerForm, frequency: e.target.value as any })}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500 font-semibold text-emerald-800 bg-emerald-50/50"
+                  >
+                    <option value="DAILY">Daily (Every Day)</option>
+                    <option value="ALTERNATE_DAYS">Alternate Days (Day-by-Day, Auto-skip)</option>
+                    <option value="WEEKDAYS">Weekdays Only (Mon – Fri)</option>
                   </select>
                 </Field>
 
@@ -1512,6 +2291,127 @@ export default function StoreSubscriptionOperationsPage() {
                     className="w-full rounded-xl border border-slate-300 p-2.5 text-xs outline-none focus:border-emerald-500 disabled:bg-slate-100"
                   />
                 </Field>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-black text-slate-800">Split AM & PM Products</p>
+                    <p className="text-[11px] text-slate-500">e.g. Cow Milk in Morning (0.5L) + Buffalo Milk in Evening (1L)</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={customerForm.enableSplitItems}
+                      onChange={(e) => setCustomerForm({ ...customerForm, enableSplitItems: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+                {customerForm.enableSplitItems && (
+                  <div className="grid gap-2 sm:grid-cols-2 pt-2 border-t border-slate-200">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-500">Morning Product & Qty</label>
+                      <div className="flex gap-1.5">
+                        <select
+                          value={customerForm.amProductName}
+                          onChange={(e) => setCustomerForm({ ...customerForm, amProductName: e.target.value })}
+                          className="w-2/3 rounded-lg border border-slate-300 p-2 text-xs font-semibold bg-white outline-none focus:border-emerald-500"
+                        >
+                          {availableProducts.map((p) => (
+                            <option key={p.id} value={p.name}>{p.name}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={customerForm.amQuantity}
+                          onChange={(e) => setCustomerForm({ ...customerForm, amQuantity: e.target.value })}
+                          className="w-1/3 rounded-lg border border-slate-300 p-2 text-xs font-semibold bg-white"
+                        >
+                          <option value="0.5L">0.5L</option>
+                          <option value="1.0L">1.0L</option>
+                          <option value="1.5L">1.5L</option>
+                          <option value="2.0L">2.0L</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-500">Evening Product & Qty</label>
+                      <div className="flex gap-1.5">
+                        <select
+                          value={customerForm.pmProductName}
+                          onChange={(e) => setCustomerForm({ ...customerForm, pmProductName: e.target.value })}
+                          className="w-2/3 rounded-lg border border-slate-300 p-2 text-xs font-semibold bg-white outline-none focus:border-emerald-500"
+                        >
+                          {availableProducts.map((p) => (
+                            <option key={p.id} value={p.name}>{p.name}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={customerForm.pmQuantity}
+                          onChange={(e) => setCustomerForm({ ...customerForm, pmQuantity: e.target.value })}
+                          className="w-1/3 rounded-lg border border-slate-300 p-2 text-xs font-semibold bg-white"
+                        >
+                          <option value="0.5L">0.5L</option>
+                          <option value="1.0L">1.0L</option>
+                          <option value="1.5L">1.5L</option>
+                          <option value="2.0L">2.0L</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-black text-slate-800">Planned Vacation / Advance Pauses</p>
+                    <p className="text-[11px] text-slate-500">Automatically skip deliveries during customer vacation dates</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={customerForm.enableVacation}
+                      onChange={(e) => setCustomerForm({ ...customerForm, enableVacation: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+                {customerForm.enableVacation && (
+                  <div className="grid gap-2 sm:grid-cols-3 pt-2 border-t border-slate-200">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-500">Vacation From</label>
+                      <input
+                        type="date"
+                        value={customerForm.vacationFrom}
+                        onChange={(e) => setCustomerForm({ ...customerForm, vacationFrom: e.target.value })}
+                        className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-500">Vacation To</label>
+                      <input
+                        type="date"
+                        value={customerForm.vacationTo}
+                        onChange={(e) => setCustomerForm({ ...customerForm, vacationTo: e.target.value })}
+                        className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-500">Vacation Policy</label>
+                      <select
+                        value={customerForm.vacationPolicy}
+                        onChange={(e) => setCustomerForm({ ...customerForm, vacationPolicy: e.target.value as any })}
+                        className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                      >
+                        <option value="EXTEND_PLAN">Extend Plan (Deliveries shifted forward)</option>
+                        <option value="DEDUCT_BILL">Deduct Bill (Mark as Skipped)</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <Field label="Remarks / Operational Notes">
