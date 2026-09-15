@@ -66,6 +66,8 @@ function SortableCategory({
       }`}
     >
       <button
+        type="button"
+        aria-label={`Reorder category ${category.name}`}
         className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
         {...attributes}
         {...listeners}
@@ -76,13 +78,17 @@ function SortableCategory({
       <span className="flex-1 text-sm font-bold text-gray-900">{category.name}</span>
       <span className="text-xs font-semibold text-gray-500">{productCount} products</span>
       <button
+        type="button"
         onClick={() => onEdit(category)}
+        aria-label={`Edit category ${category.name}`}
         className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
       >
         <Edit className="h-4 w-4" />
       </button>
       <button
+        type="button"
         onClick={() => onDelete(category)}
+        aria-label={`Delete category ${category.name}`}
         className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
       >
         <Trash2 className="h-4 w-4" />
