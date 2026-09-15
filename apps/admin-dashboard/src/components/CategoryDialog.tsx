@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import SortableCategories from '@/components/SortableCategories';
-import { X, Tag } from 'lucide-react';
+import { X, Tag, Loader2 } from 'lucide-react';
 
 type Category = { id: string; name: string; imageUrl?: string | null; sortOrder?: number };
 
@@ -57,16 +57,26 @@ export default function CategoryDialog({
   const displayError = localError || error;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="category-dialog-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    >
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-100 p-6">
           <div>
-            <h2 className="text-xl font-black text-gray-950">Manage Categories</h2>
+            <h2 id="category-dialog-title" className="text-xl font-black text-gray-950">Manage Categories</h2>
             <p className="text-sm font-semibold text-gray-500">
               Create, edit, delete, and drag to reorder categories.
             </p>
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 hover:bg-gray-100">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close dialog"
+            className="rounded-lg p-2 hover:bg-gray-100"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -82,12 +92,14 @@ export default function CategoryDialog({
                 {displayError}
               </div>
             )}
-            <label className="mt-4 block text-sm font-bold text-gray-700">
+            <label htmlFor="category-name-input" className="mt-4 block text-sm font-bold text-gray-700">
               Category name
               <input
+                id="category-name-input"
                 required
                 value={categoryName}
                 onChange={(e) => setCategoryName(e.target.value)}
+                placeholder="e.g. Fresh Dairy"
                 className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-teal-500"
               />
             </label>
@@ -100,10 +112,21 @@ export default function CategoryDialog({
                 Clear
               </button>
               <button
+                type="submit"
                 disabled={submitting}
-                className="flex-1 rounded-xl bg-teal-700 px-4 py-3 font-black text-white hover:bg-teal-800 disabled:opacity-50"
+                aria-busy={submitting}
+                className="flex-1 rounded-xl bg-teal-700 px-4 py-3 font-black text-white hover:bg-teal-800 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {submitting ? 'Saving...' : editingCategory ? 'Save' : 'Create'}
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : editingCategory ? (
+                  'Save'
+                ) : (
+                  'Create'
+                )}
               </button>
             </div>
           </form>
