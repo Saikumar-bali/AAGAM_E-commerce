@@ -31,6 +31,17 @@ type SearchResult = {
   placeId?: string;
 };
 
+function getBadgeStyle(type: string): string {
+  const t = (type || '').toLowerCase();
+  if (t.includes('hospital') || t.includes('clinic') || t.includes('pharmacy')) return 'bg-rose-100 text-rose-800 border-rose-200';
+  if (t.includes('school') || t.includes('college') || t.includes('university')) return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+  if (t.includes('restaurant') || t.includes('cafe') || t.includes('bakery')) return 'bg-amber-100 text-amber-800 border-amber-200';
+  if (t.includes('temple') || t.includes('worship') || t.includes('church') || t.includes('mosque')) return 'bg-purple-100 text-purple-800 border-purple-200';
+  if (t.includes('store') || t.includes('supermarket') || t.includes('mall')) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+  if (t.includes('bank') || t.includes('atm')) return 'bg-blue-100 text-blue-800 border-blue-200';
+  return 'bg-teal-100 text-teal-800 border-teal-200';
+}
+
 export default function CustomerLocationPicker({ latitude, longitude, onChange, fullHeight }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -87,8 +98,8 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
       }
       const token = getMapboxToken();
       if (!token) { setSearchResults([]); return; }
-      // Bounding box around Anakapalle and nearby areas (Visakhapatnam region)
-      const bbox = '82.7,17.5,83.3,17.9';
+      // Bounding box strictly around Anakapalle and surrounding villages
+      const bbox = '82.85,17.55,83.15,17.85';
       const res = await fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${longitude},${latitude}&bbox=${bbox}`
       );
@@ -138,19 +149,59 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
     const container = containerRef.current;
     if (!container) return;
     const token = getMapboxToken();
-    if (!token) {
-      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</div>';
-      return;
+    const hasMapboxToken = Boolean(token && token.startsWith('pk.') && token !== 'pk.test-dummy-token-for-jest');
+    if (hasMapboxToken && token) {
+      mapboxgl.accessToken = token;
+    } else {
+      mapboxgl.accessToken = 'pk.eyJ1IjoiZmFsbGJhY2siLCJhIjoiY20wMCJ9.none';
     }
-    mapboxgl.accessToken = token;
+
+    const osmFallbackStyle: any = {
+      version: 8,
+      sources: {
+        'osm-tiles': {
+          type: 'raster',
+          tiles: [
+            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          ],
+          tileSize: 256,
+          attribution: '&copy; OpenStreetMap contributors',
+        },
+      },
+      layers: [
+        {
+          id: 'osm-tiles-layer',
+          type: 'raster',
+          source: 'osm-tiles',
+          minzoom: 0,
+          maxzoom: 19,
+        },
+      ],
+    };
 
     const map = new mapboxgl.Map({
       container,
-      style: 'mapbox://styles/mapbox/satellite-streets-v12',
+      style: hasMapboxToken ? 'mapbox://styles/mapbox/satellite-streets-v12' : osmFallbackStyle,
       center: [longitude, latitude],
       zoom: 17,
       attributionControl: true,
     });
+
+    let hasFallenBack = false;
+    map.on('error', (e: any) => {
+      if (hasFallenBack) return;
+      const status = e?.error?.status || e?.status;
+      const msg = String(e?.error?.message || e?.message || '');
+      if (status === 401 || msg.includes('401') || msg.includes('Not Authorized') || msg.includes('Invalid Token')) {
+        hasFallenBack = true;
+        try {
+          map.setStyle(osmFallbackStyle);
+        } catch {}
+      }
+    });
+
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
     mapRef.current = map;
 
@@ -198,7 +249,7 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
             type="text"
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search address..."
+            placeholder="Search address, school, hospital, restaurant, temple..."
             className="w-full border-b border-slate-100 bg-white py-3 pl-10 pr-20 text-sm text-slate-900 outline-none placeholder:text-slate-400"
           />
           {searchQuery && (
@@ -209,16 +260,18 @@ export default function CustomerLocationPicker({ latitude, longitude, onChange, 
           {searching && <div className="absolute right-10 top-1/2 -translate-y-1/2 text-xs text-slate-400">...</div>}
         </div>
         {searchResults.length > 0 && (
-          <div className="absolute left-0 right-0 top-full z-50 max-h-48 overflow-y-auto border-b border-slate-100 bg-white shadow-lg">
+          <div className="absolute left-0 right-0 top-full z-50 max-h-56 overflow-y-auto border-b border-slate-100 bg-white shadow-xl divide-y divide-slate-100">
             {searchResults.map((result, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => handleSelectResult(result)}
-                className="w-full border-b border-slate-50 px-4 py-3 text-left transition-colors last:border-0 hover:bg-teal-50"
+                className="w-full px-4 py-2.5 text-left transition-colors hover:bg-teal-50/70 flex items-start gap-2.5"
               >
-                <span className="text-[10px] font-black uppercase text-teal-700">{result.type}</span>
-                <p className="mt-0.5 line-clamp-2 text-xs font-medium text-slate-700">{result.displayName}</p>
+                <span className={`mt-0.5 shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${getBadgeStyle(result.type)}`}>
+                  {result.type}
+                </span>
+                <p className="min-w-0 flex-1 text-xs font-semibold text-slate-800 leading-snug">{result.displayName}</p>
               </button>
             ))}
           </div>

@@ -111,6 +111,7 @@ export class OfflineCustomerService {
         _count: { select: { orders: true } },
         customerSubscriptions: {
           include: {
+            plan: { select: { id: true, name: true, code: true, pricePaise: true } },
             deliveries: { orderBy: { sequenceNumber: 'asc' } },
             orders: {
               select: {
@@ -133,6 +134,10 @@ export class OfflineCustomerService {
 
     if (!user) throw new NotFoundException('Customer not found');
 
+    let overallCollectedPaise = 0;
+    let overallDuePaise = 0;
+    let overallDeliveredDays = 0;
+
     const subscriptions = user.customerSubscriptions.map((sub) => {
       const deliveredCount = sub.deliveries.filter((d) => d.status === 'DELIVERED').length;
       const pendingCount = sub.deliveries.filter((d) => d.status === 'SCHEDULED').length;
@@ -142,8 +147,17 @@ export class OfflineCustomerService {
       const amDeliveries = sub.deliveries.filter((d) => d.deliverySlot === 'AM' || d.deliverySlot === 'BOTH');
       const pmDeliveries = sub.deliveries.filter((d) => d.deliverySlot === 'PM' || d.deliverySlot === 'BOTH');
 
+      const cycleNumber = (sub.priceSnapshot as any)?.cycleNumber || 1;
+      const splitItems = (sub.priceSnapshot as any)?.splitItems || null;
+
+      overallCollectedPaise += sub.amountCollectedPaise || 0;
+      overallDuePaise += sub.amountDuePaise || 0;
+      overallDeliveredDays += deliveredCount;
+
       return {
         ...sub,
+        cycleNumber,
+        splitItems,
         stats: {
           delivered: deliveredCount,
           pending: pendingCount,
@@ -164,6 +178,13 @@ export class OfflineCustomerService {
       createdAt: user.createdAt,
       addresses: user.addresses,
       subscriptions,
+      overallSummary: {
+        totalCollectedPaise: overallCollectedPaise,
+        totalDuePaise: overallDuePaise,
+        totalDeliveredDays: overallDeliveredDays,
+        totalSubscriptions: subscriptions.length,
+        activeSubscriptions: subscriptions.filter((s) => ['ACTIVE', 'PENDING_CASH_COLLECTION', 'GRACE_PERIOD'].includes(s.status)).length,
+      },
       totalOrders: user._count.orders,
     };
   }

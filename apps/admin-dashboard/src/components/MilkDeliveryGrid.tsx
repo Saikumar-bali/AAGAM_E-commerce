@@ -102,6 +102,7 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
 
   // Custom action inputs
   const [extraQuantity, setExtraQuantity] = useState('+1L BM');
+  const [consecutiveDays, setConsecutiveDays] = useState(4);
   const [paymentAmount, setPaymentAmount] = useState('80');
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'PHONE_PE'>('CASH');
 
@@ -174,17 +175,19 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
   // Cell quick action
   const handleQuickAction = async (
     deliveryId: string,
-    actionType: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT',
-    options?: { extraQuantity?: string; amountPaise?: number; extraPaise?: number; paymentMode?: 'CASH' | 'PHONE_PE'; note?: string },
+    actionType: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT' | 'ATTACH_EVENING_MILK',
+    options?: { extraQuantity?: string; amountPaise?: number; extraPaise?: number; paymentMode?: 'CASH' | 'PHONE_PE'; note?: string; consecutiveDays?: number; targetSlot?: 'AM' | 'PM' },
   ) => {
     setActionLoading(true);
     try {
-      await apiClient.post(`/store/subscriptions/deliveries/${deliveryId}/quick-action`, {
+      const res = await apiClient.post(`/store/subscriptions/deliveries/${deliveryId}/quick-action`, {
         type: actionType,
         ...options,
       });
       toast.success(
-        actionType === 'TOGGLE_DELIVERED'
+        actionType === 'ATTACH_EVENING_MILK'
+          ? (res.data?.message || 'Attached evening buffalo milk successfully!')
+          : actionType === 'TOGGLE_DELIVERED'
           ? 'Delivery status updated!'
           : actionType === 'EXTRA_MILK'
           ? 'Extra milk added!'
@@ -1035,12 +1038,71 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
                   </div>
                 </div>
 
-                {/* 2. Extra Milk Ad-hoc Request */}
+                {/* 2. Attach Evening Buffalo Milk (Consecutive Days) */}
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-black text-xs text-indigo-950">
+                      <Moon className="h-4 w-4 text-indigo-600" />
+                      <span>Attach Evening Buffalo Milk</span>
+                    </div>
+                    <span className="rounded-md bg-indigo-200/80 px-2 py-0.5 text-[10px] font-black text-indigo-900">PM Shift</span>
+                  </div>
+                  <p className="text-[11px] text-indigo-700 leading-tight">
+                    Schedule consecutive days of evening buffalo milk starting from Day {selectedCell.day}.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <label className="block text-[10px] font-bold text-slate-600">Product & Qty</label>
+                      <select
+                        value={extraQuantity}
+                        onChange={(e) => setExtraQuantity(e.target.value)}
+                        className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-bold text-indigo-950"
+                      >
+                        <option value="+1L BM">+1L Buffalo Milk (₹80/day)</option>
+                        <option value="+0.5L BM">+0.5L Buffalo Milk (₹40/day)</option>
+                        <option value="+2L BM">+2L Buffalo Milk (₹160/day)</option>
+                      </select>
+                    </div>
+                    <div className="w-24">
+                      <label className="block text-[10px] font-bold text-slate-600">Duration</label>
+                      <select
+                        value={consecutiveDays}
+                        onChange={(e) => setConsecutiveDays(Number(e.target.value))}
+                        className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-black text-indigo-950"
+                      >
+                        <option value={1}>1 Day</option>
+                        <option value={2}>2 Days</option>
+                        <option value={3}>3 Days</option>
+                        <option value={4}>4 Days</option>
+                        <option value={5}>5 Days</option>
+                        <option value={7}>7 Days (1 Wk)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    disabled={actionLoading}
+                    onClick={() => {
+                      const pricePaise = extraQuantity === '+0.5L BM' ? 4000 : extraQuantity === '+2L BM' ? 16000 : 8000;
+                      handleQuickAction(selectedCell.cell!.deliveryId, 'ATTACH_EVENING_MILK', {
+                        extraQuantity,
+                        extraPaise: pricePaise,
+                        consecutiveDays,
+                        note: `Customer requested ${consecutiveDays} days evening buffalo milk`,
+                      });
+                    }}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-700 py-2.5 text-xs font-black text-white shadow-sm hover:bg-indigo-800 transition active:scale-[0.98]"
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                    Attach {consecutiveDays} Days Evening Delivery (₹{((extraQuantity === '+0.5L BM' ? 40 : extraQuantity === '+2L BM' ? 160 : 80) * consecutiveDays)})
+                  </button>
+                </div>
+
+                {/* 3. Extra Milk Ad-hoc Request */}
                 <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-black text-amber-900">Add Extra Milk Today</p>
-                      <p className="text-[11px] text-amber-700">Ad-hoc customer request without altering base plan</p>
+                      <p className="text-[11px] text-amber-700">Ad-hoc single day extra milk without altering shift</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -1076,7 +1138,7 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
                   </div>
                 </div>
 
-                {/* 3. Slot Toggle & Skip Actions */}
+                {/* 4. Slot Toggle & Skip Actions */}
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     disabled={actionLoading}
@@ -1145,12 +1207,34 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
               <p className="text-xs text-slate-500 py-4 text-center">No scheduled delivery record for this date.</p>
             )}
 
-            <div className="pt-2">
+            <div className="pt-2 flex gap-2">
               <button
                 onClick={() => setSelectedCell(null)}
-                className="w-full rounded-xl border border-slate-200 py-2 text-xs font-black text-slate-600 hover:bg-slate-50"
+                className="flex-1 rounded-xl border border-slate-200 py-2 text-xs font-black text-slate-600 hover:bg-slate-50"
               >
                 Close
+              </button>
+              <button
+                disabled={actionLoading}
+                onClick={async () => {
+                  try {
+                    setActionLoading(true);
+                    await apiClient.post(`/store/subscriptions/subscribers/${selectedCell.row.subscriptionId}/renew`, {
+                      isSamePlan: true,
+                      totalDeliveries: 30,
+                    });
+                    toast.success(`Plan renewed for ${selectedCell.row.customer.name}!`);
+                    setSelectedCell(null);
+                    void loadGrid();
+                  } catch (err: any) {
+                    toast.error(err.response?.data?.message || 'Renewal failed');
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }}
+                className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl bg-emerald-700 py-2 text-xs font-black text-white hover:bg-emerald-800"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Renew Next Cycle
               </button>
             </div>
           </div>

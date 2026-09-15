@@ -90,15 +90,38 @@ export class StoreMilkGridService {
       const planName = sub.plan.name || 'Milk Plan';
       const isBuffalo = planName.toLowerCase().includes('buffalo') || planName.toLowerCase().includes('bm');
       const baseQty = planName.toLowerCase().includes('0.5') || planName.toLowerCase().includes('500') ? '0.5L' : '1L';
-      const baseMultiplier = baseQty === '0.5L' ? 0.5 : 1.0;
+      const defaultBaseMultiplier = baseQty === '0.5L' ? 0.5 : 1.0;
+
+      const splitItems = (sub.priceSnapshot as any)?.splitItems;
+      const cycleNumber = (sub.priceSnapshot as any)?.cycleNumber || 1;
+      let dailyQuantityLabel = `${baseQty} ${isBuffalo ? 'BM' : 'CM'}`;
+      if (splitItems) {
+        dailyQuantityLabel = `AM: ${splitItems.amQuantity || '0.5L'} ${splitItems.amProductName || 'CM'} | PM: ${splitItems.pmQuantity || '1L'} ${splitItems.pmProductName || 'BM'}`;
+      } else if (cycleNumber > 1) {
+        dailyQuantityLabel = `${baseQty} ${isBuffalo ? 'BM' : 'CM'} (Cycle #${cycleNumber})`;
+      }
 
       const daysMap: Record<number, GridCell | null> = {};
       let totalDeliveredDays = 0;
       let totalExtraLiters = 0;
+      let calculatedDeliveredLiters = 0;
 
       for (const d of sub.deliveries) {
         const dDate = new Date(d.serviceDate);
         const dayNum = dDate.getUTCDate();
+
+        // Calculate delivery base multiplier (accounting for split items)
+        let deliveryBaseMultiplier = defaultBaseMultiplier;
+        let cellBaseQty = baseQty;
+        if (splitItems) {
+          if (d.deliverySlot === 'AM') {
+            cellBaseQty = splitItems.amQuantity || '0.5L';
+            deliveryBaseMultiplier = cellBaseQty.includes('0.5') ? 0.5 : 1.0;
+          } else {
+            cellBaseQty = splitItems.pmQuantity || '1L';
+            deliveryBaseMultiplier = cellBaseQty.includes('0.5') ? 0.5 : (cellBaseQty.includes('2') ? 2.0 : 1.0);
+          }
+        }
 
         // Parse extra milk if recorded in deferredReason
         let extraMilk: string | null = null;
@@ -124,7 +147,7 @@ export class StoreMilkGridService {
           sequenceNumber: d.sequenceNumber,
           status: d.status,
           deliverySlot: d.deliverySlot,
-          baseQuantity: baseQty,
+          baseQuantity: cellBaseQty,
           extraMilk,
           cashCollectedPaise: d.cashCollectedPaise || 0,
           cashDuePaise: d.cashDuePaise || 0,
@@ -137,9 +160,10 @@ export class StoreMilkGridService {
         if (d.status === 'DELIVERED') {
           totalDeliveredDays++;
           totalExtraLiters += extraLiters;
+          calculatedDeliveredLiters += deliveryBaseMultiplier + extraLiters;
           if (dailyTotals[dayNum]) {
             dailyTotals[dayNum].deliveredCount++;
-            dailyTotals[dayNum].totalLiters += baseMultiplier + extraLiters;
+            dailyTotals[dayNum].totalLiters += deliveryBaseMultiplier + extraLiters;
             dailyTotals[dayNum].cashCollectedPaise += d.cashCollectedPaise || 0;
           }
         } else if (d.status === 'SCHEDULED') {
@@ -149,7 +173,7 @@ export class StoreMilkGridService {
         }
       }
 
-      const totalLiters = totalDeliveredDays * baseMultiplier + totalExtraLiters;
+      const totalLiters = calculatedDeliveredLiters;
 
       rows.push({
         subscriptionId: sub.id,
@@ -163,9 +187,9 @@ export class StoreMilkGridService {
           id: sub.plan.id,
           name: sub.plan.name,
           code: sub.plan.code,
-          dailyQuantity: `${baseQty} ${isBuffalo ? 'BM' : 'CM'}`,
+          dailyQuantity: dailyQuantityLabel,
         },
-        slot: sub.deliveryWindowStartMinute >= 900 ? 'PM' : 'AM',
+        slot: splitItems ? 'AM+PM' : (sub.deliveryWindowStartMinute >= 900 ? 'PM' : 'AM'),
         days: daysMap,
         totalDeliveredDays,
         totalExtraLiters,
@@ -192,12 +216,14 @@ export class StoreMilkGridService {
     actor: { id: string; role: Role; email?: string },
     deliveryId: string,
     action: {
-      type: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT';
+      type: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT' | 'ATTACH_EVENING_MILK';
       extraQuantity?: string;
       extraPaise?: number;
       paymentMode?: 'CASH' | 'PHONE_PE';
       amountPaise?: number;
       note?: string;
+      consecutiveDays?: number;
+      targetSlot?: 'AM' | 'PM';
     },
   ) {
     const delivery = await prisma.subscriptionDelivery.findUnique({
@@ -310,8 +336,49 @@ export class StoreMilkGridService {
       return { success: true, delivery: updated[0], subscription: updated[1] };
     }
 
+    if (action.type === 'ATTACH_EVENING_MILK') {
+      const extraQty = action.extraQuantity?.trim() || '+1L BM';
+      const count = Math.max(1, Math.min(30, action.consecutiveDays || 4));
+      const extraPaise = action.extraPaise || (
+        extraQty.includes('0.5') ? 4000 : extraQty.includes('2') ? 16000 : 8000
+      );
+      const note = `[EVENING BUFFALO MILK: ${extraQty}|${extraPaise}] ${action.note || ''}`.trim();
+
+      const targetDeliveries = await prisma.subscriptionDelivery.findMany({
+        where: {
+          subscriptionId: sub.id,
+          sequenceNumber: {
+            gte: delivery.sequenceNumber,
+            lt: delivery.sequenceNumber + count,
+          },
+        },
+        orderBy: { sequenceNumber: 'asc' },
+      });
+
+      const totalExtraPaise = extraPaise * targetDeliveries.length;
+      await prisma.$transaction([
+        prisma.subscriptionDelivery.updateMany({
+          where: { id: { in: targetDeliveries.map((d) => d.id) } },
+          data: {
+            deliverySlot: 'PM',
+            deferredReason: note,
+            cashDuePaise: { increment: extraPaise },
+          },
+        }),
+        prisma.customerSubscription.update({
+          where: { id: sub.id },
+          data: {
+            amountDuePaise: (sub.amountDuePaise || 0) + totalExtraPaise,
+          },
+        }),
+      ]);
+
+      return { success: true, count: targetDeliveries.length, message: `Attached evening buffalo milk for ${targetDeliveries.length} days!` };
+    }
+
     if (action.type === 'EXTRA_MILK') {
       const extraQty = action.extraQuantity?.trim() || '+1L';
+      const count = Math.max(1, Math.min(30, action.consecutiveDays || 1));
       const extraPaise = action.extraPaise || action.amountPaise || (
         extraQty.includes('0.5') ? (extraQty.includes('CM') ? 3500 : 4000)
         : extraQty.includes('2') ? 16000
@@ -320,32 +387,60 @@ export class StoreMilkGridService {
       const notePrefix = `[EXTRA: ${extraQty}|${extraPaise}]`;
       const fullNote = `${notePrefix} ${action.note?.trim() || 'Extra milk requested'}`.trim();
 
+      const targetDeliveries = count > 1
+        ? await prisma.subscriptionDelivery.findMany({
+            where: {
+              subscriptionId: sub.id,
+              sequenceNumber: {
+                gte: delivery.sequenceNumber,
+                lt: delivery.sequenceNumber + count,
+              },
+            },
+          })
+        : [delivery];
+
+      const totalExtraPaise = extraPaise * targetDeliveries.length;
       const updated = await prisma.$transaction([
-        prisma.subscriptionDelivery.update({
-          where: { id: deliveryId },
+        prisma.subscriptionDelivery.updateMany({
+          where: { id: { in: targetDeliveries.map((d) => d.id) } },
           data: {
             deferredReason: fullNote,
-            cashDuePaise: (delivery.cashDuePaise || 0) + extraPaise,
+            cashDuePaise: { increment: extraPaise },
           },
         }),
         prisma.customerSubscription.update({
           where: { id: sub.id },
           data: {
-            amountDuePaise: (sub.amountDuePaise || 0) + extraPaise,
+            amountDuePaise: (sub.amountDuePaise || 0) + totalExtraPaise,
           },
         }),
       ]);
 
-      return { success: true, delivery: updated[0], subscription: updated[1] };
+      return { success: true, count: targetDeliveries.length, subscription: updated[1] };
     }
 
     if (action.type === 'TOGGLE_SLOT') {
-      const newSlot = delivery.deliverySlot === 'AM' ? 'PM' : 'AM';
-      const updated = await prisma.subscriptionDelivery.update({
-        where: { id: deliveryId },
+      const count = Math.max(1, Math.min(30, action.consecutiveDays || 1));
+      const newSlot = action.targetSlot || (delivery.deliverySlot === 'AM' ? 'PM' : 'AM');
+
+      const targetDeliveries = count > 1
+        ? await prisma.subscriptionDelivery.findMany({
+            where: {
+              subscriptionId: sub.id,
+              sequenceNumber: {
+                gte: delivery.sequenceNumber,
+                lt: delivery.sequenceNumber + count,
+              },
+            },
+          })
+        : [delivery];
+
+      await prisma.subscriptionDelivery.updateMany({
+        where: { id: { in: targetDeliveries.map((d) => d.id) } },
         data: { deliverySlot: newSlot },
       });
-      return { success: true, delivery: updated };
+
+      return { success: true, count: targetDeliveries.length, newSlot };
     }
 
     if (action.type === 'RECORD_PAYMENT') {

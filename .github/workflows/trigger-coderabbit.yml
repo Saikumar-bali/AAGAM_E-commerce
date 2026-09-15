@@ -3,6 +3,12 @@ name: Auto Trigger CodeRabbit
 on:
   pull_request_target:
     types: [opened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to trigger review on'
+        required: true
+        default: '314'
 
 permissions:
   pull-requests: write
@@ -15,11 +21,42 @@ jobs:
       - name: Request review from CodeRabbit
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
-            // Automatically post @coderabbitai review on PR open
+            const prNumber = context.issue?.number || Number('${{ inputs.pr_number }}') || context.payload.pull_request?.number;
+            if (!prNumber) {
+              console.log('No PR number found');
+              return;
+            }
+
+            // 1. Try to check the checkbox on CodeRabbit skip comment if present
+            try {
+              const { data: comments } = await octokit.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                per_page: 30,
+              });
+              const crComment = comments.find(c => (c.user?.login || '').includes('coderabbit') && c.body?.includes('Trigger review'));
+              if (crComment && crComment.body.includes('[ ]')) {
+                await octokit.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: crComment.id,
+                  body: crComment.body.replace('[ ]', '[x]'),
+                });
+                console.log('Checked Trigger review checkbox on CodeRabbit comment');
+              }
+            } catch (e) {
+              console.log('Could not update CodeRabbit comment checkbox:', e.message);
+            }
+
+            // 2. Post review request comment using PAT
             await octokit.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: prNumber,
               body: '@coderabbitai review',
             });
+            console.log('Posted @coderabbitai review using authenticated token');
+
