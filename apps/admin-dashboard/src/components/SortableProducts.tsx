@@ -147,21 +147,27 @@ function SortableProduct({
       <td className="px-6 py-4 text-right">
         <div className="flex items-center justify-end gap-1">
           <button
+            type="button"
             onClick={() => onToggleVisibility(product)}
+            aria-label={`${inactive ? 'Activate' : 'Deactivate'} product ${product.name}`}
             className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
             title={inactive ? 'Activate catalogue product' : 'Deactivate catalogue product'}
           >
             {inactive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
           <button
+            type="button"
             onClick={() => onEdit(product)}
+            aria-label={`Edit product ${product.name}`}
             className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
             title="Edit catalogue product"
           >
             <Edit className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={() => onDelete(product)}
+            aria-label={`Delete product ${product.name}`}
             className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"
             title="Delete catalogue product"
           >
