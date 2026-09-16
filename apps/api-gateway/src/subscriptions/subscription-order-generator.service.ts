@@ -171,7 +171,7 @@ export class SubscriptionOrderGenerator {
           include: {
             subscription: {
               include: {
-                customer: { select: { id: true, name: true, email: true } },
+                customer: { select: { id: true, name: true, email: true, isActive: true } },
                 plan: true,
                 planVersion: true,
                 address: true,
@@ -186,6 +186,9 @@ export class SubscriptionOrderGenerator {
           throw new ConflictException(`Subscription delivery cannot be generated from ${delivery.status}`);
         }
         const subscription = delivery.subscription;
+        if (subscription.customer && subscription.customer.isActive === false) {
+          this.deferred(SERVICEABILITY_REASONS.CUSTOMER_INACTIVE, 'Customer is inactive or in recycle bin');
+        }
         if (isOneOf(subscription.status, [CustomerSubscriptionStatus.CANCELLED, CustomerSubscriptionStatus.COMPLETED])) {
           throw new ConflictException(`Subscription is ${subscription.status.toLowerCase()}`);
         }
@@ -365,6 +368,7 @@ export class SubscriptionOrderGenerator {
             CustomerSubscriptionStatus.CANCELLED,
             CustomerSubscriptionStatus.COMPLETED,
           ] },
+          customer: { isActive: true },
         },
       },
       include: { subscription: { include: { plan: true, deliveryZone: true } } },

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -489,8 +490,8 @@ export class StoreSubscriptionsController {
   }
 
   @Get('subscribers/:subscriptionId/history')
-  subscriberHistory(@Param('subscriptionId') subscriptionId: string) {
-    return this.offlineCustomers.getDeliveryTracker(subscriptionId);
+  subscriberHistory(@Param('subscriptionId') subscriptionId: string, @Req() req: AuthenticatedRequest) {
+    return this.offlineCustomers.getDeliveryTracker(subscriptionId, req.user);
   }
 
   @Get('plans')
@@ -551,6 +552,16 @@ export class StoreSubscriptionsController {
     // Pin ownership to a store the caller controls, so the created customer is
     // manageable (and only manageable) from that store's portal.
     if (req.user.role !== Role.ADMIN) {
+      const ownedStores = await prisma.store.findMany({
+        where: { ownerId: req.user.id },
+        select: { id: true },
+      });
+      if (ownedStores.length === 0) {
+        throw new ForbiddenException('You do not own any stores');
+      }
+      if (!body.storeId && ownedStores.length > 1) {
+        throw new BadRequestException('storeId is required when managing multiple stores');
+      }
       const ownedStore = body.storeId
         ? await prisma.store.findFirst({ where: { id: body.storeId, ownerId: req.user.id } })
         : await prisma.store.findFirst({ where: { ownerId: req.user.id } });
@@ -558,6 +569,14 @@ export class StoreSubscriptionsController {
         throw new ForbiddenException('You do not own this store');
       }
       body.storeId = ownedStore.id;
+    } else {
+      if (!body.storeId) {
+        throw new BadRequestException('storeId is required');
+      }
+      const storeExists = await prisma.store.findUnique({ where: { id: body.storeId } });
+      if (!storeExists) {
+        throw new NotFoundException('Store not found');
+      }
     }
     return this.reporting.createOfflineCustomer(body, req.user);
   }
@@ -594,20 +613,33 @@ export class StoreSubscriptionsController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
-    // Store-scoped: a STORE_OWNER only ever sees the customers of the store
-    // they own. Scoping by role (not a hard-coded email) keeps the list and the
-    // lifecycle ownership check in agreement, so a store cannot be shown a
-    // customer it is then unable to delete or restore.
     let effectiveStoreId = storeId;
+    let storeIds: string[] | undefined = undefined;
+
     if (req.user.role !== Role.ADMIN) {
-      const ownedStore = await prisma.store.findFirst({ where: { ownerId: req.user.id } });
-      if (!ownedStore) return { customers: [], total: 0, recycleBinCount: 0, page: 1, pageSize: 25, totalPages: 0 };
-      effectiveStoreId = ownedStore.id;
+      const ownedStores = await prisma.store.findMany({
+        where: { ownerId: req.user.id },
+        select: { id: true },
+      });
+      const ownedStoreIds = ownedStores.map((s) => s.id);
+      if (ownedStoreIds.length === 0) {
+        return { customers: [], total: 0, recycleBinCount: 0, page: 1, pageSize: 25, totalPages: 0 };
+      }
+      if (storeId) {
+        if (!ownedStoreIds.includes(storeId)) {
+          throw new ForbiddenException('You do not own this store');
+        }
+        effectiveStoreId = storeId;
+      } else {
+        effectiveStoreId = undefined;
+        storeIds = ownedStoreIds;
+      }
     }
 
     return this.offlineCustomers.listCustomers({
       search,
       storeId: effectiveStoreId,
+      storeIds,
       status,
       recycleBin: recycleBin === 'true',
       page: page ? parseInt(page, 10) : 1,
@@ -853,14 +885,14 @@ export class AdminSubscriptionsController {
   }
 
   @Get('offline-customers/:customerId')
-  getOfflineCustomerDetail(@Param('customerId') customerId: string) {
-    return this.offlineCustomers.getCustomerDetail(customerId);
+  getOfflineCustomerDetail(@Param('customerId') customerId: string, @Req() req: AuthenticatedRequest) {
+    return this.offlineCustomers.getCustomerDetail(customerId, req.user);
   }
 
   @Get('offline-customers/:customerId/delivery-tracker')
-  async getDeliveryTracker(@Param('customerId') customerId: string, @Query('subscriptionId') subscriptionId?: string) {
+  async getDeliveryTracker(@Param('customerId') customerId: string, @Req() req: AuthenticatedRequest, @Query('subscriptionId') subscriptionId?: string) {
     if (subscriptionId) {
-      return this.offlineCustomers.getDeliveryTracker(subscriptionId);
+      return this.offlineCustomers.getDeliveryTracker(subscriptionId, req.user);
     }
     const sub = await prisma.customerSubscription.findFirst({
       where: { customerId },
@@ -868,7 +900,7 @@ export class AdminSubscriptionsController {
       select: { id: true },
     });
     if (!sub) throw new NotFoundException('No subscription found for this customer');
-    return this.offlineCustomers.getDeliveryTracker(sub.id);
+    return this.offlineCustomers.getDeliveryTracker(sub.id, req.user);
   }
 
   @Post('offline-customers/:customerId/reactivate')
