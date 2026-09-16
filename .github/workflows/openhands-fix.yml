@@ -27,8 +27,11 @@ permissions:
   checks: read
 
 concurrency:
-  group: openhands-fix-${{ github.event.pull_request.number || github.event.issue.number || 'manual' }}
-  cancel-in-progress: true
+  # Serialize per PR instead of cancelling. cancel-in-progress used to let a
+  # burst of review-bot comments cancel the run for the pull_request event
+  # itself, so the auto-fix never executed.
+  group: openhands-fix-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
+  cancel-in-progress: false
 
 env:
   OPENHANDS_SUPPRESS_BANNER: "1"
@@ -51,6 +54,7 @@ jobs:
           # Pass them through env vars (never interpolated into the shell) so a
           # crafted branch name / comment body cannot inject commands.
           EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action || '' }}
           EVENT_PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || '' }}
           EVENT_BRANCH_REF: ${{ github.event.pull_request.head.ref || '' }}
           PR_LABELS: ${{ toJson(github.event.pull_request.labels) }}
@@ -58,6 +62,7 @@ jobs:
           COMMENT_BODY: ${{ github.event.comment.body || '' }}
           COMMENT_AUTHOR: ${{ github.event.comment.user.login || '' }}
           COMMENT_AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association || '' }}
+          COMMENT_USER_TYPE: ${{ github.event.comment.user.type || '' }}
           REVIEW_AUTHOR: ${{ github.event.review.user.login || '' }}
           REVIEW_USER_TYPE: ${{ github.event.review.user.type || '' }}
           CHECK_CONCLUSION: ${{ github.event.check_suite.conclusion || '' }}
@@ -70,11 +75,18 @@ jobs:
           OUT_PR_NUMBER=""
           OUT_BRANCH_REF=""
 
+          # Always publish outputs before any early return. Previously the early
+          # `exit 0` paths skipped writing GITHUB_OUTPUT, so downstream jobs saw
+          # empty values and silently did nothing.
+          publish() {
+            echo "should_fix=$SHOULD_FIX" >> "$GITHUB_OUTPUT"
+            echo "pr_number=$OUT_PR_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "branch_ref=$OUT_BRANCH_REF" >> "$GITHUB_OUTPUT"
+          }
+
           if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_HEAD_REPO" ] && [ "$PR_HEAD_REPO" != "${{ github.repository }}" ]; then
             echo "Skipping fork PR: auto-fix only runs for same-repository PRs ($PR_HEAD_REPO)."
-            echo "should_fix=false" >> $GITHUB_OUTPUT
-            echo "pr_number=$OUT_PR_NUMBER" >> $GITHUB_OUTPUT
-            echo "branch_ref=$OUT_BRANCH_REF" >> $GITHUB_OUTPUT
+            publish
             exit 0
           fi
 
@@ -84,45 +96,80 @@ jobs:
             if echo "$PR_LABELS" | grep -qiE '"(bug|fix|ci-failure|auto-fix|needs-fix)"'; then
               SHOULD_FIX="true"
               echo "Trigger: PR labeled for auto-fix"
-            elif echo "$EVENT_BRANCH_REF" | grep -qiE '(bug|fix)'; then
+            elif [ "$EVENT_ACTION" = "opened" ] || [ "$EVENT_ACTION" = "reopened" ] || [ "$EVENT_ACTION" = "synchronize" ] || [ "$EVENT_ACTION" = "ready_for_review" ]; then
               SHOULD_FIX="true"
-              echo "Trigger: PR branch ref '$EVENT_BRANCH_REF' contains bug/fix"
+              echo "Trigger: new/updated PR ($EVENT_ACTION) — triage review-bot feedback"
+            elif echo "$OUT_BRANCH_REF" | grep -qiE '(bug|fix|palette)'; then
+              SHOULD_FIX="true"
+              echo "Trigger: PR branch ref '$OUT_BRANCH_REF'"
             elif echo "$PR_TITLE" | grep -qiE '(bug|fix)'; then
               SHOULD_FIX="true"
               echo "Trigger: PR title contains bug/fix"
             fi
           elif [ "$EVENT_NAME" = "issue_comment" ] && [ -n "$ISSUE_PR_URL" ]; then
             OUT_PR_NUMBER="$EVENT_PR_NUMBER"
-            # Only the PR author or a collaborator (OWNER/MEMBER/COLLABORATOR/
-            # CONTRIBUTOR) may trigger a fix run; random users are denied to
-            # avoid leaking the write token + LLM key to unauthenticated input.
-            case "$COMMENT_AUTHOR_ASSOCIATION" in
-              OWNER|MEMBER|COLLABORATOR|CONTRIBUTOR|AUTHOR) ;;
-              *)
-                echo "Skipping comment from non-collaborator association '$COMMENT_AUTHOR_ASSOCIATION' ($COMMENT_AUTHOR)."
-                exit 0
-                ;;
+            TRIGGER_COMMENT="false"
+
+            # Bots that review code post as author_association=NONE. The old
+            # collaborator-only gate rejected them, so review feedback never
+            # reached OpenHands.
+            IS_BOT="false"
+            case "$COMMENT_USER_TYPE" in
+              Bot) IS_BOT="true" ;;
             esac
-            if echo "$COMMENT_BODY" | grep -qiE '(/fix|/openhands|@openhands)'; then
+            case "$COMMENT_AUTHOR" in
+              *"[bot]"|*coderabbit*|*qodo*|*codex*|*sonarqube*|*snyk*|*semgrep*) IS_BOT="true" ;;
+            esac
+
+            # Never react to our own output, or the bot's ack/noise messages,
+            # which would otherwise re-trigger forever.
+            IS_SELF="false"
+            case "$COMMENT_AUTHOR" in
+              "github-actions[bot]"|"openhands[bot]"|*"openhands"*) IS_SELF="true" ;;
+            esac
+
+            if [ "$IS_SELF" = "true" ]; then
+              echo "Skipping our own comment from $COMMENT_AUTHOR."
+            elif echo "$COMMENT_BODY" | grep -qE 'OpenHands Auto-Fix|usage limits|does not receive automatic reviews'; then
+              echo "Skipping status/noise comment from $COMMENT_AUTHOR."
+            elif echo "$COMMENT_BODY" | grep -qiE 'Jules, reporting for duty'; then
+              echo "Skipping Jules-generated comment."
+            else
+              case "$COMMENT_AUTHOR_ASSOCIATION" in
+                OWNER|MEMBER|COLLABORATOR|CONTRIBUTOR|AUTHOR) TRIGGER_COMMENT="true" ;;
+              esac
+              # Review-bot feedback counts as a trigger when it carries actual
+              # findings rather than a bare acknowledgement.
+              if [ "$IS_BOT" = "true" ] && [ "$TRIGGER_COMMENT" != "true" ]; then
+                if echo "$COMMENT_BODY" | grep -qE 'qodo-context:|Potential issue|Bug|Security|Correctness|Reliability|## '; then
+                  TRIGGER_COMMENT="true"
+                fi
+              fi
+            fi
+
+            if [ "$TRIGGER_COMMENT" = "true" ]; then
               SHOULD_FIX="true"
-              echo "Trigger: PR comment command by $COMMENT_AUTHOR"
+              echo "Trigger: review feedback from $COMMENT_AUTHOR (association=$COMMENT_AUTHOR_ASSOCIATION)"
+            else
+              echo "Skipping comment from $COMMENT_AUTHOR (association=$COMMENT_AUTHOR_ASSOCIATION)."
             fi
           elif [ "$EVENT_NAME" = "pull_request_review" ]; then
             OUT_PR_NUMBER="$EVENT_PR_NUMBER"
             OUT_BRANCH_REF="$EVENT_BRANCH_REF"
-            # Require an actual GitHub bot account (user.type == Bot) and an
-            # exact reviewer allowlist instead of the broad "bot" substring so
-            # a human whose login merely contains "bot" cannot trigger runs.
+            if [ -z "$OUT_BRANCH_REF" ] && [ -n "$OUT_PR_NUMBER" ]; then
+              echo "Branch ref resolved later from the PR number."
+            fi
+            # Accept any GitHub bot account (user.type == Bot) or a known
+            # reviewer login. Humans are not allowed to trigger via a review.
             case "$REVIEW_USER_TYPE" in
-              Bot) : ;;
-              *) exit 0 ;;
+              Bot) SHOULD_FIX="true"; echo "Trigger: bot review submitted by $REVIEW_AUTHOR" ;;
             esac
             case "$REVIEW_AUTHOR" in
-              "coderabbitai[bot]"|"qodo-code-review[bot]"|"qodo-merge[bot]"|"github-advanced-security[bot]"|*qodo*|*coderabbit*)
+              "coderabbitai[bot]"|"qodo-code-review[bot]"|"qodo-merge[bot]"|"github-advanced-security[bot]"|*qodo*|*coderabbit*|*codex*)
                 SHOULD_FIX="true"
-                echo "Trigger: Bot review submitted by $REVIEW_AUTHOR"
+                echo "Trigger: review submitted by $REVIEW_AUTHOR"
                 ;;
-              *) echo "Skipping review from non-allowlisted bot '$REVIEW_AUTHOR'." ;;
+              *) [ "$SHOULD_FIX" = "true" ] || echo "Skipping review from non-allowlisted author '$REVIEW_AUTHOR'." ;;
             esac
           elif [ "$EVENT_NAME" = "check_suite" ]; then
             if [ "$CHECK_CONCLUSION" = "failure" ] && [ "$CHECK_SUITE_NAME" != "OpenHands Auto-Fix" ]; then
@@ -140,9 +187,7 @@ jobs:
             echo "Trigger: Manual dispatch"
           fi
 
-          echo "should_fix=$SHOULD_FIX" >> $GITHUB_OUTPUT
-          echo "pr_number=$OUT_PR_NUMBER" >> $GITHUB_OUTPUT
-          echo "branch_ref=$OUT_BRANCH_REF" >> $GITHUB_OUTPUT
+          publish
 
       - name: Skip if already in progress
         if: steps.check.outputs.should_fix == 'true' && steps.check.outputs.pr_number != ''
@@ -157,9 +202,15 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 status: 'in_progress',
-                per_page: 20,
+                per_page: 50,
               });
-              const otherActiveRun = runs.workflow_runs.some(r => r.id !== context.runId && r.name === 'OpenHands Auto-Fix');
+              // Only treat a run for THIS pull request as a conflict. A global
+              // check let an unrelated in-flight run suppress this PR's fix.
+              const otherActiveRun = runs.workflow_runs.some(r =>
+                r.id !== context.runId &&
+                r.name === 'OpenHands Auto-Fix' &&
+                (r.pull_requests || []).some(pr => pr.number === prNumber)
+              );
               if (otherActiveRun) {
                 isRunning = true;
               }
@@ -168,7 +219,7 @@ jobs:
             }
 
             if (isRunning) {
-              console.log('Another OpenHands run is actively in progress. Skipping.');
+              console.log(`Another OpenHands run is already in progress for PR #${prNumber}. Skipping.`);
               core.setOutput('skip', 'true');
             } else {
               // Clean up any stale in-progress label from previous cancelled runs
@@ -239,6 +290,8 @@ jobs:
                   const login = (c.user?.login || '').toLowerCase();
                   const body = c.body || '';
                   if (
+                    login.includes('jules') ||
+                    body.includes('Jules, reporting for duty') ||
                     body.includes('usage limits') ||
                     body.includes('does not receive automatic reviews') ||
                     body.includes('OpenHands Auto-Fix') ||
@@ -264,6 +317,7 @@ jobs:
                 });
                 for (const rc of reviewComments) {
                   const login = (rc.user?.login || '').toLowerCase();
+                  if (login.includes('jules')) continue;
                   if (login.includes('[bot]') || login.includes('coderabbit') || login.includes('qodo')) {
                     botFeedback.push(`### Inline Bot Comment from @${rc.user?.login} on \`${rc.path}:${rc.line || rc.original_line}\`:\n${rc.body}`);
                   }
@@ -294,9 +348,10 @@ jobs:
                 botFeedback.join('\n\n---\n\n') +
                 `\n\n### Instructions:\n` +
                 `1. Check each bot suggestion against the repository codebase and current business logic.\n` +
-                `2. If the suggestion is valid (real bug, security issue, or regression), fix it cleanly in the code.\n` +
-                `3. If the suggestion is a false positive or not applicable, ignore it.\n` +
-                `4. Run build and tests to verify everything passes without breaking any other features.\n`;
+                `2. If the suggestion is valid (real bug, security issue, or regression), you MUST open and edit the file(s) using your file editing tools to apply the fix.\n` +
+                `3. If the suggestion is a false positive or already satisfied, ignore it.\n` +
+                `4. Run build and tests if possible to verify everything compiles without errors.\n` +
+                `5. Only when at least one valid finding required a change: do NOT call the finish tool until you have modified the necessary files. If every finding is a false positive or already satisfied, make no edits and finish normally — do not invent a change.\n`;
             } else {
               prompt = `Inspect the latest changes in Pull Request #${prNumber || 'active branch'}. Identify any syntax errors, build issues, or regressions, and fix them.`;
             }
@@ -356,7 +411,7 @@ jobs:
 
       - name: Run OpenHands Task
         env:
-          LLM_MODEL: ${{ secrets.OPENHANDS_API_KEY != '' && 'openhands/deepseek-v4-flash' || env.LLM_MODEL }}
+          LLM_MODEL: ${{ secrets.OPENHANDS_API_KEY != '' && 'openhands/deepseek-v4.1-flash' || env.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.OPENHANDS_API_KEY || secrets.OPENROUTER_API_KEY || secrets.ANTHROPIC_API_KEY || secrets.OPENAI_API_KEY }}
           LLM_BASE_URL: ${{ secrets.OPENHANDS_API_KEY != '' && 'https://llm-proxy.all-hands.dev' || '' }}
           OPENHANDS_SUPPRESS_BANNER: ${{ env.OPENHANDS_SUPPRESS_BANNER }}

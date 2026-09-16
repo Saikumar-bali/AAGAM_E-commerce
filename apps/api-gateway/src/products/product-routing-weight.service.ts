@@ -13,8 +13,12 @@ export class ProductRoutingWeightService {
     }
   }
 
-  async setWeight(productId: string, weightGrams: number) {
-    this.validate(weightGrams);
+  /**
+   * Sets or clears the routing weight. A null value explicitly clears any
+   * persisted weight; callers omit the field to leave it unchanged.
+   */
+  async setWeight(productId: string, weightGrams: number | null) {
+    if (weightGrams !== null) this.validate(weightGrams);
     const existing = await prisma.product.findFirst({
       where: { id: productId, deletedAt: null },
       select: { id: true },

@@ -821,7 +821,7 @@ export default function StoreSubscriptionOperationsPage() {
         </nav>
 
         {tab === "grid" ? (
-          <MilkDeliveryGrid onReload={() => void load()} />
+          <MilkDeliveryGrid onReload={() => void load()} storeId={storesList[0]?.id} />
         ) : loading ? (
           <State
             icon={RefreshCw}
@@ -1532,6 +1532,7 @@ export default function StoreSubscriptionOperationsPage() {
                             onChange={(e) => setEditForm((prev) => ({ ...prev, amQuantity: e.target.value }))}
                             className="mt-1 h-8 w-full rounded-lg border border-slate-300 px-2 text-xs font-semibold bg-white"
                           >
+                            <option value="0.25L">0.25 Liter</option>
                             <option value="0.5L">0.5 Liter</option>
                             <option value="1.0L">1.0 Liter</option>
                             <option value="1.5L">1.5 Liters</option>
@@ -1554,6 +1555,7 @@ export default function StoreSubscriptionOperationsPage() {
                             onChange={(e) => setEditForm((prev) => ({ ...prev, pmQuantity: e.target.value }))}
                             className="mt-1 h-8 w-full rounded-lg border border-slate-300 px-2 text-xs font-semibold bg-white"
                           >
+                            <option value="0.25L">0.25 Liter</option>
                             <option value="0.5L">0.5 Liter</option>
                             <option value="1.0L">1.0 Liter</option>
                             <option value="1.5L">1.5 Liters</option>
@@ -1791,6 +1793,7 @@ export default function StoreSubscriptionOperationsPage() {
                           onChange={(e) => setEditForm((prev) => ({ ...prev, amQuantity: e.target.value }))}
                           className="h-9 w-full rounded-lg border border-slate-300 px-2.5 text-xs font-semibold bg-white"
                         >
+                          <option value="0.25L">0.25 Liter</option>
                           <option value="0.5L">0.5 Liter</option>
                           <option value="1.0L">1.0 Liter</option>
                           <option value="1.5L">1.5 Liters</option>
@@ -1818,6 +1821,7 @@ export default function StoreSubscriptionOperationsPage() {
                           onChange={(e) => setEditForm((prev) => ({ ...prev, pmQuantity: e.target.value }))}
                           className="h-9 w-full rounded-lg border border-slate-300 px-2.5 text-xs font-semibold bg-white"
                         >
+                          <option value="0.25L">0.25 Liter</option>
                           <option value="0.5L">0.5 Liter</option>
                           <option value="1.0L">1.0 Liter</option>
                           <option value="1.5L">1.5 Liters</option>
@@ -2328,6 +2332,7 @@ export default function StoreSubscriptionOperationsPage() {
                           onChange={(e) => setCustomerForm({ ...customerForm, amQuantity: e.target.value })}
                           className="w-1/3 rounded-lg border border-slate-300 p-2 text-xs font-semibold bg-white"
                         >
+                          <option value="0.25L">0.25L</option>
                           <option value="0.5L">0.5L</option>
                           <option value="1.0L">1.0L</option>
                           <option value="1.5L">1.5L</option>
@@ -2352,6 +2357,7 @@ export default function StoreSubscriptionOperationsPage() {
                           onChange={(e) => setCustomerForm({ ...customerForm, pmQuantity: e.target.value })}
                           className="w-1/3 rounded-lg border border-slate-300 p-2 text-xs font-semibold bg-white"
                         >
+                          <option value="0.25L">0.25L</option>
                           <option value="0.5L">0.5L</option>
                           <option value="1.0L">1.0L</option>
                           <option value="1.5L">1.5L</option>

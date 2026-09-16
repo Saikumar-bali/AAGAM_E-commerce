@@ -579,6 +579,7 @@ export class StoreSubscriptionsController {
     @Query('search') search?: string,
     @Query('storeId') storeId?: string,
     @Query('status') status?: string,
+    @Query('recycleBin') recycleBin?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -595,6 +596,7 @@ export class StoreSubscriptionsController {
       search,
       storeId: effectiveStoreId,
       status,
+      recycleBin: recycleBin === 'true',
       page: page ? parseInt(page, 10) : 1,
       pageSize: pageSize ? parseInt(pageSize, 10) : 25,
     });
@@ -776,6 +778,7 @@ export class AdminSubscriptionsController {
     @Query('search') search?: string,
     @Query('storeId') storeId?: string,
     @Query('status') status?: string,
+    @Query('recycleBin') recycleBin?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -783,6 +786,7 @@ export class AdminSubscriptionsController {
       search,
       storeId,
       status,
+      recycleBin: recycleBin === 'true',
       page: page ? parseInt(page, 10) : 1,
       pageSize: pageSize ? parseInt(pageSize, 10) : 25,
     });
@@ -791,6 +795,21 @@ export class AdminSubscriptionsController {
   @Get('offline-customers/:customerId')
   getOfflineCustomerDetail(@Param('customerId') customerId: string) {
     return this.offlineCustomers.getCustomerDetail(customerId);
+  }
+
+  @Delete('offline-customers/:customerId')
+  deleteOfflineCustomer(@Param('customerId') customerId: string, @Body() body?: { reason?: string }) {
+    return this.offlineCustomers.moveToRecycleBin(customerId, body?.reason);
+  }
+
+  @Post('offline-customers/:customerId/restore')
+  restoreOfflineCustomer(@Param('customerId') customerId: string) {
+    return this.offlineCustomers.restoreFromRecycleBin(customerId);
+  }
+
+  @Delete('offline-customers/:customerId/permanent')
+  permanentDeleteOfflineCustomer(@Param('customerId') customerId: string) {
+    return this.offlineCustomers.permanentDeleteCustomer(customerId);
   }
 
   @Get('offline-customers/:customerId/delivery-tracker')
