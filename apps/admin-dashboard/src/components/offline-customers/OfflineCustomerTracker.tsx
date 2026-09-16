@@ -79,7 +79,13 @@ function StatusBadge({ status }: { status: string | null }) {
   );
 }
 
-export default function OfflineCustomerTracker({ subscriptionId }: { subscriptionId: string }) {
+export default function OfflineCustomerTracker({
+  subscriptionId,
+  basePath = '/admin/subscriptions',
+}: {
+  subscriptionId: string;
+  basePath?: string;
+}) {
   const toast = useToast();
   const [data, setData] = useState<TrackerData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,7 +94,7 @@ export default function OfflineCustomerTracker({ subscriptionId }: { subscriptio
   const load = async () => {
     setLoading(true);
     try {
-      const res = await apiClient.get(`/admin/subscriptions/offline-customers/${subscriptionId}/delivery-tracker?subscriptionId=${subscriptionId}`);
+      const res = await apiClient.get(`${basePath}/offline-customers/${subscriptionId}/delivery-tracker?subscriptionId=${subscriptionId}`);
       setData(res.data);
     } catch (err: any) {
       toast.error(getToastErrorMessage(err, 'Failed to load tracker'));

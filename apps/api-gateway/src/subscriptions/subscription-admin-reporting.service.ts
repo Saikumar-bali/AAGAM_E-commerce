@@ -108,7 +108,11 @@ export class SubscriptionAdminReportingService {
   storeSubscribers(actor: { id: string; role: Role }) {
     const storeFilter = actor.role === Role.ADMIN ? {} : { homeStore: { ownerId: actor.id } };
     return prisma.customerSubscription.findMany({
-      where: storeFilter,
+      // A customer moved to the Recycle Bin (or purged) is deactivated, so its
+      // subscription rows must disappear from the store's subscriber list;
+      // otherwise a deletion made in the offline-customer directory still shows
+      // here.
+      where: { ...storeFilter, customer: { isActive: true } },
       orderBy: { createdAt: 'desc' },
       include: {
         customer: { select: { id: true, name: true, email: true, phone: true } },
@@ -411,11 +415,21 @@ export class SubscriptionAdminReportingService {
     });
   }
 
-  async createOfflineCustomer(dto: { name: string; phone: string; line1: string; line2?: string; landmark?: string; city: string; state: string; pincode: string; latitude?: number; longitude?: number }) {
+  async createOfflineCustomer(
+    dto: { name: string; phone: string; line1: string; line2?: string; landmark?: string; city: string; state: string; pincode: string; latitude?: number; longitude?: number; storeId?: string },
+    actor?: { id: string; role: Role },
+  ) {
     const compactPhone = dto.phone.trim().replace(/[\s().-]/g, '');
     if (!/^\d{10}$/.test(compactPhone)) {
       throw new BadRequestException('Phone number must be exactly 10 digits');
     }
+
+    // Pin the customer to the creating store so the store that owns the
+    // relationship can manage the lifecycle even before a subscription exists.
+    // Callers resolve `storeId` (admins pick one; stores are bound to the store
+    // they own and are verified before this call).
+    const storeId = dto.storeId;
+
     let customer = await prisma.user.findFirst({
       where: { OR: [{ phone: compactPhone }, { phone: dto.phone.trim() }] },
     });
@@ -429,14 +443,23 @@ export class SubscriptionAdminReportingService {
           email: syntheticEmail,
           role: Role.CUSTOMER,
           emailVerified: true,
+          acquisitionSource: 'OFFLINE_STORE',
+          offlineStoreId: storeId ?? null,
         },
       });
-    } else if (dto.name.trim() && dto.name.trim() !== (customer.name || '')) {
-      // Persist an edited display name so admin edits are not silently dropped.
-      customer = await prisma.user.update({
-        where: { id: customer.id },
-        data: { name: dto.name.trim() },
-      });
+    } else {
+      const patch: Prisma.UserUpdateInput = {};
+      if (dto.name.trim() && dto.name.trim() !== (customer.name || '')) {
+        // Persist an edited display name so admin edits are not silently dropped.
+        patch.name = dto.name.trim();
+      }
+      if (storeId && !customer.offlineStoreId) {
+        patch.offlineStore = { connect: { id: storeId } };
+        patch.acquisitionSource = customer.acquisitionSource ?? 'OFFLINE_STORE';
+      }
+      if (Object.keys(patch).length > 0) {
+        customer = await prisma.user.update({ where: { id: customer.id }, data: patch });
+      }
     }
 
     const fallbackLat = typeof dto.latitude === 'number' && Number.isFinite(dto.latitude) ? dto.latitude : 17.6913;

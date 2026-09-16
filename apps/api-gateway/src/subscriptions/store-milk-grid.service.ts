@@ -58,6 +58,9 @@ export class StoreMilkGridService {
     const subscriptions = await prisma.customerSubscription.findMany({
       where: {
         ...storeFilter,
+        // Recycle-binned and purged offline customers are deactivated; their
+        // grid rows and day cells must vanish until they are restored.
+        customer: { isActive: true },
         OR: [
           { status: { in: ['ACTIVE', 'PENDING_CASH_COLLECTION', 'PAUSED'] } },
           { updatedAt: { gte: startOfMonth } },
@@ -538,7 +541,7 @@ export class StoreMilkGridService {
     const deliveries = await prisma.subscriptionDelivery.findMany({
       where: {
         serviceDate: { gte: dayStart, lte: dayEnd },
-        subscription: storeFilter,
+        subscription: { ...storeFilter, customer: { isActive: true } },
       },
       include: {
         subscription: {
