@@ -382,24 +382,28 @@ export class OfflineCustomerService {
     // Only an active offline customer may be binned.
     await this.loadOfflineCustomer(customerId, 'active');
 
-    await prisma.user.update({
-      where: { id: customerId },
-      data: {
-        isActive: false,
-        deactivatedAt: new Date(),
-        deactivationReason: reason || 'DELETED_TO_RECYCLE_BIN',
-      },
-    });
-
-    await prisma.customerSubscription.updateMany({
-      where: {
-        customerId,
-        status: { in: ['ACTIVE', 'PENDING_CASH_COLLECTION', 'GRACE_PERIOD'] },
-      },
-      data: {
-        status: 'PAUSED',
-      },
-    });
+    // Both writes must land together: deactivating the user while leaving the
+    // subscriptions ACTIVE would keep them in dispatch, and pausing the
+    // subscriptions without deactivating the user would hide the failure.
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: customerId },
+        data: {
+          isActive: false,
+          deactivatedAt: new Date(),
+          deactivationReason: reason || 'DELETED_TO_RECYCLE_BIN',
+        },
+      }),
+      prisma.customerSubscription.updateMany({
+        where: {
+          customerId,
+          status: { in: ['ACTIVE', 'PENDING_CASH_COLLECTION', 'GRACE_PERIOD'] },
+        },
+        data: {
+          status: 'PAUSED',
+        },
+      }),
+    ]);
 
     return {
       success: true,
