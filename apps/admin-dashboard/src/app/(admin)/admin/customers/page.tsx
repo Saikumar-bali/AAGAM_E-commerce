@@ -160,7 +160,7 @@ function AdminCustomersPageContent() {
         </div>
       </div>
 
-      {tab === 'registered' ? <RegisteredCustomersList /> : <OfflineCustomersPage embed />}
+      {tab === 'registered' ? <RegisteredCustomersList /> : <OfflineCustomersPage embed canManage={false} />}
     </DashboardLayout>
   );
 }

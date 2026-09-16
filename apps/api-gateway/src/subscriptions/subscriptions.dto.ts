@@ -575,6 +575,12 @@ export class CreateManualOfflineCustomerDto {
   @IsOptional()
   @IsNumber()
   longitude?: number;
+
+  /** Pins the offline customer to a store so that store owns its lifecycle. */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  storeId?: string;
 }
 
 export class CreateAdminManualSubscriptionDto {

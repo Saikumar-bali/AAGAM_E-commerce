@@ -108,6 +108,7 @@ const menuItems: Record<Role, MenuItem[]> = {
     { name: "Deliveries", href: "/store/deliveries", icon: Truck },
     { name: "Pickup Proof", href: "/store/pickup-proof", icon: ShieldAlert },
     { name: "Subscription Runs", href: "/store/subscriptions", icon: CalendarDays },
+    { name: "Offline Customers", href: "/store/offline-customers", icon: UserCircle },
     { name: "Inventory", href: "/store/inventory", icon: Package },
     { name: "My Stores", href: "/store/stores", icon: Store },
     { name: "Settings", href: "/store/settings", icon: Clock },

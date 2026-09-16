@@ -1,5 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Role, prisma } from '@aagam/database';
+
+export type OfflineCustomerActor = { id: string; role: Role };
 
 @Injectable()
 export class OfflineCustomerService {
@@ -13,7 +15,9 @@ export class OfflineCustomerService {
     role: Role.CUSTOMER,
     OR: [
       { email: { startsWith: 'offline.' } },
-      { acquisitionSource: 'OFFLINE' },
+      // 'OFFLINE' is the legacy value; store-created customers are stamped
+      // 'OFFLINE_STORE', so both must match for the segment to stay queryable.
+      { acquisitionSource: { in: ['OFFLINE', 'OFFLINE_STORE'] } },
       { customerSubscriptions: { some: { source: { in: ['manual', 'custom_manual'] } } } },
     ],
   };
@@ -32,19 +36,65 @@ export class OfflineCustomerService {
   };
 
   /**
+   * Marks the subscription pause that {@link moveToRecycleBin} applies, so
+   * restore only lifts *its own* pause and leaves a genuine customer-requested
+   * or admin pause intact (`pauseReason` is the only discriminator the schema
+   * offers for that distinction).
+   */
+  private static readonly RECYCLE_BIN_PAUSE_REASON = 'OFFLINE_CUSTOMER_IN_RECYCLE_BIN';
+
+  /**
+   * Builds the ownership predicate for reads. An ADMIN may view any offline
+   * customer; a STORE_OWNER only those belonging to a store they own. Ownership
+   * is derived from the subscription's home store (the same rule the list
+   * endpoints already use), with `User.offlineStoreId` as a secondary link so a
+   * store's customer is manageable even before its first subscription exists.
+   */
+  private ownershipFilter(actor?: OfflineCustomerActor): Prisma.UserWhereInput {
+    if (!actor || actor.role === Role.ADMIN) return {};
+    if (actor.role !== Role.STORE_OWNER) {
+      throw new ForbiddenException('Only the owning store can manage offline customers');
+    }
+    return {
+      OR: [
+        { customerSubscriptions: { some: { homeStore: { ownerId: actor.id } } } },
+        { offlineStore: { ownerId: actor.id } },
+      ],
+    };
+  }
+
+  /**
+   * Delete/restore/purge are store-owned operations: the store portal is the
+   * only place that may change an offline customer's lifecycle, so an ADMIN is
+   * rejected even though it can still read the directory.
+   */
+  private mutationOwnershipFilter(actor?: OfflineCustomerActor): Prisma.UserWhereInput {
+    if (!actor || actor.role !== Role.STORE_OWNER) {
+      throw new ForbiddenException('Only the store that owns the customer can delete or restore it');
+    }
+    return this.ownershipFilter(actor);
+  }
+
+  /**
    * Loads a customer that is both offline-provenance and in the expected
-   * lifecycle state. The offline-only routes are reachable by any admin, so
-   * without this check an arbitrary user id could be deactivated, restored, or
-   * anonymized through endpoints meant for offline customers.
+   * lifecycle state, scoped to the actor's store. Without the ownership check a
+   * store owner could deactivate, restore, or anonymize another store's
+   * customer by guessing an id.
    */
   private async loadOfflineCustomer(
     customerId: string,
     expected: 'active' | 'recycleBin',
+    actor?: OfflineCustomerActor,
+    mutation = false,
   ) {
     const user = await prisma.user.findFirst({
       where: {
         id: customerId,
-        AND: [this.offlineIdentity, expected === 'active' ? this.activeState : this.recycleBinState],
+        AND: [
+          this.offlineIdentity,
+          expected === 'active' ? this.activeState : this.recycleBinState,
+          mutation ? this.mutationOwnershipFilter(actor) : this.ownershipFilter(actor),
+        ],
       },
       select: { id: true, isActive: true, deactivatedAt: true },
     });
@@ -79,6 +129,16 @@ export class OfflineCustomerService {
       });
     }
 
+    // A store's directory also includes customers pinned to it before any
+    // subscription exists, so a half-finished onboarding is still visible and
+    // manageable from that store's portal. This union is the store scope; the
+    // status filters below layer on top of it rather than replacing it.
+    if (storeId) {
+      (where.AND as Prisma.UserWhereInput[]).push({
+        OR: [{ customerSubscriptions: { some: { homeStoreId: storeId } } }, { offlineStoreId: storeId }],
+      });
+    }
+
     if (status === 'inactive') {
       where.customerSubscriptions = {
         none: {
@@ -86,13 +146,8 @@ export class OfflineCustomerService {
           ...(storeId ? { homeStoreId: storeId } : {}),
         },
       };
-    } else {
-      const subConditions: Record<string, unknown> = {};
-      if (storeId) subConditions.homeStoreId = storeId;
-      if (status === 'active') subConditions.status = 'ACTIVE';
-      if (Object.keys(subConditions).length > 0) {
-        where.customerSubscriptions = { some: subConditions };
-      }
+    } else if (status === 'active') {
+      where.customerSubscriptions = { some: { status: 'ACTIVE', ...(storeId ? { homeStoreId: storeId } : {}) } };
     }
 
     const [users, total, recycleBinCount] = await Promise.all([
@@ -127,7 +182,17 @@ export class OfflineCustomerService {
       }),
       prisma.user.count({ where }),
       prisma.user.count({
-        where: { AND: [this.offlineIdentity, this.recycleBinState] },
+        where: {
+          AND: [
+            this.offlineIdentity,
+            this.recycleBinState,
+            // The bin badge must match the store's own scope, not the global
+            // recycle bin, or a store sees a count it can never act on.
+            ...(storeId
+              ? [{ OR: [{ customerSubscriptions: { some: { homeStoreId: storeId } } }, { offlineStoreId: storeId }] }]
+              : []),
+          ],
+        },
       }),
     ]);
 
@@ -154,9 +219,9 @@ export class OfflineCustomerService {
     return { customers: enriched, total, recycleBinCount, page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
-  async getCustomerDetail(customerId: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: customerId },
+  async getCustomerDetail(customerId: string, actor?: OfflineCustomerActor) {
+    const user = await prisma.user.findFirst({
+      where: { id: customerId, AND: [this.offlineIdentity, this.ownershipFilter(actor)] },
       include: {
         addresses: true,
         _count: { select: { orders: true } },
@@ -240,9 +305,14 @@ export class OfflineCustomerService {
     };
   }
 
-  async getDeliveryTracker(subscriptionId: string) {
-    const subscription = await prisma.customerSubscription.findUnique({
-      where: { id: subscriptionId },
+  async getDeliveryTracker(subscriptionId: string, actor?: OfflineCustomerActor) {
+    const subscription = await prisma.customerSubscription.findFirst({
+      where: {
+        id: subscriptionId,
+        ...(actor && actor.role !== Role.ADMIN
+          ? { homeStore: { ownerId: actor.id } }
+          : {}),
+      },
       include: {
         customer: { select: { id: true, name: true, phone: true, email: true } },
         homeStore: { select: { id: true, name: true } },
@@ -378,13 +448,15 @@ export class OfflineCustomerService {
     };
   }
 
-  async moveToRecycleBin(customerId: string, reason?: string) {
-    // Only an active offline customer may be binned.
-    await this.loadOfflineCustomer(customerId, 'active');
+  async moveToRecycleBin(customerId: string, reason?: string, actor?: OfflineCustomerActor) {
+    // Only an active offline customer may be binned, and only by its owner.
+    await this.loadOfflineCustomer(customerId, 'active', actor, true);
 
     // Both writes must land together: deactivating the user while leaving the
     // subscriptions ACTIVE would keep them in dispatch, and pausing the
     // subscriptions without deactivating the user would hide the failure.
+    // `pauseEffectiveFrom` is stamped to today so the order generator defers
+    // every still-scheduled occurrence for the duration of the bin.
     await prisma.$transaction([
       prisma.user.update({
         where: { id: customerId },
@@ -401,6 +473,9 @@ export class OfflineCustomerService {
         },
         data: {
           status: 'PAUSED',
+          pausedAt: new Date(),
+          pauseEffectiveFrom: new Date(),
+          pauseReason: OfflineCustomerService.RECYCLE_BIN_PAUSE_REASON,
         },
       }),
     ]);
@@ -412,18 +487,38 @@ export class OfflineCustomerService {
     };
   }
 
-  async restoreFromRecycleBin(customerId: string) {
+  async restoreFromRecycleBin(customerId: string, actor?: OfflineCustomerActor) {
     // Restore is only valid for an offline customer already in the bin.
-    await this.loadOfflineCustomer(customerId, 'recycleBin');
+    // `recycleBinState` excludes purged rows, so a purged customer cannot be
+    // restored here.
+    await this.loadOfflineCustomer(customerId, 'recycleBin', actor, true);
 
-    await prisma.user.update({
-      where: { id: customerId },
-      data: {
-        isActive: true,
-        deactivatedAt: null,
-        deactivationReason: null,
-      },
-    });
+    // Mirror moveToRecycleBin: reactivate the customer and lift the pause that
+    // the bin applied, so the milk-grid rows and dispatch resume together.
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: customerId },
+        data: {
+          isActive: true,
+          deactivatedAt: null,
+          deactivationReason: null,
+        },
+      }),
+      prisma.customerSubscription.updateMany({
+        where: {
+          customerId,
+          status: 'PAUSED',
+          pauseReason: OfflineCustomerService.RECYCLE_BIN_PAUSE_REASON,
+        },
+        data: {
+          status: 'ACTIVE',
+          pausedAt: null,
+          pauseEffectiveFrom: null,
+          pauseReason: null,
+          resumedAt: new Date(),
+        },
+      }),
+    ]);
 
     return {
       success: true,
@@ -460,10 +555,11 @@ export class OfflineCustomerService {
     return source;
   }
 
-  async permanentDeleteCustomer(customerId: string) {
+  async permanentDeleteCustomer(customerId: string, actor?: OfflineCustomerActor) {
     // Purge is destructive and irreversible: require an offline customer that
-    // is already in the recycle bin, so an arbitrary id cannot be anonymized.
-    await this.loadOfflineCustomer(customerId, 'recycleBin');
+    // is already in the recycle bin and owned by the actor, so an arbitrary id
+    // cannot be anonymized and another store's customer cannot be destroyed.
+    await this.loadOfflineCustomer(customerId, 'recycleBin', actor, true);
 
     const user = await prisma.user.findUnique({
       where: { id: customerId },

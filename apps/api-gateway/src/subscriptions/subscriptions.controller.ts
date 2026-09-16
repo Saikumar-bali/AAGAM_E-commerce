@@ -547,8 +547,19 @@ export class StoreSubscriptionsController {
   }
 
   @Post('manual-customer')
-  createOfflineCustomer(@Body() body: CreateManualOfflineCustomerDto) {
-    return this.reporting.createOfflineCustomer(body);
+  async createOfflineCustomer(@Body() body: CreateManualOfflineCustomerDto, @Req() req: AuthenticatedRequest) {
+    // Pin ownership to a store the caller controls, so the created customer is
+    // manageable (and only manageable) from that store's portal.
+    if (req.user.role !== Role.ADMIN) {
+      const ownedStore = body.storeId
+        ? await prisma.store.findFirst({ where: { id: body.storeId, ownerId: req.user.id } })
+        : await prisma.store.findFirst({ where: { ownerId: req.user.id } });
+      if (!ownedStore) {
+        throw new ForbiddenException('You do not own this store');
+      }
+      body.storeId = ownedStore.id;
+    }
+    return this.reporting.createOfflineCustomer(body, req.user);
   }
 
   @Post('manual-subscribe')
@@ -583,12 +594,14 @@ export class StoreSubscriptionsController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
-    const userEmail = (req.user as any)?.email;
-    const isMaster = req.user.role === Role.ADMIN || (userEmail && (userEmail === 'aagaam@gmail.com' || userEmail === 'store@aagam.com'));
+    // Store-scoped: a STORE_OWNER only ever sees the customers of the store
+    // they own. Scoping by role (not a hard-coded email) keeps the list and the
+    // lifecycle ownership check in agreement, so a store cannot be shown a
+    // customer it is then unable to delete or restore.
     let effectiveStoreId = storeId;
-    if (!isMaster) {
+    if (req.user.role !== Role.ADMIN) {
       const ownedStore = await prisma.store.findFirst({ where: { ownerId: req.user.id } });
-      if (!ownedStore) return { customers: [], total: 0, page: 1, pageSize: 25 };
+      if (!ownedStore) return { customers: [], total: 0, recycleBinCount: 0, page: 1, pageSize: 25, totalPages: 0 };
       effectiveStoreId = ownedStore.id;
     }
 
@@ -600,6 +613,53 @@ export class StoreSubscriptionsController {
       page: page ? parseInt(page, 10) : 1,
       pageSize: pageSize ? parseInt(pageSize, 10) : 25,
     });
+  }
+
+  @Get('offline-customers/:customerId')
+  getOfflineCustomerDetail(@Param('customerId') customerId: string, @Req() req: AuthenticatedRequest) {
+    return this.offlineCustomers.getCustomerDetail(customerId, req.user);
+  }
+
+  @Get('offline-customers/:customerId/delivery-tracker')
+  async getOfflineCustomerTracker(
+    @Param('customerId') customerId: string,
+    @Req() req: AuthenticatedRequest,
+    @Query('subscriptionId') subscriptionId?: string,
+  ) {
+    if (subscriptionId) {
+      return this.offlineCustomers.getDeliveryTracker(subscriptionId, req.user);
+    }
+    const sub = await prisma.customerSubscription.findFirst({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    if (!sub) throw new NotFoundException('No subscription found for this customer');
+    return this.offlineCustomers.getDeliveryTracker(sub.id, req.user);
+  }
+
+  // Lifecycle mutation is store-owned: the owning store is the only actor
+  // allowed to bin, restore, or purge an offline customer.
+  @Delete('offline-customers/:customerId')
+  @Roles(Role.STORE_OWNER)
+  deleteOfflineCustomer(
+    @Param('customerId') customerId: string,
+    @Req() req: AuthenticatedRequest,
+    @Body() body?: { reason?: string },
+  ) {
+    return this.offlineCustomers.moveToRecycleBin(customerId, body?.reason, req.user);
+  }
+
+  @Post('offline-customers/:customerId/restore')
+  @Roles(Role.STORE_OWNER)
+  restoreOfflineCustomer(@Param('customerId') customerId: string, @Req() req: AuthenticatedRequest) {
+    return this.offlineCustomers.restoreFromRecycleBin(customerId, req.user);
+  }
+
+  @Delete('offline-customers/:customerId/permanent')
+  @Roles(Role.STORE_OWNER)
+  permanentDeleteOfflineCustomer(@Param('customerId') customerId: string, @Req() req: AuthenticatedRequest) {
+    return this.offlineCustomers.permanentDeleteCustomer(customerId, req.user);
   }
 }
 
@@ -795,21 +855,6 @@ export class AdminSubscriptionsController {
   @Get('offline-customers/:customerId')
   getOfflineCustomerDetail(@Param('customerId') customerId: string) {
     return this.offlineCustomers.getCustomerDetail(customerId);
-  }
-
-  @Delete('offline-customers/:customerId')
-  deleteOfflineCustomer(@Param('customerId') customerId: string, @Body() body?: { reason?: string }) {
-    return this.offlineCustomers.moveToRecycleBin(customerId, body?.reason);
-  }
-
-  @Post('offline-customers/:customerId/restore')
-  restoreOfflineCustomer(@Param('customerId') customerId: string) {
-    return this.offlineCustomers.restoreFromRecycleBin(customerId);
-  }
-
-  @Delete('offline-customers/:customerId/permanent')
-  permanentDeleteOfflineCustomer(@Param('customerId') customerId: string) {
-    return this.offlineCustomers.permanentDeleteCustomer(customerId);
   }
 
   @Get('offline-customers/:customerId/delivery-tracker')

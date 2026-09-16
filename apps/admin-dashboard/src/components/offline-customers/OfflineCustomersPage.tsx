@@ -41,7 +41,17 @@ type Customer = {
   };
 };
 
-export default function OfflineCustomersPage({ embed = false }: { embed?: boolean }) {
+export default function OfflineCustomersPage({
+  embed = false,
+  basePath = '/admin/subscriptions',
+  canManage = true,
+  allowedRole = 'ADMIN',
+}: {
+  embed?: boolean;
+  basePath?: string;
+  canManage?: boolean;
+  allowedRole?: 'ADMIN' | 'STORE_OWNER';
+}) {
   const toast = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,7 +93,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
       const params = new URLSearchParams({ page: String(p), pageSize: '20' });
       if (q.trim()) params.set('search', q.trim());
       if (mode === 'recycleBin') params.set('recycleBin', 'true');
-      const res = await apiClient.get(`/admin/subscriptions/offline-customers?${params}`);
+      const res = await apiClient.get(`${basePath}/offline-customers?${params}`);
       // Tab switches can leave an older request in flight; applying its
       // response would render one mode's customers under the other mode's
       // destructive controls.
@@ -109,7 +119,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
   const handleMoveToRecycleBin = async (customer: Customer) => {
     setActionInProgress(true);
     try {
-      await apiClient.delete(`/admin/subscriptions/offline-customers/${customer.id}`);
+      await apiClient.delete(`${basePath}/offline-customers/${customer.id}`);
       toast.success(`${customer.name || 'Customer'} moved to Recycle Bin.`);
       setDeleteModalOpen(false);
       setCustomerToDelete(null);
@@ -127,7 +137,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
   const handleRestoreCustomer = async (customer: Customer) => {
     setActionInProgress(true);
     try {
-      await apiClient.post(`/admin/subscriptions/offline-customers/${customer.id}/restore`);
+      await apiClient.post(`${basePath}/offline-customers/${customer.id}/restore`);
       toast.success(`${customer.name || 'Customer'} restored to active list.`);
       if (selectedCustomer?.id === customer.id) {
         setSelectedCustomer(null);
@@ -143,7 +153,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
   const handlePermanentDelete = async (customer: Customer) => {
     setActionInProgress(true);
     try {
-      await apiClient.delete(`/admin/subscriptions/offline-customers/${customer.id}/permanent`);
+      await apiClient.delete(`${basePath}/offline-customers/${customer.id}/permanent`);
       toast.success(`${customer.name || 'Customer'} permanently deleted.`);
       setPurgeModalOpen(false);
       setCustomerToPurge(null);
@@ -186,7 +196,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
         const coords = await geocodeAddress(createForm.line1, createForm.city, createForm.state, createForm.pincode);
         if (coords) { lat = coords.latitude; lng = coords.longitude; }
       }
-      await apiClient.post('/admin/subscriptions/manual-customer', {
+      await apiClient.post(`${basePath}/manual-customer`, {
         name: createForm.name.trim(),
         phone: createForm.phone.trim(),
         line1: createForm.line1.trim(),
@@ -212,7 +222,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
     setSelectedCustomer(customer);
     setDetailLoading(true);
     try {
-      const res = await apiClient.get(`/admin/subscriptions/offline-customers/${customer.id}`);
+      const res = await apiClient.get(`${basePath}/offline-customers/${customer.id}`);
       setCustomerDetail(res.data);
     } catch (err: any) {
       toast.error(getToastErrorMessage(err, 'Failed to load customer detail'));
@@ -230,7 +240,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
   // When embedded (e.g. as a tab of /admin/customers) the host page already
   // provides the DashboardLayout shell.
   const withLayout = (node: ReactNode) =>
-    embed ? <>{node}</> : <DashboardLayout allowedRole="ADMIN">{node}</DashboardLayout>;
+    embed ? <>{node}</> : <DashboardLayout allowedRole={allowedRole}>{node}</DashboardLayout>;
 
   if (trackerSubscriptionId) {
     return withLayout(
@@ -240,7 +250,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
             <X className="h-3.5 w-3.5" /> Back to Customers
           </button>
         </div>
-        <OfflineCustomerTracker subscriptionId={trackerSubscriptionId} />
+        <OfflineCustomerTracker subscriptionId={trackerSubscriptionId} basePath={basePath} />
       </>,
     );
   }
@@ -264,7 +274,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {viewMode === 'recycleBin' ? (
+              {viewMode === 'recycleBin' && canManage ? (
                 <div className="flex items-center gap-2">
                   <button
                     disabled={actionInProgress}
@@ -281,7 +291,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
                     <Trash2 className="h-3.5 w-3.5" /> Delete Forever
                   </button>
                 </div>
-              ) : (
+              ) : canManage ? (
                 <button
                   disabled={actionInProgress}
                   onClick={() => { setCustomerToDelete(selectedCustomer); setDeleteModalOpen(true); }}
@@ -290,7 +300,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
                 >
                   <Trash2 className="h-3.5 w-3.5" /> Move to Recycle Bin
                 </button>
-              )}
+              ) : null}
               <div className="text-right">
                 <div className="text-[10px] text-slate-500">Customer since</div>
                 <div className="text-xs font-bold text-slate-900">{new Date(selectedCustomer.createdAt).toLocaleDateString('en-IN')}</div>
@@ -403,7 +413,8 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
         </div>
       ) : null}
 
-      {/* Segmented Mode Switcher: Active vs Recycle Bin */}
+      {/* Segmented Mode Switcher: Active vs Recycle Bin. The bin is only
+          reachable where its restore/purge actions are available. */}
       <div className="mb-4 flex items-center gap-2 border-b border-slate-200 pb-3">
         <button
           onClick={() => {
@@ -426,28 +437,30 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
           )}
         </button>
 
-        <button
-          onClick={() => {
-            setViewMode('recycleBin');
-            setPage(1);
-            loadCustomers(1, search, 'recycleBin');
-          }}
-          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition-all ${
-            viewMode === 'recycleBin'
-              ? 'bg-rose-700 text-white shadow-sm'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-          }`}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          <span>Recycle Bin</span>
-          {recycleBinCount > 0 && (
-            <span className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-black ${
-              viewMode === 'recycleBin' ? 'bg-rose-900 text-rose-100' : 'bg-rose-100 text-rose-700'
-            }`}>
-              {recycleBinCount}
-            </span>
-          )}
-        </button>
+        {canManage && (
+          <button
+            onClick={() => {
+              setViewMode('recycleBin');
+              setPage(1);
+              loadCustomers(1, search, 'recycleBin');
+            }}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition-all ${
+              viewMode === 'recycleBin'
+                ? 'bg-rose-700 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            <span>Recycle Bin</span>
+            {recycleBinCount > 0 && (
+              <span className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-black ${
+                viewMode === 'recycleBin' ? 'bg-rose-900 text-rose-100' : 'bg-rose-100 text-rose-700'
+              }`}>
+                {recycleBinCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -463,7 +476,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
             />
           </div>
           <button onClick={handleSearch} className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-black text-white hover:bg-emerald-800">Search</button>
-          {viewMode === 'active' && (
+          {viewMode === 'active' && canManage && (
             <button onClick={() => setCreateModalOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-black text-slate-900 hover:bg-amber-300">
               <Plus className="h-4 w-4" /> Create Customer
             </button>
@@ -522,7 +535,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
                       </span>
                     )}
 
-                    {viewMode === 'active' && (
+                    {viewMode === 'active' && canManage && (
                       <button
                         onClick={() => {
                           setCustomerToDelete(c);
@@ -556,7 +569,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
                   <p className="mt-2 truncate text-[10px] text-slate-400">{c.addresses[0].line1}, {c.addresses[0].city}</p>
                 )}
 
-                {viewMode === 'recycleBin' && (
+                {viewMode === 'recycleBin' && canManage && (
                   <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-2.5" onClick={(e) => e.stopPropagation()}>
                     <button
                       disabled={actionInProgress}
