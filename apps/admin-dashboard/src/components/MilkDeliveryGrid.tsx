@@ -1139,7 +1139,16 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
         const activeProd = catalogProducts.find((p) => p.id === selectedProductId);
         const effectiveName = activeProd ? activeProd.name : customProductName;
         const effectiveUnitPrice = activeProd ? activeProd.price : Math.max(0, Number(customUnitPrice || 0));
-        const multiplier = extraQtyMultiplier === '0.5L' ? 0.5 : extraQtyMultiplier === '1.5L' ? 1.5 : extraQtyMultiplier === '2L' ? 2 : 1;
+        const multiplier =
+          extraQtyMultiplier === '0.25L'
+            ? 0.25
+            : extraQtyMultiplier === '0.5L'
+            ? 0.5
+            : extraQtyMultiplier === '1.5L'
+            ? 1.5
+            : extraQtyMultiplier === '2L'
+            ? 2
+            : 1;
         const perDayPrice = Math.round(effectiveUnitPrice * multiplier);
         const perDayPaise = perDayPrice * 100;
         const extraLabel = `+${extraQtyMultiplier} ${effectiveName}`;
@@ -1404,6 +1413,7 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
                                   onChange={(e) => setExtraQtyMultiplier(e.target.value)}
                                   className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-black text-indigo-950"
                                 >
+                                  <option value="0.25L">0.25 Liter (0.25x)</option>
                                   <option value="0.5L">0.5 Liter (0.5x)</option>
                                   <option value="1L">1 Liter (1x)</option>
                                   <option value="1.5L">1.5 Liter (1.5x)</option>
