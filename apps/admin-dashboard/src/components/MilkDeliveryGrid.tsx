@@ -191,7 +191,7 @@ function getAddonPresets(unitType: AddonUnitType, product?: CatalogProduct): Add
   return [];
 }
 
-export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }) {
+export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () => void; storeId?: string }) {
   const toast = useToast();
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -268,14 +268,36 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
   const [paymentAmount, setPaymentAmount] = useState('80');
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'PHONE_PE'>('CASH');
 
-  // Load live catalog products for dynamic dropdowns
+  // Load live catalog products for dynamic dropdowns. Store owners cannot read
+  // `/admin/products` and must only be offered what their own store carries, so
+  // prefer the store assortment (which also brings stock/listing and the
+  // store-specific selling price).
   useEffect(() => {
     let isMounted = true;
     apiClient
-      .get('/admin/products')
+      .get(storeId ? `/stores/${storeId}/assortment` : '/admin/products')
       .then((res) => {
         if (!isMounted) return;
-        const list = Array.isArray(res.data) ? res.data : [];
+        const raw = Array.isArray(res.data) ? res.data : [];
+        const list = storeId
+          ? raw
+              // Mirror ProductService.attachAvailability: a store row is
+              // sellable only when listed and not auto-hidden at zero stock.
+              .filter(
+                (row: any) =>
+                  row?.product &&
+                  !row.product.deletedAt &&
+                  row.isListed === true &&
+                  !(row.autoHideWhenOutOfStock !== false && row.quantity === 0),
+              )
+              .map((row: any) => ({
+                ...row.product,
+                price:
+                  row.sellingPricePaise != null
+                    ? row.sellingPricePaise / 100
+                    : row.product.price,
+              }))
+          : raw;
         const formatted: CatalogProduct[] = list
           .filter((p: any) => p.isActive !== false)
           .map((p: any) => ({
@@ -304,6 +326,10 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
         }
       })
       .catch(() => {
+        // With a store context, do not fall back to the global catalogue: it
+        // would re-surface products this store does not carry. An empty list is
+        // fine here because the grid always offers the custom product.
+        if (storeId) return;
         apiClient
           .get('/products')
           .then((res) => {
@@ -338,7 +364,7 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [storeId]);
 
   // Close cell modal on Escape key
   useEffect(() => {
