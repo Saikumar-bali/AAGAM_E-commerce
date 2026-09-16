@@ -82,6 +82,7 @@ export function DataTable<T>({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={searchPlaceholder}
+                  aria-label={searchPlaceholder || 'Search table'}
                   className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 />
               </div>
@@ -162,6 +163,7 @@ export function DataTable<T>({
           </p>
           {search && (
             <button
+              type="button"
               onClick={() => setSearch('')}
               className="text-[11px] font-semibold text-teal-600 hover:text-teal-700"
             >

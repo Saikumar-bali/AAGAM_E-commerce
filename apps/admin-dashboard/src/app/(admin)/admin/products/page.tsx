@@ -327,8 +327,12 @@ export default function AdminProductsPage() {
         isActive: form.isActive,
         details: payloadDetails,
       };
+      // An empty field while editing clears the stored weight; on create it
+      // simply means "no weight". Omitting it used to leave the old value.
       if (form.weightGrams.trim()) {
         payload.weightGrams = Number(form.weightGrams.trim());
+      } else if (editingProduct) {
+        payload.weightGrams = null;
       }
       if (editingProduct) await apiClient.patch(`/products/${editingProduct.id}`, payload);
       else await apiClient.post('/products', payload);

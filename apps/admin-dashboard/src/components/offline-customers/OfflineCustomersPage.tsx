@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { apiClient } from '@aagam/utils';
 import DashboardLayout from '@/components/DashboardLayout';
 import { getToastErrorMessage, useToast } from '@/components/ToastProvider';
@@ -56,6 +56,7 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
   const [customerToPurge, setCustomerToPurge] = useState<Customer | null>(null);
   const [purgeModalOpen, setPurgeModalOpen] = useState(false);
   const [actionInProgress, setActionInProgress] = useState(false);
+  const loadRequestId = useRef(0);
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [trackerSubscriptionId, setTrackerSubscriptionId] = useState<string | null>(null);
@@ -76,12 +77,17 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
   });
 
   const loadCustomers = async (p = page, q = search, mode = viewMode) => {
+    const requestId = ++loadRequestId.current;
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(p), pageSize: '20' });
       if (q.trim()) params.set('search', q.trim());
       if (mode === 'recycleBin') params.set('recycleBin', 'true');
       const res = await apiClient.get(`/admin/subscriptions/offline-customers?${params}`);
+      // Tab switches can leave an older request in flight; applying its
+      // response would render one mode's customers under the other mode's
+      // destructive controls.
+      if (requestId !== loadRequestId.current) return;
       setCustomers(res.data.customers || []);
       setTotal(res.data.total || 0);
       setTotalPages(res.data.totalPages || 1);
@@ -89,9 +95,10 @@ export default function OfflineCustomersPage({ embed = false }: { embed?: boolea
         setRecycleBinCount(res.data.recycleBinCount);
       }
     } catch (err: any) {
+      if (requestId !== loadRequestId.current) return;
       toast.error(getToastErrorMessage(err, 'Failed to load offline customers'));
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) setLoading(false);
     }
   };
 

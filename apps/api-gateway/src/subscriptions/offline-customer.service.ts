@@ -1,49 +1,82 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Role, prisma } from '@aagam/database';
-import { randomUUID } from 'crypto';
 
 @Injectable()
 export class OfflineCustomerService {
+  /**
+   * Authoritative marker identifying an offline-created customer. Kept as a
+   * single predicate so every read and mutation applies the same rule; it must
+   * be composed with `AND` rather than spread, since a sibling `OR` would
+   * silently replace it.
+   */
+  private readonly offlineIdentity: Prisma.UserWhereInput = {
+    role: Role.CUSTOMER,
+    OR: [
+      { email: { startsWith: 'offline.' } },
+      { acquisitionSource: 'OFFLINE' },
+      { customerSubscriptions: { some: { source: { in: ['manual', 'custom_manual'] } } } },
+    ],
+  };
+
+  private readonly recycleBinState: Prisma.UserWhereInput = {
+    OR: [{ isActive: false }, { deactivatedAt: { not: null } }],
+    // A purged customer is anonymized rather than deleted when historical
+    // orders must be retained. It is archived for financial records and must
+    // not resurface as a restorable recycle-bin entry.
+    NOT: { deactivationReason: 'PERMANENTLY_PURGED' },
+  };
+
+  private readonly activeState: Prisma.UserWhereInput = {
+    isActive: true,
+    deactivatedAt: null,
+  };
+
+  /**
+   * Loads a customer that is both offline-provenance and in the expected
+   * lifecycle state. The offline-only routes are reachable by any admin, so
+   * without this check an arbitrary user id could be deactivated, restored, or
+   * anonymized through endpoints meant for offline customers.
+   */
+  private async loadOfflineCustomer(
+    customerId: string,
+    expected: 'active' | 'recycleBin',
+  ) {
+    const user = await prisma.user.findFirst({
+      where: {
+        id: customerId,
+        AND: [this.offlineIdentity, expected === 'active' ? this.activeState : this.recycleBinState],
+      },
+      select: { id: true, isActive: true, deactivatedAt: true },
+    });
+    if (!user) {
+      throw new NotFoundException('Offline customer not found');
+    }
+    return user;
+  }
 
   async listCustomers(params: { search?: string; storeId?: string; status?: string; recycleBin?: boolean; page?: number; pageSize?: number }) {
     const { search, storeId, status, recycleBin = false, page = 1, pageSize = 25 } = params;
     const skip = (page - 1) * pageSize;
 
-    const offlineBaseCondition: Prisma.UserWhereInput = {
-      role: Role.CUSTOMER,
-      OR: [
-        { email: { startsWith: 'offline.' } },
-        { acquisitionSource: 'OFFLINE' },
-        { customerSubscriptions: { some: { source: { in: ['manual', 'custom_manual'] } } } },
-      ],
-    };
-
+    // Compose through AND so the offline-identity predicate survives. The old
+    // spread let the recycle-bin `OR` replace it, pulling regular inactive
+    // customers into the offline list and count.
     const where: Prisma.UserWhereInput = {
-      ...offlineBaseCondition,
-      ...(recycleBin
-        ? {
-            OR: [
-              { isActive: false },
-              { deactivatedAt: { not: null } },
-            ],
-          }
-        : {
-            isActive: true,
-            deactivatedAt: null,
-          }),
+      AND: [
+        this.offlineIdentity,
+        recycleBin ? this.recycleBinState : this.activeState,
+      ],
     };
 
     if (search) {
       const q = search.trim();
-      where.AND = [
-        {
-          OR: [
-            { name: { contains: q, mode: 'insensitive' } },
-            { phone: { contains: q } },
-            { email: { contains: q, mode: 'insensitive' } },
-          ],
-        },
-      ];
+      (where.AND as Prisma.UserWhereInput[]).push({
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { phone: { contains: q } },
+          { email: { contains: q, mode: 'insensitive' } },
+        ],
+      });
     }
 
     if (status === 'inactive') {
@@ -94,13 +127,7 @@ export class OfflineCustomerService {
       }),
       prisma.user.count({ where }),
       prisma.user.count({
-        where: {
-          ...offlineBaseCondition,
-          OR: [
-            { isActive: false },
-            { deactivatedAt: { not: null } },
-          ],
-        },
+        where: { AND: [this.offlineIdentity, this.recycleBinState] },
       }),
     ]);
 
@@ -352,8 +379,8 @@ export class OfflineCustomerService {
   }
 
   async moveToRecycleBin(customerId: string, reason?: string) {
-    const user = await prisma.user.findUnique({ where: { id: customerId } });
-    if (!user) throw new NotFoundException('Offline customer not found');
+    // Only an active offline customer may be binned.
+    await this.loadOfflineCustomer(customerId, 'active');
 
     await prisma.user.update({
       where: { id: customerId },
@@ -382,8 +409,8 @@ export class OfflineCustomerService {
   }
 
   async restoreFromRecycleBin(customerId: string) {
-    const user = await prisma.user.findUnique({ where: { id: customerId } });
-    if (!user) throw new NotFoundException('Offline customer not found');
+    // Restore is only valid for an offline customer already in the bin.
+    await this.loadOfflineCustomer(customerId, 'recycleBin');
 
     await prisma.user.update({
       where: { id: customerId },
@@ -401,7 +428,39 @@ export class OfflineCustomerService {
     };
   }
 
+  /**
+   * Placeholder identity written to purged rows. Must never collide with the
+   * `offline.` prefix used by {@link offlineIdentity}, otherwise the archived
+   * placeholder would itself look like an offline customer.
+   */
+  private static readonly PURGED_EMAIL = 'purged@offline.local';
+
+  /**
+   * Strips personal data from a JSON snapshot while preserving the non-personal
+   * fields needed for reporting. Retained order and subscription snapshots hold
+   * names, emails, phone numbers and full addresses, so anonymizing only the
+   * live user row would leave the customer's PII in place.
+   */
+  private redactSnapshot(snapshot: unknown, kind: 'customer' | 'address'): unknown {
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+      return snapshot;
+    }
+    const source = { ...(snapshot as Record<string, unknown>) };
+    const piiKeys =
+      kind === 'customer'
+        ? ['name', 'email', 'phone', 'phoneE164', 'alternatePhoneE164']
+        : ['recipientName', 'phoneE164', 'alternatePhoneE164', 'line1', 'line2', 'landmark', 'instructions'];
+    for (const key of piiKeys) {
+      if (key in source) source[key] = null;
+    }
+    return source;
+  }
+
   async permanentDeleteCustomer(customerId: string) {
+    // Purge is destructive and irreversible: require an offline customer that
+    // is already in the recycle bin, so an arbitrary id cannot be anonymized.
+    await this.loadOfflineCustomer(customerId, 'recycleBin');
+
     const user = await prisma.user.findUnique({
       where: { id: customerId },
       include: {
@@ -411,34 +470,133 @@ export class OfflineCustomerService {
     if (!user) throw new NotFoundException('Customer not found');
 
     if (user.orders.length > 0) {
-      await prisma.user.update({
-        where: { id: customerId },
-        data: {
-          name: 'Purged Offline Customer',
-          phone: null,
-          email: `purged.${randomUUID().slice(0, 8)}@offline.local`,
-          isActive: false,
-          deactivationReason: 'PERMANENTLY_PURGED',
-        },
+      // Orders are retained for financial records, so the customer row is
+      // anonymized in place rather than deleted. Their snapshots must be
+      // scrubbed too, in the same transaction, so the purge is complete.
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: customerId },
+          data: {
+            name: 'Purged Offline Customer',
+            phone: null,
+            email: OfflineCustomerService.PURGED_EMAIL,
+            isActive: false,
+            deactivatedAt: user.deactivatedAt ?? new Date(),
+            deactivationReason: 'PERMANENTLY_PURGED',
+          },
+        });
+
+        const orders = await tx.order.findMany({
+          where: { customerId },
+          select: { id: true, customerSnapshot: true, addressSnapshot: true },
+        });
+        for (const order of orders) {
+          await tx.order.update({
+            where: { id: order.id },
+            data: {
+              customerSnapshot: this.redactSnapshot(order.customerSnapshot, 'customer') as Prisma.InputJsonValue,
+              addressSnapshot: this.redactSnapshot(order.addressSnapshot, 'address') as Prisma.InputJsonValue,
+            },
+          });
+        }
+
+        const subscriptions = await tx.customerSubscription.findMany({
+          where: { customerId },
+          select: { id: true, addressSnapshot: true },
+        });
+        for (const subscription of subscriptions) {
+          await tx.customerSubscription.update({
+            where: { id: subscription.id },
+            data: {
+              addressSnapshot: this.redactSnapshot(subscription.addressSnapshot, 'address') as Prisma.InputJsonValue,
+            },
+          });
+        }
+
+        await tx.customerAddress.deleteMany({ where: { userId: customerId } });
       });
-      await prisma.customerAddress.deleteMany({ where: { userId: customerId } });
       return {
         success: true,
         message: 'Offline customer permanently purged (historical orders safely archived).',
       };
     }
 
-    await prisma.subscriptionDelivery.deleteMany({
-      where: { subscription: { customerId } },
-    });
-    await prisma.customerSubscription.deleteMany({
-      where: { customerId },
-    });
-    await prisma.customerAddress.deleteMany({
-      where: { userId: customerId },
-    });
-    await prisma.user.delete({
-      where: { id: customerId },
+    // The whole purge runs in one transaction so a foreign-key failure cannot
+    // leave earlier deletions committed and the customer only partially
+    // removed. Restrict-linked dependents are removed before their parents:
+    // transfers/proofs, then run stops, then deliveries, then subscriptions
+    // (which pin the address), then addresses, then the user.
+    await prisma.$transaction(async (tx) => {
+      const subscriptions = await tx.customerSubscription.findMany({
+        where: { customerId },
+        select: { id: true },
+      });
+      const subscriptionIds = subscriptions.map((s) => s.id);
+
+      if (subscriptionIds.length > 0) {
+        const deliveries = await tx.subscriptionDelivery.findMany({
+          where: { subscriptionId: { in: subscriptionIds } },
+          select: { id: true, deliveryJobId: true },
+        });
+        const deliveryIds = deliveries.map((d) => d.id);
+        const deliveryJobIds = deliveries
+          .map((d) => d.deliveryJobId)
+          .filter((id): id is string => Boolean(id));
+
+        if (deliveryIds.length > 0) {
+          await tx.riderPhotoProof.deleteMany({
+            where: { subscriptionDeliveryId: { in: deliveryIds } },
+          });
+          await tx.storeDeliveryProof.deleteMany({
+            where: { subscriptionDeliveryId: { in: deliveryIds } },
+          });
+        }
+
+        if (deliveryJobIds.length > 0) {
+          await tx.trustedDropEvidence.deleteMany({
+            where: { deliveryJobId: { in: deliveryJobIds } },
+          });
+          await tx.riderPhotoProof.deleteMany({
+            where: { deliveryJobId: { in: deliveryJobIds } },
+          });
+          await tx.storeDeliveryProof.deleteMany({
+            where: { deliveryJobId: { in: deliveryJobIds } },
+          });
+          await tx.deliveryRunStop.deleteMany({
+            where: { deliveryJobId: { in: deliveryJobIds } },
+          });
+        }
+
+        // Drop any evidence still pointing at these deliveries, then the
+        // challenges, so the delivery rows are no longer restricted.
+        if (deliveryIds.length > 0) {
+          await tx.trustedDropEvidence.deleteMany({
+            where: { subscriptionDeliveryId: { in: deliveryIds } },
+          });
+        }
+        await tx.trustedDropChallenge.deleteMany({
+          where: { subscriptionId: { in: subscriptionIds } },
+        });
+        await tx.subscriptionFundingAllocation.deleteMany({
+          where: { subscriptionId: { in: subscriptionIds } },
+        });
+        await tx.subscriptionIssueReport.deleteMany({
+          where: { subscriptionId: { in: subscriptionIds } },
+        });
+        await tx.subscriptionAuditEntry.deleteMany({
+          where: { subscriptionId: { in: subscriptionIds } },
+        });
+        await tx.subscriptionDelivery.deleteMany({
+          where: { subscriptionId: { in: subscriptionIds } },
+        });
+        // The subscription holds a Restrict reference to its address.
+        await tx.customerSubscription.deleteMany({
+          where: { id: { in: subscriptionIds } },
+        });
+      }
+
+      await tx.customerAddress.deleteMany({ where: { userId: customerId } });
+      await tx.user.delete({ where: { id: customerId } });
     });
 
     return {

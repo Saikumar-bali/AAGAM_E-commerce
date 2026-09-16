@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { prisma, Role, SubscriptionDeliveryStatus } from '@aagam/database';
+import { parseAddOns, parseVolumeLiters, sumAddOnLiters } from './delivery-add-on';
 
 export interface GridCell {
   deliveryId: string;
@@ -110,31 +111,26 @@ export class StoreMilkGridService {
         const dDate = new Date(d.serviceDate);
         const dayNum = dDate.getUTCDate();
 
-        // Calculate delivery base multiplier (accounting for split items)
-        let deliveryBaseMultiplier = defaultBaseMultiplier;
+        // Resolve the base volume from the persisted quantity label rather than
+        // substring tests: `includes('0.5')` missed `0.25L` entirely and the PM
+        // branch's `includes('2')` matched it, reporting a quarter litre as two.
         let cellBaseQty = baseQty;
+        let deliveryBaseMultiplier = defaultBaseMultiplier;
         if (splitItems) {
-          if (d.deliverySlot === 'AM') {
-            cellBaseQty = splitItems.amQuantity || '0.5L';
-            deliveryBaseMultiplier = cellBaseQty.includes('0.5') ? 0.5 : 1.0;
-          } else {
-            cellBaseQty = splitItems.pmQuantity || '1L';
-            deliveryBaseMultiplier = cellBaseQty.includes('0.5') ? 0.5 : (cellBaseQty.includes('2') ? 2.0 : 1.0);
-          }
+          cellBaseQty = d.deliverySlot === 'AM'
+            ? (splitItems.amQuantity || '0.5L')
+            : (splitItems.pmQuantity || '1L');
+          deliveryBaseMultiplier = this.resolveBaseLiters(planName, sub.priceSnapshot, d.deliverySlot);
         }
 
-        // Parse extra milk if recorded in deferredReason
+        // Parse extra milk / add-ons recorded in deferredReason
         let extraMilk: string | null = null;
-        let extraLiters = 0;
-        if (d.deferredReason && d.deferredReason.includes('[EXTRA:')) {
-          const match = d.deferredReason.match(/\[EXTRA:\s*([^\|\]]+)/);
-          if (match) {
-            extraMilk = match[1].trim();
-            if (extraMilk.includes('0.5')) extraLiters += 0.5;
-            else if (extraMilk.includes('1.5')) extraLiters += 1.5;
-            else if (extraMilk.includes('2')) extraLiters += 2.0;
-            else extraLiters += 1.0;
-          }
+        const cellAddOns = parseAddOns(d.deferredReason, d.failureReason);
+        // Only volume add-ons count towards liters; weight and count add-ons
+        // must not be silently counted as one liter each.
+        const extraLiters = sumAddOnLiters(d.deferredReason, d.failureReason);
+        if (cellAddOns.length > 0) {
+          extraMilk = cellAddOns.map((a) => a.qty).join(', ');
         }
 
         let paymentMode: 'CASH' | 'PHONE_PE' | 'DUE' | null = null;
@@ -339,10 +335,12 @@ export class StoreMilkGridService {
     if (action.type === 'ATTACH_EVENING_MILK') {
       const extraQty = action.extraQuantity?.trim() || '+1L BM';
       const count = Math.max(1, Math.min(30, action.consecutiveDays || 4));
-      const extraPaise = action.extraPaise || (
-        extraQty.includes('0.5') ? 4000 : extraQty.includes('2') ? 16000 : 8000
-      );
-      const note = `[ADD-ON: ${extraQty}|${extraPaise}] ${action.note || ''}`.trim();
+      // The slot arrives from a request body, so TypeScript's `string` type
+      // gives no runtime guarantee. Reject anything but AM/PM rather than
+      // persisting a value the grid would later read as PM.
+      const targetSlot = action.targetSlot === 'AM' || action.targetSlot === 'PM' ? action.targetSlot : 'PM';
+      const extraPaise = this.resolveExtraPaise(action.extraPaise) ?? this.defaultExtraPricePaise(extraQty);
+      const note = `[ADD-ON: ${extraQty}|${extraPaise}|${targetSlot}] ${action.note || ''}`.trim();
 
       const targetDeliveries = await prisma.subscriptionDelivery.findMany({
         where: {
@@ -360,7 +358,9 @@ export class StoreMilkGridService {
         prisma.subscriptionDelivery.updateMany({
           where: { id: { in: targetDeliveries.map((d) => d.id) } },
           data: {
-            deliverySlot: action.targetSlot || 'PM',
+            // The base delivery keeps its own slot. Overwriting it here
+            // rerouted the customer's existing delivery to the add-on slot
+            // instead of merely attaching an add-on to it.
             deferredReason: note,
             cashDuePaise: { increment: extraPaise },
           },
@@ -373,17 +373,14 @@ export class StoreMilkGridService {
         }),
       ]);
 
-      return { success: true, count: targetDeliveries.length, message: `Attached ${extraQty} (${action.targetSlot || 'PM'}) for ${targetDeliveries.length} day${targetDeliveries.length > 1 ? 's' : ''}!` };
+      return { success: true, count: targetDeliveries.length, message: `Attached ${extraQty} (${targetSlot}) for ${targetDeliveries.length} day${targetDeliveries.length > 1 ? 's' : ''}!` };
     }
 
     if (action.type === 'EXTRA_MILK') {
       const extraQty = action.extraQuantity?.trim() || '+1L';
       const count = Math.max(1, Math.min(30, action.consecutiveDays || 1));
-      const extraPaise = action.extraPaise || action.amountPaise || (
-        extraQty.includes('0.5') ? (extraQty.includes('CM') ? 3500 : 4000)
-        : extraQty.includes('2') ? 16000
-        : (extraQty.includes('CM') ? 7000 : 8000)
-      );
+      const extraPaise = this.resolveExtraPaise(action.extraPaise, action.amountPaise)
+        ?? this.defaultExtraPricePaise(extraQty);
       const notePrefix = `[EXTRA: ${extraQty}|${extraPaise}]`;
       const fullNote = `${notePrefix} ${action.note?.trim() || 'Extra milk requested'}`.trim();
 
@@ -475,6 +472,58 @@ export class StoreMilkGridService {
   }
 
   /**
+   * Base volume for one delivery stop. Split subscriptions persist a distinct
+   * quantity per AM/PM slot; falling back to the plan name reported the plan
+   * default and ignored the ordered quantity entirely.
+   */
+  private resolveBaseLiters(
+    planName: string,
+    priceSnapshot: unknown,
+    deliverySlot: string,
+  ): number {
+    const planMultiplier =
+      planName.toLowerCase().includes('0.5') || planName.toLowerCase().includes('500')
+        ? 0.5
+        : 1.0;
+
+    const splitItems = (priceSnapshot as any)?.splitItems;
+    if (!splitItems) return planMultiplier;
+
+    if (deliverySlot === 'AM') {
+      return parseVolumeLiters(splitItems.amQuantity || '0.5L') ?? 0.5;
+    }
+    return parseVolumeLiters(splitItems.pmQuantity || '1L') ?? 1.0;
+  }
+
+  /**
+   * Picks the client-supplied amount when present, including an explicit zero.
+   * `action.extraPaise || fallback` treated zero as missing and charged the
+   * default rate, so a cleared custom price billed ₹80 instead of the ₹0 shown.
+   */
+  private resolveExtraPaise(...candidates: Array<number | undefined | null>): number | null {
+    for (const candidate of candidates) {
+      if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= 0) {
+        return Math.round(candidate);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Fallback price for an add-on when the client sends none. Derived from the
+   * label's volume, because the previous substring tests read `0.25L` as two
+   * litres (`includes('2')`) and overcharged it.
+   */
+  private defaultExtraPricePaise(extraQty: string): number {
+    const liters = parseVolumeLiters(extraQty);
+    const isCow = extraQty.toUpperCase().includes('CM');
+    if (liters === 2) return 16000;
+    if (liters === 0.25) return isCow ? 1750 : 2000;
+    if (liters === 0.5) return isCow ? 3500 : 4000;
+    return isCow ? 7000 : 8000;
+  }
+
+  /**
    * Daily Morning Route Dispatch & Packing Summary.
    * Auto-calculates total liters required for Buffalo Milk & Cow Milk today.
    */
@@ -512,18 +561,9 @@ export class StoreMilkGridService {
     const stops = deliveries.map((d, index) => {
       const planName = d.subscription.plan.name || '';
       const isBuffalo = planName.toLowerCase().includes('buffalo') || planName.toLowerCase().includes('bm');
-      const baseQty = planName.toLowerCase().includes('0.5') || planName.toLowerCase().includes('500') ? 0.5 : 1.0;
+      const baseQty = this.resolveBaseLiters(planName, d.subscription.priceSnapshot, d.deliverySlot);
 
-      let extraLiters = 0;
-      if (d.deferredReason?.includes('[EXTRA:')) {
-        const match = d.deferredReason.match(/\[EXTRA:\s*([^\|\]]+)/);
-        if (match) {
-          if (match[1].includes('0.5')) extraLiters += 0.5;
-          else if (match[1].includes('1.5')) extraLiters += 1.5;
-          else if (match[1].includes('2')) extraLiters += 2.0;
-          else extraLiters += 1.0;
-        }
-      }
+      const extraLiters = sumAddOnLiters(d.deferredReason, d.failureReason);
 
       const isSkipped = d.status === 'SKIPPED';
       const stopLiters = isSkipped ? 0 : baseQty + extraLiters;
@@ -678,18 +718,10 @@ export class StoreMilkGridService {
     const completedCount = sub.deliveries.filter((d) => d.status === 'DELIVERED').length;
     const skippedCount = sub.deliveries.filter((d) => d.status === 'SKIPPED').length;
 
-    let extraLiters = 0;
-    for (const d of sub.deliveries) {
-      if (d.deferredReason?.includes('[EXTRA:')) {
-        const match = d.deferredReason.match(/\[EXTRA:\s*([^\|\]]+)/);
-        if (match) {
-          if (match[1].includes('0.5')) extraLiters += 0.5;
-          else if (match[1].includes('1.5')) extraLiters += 1.5;
-          else if (match[1].includes('2')) extraLiters += 2.0;
-          else extraLiters += 1.0;
-        }
-      }
-    }
+    const extraLiters = sub.deliveries.reduce(
+      (sum, d) => sum + sumAddOnLiters(d.deferredReason, d.failureReason),
+      0,
+    );
 
     const totalPaidRupees = (sub.amountCollectedPaise || 0) / 100;
     const totalDueRupees = (sub.amountDuePaise || 0) / 100;

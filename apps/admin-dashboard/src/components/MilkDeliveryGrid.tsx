@@ -1288,11 +1288,15 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
           multiplier = 1.0;
         }
 
-        const perDayPrice = Math.round(effectiveUnitPrice * multiplier);
-        const perDayPaise = perDayPrice * 100;
+        // Keep the calculation in paise until the end: rounding to whole rupees
+        // first charged ₹81.00 for an ₹80.50 product.
+        const perDayPaise = Math.round(effectiveUnitPrice * multiplier * 100);
         const extraLabel = `+${displayQty} ${effectiveName}`;
-        const totalEveningExtraPrice = perDayPrice * consecutiveDays;
-        const customerDueRupees = Math.max(0, Math.round(selectedCell.row.totalDuePaise / 100));
+        const totalEveningExtraPrice = Math.round(perDayPaise * consecutiveDays) / 100;
+        const totalDuePaise = selectedCell.row.totalDuePaise ?? 0;
+        // Presets must collect the exact outstanding balance; rounding to whole
+        // rupees left the backend short of the recorded due by up to ₹0.99.
+        const customerDueRupees = Math.max(0, totalDuePaise / 100);
 
         return (
           <div
@@ -1749,7 +1753,7 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
                                 Adding: <strong className="text-slate-900">{extraLabel}</strong>
                               </span>
                               <span className="font-bold text-slate-900">
-                                ₹{perDayPrice}/day
+                                ₹{perDayPaise / 100}/day
                                 {consecutiveDays > 1 && (
                                   <span className="text-emerald-700 ml-1">(Total: ₹{totalEveningExtraPrice})</span>
                                 )}
@@ -1788,7 +1792,7 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
                               }}
                               className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-500 py-2 text-xs font-black text-white hover:bg-amber-600 transition shadow-xs"
                             >
-                              Add as Single Day Extra Today Only (₹{perDayPrice})
+                              Add as Single Day Extra Today Only (₹{perDayPaise / 100})
                             </button>
                           </div>
                         </div>

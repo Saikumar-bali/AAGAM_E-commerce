@@ -43,5 +43,5 @@ export class UpdateProductDto {
   @IsInt()
   @Min(1)
   @IsOptional()
-  weightGrams?: number;
+  weightGrams?: number | null;
 }

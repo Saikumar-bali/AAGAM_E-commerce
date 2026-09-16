@@ -351,7 +351,7 @@ jobs:
                 `2. If the suggestion is valid (real bug, security issue, or regression), you MUST open and edit the file(s) using your file editing tools to apply the fix.\n` +
                 `3. If the suggestion is a false positive or already satisfied, ignore it.\n` +
                 `4. Run build and tests if possible to verify everything compiles without errors.\n` +
-                `5. Do NOT call the finish tool until you have modified the necessary files in the working directory.\n`;
+                `5. Only when at least one valid finding required a change: do NOT call the finish tool until you have modified the necessary files. If every finding is a false positive or already satisfied, make no edits and finish normally — do not invent a change.\n`;
             } else {
               prompt = `Inspect the latest changes in Pull Request #${prNumber || 'active branch'}. Identify any syntax errors, build issues, or regressions, and fix them.`;
             }
