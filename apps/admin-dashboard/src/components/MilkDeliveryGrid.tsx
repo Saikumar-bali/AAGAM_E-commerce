@@ -26,6 +26,8 @@ import {
   ArrowUpDown,
   Sparkles,
   CheckCheck,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 
@@ -89,6 +91,42 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
   const [hideCompletedOnMobile, setHideCompletedOnMobile] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      if (gridContainerRef.current?.requestFullscreen) {
+        gridContainerRef.current.requestFullscreen().catch(() => {
+          setIsFullscreen((prev) => !prev);
+        });
+      } else {
+        setIsFullscreen((prev) => !prev);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+      setIsFullscreen(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen && !document.fullscreenElement) {
+        setIsFullscreen(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFullscreen]);
 
   // Modal / Popover States
   const [selectedCell, setSelectedCell] = useState<{ row: GridRow; day: number; cell: GridCell | null } | null>(null);
@@ -100,11 +138,87 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
   const [statementData, setStatementData] = useState<any>(null);
   const [statementLoading, setStatementLoading] = useState(false);
 
-  // Custom action inputs
+  // Custom action inputs & Dynamic Products
+  const [catalogProducts, setCatalogProducts] = useState<Array<{ id: string; name: string; price: number; unit?: string }>>([]);
+  const [selectedProductId, setSelectedProductId] = useState<string>('custom');
+  const [customProductName, setCustomProductName] = useState<string>('Buffalo Milk');
+  const [customUnitPrice, setCustomUnitPrice] = useState<string>('80');
+  const [extraQtyMultiplier, setExtraQtyMultiplier] = useState<string>('1L');
+  const [extraTargetSlot, setExtraTargetSlot] = useState<'PM' | 'AM'>('PM');
+  const [modalTab, setModalTab] = useState<'actions' | 'extra' | 'payment'>('actions');
   const [extraQuantity, setExtraQuantity] = useState('+1L BM');
   const [consecutiveDays, setConsecutiveDays] = useState(4);
   const [paymentAmount, setPaymentAmount] = useState('80');
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'PHONE_PE'>('CASH');
+
+  // Load live catalog products for dynamic dropdowns
+  useEffect(() => {
+    let isMounted = true;
+    apiClient
+      .get('/admin/products')
+      .then((res) => {
+        if (!isMounted) return;
+        const list = Array.isArray(res.data) ? res.data : [];
+        const formatted = list
+          .filter((p: any) => p.isActive !== false)
+          .map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            price: Number(p.price || 0),
+            unit: p.details?.unit || '',
+          }));
+        if (formatted.length > 0) {
+          setCatalogProducts(formatted);
+          const defaultProd =
+            formatted.find((p) => p.name.toLowerCase().includes('buffalo') || p.name.toLowerCase().includes('milk')) ||
+            formatted[0];
+          if (defaultProd) {
+            setSelectedProductId(defaultProd.id);
+            setCustomUnitPrice(String(defaultProd.price));
+            setCustomProductName(defaultProd.name);
+          }
+        }
+      })
+      .catch(() => {
+        apiClient
+          .get('/products')
+          .then((res) => {
+            if (!isMounted) return;
+            const items = Array.isArray(res.data) ? res.data : res.data?.items || [];
+            const formatted: Array<{ id: string; name: string; price: number; unit?: string }> = items.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              price: Number(p.price || 0),
+              unit: p.details?.unit || '',
+            }));
+            if (formatted.length > 0) {
+              setCatalogProducts(formatted);
+              const defaultProd =
+                formatted.find((p) => p.name.toLowerCase().includes('milk')) || formatted[0];
+              if (defaultProd) {
+                setSelectedProductId(defaultProd.id);
+                setCustomUnitPrice(String(defaultProd.price));
+                setCustomProductName(defaultProd.name);
+              }
+            }
+          })
+          .catch(() => {});
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Close cell modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedCell) {
+        setSelectedCell(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedCell]);
 
   const isCurrentMonth = today.getFullYear() === currentYear && today.getMonth() === currentMonth;
   const currentDayNum = today.getDate();
@@ -463,7 +577,14 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
   };
 
   return (
-    <div className="space-y-4 font-sans">
+    <div
+      ref={gridContainerRef}
+      className={
+        isFullscreen
+          ? 'fixed inset-0 z-50 flex flex-col bg-slate-100 p-3 md:p-4 overflow-hidden font-sans'
+          : 'space-y-4 font-sans'
+      }
+    >
       {/* Control & Navigation Bar */}
       <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 md:p-4 shadow-xs">
         {/* Row 1: View Switcher, Month Navigation & Quick Actions */}
@@ -547,6 +668,19 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
             </button>
 
             <button
+              onClick={toggleFullscreen}
+              className={`inline-flex items-center gap-1 rounded-xl border px-2 py-1 text-xs font-black transition-all ${
+                isFullscreen
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-xs'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+              title={isFullscreen ? 'Exit Fullscreen (Esc)' : 'View Fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+            </button>
+
+            <button
               onClick={() => void loadGrid()}
               className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-50 transition-colors"
               title="Refresh Grid"
@@ -560,15 +694,25 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
           <div className="flex flex-1 flex-wrap items-center gap-2 min-w-48">
             {/* Search Box */}
-            <div className="relative min-w-48 flex-1 md:max-w-xs">
-              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            <div className="relative min-w-56 flex-1 md:max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search customer, phone, locality..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-8.5 w-full rounded-xl border border-slate-200 pl-8.5 pr-3 text-xs outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                className="h-8.5 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-9 pr-7 text-xs font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 transition-all"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                  title="Clear search"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
 
             {/* Route Slot Filter */}
@@ -661,7 +805,7 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
         </div>
       ) : viewMode === 'cards' ? (
         /* MOBILE-FIRST ROUTE CARDS VIEW WITH DYNAMIC PENDING-FIRST SORTING */
-        <div className="space-y-4 pb-28">
+        <div className={`space-y-4 ${isFullscreen ? 'overflow-y-auto flex-1 pb-16' : 'pb-28'}`}>
           {/* Today's Route Progress Bar */}
           <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-500 to-teal-600 p-4 text-white shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -759,8 +903,8 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
         </div>
       ) : (
         /* FULL 31-DAY SPREADSHEET MATRIX VIEW */
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
-          <div ref={scrollContainerRef} className="overflow-x-auto max-h-[750px] scroll-smooth">
+        <div className={`relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs ${isFullscreen ? 'flex-1 flex flex-col min-h-0' : ''}`}>
+          <div ref={scrollContainerRef} className={`overflow-x-auto scroll-smooth ${isFullscreen ? 'flex-1 max-h-[calc(100vh-140px)]' : 'max-h-[750px]'}`}>
             <table className="w-full border-collapse text-left text-xs">
               {/* Table Header */}
               <thead className="sticky top-0 z-20 bg-slate-100 text-[11px] font-black text-slate-700 shadow-xs">
@@ -991,255 +1135,493 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
       )}
 
       {/* Cell Quick-Action Popover / Modal */}
-      {selectedCell && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
-              <div>
-                <span className="inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
-                  Day {selectedCell.day} · {monthLabel}
-                </span>
-                <h3 className="mt-1 text-base font-black text-slate-900">{selectedCell.row.customer.name}</h3>
-                <p className="text-xs text-slate-500">{selectedCell.row.customer.address} · {selectedCell.row.plan.name}</p>
-              </div>
-              <button
-                onClick={() => setSelectedCell(null)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      {selectedCell && (() => {
+        const activeProd = catalogProducts.find((p) => p.id === selectedProductId);
+        const effectiveName = activeProd ? activeProd.name : customProductName;
+        const effectiveUnitPrice = activeProd ? activeProd.price : Math.max(0, Number(customUnitPrice || 0));
+        const multiplier = extraQtyMultiplier === '0.5L' ? 0.5 : extraQtyMultiplier === '1.5L' ? 1.5 : extraQtyMultiplier === '2L' ? 2 : 1;
+        const perDayPrice = Math.round(effectiveUnitPrice * multiplier);
+        const perDayPaise = perDayPrice * 100;
+        const extraLabel = `+${extraQtyMultiplier} ${effectiveName}`;
+        const totalEveningExtraPrice = perDayPrice * consecutiveDays;
+        const customerDueRupees = Math.max(0, Math.round(selectedCell.row.totalDuePaise / 100));
 
-            {selectedCell.cell ? (
-              <div className="space-y-3">
-                {/* 1. Toggle Delivered / Undo */}
-                <div className="rounded-xl border border-slate-200 p-3 bg-slate-50/70">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-black text-slate-800">Delivery Status</p>
-                      <p className="text-[11px] text-slate-500">
-                        Current:{' '}
-                        <span className="font-bold text-emerald-700">{selectedCell.cell.status}</span>
-                      </p>
-                    </div>
-                    <button
-                      disabled={actionLoading}
-                      onClick={() =>
-                        handleQuickAction(selectedCell.cell!.deliveryId, 'TOGGLE_DELIVERED')
-                      }
-                      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black text-white shadow-xs ${
-                        selectedCell.cell.status === 'DELIVERED'
-                          ? 'bg-amber-600 hover:bg-amber-700'
-                          : 'bg-emerald-700 hover:bg-emerald-800'
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto"
+            onClick={() => setSelectedCell(null)}
+          >
+            <div
+              className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 1. STICKY HEADER */}
+              <div className="sticky top-0 z-20 flex items-start justify-between border-b border-slate-100 bg-white px-5 py-3.5 shadow-xs shrink-0">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
+                      Day {selectedCell.day} · {monthLabel}
+                    </span>
+                    <span
+                      className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-black ${
+                        selectedCell.cell?.status === 'DELIVERED'
+                          ? 'bg-emerald-600 text-white'
+                          : selectedCell.cell?.status === 'SKIPPED'
+                          ? 'bg-rose-100 text-rose-700'
+                          : 'bg-amber-100 text-amber-800'
                       }`}
                     >
-                      {selectedCell.cell.status === 'DELIVERED' ? 'Mark Scheduled (Undo)' : 'Mark Delivered ✓'}
-                    </button>
+                      {selectedCell.cell?.status || 'SCHEDULED'}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-700">
+                      {selectedCell.cell?.deliverySlot === 'PM' ? (
+                        <Moon className="h-3 w-3 text-indigo-600" />
+                      ) : (
+                        <Sun className="h-3 w-3 text-amber-600" />
+                      )}
+                      {selectedCell.cell?.deliverySlot || selectedCell.row.slot} Shift
+                    </span>
                   </div>
-                </div>
-
-                {/* 2. Attach Evening Buffalo Milk (Consecutive Days) */}
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 font-black text-xs text-indigo-950">
-                      <Moon className="h-4 w-4 text-indigo-600" />
-                      <span>Attach Evening Buffalo Milk</span>
-                    </div>
-                    <span className="rounded-md bg-indigo-200/80 px-2 py-0.5 text-[10px] font-black text-indigo-900">PM Shift</span>
-                  </div>
-                  <p className="text-[11px] text-indigo-700 leading-tight">
-                    Schedule consecutive days of evening buffalo milk starting from Day {selectedCell.day}.
+                  <h3 className="mt-1 text-base font-black text-slate-900">{selectedCell.row.customer.name}</h3>
+                  <p className="max-w-sm truncate text-xs font-medium text-slate-500">
+                    {selectedCell.row.customer.address} · {selectedCell.row.plan.name} ({selectedCell.cell?.baseQuantity || selectedCell.row.plan.dailyQuantity})
                   </p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <label className="block text-[10px] font-bold text-slate-600">Product & Qty</label>
-                      <select
-                        value={extraQuantity}
-                        onChange={(e) => setExtraQuantity(e.target.value)}
-                        className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-bold text-indigo-950"
-                      >
-                        <option value="+1L BM">+1L Buffalo Milk (₹80/day)</option>
-                        <option value="+0.5L BM">+0.5L Buffalo Milk (₹40/day)</option>
-                        <option value="+2L BM">+2L Buffalo Milk (₹160/day)</option>
-                      </select>
-                    </div>
-                    <div className="w-24">
-                      <label className="block text-[10px] font-bold text-slate-600">Duration</label>
-                      <select
-                        value={consecutiveDays}
-                        onChange={(e) => setConsecutiveDays(Number(e.target.value))}
-                        className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-black text-indigo-950"
-                      >
-                        <option value={1}>1 Day</option>
-                        <option value={2}>2 Days</option>
-                        <option value={3}>3 Days</option>
-                        <option value={4}>4 Days</option>
-                        <option value={5}>5 Days</option>
-                        <option value={7}>7 Days (1 Wk)</option>
-                      </select>
-                    </div>
-                  </div>
-                  <button
-                    disabled={actionLoading}
-                    onClick={() => {
-                      const pricePaise = extraQuantity === '+0.5L BM' ? 4000 : extraQuantity === '+2L BM' ? 16000 : 8000;
-                      handleQuickAction(selectedCell.cell!.deliveryId, 'ATTACH_EVENING_MILK', {
-                        extraQuantity,
-                        extraPaise: pricePaise,
-                        consecutiveDays,
-                        note: `Customer requested ${consecutiveDays} days evening buffalo milk`,
-                      });
-                    }}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-700 py-2.5 text-xs font-black text-white shadow-sm hover:bg-indigo-800 transition active:scale-[0.98]"
-                  >
-                    <Zap className="h-3.5 w-3.5" />
-                    Attach {consecutiveDays} Days Evening Delivery (₹{((extraQuantity === '+0.5L BM' ? 40 : extraQuantity === '+2L BM' ? 160 : 80) * consecutiveDays)})
-                  </button>
                 </div>
-
-                {/* 3. Extra Milk Ad-hoc Request */}
-                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-black text-amber-900">Add Extra Milk Today</p>
-                      <p className="text-[11px] text-amber-700">Ad-hoc single day extra milk without altering shift</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <select
-                      value={extraQuantity}
-                      onChange={(e) => setExtraQuantity(e.target.value)}
-                      className="flex-1 rounded-xl border border-amber-300 bg-white px-2 py-1.5 text-xs font-bold outline-none"
-                    >
-                      <option value="+0.5L BM">+0.5L Buffalo Milk (₹40)</option>
-                      <option value="+1L BM">+1L Buffalo Milk (₹80)</option>
-                      <option value="+0.5L CM">+0.5L Cow Milk (₹35)</option>
-                      <option value="+1L CM">+1L Cow Milk (₹70)</option>
-                      <option value="+2L BM">+2L Buffalo Milk (₹160)</option>
-                    </select>
-                    <button
-                      disabled={actionLoading}
-                      onClick={() => {
-                        const pricePaise =
-                          extraQuantity === '+0.5L CM' ? 3500 :
-                          extraQuantity === '+1L CM' ? 7000 :
-                          extraQuantity === '+0.5L BM' ? 4000 :
-                          extraQuantity === '+2L BM' ? 16000 : 8000;
-                        handleQuickAction(selectedCell.cell!.deliveryId, 'EXTRA_MILK', {
-                          extraQuantity,
-                          extraPaise: pricePaise,
-                          amountPaise: pricePaise,
-                        });
-                      }}
-                      className="rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-black text-white hover:bg-amber-700"
-                    >
-                      Add Extra
-                    </button>
-                  </div>
-                </div>
-
-                {/* 4. Slot Toggle & Skip Actions */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    disabled={actionLoading}
-                    onClick={() => handleQuickAction(selectedCell.cell!.deliveryId, 'TOGGLE_SLOT')}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
-                  >
-                    {selectedCell.cell.deliverySlot === 'AM' ? (
-                      <>
-                        <Moon className="h-3.5 w-3.5 text-indigo-600" /> Shift to PM
-                      </>
-                    ) : (
-                      <>
-                        <Sun className="h-3.5 w-3.5 text-amber-600" /> Shift to AM
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    disabled={actionLoading}
-                    onClick={() =>
-                      handleQuickAction(selectedCell.cell!.deliveryId, 'SKIP', {
-                        note: 'Customer requested pause / not taken',
-                      })
-                    }
-                    className="rounded-xl border border-red-200 bg-red-50/70 py-2 text-xs font-black text-red-700 hover:bg-red-100"
-                  >
-                    Mark Skipped (Not Taken)
-                  </button>
-                </div>
-
-                {/* 4. Record Payment */}
-                <div className="rounded-xl border border-slate-200 p-3 bg-white space-y-2">
-                  <p className="text-xs font-black text-slate-800">Record Daily Payment</p>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      placeholder="Amount ₹"
-                      className="w-24 rounded-xl border border-slate-200 px-2 py-1 text-xs font-bold outline-none focus:border-emerald-500"
-                    />
-                    <select
-                      value={paymentMode}
-                      onChange={(e) => setPaymentMode(e.target.value as any)}
-                      className="flex-1 rounded-xl border border-slate-200 bg-white px-2 py-1 text-xs font-bold outline-none"
-                    >
-                      <option value="CASH">Cash in Hand</option>
-                      <option value="PHONE_PE">PhonePe / UPI</option>
-                    </select>
-                    <button
-                      disabled={actionLoading}
-                      onClick={() =>
-                        handleQuickAction(selectedCell.cell!.deliveryId, 'RECORD_PAYMENT', {
-                          amountPaise: Math.round(Number(paymentAmount || 0) * 100),
-                          paymentMode,
-                        })
-                      }
-                      className="rounded-xl bg-slate-900 px-3 py-1 text-xs font-black text-white hover:bg-slate-800"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
+                <button
+                  onClick={() => setSelectedCell(null)}
+                  className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                  title="Close (Esc)"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-            ) : (
-              <p className="text-xs text-slate-500 py-4 text-center">No scheduled delivery record for this date.</p>
-            )}
 
-            <div className="pt-2 flex gap-2">
-              <button
-                onClick={() => setSelectedCell(null)}
-                className="flex-1 rounded-xl border border-slate-200 py-2 text-xs font-black text-slate-600 hover:bg-slate-50"
-              >
-                Close
-              </button>
-              <button
-                disabled={actionLoading}
-                onClick={async () => {
-                  try {
-                    setActionLoading(true);
-                    await apiClient.post(`/store/subscriptions/subscribers/${selectedCell.row.subscriptionId}/renew`, {
-                      isSamePlan: true,
-                      totalDeliveries: 30,
-                    });
-                    toast.success(`Plan renewed for ${selectedCell.row.customer.name}!`);
-                    setSelectedCell(null);
-                    void loadGrid();
-                  } catch (err: any) {
-                    toast.error(err.response?.data?.message || 'Renewal failed');
-                  } finally {
-                    setActionLoading(false);
-                  }
-                }}
-                className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl bg-emerald-700 py-2 text-xs font-black text-white hover:bg-emerald-800"
-              >
-                <RefreshCw className="h-3.5 w-3.5" /> Renew Next Cycle
-              </button>
+              {/* 2. COMPACT SEGMENTED TABS */}
+              <div className="flex border-b border-slate-100 bg-slate-50/80 px-4 pt-2 text-xs font-black shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setModalTab('actions')}
+                  className={`pb-2 px-3 border-b-2 transition-all ${
+                    modalTab === 'actions'
+                      ? 'border-emerald-600 text-emerald-800 font-black'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Quick Status
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalTab('extra')}
+                  className={`pb-2 px-3 border-b-2 transition-all flex items-center gap-1 ${
+                    modalTab === 'extra'
+                      ? 'border-indigo-600 text-indigo-800 font-black'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Moon className="h-3 w-3 text-indigo-500" /> Extra / Shift Add-on
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalTab('payment')}
+                  className={`pb-2 px-3 border-b-2 transition-all flex items-center gap-1 ${
+                    modalTab === 'payment'
+                      ? 'border-emerald-600 text-emerald-800 font-black'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Payment & Renew
+                  {selectedCell.row.totalDuePaise > 0 && (
+                    <span className="ml-1 rounded-full bg-rose-100 px-1.5 py-0.2 text-[9px] font-black text-rose-700">
+                      ₹{customerDueRupees} Due
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* 3. SCROLLABLE BODY */}
+              <div className="overflow-y-auto px-5 py-4 space-y-3.5 flex-1">
+                {selectedCell.cell ? (
+                  <>
+                    {/* TAB 1: QUICK STATUS */}
+                    {modalTab === 'actions' && (
+                      <div className="space-y-3">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-wider text-slate-400">Delivery Status</p>
+                              <div className="mt-0.5 flex items-center gap-2">
+                                <span className="text-sm font-black text-slate-900">
+                                  {selectedCell.cell.status === 'DELIVERED' ? 'Marked as Delivered' : 'Scheduled for Delivery'}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs text-slate-500">
+                                Base: <span className="font-bold text-slate-700">{selectedCell.cell.baseQuantity}</span>
+                                {selectedCell.cell.extraMilk ? (
+                                  <span className="ml-1.5 font-bold text-amber-700">({selectedCell.cell.extraMilk})</span>
+                                ) : null}
+                              </p>
+                            </div>
+                            <button
+                              disabled={actionLoading}
+                              onClick={() => handleQuickAction(selectedCell.cell!.deliveryId, 'TOGGLE_DELIVERED')}
+                              className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-black text-white shadow-xs transition-transform active:scale-95 ${
+                                selectedCell.cell.status === 'DELIVERED'
+                                  ? 'bg-amber-600 hover:bg-amber-700'
+                                  : 'bg-emerald-700 hover:bg-emerald-800'
+                              }`}
+                            >
+                              {selectedCell.cell.status === 'DELIVERED' ? 'Undo Delivery (Scheduled)' : 'Mark Delivered ✓'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Shift and Skip Actions */}
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <button
+                            disabled={actionLoading}
+                            onClick={() => handleQuickAction(selectedCell.cell!.deliveryId, 'TOGGLE_SLOT')}
+                            className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50 shadow-xs"
+                          >
+                            {selectedCell.cell.deliverySlot === 'AM' ? (
+                              <>
+                                <Moon className="h-4 w-4 text-indigo-600" /> Shift to PM Shift
+                              </>
+                            ) : (
+                              <>
+                                <Sun className="h-4 w-4 text-amber-600" /> Shift to AM Shift
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            disabled={actionLoading}
+                            onClick={() =>
+                              handleQuickAction(selectedCell.cell!.deliveryId, 'SKIP', {
+                                note: 'Customer requested skip / not taken',
+                              })
+                            }
+                            className="rounded-xl border border-rose-200 bg-rose-50/70 py-2.5 text-xs font-black text-rose-700 hover:bg-rose-100 shadow-xs"
+                          >
+                            Mark Skipped (Not Taken)
+                          </button>
+                        </div>
+
+                        {/* Quick Ledger Snapshot */}
+                        <div className="rounded-xl border border-slate-100 bg-white p-3 text-xs">
+                          <div className="flex items-center justify-between text-slate-500 font-semibold">
+                            <span>Paid in Month:</span>
+                            <span className="font-bold text-emerald-700">₹{(selectedCell.row.totalCollectedPaise / 100).toFixed(2)}</span>
+                          </div>
+                          <div className="mt-1 flex items-center justify-between text-slate-500 font-semibold">
+                            <span>Current Outstanding Due:</span>
+                            <span className="font-bold text-rose-700">₹{(selectedCell.row.totalDuePaise / 100).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB 2: EXTRA MILK & EVENING ADD-ON */}
+                    {modalTab === 'extra' && (
+                      <div className="space-y-3.5">
+                        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 font-black text-xs text-indigo-950">
+                              <Moon className="h-4 w-4 text-indigo-600" />
+                              <span>Dynamic Dairy Product Add-on</span>
+                            </div>
+                            <span className="rounded-md bg-indigo-200/80 px-2 py-0.5 text-[10px] font-black text-indigo-900">
+                              {extraTargetSlot} Shift
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-indigo-700">
+                            Select any product from your store catalog or enter custom quantity & price.
+                          </p>
+
+                          <div className="space-y-2">
+                            {/* Product selection */}
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700">Catalog Product</label>
+                              <select
+                                value={selectedProductId}
+                                onChange={(e) => {
+                                  const id = e.target.value;
+                                  setSelectedProductId(id);
+                                  const match = catalogProducts.find((p) => p.id === id);
+                                  if (match) {
+                                    setCustomUnitPrice(String(match.price));
+                                    setCustomProductName(match.name);
+                                  }
+                                }}
+                                className="mt-1 h-9 w-full rounded-xl border border-indigo-300 bg-white px-3 text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                              >
+                                {catalogProducts.length > 0 && (
+                                  <optgroup label="Store Products">
+                                    {catalogProducts.map((p) => (
+                                      <option key={p.id} value={p.id}>
+                                        {p.name} — ₹{p.price}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                <option value="custom">Custom Product / Manual Rate</option>
+                              </select>
+                            </div>
+
+                            {/* Custom Name & Unit Price if selected */}
+                            {selectedProductId === 'custom' && (
+                              <div className="grid grid-cols-2 gap-2 pt-1">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-600">Product Name</label>
+                                  <input
+                                    type="text"
+                                    value={customProductName}
+                                    onChange={(e) => setCustomProductName(e.target.value)}
+                                    placeholder="e.g. Buffalo Milk"
+                                    className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-bold text-slate-900 outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-600">Unit Price (₹)</label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={customUnitPrice}
+                                    onChange={(e) => setCustomUnitPrice(e.target.value)}
+                                    placeholder="80"
+                                    className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-bold text-slate-900 outline-none"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Qty & Shift controls */}
+                            <div className="grid grid-cols-3 gap-2 pt-1">
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-600">Pack Qty</label>
+                                <select
+                                  value={extraQtyMultiplier}
+                                  onChange={(e) => setExtraQtyMultiplier(e.target.value)}
+                                  className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-black text-indigo-950"
+                                >
+                                  <option value="0.5L">0.5 Liter (0.5x)</option>
+                                  <option value="1L">1 Liter (1x)</option>
+                                  <option value="1.5L">1.5 Liter (1.5x)</option>
+                                  <option value="2L">2 Liters (2x)</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-600">Consecutive Days</label>
+                                <select
+                                  value={consecutiveDays}
+                                  onChange={(e) => setConsecutiveDays(Number(e.target.value))}
+                                  className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-black text-indigo-950"
+                                >
+                                  <option value={1}>1 Day (Single)</option>
+                                  <option value={2}>2 Days</option>
+                                  <option value={3}>3 Days</option>
+                                  <option value={4}>4 Days</option>
+                                  <option value={5}>5 Days</option>
+                                  <option value={7}>7 Days (1 Wk)</option>
+                                  <option value={10}>10 Days</option>
+                                  <option value={15}>15 Days</option>
+                                  <option value={30}>30 Days (Full)</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-600">Shift Target</label>
+                                <select
+                                  value={extraTargetSlot}
+                                  onChange={(e) => setExtraTargetSlot(e.target.value as any)}
+                                  className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-black text-indigo-950"
+                                >
+                                  <option value="PM">PM Shift (Evening)</option>
+                                  <option value="AM">AM Shift (Morning)</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="pt-2 space-y-2">
+                            <button
+                              disabled={actionLoading}
+                              onClick={() => {
+                                handleQuickAction(selectedCell.cell!.deliveryId, 'ATTACH_EVENING_MILK', {
+                                  extraQuantity: extraLabel,
+                                  extraPaise: perDayPaise,
+                                  consecutiveDays,
+                                  targetSlot: extraTargetSlot,
+                                  note: `Customer requested ${consecutiveDays} days ${extraLabel} (${extraTargetSlot})`,
+                                });
+                              }}
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-700 py-2.5 text-xs font-black text-white shadow-sm hover:bg-indigo-800 transition active:scale-[0.98]"
+                            >
+                              <Zap className="h-3.5 w-3.5" />
+                              Attach {consecutiveDays} Days {extraTargetSlot} Delivery (₹{totalEveningExtraPrice})
+                            </button>
+
+                            <button
+                              disabled={actionLoading}
+                              onClick={() => {
+                                handleQuickAction(selectedCell.cell!.deliveryId, 'EXTRA_MILK', {
+                                  extraQuantity: extraLabel,
+                                  extraPaise: perDayPaise,
+                                  amountPaise: perDayPaise,
+                                  note: `One-time extra ${extraLabel}`,
+                                });
+                              }}
+                              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-500 py-2 text-xs font-black text-white hover:bg-amber-600 transition shadow-xs"
+                            >
+                              Add as Single Day Extra Today Only (₹{perDayPrice})
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB 3: PAYMENT & RENEW */}
+                    {modalTab === 'payment' && (
+                      <div className="space-y-3">
+                        {/* Daily / Due Payment */}
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3 shadow-xs">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-black text-slate-800">Record Subscriber Payment</p>
+                            <span className="text-xs font-bold text-slate-500">
+                              Current Due: <strong className="text-rose-700">₹{(selectedCell.row.totalDuePaise / 100).toFixed(2)}</strong>
+                            </span>
+                          </div>
+
+                          {/* Quick presets */}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {customerDueRupees > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setPaymentAmount(String(customerDueRupees))}
+                                className="rounded-lg bg-rose-50 border border-rose-200 px-2 py-1 text-[11px] font-black text-rose-700 hover:bg-rose-100"
+                              >
+                                Full Due (₹{customerDueRupees})
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setPaymentAmount('80')}
+                              className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200"
+                            >
+                              ₹80
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPaymentAmount('160')}
+                              className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200"
+                            >
+                              ₹160
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPaymentAmount('500')}
+                              className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200"
+                            >
+                              ₹500
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPaymentAmount('1000')}
+                              className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200"
+                            >
+                              ₹1,000
+                            </button>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              value={paymentAmount}
+                              onChange={(e) => setPaymentAmount(e.target.value)}
+                              placeholder="Amount ₹"
+                              className="w-28 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                            />
+                            <select
+                              value={paymentMode}
+                              onChange={(e) => setPaymentMode(e.target.value as any)}
+                              className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold outline-none"
+                            >
+                              <option value="CASH">Cash in Hand</option>
+                              <option value="PHONE_PE">PhonePe / UPI</option>
+                            </select>
+                            <button
+                              disabled={actionLoading || !paymentAmount}
+                              onClick={() =>
+                                handleQuickAction(selectedCell.cell!.deliveryId, 'RECORD_PAYMENT', {
+                                  amountPaise: Math.round(Number(paymentAmount || 0) * 100),
+                                  paymentMode,
+                                })
+                              }
+                              className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white hover:bg-slate-800 disabled:opacity-50"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Renew Plan Section */}
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black text-emerald-950">Next Cycle Subscription</p>
+                            <p className="text-[11px] text-emerald-700">Extend 30 daily deliveries on the same plan.</p>
+                          </div>
+                          <button
+                            disabled={actionLoading}
+                            onClick={async () => {
+                              try {
+                                setActionLoading(true);
+                                await apiClient.post(
+                                  `/store/subscriptions/subscribers/${selectedCell.row.subscriptionId}/renew`,
+                                  {
+                                    isSamePlan: true,
+                                    totalDeliveries: 30,
+                                  },
+                                );
+                                toast.success(`Plan renewed for ${selectedCell.row.customer.name}!`);
+                                setSelectedCell(null);
+                                void loadGrid();
+                              } catch (err: any) {
+                                toast.error(err.response?.data?.message || 'Renewal failed');
+                              } finally {
+                                setActionLoading(false);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-black text-white hover:bg-emerald-800 shadow-xs"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" /> Renew 30 Days
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-500 py-6 text-center">No scheduled delivery record for this date.</p>
+                )}
+              </div>
+
+              {/* 4. STICKY FOOTER */}
+              <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-slate-100 bg-white px-5 py-3 shadow-xs shrink-0">
+                <span className="text-[11px] font-medium text-slate-400">
+                  Press <kbd className="rounded bg-slate-100 px-1 py-0.5 text-[10px] font-bold text-slate-600">Esc</kbd> or click outside
+                </span>
+                <button
+                  onClick={() => setSelectedCell(null)}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Morning Pack Summary Modal */}
       {dispatchModalOpen && (

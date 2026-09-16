@@ -5,17 +5,32 @@ import { randomUUID } from 'crypto';
 @Injectable()
 export class OfflineCustomerService {
 
-  async listCustomers(params: { search?: string; storeId?: string; status?: string; page?: number; pageSize?: number }) {
-    const { search, storeId, status, page = 1, pageSize = 25 } = params;
+  async listCustomers(params: { search?: string; storeId?: string; status?: string; recycleBin?: boolean; page?: number; pageSize?: number }) {
+    const { search, storeId, status, recycleBin = false, page = 1, pageSize = 25 } = params;
     const skip = (page - 1) * pageSize;
 
-    const where: Prisma.UserWhereInput = {
+    const offlineBaseCondition: Prisma.UserWhereInput = {
       role: Role.CUSTOMER,
       OR: [
         { email: { startsWith: 'offline.' } },
         { acquisitionSource: 'OFFLINE' },
         { customerSubscriptions: { some: { source: { in: ['manual', 'custom_manual'] } } } },
       ],
+    };
+
+    const where: Prisma.UserWhereInput = {
+      ...offlineBaseCondition,
+      ...(recycleBin
+        ? {
+            OR: [
+              { isActive: false },
+              { deactivatedAt: { not: null } },
+            ],
+          }
+        : {
+            isActive: true,
+            deactivatedAt: null,
+          }),
     };
 
     if (search) {
@@ -47,12 +62,12 @@ export class OfflineCustomerService {
       }
     }
 
-    const [users, total] = await Promise.all([
+    const [users, total, recycleBinCount] = await Promise.all([
       prisma.user.findMany({
         where,
         skip,
         take: pageSize,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { updatedAt: 'desc' },
         include: {
           addresses: { take: 1, where: { isDefault: true } },
           customerSubscriptions: {
@@ -78,6 +93,15 @@ export class OfflineCustomerService {
         },
       }),
       prisma.user.count({ where }),
+      prisma.user.count({
+        where: {
+          ...offlineBaseCondition,
+          OR: [
+            { isActive: false },
+            { deactivatedAt: { not: null } },
+          ],
+        },
+      }),
     ]);
 
     const enriched = users.map((u) => {
@@ -100,7 +124,7 @@ export class OfflineCustomerService {
       };
     });
 
-    return { customers: enriched, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    return { customers: enriched, total, recycleBinCount, page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
   async getCustomerDetail(customerId: string) {
@@ -324,6 +348,102 @@ export class OfflineCustomerService {
         ? { id: user.customerSubscriptions[0].id, planName: user.customerSubscriptions[0].plan.name, status: user.customerSubscriptions[0].status }
         : null,
       message: 'Customer is ready for reactivation. Create a new subscription.',
+    };
+  }
+
+  async moveToRecycleBin(customerId: string, reason?: string) {
+    const user = await prisma.user.findUnique({ where: { id: customerId } });
+    if (!user) throw new NotFoundException('Offline customer not found');
+
+    await prisma.user.update({
+      where: { id: customerId },
+      data: {
+        isActive: false,
+        deactivatedAt: new Date(),
+        deactivationReason: reason || 'DELETED_TO_RECYCLE_BIN',
+      },
+    });
+
+    await prisma.customerSubscription.updateMany({
+      where: {
+        customerId,
+        status: { in: ['ACTIVE', 'PENDING_CASH_COLLECTION', 'GRACE_PERIOD'] },
+      },
+      data: {
+        status: 'PAUSED',
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Offline customer moved to Recycle Bin',
+      customerId,
+    };
+  }
+
+  async restoreFromRecycleBin(customerId: string) {
+    const user = await prisma.user.findUnique({ where: { id: customerId } });
+    if (!user) throw new NotFoundException('Offline customer not found');
+
+    await prisma.user.update({
+      where: { id: customerId },
+      data: {
+        isActive: true,
+        deactivatedAt: null,
+        deactivationReason: null,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Offline customer restored to active list',
+      customerId,
+    };
+  }
+
+  async permanentDeleteCustomer(customerId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: customerId },
+      include: {
+        orders: { select: { id: true }, take: 1 },
+      },
+    });
+    if (!user) throw new NotFoundException('Customer not found');
+
+    if (user.orders.length > 0) {
+      await prisma.user.update({
+        where: { id: customerId },
+        data: {
+          name: 'Purged Offline Customer',
+          phone: null,
+          email: `purged.${randomUUID().slice(0, 8)}@offline.local`,
+          isActive: false,
+          deactivationReason: 'PERMANENTLY_PURGED',
+        },
+      });
+      await prisma.customerAddress.deleteMany({ where: { userId: customerId } });
+      return {
+        success: true,
+        message: 'Offline customer permanently purged (historical orders safely archived).',
+      };
+    }
+
+    await prisma.subscriptionDelivery.deleteMany({
+      where: { subscription: { customerId } },
+    });
+    await prisma.customerSubscription.deleteMany({
+      where: { customerId },
+    });
+    await prisma.customerAddress.deleteMany({
+      where: { userId: customerId },
+    });
+    await prisma.user.delete({
+      where: { id: customerId },
+    });
+
+    return {
+      success: true,
+      message: 'Offline customer permanently deleted.',
     };
   }
 }

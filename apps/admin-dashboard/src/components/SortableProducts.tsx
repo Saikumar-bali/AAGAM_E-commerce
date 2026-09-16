@@ -26,6 +26,7 @@ type Product = {
   name: string;
   description: string | null;
   price: number;
+  weightGrams?: number | null;
   image: string | null;
   isActive?: boolean;
   categoryId: string;
@@ -87,53 +88,64 @@ function SortableProduct({
       style={style}
       className={inactive || unavailable ? 'bg-gray-50/70 text-gray-400' : 'hover:bg-gray-50'}
     >
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-3">
+      <td className="px-3.5 py-2">
+        <div className="flex items-center gap-2.5">
           <button
             aria-label={`Reorder ${product.name}`}
             className="cursor-grab text-gray-400 hover:text-gray-600 active:cursor-grabbing"
             {...attributes}
             {...listeners}
           >
-            <GripVertical className="h-5 w-5" />
+            <GripVertical className="h-4 w-4" />
           </button>
-          <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
+          <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
             {product.image ? (
               <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
             ) : (
-              <ImageIcon className="h-5 w-5 text-gray-400" />
+              <ImageIcon className="h-4 w-4 text-gray-400" />
             )}
           </div>
-          <div>
-            <p className="text-sm font-black text-gray-950">{product.name}</p>
-            <p className="max-w-xs truncate text-xs font-semibold text-gray-500">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="truncate text-xs font-black text-gray-950">{product.name}</p>
+              {product.weightGrams ? (
+                <span className="inline-flex items-center rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 border border-sky-200 shrink-0" title="Delivery routing weight">
+                  {product.weightGrams >= 1000 ? `${(product.weightGrams / 1000).toFixed(1)}kg` : `${product.weightGrams}g`}
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded bg-amber-50 px-1 py-0.5 text-[9px] font-bold text-amber-600 border border-amber-200 shrink-0" title="Weight not set">
+                  No wt
+                </span>
+              )}
+            </div>
+            <p className="max-w-xs truncate text-[11px] font-medium text-gray-500">
               {inactive ? 'Globally hidden from customers' : product.description || 'No description'}
             </p>
           </div>
         </div>
       </td>
-      <td className="px-6 py-4">
-        <span className="inline-flex rounded-full bg-purple-50 px-3 py-1 text-xs font-black text-purple-700">
+      <td className="px-3.5 py-2">
+        <span className="inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-bold text-purple-700">
           {product.category?.name || 'Uncategorized'}
         </span>
       </td>
-      <td className="px-6 py-4 text-sm font-black text-gray-950">
+      <td className="px-3.5 py-2 text-xs font-black text-gray-950">
         ₹{Number(product.price || 0).toFixed(2)}
       </td>
-      <td className="px-6 py-4">
+      <td className="px-3.5 py-2">
         <div data-testid={`admin-stock-overview-${product.id}`}>
-          <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
-            <Store className="h-4 w-4 text-slate-400" />
-            <span className="text-sm font-black text-slate-800">
+          <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1">
+            <Store className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-xs font-black text-slate-800">
               {selectedStoreId ? `${quantity} units` : 'Select store'}
             </span>
           </div>
-          <p className="mt-1 text-[10px] font-bold text-slate-400">Managed by the Store Owner</p>
+          <p className="mt-0.5 text-[9px] font-bold text-slate-400">Store stock</p>
         </div>
       </td>
-      <td className="px-6 py-4">
+      <td className="px-3.5 py-2">
         <span
-          className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${
+          className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
             inactive
               ? 'bg-amber-100 text-amber-800'
               : unavailable
@@ -141,31 +153,31 @@ function SortableProduct({
                 : 'bg-emerald-50 text-emerald-700'
           }`}
         >
-          {inactive ? 'Catalogue inactive' : unavailable ? 'Store unavailable' : 'Store available'}
+          {inactive ? 'Inactive' : unavailable ? 'Out of stock' : `${quantity} in stock`}
         </span>
       </td>
-      <td className="px-6 py-4 text-right">
-        <div className="flex items-center justify-end gap-1">
+      <td className="px-3.5 py-2 text-right">
+        <div className="flex items-center justify-end gap-0.5">
           <button
             onClick={() => onToggleVisibility(product)}
-            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
             title={inactive ? 'Activate catalogue product' : 'Deactivate catalogue product'}
           >
-            {inactive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {inactive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
           </button>
           <button
             onClick={() => onEdit(product)}
-            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
             title="Edit catalogue product"
           >
-            <Edit className="h-4 w-4" />
+            <Edit className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => onDelete(product)}
-            className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"
+            className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
             title="Delete catalogue product"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
       </td>
