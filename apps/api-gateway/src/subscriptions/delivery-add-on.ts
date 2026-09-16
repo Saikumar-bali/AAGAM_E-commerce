@@ -29,11 +29,16 @@ const ADD_ON_PATTERN = /\[(?:EXTRA|ADD-ON):\s*([^|\]]+)\|?\s*(\d+)?(?:\|([^\]]*)
  */
 export function parseVolumeLiters(label: string): number | null {
   const text = label.toLowerCase();
-  const ml = text.match(/(\d+(?:\.\d+)?)\s*ml\b/);
+  // The `(?<!\d)` guards keep these patterns linear. Without them a long run of
+  // digits (e.g. a client-supplied `extraQuantity`) makes the engine retry the
+  // number from every digit position, so a crafted label could stall a request.
+  const ml = text.match(/(?<!\d)(\d+(?:\.\d+)?)\s*ml\b/);
   if (ml) return Number(ml[1]) / 1000;
-  const liters = text.match(/(\d+(?:\.\d+)?)\s*(?:l|lt|ltr|liter|litre)\b/);
+  const liters = text.match(/(?<!\d)(\d+(?:\.\d+)?)\s*(?:l|lt|ltr|liter|litre)\b/);
   if (liters) return Number(liters[1]);
-  const bare = text.match(/\+?\s*(\d+(?:\.\d+)?)\s*$/);
+  // Anchored without a trailing `\s*`, which made a run of spaces re-anchor at
+  // every position; `trimEnd` gives the same result in linear time.
+  const bare = text.trimEnd().match(/(?<!\d)\+?(\d+(?:\.\d+)?)$/);
   if (bare) return Number(bare[1]);
   return null;
 }
