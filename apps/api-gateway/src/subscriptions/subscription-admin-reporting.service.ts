@@ -429,6 +429,9 @@ export class SubscriptionAdminReportingService {
     // Callers resolve `storeId` (admins pick one; stores are bound to the store
     // they own and are verified before this call).
     const storeId = dto.storeId;
+    if (!storeId) {
+      throw new BadRequestException('storeId is required to register an offline customer');
+    }
 
     let customer = await prisma.user.findFirst({
       where: { OR: [{ phone: compactPhone }, { phone: dto.phone.trim() }] },
@@ -448,14 +451,26 @@ export class SubscriptionAdminReportingService {
         },
       });
     } else {
+      const isOfflineCustomer =
+        customer.acquisitionSource === 'OFFLINE_STORE' ||
+        customer.acquisitionSource === 'OFFLINE' ||
+        (customer.email && customer.email.startsWith('offline.'));
+
+      if (!isOfflineCustomer) {
+        throw new ConflictException('A registered customer with this phone number already exists.');
+      }
+
+      if (customer.offlineStoreId && customer.offlineStoreId !== storeId && actor?.role !== Role.ADMIN) {
+        throw new ConflictException('This customer is already registered with another store.');
+      }
+
       const patch: Prisma.UserUpdateInput = {};
       if (dto.name.trim() && dto.name.trim() !== (customer.name || '')) {
         // Persist an edited display name so admin edits are not silently dropped.
         patch.name = dto.name.trim();
       }
-      if (storeId && !customer.offlineStoreId) {
+      if (!customer.offlineStoreId && storeId) {
         patch.offlineStore = { connect: { id: storeId } };
-        patch.acquisitionSource = customer.acquisitionSource ?? 'OFFLINE_STORE';
       }
       if (Object.keys(patch).length > 0) {
         customer = await prisma.user.update({ where: { id: customer.id }, data: patch });

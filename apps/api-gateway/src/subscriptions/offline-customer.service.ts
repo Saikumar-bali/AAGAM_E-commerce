@@ -41,6 +41,7 @@ export class OfflineCustomerService {
    * or admin pause intact (`pauseReason` is the only discriminator the schema
    * offers for that distinction).
    */
+  private static readonly RECYCLE_BIN_PAUSE_PREFIX = 'OFFLINE_CUSTOMER_IN_RECYCLE_BIN:';
   private static readonly RECYCLE_BIN_PAUSE_REASON = 'OFFLINE_CUSTOMER_IN_RECYCLE_BIN';
 
   /**
@@ -104,8 +105,8 @@ export class OfflineCustomerService {
     return user;
   }
 
-  async listCustomers(params: { search?: string; storeId?: string; status?: string; recycleBin?: boolean; page?: number; pageSize?: number }) {
-    const { search, storeId, status, recycleBin = false, page = 1, pageSize = 25 } = params;
+  async listCustomers(params: { search?: string; storeId?: string; storeIds?: string[]; status?: string; recycleBin?: boolean; page?: number; pageSize?: number }) {
+    const { search, storeId, storeIds, status, recycleBin = false, page = 1, pageSize = 25 } = params;
     const skip = (page - 1) * pageSize;
 
     // Compose through AND so the offline-identity predicate survives. The old
@@ -137,18 +138,36 @@ export class OfflineCustomerService {
       (where.AND as Prisma.UserWhereInput[]).push({
         OR: [{ customerSubscriptions: { some: { homeStoreId: storeId } } }, { offlineStoreId: storeId }],
       });
+    } else if (storeIds && storeIds.length > 0) {
+      (where.AND as Prisma.UserWhereInput[]).push({
+        OR: [{ customerSubscriptions: { some: { homeStoreId: { in: storeIds } } } }, { offlineStoreId: { in: storeIds } }],
+      });
     }
+
+    const storeFilter: Prisma.CustomerSubscriptionWhereInput = storeId
+      ? { homeStoreId: storeId }
+      : storeIds && storeIds.length > 0
+      ? { homeStoreId: { in: storeIds } }
+      : {};
 
     if (status === 'inactive') {
       where.customerSubscriptions = {
         none: {
           status: { in: ['ACTIVE', 'PENDING_CASH_COLLECTION', 'GRACE_PERIOD'] },
-          ...(storeId ? { homeStoreId: storeId } : {}),
+          ...storeFilter,
         },
       };
     } else if (status === 'active') {
-      where.customerSubscriptions = { some: { status: 'ACTIVE', ...(storeId ? { homeStoreId: storeId } : {}) } };
+      where.customerSubscriptions = { some: { status: 'ACTIVE', ...storeFilter } };
     }
+
+    const recycleBinStorePredicate = storeId
+      ? [{ OR: [{ customerSubscriptions: { some: { homeStoreId: storeId } } }, { offlineStoreId: storeId }] }]
+      : storeIds && storeIds.length > 0
+      ? [{ OR: [{ customerSubscriptions: { some: { homeStoreId: { in: storeIds } } } }, { offlineStoreId: { in: storeIds } }] }]
+      : [];
+
+    const hasStoreScoping = Boolean(storeId || (storeIds && storeIds.length > 0));
 
     const [users, total, recycleBinCount] = await Promise.all([
       prisma.user.findMany({
@@ -159,6 +178,7 @@ export class OfflineCustomerService {
         include: {
           addresses: { take: 1, where: { isDefault: true } },
           customerSubscriptions: {
+            where: hasStoreScoping ? storeFilter : undefined,
             select: {
               id: true,
               status: true,
@@ -188,9 +208,7 @@ export class OfflineCustomerService {
             this.recycleBinState,
             // The bin badge must match the store's own scope, not the global
             // recycle bin, or a store sees a count it can never act on.
-            ...(storeId
-              ? [{ OR: [{ customerSubscriptions: { some: { homeStoreId: storeId } } }, { offlineStoreId: storeId }] }]
-              : []),
+            ...recycleBinStorePredicate,
           ],
         },
       }),
@@ -206,7 +224,7 @@ export class OfflineCustomerService {
         ...u,
         summary: {
           activeSubscriptions: activeSubs.length,
-          totalSubscriptions: u._count.customerSubscriptions,
+          totalSubscriptions: hasStoreScoping ? u.customerSubscriptions.length : u._count.customerSubscriptions,
           totalOrders: u._count.orders,
           totalCollectedPaise: totalCollected,
           totalDuePaise: totalDue,
@@ -226,6 +244,7 @@ export class OfflineCustomerService {
         addresses: true,
         _count: { select: { orders: true } },
         customerSubscriptions: {
+          where: actor && actor.role !== Role.ADMIN ? { homeStore: { ownerId: actor.id } } : undefined,
           include: {
             plan: { select: { id: true, name: true, code: true, pricePaise: true } },
             deliveries: { orderBy: { sequenceNumber: 'asc' } },
@@ -249,6 +268,15 @@ export class OfflineCustomerService {
     });
 
     if (!user) throw new NotFoundException('Customer not found');
+
+    const totalOrders = actor && actor.role !== Role.ADMIN
+      ? await prisma.order.count({
+          where: {
+            customerId,
+            store: { ownerId: actor.id },
+          },
+        })
+      : user._count.orders;
 
     let overallCollectedPaise = 0;
     let overallDuePaise = 0;
@@ -301,15 +329,18 @@ export class OfflineCustomerService {
         totalSubscriptions: subscriptions.length,
         activeSubscriptions: subscriptions.filter((s) => ['ACTIVE', 'PENDING_CASH_COLLECTION', 'GRACE_PERIOD'].includes(s.status)).length,
       },
-      totalOrders: user._count.orders,
+      totalOrders,
     };
   }
 
   async getDeliveryTracker(subscriptionId: string, actor?: OfflineCustomerActor) {
+    if (!actor) {
+      throw new ForbiddenException('Authentication required');
+    }
     const subscription = await prisma.customerSubscription.findFirst({
       where: {
         id: subscriptionId,
-        ...(actor && actor.role !== Role.ADMIN
+        ...(actor.role !== Role.ADMIN
           ? { homeStore: { ownerId: actor.id } }
           : {}),
       },
@@ -449,13 +480,38 @@ export class OfflineCustomerService {
   }
 
   async moveToRecycleBin(customerId: string, reason?: string, actor?: OfflineCustomerActor) {
-    // Only an active offline customer may be binned, and only by its owner.
+    // Only an active offline customer may be binned, and only by its owner or admin.
     await this.loadOfflineCustomer(customerId, 'active', actor, true);
+
+    if (actor && actor.role !== Role.ADMIN) {
+      const otherStoreSubscription = await prisma.customerSubscription.findFirst({
+        where: {
+          customerId,
+          homeStore: { ownerId: { not: actor.id } },
+        },
+        select: { id: true },
+      });
+      if (otherStoreSubscription) {
+        throw new ForbiddenException('Cannot move customer to Recycle Bin because they have subscriptions at another store');
+      }
+    }
+
+    const activeSubs = await prisma.customerSubscription.findMany({
+      where: {
+        customerId,
+        status: { in: ['ACTIVE', 'PENDING_CASH_COLLECTION', 'GRACE_PERIOD', 'PAYMENT_DUE'] },
+        ...(actor && actor.role !== Role.ADMIN ? { homeStore: { ownerId: actor.id } } : {}),
+      },
+      select: { id: true, status: true },
+    });
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
 
     // Both writes must land together: deactivating the user while leaving the
     // subscriptions ACTIVE would keep them in dispatch, and pausing the
     // subscriptions without deactivating the user would hide the failure.
-    // `pauseEffectiveFrom` is stamped to today so the order generator defers
+    // `pauseEffectiveFrom` is stamped to start of day so the order generator defers
     // every still-scheduled occurrence for the duration of the bin.
     await prisma.$transaction([
       prisma.user.update({
@@ -466,18 +522,17 @@ export class OfflineCustomerService {
           deactivationReason: reason || 'DELETED_TO_RECYCLE_BIN',
         },
       }),
-      prisma.customerSubscription.updateMany({
-        where: {
-          customerId,
-          status: { in: ['ACTIVE', 'PENDING_CASH_COLLECTION', 'GRACE_PERIOD'] },
-        },
-        data: {
-          status: 'PAUSED',
-          pausedAt: new Date(),
-          pauseEffectiveFrom: new Date(),
-          pauseReason: OfflineCustomerService.RECYCLE_BIN_PAUSE_REASON,
-        },
-      }),
+      ...activeSubs.map((sub) =>
+        prisma.customerSubscription.update({
+          where: { id: sub.id },
+          data: {
+            status: 'PAUSED',
+            pausedAt: new Date(),
+            pauseEffectiveFrom: startOfDay,
+            pauseReason: `${OfflineCustomerService.RECYCLE_BIN_PAUSE_PREFIX}${sub.status}`,
+          },
+        }),
+      ),
     ]);
 
     return {
@@ -493,32 +548,92 @@ export class OfflineCustomerService {
     // restored here.
     await this.loadOfflineCustomer(customerId, 'recycleBin', actor, true);
 
-    // Mirror moveToRecycleBin: reactivate the customer and lift the pause that
-    // the bin applied, so the milk-grid rows and dispatch resume together.
-    await prisma.$transaction([
-      prisma.user.update({
+    const pausedSubs = await prisma.customerSubscription.findMany({
+      where: {
+        customerId,
+        status: 'PAUSED',
+        OR: [
+          { pauseReason: { startsWith: OfflineCustomerService.RECYCLE_BIN_PAUSE_PREFIX } },
+          { pauseReason: OfflineCustomerService.RECYCLE_BIN_PAUSE_REASON },
+        ],
+        ...(actor && actor.role !== Role.ADMIN ? { homeStore: { ownerId: actor.id } } : {}),
+      },
+      select: {
+        id: true,
+        pauseReason: true,
+        pauseEffectiveFrom: true,
+        pausedAt: true,
+        remainingFundedDeliveries: true,
+        endDate: true,
+        nextDeliveryDate: true,
+      },
+    });
+
+    const now = new Date();
+
+    // Mirror moveToRecycleBin: reactivate the customer, restore prior subscription statuses,
+    // and shift deliveries that were paused while in the recycle bin.
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
         where: { id: customerId },
         data: {
           isActive: true,
           deactivatedAt: null,
           deactivationReason: null,
         },
-      }),
-      prisma.customerSubscription.updateMany({
-        where: {
-          customerId,
-          status: 'PAUSED',
-          pauseReason: OfflineCustomerService.RECYCLE_BIN_PAUSE_REASON,
-        },
-        data: {
-          status: 'ACTIVE',
-          pausedAt: null,
-          pauseEffectiveFrom: null,
-          pauseReason: null,
-          resumedAt: new Date(),
-        },
-      }),
-    ]);
+      });
+
+      for (const sub of pausedSubs) {
+        let priorStatus = 'ACTIVE';
+        if (sub.pauseReason?.startsWith(OfflineCustomerService.RECYCLE_BIN_PAUSE_PREFIX)) {
+          priorStatus = sub.pauseReason.slice(OfflineCustomerService.RECYCLE_BIN_PAUSE_PREFIX.length);
+        } else {
+          priorStatus = (sub.remainingFundedDeliveries ?? 0) > 0 ? 'ACTIVE' : 'PAYMENT_DUE';
+        }
+
+        const effective = sub.pauseEffectiveFrom ?? sub.pausedAt ?? now;
+        const shiftDays = Math.max(0, Math.ceil((now.getTime() - effective.getTime()) / 86_400_000));
+
+        if (shiftDays > 0) {
+          await tx.$executeRaw(Prisma.sql`
+            UPDATE "SubscriptionDelivery"
+            SET "serviceDate" = "serviceDate" + (${shiftDays} * INTERVAL '1 day'),
+                "rescheduledFromDate" = COALESCE("rescheduledFromDate", "serviceDate"),
+                "rescheduledToDate" = "serviceDate" + (${shiftDays} * INTERVAL '1 day'),
+                "updatedAt" = NOW()
+            WHERE "subscriptionId" = ${sub.id}
+              AND "status" = 'SCHEDULED'::"SubscriptionDeliveryStatus"
+              AND "serviceDate" >= ${effective}
+          `);
+        }
+
+        const latest = await tx.subscriptionDelivery.findFirst({
+          where: { subscriptionId: sub.id },
+          orderBy: { serviceDate: 'desc' },
+        });
+        const next = await tx.subscriptionDelivery.findFirst({
+          where: {
+            subscriptionId: sub.id,
+            status: 'SCHEDULED',
+            serviceDate: { gte: now },
+          },
+          orderBy: { serviceDate: 'asc' },
+        });
+
+        await tx.customerSubscription.update({
+          where: { id: sub.id },
+          data: {
+            status: priorStatus as any,
+            pausedAt: null,
+            pauseEffectiveFrom: null,
+            pauseReason: null,
+            resumedAt: now,
+            endDate: latest?.serviceDate ?? sub.endDate,
+            nextDeliveryDate: next?.serviceDate ?? sub.nextDeliveryDate,
+          },
+        });
+      }
+    });
 
     return {
       success: true,
@@ -560,6 +675,29 @@ export class OfflineCustomerService {
     // is already in the recycle bin and owned by the actor, so an arbitrary id
     // cannot be anonymized and another store's customer cannot be destroyed.
     await this.loadOfflineCustomer(customerId, 'recycleBin', actor, true);
+
+    if (actor && actor.role !== Role.ADMIN) {
+      const otherStoreSubscription = await prisma.customerSubscription.findFirst({
+        where: {
+          customerId,
+          homeStore: { ownerId: { not: actor.id } },
+        },
+        select: { id: true },
+      });
+      if (otherStoreSubscription) {
+        throw new ForbiddenException('Cannot permanently delete customer because they have subscriptions at another store');
+      }
+      const otherStoreOrder = await prisma.order.findFirst({
+        where: {
+          customerId,
+          store: { ownerId: { not: actor.id } },
+        },
+        select: { id: true },
+      });
+      if (otherStoreOrder) {
+        throw new ForbiddenException('Cannot permanently delete customer because they have orders at another store');
+      }
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: customerId },
