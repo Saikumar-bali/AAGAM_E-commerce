@@ -342,7 +342,7 @@ export class StoreMilkGridService {
       const extraPaise = action.extraPaise || (
         extraQty.includes('0.5') ? 4000 : extraQty.includes('2') ? 16000 : 8000
       );
-      const note = `[EVENING BUFFALO MILK: ${extraQty}|${extraPaise}] ${action.note || ''}`.trim();
+      const note = `[ADD-ON: ${extraQty}|${extraPaise}] ${action.note || ''}`.trim();
 
       const targetDeliveries = await prisma.subscriptionDelivery.findMany({
         where: {
@@ -360,7 +360,7 @@ export class StoreMilkGridService {
         prisma.subscriptionDelivery.updateMany({
           where: { id: { in: targetDeliveries.map((d) => d.id) } },
           data: {
-            deliverySlot: 'PM',
+            deliverySlot: action.targetSlot || 'PM',
             deferredReason: note,
             cashDuePaise: { increment: extraPaise },
           },
@@ -373,7 +373,7 @@ export class StoreMilkGridService {
         }),
       ]);
 
-      return { success: true, count: targetDeliveries.length, message: `Attached evening buffalo milk for ${targetDeliveries.length} days!` };
+      return { success: true, count: targetDeliveries.length, message: `Attached ${extraQty} (${action.targetSlot || 'PM'}) for ${targetDeliveries.length} day${targetDeliveries.length > 1 ? 's' : ''}!` };
     }
 
     if (action.type === 'EXTRA_MILK') {

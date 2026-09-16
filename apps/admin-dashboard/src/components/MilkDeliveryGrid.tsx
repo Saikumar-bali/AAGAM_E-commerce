@@ -28,6 +28,8 @@ import {
   CheckCheck,
   Maximize2,
   Minimize2,
+  Scale,
+  Package,
 } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 
@@ -74,6 +76,119 @@ interface GridData {
   totalSubscribers: number;
   rows: GridRow[];
   dailyTotals: Record<number, { deliveredCount: number; scheduledCount: number; totalLiters: number; cashCollectedPaise: number }>;
+}
+
+type AddonUnitType = 'weight' | 'count' | 'volume' | 'custom';
+
+interface CatalogProduct {
+  id: string;
+  name: string;
+  price: number;
+  unit?: string;
+  categoryName?: string;
+  weightGrams?: number | null;
+  details?: any;
+}
+
+interface AddonPreset {
+  label: string;
+  qtyLabel: string;
+  multiplier: number;
+}
+
+function detectProductUnitType(product?: { name: string; unit?: string; categoryName?: string; details?: any }): AddonUnitType {
+  if (!product) return 'volume';
+  const name = (product.name || '').toLowerCase();
+  const unit = (product.unit || product.details?.unit || '').toLowerCase();
+  const category = (product.categoryName || product.details?.category || '').toLowerCase();
+
+  // 1. Explicit unit match
+  if (['g', 'gm', 'gms', 'gram', 'grams', 'kg', 'kgs', 'kilo', 'kilogram'].includes(unit)) {
+    return 'weight';
+  }
+  if (['l', 'ltr', 'liter', 'liters', 'litre', 'litres', 'ml'].includes(unit)) {
+    return 'volume';
+  }
+  if (['bowl', 'bowls', 'plate', 'plates', 'pack', 'packs', 'packet', 'packets', 'piece', 'pieces', 'pc', 'pcs', 'unit', 'units', 'box', 'boxes', 'bunch', 'bunches', 'tray', 'dozen'].includes(unit)) {
+    return 'count';
+  }
+
+  // 2. Bowl / Pack / Prepared item check
+  if (name.includes('bowl') || name.includes('salad') || name.includes('sprout') || name.includes('combo') || name.includes('meal') || name.includes('box') || name.includes('bunch') || name.includes('dozen') || name.includes('bread') || name.includes('egg')) {
+    return 'count';
+  }
+
+  // 3. Liquid / Dairy check
+  if (
+    category.includes('dairy') || 
+    category.includes('milk') || 
+    category.includes('beverage') || 
+    category.includes('juice') || 
+    category.includes('oil') ||
+    name.includes('milk') || 
+    name.includes('curd') || 
+    name.includes('dahi') || 
+    name.includes('lassi') || 
+    name.includes('buttermilk') || 
+    name.includes('juice') || 
+    name.includes('ghee') || 
+    name.includes('oil') ||
+    name.includes('water')
+  ) {
+    return 'volume';
+  }
+
+  // 4. Produce / Fruits / Vegetables / Dry fruits / Groceries default to weight
+  return 'weight';
+}
+
+function getAddonPresets(unitType: AddonUnitType, product?: CatalogProduct): AddonPreset[] {
+  if (unitType === 'weight') {
+    return [
+      { label: '250g (0.25 kg)', qtyLabel: '250g', multiplier: 0.25 },
+      { label: '500g (0.5 kg)', qtyLabel: '500g', multiplier: 0.5 },
+      { label: '1 kg (Standard)', qtyLabel: '1 kg', multiplier: 1.0 },
+      { label: '1.5 kg', qtyLabel: '1.5 kg', multiplier: 1.5 },
+      { label: '2 kg (2x)', qtyLabel: '2 kg', multiplier: 2.0 },
+      { label: '3 kg (3x)', qtyLabel: '3 kg', multiplier: 3.0 },
+      { label: '5 kg (Bulk)', qtyLabel: '5 kg', multiplier: 5.0 },
+    ];
+  }
+
+  if (unitType === 'count') {
+    const nameLower = (product?.name || '').toLowerCase();
+    const isBowl = nameLower.includes('bowl');
+    const isPack = nameLower.includes('pack') || nameLower.includes('box');
+    const isBunch = nameLower.includes('bunch');
+    const isPiece = nameLower.includes('piece') || nameLower.includes('egg');
+    
+    const singular = isBowl ? 'Bowl' : isPack ? 'Pack' : isBunch ? 'Bunch' : isPiece ? 'Piece' : 'Unit';
+    const plural = isBowl ? 'Bowls' : isPack ? 'Packs' : isBunch ? 'Bunches' : isPiece ? 'Pieces' : 'Units';
+    
+    const weightGrams = product?.weightGrams || (product?.details?.weight ? parseInt(product.details.weight) : null);
+    const weightNote = weightGrams ? ` (~${weightGrams}g)` : '';
+
+    return [
+      { label: `1 ${singular}${weightNote}`, qtyLabel: `1 ${singular}${weightNote}`, multiplier: 1.0 },
+      { label: `2 ${plural}${weightGrams ? ` (~${weightGrams * 2}g)` : ''}`, qtyLabel: `2 ${plural}`, multiplier: 2.0 },
+      { label: `3 ${plural}${weightGrams ? ` (~${weightGrams * 3}g)` : ''}`, qtyLabel: `3 ${plural}`, multiplier: 3.0 },
+      { label: `4 ${plural}`, qtyLabel: `4 ${plural}`, multiplier: 4.0 },
+      { label: `5 ${plural}`, qtyLabel: `5 ${plural}`, multiplier: 5.0 },
+    ];
+  }
+
+  if (unitType === 'volume') {
+    return [
+      { label: '0.25 Liter (250 ml)', qtyLabel: '0.25L', multiplier: 0.25 },
+      { label: '0.5 Liter (500 ml)', qtyLabel: '0.5L', multiplier: 0.5 },
+      { label: '1 Liter (1x)', qtyLabel: '1L', multiplier: 1.0 },
+      { label: '1.5 Liters (1.5x)', qtyLabel: '1.5L', multiplier: 1.5 },
+      { label: '2 Liters (2x)', qtyLabel: '2L', multiplier: 2.0 },
+      { label: '3 Liters (3x)', qtyLabel: '3L', multiplier: 3.0 },
+    ];
+  }
+
+  return [];
 }
 
 export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }) {
@@ -139,14 +254,16 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
   const [statementLoading, setStatementLoading] = useState(false);
 
   // Custom action inputs & Dynamic Products
-  const [catalogProducts, setCatalogProducts] = useState<Array<{ id: string; name: string; price: number; unit?: string }>>([]);
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>('custom');
   const [customProductName, setCustomProductName] = useState<string>('Buffalo Milk');
   const [customUnitPrice, setCustomUnitPrice] = useState<string>('80');
-  const [extraQtyMultiplier, setExtraQtyMultiplier] = useState<string>('1L');
+  const [addonUnitMode, setAddonUnitMode] = useState<AddonUnitType>('volume');
+  const [selectedPresetLabel, setSelectedPresetLabel] = useState<string>('1L');
+  const [customQtyText, setCustomQtyText] = useState<string>('1 Unit');
+  const [customQtyMultiplier, setCustomQtyMultiplier] = useState<string>('1.0');
   const [extraTargetSlot, setExtraTargetSlot] = useState<'PM' | 'AM'>('PM');
   const [modalTab, setModalTab] = useState<'actions' | 'extra' | 'payment'>('actions');
-  const [extraQuantity, setExtraQuantity] = useState('+1L BM');
   const [consecutiveDays, setConsecutiveDays] = useState(4);
   const [paymentAmount, setPaymentAmount] = useState('80');
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'PHONE_PE'>('CASH');
@@ -159,13 +276,16 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
       .then((res) => {
         if (!isMounted) return;
         const list = Array.isArray(res.data) ? res.data : [];
-        const formatted = list
+        const formatted: CatalogProduct[] = list
           .filter((p: any) => p.isActive !== false)
           .map((p: any) => ({
             id: p.id,
             name: p.name,
             price: Number(p.price || 0),
             unit: p.details?.unit || '',
+            categoryName: p.category?.name || '',
+            weightGrams: p.weightGrams ?? (p.details?.weight ? parseInt(p.details.weight) : null),
+            details: p.details || {},
           }));
         if (formatted.length > 0) {
           setCatalogProducts(formatted);
@@ -176,6 +296,10 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
             setSelectedProductId(defaultProd.id);
             setCustomUnitPrice(String(defaultProd.price));
             setCustomProductName(defaultProd.name);
+            const mode = detectProductUnitType(defaultProd);
+            setAddonUnitMode(mode);
+            const presets = getAddonPresets(mode, defaultProd);
+            setSelectedPresetLabel(presets[mode === 'weight' ? 1 : mode === 'volume' ? 2 : 0]?.qtyLabel || '1L');
           }
         }
       })
@@ -185,11 +309,14 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
           .then((res) => {
             if (!isMounted) return;
             const items = Array.isArray(res.data) ? res.data : res.data?.items || [];
-            const formatted: Array<{ id: string; name: string; price: number; unit?: string }> = items.map((p: any) => ({
+            const formatted: CatalogProduct[] = items.map((p: any) => ({
               id: p.id,
               name: p.name,
               price: Number(p.price || 0),
               unit: p.details?.unit || '',
+              categoryName: p.category?.name || '',
+              weightGrams: p.weightGrams ?? (p.details?.weight ? parseInt(p.details.weight) : null),
+              details: p.details || {},
             }));
             if (formatted.length > 0) {
               setCatalogProducts(formatted);
@@ -199,6 +326,10 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
                 setSelectedProductId(defaultProd.id);
                 setCustomUnitPrice(String(defaultProd.price));
                 setCustomProductName(defaultProd.name);
+                const mode = detectProductUnitType(defaultProd);
+                setAddonUnitMode(mode);
+                const presets = getAddonPresets(mode, defaultProd);
+                setSelectedPresetLabel(presets[mode === 'weight' ? 1 : mode === 'volume' ? 2 : 0]?.qtyLabel || '1L');
               }
             }
           })
@@ -1139,19 +1270,27 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
         const activeProd = catalogProducts.find((p) => p.id === selectedProductId);
         const effectiveName = activeProd ? activeProd.name : customProductName;
         const effectiveUnitPrice = activeProd ? activeProd.price : Math.max(0, Number(customUnitPrice || 0));
-        const multiplier =
-          extraQtyMultiplier === '0.25L'
-            ? 0.25
-            : extraQtyMultiplier === '0.5L'
-            ? 0.5
-            : extraQtyMultiplier === '1.5L'
-            ? 1.5
-            : extraQtyMultiplier === '2L'
-            ? 2
-            : 1;
+
+        const presets = getAddonPresets(addonUnitMode, activeProd);
+        const matchedPreset = presets.find((pr) => pr.qtyLabel === selectedPresetLabel) || presets[0];
+
+        let multiplier = 1.0;
+        let displayQty = '';
+
+        if (addonUnitMode === 'custom') {
+          displayQty = customQtyText || '1 Unit';
+          multiplier = Math.max(0.01, Number(customQtyMultiplier || 1.0));
+        } else if (matchedPreset) {
+          displayQty = matchedPreset.qtyLabel;
+          multiplier = matchedPreset.multiplier;
+        } else {
+          displayQty = '1 Unit';
+          multiplier = 1.0;
+        }
+
         const perDayPrice = Math.round(effectiveUnitPrice * multiplier);
         const perDayPaise = perDayPrice * 100;
-        const extraLabel = `+${extraQtyMultiplier} ${effectiveName}`;
+        const extraLabel = `+${displayQty} ${effectiveName}`;
         const totalEveningExtraPrice = perDayPrice * consecutiveDays;
         const customerDueRupees = Math.max(0, Math.round(selectedCell.row.totalDuePaise / 100));
 
@@ -1329,25 +1468,57 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
                       </div>
                     )}
 
-                    {/* TAB 2: EXTRA MILK & EVENING ADD-ON */}
+                    {/* TAB 2: EXTRA MILK / PRODUCE / BOWL ADD-ON */}
                     {modalTab === 'extra' && (
                       <div className="space-y-3.5">
-                        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+                          {/* Dynamic Header */}
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5 font-black text-xs text-indigo-950">
-                              <Moon className="h-4 w-4 text-indigo-600" />
-                              <span>Dynamic Dairy Product Add-on</span>
+                            <div className="flex items-center gap-1.5 font-black text-xs">
+                              {addonUnitMode === 'weight' ? (
+                                <>
+                                  <Scale className="h-4 w-4 text-emerald-600" />
+                                  <span className="text-emerald-950">Fresh Produce & Weight-based Add-on</span>
+                                </>
+                              ) : addonUnitMode === 'count' ? (
+                                <>
+                                  <Package className="h-4 w-4 text-amber-600" />
+                                  <span className="text-amber-950">Fruit Bowls & Packaged Add-on</span>
+                                </>
+                              ) : addonUnitMode === 'volume' ? (
+                                <>
+                                  <Milk className="h-4 w-4 text-indigo-600" />
+                                  <span className="text-indigo-950">Fresh Dairy & Liquid Add-on</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Zap className="h-4 w-4 text-purple-600" />
+                                  <span className="text-purple-950">Custom Store Product Add-on</span>
+                                </>
+                              )}
                             </div>
-                            <span className="rounded-md bg-indigo-200/80 px-2 py-0.5 text-[10px] font-black text-indigo-900">
+                            <span
+                              className={`rounded-md px-2 py-0.5 text-[10px] font-black ${
+                                extraTargetSlot === 'PM'
+                                  ? 'bg-indigo-100 text-indigo-900'
+                                  : 'bg-amber-100 text-amber-900'
+                              }`}
+                            >
                               {extraTargetSlot} Shift
                             </span>
                           </div>
 
-                          <p className="text-xs text-indigo-700">
-                            Select any product from your store catalog or enter custom quantity & price.
+                          <p className="text-xs text-slate-600">
+                            {addonUnitMode === 'weight'
+                              ? 'Select portion in grams or kilograms for fresh fruits, vegetables, and weight items.'
+                              : addonUnitMode === 'count'
+                              ? 'Select fruit bowls, salads, or meal packs with portion weights and quantities.'
+                              : addonUnitMode === 'volume'
+                              ? 'Select dairy milk, curd, or liquid beverages measured in liters & milliliters.'
+                              : 'Enter customized item quantity, weight specifications, and unit price.'}
                           </p>
 
-                          <div className="space-y-2">
+                          <div className="space-y-2.5">
                             {/* Product selection */}
                             <div>
                               <label className="block text-[11px] font-bold text-slate-700">Catalog Product</label>
@@ -1360,21 +1531,100 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
                                   if (match) {
                                     setCustomUnitPrice(String(match.price));
                                     setCustomProductName(match.name);
+                                    const mode = detectProductUnitType(match);
+                                    setAddonUnitMode(mode);
+                                    const modePresets = getAddonPresets(mode, match);
+                                    const defaultPreset =
+                                      modePresets[mode === 'weight' ? 1 : mode === 'volume' ? 2 : 0] || modePresets[0];
+                                    if (defaultPreset) {
+                                      setSelectedPresetLabel(defaultPreset.qtyLabel);
+                                    }
                                   }
                                 }}
-                                className="mt-1 h-9 w-full rounded-xl border border-indigo-300 bg-white px-3 text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                                className="mt-1 h-9 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
                               >
                                 {catalogProducts.length > 0 && (
                                   <optgroup label="Store Products">
-                                    {catalogProducts.map((p) => (
-                                      <option key={p.id} value={p.id}>
-                                        {p.name} — ₹{p.price}
-                                      </option>
-                                    ))}
+                                    {catalogProducts.map((p) => {
+                                      const wtText = p.weightGrams ? `${p.weightGrams}g` : p.unit || '';
+                                      return (
+                                        <option key={p.id} value={p.id}>
+                                          {p.name} — ₹{p.price}
+                                          {wtText ? ` (${wtText})` : ''}
+                                        </option>
+                                      );
+                                    })}
                                   </optgroup>
                                 )}
                                 <option value="custom">Custom Product / Manual Rate</option>
                               </select>
+                            </div>
+
+                            {/* Measurement / Unit Mode Tabs */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                                Unit Measurement Mode
+                              </label>
+                              <div className="grid grid-cols-4 gap-1 rounded-xl bg-slate-200/70 p-1 text-[11px] font-bold">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAddonUnitMode('weight');
+                                    const pList = getAddonPresets('weight', activeProd);
+                                    setSelectedPresetLabel(pList[1]?.qtyLabel || '500g');
+                                  }}
+                                  className={`flex items-center justify-center gap-1 rounded-lg py-1.5 transition-all text-[11px] ${
+                                    addonUnitMode === 'weight'
+                                      ? 'bg-white text-emerald-800 shadow-xs font-black'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  <Scale className="h-3 w-3 text-emerald-600" /> Grams / Kg
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAddonUnitMode('count');
+                                    const pList = getAddonPresets('count', activeProd);
+                                    setSelectedPresetLabel(pList[0]?.qtyLabel || '1 Unit');
+                                  }}
+                                  className={`flex items-center justify-center gap-1 rounded-lg py-1.5 transition-all text-[11px] ${
+                                    addonUnitMode === 'count'
+                                      ? 'bg-white text-amber-800 shadow-xs font-black'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  <Package className="h-3 w-3 text-amber-600" /> Bowls / Pk
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAddonUnitMode('volume');
+                                    const pList = getAddonPresets('volume', activeProd);
+                                    setSelectedPresetLabel(pList[2]?.qtyLabel || '1L');
+                                  }}
+                                  className={`flex items-center justify-center gap-1 rounded-lg py-1.5 transition-all text-[11px] ${
+                                    addonUnitMode === 'volume'
+                                      ? 'bg-white text-indigo-800 shadow-xs font-black'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  <Milk className="h-3 w-3 text-indigo-600" /> Liters / ml
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAddonUnitMode('custom');
+                                  }}
+                                  className={`flex items-center justify-center gap-1 rounded-lg py-1.5 transition-all text-[11px] ${
+                                    addonUnitMode === 'custom'
+                                      ? 'bg-white text-purple-800 shadow-xs font-black'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  <Zap className="h-3 w-3 text-purple-600" /> Custom
+                                </button>
+                              </div>
                             </div>
 
                             {/* Custom Name & Unit Price if selected */}
@@ -1386,8 +1636,8 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
                                     type="text"
                                     value={customProductName}
                                     onChange={(e) => setCustomProductName(e.target.value)}
-                                    placeholder="e.g. Buffalo Milk"
-                                    className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-bold text-slate-900 outline-none"
+                                    placeholder="e.g. Mixed Fruit Bowl"
+                                    className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold text-slate-900 outline-none"
                                   />
                                 </div>
                                 <div>
@@ -1398,35 +1648,75 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
                                     value={customUnitPrice}
                                     onChange={(e) => setCustomUnitPrice(e.target.value)}
                                     placeholder="80"
-                                    className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-bold text-slate-900 outline-none"
+                                    className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold text-slate-900 outline-none"
                                   />
                                 </div>
                               </div>
                             )}
 
-                            {/* Qty & Shift controls */}
-                            <div className="grid grid-cols-3 gap-2 pt-1">
-                              <div>
-                                <label className="block text-[10px] font-bold text-slate-600">Pack Qty</label>
-                                <select
-                                  value={extraQtyMultiplier}
-                                  onChange={(e) => setExtraQtyMultiplier(e.target.value)}
-                                  className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-black text-indigo-950"
-                                >
-                                  <option value="0.25L">0.25 Liter (0.25x)</option>
-                                  <option value="0.5L">0.5 Liter (0.5x)</option>
-                                  <option value="1L">1 Liter (1x)</option>
-                                  <option value="1.5L">1.5 Liter (1.5x)</option>
-                                  <option value="2L">2 Liters (2x)</option>
-                                </select>
-                              </div>
+                            {/* Quantity selection based on unit mode */}
+                            <div className="pt-1">
+                              {addonUnitMode === 'custom' ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-600">
+                                      Custom Portion / Qty Label
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={customQtyText}
+                                      onChange={(e) => setCustomQtyText(e.target.value)}
+                                      placeholder="e.g. 350g Bowl / 6 Pcs"
+                                      className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold text-slate-900 outline-none"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-600">
+                                      Price Multiplier (x)
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="0.05"
+                                      min="0.1"
+                                      value={customQtyMultiplier}
+                                      onChange={(e) => setCustomQtyMultiplier(e.target.value)}
+                                      placeholder="1.0"
+                                      className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold text-slate-900 outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-600">
+                                    {addonUnitMode === 'weight'
+                                      ? 'Portion Weight (Grams / Kg)'
+                                      : addonUnitMode === 'count'
+                                      ? 'Quantity / Bowls with Weight'
+                                      : 'Portion Volume (Liters)'}
+                                  </label>
+                                  <select
+                                    value={selectedPresetLabel}
+                                    onChange={(e) => setSelectedPresetLabel(e.target.value)}
+                                    className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-black text-slate-900"
+                                  >
+                                    {presets.map((pr) => (
+                                      <option key={pr.qtyLabel} value={pr.qtyLabel}>
+                                        {pr.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                            </div>
 
+                            {/* Duration & Shift Target */}
+                            <div className="grid grid-cols-2 gap-2 pt-1">
                               <div>
                                 <label className="block text-[10px] font-bold text-slate-600">Consecutive Days</label>
                                 <select
                                   value={consecutiveDays}
                                   onChange={(e) => setConsecutiveDays(Number(e.target.value))}
-                                  className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-black text-indigo-950"
+                                  className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-black text-slate-900"
                                 >
                                   <option value={1}>1 Day (Single)</option>
                                   <option value={2}>2 Days</option>
@@ -1445,12 +1735,25 @@ export default function MilkDeliveryGrid({ onReload }: { onReload?: () => void }
                                 <select
                                   value={extraTargetSlot}
                                   onChange={(e) => setExtraTargetSlot(e.target.value as any)}
-                                  className="mt-0.5 h-8 w-full rounded-lg border border-indigo-300 bg-white px-2 text-xs font-black text-indigo-950"
+                                  className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-black text-slate-900"
                                 >
                                   <option value="PM">PM Shift (Evening)</option>
                                   <option value="AM">AM Shift (Morning)</option>
                                 </select>
                               </div>
+                            </div>
+
+                            {/* Live Calculation summary preview */}
+                            <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-xs flex items-center justify-between font-medium text-slate-600">
+                              <span>
+                                Adding: <strong className="text-slate-900">{extraLabel}</strong>
+                              </span>
+                              <span className="font-bold text-slate-900">
+                                ₹{perDayPrice}/day
+                                {consecutiveDays > 1 && (
+                                  <span className="text-emerald-700 ml-1">(Total: ₹{totalEveningExtraPrice})</span>
+                                )}
+                              </span>
                             </div>
                           </div>
 
