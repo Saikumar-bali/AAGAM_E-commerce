@@ -552,6 +552,16 @@ export class StoreSubscriptionsController {
     // Pin ownership to a store the caller controls, so the created customer is
     // manageable (and only manageable) from that store's portal.
     if (req.user.role !== Role.ADMIN) {
+      const ownedStores = await prisma.store.findMany({
+        where: { ownerId: req.user.id },
+        select: { id: true },
+      });
+      if (ownedStores.length === 0) {
+        throw new ForbiddenException('You do not own any stores');
+      }
+      if (!body.storeId && ownedStores.length > 1) {
+        throw new BadRequestException('storeId is required when managing multiple stores');
+      }
       const ownedStore = body.storeId
         ? await prisma.store.findFirst({ where: { id: body.storeId, ownerId: req.user.id } })
         : await prisma.store.findFirst({ where: { ownerId: req.user.id } });

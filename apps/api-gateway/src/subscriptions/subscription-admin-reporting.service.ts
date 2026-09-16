@@ -15,6 +15,7 @@ import { AdminSubscriptionCorrectionDto, ResolveSubscriptionIssueDto } from './s
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { isOneOf } from '../common/enum-membership';
+import { normalizePhoneE164 } from '../contact-verification/contact-otp.service';
 
 function deliveryContact(snapshot: Prisma.JsonValue) {
   const address = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)
@@ -433,8 +434,26 @@ export class SubscriptionAdminReportingService {
       throw new BadRequestException('storeId is required to register an offline customer');
     }
 
+    const store = await prisma.store.findUnique({ where: { id: storeId } });
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    let e164Phone: string | null = null;
+    try {
+      e164Phone = normalizePhoneE164(dto.phone);
+    } catch {
+      e164Phone = `+91${compactPhone}`;
+    }
+
     let customer = await prisma.user.findFirst({
-      where: { OR: [{ phone: compactPhone }, { phone: dto.phone.trim() }] },
+      where: {
+        OR: [
+          { phone: compactPhone },
+          ...(e164Phone ? [{ phone: e164Phone }] : []),
+          { phone: dto.phone.trim() },
+        ],
+      },
     });
 
     if (!customer) {
@@ -454,7 +473,7 @@ export class SubscriptionAdminReportingService {
       const isOfflineCustomer =
         customer.acquisitionSource === 'OFFLINE_STORE' ||
         customer.acquisitionSource === 'OFFLINE' ||
-        (customer.email && customer.email.startsWith('offline.'));
+        (customer.email && customer.email.endsWith('@aagaam.local') && customer.email.startsWith('offline.'));
 
       if (!isOfflineCustomer) {
         throw new ConflictException('A registered customer with this phone number already exists.');
@@ -462,6 +481,19 @@ export class SubscriptionAdminReportingService {
 
       if (customer.offlineStoreId && customer.offlineStoreId !== storeId && actor?.role !== Role.ADMIN) {
         throw new ConflictException('This customer is already registered with another store.');
+      }
+
+      if (actor && actor.role !== Role.ADMIN) {
+        const otherStoreSub = await prisma.customerSubscription.findFirst({
+          where: {
+            customerId: customer.id,
+            homeStore: { ownerId: { not: actor.id } },
+          },
+          select: { id: true },
+        });
+        if (otherStoreSub) {
+          throw new ConflictException('This customer has subscriptions registered with another store.');
+        }
       }
 
       const patch: Prisma.UserUpdateInput = {};

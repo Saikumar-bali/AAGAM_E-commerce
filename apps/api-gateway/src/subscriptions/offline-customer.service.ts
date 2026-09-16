@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Role, prisma } from '@aagam/database';
+import { startOfUtcDay } from './subscription-calendar.service';
 
 export type OfflineCustomerActor = { id: string; role: Role };
 
@@ -14,7 +15,7 @@ export class OfflineCustomerService {
   private readonly offlineIdentity: Prisma.UserWhereInput = {
     role: Role.CUSTOMER,
     OR: [
-      { email: { startsWith: 'offline.' } },
+      { email: { startsWith: 'offline.', endsWith: '@aagaam.local' } },
       // 'OFFLINE' is the legacy value; store-created customers are stamped
       // 'OFFLINE_STORE', so both must match for the segment to stay queryable.
       { acquisitionSource: { in: ['OFFLINE', 'OFFLINE_STORE'] } },
@@ -169,6 +170,12 @@ export class OfflineCustomerService {
 
     const hasStoreScoping = Boolean(storeId || (storeIds && storeIds.length > 0));
 
+    const storeOrderFilter: Prisma.OrderWhereInput | undefined = storeId
+      ? { storeId }
+      : storeIds && storeIds.length > 0
+      ? { storeId: { in: storeIds } }
+      : undefined;
+
     const [users, total, recycleBinCount] = await Promise.all([
       prisma.user.findMany({
         where,
@@ -196,8 +203,18 @@ export class OfflineCustomerService {
             },
             orderBy: { createdAt: 'desc' },
           },
-          _count: { select: { orders: true, customerSubscriptions: true } },
-          orders: { take: 1, orderBy: { createdAt: 'desc' as const }, select: { createdAt: true } },
+          _count: {
+            select: {
+              orders: storeOrderFilter ? { where: storeOrderFilter } : true,
+              customerSubscriptions: hasStoreScoping ? { where: storeFilter } : true,
+            },
+          },
+          orders: {
+            where: storeOrderFilter,
+            take: 1,
+            orderBy: { createdAt: 'desc' as const },
+            select: { createdAt: true },
+          },
         },
       }),
       prisma.user.count({ where }),
@@ -494,6 +511,16 @@ export class OfflineCustomerService {
       if (otherStoreSubscription) {
         throw new ForbiddenException('Cannot move customer to Recycle Bin because they have subscriptions at another store');
       }
+      const otherStoreOrder = await prisma.order.findFirst({
+        where: {
+          customerId,
+          store: { ownerId: { not: actor.id } },
+        },
+        select: { id: true },
+      });
+      if (otherStoreOrder) {
+        throw new ForbiddenException('Cannot move customer to Recycle Bin because they have orders at another store');
+      }
     }
 
     const activeSubs = await prisma.customerSubscription.findMany({
@@ -505,8 +532,7 @@ export class OfflineCustomerService {
       select: { id: true, status: true },
     });
 
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const pauseEffectiveFrom = startOfUtcDay(new Date());
 
     // Both writes must land together: deactivating the user while leaving the
     // subscriptions ACTIVE would keep them in dispatch, and pausing the
@@ -528,7 +554,7 @@ export class OfflineCustomerService {
           data: {
             status: 'PAUSED',
             pausedAt: new Date(),
-            pauseEffectiveFrom: startOfDay,
+            pauseEffectiveFrom,
             pauseReason: `${OfflineCustomerService.RECYCLE_BIN_PAUSE_PREFIX}${sub.status}`,
           },
         }),
@@ -547,6 +573,29 @@ export class OfflineCustomerService {
     // `recycleBinState` excludes purged rows, so a purged customer cannot be
     // restored here.
     await this.loadOfflineCustomer(customerId, 'recycleBin', actor, true);
+
+    if (actor && actor.role !== Role.ADMIN) {
+      const otherStoreSubscription = await prisma.customerSubscription.findFirst({
+        where: {
+          customerId,
+          homeStore: { ownerId: { not: actor.id } },
+        },
+        select: { id: true },
+      });
+      if (otherStoreSubscription) {
+        throw new ForbiddenException('Cannot restore customer because they have subscriptions at another store');
+      }
+      const otherStoreOrder = await prisma.order.findFirst({
+        where: {
+          customerId,
+          store: { ownerId: { not: actor.id } },
+        },
+        select: { id: true },
+      });
+      if (otherStoreOrder) {
+        throw new ForbiddenException('Cannot restore customer because they have orders at another store');
+      }
+    }
 
     const pausedSubs = await prisma.customerSubscription.findMany({
       where: {
@@ -591,8 +640,9 @@ export class OfflineCustomerService {
           priorStatus = (sub.remainingFundedDeliveries ?? 0) > 0 ? 'ACTIVE' : 'PAYMENT_DUE';
         }
 
-        const effective = sub.pauseEffectiveFrom ?? sub.pausedAt ?? now;
-        const shiftDays = Math.max(0, Math.ceil((now.getTime() - effective.getTime()) / 86_400_000));
+        const nowUtc = startOfUtcDay(now);
+        const effectiveUtc = startOfUtcDay(sub.pauseEffectiveFrom ?? sub.pausedAt ?? now);
+        const shiftDays = Math.max(0, Math.round((nowUtc.getTime() - effectiveUtc.getTime()) / 86_400_000));
 
         if (shiftDays > 0) {
           await tx.$executeRaw(Prisma.sql`
@@ -603,7 +653,7 @@ export class OfflineCustomerService {
                 "updatedAt" = NOW()
             WHERE "subscriptionId" = ${sub.id}
               AND "status" = 'SCHEDULED'::"SubscriptionDeliveryStatus"
-              AND "serviceDate" >= ${effective}
+              AND "serviceDate" >= ${effectiveUtc}
           `);
         }
 

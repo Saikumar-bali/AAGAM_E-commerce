@@ -368,6 +368,7 @@ export class SubscriptionOrderGenerator {
             CustomerSubscriptionStatus.CANCELLED,
             CustomerSubscriptionStatus.COMPLETED,
           ] },
+          customer: { isActive: true },
         },
       },
       include: { subscription: { include: { plan: true, deliveryZone: true } } },
