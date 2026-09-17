@@ -54,4 +54,7 @@ export class CheckoutPlaceOrderDto {
   @IsOptional()
   @IsISO8601({ strict: true })
   deliveryWindowEnd?: string;
+
+  @IsOptional()
+  storeDelivery?: boolean;
 }

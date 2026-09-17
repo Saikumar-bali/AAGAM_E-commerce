@@ -15,6 +15,7 @@ export class CustomerDeliveryContextController {
       select: {
         id: true,
         status: true,
+        storeDelivery: true,
         updatedAt: true,
         deliveryJob: {
           select: {
@@ -31,6 +32,7 @@ export class CustomerDeliveryContextController {
     return {
       orderId: order.id,
       orderStatus: order.status,
+      storeDelivery: order.storeDelivery,
       deliveryJobId: order.deliveryJob?.id || null,
       deliveryStatus: order.deliveryJob?.status || null,
       updatedAt: order.deliveryJob?.updatedAt || order.updatedAt,

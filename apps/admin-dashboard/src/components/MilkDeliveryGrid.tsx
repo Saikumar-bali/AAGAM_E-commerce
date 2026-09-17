@@ -44,6 +44,13 @@ interface GridCell {
   cashDuePaise: number;
   paymentMode: 'CASH' | 'PHONE_PE' | 'DUE' | null;
   note: string | null;
+  planLabel: string | null;
+}
+
+interface PlanInfo {
+  name: string;
+  dailyQuantity: string;
+  dayRange: string;
 }
 
 interface GridRow {
@@ -53,6 +60,7 @@ interface GridRow {
     name: string;
     phone: string;
     address: string;
+    customerType: 'online' | 'offline';
   };
   plan: {
     id: string;
@@ -61,6 +69,7 @@ interface GridRow {
     dailyQuantity: string;
   };
   slot: string;
+  allPlans: PlanInfo[];
   days: Record<number, GridCell | null>;
   totalDeliveredDays: number;
   totalExtraLiters: number;
@@ -201,6 +210,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
   const [search, setSearch] = useState('');
   const [slotFilter, setSlotFilter] = useState<'ALL' | 'AM' | 'PM'>('ALL');
   const [dueFilter, setDueFilter] = useState<'ALL' | 'DUE'>('ALL');
+  const [customerTypeFilter, setCustomerTypeFilter] = useState<'ALL' | 'online' | 'offline'>('ALL');
   const [viewMode, setViewMode] = useState<'grid' | 'cards'>('grid');
   const [mobileSortMode, setMobileSortMode] = useState<'pending-first' | 'sequence'>('pending-first');
   const [hideCompletedOnMobile, setHideCompletedOnMobile] = useState(false);
@@ -544,9 +554,10 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
         r.plan.name.toLowerCase().includes(search.toLowerCase());
       const matchesSlot = slotFilter === 'ALL' || r.slot === slotFilter;
       const matchesDue = dueFilter === 'ALL' || r.totalDuePaise > 0;
-      return matchesSearch && matchesSlot && matchesDue;
+      const matchesType = customerTypeFilter === 'ALL' || r.customer.customerType === customerTypeFilter;
+      return matchesSearch && matchesSlot && matchesDue && matchesType;
     });
-  }, [gridData, search, slotFilter, dueFilter]);
+  }, [gridData, search, slotFilter, dueFilter, customerTypeFilter]);
 
   const monthLabel = new Date(currentYear, currentMonth, 1).toLocaleString('en-IN', {
     month: 'long',
@@ -635,6 +646,13 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                 {isDelivered ? '✓' : `#${displayIndex + 1}`}
               </span>
               <h4 className="font-black text-slate-900 text-sm">{row.customer.name}</h4>
+              <span className={`inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[8px] font-black leading-none ${
+                row.customer.customerType === 'offline'
+                  ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                  : 'bg-blue-50 text-blue-600 border border-blue-200'
+              }`}>
+                {row.customer.customerType === 'offline' ? 'OFFLINE' : 'ONLINE'}
+              </span>
               {isPending && mobileSortMode === 'pending-first' && (
                 <span className="rounded bg-slate-100 px-1 py-0.5 text-[9px] font-bold text-slate-500">
                   Seq #{originalIndex + 1}
@@ -908,6 +926,28 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
             >
               {dueFilter === 'DUE' ? '⚠️ Only Dues' : 'Filter Dues'}
             </button>
+
+            {/* Customer Type Filter */}
+            <div className="flex rounded-xl border border-slate-200 p-0.5 bg-slate-50 text-[11px] font-bold">
+              <button
+                onClick={() => setCustomerTypeFilter('ALL')}
+                className={`rounded-lg px-2 py-1 ${customerTypeFilter === 'ALL' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-500'}`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setCustomerTypeFilter('online')}
+                className={`rounded-lg px-2 py-1 ${customerTypeFilter === 'online' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-500'}`}
+              >
+                🌐 Online
+              </button>
+              <button
+                onClick={() => setCustomerTypeFilter('offline')}
+                className={`rounded-lg px-2 py-1 ${customerTypeFilter === 'offline' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-500'}`}
+              >
+                🏪 Offline
+              </button>
+            </div>
           </div>
 
           {/* Route Card Sorting Controls (only visible in cards view) */}
@@ -1076,9 +1116,14 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                     #
                   </th>
 
-                  {/* Clean Frozen Column 2: Customer, Plan & Slot Combined */}
-                  <th className="sticky left-10 z-30 min-w-64 max-w-64 w-64 bg-slate-100 px-3 py-3 border-r-2 border-b border-slate-300 shadow-xs text-left">
-                    Customer, Plan & Slot
+                  {/* Clean Frozen Column 2: Customer Info */}
+                  <th className="sticky left-10 z-30 min-w-52 max-w-52 w-52 bg-slate-100 px-3 py-3 border-r border-b border-slate-200 shadow-xs text-left">
+                    Customer
+                  </th>
+
+                  {/* Clean Frozen Column 3: Plan & Slot */}
+                  <th className="sticky left-[calc(2.5rem+13rem)] z-30 min-w-44 max-w-44 w-44 bg-slate-100 px-3 py-3 border-r-2 border-b border-slate-300 shadow-xs text-left">
+                    Plan & Slot
                   </th>
 
                   {/* Days 1 to 31 */}
@@ -1128,28 +1173,45 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                       {rowIndex + 1}
                     </td>
 
-                    {/* Customer Info, Plan & Slot Combined */}
-                    <td className="sticky left-10 z-10 bg-white group-hover:bg-slate-50/90 px-3 py-2 border-r-2 border-slate-300 shadow-xs min-w-64 max-w-64">
-                      <div className="flex items-center justify-between gap-1">
-                        <div className="font-black text-slate-900 truncate max-w-[150px]">{row.customer.name}</div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="inline-block rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-800 border border-emerald-200">
-                            {row.plan.dailyQuantity}
-                          </span>
-                          <span
-                            className={`inline-flex items-center justify-center h-4.5 px-1.5 rounded text-[9px] font-black ${
-                              row.slot === 'AM' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'
-                            }`}
-                          >
-                            {row.slot}
-                          </span>
-                        </div>
+                    {/* Customer Info */}
+                    <td className="sticky left-10 z-10 bg-white group-hover:bg-slate-50/90 px-3 py-2 border-r border-slate-200 shadow-xs min-w-52 max-w-52">
+                      <div className="flex items-center gap-1.5">
+                        <div className="font-black text-slate-900 truncate max-w-[140px]">{row.customer.name}</div>
+                        <span className={`inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[8px] font-black leading-none ${
+                          row.customer.customerType === 'offline'
+                            ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                            : 'bg-blue-50 text-blue-600 border border-blue-200'
+                        }`}>
+                          {row.customer.customerType === 'offline' ? 'OFF' : 'ON'}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
                         <Phone className="h-2.5 w-2.5 text-slate-400 shrink-0" />
                         <span>{row.customer.phone}</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 truncate max-w-[220px]">{row.customer.address}</div>
+                      <div className="text-[10px] text-slate-400 truncate max-w-[180px]">{row.customer.address}</div>
+                    </td>
+
+                    {/* Plan & Slot */}
+                    <td className="sticky left-[calc(2.5rem+13rem)] z-10 bg-white group-hover:bg-slate-50/90 px-3 py-2 border-r-2 border-slate-300 shadow-xs min-w-44 max-w-44">
+                      <div className="font-black text-slate-900 text-[11px] truncate max-w-[150px]">{row.plan.name}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <span className="inline-block rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-800 border border-emerald-200">
+                          {row.plan.dailyQuantity}
+                        </span>
+                        <span
+                          className={`inline-flex items-center justify-center h-4.5 px-1.5 rounded text-[9px] font-black ${
+                            row.slot === 'AM' ? 'bg-amber-100 text-amber-800' : row.slot === 'PM' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {row.slot}
+                        </span>
+                      </div>
+                      {row.allPlans.length > 1 && (
+                        <div className="mt-1 text-[9px] font-bold text-orange-600 bg-orange-50 rounded px-1 py-0.5 border border-orange-200">
+                          {row.allPlans.length} plans this month
+                        </div>
+                      )}
                     </td>
 
                     {/* Day Cells (1 to 31) */}
@@ -1176,6 +1238,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                       const isSkipped = cell.status === 'SKIPPED';
                       const hasExtra = !!cell.extraMilk;
                       const hasCash = cell.cashCollectedPaise > 0;
+                      const hasPlanChange = !!cell.planLabel;
 
                       return (
                         <td
@@ -1184,20 +1247,29 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                           className={`min-w-[58px] max-w-[58px] px-1 py-1 text-center border-r cursor-pointer transition-all hover:ring-2 hover:ring-emerald-400 select-none ${
                             isToday
                               ? 'border-x-2 border-emerald-500/80 bg-emerald-50/90 hover:bg-emerald-100/90 ring-1 ring-inset ring-emerald-300'
+                              : hasPlanChange
+                              ? 'bg-orange-50/50 hover:bg-orange-100/60 border-slate-200'
                               : isDelivered
                               ? 'bg-emerald-50/40 hover:bg-emerald-100/60 border-slate-200'
                               : isSkipped
                               ? 'bg-red-50/40 hover:bg-red-100/50 border-slate-200'
                               : 'border-slate-200 hover:bg-slate-100'
                           }`}
-                          title={`Day ${day}: ${cell.status}${hasExtra ? ` (${cell.extraMilk})` : ''}\nClick to change or add extra milk`}
+                          title={`Day ${day}: ${cell.status}${hasPlanChange ? ` (Plan: ${cell.planLabel})` : ''}${hasExtra ? ` (${cell.extraMilk})` : ''}\nClick to change or add extra milk`}
                         >
                           <div className="flex flex-col items-center justify-center min-h-[38px] leading-tight">
+                            {/* Plan change indicator */}
+                            {hasPlanChange && (
+                              <span className="text-[8px] font-black text-orange-700 bg-orange-100 rounded px-1 mb-0.5 border border-orange-200 leading-tight">
+                                {cell.planLabel}
+                              </span>
+                            )}
+
                             {/* Delivery Status Badge */}
                             {isDelivered ? (
                               <span className="inline-flex items-center justify-center gap-0.5 rounded-md bg-emerald-600 px-1 py-0.5 text-[10px] font-black text-white shadow-2xs">
                                 <Check className="h-3 w-3 stroke-[3]" />
-                                {hasExtra ? cell.extraMilk : cell.baseQuantity}
+                                {cell.baseQuantity}
                               </span>
                             ) : isSkipped ? (
                               <span className="text-[9px] font-black text-red-600 uppercase bg-red-100/80 px-1 rounded line-through">
@@ -1205,11 +1277,18 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                               </span>
                             ) : (
                               <span className="text-[10px] font-bold text-slate-500">
-                                {hasExtra ? <span className="text-amber-700 font-black">{cell.extraMilk}</span> : cell.baseQuantity}
+                                {cell.baseQuantity}
                               </span>
                             )}
 
-                            {/* Payment or Extra Badge */}
+                            {/* Extra Milk Badge */}
+                            {hasExtra && (
+                              <span className="mt-0.5 inline-flex items-center gap-0.5 text-[8px] font-black text-amber-800 bg-amber-100 rounded px-1 border border-amber-200">
+                                +{cell.extraMilk}
+                              </span>
+                            )}
+
+                            {/* Payment Badge */}
                             {hasCash ? (
                               <span
                                 className={`mt-0.5 text-[8px] font-black rounded px-1 ${
@@ -1257,9 +1336,10 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               <tfoot className="sticky bottom-0 z-20 bg-slate-900 text-white font-black text-xs shadow-lg">
                 <tr>
                   <td className="sticky left-0 z-30 bg-slate-900 px-1 py-2.5 text-center border-r border-slate-800">Σ</td>
-                  <td className="sticky left-10 z-30 bg-slate-900 px-3 py-2.5 uppercase tracking-wide text-[10px] font-black text-white border-r-2 border-slate-700 shadow-xs">
+                  <td className="sticky left-10 z-30 bg-slate-900 px-3 py-2.5 uppercase tracking-wide text-[10px] font-black text-white border-r border-slate-700 shadow-xs">
                     Daily Total Liters
                   </td>
+                  <td className="sticky left-[calc(2.5rem+13rem)] z-30 bg-slate-900 px-3 py-2.5 border-r-2 border-slate-700 shadow-xs" />
 
                   {Array.from({ length: gridData.daysInMonth }, (_, i) => i + 1).map((day) => {
                     const dt = gridData.dailyTotals[day];

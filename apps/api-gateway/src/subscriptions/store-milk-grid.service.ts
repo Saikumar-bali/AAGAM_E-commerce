@@ -13,6 +13,14 @@ export interface GridCell {
   cashDuePaise: number;
   paymentMode: 'CASH' | 'PHONE_PE' | 'DUE' | null;
   note: string | null;
+  /** Plan label when this delivery's plan differs from the row's primary plan. */
+  planLabel: string | null;
+}
+
+export interface PlanInfo {
+  name: string;
+  dailyQuantity: string;
+  dayRange: string;
 }
 
 export interface GridRow {
@@ -22,6 +30,7 @@ export interface GridRow {
     name: string;
     phone: string;
     address: string;
+    customerType: 'online' | 'offline';
   };
   plan: {
     id: string;
@@ -30,6 +39,8 @@ export interface GridRow {
     dailyQuantity: string;
   };
   slot: string;
+  /** All distinct plans this customer had deliveries for in this month. */
+  allPlans: PlanInfo[];
   days: Record<number, GridCell | null>;
   totalDeliveredDays: number;
   totalExtraLiters: number;
@@ -63,7 +74,12 @@ export class StoreMilkGridService {
         customer: { isActive: true },
         OR: [
           { status: { in: ['ACTIVE', 'PENDING_CASH_COLLECTION', 'PAUSED'] } },
-          { updatedAt: { gte: startOfMonth } },
+          {
+            // Include COMPLETED subscriptions that still had deliveries in
+            // the target month (plan switched / renewed mid-month).
+            status: 'COMPLETED',
+            deliveries: { some: { serviceDate: { gte: startOfMonth, lte: endOfMonth } } },
+          },
         ],
       },
       include: {
@@ -83,118 +99,187 @@ export class StoreMilkGridService {
       orderBy: { createdAt: 'asc' },
     });
 
+    // Group subscriptions by customer so we can merge old (COMPLETED) and new
+    // subscriptions into a single row per customer.
+    const customerSubsMap = new Map<string, typeof subscriptions>();
+    for (const sub of subscriptions) {
+      const list = customerSubsMap.get(sub.customer.id) || [];
+      list.push(sub);
+      customerSubsMap.set(sub.customer.id, list);
+    }
+
     const rows: GridRow[] = [];
     const dailyTotals: Record<number, { deliveredCount: number; scheduledCount: number; totalLiters: number; cashCollectedPaise: number }> = {};
     for (let day = 1; day <= daysInMonth; day++) {
       dailyTotals[day] = { deliveredCount: 0, scheduledCount: 0, totalLiters: 0, cashCollectedPaise: 0 };
     }
 
-    for (const sub of subscriptions) {
-      const address = (sub.addressSnapshot as any)?.line1 || (sub.addressSnapshot as any)?.street || 'Local Area';
-      const planName = sub.plan.name || 'Milk Plan';
+    for (const [_customerId, custSubs] of customerSubsMap) {
+      // Pick the primary subscription: prefer ACTIVE, then most recent.
+      const activeSub = custSubs.find((s) => s.status !== 'COMPLETED') || custSubs[custSubs.length - 1];
+      const address = (activeSub.addressSnapshot as any)?.line1 || (activeSub.addressSnapshot as any)?.street || 'Local Area';
+      const planName = activeSub.plan.name || 'Milk Plan';
       const isBuffalo = planName.toLowerCase().includes('buffalo') || planName.toLowerCase().includes('bm');
-      const baseQty = planName.toLowerCase().includes('0.5') || planName.toLowerCase().includes('500') ? '0.5L' : '1L';
-      const defaultBaseMultiplier = baseQty === '0.5L' ? 0.5 : 1.0;
+      const splitItems = (activeSub.priceSnapshot as any)?.splitItems;
+      const cycleNumber = (activeSub.priceSnapshot as any)?.cycleNumber || 1;
 
-      const splitItems = (sub.priceSnapshot as any)?.splitItems;
-      const cycleNumber = (sub.priceSnapshot as any)?.cycleNumber || 1;
-      let dailyQuantityLabel = `${baseQty} ${isBuffalo ? 'BM' : 'CM'}`;
-      if (splitItems) {
-        dailyQuantityLabel = `AM: ${splitItems.amQuantity || '0.5L'} ${splitItems.amProductName || 'CM'} | PM: ${splitItems.pmQuantity || '1L'} ${splitItems.pmProductName || 'BM'}`;
-      } else if (cycleNumber > 1) {
-        dailyQuantityLabel = `${baseQty} ${isBuffalo ? 'BM' : 'CM'} (Cycle #${cycleNumber})`;
-      }
+      // Build per-subscription plan info for allPlans tracking
+      const planDayMap = new Map<string, { name: string; dailyQuantity: string; days: Set<number> }>();
 
       const daysMap: Record<number, GridCell | null> = {};
       let totalDeliveredDays = 0;
       let totalExtraLiters = 0;
       let calculatedDeliveredLiters = 0;
 
-      for (const d of sub.deliveries) {
-        const dDate = new Date(d.serviceDate);
-        const dayNum = dDate.getUTCDate();
-
-        // Resolve the base volume from the persisted quantity label rather than
-        // substring tests: `includes('0.5')` missed `0.25L` entirely and the PM
-        // branch's `includes('2')` matched it, reporting a quarter litre as two.
-        let cellBaseQty = baseQty;
-        let deliveryBaseMultiplier = defaultBaseMultiplier;
-        if (splitItems) {
-          cellBaseQty = d.deliverySlot === 'AM'
-            ? (splitItems.amQuantity || '0.5L')
-            : (splitItems.pmQuantity || '1L');
-          deliveryBaseMultiplier = this.resolveBaseLiters(planName, sub.priceSnapshot, d.deliverySlot);
+      for (const sub of custSubs) {
+        const subPlanName = sub.plan.name || 'Milk Plan';
+        const subIsBuffalo = subPlanName.toLowerCase().includes('buffalo') || subPlanName.toLowerCase().includes('bm');
+        const subItemsSnap = (sub as any).itemsSnapshot || (sub.priceSnapshot as any)?.itemsSnapshot || [];
+        const subFirstItem = Array.isArray(subItemsSnap) && subItemsSnap.length > 0 ? subItemsSnap[0] : null;
+        const subWeightGrams: number | undefined = subFirstItem?.weightGrams ?? StoreMilkGridService.extractWeightGramsFromName(subFirstItem?.name);
+        let subBaseQty: string;
+        let subDefaultBaseMultiplier: number;
+        if (subWeightGrams && subWeightGrams <= 300) {
+          subBaseQty = '0.25L';
+          subDefaultBaseMultiplier = 0.25;
+        } else if (subWeightGrams && subWeightGrams <= 600) {
+          subBaseQty = '0.5L';
+          subDefaultBaseMultiplier = 0.5;
+        } else if (subPlanName.toLowerCase().includes('0.25') || subPlanName.toLowerCase().includes('250') || subPlanName.toLowerCase().includes('1/4')) {
+          subBaseQty = '0.25L';
+          subDefaultBaseMultiplier = 0.25;
+        } else if (subPlanName.toLowerCase().includes('0.5') || subPlanName.toLowerCase().includes('500') || subPlanName.toLowerCase().includes('1/2')) {
+          subBaseQty = '0.5L';
+          subDefaultBaseMultiplier = 0.5;
+        } else {
+          subBaseQty = '1L';
+          subDefaultBaseMultiplier = 1.0;
         }
 
-        // Parse extra milk / add-ons recorded in deferredReason
-        let extraMilk: string | null = null;
-        const cellAddOns = parseAddOns(d.deferredReason, d.failureReason);
-        // Only volume add-ons count towards liters; weight and count add-ons
-        // must not be silently counted as one liter each.
-        const extraLiters = sumAddOnLiters(d.deferredReason, d.failureReason);
-        if (cellAddOns.length > 0) {
-          extraMilk = cellAddOns.map((a) => a.qty).join(', ');
+        const subSplitItems = (sub.priceSnapshot as any)?.splitItems;
+        let subDailyQuantityLabel = `${subBaseQty} ${subIsBuffalo ? 'BM' : 'CM'}`;
+        if (subSplitItems) {
+          subDailyQuantityLabel = `AM: ${subSplitItems.amQuantity || '0.5L'} ${subSplitItems.amProductName || 'CM'} | PM: ${subSplitItems.pmQuantity || '1L'} ${subSplitItems.pmProductName || 'BM'}`;
         }
 
-        let paymentMode: 'CASH' | 'PHONE_PE' | 'DUE' | null = null;
-        if (d.failureReason?.includes('[PHONE_PE]')) paymentMode = 'PHONE_PE';
-        else if (d.cashCollectedPaise > 0 || d.failureReason?.includes('[CASH]')) paymentMode = 'CASH';
-        else if (d.cashDuePaise > 0) paymentMode = 'DUE';
+        for (const d of sub.deliveries) {
+          const dDate = new Date(d.serviceDate);
+          const dayNum = dDate.getUTCDate();
 
-        const cell: GridCell = {
-          deliveryId: d.id,
-          sequenceNumber: d.sequenceNumber,
-          status: d.status,
-          deliverySlot: d.deliverySlot,
-          baseQuantity: cellBaseQty,
-          extraMilk,
-          cashCollectedPaise: d.cashCollectedPaise || 0,
-          cashDuePaise: d.cashDuePaise || 0,
-          paymentMode,
-          note: d.skipReason || d.failureReason || null,
-        };
-
-        daysMap[dayNum] = cell;
-
-        if (d.status === 'DELIVERED') {
-          totalDeliveredDays++;
-          totalExtraLiters += extraLiters;
-          calculatedDeliveredLiters += deliveryBaseMultiplier + extraLiters;
-          if (dailyTotals[dayNum]) {
-            dailyTotals[dayNum].deliveredCount++;
-            dailyTotals[dayNum].totalLiters += deliveryBaseMultiplier + extraLiters;
-            dailyTotals[dayNum].cashCollectedPaise += d.cashCollectedPaise || 0;
+          let cellBaseQty = subBaseQty;
+          let deliveryBaseMultiplier = subDefaultBaseMultiplier;
+          if (subSplitItems) {
+            cellBaseQty = d.deliverySlot === 'AM'
+              ? (subSplitItems.amQuantity || '0.5L')
+              : (subSplitItems.pmQuantity || '1L');
+            deliveryBaseMultiplier = this.resolveBaseLiters(subPlanName, sub.priceSnapshot, d.deliverySlot, (sub as any).itemsSnapshot);
           }
-        } else if (d.status === 'SCHEDULED') {
-          if (dailyTotals[dayNum]) {
-            dailyTotals[dayNum].scheduledCount++;
+
+          let extraMilk: string | null = null;
+          const cellAddOns = parseAddOns(d.deferredReason, d.failureReason);
+          const extraLiters = sumAddOnLiters(d.deferredReason, d.failureReason);
+          if (cellAddOns.length > 0) {
+            extraMilk = cellAddOns.map((a) => a.qty).join(', ');
+          }
+
+          let paymentMode: 'CASH' | 'PHONE_PE' | 'DUE' | null = null;
+          if (d.failureReason?.includes('[PHONE_PE]')) paymentMode = 'PHONE_PE';
+          else if (d.cashCollectedPaise > 0 || d.failureReason?.includes('[CASH]')) paymentMode = 'CASH';
+          else if (d.cashDuePaise > 0) paymentMode = 'DUE';
+
+          // Determine if this delivery's plan differs from the primary plan.
+          const isDifferentPlan = sub.id !== activeSub.id;
+          const planLabel = isDifferentPlan ? subDailyQuantityLabel : null;
+
+          const cell: GridCell = {
+            deliveryId: d.id,
+            sequenceNumber: d.sequenceNumber,
+            status: d.status,
+            deliverySlot: d.deliverySlot,
+            baseQuantity: cellBaseQty,
+            extraMilk,
+            cashCollectedPaise: d.cashCollectedPaise || 0,
+            cashDuePaise: d.cashDuePaise || 0,
+            paymentMode,
+            note: d.skipReason || d.failureReason || null,
+            planLabel,
+          };
+
+          daysMap[dayNum] = cell;
+
+          // Track plan day ranges
+          const planKey = sub.plan.id;
+          if (!planDayMap.has(planKey)) {
+            planDayMap.set(planKey, { name: subPlanName, dailyQuantity: subDailyQuantityLabel, days: new Set() });
+          }
+          planDayMap.get(planKey)!.days.add(dayNum);
+
+          if (d.status === 'DELIVERED') {
+            totalDeliveredDays++;
+            totalExtraLiters += extraLiters;
+            calculatedDeliveredLiters += deliveryBaseMultiplier + extraLiters;
+            if (dailyTotals[dayNum]) {
+              dailyTotals[dayNum].deliveredCount++;
+              dailyTotals[dayNum].totalLiters += deliveryBaseMultiplier + extraLiters;
+              dailyTotals[dayNum].cashCollectedPaise += d.cashCollectedPaise || 0;
+            }
+          } else if (d.status === 'SCHEDULED') {
+            if (dailyTotals[dayNum]) {
+              dailyTotals[dayNum].scheduledCount++;
+            }
           }
         }
       }
 
       const totalLiters = calculatedDeliveredLiters;
 
+      // Build allPlans array sorted by earliest day
+      const allPlans: PlanInfo[] = Array.from(planDayMap.values())
+        .map((p) => ({
+          name: p.name,
+          dailyQuantity: p.dailyQuantity,
+          dayRange: Array.from(p.days).sort((a, b) => a - b).reduce((range, d) => {
+            const parts = range.split('–');
+            const last = parseInt(parts[parts.length - 1]);
+            if (d === last + 1) {
+              parts[parts.length - 1] = String(d);
+            } else {
+              parts.push(String(d));
+            }
+            return parts.join('–');
+          }, ''),
+        }))
+        .sort((a, b) => {
+          const aMin = Math.min(...a.dayRange.split('–').map(Number));
+          const bMin = Math.min(...b.dayRange.split('–').map(Number));
+          return aMin - bMin;
+        });
+
       rows.push({
-        subscriptionId: sub.id,
+        subscriptionId: activeSub.id,
         customer: {
-          id: sub.customer.id,
-          name: sub.customer.name || 'Valued Customer',
-          phone: sub.customer.phone || '—',
+          id: activeSub.customer.id,
+          name: activeSub.customer.name || 'Valued Customer',
+          phone: activeSub.customer.phone
+            || (activeSub.addressSnapshot as any)?.phoneE164
+            || '—',
           address,
+          customerType: activeSub.source === 'manual' || activeSub.source === 'custom_manual' ? 'offline' : 'online',
         },
         plan: {
-          id: sub.plan.id,
-          name: sub.plan.name,
-          code: sub.plan.code,
-          dailyQuantity: dailyQuantityLabel,
+          id: activeSub.plan.id,
+          name: activeSub.plan.name,
+          code: activeSub.plan.code,
+          dailyQuantity: allPlans[0]?.dailyQuantity || `${allPlans[0]?.name || 'Milk Plan'}`,
         },
-        slot: splitItems ? 'AM+PM' : (sub.deliveryWindowStartMinute >= 900 ? 'PM' : 'AM'),
+        slot: splitItems ? 'AM+PM' : (activeSub.deliveryWindowStartMinute >= 900 ? 'PM' : 'AM'),
+        allPlans,
         days: daysMap,
         totalDeliveredDays,
         totalExtraLiters,
         totalLiters,
-        totalCollectedPaise: sub.amountCollectedPaise || 0,
-        totalDuePaise: sub.amountDuePaise || 0,
+        totalCollectedPaise: activeSub.amountCollectedPaise || 0,
+        totalDuePaise: activeSub.amountDuePaise || 0,
       });
     }
 
@@ -475,6 +560,25 @@ export class StoreMilkGridService {
   }
 
   /**
+   * Attempts to extract weight in grams from an item name like
+   * "Fresh Cow Milk (CM) 1/4 L" → 250, "Aagaam Buffalo Milk 500 ml" → 500
+   */
+  private static extractWeightGramsFromName(name: string): number | undefined {
+    if (!name) return undefined;
+    const lower = name.toLowerCase();
+    const fracMatch = lower.match(/(\d+)\s*\/\s*(\d+)\s*l/);
+    if (fracMatch) {
+      const liters = parseInt(fracMatch[1]) / parseInt(fracMatch[2]);
+      return Math.round(liters * 1000);
+    }
+    const mlMatch = lower.match(/(\d+)\s*ml/);
+    if (mlMatch) return parseInt(mlMatch[1], 10);
+    const literMatch = lower.match(/(\d+(?:\.\d+)?)\s*l/);
+    if (literMatch) return Math.round(parseFloat(literMatch[1]) * 1000);
+    return undefined;
+  }
+
+  /**
    * Base volume for one delivery stop. Split subscriptions persist a distinct
    * quantity per AM/PM slot; falling back to the plan name reported the plan
    * default and ignored the ordered quantity entirely.
@@ -483,19 +587,32 @@ export class StoreMilkGridService {
     planName: string,
     priceSnapshot: unknown,
     deliverySlot: string,
+    itemsSnapshot?: unknown,
   ): number {
-    const planMultiplier =
-      planName.toLowerCase().includes('0.5') || planName.toLowerCase().includes('500')
-        ? 0.5
-        : 1.0;
+    const itemsSnap = Array.isArray(itemsSnapshot) ? itemsSnapshot : [];
+    const firstItem = itemsSnap.length > 0 ? itemsSnap[0] : null;
+    const weightGrams: number | undefined = firstItem?.weightGrams ?? StoreMilkGridService.extractWeightGramsFromName(firstItem?.name);
+
+    let planMultiplier: number;
+    if (weightGrams && weightGrams <= 300) {
+      planMultiplier = 0.25;
+    } else if (weightGrams && weightGrams <= 600) {
+      planMultiplier = 0.5;
+    } else if (planName.toLowerCase().includes('0.25') || planName.toLowerCase().includes('250') || planName.toLowerCase().includes('1/4')) {
+      planMultiplier = 0.25;
+    } else if (planName.toLowerCase().includes('0.5') || planName.toLowerCase().includes('500') || planName.toLowerCase().includes('1/2')) {
+      planMultiplier = 0.5;
+    } else {
+      planMultiplier = 1.0;
+    }
 
     const splitItems = (priceSnapshot as any)?.splitItems;
     if (!splitItems) return planMultiplier;
 
     if (deliverySlot === 'AM') {
-      return parseVolumeLiters(splitItems.amQuantity || '0.5L') ?? 0.5;
+      return parseVolumeLiters(splitItems.amQuantity || '0.5L') ?? planMultiplier;
     }
-    return parseVolumeLiters(splitItems.pmQuantity || '1L') ?? 1.0;
+    return parseVolumeLiters(splitItems.pmQuantity || '1L') ?? planMultiplier;
   }
 
   /**
@@ -541,7 +658,7 @@ export class StoreMilkGridService {
     const deliveries = await prisma.subscriptionDelivery.findMany({
       where: {
         serviceDate: { gte: dayStart, lte: dayEnd },
-        subscription: { ...storeFilter, customer: { isActive: true } },
+        subscription: { ...storeFilter, customer: { isActive: true }, status: { not: 'COMPLETED' } },
       },
       include: {
         subscription: {
@@ -564,7 +681,7 @@ export class StoreMilkGridService {
     const stops = deliveries.map((d, index) => {
       const planName = d.subscription.plan.name || '';
       const isBuffalo = planName.toLowerCase().includes('buffalo') || planName.toLowerCase().includes('bm');
-      const baseQty = this.resolveBaseLiters(planName, d.subscription.priceSnapshot, d.deliverySlot);
+      const baseQty = this.resolveBaseLiters(planName, d.subscription.priceSnapshot, d.deliverySlot, (d.subscription as any).itemsSnapshot);
 
       const extraLiters = sumAddOnLiters(d.deferredReason, d.failureReason);
 

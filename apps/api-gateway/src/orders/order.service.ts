@@ -9,9 +9,11 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ['CONFIRMED', 'CANCELLED'],
   PAYMENT_PENDING: ['CONFIRMED', 'PAYMENT_FAILED', 'CANCELLED'],
   PAYMENT_FAILED: ['PAYMENT_PENDING', 'CANCELLED'],
-  CONFIRMED: ['PICKING', 'PACKED', 'RIDER_ASSIGNED', 'CANCELLED'],
-  PICKING: ['PACKED', 'RIDER_ASSIGNED', 'CANCELLED'],
-  PACKED: ['RIDER_ASSIGNED', 'CANCELLED'],
+  CONFIRMED: ['PICKING', 'PACKED', 'STORE_DELIVERING', 'RIDER_ASSIGNED', 'CANCELLED'],
+  PICKING: ['PACKED', 'STORE_DELIVERING', 'RIDER_ASSIGNED', 'CANCELLED'],
+  PACKED: ['STORE_DELIVERING', 'RIDER_ASSIGNED', 'CANCELLED'],
+  STORE_DELIVERING: ['STORE_DELIVERED', 'CANCELLED'],
+  STORE_DELIVERED: [],
   RIDER_ASSIGNED: ['OUT_FOR_DELIVERY', 'CANCELLED'],
   OUT_FOR_DELIVERY: ['DELIVERED', 'CANCELLED'],
   DELIVERED: [],
@@ -28,7 +30,8 @@ const STORE_OWNER_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
   PAYMENT_PENDING: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
   CONFIRMED: [OrderStatus.PICKING, OrderStatus.PACKED, OrderStatus.CANCELLED],
   PICKING: [OrderStatus.PACKED, OrderStatus.CANCELLED],
-  PACKED: [OrderStatus.CANCELLED],
+  PACKED: [OrderStatus.STORE_DELIVERING, OrderStatus.CANCELLED],
+  STORE_DELIVERING: [OrderStatus.STORE_DELIVERED, OrderStatus.CANCELLED],
 };
 
 const STORE_OWNER_FORBIDDEN: OrderStatus[] = [
@@ -131,6 +134,8 @@ export class OrderService {
     if (nextStatus === OrderStatus.CONFIRMED) return 'Store confirmed your order.';
     if (nextStatus === OrderStatus.PICKING) return 'Store is preparing your items.';
     if (nextStatus === OrderStatus.CANCELLED) return actorRole === Role.CUSTOMER ? 'Order cancelled by customer.' : 'Order cancelled.';
+    if (nextStatus === OrderStatus.STORE_DELIVERING) return 'Store is delivering your order.';
+    if (nextStatus === OrderStatus.STORE_DELIVERED) return 'Store delivered your order.';
     return undefined;
   }
 
@@ -143,6 +148,8 @@ export class OrderService {
       CONFIRMED: 'confirmedAt',
       PICKING: 'pickingAt',
       PACKED: 'packedAt',
+      STORE_DELIVERING: 'outForDeliveryAt',
+      STORE_DELIVERED: 'deliveredAt',
       RIDER_ASSIGNED: 'riderAssignedAt',
       OUT_FOR_DELIVERY: 'outForDeliveryAt',
       DELIVERED: 'deliveredAt',
@@ -152,7 +159,7 @@ export class OrderService {
     return map[status];
   }
 
-  private async emitTrackingUpdate(orderId: string, payload?: any) {
+  async emitTrackingUpdate(orderId: string, payload?: any) {
     const tracking = await this.getTracking(orderId);
     const eventPayload = payload || tracking;
     this.trackingGateway.emitOrderStatusUpdated(orderId, eventPayload);
@@ -186,7 +193,7 @@ export class OrderService {
       where: { id: orderId },
       include: {
         customer: { select: { id: true, name: true, email: true, phone: true } },
-        store: { select: { id: true, name: true, address: true, latitude: true, longitude: true, ownerId: true } },
+        store: { select: { id: true, name: true, address: true, latitude: true, longitude: true, ownerId: true, owner: { select: { phone: true, name: true } } } },
         rider: { include: { user: { select: { id: true, name: true, phone: true } } } },
         payment: true,
         items: { include: { product: { select: { id: true, name: true, image: true } } } },
@@ -223,6 +230,7 @@ export class OrderService {
       order: {
         id: order.id,
         status: order.status,
+        storeDelivery: order.storeDelivery,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
         confirmedAt: order.confirmedAt,
@@ -245,6 +253,7 @@ export class OrderService {
         id: order.store.id,
         name: order.store.name,
         address: order.store.address,
+        phone: (order.store as any)?.owner?.phone || null,
         latitude: order.store.latitude,
         longitude: order.store.longitude,
       },
@@ -262,7 +271,7 @@ export class OrderService {
         : null,
       items: order.items,
       tracking: {
-        isLive: ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'].includes(order.status),
+        isLive: ['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY', 'STORE_DELIVERING'].includes(order.status),
         trackingState: this.computeTrackingState(order.status, order.riderId, latestLocation, eta.stale),
         isStale: eta.stale,
         staleAfterSeconds: 360,
@@ -347,8 +356,9 @@ export class OrderService {
     latestLocation: any,
     isStale: boolean,
   ): string {
-    if (orderStatus === 'DELIVERED') return 'DELIVERED';
+    if (orderStatus === 'DELIVERED' || orderStatus === 'STORE_DELIVERED') return 'DELIVERED';
     if (orderStatus === 'CANCELLED') return 'CANCELLED';
+    if (orderStatus === 'STORE_DELIVERING') return 'STORE_DELIVERING';
     if (orderStatus === 'RIDER_ASSIGNED' || orderStatus === 'OUT_FOR_DELIVERY') {
       if (!riderId) return 'NOT_ASSIGNED';
       if (!latestLocation) return 'ASSIGNED_NO_LOCATION';
@@ -829,7 +839,7 @@ export class OrderService {
       where: { customerId: userId },
       include: {
         store: {
-          select: { name: true }
+          select: { id: true, name: true, address: true, owner: { select: { phone: true, name: true } } }
         },
         payment: true,
         items: {

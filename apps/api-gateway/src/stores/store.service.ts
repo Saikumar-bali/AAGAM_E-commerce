@@ -102,12 +102,26 @@ export class StoreService {
     }
   }
 
-  async updateDeliveryZone(id: string, data: { name?: string; isActive?: boolean }) {
+  async updateDeliveryZone(id: string, data: {
+    name?: string;
+    isActive?: boolean;
+    centerLatitude?: number | null;
+    centerLongitude?: number | null;
+    fallbackRadiusKm?: number | null;
+    timezone?: string | null;
+  }) {
     const existing = await prisma.deliveryZone.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Delivery zone not found');
     const name = data.name === undefined ? undefined : String(data.name).trim().replace(/\s+/g, ' ');
     if (name !== undefined && name.length < 2) throw new BadRequestException('Delivery zone name must be at least 2 characters.');
-    return prisma.deliveryZone.update({ where: { id }, data: { ...(name !== undefined ? { name } : {}), ...(data.isActive !== undefined ? { isActive: data.isActive } : {}) } });
+    const updateData: Record<string, unknown> = {};
+    if (name !== undefined) updateData.name = name;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.centerLatitude !== undefined) updateData.centerLatitude = data.centerLatitude;
+    if (data.centerLongitude !== undefined) updateData.centerLongitude = data.centerLongitude;
+    if (data.fallbackRadiusKm !== undefined) updateData.fallbackRadiusKm = data.fallbackRadiusKm;
+    if (data.timezone !== undefined) updateData.timezone = data.timezone;
+    return prisma.deliveryZone.update({ where: { id }, data: updateData });
   }
 
   async reorderDeliveryZones(ids: string[]) {

@@ -32,6 +32,8 @@ type OrderStatus =
   | "CONFIRMED"
   | "PICKING"
   | "PACKED"
+  | "STORE_DELIVERING"
+  | "STORE_DELIVERED"
   | "RIDER_ASSIGNED"
   | "OUT_FOR_DELIVERY"
   | "DELIVERED"
@@ -47,6 +49,7 @@ type Order = Record<string, any> & {
   totalAmount: number;
   grandTotal?: number;
   createdAt: string;
+  storeDelivery?: boolean;
   deliveryWindowStart?: string | null;
   deliveryWindowEnd?: string | null;
   store?: { name: string | null } | null;
@@ -103,11 +106,25 @@ const statusConfig: Record<
     step: 3,
   },
   PACKED: {
-    label: "Ready for Rider",
-    message: "Packed and waiting for rider pickup.",
+    label: "Ready for Pickup",
+    message: "Packed and ready for delivery.",
     cls: "bg-violet-50 text-violet-700 border-violet-200",
     icon: Package,
     step: 4,
+  },
+  STORE_DELIVERING: {
+    label: "Store Delivering",
+    message: "Store partner is delivering your order directly.",
+    cls: "bg-orange-50 text-orange-700 border-orange-200",
+    icon: Store,
+    step: 6,
+  },
+  STORE_DELIVERED: {
+    label: "Delivered by Store",
+    message: "Delivered directly by your store partner.",
+    cls: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    icon: CheckCircle2,
+    step: 7,
   },
   RIDER_ASSIGNED: {
     label: "Rider Assigned",
@@ -150,6 +167,7 @@ const activeStatuses: OrderStatus[] = [
   "CONFIRMED",
   "PICKING",
   "PACKED",
+  "STORE_DELIVERING",
   "RIDER_ASSIGNED",
   "OUT_FOR_DELIVERY",
 ];
@@ -193,6 +211,8 @@ export default function CustomerOrdersPage() {
         ? orders
         : statusFilter === "Active"
         ? orders.filter((order) => activeStatuses.includes(order.status))
+        : statusFilter === "DELIVERED"
+        ? orders.filter((order) => order.status === "DELIVERED" || order.status === "STORE_DELIVERED")
         : orders.filter((order) => order.status === statusFilter),
     [orders, statusFilter]
   );
@@ -204,7 +224,7 @@ export default function CustomerOrdersPage() {
           sum + normalizeOrderPricing(order, order.items || []).grandTotal,
         0
       ),
-      delivered: orders.filter((order) => order.status === "DELIVERED").length,
+      delivered: orders.filter((order) => order.status === "DELIVERED" || order.status === "STORE_DELIVERED").length,
       active: orders.filter((order) => activeStatuses.includes(order.status))
         .length,
     }),
@@ -374,6 +394,11 @@ export default function CustomerOrdersPage() {
                           >
                             <Icon className="h-3 w-3" /> {config.label}
                           </span>
+                          {(order.storeDelivery || order.status === "STORE_DELIVERING" || order.status === "STORE_DELIVERED") && (
+                            <span className="inline-flex items-center gap-1 rounded-lg border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-black text-orange-700">
+                              <Store className="h-3 w-3" /> Store Delivery
+                            </span>
+                          )}
                         </div>
                         <p className="mb-2 text-xs font-bold text-slate-600">
                           {config.message}

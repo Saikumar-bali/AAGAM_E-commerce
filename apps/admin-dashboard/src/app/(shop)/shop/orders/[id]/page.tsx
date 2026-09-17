@@ -55,6 +55,7 @@ type Order = Record<string, any> & {
   store?: {
     name?: string | null;
     address?: string | null;
+    phone?: string | null;
     latitude?: number | null;
     longitude?: number | null;
   } | null;
@@ -88,12 +89,23 @@ const statusSteps = [
   { key: "OUT_FOR_DELIVERY", label: "On the way" },
   { key: "DELIVERED", label: "Delivered" },
 ];
+
+const storeStatusSteps = [
+  { key: "CONFIRMED", label: "Confirmed" },
+  { key: "PICKING", label: "Preparing" },
+  { key: "PACKED", label: "Packed" },
+  { key: "STORE_DELIVERING", label: "Store Delivery" },
+  { key: "STORE_DELIVERED", label: "Delivered" },
+];
+
 const statusRank: Record<string, number> = {
   PENDING: 0,
   PAYMENT_PENDING: 0,
   CONFIRMED: 1,
   PICKING: 2,
   PACKED: 3,
+  STORE_DELIVERING: 4,
+  STORE_DELIVERED: 5,
   RIDER_ASSIGNED: 4,
   OUT_FOR_DELIVERY: 5,
   DELIVERED: 6,
@@ -104,13 +116,18 @@ const statusRank: Record<string, number> = {
 function customerMessage(
   status: string,
   trackingState: string,
-  etaStale: boolean
+  etaStale: boolean,
+  isStoreDelivery?: boolean,
 ) {
-  if (status === "DELIVERED")
+  if (status === "DELIVERED" || status === "STORE_DELIVERED")
     return "Delivered successfully. Thanks for ordering with Aagaam.";
   if (status === "CANCELLED") return "This order was cancelled.";
+  if (status === "STORE_DELIVERING")
+    return "Your local store partner is delivering your order directly.";
   if (status === "PACKED")
-    return "Your order is packed and waiting for rider pickup.";
+    return isStoreDelivery
+      ? "Your order is packed. Store staff will be delivering it shortly."
+      : "Your order is packed and waiting for rider pickup.";
   if (status === "RIDER_ASSIGNED")
     return trackingState === "ASSIGNED_NO_LOCATION"
       ? "Rider assigned. Live location will appear after pickup starts."
@@ -129,21 +146,37 @@ function TrackingStateBanner({
   state,
   status,
   etaStale,
+  isStoreDelivery,
 }: {
   state: string;
   status: string;
   etaStale: boolean;
+  isStoreDelivery?: boolean;
 }) {
   const config: Record<
     string,
     { bg: string; border: string; text: string; dot: string; label: string }
   > = {
     NOT_ASSIGNED: {
-      bg: "bg-slate-50",
-      border: "border-slate-200",
-      text: "text-slate-700",
-      dot: "bg-slate-400",
-      label: "Waiting for rider assignment",
+      bg: isStoreDelivery ? "bg-orange-50" : "bg-slate-50",
+      border: isStoreDelivery ? "border-orange-200" : "border-slate-200",
+      text: isStoreDelivery ? "text-orange-800" : "text-slate-700",
+      dot: isStoreDelivery ? "bg-orange-400" : "bg-slate-400",
+      label: isStoreDelivery ? "Store direct delivery in progress" : "Waiting for rider assignment",
+    },
+    STORE_DELIVERING: {
+      bg: "bg-orange-50",
+      border: "border-orange-200",
+      text: "text-orange-800",
+      dot: "bg-orange-500 animate-pulse",
+      label: "Store partner is delivering your order directly",
+    },
+    STORE_DELIVERED: {
+      bg: "bg-emerald-50",
+      border: "border-emerald-200",
+      text: "text-emerald-700",
+      dot: "bg-emerald-500",
+      label: "Order delivered by store partner",
     },
     ASSIGNED_NO_LOCATION: {
       bg: "bg-blue-50",
@@ -188,7 +221,8 @@ function TrackingStateBanner({
       label: "Tracking completed",
     },
   };
-  const value = config[state] || config.NOT_ASSIGNED;
+  const effectiveState = status === "STORE_DELIVERING" ? "STORE_DELIVERING" : status === "STORE_DELIVERED" ? "STORE_DELIVERED" : state;
+  const value = config[effectiveState] || config.NOT_ASSIGNED;
   return (
     <div className={`rounded-2xl border ${value.border} ${value.bg} p-4`}>
       <div className="flex items-center gap-3">
@@ -198,7 +232,7 @@ function TrackingStateBanner({
         </span>
       </div>
       <p className={`mt-2 text-sm font-bold ${value.text}`}>
-        {customerMessage(status, state, etaStale)}
+        {customerMessage(status, state, etaStale, isStoreDelivery)}
       </p>
     </div>
   );
@@ -348,6 +382,12 @@ export default function CustomerOrderDetailPage() {
   const proofCode = proof?.code || proof?.deliveryProof?.code || null;
   const proofNote = proof?.note || proof?.deliveryProof?.note || null;
   const currentRank = statusRank[order?.status || "PENDING"] ?? 0;
+  const isStoreDelivery = Boolean(
+    order?.storeDelivery ||
+    order?.status === "STORE_DELIVERING" ||
+    order?.status === "STORE_DELIVERED"
+  );
+  const activeSteps = isStoreDelivery ? storeStatusSteps : statusSteps;
   const markers = useMemo(() => {
     const values: {
       latitude: number;
@@ -464,16 +504,56 @@ export default function CustomerOrderDetailPage() {
               state={trackingState}
               status={order.status}
               etaStale={Boolean(trackingMeta.etaStale || trackingMeta.isStale)}
+              isStoreDelivery={isStoreDelivery}
             />
+            {isStoreDelivery && (
+              <section className="rounded-2xl border border-orange-200 bg-orange-50/70 p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-orange-100 text-orange-700">
+                      <Store className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wider text-orange-700">Store Direct Delivery</div>
+                      <div className="text-sm font-black text-slate-900">{order.store?.name || trackingPayload?.store?.name || "Local Store Partner"}</div>
+                      {(order.store?.address || trackingPayload?.store?.address) && (
+                        <div className="mt-0.5 text-xs text-slate-600 flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-slate-400" /> {order.store?.address || trackingPayload?.store?.address}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {(order.store?.phone || trackingPayload?.store?.phone) && (
+                    <a
+                      href={`tel:${order.store?.phone || trackingPayload?.store?.phone}`}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-orange-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-orange-700 transition w-fit"
+                    >
+                      <Phone className="h-3.5 w-3.5" /> Call Store Partner
+                    </a>
+                  )}
+                </div>
+                <p className="mt-3 text-xs text-orange-800 font-medium border-t border-orange-200/60 pt-2.5">
+                  {order.status === "STORE_DELIVERED"
+                    ? "Your order was successfully delivered directly by local store partner staff."
+                    : order.status === "STORE_DELIVERING"
+                    ? "Store staff has picked your packed items and is currently delivering them to your address."
+                    : "This order will be delivered directly by local store staff without third-party delays."}
+                </p>
+              </section>
+            )}
             <section className="rounded-2xl border border-slate-100 bg-white p-5">
               <div className="mb-4 flex items-center gap-2">
-                <Bike className="h-4 w-4 text-cyan-600" />
+                {isStoreDelivery ? (
+                  <Store className="h-4 w-4 text-orange-600" />
+                ) : (
+                  <Bike className="h-4 w-4 text-cyan-600" />
+                )}
                 <h2 className="text-sm font-black text-slate-950">
-                  Delivery progress
+                  {isStoreDelivery ? "Store Delivery Progress" : "Delivery progress"}
                 </h2>
               </div>
-              <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
-                {statusSteps.map((step, index) => {
+              <div className={`grid grid-cols-2 gap-2 ${isStoreDelivery ? "md:grid-cols-5" : "md:grid-cols-6"}`}>
+                {activeSteps.map((step, index) => {
                   const done = currentRank >= index + 1;
                   return (
                     <div
@@ -492,7 +572,7 @@ export default function CustomerOrderDetailPage() {
                   );
                 })}
               </div>
-              {(deliveryStatus === "OUT_FOR_DELIVERY" ||
+              {!isStoreDelivery && (deliveryStatus === "OUT_FOR_DELIVERY" ||
                 deliveryStatus === "RIDER_AT_CUSTOMER") &&
                 deliveryJobId && (
                   <button
@@ -506,7 +586,7 @@ export default function CustomerOrderDetailPage() {
                   </button>
                 )}
             </section>
-            {showTrackingMap && (
+            {!isStoreDelivery && showTrackingMap && (
               <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
                 <CustomerTrackingMap markers={markers} />
                 <div className="border-t border-slate-100 p-4">
@@ -533,7 +613,7 @@ export default function CustomerOrderDetailPage() {
                 </div>
               </div>
             )}
-            {order.status === "DELIVERED" && (
+            {(order.status === "DELIVERED" || order.status === "STORE_DELIVERED") && (
               <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
                 <div className="flex items-center gap-2 text-emerald-800">
                   <ShieldCheck className="h-5 w-5" />
@@ -546,7 +626,11 @@ export default function CustomerOrderDetailPage() {
                     : "delivery completion time"}
                   .
                 </p>
-                {proof && (
+                {order.status === "STORE_DELIVERED" ? (
+                  <div className="mt-3 rounded-xl bg-white/70 p-3 text-xs font-bold text-emerald-900">
+                    Handed over directly by your local store partner staff.
+                  </div>
+                ) : proof ? (
                   <div className="mt-3 rounded-xl bg-white/70 p-3 text-xs font-bold text-emerald-900">
                     <div>
                       Proof:{" "}
@@ -561,10 +645,10 @@ export default function CustomerOrderDetailPage() {
                       <div className="mt-1">Rider note: {proofNote}</div>
                     )}
                   </div>
-                )}
+                ) : null}
               </section>
             )}
-            <OrderTimeline currentStatus={order.status} timeline={timeline} />
+            <OrderTimeline currentStatus={order.status} isStoreDelivery={isStoreDelivery} timeline={timeline} />
             {address && (
               <section className="rounded-2xl border border-slate-100 bg-white p-5">
                 <div className="mb-3 flex items-center gap-2">

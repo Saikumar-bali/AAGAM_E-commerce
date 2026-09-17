@@ -13,10 +13,11 @@ type TimelineStep = {
 
 type OrderTimelineProps = {
   currentStatus: string;
+  isStoreDelivery?: boolean;
   timeline?: Array<{ toStatus: string; createdAt: string; note?: string }>;
 };
 
-const STATUS_FLOW = [
+const STANDARD_FLOW = [
   { status: 'PLACED', label: 'Order Placed', icon: ShoppingBag },
   { status: 'CONFIRMED', label: 'Confirmed', icon: CheckCircle2 },
   { status: 'PICKING', label: 'Picking', icon: Package },
@@ -26,7 +27,16 @@ const STATUS_FLOW = [
   { status: 'DELIVERED', label: 'Delivered', icon: CheckCircle2 },
 ];
 
-const STATUS_MAP: Record<string, number> = {
+const STORE_DELIVERY_FLOW = [
+  { status: 'PLACED', label: 'Order Placed', icon: ShoppingBag },
+  { status: 'CONFIRMED', label: 'Confirmed', icon: CheckCircle2 },
+  { status: 'PICKING', label: 'Preparing', icon: Package },
+  { status: 'PACKED', label: 'Packed', icon: Package },
+  { status: 'STORE_DELIVERING', label: 'Out for Delivery (Store Staff)', icon: Store },
+  { status: 'STORE_DELIVERED', label: 'Delivered by Store', icon: CheckCircle2 },
+];
+
+const STANDARD_STATUS_MAP: Record<string, number> = {
   PENDING: 0,
   PAYMENT_PENDING: 0,
   CONFIRMED: 1,
@@ -38,8 +48,22 @@ const STATUS_MAP: Record<string, number> = {
   CANCELLED: -1,
 };
 
-export default function OrderTimeline({ currentStatus, timeline }: OrderTimelineProps) {
-  const currentStep = STATUS_MAP[currentStatus] ?? 0;
+const STORE_STATUS_MAP: Record<string, number> = {
+  PENDING: 0,
+  PAYMENT_PENDING: 0,
+  CONFIRMED: 1,
+  PICKING: 2,
+  PACKED: 3,
+  STORE_DELIVERING: 4,
+  STORE_DELIVERED: 5,
+  DELIVERED: 5,
+  CANCELLED: -1,
+};
+
+export default function OrderTimeline({ currentStatus, isStoreDelivery, timeline }: OrderTimelineProps) {
+  const isStore = isStoreDelivery || currentStatus === 'STORE_DELIVERING' || currentStatus === 'STORE_DELIVERED';
+  const flow = isStore ? STORE_DELIVERY_FLOW : STANDARD_FLOW;
+  const currentStep = (isStore ? STORE_STATUS_MAP[currentStatus] : STANDARD_STATUS_MAP[currentStatus]) ?? 0;
   const isCancelled = currentStatus === 'CANCELLED';
 
   if (isCancelled) {
@@ -62,7 +86,7 @@ export default function OrderTimeline({ currentStatus, timeline }: OrderTimeline
     <div className="rounded-2xl border border-slate-100 bg-white p-5">
       <div className="text-sm font-black text-slate-950 mb-4">Order Progress</div>
       <div className="space-y-0">
-        {STATUS_FLOW.map((step, i) => {
+        {flow.map((step, i) => {
           const completed = i <= currentStep;
           const current = i === currentStep;
           const Icon = step.icon;
@@ -76,7 +100,7 @@ export default function OrderTimeline({ currentStatus, timeline }: OrderTimeline
                 } ${current ? 'ring-4 ring-teal-100' : ''}`}>
                   <Icon className="h-4 w-4" />
                 </div>
-                {i < STATUS_FLOW.length - 1 && (
+                {i < flow.length - 1 && (
                   <div className={`w-0.5 h-6 ${completed ? 'bg-teal-600' : 'bg-slate-200'}`} />
                 )}
               </div>

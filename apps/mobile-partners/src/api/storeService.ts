@@ -29,6 +29,8 @@ export type StoreOrderStatus =
   | 'CONFIRMED'
   | 'PICKING'
   | 'PACKED'
+  | 'STORE_DELIVERING'
+  | 'STORE_DELIVERED'
   | 'RIDER_ASSIGNED'
   | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
@@ -98,6 +100,16 @@ export const storeService = {
 
   markOrderReady: async (orderId: string) => {
     const r = await apiClient.patch(`/orders/store/${encodeURIComponent(orderId)}/ready`);
+    return r.data;
+  },
+
+  startStoreDelivery: async (orderId: string) => {
+    const r = await apiClient.post(`/orders/store/${encodeURIComponent(orderId)}/store-delivery/start`);
+    return r.data;
+  },
+
+  completeStoreDelivery: async (orderId: string) => {
+    const r = await apiClient.post(`/orders/store/${encodeURIComponent(orderId)}/store-delivery/complete`);
     return r.data;
   },
 

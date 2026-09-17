@@ -39,6 +39,8 @@ const STATUS_LABELS: Record<string, string> = {
   CONFIRMED: 'Accepted',
   PICKING: 'Preparing',
   PACKED: 'Ready for pickup',
+  STORE_DELIVERING: 'Store delivering',
+  STORE_DELIVERED: 'Delivered by store',
   RIDER_ASSIGNED: 'Rider assigned',
   OUT_FOR_DELIVERY: 'Out for delivery',
   DELIVERED: 'Delivered',
@@ -61,6 +63,12 @@ const STATUS_ACTIONS: Record<string, Array<{ status: StoreOrderStatus; label: st
   PICKING: [
     { status: 'PACKED', label: 'Ready for pickup' },
     { status: 'CANCELLED', label: 'Cancel', destructive: true },
+  ],
+  PACKED: [
+    { status: 'STORE_DELIVERING', label: 'Deliver with store staff' },
+  ],
+  STORE_DELIVERING: [
+    { status: 'STORE_DELIVERED', label: 'Mark as delivered' },
   ],
 };
 
@@ -93,7 +101,7 @@ function statusTone(status?: string | null) {
   if (status === 'CANCELLED' || status === 'PAYMENT_FAILED') {
     return { color: '#B91C1C', backgroundColor: '#FEECEC' };
   }
-  if (status === 'PACKED' || status === 'RIDER_ASSIGNED' || status === 'OUT_FOR_DELIVERY') {
+  if (status === 'PACKED' || status === 'RIDER_ASSIGNED' || status === 'OUT_FOR_DELIVERY' || status === 'STORE_DELIVERING') {
     return { color: '#B45A08', backgroundColor: '#FFF2E4' };
   }
   return { color: '#087B5A', backgroundColor: '#E8F8EE' };
@@ -128,16 +136,23 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
   };
 
   const statusMutation = useMutation({
-    mutationFn: async (status: StoreOrderStatus) => status === 'PACKED'
-      ? storeService.markOrderReady(orderId)
-      : storeService.updateOrderStatus(orderId, status),
+    mutationFn: async (status: StoreOrderStatus) => {
+      if (status === 'PACKED') return storeService.markOrderReady(orderId);
+      if (status === 'STORE_DELIVERING') return storeService.startStoreDelivery(orderId);
+      if (status === 'STORE_DELIVERED') return storeService.completeStoreDelivery(orderId);
+      return storeService.updateOrderStatus(orderId, status);
+    },
     onSuccess: async (_data, status) => {
       await refreshOrder();
       Toast.show({
         type: 'success',
         text1: STATUS_LABELS[status] || 'Order updated',
         text2: status === 'PACKED'
-          ? 'The order is ready for rider pickup.'
+          ? 'The order is packed and ready.'
+          : status === 'STORE_DELIVERING'
+          ? 'Store self-delivery started.'
+          : status === 'STORE_DELIVERED'
+          ? 'Order marked as delivered by store.'
           : 'The fulfillment queue has been refreshed.',
       });
     },

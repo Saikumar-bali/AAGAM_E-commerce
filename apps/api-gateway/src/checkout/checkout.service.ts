@@ -698,6 +698,7 @@ export class CheckoutService {
           deliveryWindowStart: deliveryWindow.start.toISOString(),
           deliveryWindowEnd: deliveryWindow.end.toISOString(),
         } : { fulfillmentType: 'IMMEDIATE' },
+        storeDelivery: dto.storeDelivery ?? false,
       });
 
       if (transactionPromotionPricing.coupon) {

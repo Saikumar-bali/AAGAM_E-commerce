@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@aagam/database';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -29,5 +29,15 @@ export class StoreFulfillmentController {
   @Patch(':orderId/ready')
   ready(@Param('orderId') orderId: string, @Req() req: any) {
     return this.service.readyForPickup(orderId, req.user.id);
+  }
+
+  @Post(':orderId/store-delivery/start')
+  startStoreDelivery(@Param('orderId') orderId: string, @Req() req: any) {
+    return this.service.startStoreDelivery(orderId, req.user.id);
+  }
+
+  @Post(':orderId/store-delivery/complete')
+  completeStoreDelivery(@Param('orderId') orderId: string, @Req() req: any) {
+    return this.service.completeStoreDelivery(orderId, req.user.id);
   }
 }
