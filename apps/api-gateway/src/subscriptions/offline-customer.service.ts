@@ -19,7 +19,19 @@ export class OfflineCustomerService {
       // 'OFFLINE' is the legacy value; store-created customers are stamped
       // 'OFFLINE_STORE', so both must match for the segment to stay queryable.
       { acquisitionSource: { in: ['OFFLINE', 'OFFLINE_STORE'] } },
-      { customerSubscriptions: { some: { source: { in: ['manual', 'custom_manual'] } } } },
+      { offlineStoreId: { not: null } },
+      {
+        customerSubscriptions: {
+          some: {
+            OR: [
+              { source: { in: ['manual', 'custom_manual'] } },
+              { deliveryMethod: 'PERSONAL_HANDOVER' },
+              { isCustom: true },
+              { storeDelivery: true },
+            ],
+          },
+        },
+      },
     ],
   };
 
@@ -95,11 +107,22 @@ export class OfflineCustomerService {
         : expected === 'recycleBin'
         ? this.recycleBinState
         : {};
+    const identityFilter =
+      expected === 'any' && mutation && actor?.role === Role.STORE_OWNER
+        ? {
+            role: Role.CUSTOMER,
+            OR: [
+              this.offlineIdentity,
+              { customerSubscriptions: { some: { homeStore: { ownerId: actor.id } } } },
+              { offlineStore: { ownerId: actor.id } },
+            ],
+          }
+        : this.offlineIdentity;
     const user = await prisma.user.findFirst({
       where: {
         id: customerId,
         AND: [
-          this.offlineIdentity,
+          identityFilter,
           lifecycleFilter,
           mutation ? this.mutationOwnershipFilter(actor) : this.ownershipFilter(actor),
         ],
@@ -798,11 +821,58 @@ export class OfflineCustomerService {
           where: { customerId },
           select: { id: true, addressSnapshot: true },
         });
+        const subscriptionIds = subscriptions.map((s) => s.id);
+
         for (const subscription of subscriptions) {
           await tx.customerSubscription.update({
             where: { id: subscription.id },
             data: {
               addressSnapshot: this.redactSnapshot(subscription.addressSnapshot, 'address') as Prisma.InputJsonValue,
+              status: 'CANCELLED',
+              cancelledAt: new Date(),
+              cancellationReason: 'PERMANENTLY_PURGED_CUSTOMER',
+            },
+          });
+        }
+
+        if (subscriptionIds.length > 0) {
+          const pendingDeliveries = await tx.subscriptionDelivery.findMany({
+            where: {
+              subscriptionId: { in: subscriptionIds },
+              status: { notIn: ['DELIVERED', 'FAILED', 'SKIPPED', 'CANCELLED'] },
+            },
+            select: { id: true, deliveryJobId: true },
+          });
+          const pendingDeliveryIds = pendingDeliveries.map((d) => d.id);
+          const pendingJobIds = pendingDeliveries
+            .map((d) => d.deliveryJobId)
+            .filter((id): id is string => Boolean(id));
+
+          if (pendingDeliveryIds.length > 0) {
+            await tx.deliveryRunStop.deleteMany({
+              where: {
+                OR: [
+                  { subscriptionDeliveryId: { in: pendingDeliveryIds } },
+                  { deliveryJobId: { in: pendingJobIds } },
+                ],
+              },
+            });
+            await tx.subscriptionDelivery.updateMany({
+              where: { id: { in: pendingDeliveryIds } },
+              data: { status: 'CANCELLED' },
+            });
+          }
+
+          // Cancel unfulfilled subscription-generated orders so they do not linger in dispatch
+          await tx.order.updateMany({
+            where: {
+              customerId,
+              subscriptionId: { in: subscriptionIds },
+              status: { in: ['CONFIRMED', 'PENDING', 'PACKED'] },
+            },
+            data: {
+              status: 'CANCELLED',
+              cancelledAt: new Date(),
             },
           });
         }
