@@ -85,16 +85,22 @@ export class OfflineCustomerService {
    */
   private async loadOfflineCustomer(
     customerId: string,
-    expected: 'active' | 'recycleBin',
+    expected: 'active' | 'recycleBin' | 'any',
     actor?: OfflineCustomerActor,
     mutation = false,
   ) {
+    const lifecycleFilter =
+      expected === 'active'
+        ? this.activeState
+        : expected === 'recycleBin'
+        ? this.recycleBinState
+        : {};
     const user = await prisma.user.findFirst({
       where: {
         id: customerId,
         AND: [
           this.offlineIdentity,
-          expected === 'active' ? this.activeState : this.recycleBinState,
+          lifecycleFilter,
           mutation ? this.mutationOwnershipFilter(actor) : this.ownershipFilter(actor),
         ],
       },
@@ -722,9 +728,9 @@ export class OfflineCustomerService {
 
   async permanentDeleteCustomer(customerId: string, actor?: OfflineCustomerActor) {
     // Purge is destructive and irreversible: require an offline customer that
-    // is already in the recycle bin and owned by the actor, so an arbitrary id
-    // cannot be anonymized and another store's customer cannot be destroyed.
-    await this.loadOfflineCustomer(customerId, 'recycleBin', actor, true);
+    // is owned by the actor, so an arbitrary id cannot be anonymized and
+    // another store's customer cannot be destroyed.
+    await this.loadOfflineCustomer(customerId, 'any', actor, true);
 
     if (actor && actor.role !== Role.ADMIN) {
       const otherStoreSubscription = await prisma.customerSubscription.findFirst({

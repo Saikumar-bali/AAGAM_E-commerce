@@ -29,6 +29,7 @@ import {
   Route,
   ScanLine,
   Sun,
+  Trash2,
   Truck,
   UserPlus,
   Users,
@@ -243,6 +244,13 @@ export default function StoreSubscriptionOperationsPage() {
   const [calendar, setCalendar] = useState<CalendarRow[]>([]);
   const [analytics, setAnalytics] = useState<StoreAnalytics | null>(null);
   const [editingSubscriber, setEditingSubscriber] = useState<SubscriberRow | null>(null);
+  const [permanentDeleteCustomerModal, setPermanentDeleteCustomerModal] = useState<{
+    customerId: string;
+    customerName: string;
+    customerPhone: string;
+  } | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingCustomer, setDeletingCustomer] = useState(false);
   const [editForm, setEditForm] = useState({
     mode: "renew" as "renew" | "schedule" | "cashflow" | "edit",
     renewalType: "same" as "same" | "switch" | "split",
@@ -2021,6 +2029,124 @@ export default function StoreSubscriptionOperationsPage() {
                   </div>
                 </div>
               )}
+
+              {/* Danger Zone: Permanent Account Deletion */}
+              <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50/50 p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h4 className="text-xs font-black text-rose-900 flex items-center gap-1.5">
+                      <Trash2 className="h-3.5 w-3.5 text-rose-600" /> Danger Zone: Permanent Account Deletion
+                    </h4>
+                    <p className="text-[11px] text-rose-700 mt-0.5">
+                      Permanently delete this customer account, all subscriptions, pending deliveries, and data from your store.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPermanentDeleteCustomerModal({
+                      customerId: editingSubscriber.customer.id,
+                      customerName: editingSubscriber.customer.name || 'Subscriber',
+                      customerPhone: editingSubscriber.customer.phone || '',
+                    })}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-black text-white hover:bg-rose-700 transition shadow-sm whitespace-nowrap"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete Account
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {/* Manual Prompt Modal for Permanent Deletion */}
+        {permanentDeleteCustomerModal && (
+          <Modal
+            title="Permanently Delete Customer Account"
+            onClose={() => {
+              if (!deletingCustomer) {
+                setPermanentDeleteCustomerModal(null);
+                setDeleteConfirmText('');
+              }
+            }}
+          >
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-xl bg-rose-100 p-2 text-rose-700">
+                    <AlertTriangle className="h-5 w-5" />
+                  </div>
+                  <div className="space-y-1 text-xs text-rose-900">
+                    <p className="font-black text-sm text-rose-950">
+                      Irreversible Action: Delete {permanentDeleteCustomerModal.customerName}
+                    </p>
+                    <p>
+                      This will permanently remove or anonymize the customer profile, wipe all delivery schedules, cancel pending runs, and delete associated address records for your store.
+                    </p>
+                    {permanentDeleteCustomerModal.customerPhone && (
+                      <p className="font-semibold text-rose-800">
+                        Phone: {permanentDeleteCustomerModal.customerPhone}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  To confirm permanent deletion from your store, type <span className="font-black text-rose-700">DELETE</span> below:
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type DELETE to confirm"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
+                  disabled={deletingCustomer}
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPermanentDeleteCustomerModal(null);
+                    setDeleteConfirmText('');
+                  }}
+                  disabled={deletingCustomer}
+                  className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteConfirmText.trim() !== 'DELETE' || deletingCustomer}
+                  onClick={async () => {
+                    setDeletingCustomer(true);
+                    try {
+                      await apiClient.delete(
+                        `/store/subscriptions/offline-customers/${permanentDeleteCustomerModal.customerId}/permanent`
+                      );
+                      toast.success(`Customer ${permanentDeleteCustomerModal.customerName} permanently deleted`);
+                      setPermanentDeleteCustomerModal(null);
+                      setDeleteConfirmText('');
+                      setEditingSubscriber(null);
+                      await load();
+                    } catch (err: any) {
+                      toast.error(getToastErrorMessage(err, 'Failed to permanently delete customer'));
+                    } finally {
+                      setDeletingCustomer(false);
+                    }
+                  }}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 py-2.5 text-xs font-black text-white hover:bg-rose-700 disabled:opacity-40 transition shadow-sm"
+                >
+                  {deletingCustomer ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Permanently Delete
+                </button>
+              </div>
             </div>
           </Modal>
         )}
