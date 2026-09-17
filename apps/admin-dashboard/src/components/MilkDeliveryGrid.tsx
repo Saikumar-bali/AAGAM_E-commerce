@@ -274,8 +274,13 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
   // store-specific selling price).
   useEffect(() => {
     let isMounted = true;
+    const isStorePortal = typeof window !== 'undefined' && window.location.pathname.startsWith('/store');
+    if (isStorePortal && !storeId) {
+      return;
+    }
+    const endpoint = storeId ? `/stores/${storeId}/assortment` : '/products';
     apiClient
-      .get(storeId ? `/stores/${storeId}/assortment` : '/admin/products')
+      .get(endpoint)
       .then((res) => {
         if (!isMounted) return;
         const raw = Array.isArray(res.data) ? res.data : [];
