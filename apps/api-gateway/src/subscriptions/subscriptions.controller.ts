@@ -693,6 +693,12 @@ export class StoreSubscriptionsController {
   permanentDeleteOfflineCustomer(@Param('customerId') customerId: string, @Req() req: AuthenticatedRequest) {
     return this.offlineCustomers.permanentDeleteCustomer(customerId, req.user);
   }
+
+  @Delete('subscribers/customer/:customerId/permanent')
+  @Roles(Role.STORE_OWNER)
+  permanentDeleteSubscriberCustomer(@Param('customerId') customerId: string, @Req() req: AuthenticatedRequest) {
+    return this.offlineCustomers.permanentDeleteCustomer(customerId, req.user);
+  }
 }
 
 @Controller('admin/subscriptions')

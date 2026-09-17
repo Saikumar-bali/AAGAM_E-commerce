@@ -46,11 +46,15 @@ export default function OfflineCustomersPage({
   basePath = '/admin/subscriptions',
   canManage = true,
   allowedRole = 'ADMIN',
+  initialMode = 'active',
+  modeOnly,
 }: {
   embed?: boolean;
   basePath?: string;
   canManage?: boolean;
   allowedRole?: 'ADMIN' | 'STORE_OWNER';
+  initialMode?: 'active' | 'recycleBin';
+  modeOnly?: 'active' | 'recycleBin';
 }) {
   const toast = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -59,7 +63,7 @@ export default function OfflineCustomersPage({
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [viewMode, setViewMode] = useState<'active' | 'recycleBin'>('active');
+  const [viewMode, setViewMode] = useState<'active' | 'recycleBin'>(modeOnly || initialMode);
   const [recycleBinCount, setRecycleBinCount] = useState(0);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -112,7 +116,7 @@ export default function OfflineCustomersPage({
     }
   };
 
-  useEffect(() => { loadCustomers(1, '', 'active'); }, []);
+  useEffect(() => { loadCustomers(1, '', modeOnly || initialMode); }, [initialMode, modeOnly]);
 
   const handleSearch = () => { setPage(1); loadCustomers(1, search, viewMode); };
 
@@ -415,53 +419,55 @@ export default function OfflineCustomersPage({
 
       {/* Segmented Mode Switcher: Active vs Recycle Bin. The bin is only
           reachable where its restore/purge actions are available. */}
-      <div className="mb-4 flex items-center gap-2 border-b border-slate-200 pb-3">
-        <button
-          onClick={() => {
-            setViewMode('active');
-            setPage(1);
-            loadCustomers(1, search, 'active');
-          }}
-          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition-all ${
-            viewMode === 'active'
-              ? 'bg-emerald-700 text-white shadow-sm'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-          }`}
-        >
-          <Users className="h-3.5 w-3.5" />
-          <span>Active Customers</span>
-          {viewMode === 'active' && (
-            <span className="ml-1 rounded-full bg-emerald-800 px-2 py-0.5 text-[10px] text-emerald-100">
-              {total}
-            </span>
-          )}
-        </button>
-
-        {canManage && (
+      {!modeOnly && (
+        <div className="mb-4 flex items-center gap-2 border-b border-slate-200 pb-3">
           <button
             onClick={() => {
-              setViewMode('recycleBin');
+              setViewMode('active');
               setPage(1);
-              loadCustomers(1, search, 'recycleBin');
+              loadCustomers(1, search, 'active');
             }}
             className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition-all ${
-              viewMode === 'recycleBin'
-                ? 'bg-rose-700 text-white shadow-sm'
+              viewMode === 'active'
+                ? 'bg-emerald-700 text-white shadow-sm'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span>Recycle Bin</span>
-            {recycleBinCount > 0 && (
-              <span className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-black ${
-                viewMode === 'recycleBin' ? 'bg-rose-900 text-rose-100' : 'bg-rose-100 text-rose-700'
-              }`}>
-                {recycleBinCount}
+            <Users className="h-3.5 w-3.5" />
+            <span>Active Customers</span>
+            {viewMode === 'active' && (
+              <span className="ml-1 rounded-full bg-emerald-800 px-2 py-0.5 text-[10px] text-emerald-100">
+                {total}
               </span>
             )}
           </button>
-        )}
-      </div>
+
+          {canManage && (
+            <button
+              onClick={() => {
+                setViewMode('recycleBin');
+                setPage(1);
+                loadCustomers(1, search, 'recycleBin');
+              }}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition-all ${
+                viewMode === 'recycleBin'
+                  ? 'bg-rose-700 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Recycle Bin</span>
+              {recycleBinCount > 0 && (
+                <span className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-black ${
+                  viewMode === 'recycleBin' ? 'bg-rose-900 text-rose-100' : 'bg-rose-100 text-rose-700'
+                }`}>
+                  {recycleBinCount}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">

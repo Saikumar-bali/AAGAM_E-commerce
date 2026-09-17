@@ -1,16 +1,20 @@
 'use client';
 
-import OfflineCustomersPage from '@/components/offline-customers/OfflineCustomersPage';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
-// Store owners own the offline-customer lifecycle for their own store, so this
-// page exposes the full Recycle Bin / restore / permanent-delete workflow scoped
-// to the subscriptions of stores they own.
 export default function StoreOfflineCustomersPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/store/settings?tab=recycle-bin');
+  }, [router]);
+
   return (
-    <OfflineCustomersPage
-      allowedRole="STORE_OWNER"
-      basePath="/store/subscriptions"
-      canManage
-    />
+    <div className="flex h-64 items-center justify-center gap-2 text-sm text-slate-500">
+      <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+      <span>Redirecting to Recycle Bin in Store Settings...</span>
+    </div>
   );
 }
