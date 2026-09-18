@@ -473,6 +473,8 @@ pm2 startOrReload ecosystem.config.js --update-env --interpreter "$deploy_node"
 # the dashboard could keep serving the previous release's in-memory route table
 # and cache. Restart it explicitly to load the freshly built .next output.
 pm2 restart admin-dashboard --update-env
+pm2 restart api-gateway --update-env || pm2 start ecosystem.config.js --only api-gateway --update-env --interpreter "$deploy_node"
+pm2 restart worker-service --update-env || pm2 start ecosystem.config.js --only worker-service --update-env --interpreter "$deploy_node"
 pm2 save
 
 pm2 jlist | node -e '

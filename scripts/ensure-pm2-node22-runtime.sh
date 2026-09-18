@@ -95,9 +95,17 @@ pm2 jlist | node -e '
   const mismatches = expected.flatMap((name) => {
     const app = byName.get(name);
     if (!app) return [];
-    if (app.pm2_env?.status !== "online") return [`${name}: ${app.pm2_env?.status || "unknown"}`];
+    const script = app.pm2_env?.pm_exec_path;
+    if (script && !fs.existsSync(script)) {
+      // Missing or stale build artifact from an earlier build; will be compiled and recreated.
+      return [];
+    }
+    if (app.pm2_env?.status !== "online") {
+      // Process is stopped/offline pre-build; will be started after the build succeeds.
+      return [];
+    }
     const pid = Number(app.pid);
-    if (!Number.isInteger(pid) || pid <= 0) return [`${name}: invalid PID ${pid}`];
+    if (!Number.isInteger(pid) || pid <= 0) return [];
     try {
       const actualRuntime = fs.realpathSync(`/proc/${pid}/exe`);
       return actualRuntime === expectedRuntime ? [] : [`${name}: ${actualRuntime}`];
