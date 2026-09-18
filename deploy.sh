@@ -10,13 +10,14 @@ HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:3005/health}"
 DEPLOY_LOCK_FILE="${DEPLOY_LOCK_FILE:-/tmp/aagam-production-deploy.lock}"
 DEPLOY_NODE_VERSION="${DEPLOY_NODE_VERSION:-22.22.3}"
 DEPLOY_NODE_CACHE_DIR="${DEPLOY_NODE_CACHE_DIR:-$HOME/.cache/aagam-node}"
-DEPLOY_MIN_AVAILABLE_MEMORY_MB="${DEPLOY_MIN_AVAILABLE_MEMORY_MB:-1536}"
-DEPLOY_SWAP_MB="${DEPLOY_SWAP_MB:-1536}"
-DEPLOY_SWAP_FILE="${DEPLOY_SWAP_FILE:-/var/tmp/aagam-deploy.swap}"
-DEPLOY_SUPPLEMENTAL_SWAP_MB="${DEPLOY_SUPPLEMENTAL_SWAP_MB:-512}"
-DEPLOY_SUPPLEMENTAL_SWAP_FILE="${DEPLOY_SUPPLEMENTAL_SWAP_FILE:-${DEPLOY_SWAP_FILE}.extra}"
 DEPLOY_NODE_HEAP_MB="${DEPLOY_NODE_HEAP_MB:-1536}"
 DEPLOY_BUILD_NODE_HEAP_MB="${DEPLOY_BUILD_NODE_HEAP_MB:-$(( DEPLOY_NODE_HEAP_MB + 1024 ))}"
+DEPLOY_BUILD_REQUIRED_MEMORY_MB="${DEPLOY_BUILD_REQUIRED_MEMORY_MB:-$(( DEPLOY_BUILD_NODE_HEAP_MB * 2 + 512 ))}"
+DEPLOY_MIN_AVAILABLE_MEMORY_MB="${DEPLOY_MIN_AVAILABLE_MEMORY_MB:-$DEPLOY_BUILD_REQUIRED_MEMORY_MB}"
+DEPLOY_SWAP_MB="${DEPLOY_SWAP_MB:-4096}"
+DEPLOY_SWAP_FILE="${DEPLOY_SWAP_FILE:-/var/tmp/aagam-deploy.swap}"
+DEPLOY_SUPPLEMENTAL_SWAP_MB="${DEPLOY_SUPPLEMENTAL_SWAP_MB:-2048}"
+DEPLOY_SUPPLEMENTAL_SWAP_FILE="${DEPLOY_SUPPLEMENTAL_SWAP_FILE:-${DEPLOY_SWAP_FILE}.extra}"
 
 cd "$APP_DIR"
 
@@ -135,9 +136,15 @@ create_swap_file() {
   local free_disk_mb
   free_disk_mb="$(df -Pm "$swap_dir" | awk 'NR == 2 { print $4 }')"
   if (( free_disk_mb < swap_mb + 512 )); then
-    echo "Not enough disk space to create ${swap_mb} MB deployment swap at ${swap_file}."
-    echo "Free disk: ${free_disk_mb} MB; required: $((swap_mb + 512)) MB."
-    exit 1
+    local max_possible=$(( free_disk_mb - 512 ))
+    if (( max_possible >= 1024 )); then
+      echo "Clamping requested swap from ${swap_mb} MB to ${max_possible} MB to safely fit on disk (${free_disk_mb} MB free)."
+      swap_mb="$max_possible"
+    else
+      echo "Not enough disk space to create ${swap_mb} MB deployment swap at ${swap_file}."
+      echo "Free disk: ${free_disk_mb} MB; required: $((swap_mb + 512)) MB."
+      exit 1
+    fi
   fi
 
   echo "Creating ${swap_mb} MB deployment swap file at ${swap_file}."
@@ -163,7 +170,16 @@ ensure_swap_file() {
 
   if (( existing_bytes < desired_bytes )); then
     if swap_is_active "$swap_file"; then
-      echo "Active swap file ${swap_file} is smaller than the requested ${swap_mb} MB; leaving it active instead of risking swapoff under memory pressure."
+      local swap_used_kb=0
+      if [[ -r /proc/meminfo ]]; then
+        swap_used_kb="$(awk '/SwapTotal:/ { t=$2 } /SwapFree:/ { f=$2 } END { print (t-f) }' /proc/meminfo 2>/dev/null || echo 0)"
+      fi
+      if (( swap_used_kb < 65536 )); then
+        echo "Active swap file ${swap_file} (${existing_bytes} bytes) has minimal usage (${swap_used_kb} kB); recreating at ${swap_mb} MB."
+        create_swap_file "$swap_file" "$swap_mb"
+      else
+        echo "Active swap file ${swap_file} is smaller than the requested ${swap_mb} MB and in use (${swap_used_kb} kB); leaving it active instead of risking swapoff under memory pressure."
+      fi
     else
       create_swap_file "$swap_file" "$swap_mb"
     fi
@@ -175,10 +191,11 @@ ensure_swap_file() {
 }
 
 ensure_deploy_memory() {
+  local required_mb="${1:-$DEPLOY_MIN_AVAILABLE_MEMORY_MB}"
   local available_mb
   available_mb="$(available_memory_mb)"
-  echo "Deployment memory available before install: ${available_mb} MB"
-  if (( available_mb >= DEPLOY_MIN_AVAILABLE_MEMORY_MB )); then
+  echo "Deployment memory available: ${available_mb} MB (target: ${required_mb} MB)"
+  if (( available_mb >= required_mb )); then
     return
   fi
 
@@ -186,7 +203,7 @@ ensure_deploy_memory() {
     require_command "$command_name"
   done
   if ! sudo -n true >/dev/null 2>&1; then
-    echo "At least ${DEPLOY_MIN_AVAILABLE_MEMORY_MB} MB combined free memory/swap is required."
+    echo "At least ${required_mb} MB combined free memory/swap is required."
     echo "Passwordless sudo is required to activate deployment swap files."
     exit 1
   fi
@@ -195,7 +212,7 @@ ensure_deploy_memory() {
 
   available_mb="$(available_memory_mb)"
   echo "Deployment memory available after primary swap activation: ${available_mb} MB"
-  if (( available_mb >= DEPLOY_MIN_AVAILABLE_MEMORY_MB )); then
+  if (( available_mb >= required_mb )); then
     return
   fi
 
@@ -204,7 +221,7 @@ ensure_deploy_memory() {
     exit 1
   fi
 
-  local shortfall_mb=$((DEPLOY_MIN_AVAILABLE_MEMORY_MB - available_mb))
+  local shortfall_mb=$((required_mb - available_mb))
   local supplemental_mb="$DEPLOY_SUPPLEMENTAL_SWAP_MB"
   # Keep a little breathing room above the hard gate so normal runtime activity
   # does not make a deployment oscillate around the threshold by a few MB.
@@ -218,9 +235,12 @@ ensure_deploy_memory() {
 
   available_mb="$(available_memory_mb)"
   echo "Deployment memory available after supplemental swap activation: ${available_mb} MB"
-  if (( available_mb < DEPLOY_MIN_AVAILABLE_MEMORY_MB )); then
-    echo "Unable to provide the minimum deployment memory budget of ${DEPLOY_MIN_AVAILABLE_MEMORY_MB} MB even after supplemental swap."
-    exit 1
+  if (( available_mb < required_mb )); then
+    echo "Warning: combined available memory (${available_mb} MB) is below the preferred budget of ${required_mb} MB after supplemental swap."
+    if (( available_mb < 2048 )); then
+      echo "Unable to provide minimum memory threshold of 2048 MB to safely perform build."
+      exit 1
+    fi
   fi
 }
 
@@ -392,7 +412,7 @@ npx prisma validate --schema packages/database/prisma/schema.prisma
 # restart step. The old release only runs the (previous) JS output; stopping it
 # frees RAM without losing state, and pm2 brings all three apps back.
 BUILD_STOPPED_PROCESSES=0
-build_required_mb=$(( DEPLOY_BUILD_NODE_HEAP_MB * 2 + 512 ))
+build_required_mb="${DEPLOY_BUILD_REQUIRED_MEMORY_MB:-$(( DEPLOY_BUILD_NODE_HEAP_MB * 2 + 512 ))}"
 build_available_mb="$(available_memory_mb)"
 echo "Build memory available: ${build_available_mb} MB (required budget: ${build_required_mb} MB)"
 if (( build_available_mb < build_required_mb )); then
@@ -403,6 +423,9 @@ if (( build_available_mb < build_required_mb )); then
   BUILD_STOPPED_PROCESSES=1
   build_available_mb="$(available_memory_mb)"
   echo "Build memory available after stopping old release: ${build_available_mb} MB"
+  if (( build_available_mb < build_required_mb )); then
+    ensure_deploy_memory "$build_required_mb"
+  fi
 fi
 
 # Build one workspace at a time. `nest build` (used by @aagam/api-gateway)
@@ -414,6 +437,10 @@ fi
 RUNTIME_NODE_OPTIONS="$NODE_OPTIONS"
 export NODE_OPTIONS="$(printf '%s' "$NODE_OPTIONS" | sed -E 's/--max-old-space-size=[0-9]+//')"
 export NODE_OPTIONS="${NODE_OPTIONS:+${NODE_OPTIONS} }--max-old-space-size=${DEPLOY_BUILD_NODE_HEAP_MB}"
+echo "Beginning turbo build with heap cap ${DEPLOY_BUILD_NODE_HEAP_MB} MB..."
+if [[ -r /proc/meminfo ]]; then
+  awk '/MemAvailable:|SwapFree:|SwapTotal:/ { printf "%s %s %s\n", $1, $2, $3 }' /proc/meminfo || true
+fi
 npx turbo build \
   --filter=@aagam/api-gateway \
   --filter=@aagam/admin-dashboard \
