@@ -340,6 +340,11 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
       where: {
         serviceDate: { gte: from, lt: to },
         status: { notIn: TERMINAL_DELIVERY_STATUSES },
+        // Skip deactivated (recycle-binned) customers and completed subscriptions
+        subscription: {
+          customer: { isActive: true },
+          status: { not: 'COMPLETED' },
+        },
         OR: [
           { storeId: { in: storeIds } },
           { subscription: { homeStoreId: { in: storeIds } } },

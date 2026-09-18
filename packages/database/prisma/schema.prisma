@@ -264,6 +264,7 @@ model Order {
   deliveryZoneSnapshot Json?
   idempotencyKey   String?       @unique
   orderSource      OrderSource   @default(CHECKOUT)
+  storeDelivery    Boolean       @default(false)
   subscriptionId  String?
   subscriptionDeliveryId String? @unique
   scheduledDeliveryDate DateTime?
@@ -393,6 +394,8 @@ enum OrderStatus {
   CONFIRMED
   PICKING
   PACKED
+  STORE_DELIVERING
+  STORE_DELIVERED
   RIDER_ASSIGNED
   OUT_FOR_DELIVERY
   DELIVERED

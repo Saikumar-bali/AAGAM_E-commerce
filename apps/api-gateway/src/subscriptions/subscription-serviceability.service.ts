@@ -72,6 +72,11 @@ export class SubscriptionServiceabilityService {
     if (!input.serviceDates.length) throw new BadRequestException('At least one service date is required');
     const storeDelivery = input.storeDelivery === true;
 
+    // Capacity checks are read-only and must not run inside a long-lived
+    // transaction (the tx may have been rolled back by the time we reach them).
+    // Use the global prisma client for capacity reads regardless of the caller.
+    const capacityDb = prisma;
+
     if (storeDelivery) {
       // Store-delivery subscriptions are fulfilled by the home store itself:
       // the store already knows the customer, so route/zone/coordinate
@@ -212,7 +217,7 @@ export class SubscriptionServiceabilityService {
       const dayStart = new Date(Date.UTC(serviceDate.getUTCFullYear(), serviceDate.getUTCMonth(), serviceDate.getUTCDate()));
       const dayEnd = new Date(dayStart.getTime() + 86_400_000);
       const [scheduledCount, plannedCount] = await Promise.all([
-        db.subscriptionDelivery.count({
+        capacityDb.subscriptionDelivery.count({
           where: {
             deliveryZoneId: zone.id,
             serviceDate: { gte: dayStart, lt: dayEnd },
@@ -220,7 +225,7 @@ export class SubscriptionServiceabilityService {
             ...(input.excludeDeliveryId ? { id: { not: input.excludeDeliveryId } } : {}),
           },
         }),
-        db.deliveryRunStop.count({
+        capacityDb.deliveryRunStop.count({
           where: {
             deliveryZoneId: zone.id,
             deliveryRun: { serviceDate: { gte: dayStart, lt: dayEnd }, status: { not: 'CANCELLED' } },

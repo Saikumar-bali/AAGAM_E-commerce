@@ -107,6 +107,16 @@ export const OrdersScreen = () => {
         }
         renderItem={({ item }) => {
           const amount = customerOrderAmountSummary(item);
+          const isStoreDelivery = Boolean(
+            item.storeDelivery ||
+            item.status === "STORE_DELIVERING" ||
+            item.status === "STORE_DELIVERED"
+          );
+          const formatStatus = (status: string) => {
+            if (status === "STORE_DELIVERING") return "Out for Delivery";
+            if (status === "STORE_DELIVERED") return "Delivered by Store";
+            return status.replace(/_/g, " ");
+          };
           return (
             <TouchableOpacity
               style={styles.orderCard}
@@ -115,10 +125,17 @@ export const OrdersScreen = () => {
               }
             >
               <View style={styles.orderHeader}>
-                <Text style={styles.orderId}>
-                  Order #{item.id.slice(-8).toUpperCase()}
-                </Text>
-                <Text style={styles.statusText}>{item.status}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={styles.orderId}>
+                    Order #{item.id.slice(-8).toUpperCase()}
+                  </Text>
+                  {isStoreDelivery ? (
+                    <View style={styles.storeDeliveryBadge}>
+                      <Text style={styles.storeDeliveryBadgeText}>Store Direct</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text style={styles.statusText}>{formatStatus(item.status)}</Text>
               </View>
               <Text style={styles.orderMeta}>
                 {item.store?.name || "Assigned Store"}
@@ -218,4 +235,15 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   retryText: { color: "#FFFFFF", fontWeight: "900" },
+  storeDeliveryBadge: {
+    backgroundColor: "#CCFBF1",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  storeDeliveryBadgeText: {
+    color: "#0F766E",
+    fontSize: 10,
+    fontWeight: "800",
+  },
 });

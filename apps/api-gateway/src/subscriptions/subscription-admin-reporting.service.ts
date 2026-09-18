@@ -113,7 +113,12 @@ export class SubscriptionAdminReportingService {
       // subscription rows must disappear from the store's subscriber list;
       // otherwise a deletion made in the offline-customer directory still shows
       // here.
-      where: { ...storeFilter, customer: { isActive: true } },
+      // Also exclude COMPLETED subscriptions (renewed ones) to avoid duplicates.
+      where: {
+        ...storeFilter,
+        customer: { isActive: true },
+        status: { not: CustomerSubscriptionStatus.COMPLETED },
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         customer: { select: { id: true, name: true, email: true, phone: true } },
@@ -850,14 +855,14 @@ export class SubscriptionAdminReportingService {
     const slotEndMinute = firstSlot === 'PM' ? 20 * 60 : 9 * 60;
 
     const allItems = dto.deliveries.flatMap((d) => d.items);
-    const productMap = new Map<string, { name: string; totalQuantity: number }>();
+    const productMap = new Map<string, { name: string; totalQuantity: number; weightGrams: number | null }>();
     for (const item of allItems) {
       const existing = productMap.get(item.productId);
       if (existing) {
         existing.totalQuantity += item.quantity;
       } else {
-        const product = await prisma.product.findUnique({ where: { id: item.productId }, select: { name: true } });
-        productMap.set(item.productId, { name: product?.name || 'Unknown', totalQuantity: item.quantity });
+        const product = await prisma.product.findUnique({ where: { id: item.productId }, select: { name: true, weightGrams: true } });
+        productMap.set(item.productId, { name: product?.name || 'Unknown', totalQuantity: item.quantity, weightGrams: product?.weightGrams ?? null });
       }
     }
 
@@ -892,6 +897,7 @@ export class SubscriptionAdminReportingService {
       productId,
       quantityPerDelivery: data.totalQuantity,
       name: data.name,
+      weightGrams: data.weightGrams,
     }));
 
     const version = await prisma.subscriptionPlanVersion.create({
@@ -1114,7 +1120,7 @@ export class SubscriptionAdminReportingService {
       const recentDuplicate = await tx.customerSubscription.findFirst({
         where: {
           customerId: existing.customerId,
-          source: 'renewal',
+          source: 'manual',
           createdAt: { gte: new Date(Date.now() - 60_000) },
         },
         orderBy: { createdAt: 'desc' },
@@ -1176,7 +1182,7 @@ export class SubscriptionAdminReportingService {
           addressId: existing.addressId,
           homeStoreId: existing.homeStoreId,
           deliveryZoneId: existing.deliveryZoneId,
-          source: 'renewal',
+          source: 'manual',
           status: initialStatus,
           startDate,
           endDate,
@@ -1321,6 +1327,18 @@ export class SubscriptionAdminReportingService {
         },
       });
 
+      // Mark the old subscription as COMPLETED so it doesn't appear alongside the new one
+      if (existing.status !== CustomerSubscriptionStatus.COMPLETED) {
+        await tx.customerSubscription.update({
+          where: { id: existing.id },
+          data: {
+            status: CustomerSubscriptionStatus.COMPLETED,
+            cancelledAt: new Date(),
+            cancellationReason: `Renewed to cycle #${nextCycleNumber} (subscription ${renewalSub.id})`,
+          },
+        });
+      }
+
       return {
         renewalSubscription: renewalSub,
         cycleNumber: nextCycleNumber,
@@ -1329,7 +1347,7 @@ export class SubscriptionAdminReportingService {
         amountDuePaise: cycleDuePaise,
         amountCollectedPaise: initialCash,
       };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10000, timeout: 30000 });
   }
 
   async recordCustomerPayment(

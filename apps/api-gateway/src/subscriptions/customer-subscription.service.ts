@@ -340,7 +340,7 @@ export class CustomerSubscriptionService {
         },
       });
       return this.publicSubscription(created);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 15000, timeout: 30000 });
   }
 
   listMine(customerId: string) {

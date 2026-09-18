@@ -57,6 +57,7 @@ export type CreateAuthoritativeOrderInput = {
   reservationReason?: InventoryAdjustmentReason;
   reservationNote?: string;
   outboxMetadata?: Record<string, unknown>;
+  storeDelivery?: boolean;
 };
 
 function assertMoney(value: number, field: string) {
@@ -141,6 +142,7 @@ export class OrderCreationService {
         deliveryLat: input.deliveryLat ?? null,
         deliveryLng: input.deliveryLng ?? null,
         idempotencyKey: input.idempotencyKey,
+        storeDelivery: input.storeDelivery ?? false,
         customerSnapshot: requiredJson(input.customerSnapshot, 'customerSnapshot'),
         addressSnapshot: requiredJson(addressSnapshot, 'addressSnapshot'),
         itemsSnapshot: input.lines.map((line) => ({

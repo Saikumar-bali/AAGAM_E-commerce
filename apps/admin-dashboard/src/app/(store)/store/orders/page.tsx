@@ -13,6 +13,7 @@ import {
   User,
   ClipboardList,
   CalendarClock,
+  Truck,
 } from "lucide-react";
 
 type OrderItem = {
@@ -33,6 +34,7 @@ type Order = {
   status: string;
   grandTotal: number;
   createdAt: string;
+  storeDelivery?: boolean;
   deliveryWindowStart?: string | null;
   deliveryWindowEnd?: string | null;
   customer?: { name: string; email: string; phone?: string } | null;
@@ -101,6 +103,18 @@ const statusConfig: Record<
     icon: Package,
     lane: "Ready",
   },
+  STORE_DELIVERING: {
+    label: "Store Delivering",
+    cls: "bg-orange-100 text-orange-700",
+    icon: Truck,
+    lane: "Delivering",
+  },
+  STORE_DELIVERED: {
+    label: "Store Delivered",
+    cls: "bg-emerald-100 text-emerald-700",
+    icon: CheckCircle,
+    lane: "Done",
+  },
   RIDER_ASSIGNED: {
     label: "Rider Assigned",
     cls: "bg-purple-100 text-purple-700",
@@ -146,10 +160,15 @@ const STORE_ACTIONS: Record<string, StoreAction[]> = {
     { status: "PACKED", label: "Ready for Pickup" },
     { status: "CANCELLED", label: "Cancel" },
   ],
-  PACKED: [],
+  PACKED: [
+    { status: "STORE_DELIVERING", label: "Deliver with Store Staff" },
+  ],
+  STORE_DELIVERING: [
+    { status: "STORE_DELIVERED", label: "Mark as Delivered" },
+  ],
 };
 
-const lanes = ["New", "Accepted", "Preparing", "Ready", "Rider", "Done"];
+const lanes = ["New", "Accepted", "Preparing", "Ready", "Delivering", "Rider", "Done"];
 const editableItemStates = [
   "PENDING",
   "PAYMENT_PENDING",
@@ -187,6 +206,10 @@ export default function OrdersPage() {
     try {
       if (status === "PACKED") {
         await apiClient.patch(`/orders/store/${orderId}/ready`);
+      } else if (status === "STORE_DELIVERING") {
+        await apiClient.post(`/orders/store/${orderId}/store-delivery/start`);
+      } else if (status === "STORE_DELIVERED") {
+        await apiClient.post(`/orders/store/${orderId}/store-delivery/complete`);
       } else {
         await apiClient.patch(`/orders/${orderId}/status`, { status });
       }
@@ -374,6 +397,11 @@ export default function OrdersPage() {
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">
                         {config.lane}
                       </span>
+                      {order.storeDelivery && (
+                        <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-700">
+                          Store Delivery
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
                       {order.customer?.name || "Customer"} ·{" "}
@@ -509,7 +537,17 @@ export default function OrdersPage() {
                 </div>
                 {order.status === "PACKED" && (
                   <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-black text-violet-700">
-                    Ready for rider pickup. Store work is complete.
+                    Packed and ready. You can deliver with your store staff or wait for rider dispatch.
+                  </div>
+                )}
+                {order.status === "STORE_DELIVERING" && (
+                  <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-black text-orange-700">
+                    Currently out for delivery by store staff.
+                  </div>
+                )}
+                {order.status === "STORE_DELIVERED" && (
+                  <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">
+                    Successfully delivered directly by store staff.
                   </div>
                 )}
                 {orderActions.length > 0 && (

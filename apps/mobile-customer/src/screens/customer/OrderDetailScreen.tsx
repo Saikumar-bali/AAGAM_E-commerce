@@ -50,10 +50,40 @@ const deliveryWindow = (order: any) => {
 const TrackingStateBanner = ({
   state,
   riderName,
+  isStoreDelivery,
+  storeName,
 }: {
   state: string;
   riderName?: string | null;
+  isStoreDelivery?: boolean;
+  storeName?: string | null;
 }) => {
+  if (state === "STORE_DELIVERING") {
+    return (
+      <View style={styles.bannerContainer}>
+        <View style={[styles.banner, styles.bannerStoreDelivering]}>
+          <View style={[styles.bannerDot, { backgroundColor: "#0D9488" }]} />
+          <Text style={[styles.bannerText, { color: "#0F766E" }]}>
+            {storeName ? `${storeName} is delivering your order directly` : "Store partner is out for direct delivery"}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (isStoreDelivery && state === "NOT_ASSIGNED") {
+    return (
+      <View style={styles.bannerContainer}>
+        <View style={[styles.banner, styles.bannerStoreDelivering]}>
+          <View style={[styles.bannerDot, { backgroundColor: "#0D9488" }]} />
+          <Text style={[styles.bannerText, { color: "#0F766E" }]}>
+            Direct Store Delivery — Store partner will deliver this order
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   switch (state) {
     case "NOT_ASSIGNED":
       return (
@@ -94,7 +124,9 @@ const TrackingStateBanner = ({
         <View style={styles.bannerContainer}>
           <View style={[styles.banner, styles.bannerDelivered]}>
             <View style={[styles.bannerDot, { backgroundColor: "#10B981" }]} />
-            <Text style={[styles.bannerText, { color: "#065F46" }]}>Order delivered!</Text>
+            <Text style={[styles.bannerText, { color: "#065F46" }]}>
+              {isStoreDelivery ? "Delivered by store partner!" : "Order delivered!"}
+            </Text>
           </View>
         </View>
       );
@@ -281,14 +313,26 @@ export const OrderDetailScreen = () => {
     ...order,
     payment: trackingPayload?.payment,
   });
+  const isStoreDelivery = Boolean(
+    order?.storeDelivery ||
+    trackingPayload?.storeDelivery ||
+    order?.status === "STORE_DELIVERING" ||
+    order?.status === "STORE_DELIVERED"
+  );
   const isSubscription = amountSummary.isSubscription;
-  const canReview = order.status === "DELIVERED";
+  const canReview = order.status === "DELIVERED" || order.status === "STORE_DELIVERED";
+
+  const getStatusLabel = (status: string) => {
+    if (status === "STORE_DELIVERING") return "Out for Delivery (Store Direct)";
+    if (status === "STORE_DELIVERED") return "Delivered by Store";
+    return status.replace(/_/g, " ");
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.heroCard}>
         <Text style={styles.orderId}>Order #{order.id.slice(-8).toUpperCase()}</Text>
-        <Text style={styles.statusText}>{order.status.replace(/_/g, " ")}</Text>
+        <Text style={styles.statusText}>{getStatusLabel(order.status)}</Text>
         <Text style={styles.metaText}>{new Date(order.createdAt).toLocaleString()}</Text>
         <Text style={styles.amountLabel}>{amountSummary.label}</Text>
         <Text style={styles.totalText}>{formatOrderAmount(amountSummary.amountRupees)}</Text>
@@ -314,10 +358,34 @@ export const OrderDetailScreen = () => {
       <TrackingStateBanner
         state={trackingState}
         riderName={trackingPayload?.rider?.name}
+        isStoreDelivery={isStoreDelivery}
+        storeName={trackingPayload?.store?.name}
       />
       <DeliveryCodeCard orderId={order.id} />
 
-      {["LIVE", "STALE", "ASSIGNED_NO_LOCATION"].includes(trackingState) ? (
+      {isStoreDelivery ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Store Direct Delivery</Text>
+          <Text style={[styles.bodyText, { marginTop: 4 }]}>
+            This order is being fulfilled and delivered directly by {trackingPayload?.store?.name || "the store team"}.
+          </Text>
+          {trackingPayload?.store?.address ? (
+            <Text style={[styles.bodyText, { marginTop: 6, color: "#64748B" }]}>
+              Store Address: {trackingPayload.store.address}
+            </Text>
+          ) : null}
+          {trackingPayload?.store?.phone ? (
+            <TouchableOpacity
+              style={styles.callBtn}
+              onPress={() => Linking.openURL(`tel:${trackingPayload.store.phone}`)}
+            >
+              <Text style={styles.callBtnText}>Call Store Partner</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+
+      {!isStoreDelivery && ["LIVE", "STALE", "ASSIGNED_NO_LOCATION"].includes(trackingState) ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Live Tracking</Text>
           <TrackingMap
@@ -717,6 +785,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#ECFDF5",
     borderWidth: 1,
     borderColor: "#A7F3D0",
+  },
+  bannerStoreDelivering: {
+    backgroundColor: "#F0FDFA",
+    borderWidth: 1,
+    borderColor: "#99F6E4",
   },
   bannerCancelled: {
     backgroundColor: "#FEF2F2",

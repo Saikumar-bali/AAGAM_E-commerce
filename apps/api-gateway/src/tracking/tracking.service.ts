@@ -318,6 +318,8 @@ export class TrackingService {
     if (status === OrderStatus.OUT_FOR_DELIVERY) return DeliveryJobStatus.OUT_FOR_DELIVERY;
     if (status === OrderStatus.DELIVERED) return DeliveryJobStatus.DELIVERED;
     if (status === OrderStatus.CANCELLED) return DeliveryJobStatus.CANCELLED;
+    if (status === OrderStatus.STORE_DELIVERING) return DeliveryJobStatus.STORE_DELIVERING;
+    if (status === OrderStatus.STORE_DELIVERED) return DeliveryJobStatus.DELIVERED;
     return DeliveryJobStatus.WAITING_FOR_DISPATCH;
   }
 

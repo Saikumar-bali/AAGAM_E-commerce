@@ -47,7 +47,14 @@ export class StoreController {
   @Patch('delivery-zones/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  async updateDeliveryZone(@Param('id') id: string, @Body() body: { name?: string; isActive?: boolean }) {
+  async updateDeliveryZone(@Param('id') id: string, @Body() body: {
+    name?: string;
+    isActive?: boolean;
+    centerLatitude?: number | null;
+    centerLongitude?: number | null;
+    fallbackRadiusKm?: number | null;
+    timezone?: string | null;
+  }) {
     return this.storeService.updateDeliveryZone(id, body);
   }
 

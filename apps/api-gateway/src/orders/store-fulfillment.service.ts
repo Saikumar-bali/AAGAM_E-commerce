@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
-import { OrderStatus, Role, prisma } from '@aagam/database';
+import { DeliveryJobStatus, OrderStatus, PaymentStatus, Role, prisma } from '@aagam/database';
+import { randomUUID } from 'crypto';
 import { OrderService } from './order.service';
 import { DeliveryJobService } from './delivery-job.service';
 import { AutoDispatchService } from './auto-dispatch.service';
@@ -210,6 +211,11 @@ export class StoreFulfillmentService {
       { id: ownerId, role: Role.STORE_OWNER },
     );
 
+    // Store-delivery orders skip rider dispatch — the store fulfills directly.
+    if (order.storeDelivery) {
+      return packedOrder;
+    }
+
     // Nest injects DeliveryJobService in the running API. It is optional so the
     // existing isolated store tests can still construct this service directly.
     if (this.deliveryJobs) {
@@ -222,5 +228,114 @@ export class StoreFulfillmentService {
     }
 
     return packedOrder;
+  }
+
+  async startStoreDelivery(orderId: string, ownerId: string) {
+    const order = await this.ownedOrder(orderId, ownerId);
+    const eligibleStatuses: OrderStatus[] = [OrderStatus.PACKED, OrderStatus.CONFIRMED, OrderStatus.PICKING];
+    if (!eligibleStatuses.includes(order.status as OrderStatus)) {
+      throw new BadRequestException(`Cannot start store delivery in status: ${order.status}`);
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: OrderStatus.STORE_DELIVERING,
+          storeDelivery: true,
+          outForDeliveryAt: new Date(),
+        },
+      });
+
+      // Update DeliveryJob if exists and detach rider
+      await tx.deliveryJob.updateMany({
+        where: { orderId },
+        data: {
+          status: DeliveryJobStatus.STORE_DELIVERING,
+          currentRiderId: null,
+        },
+      });
+
+      // Cancel any active rider dispatch assignment
+      await tx.dispatchAssignment.updateMany({
+        where: {
+          deliveryJob: { orderId },
+          status: { in: ['CREATED', 'OFFERED'] },
+        },
+        data: {
+          status: 'CANCELLED',
+          rejectionReason: 'Store opted for self-delivery',
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: order.status as OrderStatus,
+          toStatus: OrderStatus.STORE_DELIVERING,
+          actorUserId: ownerId,
+          actorRole: Role.STORE_OWNER,
+          note: 'Store started direct delivery',
+          metadata: { orderId, selfDelivery: true, idempotencyKey: `store-delivery-start:${orderId}:${randomUUID()}` },
+        },
+      });
+
+      return updatedOrder;
+    });
+
+    await this.orderService.emitTrackingUpdate(orderId).catch(() => {});
+    return updated;
+  }
+
+  async completeStoreDelivery(orderId: string, ownerId: string) {
+    const order = await this.ownedOrder(orderId, ownerId);
+    if (order.status !== OrderStatus.STORE_DELIVERING) {
+      throw new BadRequestException(`Cannot complete store delivery in status: ${order.status}`);
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: OrderStatus.STORE_DELIVERED,
+          deliveredAt: new Date(),
+        },
+      });
+
+      // Update DeliveryJob if exists
+      await tx.deliveryJob.updateMany({
+        where: { orderId },
+        data: { status: DeliveryJobStatus.DELIVERED },
+      });
+
+      // If COD and payment was pending, mark as CAPTURED
+      await tx.payment.updateMany({
+        where: {
+          orderId,
+          method: 'COD',
+          status: { in: [PaymentStatus.PENDING_COD, PaymentStatus.CREATED] },
+        },
+        data: {
+          status: PaymentStatus.CAPTURED,
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: OrderStatus.STORE_DELIVERING,
+          toStatus: OrderStatus.STORE_DELIVERED,
+          actorUserId: ownerId,
+          actorRole: Role.STORE_OWNER,
+          note: 'Store delivered the order',
+          metadata: { orderId, completedByStore: true, idempotencyKey: `store-delivery-complete:${orderId}:${randomUUID()}` },
+        },
+      });
+
+      return updatedOrder;
+    });
+
+    await this.orderService.emitTrackingUpdate(orderId).catch(() => {});
+    return updated;
   }
 }
