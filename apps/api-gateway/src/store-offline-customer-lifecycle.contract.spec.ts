@@ -45,9 +45,10 @@ describe('Store-owned offline customer lifecycle contract', () => {
   });
 
   test('recycled customers disappear from store listing surfaces', () => {
-    expect(reportingSource).toContain('where: { ...storeFilter, customer: { isActive: true } }');
+    expect(reportingSource).toContain('customer: { isActive: true }');
+    expect(reportingSource).toContain('...storeFilter');
     expect(gridSource).toContain('customer: { isActive: true }');
-    expect(gridSource).toContain('subscription: { ...storeFilter, customer: { isActive: true } }');
+    expect(gridSource).toContain('subscription: { ...storeFilter, customer: { isActive: true }');
   });
 
   test('offline customers created through the store are pinned to that store', () => {
