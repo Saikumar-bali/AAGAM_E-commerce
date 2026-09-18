@@ -160,8 +160,9 @@ jobs:
             -o IdentitiesOnly=yes
             -o StrictHostKeyChecking=yes
             -o ConnectTimeout=15
-            -o ServerAliveInterval=15
-            -o ServerAliveCountMax=3
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=60
+            -o TCPKeepAlive=yes
           )
           target="${DEPLOY_USER}@${DEPLOY_HOST}"
           printf -v remote_path '%q' "$DEPLOY_PATH"
@@ -199,6 +200,9 @@ jobs:
             -o IdentitiesOnly=yes
             -o StrictHostKeyChecking=yes
             -o ConnectTimeout=15
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=60
+            -o TCPKeepAlive=yes
           )
           target="${DEPLOY_USER}@${DEPLOY_HOST}"
           printf -v remote_path '%q' "$DEPLOY_PATH"
@@ -218,8 +222,9 @@ jobs:
             -o IdentitiesOnly=yes
             -o StrictHostKeyChecking=yes
             -o ConnectTimeout=15
-            -o ServerAliveInterval=15
-            -o ServerAliveCountMax=3
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=60
+            -o TCPKeepAlive=yes
           )
           target="${DEPLOY_USER}@${DEPLOY_HOST}"
           printf -v remote_path '%q' "$DEPLOY_PATH"
@@ -261,8 +266,9 @@ jobs:
             -o IdentitiesOnly=yes
             -o StrictHostKeyChecking=yes
             -o ConnectTimeout=15
-            -o ServerAliveInterval=15
-            -o ServerAliveCountMax=3
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=60
+            -o TCPKeepAlive=yes
           )
           target="${DEPLOY_USER}@${DEPLOY_HOST}"
           printf -v remote_path '%q' "$DEPLOY_PATH"
