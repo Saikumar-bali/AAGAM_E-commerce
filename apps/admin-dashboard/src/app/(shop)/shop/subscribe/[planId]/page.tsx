@@ -100,8 +100,9 @@ export default function SubscribeReviewPage() {
       );
       toast.success(response.data?.confirmationMessage || 'Subscription requested.');
       router.replace(`/shop/subscriptions/${response.data.id}`);
-    } catch (e) {
-      toast.error(getToastErrorMessage(e, 'Subscription could not be created.'));
+    } catch (e: any) {
+      const errorMessage = e.response?.data?.message || 'Subscription could not be created.';
+      toast.error(errorMessage);
     } finally {
       setSubmitting(false);
     }

@@ -365,6 +365,14 @@ export class SubscriptionPlanService {
       if (plan.items.some((item) => !Number.isInteger(item.product.weightGrams) || Number(item.product.weightGrams) <= 0)) {
         throw new BadRequestException('Every subscription product requires a positive unit weight before publishing');
       }
+      await tx.subscriptionPlan.update({
+        where: { id },
+        data: {
+          status: SubscriptionPlanStatus.ACTIVE,
+          stores: plan.stores.length ? { create: [...new Set(plan.stores.map((s) => s.storeId))] } : undefined,
+          zones: plan.zones.length ? { create: [...new Set(plan.zones.map((z) => z.zoneId))] } : undefined,
+        },
+      });
       const latest = await tx.subscriptionPlanVersion.findFirst({
         where: { planId: id }, orderBy: { version: 'desc' }, select: { version: true },
       });
@@ -388,10 +396,6 @@ export class SubscriptionPlanService {
           fullSnapshot: requiredJson(snapshot.fullSnapshot, 'fullSnapshot'),
           createdById: actorId,
         },
-      });
-      await tx.subscriptionPlan.update({
-        where: { id },
-        data: { status: SubscriptionPlanStatus.ACTIVE, updatedById: actorId },
       });
       return version;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
