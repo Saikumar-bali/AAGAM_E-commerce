@@ -129,7 +129,7 @@ export default function AdminLiveTrackingPage() {
             <h1 className="text-2xl font-bold text-gray-900">Live Tracking</h1>
             <p className="text-gray-500">Monitor all active deliveries in real-time.</p>
           </div>
-          <button onClick={fetchLiveTracking} className="flex items-center justify-center px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10">
+          <button onClick={fetchLiveTracking} className="flex items-center justify-center px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all  shadow-emerald-900/10">
             <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
@@ -169,7 +169,7 @@ export default function AdminLiveTrackingPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" style={{ height: 'calc(100vh - 280px)' }}>
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 overflow-hidden">
           <LiveTrackingMap
             orders={filteredOrders}
             selectedOrderId={selectedOrderId}
@@ -177,7 +177,7 @@ export default function AdminLiveTrackingPage() {
           />
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col">
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden flex flex-col">
           <div className="p-4 border-b border-gray-100">
             <h3 className="text-sm font-bold text-gray-900">Active Orders ({filteredOrders.length})</h3>
           </div>
@@ -228,7 +228,7 @@ export default function AdminLiveTrackingPage() {
 
       {selectedOrderId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-end z-50">
-          <div className="bg-white h-full w-full max-w-md shadow-2xl overflow-y-auto">
+          <div className="bg-white h-full w-full max-w-md  overflow-y-auto">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
               <h2 className="text-lg font-bold text-gray-900">Order Detail</h2>
               <button onClick={() => { setSelectedOrderId(null); setSelectedOrderDetail(null); }} className="p-2 hover:bg-gray-100 rounded-lg">

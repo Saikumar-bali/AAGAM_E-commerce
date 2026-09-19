@@ -289,12 +289,12 @@ export default function AdminDeliveryExceptionsPage() {
   return (
     <DashboardLayout allowedRole="ADMIN">
       <div className="space-y-6">
-        <header className="flex flex-col gap-4 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-red-950 p-6 text-white shadow-xl lg:flex-row lg:items-center lg:justify-between">
+        <header className="flex flex-col gap-4 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-red-950 p-6 text-white  lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-red-300">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-300">
               Delivery control room
             </p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight">
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">
               Delivery Exceptions
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-300">
@@ -306,7 +306,7 @@ export default function AdminDeliveryExceptionsPage() {
           <button
             onClick={() => void fetchQueue()}
             disabled={loading}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-slate-900 disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 disabled:opacity-60"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />{" "}
             Refresh queue
@@ -314,12 +314,12 @@ export default function AdminDeliveryExceptionsPage() {
         </header>
 
         {error && (
-          <div className="flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">
+          <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
           </div>
         )}
         {message && (
-          <div className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
+          <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> {message}
           </div>
         )}
@@ -353,29 +353,29 @@ export default function AdminDeliveryExceptionsPage() {
           ].map((item) => (
             <div
               key={item.label}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+              className="rounded-xl border border-slate-200 bg-white p-5 "
             >
               <div className={`inline-flex rounded-xl p-2.5 ${item.cls}`}>
                 <item.icon className="h-5 w-5" />
               </div>
-              <p className="mt-4 text-xs font-black uppercase tracking-wider text-slate-400">
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-slate-400">
                 {item.label}
               </p>
-              <p className="mt-1 text-3xl font-black text-slate-950">
+              <p className="mt-1 text-3xl font-semibold text-slate-950">
                 {item.value}
               </p>
             </div>
           ))}
         </section>
 
-        <section className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <section className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 ">
           <Filter className="mx-2 h-4 w-4 text-slate-400" />
           {(["ALL", "EXCEPTIONS", "RETURNS", "COD"] as FilterValue[]).map(
             (value) => (
               <button
                 key={value}
                 onClick={() => setFilter(value)}
-                className={`rounded-xl px-4 py-2 text-xs font-black transition ${
+                className={`rounded-xl px-4 py-2 text-xs font-semibold transition ${
                   filter === value
                     ? "bg-slate-950 text-white"
                     : "bg-slate-50 text-slate-600 hover:bg-slate-100"
@@ -390,7 +390,7 @@ export default function AdminDeliveryExceptionsPage() {
         {!loading && visibleJobs.length === 0 && (
           <section className="rounded-[2rem] border border-dashed border-slate-300 bg-white p-12 text-center">
             <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
-            <h2 className="mt-4 text-xl font-black text-slate-900">
+            <h2 className="mt-4 text-xl font-semibold text-slate-900">
               No matching operations
             </h2>
             <p className="mt-2 text-sm text-slate-500">
@@ -422,23 +422,23 @@ export default function AdminDeliveryExceptionsPage() {
             return (
               <article
                 key={job.id}
-                className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm"
+                className="rounded-[2rem] border border-slate-200 bg-white p-5 "
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-mono text-sm font-black text-slate-950">
+                      <p className="font-mono text-sm font-semibold text-slate-950">
                         #{shortId(job.orderId)}
                       </p>
                       <span
-                        className={`rounded-full px-2.5 py-1 text-[10px] font-black ring-1 ${statusClass(
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 ${statusClass(
                           job.status
                         )}`}
                       >
                         {label(job.status)}
                       </span>
                       {payment?.method === "COD" && (
-                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-800 ring-1 ring-emerald-200">
+                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
                           {codCollected
                             ? `COD ${label(payment.status)}`
                             : job.status === "CANCELLED"
@@ -466,7 +466,7 @@ export default function AdminDeliveryExceptionsPage() {
                       </p>
                     </div>
                   </div>
-                  <p className="text-2xl font-black text-slate-950">
+                  <p className="text-2xl font-semibold text-slate-950">
                     ₹
                     {Number(job.order.grandTotal || 0).toLocaleString("en-IN", {
                       minimumFractionDigits: 2,
@@ -475,8 +475,8 @@ export default function AdminDeliveryExceptionsPage() {
                 </div>
 
                 {job.status === "DELIVERY_FAILED" && decision && (
-                  <section className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
-                    <h3 className="font-black text-red-950">
+                  <section className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
+                    <h3 className="font-semibold text-red-950">
                       System failure resolution
                     </h3>
                     <p className="mt-1 text-sm font-bold text-red-800">
@@ -552,7 +552,7 @@ export default function AdminDeliveryExceptionsPage() {
                             )}.`
                           );
                         }}
-                        className="rounded-xl bg-red-800 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
+                        className="rounded-xl bg-red-800 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
                       >
                         Apply decision
                       </button>
@@ -561,11 +561,11 @@ export default function AdminDeliveryExceptionsPage() {
                 )}
 
                 {canConfirmReturn && (
-                  <section className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <section className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
                     <div className="flex items-start gap-3">
                       <RotateCcw className="mt-0.5 h-5 w-5 text-amber-700" />
                       <div className="flex-1">
-                        <h3 className="font-black text-amber-950">
+                        <h3 className="font-semibold text-amber-950">
                           Confirm physical return
                         </h3>
                         <p className="mt-1 text-sm text-amber-800">
@@ -590,7 +590,7 @@ export default function AdminDeliveryExceptionsPage() {
                               )}.`
                             );
                           }}
-                          className="mt-3 rounded-xl bg-amber-700 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
+                          className="mt-3 rounded-xl bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
                         >
                           {busy === `return:${job.id}`
                             ? "Confirming…"
@@ -602,11 +602,11 @@ export default function AdminDeliveryExceptionsPage() {
                 )}
 
                 {canInspect && (
-                  <section className="mt-5 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
+                  <section className="mt-5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
                     <div className="flex items-start gap-3">
                       <Boxes className="mt-0.5 h-5 w-5 text-indigo-700" />
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-black text-indigo-950">
+                        <h3 className="font-semibold text-indigo-950">
                           Returned-item inspection
                         </h3>
                         <p className="mt-1 text-sm text-indigo-800">
@@ -625,7 +625,7 @@ export default function AdminDeliveryExceptionsPage() {
                                 key={item.id}
                                 className="rounded-xl border border-indigo-100 bg-white p-3"
                               >
-                                <p className="text-sm font-black text-slate-900">
+                                <p className="text-sm font-semibold text-slate-900">
                                   {item.product?.name || "Item"} ×{" "}
                                   {item.quantity}
                                 </p>
@@ -639,7 +639,7 @@ export default function AdminDeliveryExceptionsPage() {
                                   ).map(([field, text]) => (
                                     <label
                                       key={field}
-                                      className="text-[10px] font-black uppercase tracking-wide text-slate-500"
+                                      className="text-[10px] font-semibold uppercase tracking-wide text-slate-500"
                                     >
                                       {text}
                                       <input
@@ -654,7 +654,7 @@ export default function AdminDeliveryExceptionsPage() {
                                         }
                                         inputMode="numeric"
                                         placeholder="0"
-                                        className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-2 text-center text-sm font-black text-slate-900 outline-none focus:border-indigo-500"
+                                        className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-2 text-center text-sm font-semibold text-slate-900 outline-none focus:border-indigo-500"
                                       />
                                     </label>
                                   ))}
@@ -678,7 +678,7 @@ export default function AdminDeliveryExceptionsPage() {
                         <button
                           disabled={Boolean(busy)}
                           onClick={() => void submitInspection(job)}
-                          className="mt-3 rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
+                          className="mt-3 rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
                         >
                           {busy === `inspection:${job.id}`
                             ? "Saving…"
@@ -690,11 +690,11 @@ export default function AdminDeliveryExceptionsPage() {
                 )}
 
                 {canSettle && (
-                  <section className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <section className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                     <div className="flex items-start gap-3">
                       <Banknote className="mt-0.5 h-5 w-5 text-emerald-700" />
                       <div className="flex-1">
-                        <h3 className="font-black text-emerald-950">
+                        <h3 className="font-semibold text-emerald-950">
                           Settle collected COD
                         </h3>
                         <p className="mt-1 text-sm text-emerald-800">
@@ -817,7 +817,7 @@ export default function AdminDeliveryExceptionsPage() {
                                 )}.`
                               );
                             }}
-                            className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
+                            className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
                           >
                             {busy === `settle:${job.id}`
                               ? "Recording…"
@@ -830,7 +830,7 @@ export default function AdminDeliveryExceptionsPage() {
                 )}
 
                 <section className="mt-5 border-t border-slate-100 pt-4">
-                  <h3 className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
                     Append-only operation audit
                   </h3>
                   <div className="mt-3 grid gap-2 lg:grid-cols-2">
@@ -845,10 +845,10 @@ export default function AdminDeliveryExceptionsPage() {
                         className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs font-black text-slate-800">
+                          <p className="text-xs font-semibold text-slate-800">
                             {label(operation.type)}
                           </p>
-                          <span className="text-[9px] font-black text-slate-500">
+                          <span className="text-[9px] font-semibold text-slate-500">
                             {operation.status}
                           </span>
                         </div>

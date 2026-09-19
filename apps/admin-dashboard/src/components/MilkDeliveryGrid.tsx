@@ -622,12 +622,12 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
     return (
       <div
         key={row.subscriptionId}
-        className={`rounded-2xl border p-4 transition-all shadow-xs ${
+        className={`rounded-xl border p-4 transition-all shadow-xs ${
           isDelivered
             ? 'border-emerald-200 bg-emerald-50/40 text-slate-700'
             : isSkipped
             ? 'border-red-200 bg-red-50/40 opacity-75'
-            : 'border-slate-200 bg-white hover:border-emerald-400 hover:shadow-sm ring-1 ring-slate-100'
+            : 'border-slate-200 bg-white hover:border-emerald-400 hover: ring-1 ring-slate-100'
         }`}
       >
         {/* Card Top: Stop Index, Customer, Plan, Slot */}
@@ -635,7 +635,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
           <div>
             <div className="flex items-center gap-2">
               <span
-                className={`flex h-5.5 min-w-5.5 px-1.5 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${
+                className={`flex h-5.5 min-w-5.5 px-1.5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
                   isDelivered
                     ? 'bg-emerald-100 text-emerald-800'
                     : isPending
@@ -645,8 +645,8 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               >
                 {isDelivered ? '✓' : `#${displayIndex + 1}`}
               </span>
-              <h4 className="font-black text-slate-900 text-sm">{row.customer.name}</h4>
-              <span className={`inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[8px] font-black leading-none ${
+              <h4 className="font-semibold text-slate-900 text-sm">{row.customer.name}</h4>
+              <span className={`inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[8px] font-semibold leading-none ${
                 row.customer.customerType === 'offline'
                   ? 'bg-amber-100 text-amber-700 border border-amber-200'
                   : 'bg-blue-50 text-blue-600 border border-blue-200'
@@ -663,11 +663,11 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
           </div>
 
           <div className="flex flex-col items-end gap-1 shrink-0">
-            <span className="inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
+            <span className="inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
               {row.plan.dailyQuantity}
             </span>
             <span
-              className={`inline-flex items-center justify-center h-4.5 px-1.5 rounded text-[9px] font-black ${
+              className={`inline-flex items-center justify-center h-4.5 px-1.5 rounded text-[9px] font-semibold ${
                 row.slot === 'AM' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'
               }`}
             >
@@ -689,16 +689,16 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
           {/* Delivery Status Badge */}
           <div>
             {isDelivered ? (
-              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-0.5 text-[11px] font-black text-white shadow-2xs">
+              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white shadow-2xs">
                 <Check className="h-3 w-3 stroke-[3]" />
                 Delivered {hasExtra ? `(${cell?.extraMilk})` : ''}
               </span>
             ) : isSkipped ? (
-              <span className="rounded-md bg-red-100 px-2 py-0.5 text-[11px] font-black text-red-700 line-through">
+              <span className="rounded-md bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700 line-through">
                 Skipped
               </span>
             ) : (
-              <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-800">
+              <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
                 Pending Next
               </span>
             )}
@@ -709,7 +709,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
         {hasCash && (
           <div className="mt-2 rounded-lg bg-emerald-100/60 px-2.5 py-1 text-[11px] font-bold text-emerald-800 flex justify-between items-center">
             <span>Collected Today:</span>
-            <span className="font-black">₹{cell!.cashCollectedPaise / 100} ({cell!.paymentMode || 'CASH'})</span>
+            <span className="font-semibold">₹{cell!.cashCollectedPaise / 100} ({cell!.paymentMode || 'CASH'})</span>
           </div>
         )}
 
@@ -720,7 +720,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               <button
                 disabled={actionLoading}
                 onClick={() => handleQuickAction(cell.deliveryId, 'TOGGLE_DELIVERED')}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-xs font-black text-white hover:bg-emerald-700 active:scale-98 transition-all shadow-xs"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 active:scale-98 transition-all shadow-xs"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 <span>Mark Delivered</span>
@@ -737,7 +737,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
             <button
               onClick={() => setSelectedCell({ row, day: currentDayNum, cell })}
-              className="rounded-xl border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs font-black text-amber-900 hover:bg-amber-100 transition-colors"
+              className="rounded-xl border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 transition-colors"
               title="Add extra milk, change shift or record payment"
             >
               + Extra / Pay
@@ -766,13 +766,13 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
       }
     >
       {/* Control & Navigation Bar */}
-      <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 md:p-4 shadow-xs">
+      <div className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-3 md:p-4 shadow-xs">
         {/* Row 1: View Switcher, Month Navigation & Quick Actions */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           {/* Left Controls: View Mode & Month Navigation */}
           <div className="flex flex-wrap items-center gap-1.5">
             {/* View Mode Switcher */}
-            <div className="flex rounded-xl border border-slate-200 p-0.5 bg-slate-50 text-xs font-black shrink-0">
+            <div className="flex rounded-xl border border-slate-200 p-0.5 bg-slate-50 text-xs font-semibold shrink-0">
               <button
                 onClick={() => setViewMode('cards')}
                 className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-all ${
@@ -806,7 +806,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </button>
-              <span className="min-w-24 text-center text-xs font-black text-slate-800">{monthLabel}</span>
+              <span className="min-w-24 text-center text-xs font-semibold text-slate-800">{monthLabel}</span>
               <button
                 onClick={() => changeMonth(1)}
                 className="rounded-lg p-1 font-bold text-slate-600 hover:bg-white hover:shadow-xs transition-colors"
@@ -820,7 +820,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
             {isCurrentMonth && viewMode === 'grid' && (
               <button
                 onClick={jumpToToday}
-                className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-2 py-1 text-xs font-black text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all shrink-0"
+                className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-2 py-1 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all shrink-0"
                 title="Scroll instantly to today's date column"
               >
                 <Zap className="h-3 w-3 fill-amber-300 text-amber-300" />
@@ -833,7 +833,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={openDispatchSummary}
-              className="inline-flex items-center gap-1 rounded-xl bg-amber-400 px-2.5 py-1 text-xs font-black text-slate-900 shadow-xs hover:bg-amber-300 transition-all"
+              className="inline-flex items-center gap-1 rounded-xl bg-amber-400 px-2.5 py-1 text-xs font-semibold text-slate-900 shadow-xs hover:bg-amber-300 transition-all"
             >
               <Truck className="h-3.5 w-3.5" />
               <span>Pack Summary</span>
@@ -841,7 +841,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
             <button
               onClick={handleExportCsv}
-              className="inline-flex items-center gap-1 rounded-xl bg-emerald-700 px-2.5 py-1 text-xs font-black text-white shadow-xs hover:bg-emerald-800 transition-all"
+              className="inline-flex items-center gap-1 rounded-xl bg-emerald-700 px-2.5 py-1 text-xs font-semibold text-white shadow-xs hover:bg-emerald-800 transition-all"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" />
               <span>Export Sheets</span>
@@ -849,7 +849,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
             <button
               onClick={toggleFullscreen}
-              className={`inline-flex items-center gap-1 rounded-xl border px-2 py-1 text-xs font-black transition-all ${
+              className={`inline-flex items-center gap-1 rounded-xl border px-2 py-1 text-xs font-semibold transition-all ${
                 isFullscreen
                   ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-xs'
                   : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -957,7 +957,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                 <button
                   onClick={() => setMobileSortMode('pending-first')}
                   className={`flex items-center gap-1 rounded-lg px-2.5 py-1 ${
-                    mobileSortMode === 'pending-first' ? 'bg-white text-emerald-800 shadow-xs font-black' : 'text-slate-500'
+                    mobileSortMode === 'pending-first' ? 'bg-white text-emerald-800 shadow-xs font-semibold' : 'text-slate-500'
                   }`}
                   title="Next deliveries on top, completed pushed to bottom"
                 >
@@ -967,7 +967,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                 <button
                   onClick={() => setMobileSortMode('sequence')}
                   className={`rounded-lg px-2.5 py-1 ${
-                    mobileSortMode === 'sequence' ? 'bg-white text-emerald-800 shadow-xs font-black' : 'text-slate-500'
+                    mobileSortMode === 'sequence' ? 'bg-white text-emerald-800 shadow-xs font-semibold' : 'text-slate-500'
                   }`}
                   title="Keep stops in original sequence 1..N"
                 >
@@ -994,37 +994,37 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
       {/* Main Content Area */}
       {loading ? (
-        <div className="flex min-h-80 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center">
+        <div className="flex min-h-80 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white p-12 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
           <p className="mt-3 text-sm font-bold text-slate-700">Loading milk delivery data...</p>
           <p className="text-xs text-slate-400">Reconciling Bowluwada deliveries, extra liters, and cash flow</p>
         </div>
       ) : !gridData || filteredRows.length === 0 ? (
-        <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
+        <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center">
           <Milk className="h-10 w-10 text-slate-300" />
-          <h3 className="mt-2 text-base font-black text-slate-800">No subscriber records found</h3>
+          <h3 className="mt-2 text-base font-semibold text-slate-800">No subscriber records found</h3>
           <p className="text-xs text-slate-500">No active deliveries matched your current month or search filters.</p>
         </div>
       ) : viewMode === 'cards' ? (
         /* MOBILE-FIRST ROUTE CARDS VIEW WITH DYNAMIC PENDING-FIRST SORTING */
         <div className={`space-y-4 ${isFullscreen ? 'overflow-y-auto flex-1 pb-16' : 'pb-28'}`}>
           {/* Today's Route Progress Bar */}
-          <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-500 to-teal-600 p-4 text-white shadow-xs">
+          <div className="rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-500 to-teal-600 p-4 text-white shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-emerald-100">Today&apos;s Route Checklist</p>
-                <h3 className="text-base font-black">
+                <h3 className="text-base font-semibold">
                   Day {currentDayNum} · {monthLabel}
                 </h3>
               </div>
               <div className="flex items-center gap-3 text-right">
                 <div>
                   <p className="text-[10px] font-bold uppercase text-emerald-100">Completed</p>
-                  <p className="text-lg font-black">{todayStats.deliveredStops} / {todayStats.totalStops}</p>
+                  <p className="text-lg font-semibold">{todayStats.deliveredStops} / {todayStats.totalStops}</p>
                 </div>
                 <div className="border-l border-emerald-400/60 pl-3">
                   <p className="text-[10px] font-bold uppercase text-emerald-100">Total Pack</p>
-                  <p className="text-lg font-black">{todayStats.totalLiters} L</p>
+                  <p className="text-lg font-semibold">{todayStats.totalLiters} L</p>
                 </div>
               </div>
             </div>
@@ -1046,7 +1046,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               {mobileRouteData.pending.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between px-1">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                       <Truck className="h-4 w-4 text-amber-500" />
                       <span>Upcoming Deliveries ({mobileRouteData.pending.length} Stops Remaining)</span>
                     </h4>
@@ -1063,9 +1063,9 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
               {/* All Completed Celebration */}
               {mobileRouteData.pending.length === 0 && mobileRouteData.completed.length > 0 && (
-                <div className="rounded-2xl border border-emerald-300 bg-emerald-50/90 p-5 text-center text-emerald-950 shadow-xs">
+                <div className="rounded-xl border border-emerald-300 bg-emerald-50/90 p-5 text-center text-emerald-950 shadow-xs">
                   <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600" />
-                  <h4 className="mt-2 text-base font-black">All Deliveries Completed for Today!</h4>
+                  <h4 className="mt-2 text-base font-semibold">All Deliveries Completed for Today!</h4>
                   <p className="text-xs text-emerald-800 mt-1">
                     Total {todayStats.deliveredStops} stops delivered · {todayStats.totalLiters}L milk distributed · ₹{todayStats.cashCollected / 100} cash collected.
                   </p>
@@ -1076,7 +1076,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               {mobileRouteData.completed.length > 0 && !hideCompletedOnMobile && (
                 <div className="space-y-2 pt-2 border-t border-slate-200/80">
                   <div className="flex items-center justify-between px-1">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                       <CheckCheck className="h-4 w-4 text-emerald-600" />
                       <span>Delivered Today ({mobileRouteData.completed.length} Completed)</span>
                     </h4>
@@ -1105,11 +1105,11 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
         </div>
       ) : (
         /* FULL 31-DAY SPREADSHEET MATRIX VIEW */
-        <div className={`relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs ${isFullscreen ? 'flex-1 flex flex-col min-h-0' : ''}`}>
+        <div className={`relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs ${isFullscreen ? 'flex-1 flex flex-col min-h-0' : ''}`}>
           <div ref={scrollContainerRef} className={`overflow-x-auto scroll-smooth ${isFullscreen ? 'flex-1 max-h-[calc(100vh-140px)]' : 'max-h-[750px]'}`}>
             <table className="w-full border-collapse text-left text-xs">
               {/* Table Header */}
-              <thead className="sticky top-0 z-20 bg-slate-100 text-[11px] font-black text-slate-700 shadow-xs">
+              <thead className="sticky top-0 z-20 bg-slate-100 text-[11px] font-semibold text-slate-700 shadow-xs">
                 <tr>
                   {/* Clean Frozen Column 1: Index */}
                   <th className="sticky left-0 z-30 min-w-10 max-w-10 w-10 bg-slate-100 px-1 py-3 text-center border-r border-b border-slate-200">
@@ -1138,18 +1138,18 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                         id={isToday ? 'grid-col-today' : undefined}
                         className={`min-w-[58px] max-w-[58px] px-1 py-2 text-center border-r border-b transition-all ${
                           isToday
-                            ? 'bg-emerald-600 text-white ring-2 ring-emerald-500 border-emerald-500 shadow-sm z-20'
+                            ? 'bg-emerald-600 text-white ring-2 ring-emerald-500 border-emerald-500  z-20'
                             : 'border-slate-200 text-slate-700'
                         }`}
                       >
                         <span
-                          className={`block text-[9px] uppercase tracking-wider font-extrabold ${
-                            isToday ? 'text-emerald-100 font-black' : 'text-slate-400'
+                          className={`block text-[9px] uppercase tracking-wider font-semibold ${
+                            isToday ? 'text-emerald-100 font-semibold' : 'text-slate-400'
                           }`}
                         >
                           {isToday ? 'TODAY' : dayName}
                         </span>
-                        <span className={`block font-black ${isToday ? 'text-sm text-white' : 'text-xs text-slate-800'}`}>
+                        <span className={`block font-semibold ${isToday ? 'text-sm text-white' : 'text-xs text-slate-800'}`}>
                           {day}
                         </span>
                       </th>
@@ -1176,8 +1176,8 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                     {/* Customer Info */}
                     <td className="sticky left-10 z-10 bg-white group-hover:bg-slate-50/90 px-3 py-2 border-r border-slate-200 shadow-xs min-w-52 max-w-52">
                       <div className="flex items-center gap-1.5">
-                        <div className="font-black text-slate-900 truncate max-w-[140px]">{row.customer.name}</div>
-                        <span className={`inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[8px] font-black leading-none ${
+                        <div className="font-semibold text-slate-900 truncate max-w-[140px]">{row.customer.name}</div>
+                        <span className={`inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[8px] font-semibold leading-none ${
                           row.customer.customerType === 'offline'
                             ? 'bg-amber-100 text-amber-700 border border-amber-200'
                             : 'bg-blue-50 text-blue-600 border border-blue-200'
@@ -1194,13 +1194,13 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
                     {/* Plan & Slot */}
                     <td className="sticky left-[calc(2.5rem+13rem)] z-10 bg-white group-hover:bg-slate-50/90 px-3 py-2 border-r-2 border-slate-300 shadow-xs min-w-44 max-w-44">
-                      <div className="font-black text-slate-900 text-[11px] truncate max-w-[150px]">{row.plan.name}</div>
+                      <div className="font-semibold text-slate-900 text-[11px] truncate max-w-[150px]">{row.plan.name}</div>
                       <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                        <span className="inline-block rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-800 border border-emerald-200">
+                        <span className="inline-block rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 border border-emerald-200">
                           {row.plan.dailyQuantity}
                         </span>
                         <span
-                          className={`inline-flex items-center justify-center h-4.5 px-1.5 rounded text-[9px] font-black ${
+                          className={`inline-flex items-center justify-center h-4.5 px-1.5 rounded text-[9px] font-semibold ${
                             row.slot === 'AM' ? 'bg-amber-100 text-amber-800' : row.slot === 'PM' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-700'
                           }`}
                         >
@@ -1260,19 +1260,19 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                           <div className="flex flex-col items-center justify-center min-h-[38px] leading-tight">
                             {/* Plan change indicator */}
                             {hasPlanChange && (
-                              <span className="text-[8px] font-black text-orange-700 bg-orange-100 rounded px-1 mb-0.5 border border-orange-200 leading-tight">
+                              <span className="text-[8px] font-semibold text-orange-700 bg-orange-100 rounded px-1 mb-0.5 border border-orange-200 leading-tight">
                                 {cell.planLabel}
                               </span>
                             )}
 
                             {/* Delivery Status Badge */}
                             {isDelivered ? (
-                              <span className="inline-flex items-center justify-center gap-0.5 rounded-md bg-emerald-600 px-1 py-0.5 text-[10px] font-black text-white shadow-2xs">
+                              <span className="inline-flex items-center justify-center gap-0.5 rounded-md bg-emerald-600 px-1 py-0.5 text-[10px] font-semibold text-white shadow-2xs">
                                 <Check className="h-3 w-3 stroke-[3]" />
                                 {cell.baseQuantity}
                               </span>
                             ) : isSkipped ? (
-                              <span className="text-[9px] font-black text-red-600 uppercase bg-red-100/80 px-1 rounded line-through">
+                              <span className="text-[9px] font-semibold text-red-600 uppercase bg-red-100/80 px-1 rounded line-through">
                                 Skip
                               </span>
                             ) : (
@@ -1283,7 +1283,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
                             {/* Extra Milk Badge */}
                             {hasExtra && (
-                              <span className="mt-0.5 inline-flex items-center gap-0.5 text-[8px] font-black text-amber-800 bg-amber-100 rounded px-1 border border-amber-200">
+                              <span className="mt-0.5 inline-flex items-center gap-0.5 text-[8px] font-semibold text-amber-800 bg-amber-100 rounded px-1 border border-amber-200">
                                 +{cell.extraMilk}
                               </span>
                             )}
@@ -1291,14 +1291,14 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                             {/* Payment Badge */}
                             {hasCash ? (
                               <span
-                                className={`mt-0.5 text-[8px] font-black rounded px-1 ${
+                                className={`mt-0.5 text-[8px] font-semibold rounded px-1 ${
                                   cell.paymentMode === 'PHONE_PE' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'
                                 }`}
                               >
                                 ₹{(cell.cashCollectedPaise / 100).toFixed(0)}
                               </span>
                             ) : cell.cashDuePaise > 0 ? (
-                              <span className="mt-0.5 text-[8px] font-black text-red-600 bg-red-50 rounded px-1">
+                              <span className="mt-0.5 text-[8px] font-semibold text-red-600 bg-red-50 rounded px-1">
                                 Due
                               </span>
                             ) : null}
@@ -1308,13 +1308,13 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                     })}
 
                     {/* Totals Columns */}
-                    <td className="px-2 py-2 text-center font-black text-slate-800 border-r border-slate-200">
+                    <td className="px-2 py-2 text-center font-semibold text-slate-800 border-r border-slate-200">
                       {row.totalLiters}L
                     </td>
-                    <td className="px-2 py-2 text-right font-black text-emerald-700 border-r border-slate-200">
+                    <td className="px-2 py-2 text-right font-semibold text-emerald-700 border-r border-slate-200">
                       ₹{(row.totalCollectedPaise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="px-2 py-2 text-right font-black text-red-600 border-r border-slate-200">
+                    <td className="px-2 py-2 text-right font-semibold text-red-600 border-r border-slate-200">
                       {row.totalDuePaise > 0 ? `₹${(row.totalDuePaise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00'}
                     </td>
 
@@ -1333,10 +1333,10 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               </tbody>
 
               {/* Daily Totals Footer */}
-              <tfoot className="sticky bottom-0 z-20 bg-slate-900 text-white font-black text-xs shadow-lg">
+              <tfoot className="sticky bottom-0 z-20 bg-slate-900 text-white font-semibold text-xs ">
                 <tr>
                   <td className="sticky left-0 z-30 bg-slate-900 px-1 py-2.5 text-center border-r border-slate-800">Σ</td>
-                  <td className="sticky left-10 z-30 bg-slate-900 px-3 py-2.5 uppercase tracking-wide text-[10px] font-black text-white border-r border-slate-700 shadow-xs">
+                  <td className="sticky left-10 z-30 bg-slate-900 px-3 py-2.5 uppercase tracking-wide text-[10px] font-semibold text-white border-r border-slate-700 shadow-xs">
                     Daily Total Liters
                   </td>
                   <td className="sticky left-[calc(2.5rem+13rem)] z-30 bg-slate-900 px-3 py-2.5 border-r-2 border-slate-700 shadow-xs" />
@@ -1350,7 +1350,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                         key={day}
                         className={`px-1 py-2 text-center border-r ${
                           isToday
-                            ? 'bg-emerald-600 text-white font-black ring-2 ring-inset ring-emerald-400 text-xs shadow-md'
+                            ? 'bg-emerald-600 text-white font-semibold ring-2 ring-inset ring-emerald-400 text-xs shadow-md'
                             : 'border-slate-800 text-slate-200 font-bold text-[10px] font-mono'
                         }`}
                       >
@@ -1411,22 +1411,22 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
         return (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 -xs p-3 sm:p-4 overflow-y-auto"
             onClick={() => setSelectedCell(null)}
           >
             <div
-              className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
+              className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-xl bg-white  border border-slate-200 overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* 1. STICKY HEADER */}
               <div className="sticky top-0 z-20 flex items-start justify-between border-b border-slate-100 bg-white px-5 py-3.5 shadow-xs shrink-0">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
+                    <span className="inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
                       Day {selectedCell.day} · {monthLabel}
                     </span>
                     <span
-                      className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-black ${
+                      className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                         selectedCell.cell?.status === 'DELIVERED'
                           ? 'bg-emerald-600 text-white'
                           : selectedCell.cell?.status === 'SKIPPED'
@@ -1436,7 +1436,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                     >
                       {selectedCell.cell?.status || 'SCHEDULED'}
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-700">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
                       {selectedCell.cell?.deliverySlot === 'PM' ? (
                         <Moon className="h-3 w-3 text-indigo-600" />
                       ) : (
@@ -1445,7 +1445,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                       {selectedCell.cell?.deliverySlot || selectedCell.row.slot} Shift
                     </span>
                   </div>
-                  <h3 className="mt-1 text-base font-black text-slate-900">{selectedCell.row.customer.name}</h3>
+                  <h3 className="mt-1 text-base font-semibold text-slate-900">{selectedCell.row.customer.name}</h3>
                   <p className="max-w-sm truncate text-xs font-medium text-slate-500">
                     {selectedCell.row.customer.address} · {selectedCell.row.plan.name} ({selectedCell.cell?.baseQuantity || selectedCell.row.plan.dailyQuantity})
                   </p>
@@ -1460,13 +1460,13 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               </div>
 
               {/* 2. COMPACT SEGMENTED TABS */}
-              <div className="flex border-b border-slate-100 bg-slate-50/80 px-4 pt-2 text-xs font-black shrink-0">
+              <div className="flex border-b border-slate-100 bg-slate-50/80 px-4 pt-2 text-xs font-semibold shrink-0">
                 <button
                   type="button"
                   onClick={() => setModalTab('actions')}
                   className={`pb-2 px-3 border-b-2 transition-all ${
                     modalTab === 'actions'
-                      ? 'border-emerald-600 text-emerald-800 font-black'
+                      ? 'border-emerald-600 text-emerald-800 font-semibold'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -1477,7 +1477,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                   onClick={() => setModalTab('extra')}
                   className={`pb-2 px-3 border-b-2 transition-all flex items-center gap-1 ${
                     modalTab === 'extra'
-                      ? 'border-indigo-600 text-indigo-800 font-black'
+                      ? 'border-indigo-600 text-indigo-800 font-semibold'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -1488,13 +1488,13 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                   onClick={() => setModalTab('payment')}
                   className={`pb-2 px-3 border-b-2 transition-all flex items-center gap-1 ${
                     modalTab === 'payment'
-                      ? 'border-emerald-600 text-emerald-800 font-black'
+                      ? 'border-emerald-600 text-emerald-800 font-semibold'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   Payment & Renew
                   {selectedCell.row.totalDuePaise > 0 && (
-                    <span className="ml-1 rounded-full bg-rose-100 px-1.5 py-0.2 text-[9px] font-black text-rose-700">
+                    <span className="ml-1 rounded-full bg-rose-100 px-1.5 py-0.2 text-[9px] font-semibold text-rose-700">
                       ₹{customerDueRupees} Due
                     </span>
                   )}
@@ -1508,12 +1508,12 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                     {/* TAB 1: QUICK STATUS */}
                     {modalTab === 'actions' && (
                       <div className="space-y-3">
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
-                              <p className="text-xs font-black uppercase tracking-wider text-slate-400">Delivery Status</p>
+                              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Delivery Status</p>
                               <div className="mt-0.5 flex items-center gap-2">
-                                <span className="text-sm font-black text-slate-900">
+                                <span className="text-sm font-semibold text-slate-900">
                                   {selectedCell.cell.status === 'DELIVERED' ? 'Marked as Delivered' : 'Scheduled for Delivery'}
                                 </span>
                               </div>
@@ -1527,7 +1527,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                             <button
                               disabled={actionLoading}
                               onClick={() => handleQuickAction(selectedCell.cell!.deliveryId, 'TOGGLE_DELIVERED')}
-                              className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-black text-white shadow-xs transition-transform active:scale-95 ${
+                              className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition-transform active:scale-95 ${
                                 selectedCell.cell.status === 'DELIVERED'
                                   ? 'bg-amber-600 hover:bg-amber-700'
                                   : 'bg-emerald-700 hover:bg-emerald-800'
@@ -1543,7 +1543,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                           <button
                             disabled={actionLoading}
                             onClick={() => handleQuickAction(selectedCell.cell!.deliveryId, 'TOGGLE_SLOT')}
-                            className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50 shadow-xs"
+                            className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs"
                           >
                             {selectedCell.cell.deliverySlot === 'AM' ? (
                               <>
@@ -1563,7 +1563,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                 note: 'Customer requested skip / not taken',
                               })
                             }
-                            className="rounded-xl border border-rose-200 bg-rose-50/70 py-2.5 text-xs font-black text-rose-700 hover:bg-rose-100 shadow-xs"
+                            className="rounded-xl border border-rose-200 bg-rose-50/70 py-2.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 shadow-xs"
                           >
                             Mark Skipped (Not Taken)
                           </button>
@@ -1586,10 +1586,10 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                     {/* TAB 2: EXTRA MILK / PRODUCE / BOWL ADD-ON */}
                     {modalTab === 'extra' && (
                       <div className="space-y-3.5">
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
                           {/* Dynamic Header */}
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5 font-black text-xs">
+                            <div className="flex items-center gap-1.5 font-semibold text-xs">
                               {addonUnitMode === 'weight' ? (
                                 <>
                                   <Scale className="h-4 w-4 text-emerald-600" />
@@ -1613,7 +1613,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                               )}
                             </div>
                             <span
-                              className={`rounded-md px-2 py-0.5 text-[10px] font-black ${
+                              className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                                 extraTargetSlot === 'PM'
                                   ? 'bg-indigo-100 text-indigo-900'
                                   : 'bg-amber-100 text-amber-900'
@@ -1690,7 +1690,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                   }}
                                   className={`flex items-center justify-center gap-1 rounded-lg py-1.5 transition-all text-[11px] ${
                                     addonUnitMode === 'weight'
-                                      ? 'bg-white text-emerald-800 shadow-xs font-black'
+                                      ? 'bg-white text-emerald-800 shadow-xs font-semibold'
                                       : 'text-slate-600 hover:text-slate-900'
                                   }`}
                                 >
@@ -1705,7 +1705,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                   }}
                                   className={`flex items-center justify-center gap-1 rounded-lg py-1.5 transition-all text-[11px] ${
                                     addonUnitMode === 'count'
-                                      ? 'bg-white text-amber-800 shadow-xs font-black'
+                                      ? 'bg-white text-amber-800 shadow-xs font-semibold'
                                       : 'text-slate-600 hover:text-slate-900'
                                   }`}
                                 >
@@ -1720,7 +1720,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                   }}
                                   className={`flex items-center justify-center gap-1 rounded-lg py-1.5 transition-all text-[11px] ${
                                     addonUnitMode === 'volume'
-                                      ? 'bg-white text-indigo-800 shadow-xs font-black'
+                                      ? 'bg-white text-indigo-800 shadow-xs font-semibold'
                                       : 'text-slate-600 hover:text-slate-900'
                                   }`}
                                 >
@@ -1733,7 +1733,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                   }}
                                   className={`flex items-center justify-center gap-1 rounded-lg py-1.5 transition-all text-[11px] ${
                                     addonUnitMode === 'custom'
-                                      ? 'bg-white text-purple-800 shadow-xs font-black'
+                                      ? 'bg-white text-purple-800 shadow-xs font-semibold'
                                       : 'text-slate-600 hover:text-slate-900'
                                   }`}
                                 >
@@ -1812,7 +1812,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                   <select
                                     value={selectedPresetLabel}
                                     onChange={(e) => setSelectedPresetLabel(e.target.value)}
-                                    className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-black text-slate-900"
+                                    className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-900"
                                   >
                                     {presets.map((pr) => (
                                       <option key={pr.qtyLabel} value={pr.qtyLabel}>
@@ -1831,7 +1831,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                 <select
                                   value={consecutiveDays}
                                   onChange={(e) => setConsecutiveDays(Number(e.target.value))}
-                                  className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-black text-slate-900"
+                                  className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-900"
                                 >
                                   <option value={1}>1 Day (Single)</option>
                                   <option value={2}>2 Days</option>
@@ -1850,7 +1850,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                 <select
                                   value={extraTargetSlot}
                                   onChange={(e) => setExtraTargetSlot(e.target.value as any)}
-                                  className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-black text-slate-900"
+                                  className="mt-0.5 h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-900"
                                 >
                                   <option value="PM">PM Shift (Evening)</option>
                                   <option value="AM">AM Shift (Morning)</option>
@@ -1885,7 +1885,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                   note: `Customer requested ${consecutiveDays} days ${extraLabel} (${extraTargetSlot})`,
                                 });
                               }}
-                              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-700 py-2.5 text-xs font-black text-white shadow-sm hover:bg-indigo-800 transition active:scale-[0.98]"
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-700 py-2.5 text-xs font-semibold text-white  hover:bg-indigo-800 transition active:scale-[0.98]"
                             >
                               <Zap className="h-3.5 w-3.5" />
                               Attach {consecutiveDays} Days {extraTargetSlot} Delivery (₹{totalEveningExtraPrice})
@@ -1901,7 +1901,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                   note: `One-time extra ${extraLabel}`,
                                 });
                               }}
-                              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-500 py-2 text-xs font-black text-white hover:bg-amber-600 transition shadow-xs"
+                              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-500 py-2 text-xs font-semibold text-white hover:bg-amber-600 transition shadow-xs"
                             >
                               Add as Single Day Extra Today Only (₹{perDayPaise / 100})
                             </button>
@@ -1914,9 +1914,9 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                     {modalTab === 'payment' && (
                       <div className="space-y-3">
                         {/* Daily / Due Payment */}
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3 shadow-xs">
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-xs">
                           <div className="flex items-center justify-between">
-                            <p className="text-xs font-black text-slate-800">Record Subscriber Payment</p>
+                            <p className="text-xs font-semibold text-slate-800">Record Subscriber Payment</p>
                             <span className="text-xs font-bold text-slate-500">
                               Current Due: <strong className="text-rose-700">₹{(selectedCell.row.totalDuePaise / 100).toFixed(2)}</strong>
                             </span>
@@ -1928,7 +1928,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                               <button
                                 type="button"
                                 onClick={() => setPaymentAmount(String(customerDueRupees))}
-                                className="rounded-lg bg-rose-50 border border-rose-200 px-2 py-1 text-[11px] font-black text-rose-700 hover:bg-rose-100"
+                                className="rounded-lg bg-rose-50 border border-rose-200 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
                               >
                                 Full Due (₹{customerDueRupees})
                               </button>
@@ -1987,7 +1987,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                   paymentMode,
                                 })
                               }
-                              className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white hover:bg-slate-800 disabled:opacity-50"
+                              className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
                             >
                               Save
                             </button>
@@ -1995,9 +1995,9 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                         </div>
 
                         {/* Renew Plan Section */}
-                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 flex items-center justify-between gap-3">
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-xs font-black text-emerald-950">Next Cycle Subscription</p>
+                            <p className="text-xs font-semibold text-emerald-950">Next Cycle Subscription</p>
                             <p className="text-[11px] text-emerald-700">Extend 30 daily deliveries on the same plan.</p>
                           </div>
                           <button
@@ -2021,7 +2021,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                 setActionLoading(false);
                               }
                             }}
-                            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-black text-white hover:bg-emerald-800 shadow-xs"
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-800 shadow-xs"
                           >
                             <RefreshCw className="h-3.5 w-3.5" /> Renew 30 Days
                           </button>
@@ -2041,7 +2041,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                 </span>
                 <button
                   onClick={() => setSelectedCell(null)}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 transition-colors"
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
                 >
                   Close
                 </button>
@@ -2053,12 +2053,12 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
       {/* Morning Pack Summary Modal */}
       {dispatchModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[85vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 -xs p-4">
+          <div className="w-full max-w-xl rounded-xl bg-white p-6  border border-slate-200 space-y-4 max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Truck className="h-5 w-5 text-amber-600" />
-                <h3 className="text-base font-black text-slate-900">Morning Packing & Dispatch Sheet</h3>
+                <h3 className="text-base font-semibold text-slate-900">Morning Packing & Dispatch Sheet</h3>
               </div>
               <button onClick={() => setDispatchModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="h-5 w-5" />
@@ -2075,22 +2075,22 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                 {/* Metric Cards */}
                 <div className="grid grid-cols-3 gap-3">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
-                    <p className="text-[10px] font-black uppercase text-slate-500">Buffalo Milk (BM)</p>
-                    <p className="text-2xl font-black text-slate-900">{dispatchData.summary.totalBuffaloMilkLiters} L</p>
+                    <p className="text-[10px] font-semibold uppercase text-slate-500">Buffalo Milk (BM)</p>
+                    <p className="text-2xl font-semibold text-slate-900">{dispatchData.summary.totalBuffaloMilkLiters} L</p>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
-                    <p className="text-[10px] font-black uppercase text-slate-500">Cow Milk (CM)</p>
-                    <p className="text-2xl font-black text-slate-900">{dispatchData.summary.totalCowMilkLiters} L</p>
+                    <p className="text-[10px] font-semibold uppercase text-slate-500">Cow Milk (CM)</p>
+                    <p className="text-2xl font-semibold text-slate-900">{dispatchData.summary.totalCowMilkLiters} L</p>
                   </div>
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center">
-                    <p className="text-[10px] font-black uppercase text-emerald-700">Total Pack Liters</p>
-                    <p className="text-2xl font-black text-emerald-800">{dispatchData.summary.totalMilkLiters} L</p>
+                    <p className="text-[10px] font-semibold uppercase text-emerald-700">Total Pack Liters</p>
+                    <p className="text-2xl font-semibold text-emerald-800">{dispatchData.summary.totalMilkLiters} L</p>
                   </div>
                 </div>
 
                 {/* Stops Checklist */}
                 <div className="rounded-xl border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-700 flex justify-between">
+                  <div className="bg-slate-100 px-3 py-2 text-[11px] font-semibold text-slate-700 flex justify-between">
                     <span>Route Delivery Stops ({dispatchData.summary.totalStops})</span>
                     <span>Completed: {dispatchData.summary.completedStops}</span>
                   </div>
@@ -2098,13 +2098,13 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                     {dispatchData.stops.map((stop: any) => (
                       <div key={stop.deliveryId} className="flex items-center justify-between p-2.5 text-xs hover:bg-slate-50">
                         <div>
-                          <p className="font-black text-slate-900">
+                          <p className="font-semibold text-slate-900">
                             #{stop.stopNumber} · {stop.customerName}
                           </p>
                           <p className="text-[10px] text-slate-500">{stop.address} · {stop.phone}</p>
                         </div>
                         <div className="text-right">
-                          <span className="inline-block rounded bg-emerald-50 px-2 py-0.5 font-black text-emerald-800">
+                          <span className="inline-block rounded bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">
                             {stop.product} {stop.extra ? `(${stop.extra})` : ''}
                           </span>
                           <p className="text-[10px] font-bold text-slate-400 mt-0.5">{stop.status}</p>
@@ -2119,7 +2119,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
             <div className="pt-2 border-t border-slate-100 flex justify-end">
               <button
                 onClick={() => setDispatchModalOpen(false)}
-                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white hover:bg-slate-800"
+                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
               >
                 Done
               </button>
@@ -2130,12 +2130,12 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
       {/* Customer WhatsApp Statement Modal */}
       {statementModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 -xs p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6  border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Share2 className="h-5 w-5 text-emerald-600" />
-                <h3 className="text-base font-black text-slate-900">Monthly Bill Statement</h3>
+                <h3 className="text-base font-semibold text-slate-900">Monthly Bill Statement</h3>
               </div>
               <button onClick={() => setStatementModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="h-5 w-5" />
@@ -2150,21 +2150,21 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
             ) : statementData ? (
               <div className="space-y-3">
                 <div className="rounded-xl bg-slate-50 p-3 space-y-1 text-xs">
-                  <p><span className="font-bold text-slate-500">Customer:</span> <span className="font-black text-slate-900">{statementData.customerName}</span></p>
+                  <p><span className="font-bold text-slate-500">Customer:</span> <span className="font-semibold text-slate-900">{statementData.customerName}</span></p>
                   <p><span className="font-bold text-slate-500">Plan:</span> <span className="font-bold text-slate-700">{statementData.planName}</span></p>
                   <p><span className="font-bold text-slate-500">Deliveries:</span> <span className="font-bold text-emerald-700">{statementData.completedCount} Delivered</span> · {statementData.skippedCount} Skipped</p>
                   {statementData.extraLiters > 0 && (
-                    <p><span className="font-bold text-slate-500">Extra Milk:</span> <span className="font-black text-amber-700">{statementData.extraLiters} Liters</span></p>
+                    <p><span className="font-bold text-slate-500">Extra Milk:</span> <span className="font-semibold text-amber-700">{statementData.extraLiters} Liters</span></p>
                   )}
                   <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between text-sm">
                     <span className="font-bold text-slate-600">Total Paid: ₹{statementData.totalPaidRupees}</span>
-                    <span className="font-black text-red-600">Balance Due: ₹{statementData.totalDueRupees}</span>
+                    <span className="font-semibold text-red-600">Balance Due: ₹{statementData.totalDueRupees}</span>
                   </div>
                 </div>
 
                 {/* Pre-formatted WhatsApp Message Box */}
                 <div className="rounded-xl border border-slate-200 bg-slate-100 p-3">
-                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1">WhatsApp Preview</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">WhatsApp Preview</p>
                   <pre className="text-[11px] text-slate-700 font-mono whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
                     {statementData.whatsappText}
                   </pre>
@@ -2176,7 +2176,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                       navigator.clipboard.writeText(statementData.whatsappText);
                       toast.success('Statement copied to clipboard!');
                     }}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     <Copy className="h-3.5 w-3.5" /> Copy Text
                   </button>
@@ -2186,7 +2186,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                       href={statementData.whatsappUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-xs font-black text-white hover:bg-emerald-700"
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-xs font-semibold text-white hover:bg-emerald-700"
                     >
                       <Send className="h-3.5 w-3.5" /> Send on WhatsApp
                     </a>
@@ -2197,7 +2197,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
             <button
               onClick={() => setStatementModalOpen(false)}
-              className="w-full rounded-xl border border-slate-200 py-2 text-xs font-black text-slate-600 hover:bg-slate-50"
+              className="w-full rounded-xl border border-slate-200 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
             >
               Close
             </button>

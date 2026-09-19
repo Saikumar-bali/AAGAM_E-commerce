@@ -355,14 +355,14 @@ export default function AdminOrdersPage() {
             <h1 className="text-2xl font-bold text-gray-900">Order Management</h1>
             <p className="text-gray-500">Track and manage all customer orders.</p>
           </div>
-          <button onClick={fetchOrders} className="flex items-center justify-center px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10">
+          <button onClick={fetchOrders} className="flex items-center justify-center px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all  shadow-emerald-900/10">
             <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh Orders
           </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {stats.map((stat, idx) => (
-            <div key={idx} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <div key={idx} className="bg-white rounded-xl p-5  border border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
@@ -376,20 +376,20 @@ export default function AdminOrdersPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
           <button onClick={() => setQueueFilter('ALL')} className={`rounded-xl border px-4 py-3 text-left ${queueFilter === 'ALL' ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'}`}>
             <p className="text-xs font-bold text-gray-500 uppercase">All Queue</p>
-            <p className="text-lg font-black text-gray-900">{orders.length}</p>
+            <p className="text-lg font-semibold text-gray-900">{orders.length}</p>
           </button>
           <button onClick={() => setQueueFilter('AT_RISK')} className={`rounded-xl border px-4 py-3 text-left ${queueFilter === 'AT_RISK' ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
             <p className="text-xs font-bold text-gray-500 uppercase">At Risk SLA</p>
-            <p className="text-lg font-black text-amber-700">{queueStats.atRisk}</p>
+            <p className="text-lg font-semibold text-amber-700">{queueStats.atRisk}</p>
           </button>
           <button onClick={() => setQueueFilter('UNASSIGNED')} className={`rounded-xl border px-4 py-3 text-left ${queueFilter === 'UNASSIGNED' ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'}`}>
             <p className="text-xs font-bold text-gray-500 uppercase">Unassigned</p>
-            <p className="text-lg font-black text-blue-700">{queueStats.unassigned}</p>
+            <p className="text-lg font-semibold text-blue-700">{queueStats.unassigned}</p>
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl  border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-50 bg-gray-50/50">
           <div className="flex flex-col lg:flex-row gap-4 items-center">
             <div className="relative flex-1 max-w-md">
@@ -432,7 +432,7 @@ export default function AdminOrdersPage() {
                         {isAtRisk ? `At Risk • ${ageMinutes}m` : `Healthy • ${ageMinutes}m`}
                       </span>
                     </td>
-                    <td className="px-6 py-4"><div className="flex items-center text-sm text-gray-500"><Calendar className="h-4 w-4 mr-2 text-gray-400" />{new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>{deliveryWindow(order) && <div className="mt-1 text-[11px] font-black text-emerald-700">Scheduled · {deliveryWindow(order)}</div>}</td>
+                    <td className="px-6 py-4"><div className="flex items-center text-sm text-gray-500"><Calendar className="h-4 w-4 mr-2 text-gray-400" />{new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>{deliveryWindow(order) && <div className="mt-1 text-[11px] font-semibold text-emerald-700">Scheduled · {deliveryWindow(order)}</div>}</td>
                     <td className="px-6 py-4 text-right"><div className="flex justify-end space-x-1.5"><button aria-label={`View order ${order.id.substring(0, 8)}`} title="View order details" onClick={() => { setSelectedOrder(order); fetchOrderTracking(order.id); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"><Eye className="h-4 w-4" /></button><button aria-label={`Update status for order ${order.id.substring(0, 8)}`} title="Update order status" onClick={() => { setSelectedOrder(order); setShowStatusModal(true); }} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"><ChevronDown className="h-4 w-4" /></button></div></td>
                   </tr>
                 );
@@ -444,7 +444,7 @@ export default function AdminOrdersPage() {
 
       {selectedOrder && !showStatusModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl max-w-2xl w-full  max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
               <div><h2 className="text-xl font-bold text-gray-900">Order Details</h2><p className="text-sm text-gray-500 font-mono">{selectedOrder.id}</p></div>
               <button aria-label="Close order details" title="Close order details" onClick={() => setSelectedOrder(null)} className="p-2 hover:bg-gray-100 rounded-lg transition-all"><X className="h-5 w-5 text-gray-500" /></button>
@@ -515,7 +515,7 @@ export default function AdminOrdersPage() {
 
       {showForceCancelModal && selectedOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+          <div className="bg-white rounded-xl max-w-md w-full ">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-xl font-bold text-gray-900">Force Cancel Order</h2>
               <button aria-label="Close force-cancel dialog" title="Close force-cancel dialog" onClick={() => setShowForceCancelModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="h-5 w-5 text-gray-500" /></button>
@@ -541,7 +541,7 @@ export default function AdminOrdersPage() {
 
       {showReassignModal && selectedOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+          <div className="bg-white rounded-xl max-w-md w-full ">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-xl font-bold text-gray-900">Reassign Rider</h2>
               <button onClick={() => setShowReassignModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="h-5 w-5 text-gray-500" /></button>
@@ -573,7 +573,7 @@ export default function AdminOrdersPage() {
 
       {showStatusModal && selectedOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+          <div className="bg-white rounded-xl max-w-md w-full ">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between"><h2 className="text-xl font-bold text-gray-900">Update Order Status</h2><button onClick={() => setShowStatusModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="h-5 w-5 text-gray-500" /></button></div>
             <div className="p-6">
               <p className="text-sm text-gray-500 mb-4">Order: {selectedOrder.id.substring(0, 8)}</p>

@@ -205,7 +205,7 @@ function InputField({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">{fieldLabel}</span>
+      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabel}</span>
       <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={fieldClass} />
     </label>
   );
@@ -283,24 +283,24 @@ export function InternalPartnerCreateButton({ onCreated, fixedType, buttonLabel 
   const currentType = fixedType || form.type;
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-black text-white shadow-sm hover:bg-teal-800">
+      <button type="button" onClick={() => setOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white  hover:bg-teal-800">
         <Plus className="h-4 w-4" /> {buttonLabel || (fixedType === 'RIDER' ? 'Add Rider' : fixedType === 'STORE' ? 'Add Store' : 'Create internal partner')}
       </button>
       {open ? (
-        <div className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Create internal partner">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/65 p-4 " role="dialog" aria-modal="true" aria-label="Create internal partner">
+          <div className="w-full max-w-lg rounded-xl bg-white p-5  sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-black uppercase tracking-widest text-teal-700">Admin-created account</p>
-                <h2 className="mt-2 text-2xl font-black text-slate-950">Create {currentType === 'RIDER' ? 'Rider' : 'Store'} internally</h2>
+                <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Admin-created account</p>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-950">Create {currentType === 'RIDER' ? 'Rider' : 'Store'} internally</h2>
                 <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">Admin is the identity authority for this flow. The mobile number is accepted without OTP and the action is recorded in the audit trail.</p>
               </div>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close create partner dialog" className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button>
             </div>
             {!fixedType ? (
-              <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5">
+              <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1.5">
                 {(['RIDER', 'STORE'] as const).map((type) => (
-                  <button key={type} type="button" onClick={() => setForm((current) => ({ ...current, type }))} className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-black ${form.type === type ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500'}`}>
+                  <button key={type} type="button" onClick={() => setForm((current) => ({ ...current, type }))} className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold ${form.type === type ? 'bg-white text-teal-800 ' : 'text-slate-500'}`}>
                     {type === 'RIDER' ? <Bike className="h-4 w-4" /> : <Store className="h-4 w-4" />}{type === 'RIDER' ? 'Rider' : 'Store'}
                   </button>
                 ))}
@@ -319,7 +319,7 @@ export function InternalPartnerCreateButton({ onCreated, fixedType, buttonLabel 
             <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-800">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /> No OTP step. Admin-created identity is automatically attested and audited.
             </div>
-            <button type="button" onClick={() => void create()} disabled={submitting} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3.5 text-sm font-black text-white disabled:opacity-50">
+            <button type="button" onClick={() => void create()} disabled={submitting} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3.5 text-sm font-semibold text-white disabled:opacity-50">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create {currentType === 'RIDER' ? 'Rider' : 'Store'} draft
             </button>
           </div>
@@ -493,14 +493,14 @@ export function InternalPartnerDraftControls({ detail, onUpdated }: DraftProps) 
   };
 
   return (
-    <section className="rounded-2xl border-2 border-teal-200 bg-teal-50/40 p-4 sm:p-5">
+    <section className="rounded-xl border-2 border-teal-200 bg-teal-50/40 p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-teal-700">Admin internal onboarding</p>
-          <h3 className="mt-1 text-lg font-black text-slate-950">Complete the partner before approval</h3>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-teal-700">Admin internal onboarding</p>
+          <h3 className="mt-1 text-lg font-semibold text-slate-950">Complete the partner before approval</h3>
           <p className="mt-1 max-w-2xl text-xs font-semibold leading-5 text-slate-600">Admin-created Rider/Store accounts do not require OTP. Complete the operational profile and upload every mandatory private document; the backend records Admin identity attestation automatically.</p>
         </div>
-        <span className="h-fit rounded-full border border-teal-200 bg-white px-3 py-1 text-[10px] font-black text-teal-800">{application.status}</span>
+        <span className="h-fit rounded-full border border-teal-200 bg-white px-3 py-1 text-[10px] font-semibold text-teal-800">{application.status}</span>
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -511,16 +511,16 @@ export function InternalPartnerDraftControls({ detail, onUpdated }: DraftProps) 
 
       {!profileComplete ? (
         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-          <p className="text-xs font-black text-amber-900">Still required before review</p>
+          <p className="text-xs font-semibold text-amber-900">Still required before review</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {missingFields.map((field) => <span key={field} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-amber-800 ring-1 ring-amber-200">{FIELD_LABELS[field] || label(field)}</span>)}
+            {missingFields.map((field) => <span key={field} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-amber-800 ring-1 ring-amber-200">{FIELD_LABELS[field] || label(field)}</span>)}
           </div>
         </div>
       ) : null}
 
-      <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between gap-3">
-          <div><h4 className="text-sm font-black text-slate-950">1. Partner profile</h4><p className="mt-1 text-xs font-semibold text-slate-500">Save after changing vehicle type or location; required Rider documents are recalculated automatically.</p></div>
+          <div><h4 className="text-sm font-semibold text-slate-950">1. Partner profile</h4><p className="mt-1 text-xs font-semibold text-slate-500">Save after changing vehicle type or location; required Rider documents are recalculated automatically.</p></div>
           <Save className="h-5 w-5 text-teal-700" />
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -534,25 +534,25 @@ export function InternalPartnerDraftControls({ detail, onUpdated }: DraftProps) 
               <InputField label="City" value={form.city || ''} onChange={(value) => set('city', value)} />
               <InputField label="State" value={form.state || ''} onChange={(value) => set('state', value)} />
               <InputField label="Pincode" value={form.pincode || ''} onChange={(value) => set('pincode', value.replace(/\D/g, '').slice(0, 6))} />
-              <label className="block"><span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">Vehicle type</span><select value={form.vehicleType || ''} onChange={(event) => set('vehicleType', event.target.value)} className={fieldClass}><option value="">Select vehicle</option><option value="WALKER">Walker</option><option value="BICYCLE">Bicycle</option><option value="MOTORCYCLE">Motorcycle</option><option value="SCOOTER">Scooter</option><option value="CAR">Car</option><option value="VAN">Van</option></select></label>
+              <label className="block"><span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Vehicle type</span><select value={form.vehicleType || ''} onChange={(event) => set('vehicleType', event.target.value)} className={fieldClass}><option value="">Select vehicle</option><option value="WALKER">Walker</option><option value="BICYCLE">Bicycle</option><option value="MOTORCYCLE">Motorcycle</option><option value="SCOOTER">Scooter</option><option value="CAR">Car</option><option value="VAN">Van</option></select></label>
               <InputField label="Vehicle number (if registered)" value={form.vehicleNumber || ''} onChange={(value) => set('vehicleNumber', value.toUpperCase().replace(/\s/g, ''))} />
               <InputField label="Emergency contact name" value={form.emergencyContactName || ''} onChange={(value) => set('emergencyContactName', value)} />
               <InputField label="Emergency contact phone" value={form.emergencyContactPhone || ''} onChange={(value) => set('emergencyContactPhone', value.replace(/[^+0-9]/g, ''))} />
               <label className="block md:col-span-2">
-                <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">Preferred delivery zones</span>
+                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Preferred delivery zones</span>
                 <div className="min-h-12 rounded-xl border border-slate-200 bg-white p-2">
                   {zonesLoading ? <div className="flex items-center gap-2 px-2 py-1 text-xs font-bold text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading active zones…</div> : zones.length ? (
                     <div className="flex flex-wrap gap-2">
                       {zones.map((zone) => {
                         const selected = selectedZones.includes(zone.name);
-                        return <button key={zone.id} type="button" onClick={() => set('preferredZones', selected ? selectedZones.filter((name) => name !== zone.name) : [...selectedZones, zone.name])} className={`rounded-full px-3 py-1.5 text-xs font-black transition ${selected ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-teal-50'}`}>{selected ? '✓ ' : ''}{zone.name}</button>;
+                        return <button key={zone.id} type="button" onClick={() => set('preferredZones', selected ? selectedZones.filter((name) => name !== zone.name) : [...selectedZones, zone.name])} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${selected ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-teal-50'}`}>{selected ? '✓ ' : ''}{zone.name}</button>;
                       })}
                     </div>
                   ) : <p className="px-2 py-1 text-xs font-bold text-amber-700">No active delivery zones are available. Create/activate a zone in operations first.</p>}
                 </div>
               </label>
-              <label className="block"><span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">Availability</span><select value={form.availability || ''} onChange={(event) => set('availability', event.target.value)} className={fieldClass}><option value="">Select availability</option><option value="Full day">Full day</option><option value="Morning">Morning</option><option value="Evening">Evening</option><option value="Weekends">Weekends</option></select></label>
-              <label className="block"><span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">Experience</span><select value={form.experience || ''} onChange={(event) => set('experience', event.target.value)} className={fieldClass}><option value="">Select experience</option><option value="First-time Rider">First-time Rider</option><option value="Less than 1 year">Less than 1 year</option><option value="1–3 years">1–3 years</option><option value="3+ years">3+ years</option></select></label>
+              <label className="block"><span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Availability</span><select value={form.availability || ''} onChange={(event) => set('availability', event.target.value)} className={fieldClass}><option value="">Select availability</option><option value="Full day">Full day</option><option value="Morning">Morning</option><option value="Evening">Evening</option><option value="Weekends">Weekends</option></select></label>
+              <label className="block"><span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Experience</span><select value={form.experience || ''} onChange={(event) => set('experience', event.target.value)} className={fieldClass}><option value="">Select experience</option><option value="First-time Rider">First-time Rider</option><option value="Less than 1 year">Less than 1 year</option><option value="1–3 years">1–3 years</option><option value="3+ years">3+ years</option></select></label>
             </>
           ) : (
             <>
@@ -575,8 +575,8 @@ export function InternalPartnerDraftControls({ detail, onUpdated }: DraftProps) 
           <InputField label={`IFSC${application.applicantPayload?.bankIfscLast4 ? ` (saved ••••${application.applicantPayload.bankIfscLast4})` : ''}`} value={form.bankIfsc} onChange={(value) => set('bankIfsc', value.toUpperCase().replace(/\s/g, '').slice(0, 11))} placeholder={application.applicantPayload?.bankIfscLast4 ? 'Leave blank to keep saved IFSC' : ''} />
         </div>
 
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-          <p className="mb-2 text-xs font-black text-slate-700">{application.type === 'RIDER' ? 'Rider home / operating location (recommended)' : 'Store location (required)'}</p>
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="mb-2 text-xs font-semibold text-slate-700">{application.type === 'RIDER' ? 'Rider home / operating location (recommended)' : 'Store location (required)'}</p>
           <StoreLocationPicker
             compact
             apiClient={apiClient}
@@ -590,41 +590,41 @@ export function InternalPartnerDraftControls({ detail, onUpdated }: DraftProps) 
           />
         </div>
 
-        <button type="button" onClick={() => void saveProfile()} disabled={Boolean(busy)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white disabled:opacity-50">
+        <button type="button" onClick={() => void saveProfile()} disabled={Boolean(busy)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">
           {busy === 'profile' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save internal profile
         </button>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="flex items-center justify-between gap-3"><div><h4 className="text-sm font-black text-slate-950">2. Required private documents</h4><p className="mt-1 text-xs font-semibold text-slate-500">JPEG, PNG, WebP or PDF, maximum 10 MB each. Mandatory documents change automatically with the Rider vehicle type.</p></div><FileUp className="h-5 w-5 text-teal-700" /></div>
+      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center justify-between gap-3"><div><h4 className="text-sm font-semibold text-slate-950">2. Required private documents</h4><p className="mt-1 text-xs font-semibold text-slate-500">JPEG, PNG, WebP or PDF, maximum 10 MB each. Mandatory documents change automatically with the Rider vehicle type.</p></div><FileUp className="h-5 w-5 text-teal-700" /></div>
         <div className="mt-4 space-y-3">
           {allowedDocuments.map((type) => {
             const document = detail.documents.find((item) => item.type === type);
             const required = requiredDocuments.includes(type);
             return (
-              <div key={type} className={`rounded-2xl border p-3 ${required ? 'border-teal-200 bg-teal-50/30' : 'border-slate-200'}`}>
-                <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-slate-900">{label(type)}</p><p className="mt-0.5 text-[10px] font-bold text-slate-400">{required ? 'MANDATORY' : 'OPTIONAL'}{document ? ` · ${document.originalFilename}` : ''}</p></div>{document ? <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-700">{document.status}</span> : <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-black text-slate-500">NOT UPLOADED</span>}</div>
+              <div key={type} className={`rounded-xl border p-3 ${required ? 'border-teal-200 bg-teal-50/30' : 'border-slate-200'}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold text-slate-900">{label(type)}</p><p className="mt-0.5 text-[10px] font-bold text-slate-400">{required ? 'MANDATORY' : 'OPTIONAL'}{document ? ` · ${document.originalFilename}` : ''}</p></div>{document ? <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-semibold text-emerald-700">{document.status}</span> : <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-500">NOT UPLOADED</span>}</div>
                 <div className="mt-3 grid gap-2 lg:grid-cols-[1.5fr_1fr_1fr_auto]">
-                  <input key={`${type}-${document?.id || 'new'}`} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setFiles((current) => ({ ...current, [type]: event.target.files?.[0] || null }))} className="block w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-semibold file:mr-2 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-black" />
+                  <input key={`${type}-${document?.id || 'new'}`} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setFiles((current) => ({ ...current, [type]: event.target.files?.[0] || null }))} className="block w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-semibold file:mr-2 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold" />
                   <input value={documentNumbers[type] || ''} onChange={(event) => setDocumentNumbers((current) => ({ ...current, [type]: event.target.value }))} placeholder="Document number" className={fieldClass} />
                   <input type="date" value={expiries[type] || ''} onChange={(event) => setExpiries((current) => ({ ...current, [type]: event.target.value }))} className={fieldClass} />
-                  <button type="button" onClick={() => void upload(type)} disabled={!files[type] || Boolean(busy)} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-teal-700 px-3 text-xs font-black text-white disabled:opacity-40">{busy === `upload-${type}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}{document ? 'Replace' : 'Upload'}</button>
+                  <button type="button" onClick={() => void upload(type)} disabled={!files[type] || Boolean(busy)} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-teal-700 px-3 text-xs font-semibold text-white disabled:opacity-40">{busy === `upload-${type}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}{document ? 'Replace' : 'Upload'}</button>
                 </div>
-                {document ? <button type="button" onClick={() => void remove(document.id, type)} disabled={Boolean(busy)} className="mt-2 inline-flex items-center gap-1 text-[10px] font-black text-red-600"><Trash2 className="h-3 w-3" /> Remove uploaded document</button> : null}
+                {document ? <button type="button" onClick={() => void remove(document.id, type)} disabled={Boolean(busy)} className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-red-600"><Trash2 className="h-3 w-3" /> Remove uploaded document</button> : null}
               </div>
             );
           })}
         </div>
       </div>
 
-      <div className={`mt-4 rounded-2xl border p-4 ${canSubmit ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
-        <div className="flex gap-3">{canSubmit ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" /> : <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />}<div><p className="text-sm font-black text-slate-950">3. Finish draft and move to approval</p><p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{canSubmit ? 'Everything required is present. No OTP is needed; move this Admin-created account into review, then approve and provision it.' : 'Complete the fields listed above and upload every mandatory document. Contact OTP is intentionally not part of this Admin flow.'}</p></div></div>
-        <button type="button" onClick={() => void submit()} disabled={!canSubmit || Boolean(busy)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{busy === 'submit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Finish draft & start review</button>
+      <div className={`mt-4 rounded-xl border p-4 ${canSubmit ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+        <div className="flex gap-3">{canSubmit ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" /> : <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />}<div><p className="text-sm font-semibold text-slate-950">3. Finish draft and move to approval</p><p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{canSubmit ? 'Everything required is present. No OTP is needed; move this Admin-created account into review, then approve and provision it.' : 'Complete the fields listed above and upload every mandatory document. Contact OTP is intentionally not part of this Admin flow.'}</p></div></div>
+        <button type="button" onClick={() => void submit()} disabled={!canSubmit || Boolean(busy)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{busy === 'submit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Finish draft & start review</button>
       </div>
     </section>
   );
 }
 
 function Checklist({ ok, text }: { ok: boolean; text: string }) {
-  return <div className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-black ${ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>{ok ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}{text}</div>;
+  return <div className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold ${ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>{ok ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}{text}</div>;
 }

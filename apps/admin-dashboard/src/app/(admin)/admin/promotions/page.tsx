@@ -556,10 +556,10 @@ export default function AdminPromotionsPage() {
       <div className="space-y-6 pb-12">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="inline-flex rounded-full bg-teal-50 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-teal-700">
+            <p className="inline-flex rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">
               Growth operations
             </p>
-            <h1 className="mt-3 text-3xl font-black text-slate-950">
+            <h1 className="mt-3 text-3xl font-semibold text-slate-950">
               Promotions & Coupons
             </h1>
             <p className="mt-1 max-w-3xl text-sm font-semibold text-slate-500">
@@ -572,7 +572,7 @@ export default function AdminPromotionsPage() {
             onClick={() =>
               tab === "campaigns" ? openCampaign() : openCoupon()
             }
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-teal-800"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-800"
           >
             <Plus className="h-4 w-4" />
             New {tab === "campaigns" ? "hero campaign" : "coupon"}
@@ -587,14 +587,14 @@ export default function AdminPromotionsPage() {
           ].map((item) => (
             <div
               key={item.label}
-              className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"
+              className="rounded-xl border border-slate-100 bg-white p-5 "
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     {item.label}
                   </p>
-                  <p className="mt-1 text-2xl font-black text-slate-950">
+                  <p className="mt-1 text-2xl font-semibold text-slate-950">
                     {item.value}
                   </p>
                 </div>
@@ -614,10 +614,10 @@ export default function AdminPromotionsPage() {
             {error || message}
           </div>
         )}
-        <div className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-white p-2">
+        <div className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white p-2">
           <button
             onClick={() => setTab("campaigns")}
-            className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-black ${
+            className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold ${
               tab === "campaigns"
                 ? "bg-slate-950 text-white"
                 : "text-slate-500 hover:bg-slate-50"
@@ -627,7 +627,7 @@ export default function AdminPromotionsPage() {
           </button>
           <button
             onClick={() => setTab("coupons")}
-            className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-black ${
+            className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold ${
               tab === "coupons"
                 ? "bg-slate-950 text-white"
                 : "text-slate-500 hover:bg-slate-50"
@@ -644,20 +644,20 @@ export default function AdminPromotionsPage() {
           </button>
         </div>
         {loading ? (
-          <div className="grid min-h-64 place-items-center rounded-3xl border border-slate-100 bg-white">
+          <div className="grid min-h-64 place-items-center rounded-xl border border-slate-100 bg-white">
             <Loader2 className="h-7 w-7 animate-spin text-teal-600" />
           </div>
         ) : tab === "campaigns" ? (
-          <div className="rounded-3xl border border-slate-100 bg-white shadow-sm">
+          <div className="rounded-xl border border-slate-100 bg-white ">
             <DataTable<Campaign>
               columns={[
-                { key: 'title', header: 'Campaign', align: 'left' as const, render: (c) => <div><p className="font-black">{c.title}</p><p className="text-xs font-semibold text-slate-400">{c.internalName}</p></div> },
-                { key: 'status', header: 'Status', align: 'center' as const, render: (c) => <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${statusStyle(c.effectiveStatus)}`}>{c.effectiveStatus}</span> },
-                { key: 'priority', header: 'Priority', align: 'center' as const, render: (c) => <span className="font-black">{c.priority}</span> },
+                { key: 'title', header: 'Campaign', align: 'left' as const, render: (c) => <div><p className="font-semibold">{c.title}</p><p className="text-xs font-semibold text-slate-400">{c.internalName}</p></div> },
+                { key: 'status', header: 'Status', align: 'center' as const, render: (c) => <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase ${statusStyle(c.effectiveStatus)}`}>{c.effectiveStatus}</span> },
+                { key: 'priority', header: 'Priority', align: 'center' as const, render: (c) => <span className="font-semibold">{c.priority}</span> },
                 { key: 'target', header: 'Target', align: 'left' as const, render: (c) => <span className="text-sm">{c.targetType}{c.firstOrderOnly ? ' · First order' : ''}</span> },
                 { key: 'placements', header: 'Placements', align: 'left' as const, render: (c) => <span className="text-xs">{c.placements.map((p) => p.placement.replaceAll('_', ' ')).join(', ')}</span> },
                 { key: 'schedule', header: 'Schedule', align: 'left' as const, render: (c) => <span className="text-xs text-slate-500">{c.startsAt ? new Date(c.startsAt).toLocaleString() : 'Starts immediately'} → {c.endsAt ? new Date(c.endsAt).toLocaleString() : 'No end date'}</span> },
-                { key: 'revenue', header: 'Revenue', align: 'right' as const, render: (c) => <span className="font-black text-emerald-700">{c.id}</span> },
+                { key: 'revenue', header: 'Revenue', align: 'right' as const, render: (c) => <span className="font-semibold text-emerald-700">{c.id}</span> },
                 { key: 'actions', header: 'Actions', align: 'center' as const, render: (c) => (
                   <div className="flex items-center justify-center gap-1">
                     <button onClick={() => openCampaign(c)} className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-blue-50 hover:text-blue-600" title="Edit"><Edit3 className="h-4 w-4" /></button>
@@ -679,11 +679,11 @@ export default function AdminPromotionsPage() {
             />
           </div>
         ) : (
-          <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-slate-100 bg-white ">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <tr className="border-b bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                     <th className="px-5 py-4">Coupon</th>
                     <th className="px-5 py-4">Rule</th>
                     <th className="px-5 py-4">Eligibility</th>
@@ -703,14 +703,14 @@ export default function AdminPromotionsPage() {
                     coupons.map((coupon) => (
                       <tr key={coupon.id}>
                         <td className="px-5 py-4">
-                          <p className="font-mono text-sm font-black text-slate-950">
+                          <p className="font-mono text-sm font-semibold text-slate-950">
                             {coupon.code}
                           </p>
                           <p className="text-xs font-bold text-slate-500">
                             {coupon.name} · {coupon.applicationMode}
                           </p>
                         </td>
-                        <td className="px-5 py-4 text-sm font-black text-slate-800">
+                        <td className="px-5 py-4 text-sm font-semibold text-slate-800">
                           {coupon.discountType === "PERCENTAGE"
                             ? `${Number(coupon.percentageBps || 0) / 100}%`
                             : coupon.discountType === "FIXED_AMOUNT"
@@ -736,7 +736,7 @@ export default function AdminPromotionsPage() {
                         </td>
                         <td className="px-5 py-4">
                           <span
-                            className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${statusStyle(
+                            className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase ${statusStyle(
                               coupon.effectiveStatus
                             )}`}
                           >
@@ -860,15 +860,15 @@ export default function AdminPromotionsPage() {
                 />
               </Field>
             </div>
-            <section className="rounded-2xl border border-slate-200 p-4">
-              <h3 className="text-sm font-black text-slate-950">
+            <section className="rounded-xl border border-slate-200 p-4">
+              <h3 className="text-sm font-semibold text-slate-950">
                 Placement & destination
               </h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {placements.map((placement) => (
                   <label
                     key={placement}
-                    className={`cursor-pointer rounded-xl border px-3 py-2 text-xs font-black ${
+                    className={`cursor-pointer rounded-xl border px-3 py-2 text-xs font-semibold ${
                       campaignForm.placements.includes(placement)
                         ? "border-teal-400 bg-teal-50 text-teal-800"
                         : "border-slate-200 text-slate-500"
@@ -1001,12 +1001,12 @@ export default function AdminPromotionsPage() {
                 </Field>
               </div>
             </section>
-            <section className="rounded-2xl border border-slate-200 p-4">
-              <h3 className="text-sm font-black text-slate-950">Hero creative</h3>
-              <div className="mt-3 rounded-2xl bg-teal-50 p-4 text-xs font-semibold leading-5 text-teal-900">
-                <p className="font-black uppercase tracking-[0.16em]">Reference banner recipe</p>
+            <section className="rounded-xl border border-slate-200 p-4">
+              <h3 className="text-sm font-semibold text-slate-950">Hero creative</h3>
+              <div className="mt-3 rounded-xl bg-teal-50 p-4 text-xs font-semibold leading-5 text-teal-900">
+                <p className="font-semibold uppercase tracking-[0.16em]">Reference banner recipe</p>
                 <p className="mt-2">Upload your completed banner artwork or use a trusted hosted image URL. Use a wide desktop image and a portrait-safe mobile image when available. The customer app uses the mobile image on phones, keeps the banner tappable, and follows the selected destination below.</p>
-                <p className="mt-2 font-black">Required for Home Hero: image + HOME HERO placement + future/active schedule.</p>
+                <p className="mt-2 font-semibold">Required for Home Hero: image + HOME HERO placement + future/active schedule.</p>
               </div>
               <div className="mt-3 grid gap-4 md:grid-cols-2">
                 <UploadField
@@ -1084,8 +1084,8 @@ export default function AdminPromotionsPage() {
                   />
                 </Field>
               </div>
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Customer preview</p>
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer preview</p>
                 <CampaignPreview form={campaignForm} />
               </div>
             </section>
@@ -1310,8 +1310,8 @@ export default function AdminPromotionsPage() {
                 </select>
               </Field>
             </div>
-            <section className="rounded-2xl border border-slate-200 p-4">
-              <h3 className="text-sm font-black text-slate-950">
+            <section className="rounded-xl border border-slate-200 p-4">
+              <h3 className="text-sm font-semibold text-slate-950">
                 Eligible cart lines
               </h3>
               <div className="mt-3 grid gap-4 md:grid-cols-2">
@@ -1481,7 +1481,7 @@ function CampaignPreview({ form }: { form: CampaignForm }) {
   const image = form.mobileImageUrl || form.imageUrl;
   return (
     <div
-      className="relative mt-3 min-h-40 overflow-hidden rounded-2xl"
+      className="relative mt-3 min-h-40 overflow-hidden rounded-xl"
       style={{ backgroundColor: form.backgroundColor, color: form.textColor }}
     >
       {image ? (
@@ -1492,16 +1492,16 @@ function CampaignPreview({ form }: { form: CampaignForm }) {
         />
       ) : (
         <div className="relative flex min-h-40 flex-col justify-center p-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-75">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-75">
             {form.badgeText || "Aagaam hero"}
           </p>
-          <p className="mt-2 text-xl font-black">{form.title || "Your hero title"}</p>
+          <p className="mt-2 text-xl font-semibold">{form.title || "Your hero title"}</p>
           <p className="mt-1 text-xs font-semibold opacity-80">
             {form.subtitle || "Your supporting message"}
           </p>
         </div>
       )}
-      <span className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1 text-[10px] font-black text-slate-950">
+      <span className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1 text-[10px] font-semibold text-slate-950">
         {image ? "Image-first creative" : "Text creative"}
       </span>
     </div>
@@ -1510,7 +1510,7 @@ function CampaignPreview({ form }: { form: CampaignForm }) {
 
 function Empty({ text }: { text: string }) {
   return (
-    <div className="col-span-full rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
+    <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
       <Megaphone className="mx-auto h-7 w-7 text-slate-400" />
       <p className="mt-3 text-sm font-bold text-slate-500">{text}</p>
     </div>
@@ -1536,10 +1536,10 @@ function Modal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
-      <div className="max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+      <div className="max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white ">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
           <div>
-            <h2 className="text-xl font-black text-slate-950">{title}</h2>
+            <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
             <p className="text-xs font-semibold text-slate-500">{subtitle}</p>
           </div>
           <button
@@ -1566,7 +1566,7 @@ function Field({
 }) {
   return (
     <label
-      className={`block text-xs font-black uppercase tracking-wide text-slate-500 ${
+      className={`block text-xs font-semibold uppercase tracking-wide text-slate-500 ${
         wide ? "md:col-span-2" : ""
       }`}
     >
@@ -1594,10 +1594,10 @@ function UploadField({
 }) {
   return (
     <div>
-      <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </p>
-      <div className="mt-1 flex min-h-28 items-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 p-3">
+      <div className="mt-1 flex min-h-28 items-center gap-3 rounded-xl border-2 border-dashed border-slate-200 p-3">
         {url ? (
           <img
             src={url}
@@ -1618,7 +1618,7 @@ function UploadField({
           />
           <label
             htmlFor={`image-${label}`}
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
           >
             {uploading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1631,7 +1631,7 @@ function UploadField({
             <button
               type="button"
               onClick={onClear}
-              className="ml-2 text-xs font-black text-red-600"
+              className="ml-2 text-xs font-semibold text-red-600"
             >
               Remove
             </button>
@@ -1646,7 +1646,7 @@ function Submit({ saving, label }: { saving: boolean; label: string }) {
     <div className="sticky bottom-0 -mx-5 -mb-5 border-t border-slate-100 bg-white p-5">
       <button
         disabled={saving}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-black text-white hover:bg-teal-800 disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
       >
         {saving && <Loader2 className="h-4 w-4 animate-spin" />}
         {label}

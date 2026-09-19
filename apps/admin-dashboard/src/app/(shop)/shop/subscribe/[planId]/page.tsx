@@ -131,21 +131,21 @@ export default function SubscribeReviewPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <div className="space-y-5">
             <header>
-              <h1 className="text-3xl font-black text-slate-900">Review subscription</h1>
+              <h1 className="text-xl font-semibold text-slate-900">Review subscription</h1>
             </header>
 
-            <section className="rounded-[26px] bg-gradient-to-br from-emerald-800 to-teal-700 p-6 text-white">
+            <section className="rounded-lg border border border-slate-200 bg-white p-4">
               <div className="flex gap-4">
                 {plan.imageUrl ? (
-                  <img src={plan.imageUrl} alt="" className="h-24 w-24 rounded-3xl bg-white object-contain" />
+                  <img src={plan.imageUrl} alt="" className="h-24 w-24 rounded-lg bg-white object-contain" />
                 ) : null}
                 <div>
-                  <h2 className="text-2xl font-black">{plan.name}</h2>
-                  <p className="mt-2 text-emerald-100">
+                  <h2 className="text-base font-semibold">{plan.name}</h2>
+                  <p className="mt-2 text-sm text-slate-500">
                     {plan.totalDeliveries} deliveries ·{' '}
                     {plan.fundingCycle === 'WEEKLY' ? 'Weekly cash funding' : 'Full-plan funding'}
                   </p>
-                  <p className="mt-4 text-3xl font-black">{formatPaise(plan.pricePaise)}</p>
+                  <p className="mt-4 text-xl font-semibold">{formatPaise(plan.pricePaise)}</p>
                 </div>
               </div>
             </section>
@@ -156,14 +156,14 @@ export default function SubscribeReviewPage() {
                   <button
                     key={a.id}
                     onClick={() => setAddressId(a.id)}
-                    className={`min-h-24 rounded-2xl border p-4 text-left transition ${
+                    className={`min-h-[60px] rounded-lg border p-4 text-left transition ${
                       addressId === a.id
                         ? 'border-emerald-600 bg-emerald-50 ring-2 ring-emerald-100'
                         : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
                     <div className="flex justify-between">
-                      <span className="font-black text-slate-900">{a.label || 'Address'}</span>
+                      <span className="font-semibold text-slate-900">{a.label || 'Address'}</span>
                       {addressId === a.id ? <Check className="h-5 w-5 text-emerald-700" /> : null}
                     </div>
                     <p className="mt-2 text-sm leading-5 text-slate-600">
@@ -173,7 +173,7 @@ export default function SubscribeReviewPage() {
                 ))}
               </div>
               {!addresses.length ? (
-                <p className="rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-800">
+                <p className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-[11px] font-medium text-amber-800">
                   Add a saved address before subscribing.
                 </p>
               ) : null}
@@ -191,7 +191,7 @@ export default function SubscribeReviewPage() {
                       setStartDate(tomorrow());
                     }
                   }}
-                  className={`min-h-12 w-full rounded-xl border px-4 font-bold text-slate-800 outline-none transition focus:ring-2 ${
+                  className={`min-h-[44px] w-full rounded-lg border px-4 font-bold text-slate-800 outline-none transition focus:ring-2 ${
                     !isValidStartDate
                       ? 'border-rose-300 bg-rose-50/40 focus:ring-rose-200'
                       : 'border-slate-200 bg-white focus:ring-emerald-200'
@@ -248,7 +248,7 @@ export default function SubscribeReviewPage() {
                       <button
                         key={slot}
                         onClick={() => setDeliverySlot(slot)}
-                        className={`flex flex-col items-center gap-1 rounded-xl border-2 p-3 transition ${
+                        className={`flex flex-col items-center gap-1 rounded-lg border p-3 transition ${
                           isSelected 
                             ? slot === 'AM' 
                               ? 'border-amber-500 bg-amber-50' 
@@ -256,7 +256,7 @@ export default function SubscribeReviewPage() {
                             : 'border-slate-200 bg-white hover:border-slate-300'
                         }`}
                       >
-                        <span className={`text-lg font-black ${
+                        <span className={`text-base font-semibold ${
                           isSelected 
                             ? slot === 'AM' ? 'text-amber-700' : 'text-indigo-700'
                             : 'text-slate-700'
@@ -290,7 +290,7 @@ export default function SubscribeReviewPage() {
                   <button
                     key={value}
                     onClick={() => setMethod(value)}
-                    className={`mb-2 flex min-h-16 w-full items-center gap-3 rounded-2xl border p-4 text-left transition ${
+                    className={`mb-2 flex min-h-[48px] w-full items-center gap-3 rounded-lg border p-4 text-left transition ${
                       method === value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 hover:border-slate-300'
                     }`}
                   >
@@ -311,7 +311,7 @@ export default function SubscribeReviewPage() {
                 ))}
               {method === 'TRUSTED_DROP' ? (
                 <div className="mt-4 grid gap-3">
-                  <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold leading-5 text-emerald-800">
+                  <p className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-[11px] font-medium leading-4 text-emerald-800">
                     Aagaam securely creates your one-time drop QR after subscription creation. You never create or type
                     a drop secret.
                   </p>
@@ -319,17 +319,17 @@ export default function SubscribeReviewPage() {
                     value={instructions}
                     onChange={(e) => setInstructions(e.target.value)}
                     placeholder="Milk box or doorstep instructions"
-                    className="min-h-24 rounded-xl border border-slate-200 p-4"
+                    className="min-h-[60px] rounded-lg border border-slate-200 p-4"
                   />
                 </div>
               ) : null}
             </Section>
           </div>
 
-          <aside className="h-fit rounded-[26px] border border-slate-200 bg-white p-5 shadow-lg lg:sticky lg:top-6">
+          <aside className="h-fit rounded-lg border border-slate-200 bg-white p-4 lg:sticky lg:top-6">
             <div className="flex items-center gap-2">
               <WalletCards className="h-5 w-5 text-amber-600" />
-              <h2 className="text-lg font-black text-slate-900">Cash funding</h2>
+              <h2 className="text-base font-semibold text-slate-900">Cash funding</h2>
             </div>
             <div className="mt-5 space-y-4">
               <Summary
@@ -347,7 +347,7 @@ export default function SubscribeReviewPage() {
             <button
               disabled={!addressId || !isValidStartDate || submitting}
               onClick={() => void submit()}
-              className="mt-5 flex min-h-14 w-full items-center justify-center rounded-2xl bg-emerald-700 px-5 font-black text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-5 flex min-h-[44px] w-full items-center justify-center rounded-lg bg-emerald-700 px-5 font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -364,5 +364,5 @@ export default function SubscribeReviewPage() {
   );
 }
 
-function Section({icon,title,children}:{icon:React.ReactNode;title:string;children:React.ReactNode}){return <section className="rounded-[24px] border border-slate-200 bg-white p-5"><h2 className="mb-4 flex items-center gap-2 text-lg font-black text-slate-900"><span className="text-emerald-700 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>{title}</h2>{children}</section>}
+function Section({icon,title,children}:{icon:React.ReactNode;title:string;children:React.ReactNode}){return <section className="rounded-lg border border-slate-200 bg-white p-4"><h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-slate-900"><span className="text-emerald-700 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>{title}</h2>{children}</section>}
 function Summary({label,value,strong}:{label:string;value:string;strong?:boolean}){return <div className="flex items-start justify-between gap-4"><span className="text-sm text-slate-500">{label}</span><strong className={strong?'text-xl text-emerald-700':'text-sm text-slate-900'}>{value}</strong></div>}

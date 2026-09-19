@@ -90,18 +90,18 @@ export default function RiderOffersPage() {
               return (
                 <section
                   key={offer.id}
-                  className="overflow-hidden rounded-2xl border border-indigo-200 bg-white shadow-sm"
+                  className="overflow-hidden rounded-xl border border-indigo-200 bg-white "
                 >
                   <div className="flex items-center justify-between bg-indigo-700 px-5 py-4 text-white">
                     <div>
-                      <p className="text-xs font-black uppercase tracking-wider text-indigo-200">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-indigo-200">
                         Addressed offer
                       </p>
-                      <p className="font-mono text-lg font-black">
+                      <p className="font-mono text-lg font-semibold">
                         #{order.id.slice(-8).toUpperCase()}
                       </p>
                     </div>
-                    <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-sm font-black">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-sm font-semibold">
                       <Clock3 className="h-4 w-4" />
                       {expired
                         ? "Expired"
@@ -113,7 +113,7 @@ export default function RiderOffersPage() {
                   <div className="grid gap-5 p-5 lg:grid-cols-2">
                     <div className="space-y-4">
                       <div>
-                        <p className="flex items-center gap-2 font-black text-slate-950">
+                        <p className="flex items-center gap-2 font-semibold text-slate-950">
                           <Store className="h-4 w-4 text-indigo-600" />
                           {order.store?.name}
                         </p>
@@ -122,7 +122,7 @@ export default function RiderOffersPage() {
                         </p>
                       </div>
                       <div>
-                        <p className="flex items-center gap-2 font-black text-slate-950">
+                        <p className="flex items-center gap-2 font-semibold text-slate-950">
                           <MapPin className="h-4 w-4 text-indigo-600" />
                           Delivery area
                         </p>
@@ -154,13 +154,13 @@ export default function RiderOffersPage() {
                         <button
                           disabled={expired}
                           onClick={() => answer(offer.id, true)}
-                          className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white disabled:opacity-40"
+                          className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40"
                         >
                           Accept
                         </button>
                         <button
                           onClick={() => answer(offer.id, false)}
-                          className="flex-1 rounded-xl bg-red-50 px-4 py-3 text-sm font-black text-red-700"
+                          className="flex-1 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
                         >
                           <XCircle className="mr-2 inline h-4 w-4" />
                           Reject

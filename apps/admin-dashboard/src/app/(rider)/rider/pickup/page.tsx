@@ -116,17 +116,17 @@ export default function PickupPage() {
           />
         ) : (
           <>
-            <section className="rounded-2xl border border-slate-200 bg-white p-5">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase text-slate-400">
+                  <p className="text-xs font-semibold uppercase text-slate-400">
                     Parcel
                   </p>
-                  <p className="font-mono text-xl font-black">
+                  <p className="font-mono text-xl font-semibold">
                     #{data.job.order.id.slice(-8).toUpperCase()}
                   </p>
                 </div>
-                <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-700">
+                <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
                   {data.task.status.replace(/_/g, " ")}
                 </span>
               </div>
@@ -137,8 +137,8 @@ export default function PickupPage() {
                   : "Waiting for store confirmation"}
               </p>
             </section>
-            <section className="rounded-2xl border border-slate-200 bg-white p-5">
-              <p className="font-black">Item checklist</p>
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <p className="font-semibold">Item checklist</p>
               <div className="mt-4 space-y-3">
                 {data.job.order.items.map((item: any) => (
                   <div
@@ -146,7 +146,7 @@ export default function PickupPage() {
                     className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-xl bg-slate-50 p-4"
                   >
                     <div>
-                      <p className="font-black text-slate-900">
+                      <p className="font-semibold text-slate-900">
                         {item.product?.name}
                       </p>
                       <p className="text-xs font-semibold text-slate-500">
@@ -161,7 +161,7 @@ export default function PickupPage() {
                       onChange={(e) =>
                         setQty({ ...qty, [item.id]: Number(e.target.value) })
                       }
-                      className="w-20 rounded-xl border px-3 py-2 text-center font-black"
+                      className="w-20 rounded-xl border px-3 py-2 text-center font-semibold"
                     />
                   </div>
                 ))}
@@ -174,14 +174,14 @@ export default function PickupPage() {
               />
               <button
                 onClick={verify}
-                className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white"
+                className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white"
               >
                 <PackageCheck className="mr-2 inline h-4 w-4" />
                 Verify checklist
               </button>
             </section>
-            <section className="rounded-2xl border border-red-100 bg-red-50 p-5">
-              <p className="font-black text-red-900">
+            <section className="rounded-xl border border-red-100 bg-red-50 p-5">
+              <p className="font-semibold text-red-900">
                 <AlertTriangle className="mr-2 inline h-4 w-4" />
                 Missing item or parcel problem
               </p>
@@ -206,13 +206,13 @@ export default function PickupPage() {
                 <button
                   disabled={note.trim().length < 5}
                   onClick={report}
-                  className="rounded-xl bg-red-700 px-4 py-2 text-sm font-black text-white disabled:opacity-40"
+                  className="rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
                 >
                   Report
                 </button>
               </div>
               {data.task.status === "VERIFIED" && (
-                <p className="mt-4 text-sm font-black text-emerald-700">
+                <p className="mt-4 text-sm font-semibold text-emerald-700">
                   <CheckCircle2 className="mr-2 inline h-4 w-4" />
                   Checklist verified. The owning store must still confirm
                   canonical parcel handoff.
@@ -221,8 +221,8 @@ export default function PickupPage() {
             </section>
             {data.task.status === "VERIFIED" &&
               data.job.status === "RIDER_AT_STORE" && (
-                <section className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5">
-                  <p className="font-black text-indigo-950">
+                <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-5">
+                  <p className="font-semibold text-indigo-950">
                     Professional store handoff proof
                   </p>
                   <p className="mt-1 text-sm font-semibold text-indigo-800">
@@ -260,7 +260,7 @@ export default function PickupPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       onClick={captureCoordinates}
-                      className="rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-sm font-black text-indigo-800"
+                      className="rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-800"
                     >
                       {coordinates
                         ? "Coordinates captured"
@@ -269,7 +269,7 @@ export default function PickupPage() {
                     <button
                       disabled={handoffCode.trim().length < 6}
                       onClick={verifyHandoff}
-                      className="rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-black text-white disabled:opacity-40"
+                      className="rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
                     >
                       Verify store handoff
                     </button>
@@ -277,7 +277,7 @@ export default function PickupPage() {
                 </section>
               )}
             {data.job.pickupProof && (
-              <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm font-bold text-emerald-900">
+              <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-sm font-bold text-emerald-900">
                 <CheckCircle2 className="mr-2 inline h-5 w-5" /> Pickup proof
                 recorded using{" "}
                 {data.job.pickupProof.verificationMethod.replace(/_/g, " ")} for{" "}

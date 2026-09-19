@@ -48,49 +48,50 @@ export default function ReorderPage() {
   return (
     <DashboardLayout allowedRole="CUSTOMER">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => router.push('/shop')} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors">
+        <div className="flex items-center gap-3 mb-5">
+          <button onClick={() => router.push('/shop')} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors">
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div>
-            <h1 className="text-xl font-black text-slate-950 tracking-tight">Reorder</h1>
-            <p className="text-xs font-semibold text-slate-500">Repeat your previous orders</p>
+            <p className="enterprise-kicker">Reorder</p>
+            <h1 className="mt-1 text-lg font-semibold text-slate-950">Reorder</h1>
+            <p className="mt-0.5 text-xs text-slate-500">Repeat your previous orders</p>
           </div>
         </div>
 
         {loading ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="animate-pulse rounded-2xl border border-slate-100 bg-white p-5">
-                <div className="h-5 w-40 bg-slate-100 rounded" />
-                <div className="mt-3 h-4 w-24 bg-slate-100 rounded" />
+              <div key={i} className="animate-pulse rounded-xl border border-slate-100 bg-white p-4">
+                <div className="h-4 w-32 bg-slate-100 rounded" />
+                <div className="mt-2 h-3 w-20 bg-slate-100 rounded" />
               </div>
             ))}
           </div>
         ) : orders.length === 0 ? (
           <EmptyState icon={RotateCcw} title="No past orders to reorder" description="Complete an order and it will appear here for quick reorder." action={{ label: 'Start shopping', onClick: () => router.push('/shop') }} />
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {orders.map((order) => (
-              <div key={order.id} className="rounded-2xl border border-slate-100 bg-white p-5 hover:shadow-md transition-all">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-100 text-teal-700 shrink-0">
-                      <Package className="h-5 w-5" />
+              <div key={order.id} className="enterprise-card p-3 sm:p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className="grid h-9 w-9 place-items-center rounded-md bg-teal-50 text-teal-700 shrink-0">
+                      <Package className="h-4 w-4" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-black text-slate-950">#{order.id.slice(-8).toUpperCase()}</span>
-                        <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[10px] font-black text-emerald-700">
-                          <Clock className="h-2.5 w-2.5" /> Delivered
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs font-semibold text-slate-950">#{order.id.slice(-8).toUpperCase()}</span>
+                        <span className="enterprise-kicker">
+                          <Clock className="mr-1 inline h-2.5 w-2.5" /> Delivered
                         </span>
                       </div>
-                      <div className="mt-1 text-xs text-slate-500 font-semibold">{new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                      <div className="mt-1 text-xs text-slate-500">{order.items?.length || 0} items • {formatINR(Number(order.grandTotal ?? order.totalAmount) || 0)}</div>
+                      <div className="mt-1 text-[11px] text-slate-500">{new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                      <div className="mt-0.5 text-[11px] text-slate-500">{order.items?.length || 0} items · {formatINR(Number(order.grandTotal ?? order.totalAmount) || 0)}</div>
                     </div>
                   </div>
-                  <button onClick={() => handleReorder(order)} className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2.5 text-xs font-black text-white hover:bg-teal-800 transition-colors">
-                    <RotateCcw className="h-3.5 w-3.5" /> Reorder
+                  <button onClick={() => handleReorder(order)} className="shrink-0 enterprise-button py-2 text-[11px]">
+                    <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reorder
                   </button>
                 </div>
               </div>

@@ -283,7 +283,7 @@ export default function InventoryPage() {
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="enterprise-kicker">Store assortment</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Products & inventory</h1>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Products & inventory</h1>
             <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-500">
               Admin maintains the product catalogue. You choose what this store carries, set opening stock, and manage daily quantities.
             </p>
@@ -303,7 +303,7 @@ export default function InventoryPage() {
               type="button"
               onClick={() => selectedStoreId ? void loadInventory(selectedStoreId) : void loadStores()}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
             </button>
@@ -311,13 +311,13 @@ export default function InventoryPage() {
         </header>
 
         {selectedStore ? (
-          <div className="rounded-2xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm font-bold text-teal-900">
+          <div className="rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm font-bold text-teal-900">
             Managing <strong>{selectedStore.name}</strong>{selectedStore.address ? ` · ${selectedStore.address}` : ''}
           </div>
         ) : null}
 
         {message ? (
-          <div className={`rounded-2xl border px-4 py-3 text-sm font-bold ${message.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+          <div className={`rounded-xl border px-4 py-3 text-sm font-bold ${message.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
             {message.text}
           </div>
         ) : null}
@@ -325,28 +325,28 @@ export default function InventoryPage() {
         {hasNoAssignedStores ? (
           <div data-testid="no-assigned-stores" className="rounded-[2rem] border border-dashed border-amber-200 bg-amber-50 p-10 text-center">
             <Package className="mx-auto h-14 w-14 text-amber-500" />
-            <h2 className="mt-5 text-xl font-black text-slate-950">No stores are assigned to this account</h2>
+            <h2 className="mt-5 text-xl font-semibold text-slate-950">No stores are assigned to this account</h2>
             <p className="mx-auto mt-2 max-w-xl text-sm font-semibold text-slate-600">Contact an administrator to assign a store before managing products and inventory.</p>
-            <button type="button" onClick={() => void loadStores()} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white">
+            <button type="button" onClick={() => void loadStores()} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">
               <RefreshCw className="h-4 w-4" /> Check again
             </button>
           </div>
         ) : (
           <>
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="enterprise-panel p-5"><p className="text-xs font-black uppercase tracking-wider text-slate-400">My products</p><p className="mt-2 text-3xl font-black text-slate-950">{assortment.length}</p></div>
-          <div className="enterprise-panel p-5"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Available to add</p><p className="mt-2 text-3xl font-black text-slate-950">{catalogue.length}</p></div>
-          <div className="enterprise-panel p-5"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Low stock</p><p className="mt-2 text-3xl font-black text-amber-600">{lowStockCount}</p></div>
+          <div className="enterprise-panel p-5"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">My products</p><p className="mt-2 text-3xl font-semibold text-slate-950">{assortment.length}</p></div>
+          <div className="enterprise-panel p-5"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Available to add</p><p className="mt-2 text-3xl font-semibold text-slate-950">{catalogue.length}</p></div>
+          <div className="enterprise-panel p-5"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Low stock</p><p className="mt-2 text-3xl font-semibold text-amber-600">{lowStockCount}</p></div>
         </div>
 
-        <div className="flex rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm" role="tablist" aria-label="Inventory sections">
+        <div className="flex rounded-xl border border-slate-200 bg-white p-1.5 " role="tablist" aria-label="Inventory sections">
           <button
             type="button"
             role="tab"
             aria-selected={tab === 'mine'}
             data-testid="my-products-tab"
             onClick={() => setTab('mine')}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black ${tab === 'mine' ? 'bg-slate-950 text-white' : 'text-slate-500'}`}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold ${tab === 'mine' ? 'bg-slate-950 text-white' : 'text-slate-500'}`}
           >
             <ShoppingBag className="h-4 w-4" /> My products
           </button>
@@ -356,21 +356,21 @@ export default function InventoryPage() {
             aria-selected={tab === 'catalogue'}
             data-testid="add-products-tab"
             onClick={() => setTab('catalogue')}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black ${tab === 'catalogue' ? 'bg-slate-950 text-white' : 'text-slate-500'}`}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold ${tab === 'catalogue' ? 'bg-slate-950 text-white' : 'text-slate-500'}`}
           >
             <Plus className="h-4 w-4" /> Add products
           </button>
         </div>
 
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[1, 2, 3, 4, 5, 6].map((key) => <div key={key} className="h-56 animate-pulse rounded-3xl bg-slate-100" />)}</div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[1, 2, 3, 4, 5, 6].map((key) => <div key={key} className="h-56 animate-pulse rounded-xl bg-slate-100" />)}</div>
         ) : tab === 'mine' ? (
           assortment.length === 0 ? (
             <div className="rounded-[2rem] border border-dashed border-slate-200 bg-white p-12 text-center">
               <Package className="mx-auto h-14 w-14 text-slate-300" />
-              <h2 className="mt-5 text-xl font-black text-slate-950">This store has no products yet</h2>
+              <h2 className="mt-5 text-xl font-semibold text-slate-950">This store has no products yet</h2>
               <p className="mt-2 text-sm font-semibold text-slate-500">Open Add products and choose items from the Admin catalogue.</p>
-              <button type="button" onClick={() => setTab('catalogue')} className="mt-5 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white">Browse catalogue</button>
+              <button type="button" onClick={() => setTab('catalogue')} className="mt-5 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Browse catalogue</button>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="my-products-grid">
@@ -380,36 +380,36 @@ export default function InventoryPage() {
                 return (
                   <article key={item.id} className="enterprise-panel flex flex-col gap-4 p-5">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100">
                         {item.product.image ? <img src={item.product.image} alt="" className="h-full w-full object-cover" /> : <Package className="h-6 w-6 text-slate-400" />}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-teal-700">{item.product.category?.name || 'Catalogue'}</p>
-                        <h2 className="truncate text-base font-black text-slate-950">{item.product.name}</h2>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-teal-700">{item.product.category?.name || 'Catalogue'}</p>
+                        <h2 className="truncate text-base font-semibold text-slate-950">{item.product.name}</h2>
                         <p className="mt-1 text-xs font-bold text-slate-400">Admin MRP {money(item.product.mrpPaise, item.product.price)}</p>
                       </div>
                     </div>
 
-                    {item.quantity < 10 ? <div className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-black text-amber-700"><AlertTriangle className="h-4 w-4" /> {item.quantity === 0 ? 'Out of stock' : 'Low stock'}</div> : null}
+                    {item.quantity < 10 ? <div className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700"><AlertTriangle className="h-4 w-4" /> {item.quantity === 0 ? 'Out of stock' : 'Low stock'}</div> : null}
 
                     <div className="grid grid-cols-2 gap-3">
-                      <label className="text-xs font-black text-slate-500">Store price
-                        <input aria-label={`${item.product.name} store price`} type="number" min={0} step="0.01" value={draft.sellingPrice} onChange={(event) => setEditDraft(item.id, 'sellingPrice', event.target.value)} placeholder={String(item.product.price)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-black text-slate-950" />
+                      <label className="text-xs font-semibold text-slate-500">Store price
+                        <input aria-label={`${item.product.name} store price`} type="number" min={0} step="0.01" value={draft.sellingPrice} onChange={(event) => setEditDraft(item.id, 'sellingPrice', event.target.value)} placeholder={String(item.product.price)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-950" />
                       </label>
-                      <label className="text-xs font-black text-slate-500">Current stock
-                        <input aria-label={`${item.product.name} stock`} type="number" min={0} step={1} value={draft.quantity} onChange={(event) => setEditDraft(item.id, 'quantity', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-black text-slate-950" />
+                      <label className="text-xs font-semibold text-slate-500">Current stock
+                        <input aria-label={`${item.product.name} stock`} type="number" min={0} step={1} value={draft.quantity} onChange={(event) => setEditDraft(item.id, 'quantity', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-950" />
                       </label>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <button type="button" aria-label={`Decrease ${item.product.name} stock`} onClick={() => setEditDraft(item.id, 'quantity', String(Math.max(0, quantity - 1)))} className="rounded-xl border border-slate-200 p-2.5"><Minus className="h-4 w-4" /></button>
                       <button type="button" aria-label={`Increase ${item.product.name} stock`} onClick={() => setEditDraft(item.id, 'quantity', String(quantity + 1))} className="rounded-xl border border-slate-200 p-2.5"><Plus className="h-4 w-4" /></button>
-                      <button type="button" onClick={() => void saveItem(item)} disabled={savingId === item.id} className="ml-auto inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50"><Save className="h-4 w-4" /> Save</button>
+                      <button type="button" onClick={() => void saveItem(item)} disabled={savingId === item.id} className="ml-auto inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" /> Save</button>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => void saveItem(item, { isListed: !item.isListed })} className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black ${item.isListed ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{item.isListed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{item.isListed ? 'Listed' : 'Hidden'}</button>
-                      <button type="button" onClick={() => void saveItem(item, { autoHideWhenOutOfStock: !item.autoHideWhenOutOfStock })} className="rounded-xl bg-teal-50 px-3 py-2.5 text-xs font-black text-teal-700">Auto-hide: {item.autoHideWhenOutOfStock ? 'On' : 'Off'}</button>
+                      <button type="button" onClick={() => void saveItem(item, { isListed: !item.isListed })} className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold ${item.isListed ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{item.isListed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{item.isListed ? 'Listed' : 'Hidden'}</button>
+                      <button type="button" onClick={() => void saveItem(item, { autoHideWhenOutOfStock: !item.autoHideWhenOutOfStock })} className="rounded-xl bg-teal-50 px-3 py-2.5 text-xs font-semibold text-teal-700">Auto-hide: {item.autoHideWhenOutOfStock ? 'On' : 'Off'}</button>
                     </div>
                   </article>
                 );
@@ -421,15 +421,15 @@ export default function InventoryPage() {
             <form onSubmit={(event) => { event.preventDefault(); void loadInventory(selectedStoreId, search); }} className="flex gap-2">
               <label className="relative flex-1">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input aria-label="Search Admin catalogue" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search product name or description" className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm font-bold" />
+                <input aria-label="Search Admin catalogue" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search product name or description" className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm font-bold" />
               </label>
-              <button type="submit" className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white">Search</button>
+              <button type="submit" className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Search</button>
             </form>
 
             {catalogue.length === 0 ? (
               <div className="rounded-[2rem] border border-dashed border-slate-200 bg-white p-12 text-center">
                 <Check className="mx-auto h-14 w-14 text-emerald-500" />
-                <h2 className="mt-5 text-xl font-black text-slate-950">No more catalogue products</h2>
+                <h2 className="mt-5 text-xl font-semibold text-slate-950">No more catalogue products</h2>
                 <p className="mt-2 text-sm font-semibold text-slate-500">Every matching Admin product is already carried by this store.</p>
               </div>
             ) : (
@@ -439,24 +439,24 @@ export default function InventoryPage() {
                   return (
                     <article key={product.id} className="enterprise-panel flex flex-col gap-4 p-5">
                       <div className="flex items-start gap-4">
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100">
                           {product.image ? <img src={product.image} alt="" className="h-full w-full object-cover" /> : <Package className="h-6 w-6 text-slate-400" />}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-teal-700">{product.category?.name || 'Catalogue'}</p>
-                          <h2 className="truncate text-base font-black text-slate-950">{product.name}</h2>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-teal-700">{product.category?.name || 'Catalogue'}</p>
+                          <h2 className="truncate text-base font-semibold text-slate-950">{product.name}</h2>
                           <p className="mt-1 text-xs font-bold text-slate-400">MRP {money(product.mrpPaise, product.price)}</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <label className="text-xs font-black text-slate-500">Opening stock
-                          <input aria-label={`${product.name} opening stock`} type="number" min={0} step={1} value={draft.quantity} onChange={(event) => setAddDraft(product.id, 'quantity', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-black" />
+                        <label className="text-xs font-semibold text-slate-500">Opening stock
+                          <input aria-label={`${product.name} opening stock`} type="number" min={0} step={1} value={draft.quantity} onChange={(event) => setAddDraft(product.id, 'quantity', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
                         </label>
-                        <label className="text-xs font-black text-slate-500">Store price
-                          <input aria-label={`${product.name} new store price`} type="number" min={0} step="0.01" value={draft.sellingPrice} onChange={(event) => setAddDraft(product.id, 'sellingPrice', event.target.value)} placeholder={String(product.price)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-black" />
+                        <label className="text-xs font-semibold text-slate-500">Store price
+                          <input aria-label={`${product.name} new store price`} type="number" min={0} step="0.01" value={draft.sellingPrice} onChange={(event) => setAddDraft(product.id, 'sellingPrice', event.target.value)} placeholder={String(product.price)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
                         </label>
                       </div>
-                      <button type="button" onClick={() => void addProduct(product)} disabled={savingId === product.id} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-black text-white disabled:opacity-50"><Plus className="h-4 w-4" /> {savingId === product.id ? 'Adding…' : 'Add to store'}</button>
+                      <button type="button" onClick={() => void addProduct(product)} disabled={savingId === product.id} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"><Plus className="h-4 w-4" /> {savingId === product.id ? 'Adding…' : 'Add to store'}</button>
                     </article>
                   );
                 })}

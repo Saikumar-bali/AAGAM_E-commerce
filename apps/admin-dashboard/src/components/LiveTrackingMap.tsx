@@ -222,7 +222,7 @@ export default function LiveTrackingMap({
   }, [riders, orders, selectedOrderId, selectedRiderId, onOrderClick, showRoutePath]);
 
   return (
-    <div className="h-full w-full overflow-hidden rounded-2xl border border-gray-100 shadow-inner">
+    <div className="h-full w-full overflow-hidden rounded-xl border border-gray-100 shadow-inner">
       <div ref={containerRef} className="h-full w-full" />
     </div>
   );

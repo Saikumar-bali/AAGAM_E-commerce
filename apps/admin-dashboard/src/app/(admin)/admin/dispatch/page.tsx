@@ -193,7 +193,7 @@ export default function AdminDispatchPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <p className="enterprise-kicker">Delivery operations</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight">
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
             Rider Dispatch Board
           </h1>
           <p className="mt-2 text-sm text-slate-500">
@@ -211,56 +211,56 @@ export default function AdminDispatchPage() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
           {error}
         </div>
       )}
 
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-        <div className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-black uppercase text-slate-400">
+        <div className="rounded-xl border bg-white p-5 ">
+          <p className="text-xs font-semibold uppercase text-slate-400">
             Waiting for rider
           </p>
-          <p className="mt-2 text-3xl font-black">
+          <p className="mt-2 text-3xl font-semibold">
             {board.waitingForRider.length}
           </p>
         </div>
-        <div className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-black uppercase text-slate-400">
+        <div className="rounded-xl border bg-white p-5 ">
+          <p className="text-xs font-semibold uppercase text-slate-400">
             Auto offers open
           </p>
-          <p className="mt-2 text-3xl font-black text-amber-700">
+          <p className="mt-2 text-3xl font-semibold text-amber-700">
             {board.openOffers.length}
           </p>
         </div>
-        <div className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-black uppercase text-slate-400">
+        <div className="rounded-xl border bg-white p-5 ">
+          <p className="text-xs font-semibold uppercase text-slate-400">
             Available riders
           </p>
-          <p className="mt-2 text-3xl font-black text-emerald-700">
+          <p className="mt-2 text-3xl font-semibold text-emerald-700">
             {availableRiders.length}
           </p>
         </div>
-        <div className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-black uppercase text-slate-400">
+        <div className="rounded-xl border bg-white p-5 ">
+          <p className="text-xs font-semibold uppercase text-slate-400">
             Active deliveries
           </p>
-          <p className="mt-2 text-3xl font-black text-indigo-700">
+          <p className="mt-2 text-3xl font-semibold text-indigo-700">
             {board.activeDeliveries.length}
           </p>
         </div>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
-        <section className="rounded-[2rem] border bg-white p-5 shadow-sm">
+        <section className="rounded-[2rem] border bg-white p-5 ">
           <div className="mb-4 flex items-center gap-2">
             <ClipboardList className="h-5 w-5 text-slate-500" />
-            <h2 className="text-lg font-black">Ready for pickup</h2>
+            <h2 className="text-lg font-semibold">Ready for pickup</h2>
           </div>
 
           <div className="space-y-3">
             {board.waitingForRider.length === 0 && (
-              <p className="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
+              <p className="rounded-xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
                 No packed orders waiting for rider.
               </p>
             )}
@@ -279,11 +279,11 @@ export default function AdminDispatchPage() {
               return (
                 <div
                   key={order.id}
-                  className="rounded-2xl border border-slate-100 p-4"
+                  className="rounded-xl border border-slate-100 p-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="font-mono text-sm font-black">
+                      <p className="font-mono text-sm font-semibold">
                         #{order.id.slice(0, 8).toUpperCase()}
                       </p>
                       <p className="mt-1 text-sm font-bold text-slate-700">
@@ -297,7 +297,7 @@ export default function AdminDispatchPage() {
                         {order.store?.address || 'No address'}
                       </p>
                     </div>
-                    <p className="text-lg font-black">
+                    <p className="text-lg font-semibold">
                       ₹
                       {Number(order.grandTotal || 0).toLocaleString('en-IN')}
                     </p>
@@ -314,7 +314,7 @@ export default function AdminDispatchPage() {
                   {openOffer ? (
                     <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
                       <div>
-                        <p className="text-xs font-black text-amber-900">
+                        <p className="text-xs font-semibold text-amber-900">
                           Automatic offer sent to {offerRider}
                         </p>
                         <p className="mt-1 text-[11px] font-medium text-amber-700">
@@ -322,7 +322,7 @@ export default function AdminDispatchPage() {
                           answered or reconciled.
                         </p>
                       </div>
-                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-black text-amber-800">
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-semibold text-amber-800">
                         <Clock3 className="h-3.5 w-3.5" />
                         {remaining === null
                           ? 'Open'
@@ -362,7 +362,7 @@ export default function AdminDispatchPage() {
                           !selectedRiders[order.id] ||
                           assigning === order.id
                         }
-                        className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-black text-white disabled:opacity-40"
+                        className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
                       >
                         {assigning === order.id
                           ? 'Assigning...'
@@ -376,19 +376,19 @@ export default function AdminDispatchPage() {
           </div>
         </section>
 
-        <section className="rounded-[2rem] border bg-white p-5 shadow-sm">
+        <section className="rounded-[2rem] border bg-white p-5 ">
           <div className="mb-4 flex items-center gap-2">
             <Bike className="h-5 w-5 text-slate-500" />
-            <h2 className="text-lg font-black">Riders</h2>
+            <h2 className="text-lg font-semibold">Riders</h2>
           </div>
           <div className="space-y-2">
             {board.riders.map((rider) => (
               <div
                 key={rider.id}
-                className="flex items-center justify-between rounded-2xl border border-slate-100 px-4 py-3"
+                className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-black">
+                  <p className="text-sm font-semibold">
                     {rider.user?.name || rider.user?.email || 'Rider'}
                   </p>
                   <p className="text-xs text-slate-500">
@@ -397,7 +397,7 @@ export default function AdminDispatchPage() {
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-2 py-1 text-[10px] font-black ${
+                  className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
                     rider.available
                       ? 'bg-emerald-50 text-emerald-700'
                       : 'bg-slate-100 text-slate-600'
@@ -409,8 +409,8 @@ export default function AdminDispatchPage() {
             ))}
           </div>
 
-          <div className="mt-6 rounded-2xl bg-indigo-50 p-4">
-            <div className="flex items-center gap-2 text-sm font-black text-indigo-800">
+          <div className="mt-6 rounded-xl bg-indigo-50 p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-indigo-800">
               <Truck className="h-4 w-4" /> Active deliveries
             </div>
             <div className="mt-3 space-y-2">

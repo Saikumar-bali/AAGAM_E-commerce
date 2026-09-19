@@ -81,57 +81,56 @@ export default function StorePickupProofPage() {
 
   return (
     <DashboardLayout allowedRole="STORE_OWNER">
-      <div className="space-y-5">
-        <header className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] bg-slate-950 p-6 text-white">
-          <div>
-            <p className="text-xs font-black uppercase tracking-widest text-emerald-300">
-              Phase 5 handoff control
-            </p>
-            <h1 className="mt-2 text-3xl font-black">Pickup Proof</h1>
-            <p className="mt-2 text-sm text-slate-300">
-              Issue a one-time store PIN/QR or confirm physical handoff. Codes
-              are shown only here and stored only as hashes.
-            </p>
+      <div className="space-y-4">
+        <header className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="enterprise-kicker">Pickup proof</p>
+              <h1 className="mt-1 text-lg font-semibold text-slate-950">Pickup proof</h1>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Issue a one-time store PIN/QR or confirm physical handoff.
+              </p>
+            </div>
+            <button
+              onClick={() => void load()}
+              className="enterprise-button"
+            >
+              <RefreshCw
+                className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </button>
           </div>
-          <button
-            onClick={() => void load()}
-            className="rounded-xl bg-white px-4 py-2.5 text-sm font-black text-slate-950"
-          >
-            <RefreshCw
-              className={`mr-2 inline h-4 w-4 ${loading ? "animate-spin" : ""}`}
-            />
-            Refresh
-          </button>
         </header>
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
             {error}
           </div>
         )}
 
         {!loading && jobs.length === 0 && (
-          <div className="rounded-2xl border border-dashed bg-white p-12 text-center">
-            <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
-            <p className="mt-3 font-black">No Riders awaiting pickup proof</p>
+          <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
+            <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
+            <p className="mt-3 text-base font-semibold text-slate-600">No riders awaiting pickup proof</p>
           </div>
         )}
 
         {jobs.map((job) => (
           <article
             key={job.id}
-            className="rounded-2xl border bg-white p-5 shadow-sm"
+            className="enterprise-card p-4 sm:p-5"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="font-mono text-lg font-black">
+                <p className="font-mono text-base font-semibold text-slate-950">
                   Order #{job.orderId.slice(-8).toUpperCase()}
                 </p>
-                <p className="mt-1 text-sm font-semibold text-slate-600">
+                <p className="mt-1 text-[11px] text-slate-500">
                   Rider: {job.currentRider?.user?.name || "Assigned Rider"}
                 </p>
               </div>
-              <label className="text-xs font-black uppercase text-slate-500">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                 Parcel count
                 <input
                   type="number"
@@ -144,7 +143,7 @@ export default function StorePickupProofPage() {
                       [job.id]: Number(event.target.value),
                     }))
                   }
-                  className="ml-2 w-20 rounded-lg border px-2 py-2 text-center text-slate-950"
+                  className="ml-2 w-20 rounded-md border border-slate-200 px-2 py-1.5 text-center text-sm text-slate-900"
                 />
               </label>
             </div>
@@ -153,35 +152,35 @@ export default function StorePickupProofPage() {
               <button
                 disabled={Boolean(busy)}
                 onClick={() => void issue(job.id, "STORE_PICKUP_PIN")}
-                className="rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-black text-white"
+                className="enterprise-button py-2"
               >
-                <ShieldCheck className="mr-2 inline h-4 w-4" /> Issue PIN
+                <ShieldCheck className="mr-1.5 h-4 w-4" /> Issue PIN
               </button>
               <button
                 disabled={Boolean(busy)}
                 onClick={() => void issue(job.id, "QR_CODE")}
-                className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-black text-white"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
-                <QrCode className="mr-2 inline h-4 w-4" /> Issue QR value
+                <QrCode className="h-4 w-4" /> Issue QR
               </button>
               <button
                 disabled={Boolean(busy)}
                 onClick={() => void confirm(job.id)}
-                className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-black text-white"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800"
               >
-                Confirm store handoff
+                <CheckCircle2 className="h-4 w-4" /> Confirm handoff
               </button>
             </div>
 
             {challenges[job.id] && (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-xs font-black uppercase text-amber-700">
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">
                   One-time {challenges[job.id].method.replace(/_/g, " ")}
                 </p>
-                <p className="mt-2 break-all font-mono text-xl font-black text-amber-950">
+                <p className="mt-2 break-all font-mono text-lg font-semibold text-amber-950">
                   {challenges[job.id].code}
                 </p>
-                <p className="mt-2 text-xs font-semibold text-amber-800">
+                <p className="mt-1.5 text-[11px] text-amber-700">
                   Expires{" "}
                   {new Date(challenges[job.id].expiresAt).toLocaleString(
                     "en-IN"

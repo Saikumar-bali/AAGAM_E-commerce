@@ -20,6 +20,7 @@ import {
   Building,
   Navigation,
   MapPinHouse,
+  ArrowLeft,
 } from 'lucide-react';
 
 const CustomerLocationPicker = dynamic(
@@ -465,70 +466,71 @@ export default function AddressesPage() {
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
-      <div className="mx-auto max-w-3xl pb-24">
+      <div className="max-w-3xl pb-24">
         {/* Header */}
-        <div className="mb-6 flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-100 text-teal-700">
-            <MapPin className="h-5 w-5" />
-          </div>
+        <div className="mb-5 flex items-center gap-3">
+          <button onClick={() => router.push('/shop')} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
           <div>
-            <h1 className="text-xl font-extrabold tracking-[-0.02em] text-teal-950">Manage Addresses</h1>
-            <p className="text-xs font-semibold text-slate-500">Add, edit or delete your delivery addresses</p>
+            <p className="enterprise-kicker">Addresses</p>
+            <h1 className="mt-1 text-lg font-semibold text-slate-950">Manage addresses</h1>
+            <p className="mt-0.5 text-xs text-slate-500">Add, edit or delete your delivery addresses</p>
           </div>
         </div>
 
         {/* Error */}
         {error && (
-          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
             {error}
           </div>
         )}
 
         {/* Address list */}
-        <div className="mb-6 space-y-3">
+        <div className="mb-5 space-y-2">
           {addresses.map((addr) => {
             const Icon = ADDRESS_ICONS[(addr.label || '').toLowerCase()] || Navigation;
             return (
               <div
                 key={addr.id}
-                className={`relative rounded-2xl border p-4 transition-all ${
+                className={`relative rounded-xl border p-3 transition-all sm:p-4 ${
                   addr.isDefault
-                    ? 'border-teal-300 bg-teal-50 shadow-sm shadow-teal-100'
+                    ? 'border-teal-200 bg-teal-50/30'
                     : 'border-slate-100 bg-white hover:border-teal-200'
                 }`}
               >
                 <div className="flex items-start justify-between">
-                  <div className="flex flex-1 items-start gap-3">
+                  <div className="flex flex-1 items-start gap-2.5">
                     <div
-                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
-                        addr.isDefault ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-500'
+                      className={`grid h-8 w-8 shrink-0 place-items-center rounded-md ${
+                        addr.isDefault ? 'bg-teal-100 text-teal-700' : 'bg-slate-50 text-slate-400'
                       }`}
                     >
-                      <Icon className="h-5 w-5" />
+                      <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-950">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                           {addr.label || 'Address'}
                         </span>
                         {addr.isDefault && (
-                          <span className="rounded-lg bg-teal-600 px-1.5 py-0.5 text-[10px] font-extrabold text-white">
+                          <span className="rounded-md bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700">
                             Default
                           </span>
                         )}
-                        <span className="rounded-lg bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
                           {locationLabel(addr.locationSource)}
                         </span>
                       </div>
-                      <div className="mt-1 font-bold text-slate-900">{addr.recipientName}</div>
-                      <div className="mt-1 text-sm text-slate-600">
+                      <div className="mt-1 text-sm font-medium text-slate-900">{addr.recipientName}</div>
+                      <div className="mt-0.5 text-[11px] text-slate-600">
                         {addr.line1}
                         {addr.line2 && `, ${addr.line2}`}
                         {addr.landmark && `, nr ${addr.landmark}`}
                         <br />
                         {addr.city}, {addr.state} - {addr.pincode}
                       </div>
-                      <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                      <div className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-slate-500">
                         <Phone className="h-3 w-3" />
                         {addr.phoneE164}
                       </div>
@@ -540,12 +542,12 @@ export default function AddressesPage() {
                         e.stopPropagation();
                         setMenuOpenId(menuOpenId === addr.id ? null : addr.id);
                       }}
-                      className="rounded-xl p-2 transition-colors hover:bg-slate-100"
+                      className="rounded-md p-1.5 transition-colors hover:bg-slate-100"
                     >
                       <MoreVertical className="h-4 w-4 text-slate-400" />
                     </button>
                     {menuOpenId === addr.id && (
-                      <div className="absolute right-0 top-full z-20 mt-1 w-36 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xl">
+                      <div className="absolute right-0 top-full z-20 mt-1 w-36 overflow-hidden rounded-lg border border-slate-100 bg-white ">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -591,21 +593,21 @@ export default function AddressesPage() {
         {!showForm && addresses.length > 0 && (
           <button
             onClick={openNewAddress}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 py-3.5 font-extrabold text-slate-500 transition-colors hover:border-teal-400 hover:text-teal-600"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-200 py-3 text-sm font-medium text-slate-500 transition-colors hover:border-teal-300 hover:text-teal-600"
           >
-            <Plus className="h-5 w-5" /> Add New Address
+            <Plus className="h-4 w-4" /> Add new address
           </button>
         )}
 
         {/* Empty state */}
         {!showForm && addresses.length === 0 && (
-          <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center">
-            <MapPinHouse className="mx-auto h-10 w-10 text-slate-400" />
-            <p className="mt-3 text-sm font-bold text-slate-600">No saved addresses</p>
-            <p className="mt-1 text-xs text-slate-500">Add a delivery address to get started.</p>
+          <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center">
+            <MapPinHouse className="mx-auto h-8 w-8 text-slate-300" />
+            <p className="mt-3 text-sm font-semibold text-slate-600">No saved addresses</p>
+            <p className="mt-1 text-[11px] text-slate-500">Add a delivery address to get started.</p>
             <button
               onClick={openNewAddress}
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-extrabold text-white"
+              className="mt-3 enterprise-button"
             >
               <Plus className="h-4 w-4" /> Add new address
             </button>
@@ -632,24 +634,24 @@ export default function AddressesPage() {
         {/* Delete confirmation */}
         {deletingId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="w-full max-w-sm rounded-xl bg-white p-6 ">
               <div className="text-center">
                 <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-red-100 text-red-600">
                   <Trash2 className="h-6 w-6" />
                 </div>
-                <h3 className="mt-3 text-lg font-extrabold text-slate-950">Delete Address?</h3>
+                <h3 className="mt-3 text-lg font-semibold text-slate-950">Delete Address?</h3>
                 <p className="mt-1 text-sm text-slate-500">This action cannot be undone.</p>
               </div>
               <div className="mt-5 flex gap-3">
                 <button
                   onClick={() => setDeletingId(null)}
-                  className="flex-1 rounded-xl bg-slate-100 px-4 py-2.5 font-extrabold text-slate-700 hover:bg-slate-200"
+                  className="flex-1 rounded-xl bg-slate-100 px-4 py-2.5 font-semibold text-slate-700 hover:bg-slate-200"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => void deleteAddress()}
-                  className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 font-extrabold text-white hover:bg-red-700"
+                  className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 font-semibold text-white hover:bg-red-700"
                 >
                   Delete
                 </button>
@@ -699,22 +701,22 @@ function AddressFormModal({
   const hasLocation = draft.latitude != null && draft.longitude != null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-2 sm:p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-2 sm:p-4 ">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         className={
           step === 'map'
-            ? 'flex h-[95dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]'
-            : 'max-h-[96dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]'
+            ? 'flex h-[95dvh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]'
+            : 'max-h-[96dvh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]'
         }
       >
-        <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur">
+        <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-4 ">
           <div>
             <h2
               id={titleId}
-              className="text-lg font-extrabold tracking-[-0.01em] text-teal-950"
+              className="text-lg font-semibold tracking-[-0.01em] text-teal-950"
             >
               {editingId
                 ? 'Edit address'
@@ -743,7 +745,7 @@ function AddressFormModal({
               <button
                 onClick={onUseLiveLocation}
                 disabled={locating}
-                className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-3 text-xs font-extrabold text-teal-800 transition hover:border-teal-300 hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-3 text-xs font-semibold text-teal-800 transition hover:border-teal-300 hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {locating ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -763,7 +765,7 @@ function AddressFormModal({
                   fullHeight
                 />
               ) : (
-                <div className="flex h-full items-center justify-center rounded-2xl border-2 border-dashed border-teal-200 bg-teal-50/40 p-6 text-center">
+                <div className="flex h-full items-center justify-center rounded-xl border-2 border-dashed border-teal-200 bg-teal-50/40 p-6 text-center">
                   <div>
                     <p className="text-sm font-bold text-slate-600">
                       Pin your location on the map or use your live location above.
@@ -773,7 +775,7 @@ function AddressFormModal({
                         onClick={() =>
                           onMapPinChange(defaultMapCenter.latitude, defaultMapCenter.longitude)
                         }
-                        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-teal-300 bg-white px-3.5 py-2 text-xs font-extrabold text-teal-800 transition hover:border-teal-400"
+                        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-teal-300 bg-white px-3.5 py-2 text-xs font-semibold text-teal-800 transition hover:border-teal-400"
                       >
                         <MapPin className="h-4 w-4" /> Open the map
                       </button>
@@ -786,14 +788,14 @@ function AddressFormModal({
             <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
               <button
                 onClick={onClose}
-                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-700 transition hover:border-slate-300"
+                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
               >
                 Cancel
               </button>
               <button
                 onClick={() => setStep('details')}
                 disabled={!hasLocation}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_24px_rgba(15,23,42,0.14)] transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(15,23,42,0.14)] transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
                 Next
               </button>
@@ -809,7 +811,7 @@ function AddressFormModal({
                 </span>
                 <button
                   onClick={() => setStep('map')}
-                  className="ml-auto shrink-0 rounded-lg px-3 py-2 text-xs font-extrabold text-teal-700 hover:bg-teal-100 hover:underline"
+                  className="ml-auto shrink-0 rounded-lg px-3 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-100 hover:underline"
                 >
                   Change
                 </button>
@@ -922,14 +924,14 @@ function AddressFormModal({
             <div className="flex gap-3 pt-1">
               <button
                 onClick={() => setStep('map')}
-                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-700 transition hover:border-slate-300"
+                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
               >
                 Back
               </button>
               <button
                 onClick={onSave}
                 disabled={saving}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_24px_rgba(15,23,42,0.14)] transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(15,23,42,0.14)] transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {editingId ? 'Update address' : 'Save address'}
@@ -972,7 +974,7 @@ function Field({
     <div className={className}>
       <label
         htmlFor={id}
-        className={`mb-1.5 block text-[11px] font-extrabold uppercase tracking-[0.08em] ${
+        className={`mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] ${
           error ? 'text-red-700' : 'text-slate-500'
         }`}
       >

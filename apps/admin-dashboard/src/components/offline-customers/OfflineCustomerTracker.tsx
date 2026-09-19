@@ -73,7 +73,7 @@ function StatusBadge({ status }: { status: string | null }) {
   const config = statusConfig[status] || { color: 'bg-slate-100 text-slate-500', icon: Clock, label: status };
   const Icon = config.icon;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-black ${config.color}`}>
+    <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-semibold ${config.color}`}>
       <Icon className="h-3 w-3" /> {config.label}
     </span>
   );
@@ -110,7 +110,7 @@ export default function OfflineCustomerTracker({
   }
 
   if (!data) {
-    return <div className="rounded-2xl bg-red-50 p-6 text-center text-red-700">Failed to load delivery tracker.</div>;
+    return <div className="rounded-xl bg-red-50 p-6 text-center text-red-700">Failed to load delivery tracker.</div>;
   }
 
   const filtered = data.deliveries.filter((d) => {
@@ -127,17 +127,17 @@ export default function OfflineCustomerTracker({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-6 ">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-xl font-black text-slate-900">{data.customer.name || 'Customer'}</h2>
+            <h2 className="text-xl font-semibold text-slate-900">{data.customer.name || 'Customer'}</h2>
             <p className="text-sm text-slate-500">{data.customer.phone}</p>
             {data.store && <p className="text-xs text-slate-400 mt-1">Store: {data.store.name}</p>}
           </div>
           <div className="flex items-center gap-2">
-            {data.subscription.isCustom && <span className="rounded-lg bg-purple-100 px-2 py-1 text-xs font-black text-purple-700">Custom</span>}
-            {data.subscription.storeDelivery && <span className="rounded-lg bg-orange-100 px-2 py-1 text-xs font-black text-orange-700">Store Delivery</span>}
-            <span className={`rounded-lg px-2 py-1 text-xs font-black ${
+            {data.subscription.isCustom && <span className="rounded-lg bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-700">Custom</span>}
+            {data.subscription.storeDelivery && <span className="rounded-lg bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700">Store Delivery</span>}
+            <span className={`rounded-lg px-2 py-1 text-xs font-semibold ${
               data.subscription.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' :
               data.subscription.status === 'COMPLETED' ? 'bg-blue-100 text-blue-700' :
               'bg-slate-100 text-slate-600'
@@ -146,32 +146,32 @@ export default function OfflineCustomerTracker({
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-7">
-          <div className="rounded-2xl bg-slate-50 p-3 text-center">
-            <div className="text-xl font-black text-slate-900">{data.summary.totalDays}</div>
+          <div className="rounded-xl bg-slate-50 p-3 text-center">
+            <div className="text-xl font-semibold text-slate-900">{data.summary.totalDays}</div>
             <div className="text-[10px] font-bold text-slate-400">Total Days</div>
           </div>
-          <div className="rounded-2xl bg-emerald-50 p-3 text-center">
-            <div className="text-xl font-black text-emerald-700">{data.summary.deliveredDays}</div>
+          <div className="rounded-xl bg-emerald-50 p-3 text-center">
+            <div className="text-xl font-semibold text-emerald-700">{data.summary.deliveredDays}</div>
             <div className="text-[10px] font-bold text-emerald-600">Delivered</div>
           </div>
-          <div className="rounded-2xl bg-blue-50 p-3 text-center">
-            <div className="text-xl font-black text-blue-700">{data.summary.pendingDays}</div>
+          <div className="rounded-xl bg-blue-50 p-3 text-center">
+            <div className="text-xl font-semibold text-blue-700">{data.summary.pendingDays}</div>
             <div className="text-[10px] font-bold text-blue-600">Pending</div>
           </div>
-          <div className="rounded-2xl bg-red-50 p-3 text-center">
-            <div className="text-xl font-black text-red-700">{data.summary.failedDays}</div>
+          <div className="rounded-xl bg-red-50 p-3 text-center">
+            <div className="text-xl font-semibold text-red-700">{data.summary.failedDays}</div>
             <div className="text-[10px] font-bold text-red-600">Failed</div>
           </div>
-          <div className="rounded-2xl bg-slate-50 p-3 text-center">
-            <div className="text-xl font-black text-slate-700">{data.summary.skippedDays}</div>
+          <div className="rounded-xl bg-slate-50 p-3 text-center">
+            <div className="text-xl font-semibold text-slate-700">{data.summary.skippedDays}</div>
             <div className="text-[10px] font-bold text-slate-400">Skipped</div>
           </div>
-          <div className="rounded-2xl bg-amber-50 p-3 text-center">
-            <div className="text-xl font-black text-amber-700">{formatPaise(data.summary.collectedPaise)}</div>
+          <div className="rounded-xl bg-amber-50 p-3 text-center">
+            <div className="text-xl font-semibold text-amber-700">{formatPaise(data.summary.collectedPaise)}</div>
             <div className="text-[10px] font-bold text-amber-600">Collected</div>
           </div>
-          <div className="rounded-2xl bg-red-50 p-3 text-center">
-            <div className="text-xl font-black text-red-700">{formatPaise(data.summary.duePaise)}</div>
+          <div className="rounded-xl bg-red-50 p-3 text-center">
+            <div className="text-xl font-semibold text-red-700">{formatPaise(data.summary.duePaise)}</div>
             <div className="text-[10px] font-bold text-red-600">Due</div>
           </div>
         </div>
@@ -182,7 +182,7 @@ export default function OfflineCustomerTracker({
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`rounded-xl px-4 py-2 text-xs font-black capitalize ${
+            className={`rounded-xl px-4 py-2 text-xs font-semibold capitalize ${
               filter === f ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
@@ -196,20 +196,20 @@ export default function OfflineCustomerTracker({
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white ">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500">#</th>
-              <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500">Date</th>
-              <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500">Day</th>
-              <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500">Slot</th>
-              <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500">Status</th>
-              <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500">Order</th>
-              <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500">Items</th>
-              <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500 text-right">Cash Due</th>
-              <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500 text-right">Collected</th>
-              <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500">Delivered By</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">#</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Date</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Day</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Slot</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Order</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Items</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Cash Due</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Collected</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Delivered By</th>
             </tr>
           </thead>
           <tbody>
@@ -219,7 +219,7 @@ export default function OfflineCustomerTracker({
                 <td className="px-4 py-3 font-semibold text-slate-700">{formatDate(d.date)}</td>
                 <td className="px-4 py-3 text-slate-500">{dayName(d.date)}</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-flex rounded-lg px-2 py-0.5 text-[11px] font-black ${
+                  <span className={`inline-flex rounded-lg px-2 py-0.5 text-[11px] font-semibold ${
                     d.deliverySlot === 'AM' ? 'bg-amber-100 text-amber-700' :
                     d.deliverySlot === 'PM' ? 'bg-indigo-100 text-indigo-700' :
                     'bg-slate-100 text-slate-600'

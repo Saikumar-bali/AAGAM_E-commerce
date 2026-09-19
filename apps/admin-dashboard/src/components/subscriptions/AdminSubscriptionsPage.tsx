@@ -614,20 +614,20 @@ export default function AdminSubscriptionsPage() {
       <div className="space-y-3 p-3 sm:p-4">
         <section className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-lg font-black text-slate-900">Subscriptions, runs & cash</h1>
+            <h1 className="text-lg font-semibold text-slate-900">Subscriptions, runs & cash</h1>
             <p className="text-xs font-semibold text-slate-500">Customer subscriptions first; plan definitions stay separate from billing presets.</p>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            <button onClick={() => void load()} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50"><RefreshCw className="h-3.5 w-3.5" /> Refresh</button>
-            <button onClick={() => { setSelectedOfflineCustomer(null); setManualModalOpen(true); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-black text-slate-900 hover:bg-amber-300"><Plus className="h-3.5 w-3.5" /> Manual Subscription</button>
-            <button onClick={openCreate} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-xs font-black text-white hover:bg-emerald-800"><Plus className="h-3.5 w-3.5" /> New plan</button>
+            <button onClick={() => void load()} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"><RefreshCw className="h-3.5 w-3.5" /> Refresh</button>
+            <button onClick={() => { setSelectedOfflineCustomer(null); setManualModalOpen(true); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-slate-900 hover:bg-amber-300"><Plus className="h-3.5 w-3.5" /> Manual Subscription</button>
+            <button onClick={openCreate} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"><Plus className="h-3.5 w-3.5" /> New plan</button>
           </div>
         </section>
 
         <section className="grid grid-cols-2 gap-2 xl:grid-cols-4">
           {cards.map(([cardLabel, value, Icon]: any) => (
-            <div key={cardLabel} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-              <div className="flex items-center gap-2 text-emerald-700"><span className="rounded-lg bg-emerald-50 p-1.5"><Icon className="h-3.5 w-3.5" /></span><span className="text-xs font-black text-slate-600">{cardLabel}</span></div>
+            <div key={cardLabel} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 ">
+              <div className="flex items-center gap-2 text-emerald-700"><span className="rounded-lg bg-emerald-50 p-1.5"><Icon className="h-3.5 w-3.5" /></span><span className="text-xs font-semibold text-slate-600">{cardLabel}</span></div>
               <strong className="text-lg text-slate-900">{value}</strong>
             </div>
           ))}
@@ -635,7 +635,7 @@ export default function AdminSubscriptionsPage() {
 
         <nav className="flex gap-0.5 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
           {tabs.map(([key, tabLabel, Icon]) => (
-            <button key={key} onClick={() => setTab(key)} className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-black ${tab === key ? 'bg-emerald-100 text-emerald-800' : 'text-slate-500 hover:bg-slate-50'}`}>
+            <button key={key} onClick={() => setTab(key)} className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold ${tab === key ? 'bg-emerald-100 text-emerald-800' : 'text-slate-500 hover:bg-slate-50'}`}>
               <Icon className="h-3.5 w-3.5" /> {tabLabel}
             </button>
           ))}
@@ -654,12 +654,12 @@ export default function AdminSubscriptionsPage() {
         )}
 
         {manualModalOpen ? (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Manual offline subscription form">
-            <div className="max-h-[96vh] w-full max-w-3xl overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0  sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Manual offline subscription form">
+            <div className="max-h-[96vh] w-full max-w-3xl overflow-y-auto rounded-t-2xl bg-white  sm:rounded-xl">
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Offline Customer Subscription</p>
-                  <h2 className="mt-0.5 text-lg font-black text-slate-900">Create Subscription</h2>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">Offline Customer Subscription</p>
+                  <h2 className="mt-0.5 text-lg font-semibold text-slate-900">Create Subscription</h2>
                   <p className="text-xs font-semibold text-slate-500">For offline store customers. Choose plan-based or custom schedule.</p>
                 </div>
                 <button onClick={() => setManualModalOpen(false)} aria-label="Close form" className="rounded-lg bg-slate-100 p-2"><X className="h-4 w-4" /></button>
@@ -667,8 +667,8 @@ export default function AdminSubscriptionsPage() {
 
               <div className="space-y-3 p-4">
                 <div className="flex gap-2 rounded-xl bg-slate-100 p-1">
-                  <button onClick={() => setManualMode('plan')} className={`flex-1 rounded-lg py-2.5 text-sm font-black ${manualMode === 'plan' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>Plan-Based</button>
-                  <button onClick={() => setManualMode('custom')} className={`flex-1 rounded-lg py-2.5 text-sm font-black ${manualMode === 'custom' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-500'}`}>Custom Schedule</button>
+                  <button onClick={() => setManualMode('plan')} className={`flex-1 rounded-lg py-2.5 text-sm font-semibold ${manualMode === 'plan' ? 'bg-white text-emerald-700 ' : 'text-slate-500'}`}>Plan-Based</button>
+                  <button onClick={() => setManualMode('custom')} className={`flex-1 rounded-lg py-2.5 text-sm font-semibold ${manualMode === 'custom' ? 'bg-white text-amber-700 ' : 'text-slate-500'}`}>Custom Schedule</button>
                 </div>
 
                 <section className="grid gap-4 sm:grid-cols-2">
@@ -698,7 +698,7 @@ export default function AdminSubscriptionsPage() {
                 </section>
 
                 <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">Customer Information (No Login Required)</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-700">Customer Information (No Login Required)</h3>
                   <Field label="Existing Offline Customer">
                     <div className="space-y-1.5">
                       <input
@@ -777,7 +777,7 @@ export default function AdminSubscriptionsPage() {
                 ) : (
                   <section className={`rounded-xl border p-3 space-y-2 ${manualErrors.customDeliveries ? 'border-red-400 bg-red-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
                     <div className="flex items-center justify-between">
-                      <h3 className={`text-xs font-black uppercase tracking-wider ${manualErrors.customDeliveries ? 'text-red-700' : 'text-amber-700'}`}>Custom Delivery Schedule{manualErrors.customDeliveries ? ' *' : ''}</h3>
+                      <h3 className={`text-xs font-semibold uppercase tracking-wider ${manualErrors.customDeliveries ? 'text-red-700' : 'text-amber-700'}`}>Custom Delivery Schedule{manualErrors.customDeliveries ? ' *' : ''}</h3>
                       <button
                         type="button"
                         onClick={() => {
@@ -785,7 +785,7 @@ export default function AdminSubscriptionsPage() {
                           setCustomDeliveries([...customDeliveries, { date: today, slot: 'AM' as const, items: [] }]);
                           setManualErrors((prev) => ({ ...prev, customDeliveries: false }));
                         }}
-                        className="rounded-lg bg-amber-600 px-2.5 py-1 text-[10px] font-black text-white hover:bg-amber-700"
+                        className="rounded-lg bg-amber-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-amber-700"
                       >+ Add Day</button>
                     </div>
                     <p className="text-[10px] text-amber-600">Add delivery days with specific dates and slots. Example: 10 days with 5 consecutive + 5 alternating.</p>
@@ -872,8 +872,8 @@ export default function AdminSubscriptionsPage() {
               </div>
 
               <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white p-4">
-                <button onClick={() => setManualModalOpen(false)} className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-black">Cancel</button>
-                <button disabled={savingManual} onClick={() => void submitManualSubscription()} className="inline-flex min-h-10 min-w-32 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 text-xs font-black text-slate-950 disabled:opacity-50">
+                <button onClick={() => setManualModalOpen(false)} className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold">Cancel</button>
+                <button disabled={savingManual} onClick={() => void submitManualSubscription()} className="inline-flex min-h-10 min-w-32 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 text-xs font-semibold text-slate-950 disabled:opacity-50">
                   {savingManual ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {manualMode === 'custom' ? 'Create Custom Subscription' : 'Create Subscription'}
                 </button>
               </div>
@@ -882,32 +882,32 @@ export default function AdminSubscriptionsPage() {
         ) : null}
 
         {editManualModalOpen && editingSubscriber ? (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Edit subscriber modal">
-            <div className="max-h-[96vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0  sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Edit subscriber modal">
+            <div className="max-h-[96vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white  sm:rounded-xl">
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Subscriber Management</p>
-                  <h2 className="mt-0.5 text-lg font-black text-slate-900">Edit Subscription #{editingSubscriber.id.slice(-6)}</h2>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Subscriber Management</p>
+                  <h2 className="mt-0.5 text-lg font-semibold text-slate-900">Edit Subscription #{editingSubscriber.id.slice(-6)}</h2>
                   <p className="text-xs font-semibold text-slate-500">Customer: {editingSubscriber.customer?.name || editingSubscriber.customer?.email}</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {editingSubscriber.homeStore && (
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700">
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                         Store: {editingSubscriber.homeStore.name}
                       </span>
                     )}
                     {editingSubscriber.storeDelivery ? (
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-700">
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
                         <Truck className="h-3 w-3" /> Store Delivery
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                         <Route className="h-3 w-3" /> Rider Delivery
                       </span>
                     )}
-                    <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">
+                    <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                       {editingSubscriber.completedDeliveries}/{editingSubscriber.fundedDeliveryCount || '—'} delivered
                     </span>
-                    <span className="rounded-lg bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700">
+                    <span className="rounded-lg bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
                       {formatPaise(editingSubscriber.amountCollectedPaise)} / {formatPaise(editingSubscriber.amountDuePaise)}
                     </span>
                   </div>
@@ -945,8 +945,8 @@ export default function AdminSubscriptionsPage() {
               </div>
 
               <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white p-4">
-                <button onClick={() => setEditManualModalOpen(false)} className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-black">Cancel</button>
-                <button disabled={savingManual} onClick={() => void saveSubscriberEdit()} className="inline-flex min-h-10 min-w-32 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-4 text-xs font-black text-white disabled:opacity-50">
+                <button onClick={() => setEditManualModalOpen(false)} className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold">Cancel</button>
+                <button disabled={savingManual} onClick={() => void saveSubscriberEdit()} className="inline-flex min-h-10 min-w-32 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-4 text-xs font-semibold text-white disabled:opacity-50">
                   {savingManual ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Changes
                 </button>
               </div>
@@ -955,10 +955,10 @@ export default function AdminSubscriptionsPage() {
         ) : null}
 
         {formOpen ? (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Subscription plan form">
-            <div className="max-h-[96vh] w-full max-w-4xl overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0  sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Subscription plan form">
+            <div className="max-h-[96vh] w-full max-w-4xl overflow-y-auto rounded-t-2xl bg-white  sm:rounded-xl">
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white p-4">
-                <div><p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Plan definition</p><h2 className="mt-0.5 text-lg font-black text-slate-900">{editing ? 'Edit subscription plan' : 'Create subscription plan'}</h2><p className="text-xs font-semibold text-slate-500">Technical codes, paise conversion and scheduler defaults are handled automatically.</p></div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Plan definition</p><h2 className="mt-0.5 text-lg font-semibold text-slate-900">{editing ? 'Edit subscription plan' : 'Create subscription plan'}</h2><p className="text-xs font-semibold text-slate-500">Technical codes, paise conversion and scheduler defaults are handled automatically.</p></div>
                 <button onClick={() => setFormOpen(false)} aria-label="Close subscription plan form" className="rounded-lg bg-slate-100 p-2"><X className="h-4 w-4" /></button>
               </div>
 
@@ -969,7 +969,7 @@ export default function AdminSubscriptionsPage() {
                     <div className="grid grid-cols-3 gap-2">
                       {([['ONE_TIME', 'One-time', '1 delivery'], ['WEEKLY', 'Weekly', '7 days'], ['MONTHLY', 'Monthly', '30 days']] as const).map(([mode, label, copy]) => {
                         const active = mode === 'ONE_TIME' ? form.durationDays === '1' && form.fundingCycle === 'FULL_PLAN' : mode === 'WEEKLY' ? form.fundingCycle === 'WEEKLY' && form.durationDays === '7' : form.fundingCycle === 'FULL_PLAN' && form.durationDays === '30';
-                        return <button key={mode} type="button" onClick={() => setForm((current) => ({ ...current, fundingCycle: mode === 'WEEKLY' ? 'WEEKLY' : 'FULL_PLAN', durationDays: mode === 'ONE_TIME' ? '1' : mode === 'WEEKLY' ? '7' : '30', totalDeliveries: mode === 'ONE_TIME' ? '1' : mode === 'WEEKLY' ? '7' : '30', deliveryFrequency: 'DAILY' }))} className={`min-h-14 rounded-xl px-2 text-center ${active ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}><span className="block text-sm font-black">{label}</span><span className={`block text-[10px] font-bold ${active ? 'text-emerald-100' : 'text-slate-400'}`}>{copy}</span></button>;
+                        return <button key={mode} type="button" onClick={() => setForm((current) => ({ ...current, fundingCycle: mode === 'WEEKLY' ? 'WEEKLY' : 'FULL_PLAN', durationDays: mode === 'ONE_TIME' ? '1' : mode === 'WEEKLY' ? '7' : '30', totalDeliveries: mode === 'ONE_TIME' ? '1' : mode === 'WEEKLY' ? '7' : '30', deliveryFrequency: 'DAILY' }))} className={`min-h-14 rounded-xl px-2 text-center ${active ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}><span className="block text-sm font-semibold">{label}</span><span className={`block text-[10px] font-bold ${active ? 'text-emerald-100' : 'text-slate-400'}`}>{copy}</span></button>;
                       })}
                     </div>
                   </Field>
@@ -977,22 +977,22 @@ export default function AdminSubscriptionsPage() {
                 </section>
 
                 <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-black text-slate-800">Plan image <span className="font-semibold text-slate-400">(optional)</span></p><p className="text-[10px] font-semibold text-slate-500">One upload is automatically reused for mobile.</p></div><label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-lg border border-dashed border-emerald-300 bg-white px-3 text-xs font-black text-emerald-800"><input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => void uploadPlanImage(event)} />{uploadingImage ? 'Uploading…' : form.imageUrl ? 'Replace image' : 'Upload plan image'}</label></div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-semibold text-slate-800">Plan image <span className="font-semibold text-slate-400">(optional)</span></p><p className="text-[10px] font-semibold text-slate-500">One upload is automatically reused for mobile.</p></div><label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-lg border border-dashed border-emerald-300 bg-white px-3 text-xs font-semibold text-emerald-800"><input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => void uploadPlanImage(event)} />{uploadingImage ? 'Uploading…' : form.imageUrl ? 'Replace image' : 'Upload plan image'}</label></div>
                   {form.imageUrl ? <p className="mt-2 truncate text-[10px] font-semibold text-emerald-700">Image ready</p> : null}
                 </section>
 
                 <section>
-                  <h3 className="text-sm font-black text-slate-900">Delivery schedule</h3>
+                  <h3 className="text-sm font-semibold text-slate-900">Delivery schedule</h3>
                   <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <Field label="How often"><select value={form.deliveryFrequency} onChange={(event) => { const deliveryFrequency = event.target.value; setForm((current) => ({ ...current, deliveryFrequency, totalDeliveries: deliveryFrequency === 'DAILY' ? current.durationDays : current.totalDeliveries })); }}>{frequencyOptions.map(([value, optionLabel]) => <option key={value} value={value}>{optionLabel}</option>)}</select></Field>
                     <Field label="Plan duration (days)"><input type="number" min="1" max="366" value={form.durationDays} onChange={(event) => { const durationDays = event.target.value; setForm((current) => ({ ...current, durationDays, totalDeliveries: current.deliveryFrequency === 'DAILY' ? durationDays : current.totalDeliveries })); }} /></Field>
-                    {form.deliveryFrequency === 'DAILY' ? <div className="rounded-xl bg-emerald-50 px-4 py-3"><p className="text-xs font-black uppercase tracking-wide text-emerald-700">Deliveries</p><p className="mt-2 font-black text-slate-900">{form.totalDeliveries || '0'} daily deliveries</p></div> : <Field label="Number of deliveries"><input type="number" min="1" max="366" value={form.totalDeliveries} onChange={(event) => setForm({ ...form, totalDeliveries: event.target.value })} /></Field>}
+                    {form.deliveryFrequency === 'DAILY' ? <div className="rounded-xl bg-emerald-50 px-4 py-3"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Deliveries</p><p className="mt-2 font-semibold text-slate-900">{form.totalDeliveries || '0'} daily deliveries</p></div> : <Field label="Number of deliveries"><input type="number" min="1" max="366" value={form.totalDeliveries} onChange={(event) => setForm({ ...form, totalDeliveries: event.target.value })} /></Field>}
                   </div>
-                  {form.deliveryFrequency === 'SELECTED_WEEKDAYS' ? <div className="mt-2"><p className="text-xs font-black text-slate-700">Delivery days</p><div className="mt-1.5 flex flex-wrap gap-1.5">{weekdayLabels.map((day, index) => <button type="button" key={day} onClick={() => setForm((current) => ({ ...current, selectedWeekdays: current.selectedWeekdays.includes(index) ? current.selectedWeekdays.filter((value) => value !== index) : [...current.selectedWeekdays, index] }))} className={`rounded-lg px-2.5 py-1.5 text-xs font-black ${form.selectedWeekdays.includes(index) ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{day}</button>)}</div></div> : null}
+                  {form.deliveryFrequency === 'SELECTED_WEEKDAYS' ? <div className="mt-2"><p className="text-xs font-semibold text-slate-700">Delivery days</p><div className="mt-1.5 flex flex-wrap gap-1.5">{weekdayLabels.map((day, index) => <button type="button" key={day} onClick={() => setForm((current) => ({ ...current, selectedWeekdays: current.selectedWeekdays.includes(index) ? current.selectedWeekdays.filter((value) => value !== index) : [...current.selectedWeekdays, index] }))} className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${form.selectedWeekdays.includes(index) ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{day}</button>)}</div></div> : null}
                 </section>
 
                 <section>
-                  <h3 className="text-sm font-black text-slate-900">Price & delivery time</h3>
+                  <h3 className="text-sm font-semibold text-slate-900">Price & delivery time</h3>
                   <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <Field label="Plan price (₹)"><input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.priceRupees} onChange={(event) => setForm({ ...form, priceRupees: event.target.value })} placeholder="499" /></Field>
                     <Field label="MRP (₹)"><input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.mrpRupees} onChange={(event) => setForm({ ...form, mrpRupees: event.target.value })} placeholder="599" /></Field>
@@ -1003,15 +1003,15 @@ export default function AdminSubscriptionsPage() {
                 </section>
 
                 <section>
-                  <h3 className="text-sm font-black text-slate-900">Products in each delivery</h3>
+                  <h3 className="text-sm font-semibold text-slate-900">Products in each delivery</h3>
                   <div className="mt-2 space-y-1.5">
                     {form.items.map((item, index) => <div key={index} className="grid grid-cols-[1fr_92px_auto] gap-2"><select aria-label={`Product ${index + 1}`} value={item.productId} onChange={(event) => setForm({ ...form, items: form.items.map((current, itemIndex) => itemIndex === index ? { ...current, productId: event.target.value } : current) })} className="min-h-12 rounded-xl border border-slate-200 px-4"><option value="">Select product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select><input aria-label={`Quantity ${index + 1}`} className="min-h-12 rounded-xl border border-slate-200 px-3" type="number" min="1" value={item.quantityPerDelivery} onChange={(event) => setForm({ ...form, items: form.items.map((current, itemIndex) => itemIndex === index ? { ...current, quantityPerDelivery: event.target.value } : current) })} /><button type="button" aria-label={`Remove product ${index + 1}`} onClick={() => setForm({ ...form, items: form.items.filter((_, itemIndex) => itemIndex !== index) })} className="rounded-xl bg-red-50 px-3 text-red-700"><X className="h-4 w-4" /></button></div>)}
-                    <button type="button" onClick={() => setForm({ ...form, items: [...form.items, { productId: '', quantityPerDelivery: '1' }] })} className="min-h-8 rounded-lg bg-emerald-50 px-3 text-xs font-black text-emerald-700">+ Add product</button>
+                    <button type="button" onClick={() => setForm({ ...form, items: [...form.items, { productId: '', quantityPerDelivery: '1' }] })} className="min-h-8 rounded-lg bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">+ Add product</button>
                   </div>
                 </section>
 
                 <details className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-                  <summary className="cursor-pointer text-xs font-black text-slate-800">Availability & customer options <span className="font-semibold text-slate-400">(optional)</span></summary>
+                  <summary className="cursor-pointer text-xs font-semibold text-slate-800">Availability & customer options <span className="font-semibold text-slate-400">(optional)</span></summary>
                   <div className="mt-3 grid gap-3 lg:grid-cols-2">
                     <Field label="Limit to stores" group><Multi rows={stores} selected={form.storeIds} onChange={(storeIds) => setForm({ ...form, storeIds })} /></Field>
                     <Field label="Limit to zones" group><Multi rows={zones} selected={form.zoneIds} onChange={(zoneIds) => setForm({ ...form, zoneIds })} /></Field>
@@ -1020,7 +1020,7 @@ export default function AdminSubscriptionsPage() {
                 </details>
               </div>
 
-              <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white p-4"><button onClick={() => setFormOpen(false)} className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-black">Cancel</button><button disabled={saving} onClick={() => void save()} className="inline-flex min-h-10 min-w-32 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-4 text-xs font-black text-white disabled:opacity-50">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save draft</button></div>
+              <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white p-4"><button onClick={() => setFormOpen(false)} className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold">Cancel</button><button disabled={saving} onClick={() => void save()} className="inline-flex min-h-10 min-w-32 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-4 text-xs font-semibold text-white disabled:opacity-50">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save draft</button></div>
             </div>
           </div>
         ) : null}
@@ -1038,7 +1038,7 @@ function Plans({ plans, onEdit, onLifecycle }: any) {
         <div key={plan.id} className="flex items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-emerald-50">{plan.imageUrl ? <img src={plan.imageUrl} alt="" className="h-full w-full object-contain" /> : <CalendarDays className="h-4 w-4 text-emerald-700" />}</div>
           <div className="min-w-0">
-            <p className="font-black text-slate-900 truncate max-w-[200px]">{plan.name}</p>
+            <p className="font-semibold text-slate-900 truncate max-w-[200px]">{plan.name}</p>
             {plan.description ? <p className="text-[10px] text-slate-500 truncate max-w-[200px]">{plan.description}</p> : null}
           </div>
         </div>,
@@ -1050,11 +1050,11 @@ function Plans({ plans, onEdit, onLifecycle }: any) {
         formatPaise(plan.mrpPaise),
         formatDate(plan.createdAt),
         <div key={`actions-${plan.id}`} className="flex flex-wrap gap-1">
-          <button onClick={() => onEdit(plan)} className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] font-black"><Edit3 className="h-3 w-3" /> Edit</button>
-          {plan.status === 'DRAFT' ? <button onClick={() => onLifecycle(plan, 'publish')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-emerald-700 px-2 text-[10px] font-black text-white"><CheckCircle2 className="h-3 w-3" /> Publish</button> : null}
-          {plan.status === 'ACTIVE' ? <button onClick={() => onLifecycle(plan, 'pause')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-amber-50 px-2 text-[10px] font-black text-amber-800"><Pause className="h-3 w-3" /> Pause</button> : null}
-          {plan.status === 'PAUSED' || plan.status === 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'activate')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-emerald-50 px-2 text-[10px] font-black text-emerald-800"><Play className="h-3 w-3" /> Activate</button> : null}
-          {plan.status !== 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'archive')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[10px] font-black text-slate-600"><Archive className="h-3 w-3" /> Archive</button> : null}
+          <button onClick={() => onEdit(plan)} className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] font-semibold"><Edit3 className="h-3 w-3" /> Edit</button>
+          {plan.status === 'DRAFT' ? <button onClick={() => onLifecycle(plan, 'publish')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-emerald-700 px-2 text-[10px] font-semibold text-white"><CheckCircle2 className="h-3 w-3" /> Publish</button> : null}
+          {plan.status === 'ACTIVE' ? <button onClick={() => onLifecycle(plan, 'pause')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-amber-50 px-2 text-[10px] font-semibold text-amber-800"><Pause className="h-3 w-3" /> Pause</button> : null}
+          {plan.status === 'PAUSED' || plan.status === 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'activate')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-emerald-50 px-2 text-[10px] font-semibold text-emerald-800"><Play className="h-3 w-3" /> Activate</button> : null}
+          {plan.status !== 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'archive')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[10px] font-semibold text-slate-600"><Archive className="h-3 w-3" /> Archive</button> : null}
         </div>,
       ])}
       empty="No subscription plans."
@@ -1086,7 +1086,7 @@ function Subscribers({ rows, onEditSubscriber }: { rows: any[]; onEditSubscriber
     <section className="space-y-2">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-black text-slate-900">Customer subscriptions</h2>
+          <h2 className="text-base font-semibold text-slate-900">Customer subscriptions</h2>
           <p className="text-xs font-semibold text-slate-500">These are the actual customer subscription records (online & manual offline).</p>
         </div>
         <div className="flex gap-1.5">
@@ -1094,7 +1094,7 @@ function Subscribers({ rows, onEditSubscriber }: { rows: any[]; onEditSubscriber
             <button
               key={filter}
               onClick={() => setSourceFilter(filter)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-black ${sourceFilter === filter ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${sourceFilter === filter ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
             >
               {filter.charAt(0).toUpperCase() + filter.slice(1)}
             </button>
@@ -1109,11 +1109,11 @@ function Subscribers({ rows, onEditSubscriber }: { rows: any[]; onEditSubscriber
           item.plan?.name,
           item.homeStore?.name || '—',
           item.storeDelivery ? (
-            <span key={`sd-${item.id}`} className="inline-flex items-center gap-1 rounded-lg bg-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-700">
+            <span key={`sd-${item.id}`} className="inline-flex items-center gap-1 rounded-lg bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
               <Truck className="h-3 w-3" /> Store
             </span>
           ) : (
-            <span key={`rd-${item.id}`} className="inline-flex items-center gap-1 rounded-lg bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">
+            <span key={`rd-${item.id}`} className="inline-flex items-center gap-1 rounded-lg bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
               <Route className="h-3 w-3" /> Rider
             </span>
           ),
@@ -1123,14 +1123,14 @@ function Subscribers({ rows, onEditSubscriber }: { rows: any[]; onEditSubscriber
           <div key={`actions-${item.id}`} className="flex gap-1">
             <button
               onClick={() => setTrackerId(item.id)}
-              className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-black text-emerald-700 hover:bg-emerald-100"
+              className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-100"
             >
               <CalendarDays className="h-3 w-3" /> Track
             </button>
             {onEditSubscriber && (
               <button
                 onClick={() => onEditSubscriber(item)}
-                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[10px] font-black text-slate-700 hover:bg-slate-100"
+                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
               >
                 <Edit3 className="h-3 w-3" /> Edit
               </button>
@@ -1173,7 +1173,7 @@ function Calendar({ rows, onReload }: { rows: any[]; onReload?: () => void }) {
         key={item.id}
         disabled={working === item.id}
         onClick={() => reconcile(item)}
-        className="rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-black text-white hover:bg-emerald-800 disabled:opacity-60"
+        className="rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
       >
         {working === item.id ? 'Reconciling…' : 'Reconcile'}
       </button>
@@ -1217,8 +1217,8 @@ function Analytics({ data }: any) {
 
   return (
     <section className="space-y-3">
-      <div><h2 className="text-base font-black text-slate-900">Subscription analytics</h2><p className="text-xs font-semibold text-slate-500">Aggregates are converted into readable counts and rupee values instead of exposing raw database objects.</p></div>
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(([label, value]) => <div key={String(label)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 text-lg font-black text-slate-900">{value}</p></div>)}</div>
+      <div><h2 className="text-base font-semibold text-slate-900">Subscription analytics</h2><p className="text-xs font-semibold text-slate-500">Aggregates are converted into readable counts and rupee values instead of exposing raw database objects.</p></div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(([label, value]) => <div key={String(label)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 "><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 text-lg font-semibold text-slate-900">{value}</p></div>)}</div>
       <div className="grid gap-3 xl:grid-cols-2">
         <AnalyticsGroup title="Subscriptions by status" headers={['Status', 'Count', 'Collected', 'Due']} rows={subscriptions.map((row) => [humanize(row.status), Number(row._count?._all || 0), formatPaise(Number(row._sum?.amountCollectedPaise || 0)), formatPaise(Number(row._sum?.amountDuePaise || 0))])} />
         <AnalyticsGroup title="Deliveries by status" headers={['Status', 'Count', 'Cash due']} rows={deliveries.map((row) => [humanize(row.status), Number(row._count?._all || 0), formatPaise(Number(row._sum?.cashDuePaise || 0))])} />
@@ -1230,7 +1230,7 @@ function Analytics({ data }: any) {
 }
 
 function AnalyticsGroup({ title, headers, rows }: { title: string; headers: string[]; rows: any[][] }) {
-  return <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white"><div className="border-b border-slate-100 px-4 py-2.5"><h3 className="text-sm font-black text-slate-900">{title}</h3></div><TableBare headers={headers} rows={rows} empty="No data yet." /></div>;
+  return <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white"><div className="border-b border-slate-100 px-4 py-2.5"><h3 className="text-sm font-semibold text-slate-900">{title}</h3></div><TableBare headers={headers} rows={rows} empty="No data yet." /></div>;
 }
 
 function Table({ headers, rows, empty }: { headers: string[]; rows: any[][]; empty: string }) {
@@ -1238,29 +1238,29 @@ function Table({ headers, rows, empty }: { headers: string[]; rows: any[][]; emp
 }
 
 function TableBare({ headers, rows, empty }: { headers: string[]; rows: any[][]; empty: string }) {
-  return <><table className="min-w-full text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr>{headers.map((header) => <th key={header} className="px-3 py-2 font-black">{header}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.map((row, rowIndex) => <tr key={rowIndex} className="hover:bg-emerald-50/30">{row.map((cell, cellIndex) => <td key={cellIndex} className="whitespace-nowrap px-3 py-2 font-semibold text-slate-700">{cell ?? '—'}</td>)}</tr>)}</tbody></table>{!rows.length ? <div className="p-6 text-center text-xs font-semibold text-slate-500">{empty}</div> : null}</>;
+  return <><table className="min-w-full text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr>{headers.map((header) => <th key={header} className="px-3 py-2 font-semibold">{header}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.map((row, rowIndex) => <tr key={rowIndex} className="hover:bg-emerald-50/30">{row.map((cell, cellIndex) => <td key={cellIndex} className="whitespace-nowrap px-3 py-2 font-semibold text-slate-700">{cell ?? '—'}</td>)}</tr>)}</tbody></table>{!rows.length ? <div className="p-6 text-center text-xs font-semibold text-slate-500">{empty}</div> : null}</>;
 }
 
 function StatusPill({ status }: { status: unknown }) {
   const value = String(status || 'UNKNOWN');
   const tone = value === 'ACTIVE' || value === 'COMPLETED' || value === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' : value === 'PAUSED' || value === 'PAYMENT_DUE' || value === 'GRACE_PERIOD' || value === 'VARIANCE_REVIEW' ? 'bg-amber-100 text-amber-800' : value === 'FAILED' || value === 'CANCELLED' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600';
-  return <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black ${tone}`}>{humanize(value)}</span>;
+  return <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${tone}`}>{humanize(value)}</span>;
 }
 
 function PlanFact({ label, value }: { label: string; value: string }) {
-  return <div><p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p><p className="mt-0.5 text-xs font-black text-slate-800">{value}</p></div>;
+  return <div><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-0.5 text-xs font-semibold text-slate-800">{value}</p></div>;
 }
 
 function EmptyState({ title, copy }: { title: string; copy: string }) {
-  return <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center"><h2 className="text-sm font-black text-slate-800">{title}</h2><p className="mt-1 text-xs font-semibold text-slate-500">{copy}</p></div>;
+  return <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center"><h2 className="text-sm font-semibold text-slate-800">{title}</h2><p className="mt-1 text-xs font-semibold text-slate-500">{copy}</p></div>;
 }
 
 function Field({ label, children, group = false, error = false }: { label: string; children: ReactNode; group?: boolean; error?: boolean }) {
   const content = <><span className={`text-xs ${error ? 'text-red-600' : ''}`}>{label}{error && ' *'}</span><div className="mt-1.5 [&_input]:min-h-10 [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-slate-200 [&_input]:px-3 [&_input]:text-sm [&_select]:min-h-10 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-200 [&_select]:px-3 [&_select]:text-sm [&_textarea]:min-h-20 [&_textarea]:w-full [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-slate-200 [&_textarea]:p-3 [&_textarea]:text-sm">{children}</div></>;
-  if (group) return <div role="group" aria-label={label} className="block text-xs font-black text-slate-700">{content}</div>;
-  return <label className="block text-xs font-black text-slate-700">{content}</label>;
+  if (group) return <div role="group" aria-label={label} className="block text-xs font-semibold text-slate-700">{content}</div>;
+  return <label className="block text-xs font-semibold text-slate-700">{content}</label>;
 }
 
 function Multi({ rows, selected, onChange }: { rows: any[]; selected: string[]; onChange: (ids: string[]) => void }) {
-  return <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">{rows.map((row) => <button type="button" key={row.id} onClick={() => onChange(selected.includes(row.id) ? selected.filter((id) => id !== row.id) : [...selected, row.id])} className={`rounded-full px-2.5 py-1 text-[10px] font-black ${selected.includes(row.id) ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{row.name}</button>)}</div>;
+  return <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">{rows.map((row) => <button type="button" key={row.id} onClick={() => onChange(selected.includes(row.id) ? selected.filter((id) => id !== row.id) : [...selected, row.id])} className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${selected.includes(row.id) ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{row.name}</button>)}</div>;
 }

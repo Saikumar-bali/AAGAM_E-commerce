@@ -227,7 +227,7 @@ export default function LandingPage() {
 
   return (
     <main className="min-h-screen bg-[#f7f8f7] text-[#16231f]">
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#063b3a] text-white shadow-sm">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#063b3a] text-white ">
         <div className="mx-auto flex h-[64px] max-w-[1448px] items-center gap-4 px-4 sm:px-5 lg:px-10">
           <div className="mr-2 shrink-0"><AagamLogo inverse compact label="Fresh, quality & trust" /></div>
 
@@ -257,20 +257,20 @@ export default function LandingPage() {
             <ChevronDown className="h-3 w-3" />
           </a>
           <Link href="/login" className="hidden items-center gap-1.5 whitespace-nowrap text-[11px] font-bold md:flex"><User className="h-4 w-4" /> Sign in</Link>
-          <Link href="/login" className="ml-auto inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-[#20bfa6] px-5 text-[11px] font-black text-white shadow-lg shadow-black/10 transition hover:bg-[#24cdb1] md:hidden">
+          <Link href="/login" className="ml-auto inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-[#20bfa6] px-5 text-[11px] font-semibold text-white  shadow-black/10 transition hover:bg-[#24cdb1] md:hidden">
             Sign in <User className="h-3.5 w-3.5" />
           </Link>
           {totalItems > 0 ? (
-            <Link href="/login" className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-[#20bfa6] px-5 text-[11px] font-black text-white shadow-lg shadow-black/10 transition hover:bg-[#24cdb1] md:inline-flex">
+            <Link href="/login" className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-[#20bfa6] px-5 text-[11px] font-semibold text-white  shadow-black/10 transition hover:bg-[#24cdb1] md:inline-flex">
               View cart <ShoppingBag className="h-3.5 w-3.5" /><span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] text-[#063b3a]">{totalItems}</span>
             </Link>
           ) : (
-            <a href="#offers" className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-[#20bfa6] px-5 text-[11px] font-black text-white shadow-lg shadow-black/10 transition hover:bg-[#24cdb1] md:inline-flex">
+            <a href="#offers" className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-[#20bfa6] px-5 text-[11px] font-semibold text-white  shadow-black/10 transition hover:bg-[#24cdb1] md:inline-flex">
               Shop now <ShoppingBag className="h-3.5 w-3.5" />
             </a>
           )}
         </div>
-        <nav aria-label="Landing sections" className="flex h-10 items-center gap-1 overflow-x-auto border-t border-white/10 px-3 text-[10px] font-black text-white/85 xl:hidden">
+        <nav aria-label="Landing sections" className="flex h-10 items-center gap-1 overflow-x-auto border-t border-white/10 px-3 text-[10px] font-semibold text-white/85 xl:hidden">
           <a href="#categories" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Categories</a>
           <a href="#subscriptions" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Subscriptions</a>
           <a href="#offers" className="shrink-0 rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-emerald-200">Offers</a>
@@ -289,22 +289,22 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,47,46,.92)_0%,rgba(3,47,46,.72)_52%,rgba(3,47,46,.90)_100%)] md:bg-[linear-gradient(90deg,rgba(3,47,46,.96)_0%,rgba(3,47,46,.92)_34%,rgba(3,47,46,.30)_58%,rgba(3,47,46,.02)_100%)]" />
         <div className="relative mx-auto min-h-[420px] max-w-[1448px] px-5 py-7 md:min-h-[302px] lg:px-16">
           <div className="max-w-[560px]">
-            {hero.badgeText ? <span className="inline-flex rounded-md border border-emerald-300/30 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black text-emerald-200">✓ {hero.badgeText}</span> : null}
+            {hero.badgeText ? <span className="inline-flex rounded-md border border-emerald-300/30 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-200">✓ {hero.badgeText}</span> : null}
             <h1 className="mt-3 font-serif text-[30px] font-bold leading-[1.01] tracking-[-0.025em] sm:text-[38px] md:text-[48px]">
               <span className="block" style={{ color: hero.textColor || '#fff' }}>{hero.title}</span>
               <span className="mt-1 block" style={{ color: hero.accentColor || '#20c9a6' }}>{hero.subtitle}</span>
             </h1>
             <p className="mt-3 max-w-[480px] text-[13px] font-semibold leading-5 text-white/90">{hero.description}</p>
             <div className="mt-5 flex flex-wrap gap-3">
-              {publicHeroTarget ? <a href={publicHeroTarget} className="inline-flex h-10 items-center gap-3 rounded-lg px-7 text-[11px] font-black text-[#063b3a] shadow-lg" style={{ backgroundColor: hero.accentColor || '#20c9a6' }}>
+              {publicHeroTarget ? <a href={publicHeroTarget} className="inline-flex h-10 items-center gap-3 rounded-lg px-7 text-[11px] font-semibold text-[#063b3a] " style={{ backgroundColor: hero.accentColor || '#20c9a6' }}>
                 {hero.ctaLabel || 'Shop now'} <ArrowRight className="h-4 w-4" />
-              </a> : <span className="inline-flex h-10 items-center rounded-lg px-7 text-[11px] font-black text-white/70" style={{ backgroundColor: hero.accentColor || '#20c9a6' }}>
+              </a> : <span className="inline-flex h-10 items-center rounded-lg px-7 text-[11px] font-semibold text-white/70" style={{ backgroundColor: hero.accentColor || '#20c9a6' }}>
                 {hero.ctaLabel || 'Shop now'}
               </span>}
-              <a href="#subscriptions" className="inline-flex h-10 items-center rounded-lg border border-white/45 px-7 text-[11px] font-black text-white backdrop-blur-sm">Explore subscriptions</a>
+              <a href="#subscriptions" className="inline-flex h-10 items-center rounded-lg border border-white/45 px-7 text-[11px] font-semibold text-white ">Explore subscriptions</a>
             </div>
           </div>
-          <div className="absolute bottom-4 right-6 hidden items-center gap-3 rounded-full border border-white/20 bg-[#173c39]/90 px-4 py-2.5 shadow-xl backdrop-blur-md md:flex">
+          <div className="absolute bottom-4 right-6 hidden items-center gap-3 rounded-full border border-white/20 bg-[#173c39]/90 px-4 py-2.5  -md md:flex">
             <span className="grid h-10 w-10 place-items-center rounded-full bg-[#eaf8f3] text-[#087765]"><Truck className="h-5 w-5" /></span>
             <span><strong className="block text-[11px]">On-time delivery</strong><small className="block text-[10px] text-white/75">Every time, guaranteed.</small></span>
             <CheckCircle2 className="h-4 w-4 text-emerald-300" />
@@ -315,8 +315,8 @@ export default function LandingPage() {
       <div className="mx-auto max-w-[1448px] overflow-hidden rounded-t-[24px] bg-white shadow-[0_-4px_18px_rgba(10,50,45,.06)]">
         <section id="categories" className="scroll-mt-28 px-5 pb-2 pt-4 xl:scroll-mt-20 lg:px-16">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[14px] font-black">Shop by category</h2>
-            <a href="#offers" className="inline-flex items-center gap-2 text-[10px] font-black text-[#087765]">Browse catalogue <ArrowRight className="h-3 w-3" /></a>
+            <h2 className="text-[14px] font-semibold">Shop by category</h2>
+            <a href="#offers" className="inline-flex items-center gap-2 text-[10px] font-semibold text-[#087765]">Browse catalogue <ArrowRight className="h-3 w-3" /></a>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {loading
@@ -324,10 +324,10 @@ export default function LandingPage() {
               : visibleCategories.map((category) => {
                 const image = categoryImage(category);
                 return (
-                  <button key={category.id} type="button" onClick={() => showCategory(category.name)} className="group relative h-[108px] overflow-hidden rounded-[8px] bg-[#e9efe9] text-left shadow-sm transition-shadow hover:shadow-md">
+                  <button key={category.id} type="button" onClick={() => showCategory(category.name)} className="group relative h-[108px] overflow-hidden rounded-[8px] bg-[#e9efe9] text-left  transition-shadow hover:shadow-md">
                     {image ? <img src={image} alt={category.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" /> : null}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                    <span className="absolute bottom-2 left-3 text-[12px] font-black text-white">{category.name}</span>
+                    <span className="absolute bottom-2 left-3 text-[12px] font-semibold text-white">{category.name}</span>
                   </button>
                 );
               })}
@@ -337,8 +337,8 @@ export default function LandingPage() {
 
         <section id="offers" className="scroll-mt-28 px-5 pb-4 pt-2 xl:scroll-mt-20 lg:px-16">
           <div className="mb-2 flex items-center justify-between">
-            <div><span className="text-[10px] font-black uppercase tracking-[0.16em] text-[#078b70]">Public catalogue</span><h2 className="text-[14px] font-black">Today&apos;s offers</h2></div>
-            {normalizedQuery ? <button type="button" onClick={() => setQuery('')} className="text-[10px] font-black text-[#087765]">Clear filter</button> : <span className="text-[10px] font-bold text-slate-500">Add items before signing in</span>}
+            <div><span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#078b70]">Public catalogue</span><h2 className="text-[14px] font-semibold">Today&apos;s offers</h2></div>
+            {normalizedQuery ? <button type="button" onClick={() => setQuery('')} className="text-[10px] font-semibold text-[#087765]">Clear filter</button> : <span className="text-[10px] font-bold text-slate-500">Add items before signing in</span>}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {loading
@@ -357,18 +357,18 @@ export default function LandingPage() {
                         onError={(e) => { (e.target as HTMLImageElement).src = '/brand/aagam-logo-full.png'; }}
                       />
                     </div>
-                    <div className="mt-1 line-clamp-1 text-[11px] font-black text-[#17231f]">{product.name}</div>
+                    <div className="mt-1 line-clamp-1 text-[11px] font-semibold text-[#17231f]">{product.name}</div>
                     <p className="mt-0.5 min-h-[14px] text-[10px] font-semibold text-slate-500">{productUnit(product)}</p>
-                    <div className="mt-1 flex items-center gap-1.5 text-[10px]"><strong className="text-[11px]">{formatINR(Number(product.price || 0))}</strong>{mrp > Number(product.price || 0) ? <span className="text-slate-400 line-through">{formatINR(mrp)}</span> : null}{discount > 0 ? <span className="rounded bg-emerald-50 px-1 py-0.5 text-[9px] font-black text-emerald-700">{discount}% OFF</span> : null}</div>
+                    <div className="mt-1 flex items-center gap-1.5 text-[10px]"><strong className="text-[11px]">{formatINR(Number(product.price || 0))}</strong>{mrp > Number(product.price || 0) ? <span className="text-slate-400 line-through">{formatINR(mrp)}</span> : null}{discount > 0 ? <span className="rounded bg-emerald-50 px-1 py-0.5 text-[9px] font-semibold text-emerald-700">{discount}% OFF</span> : null}</div>
                     <div className="mt-auto pt-2">
                       {qty > 0 ? (
                         <div className="flex h-7 items-center justify-between rounded-md bg-[#078b70] px-1 text-white">
-                          <button onClick={() => updateQuantity(String(product.id), qty - 1)} className="grid h-6 w-6 place-items-center text-sm font-black">−</button>
-                          <span className="text-[10px] font-black">{qty}</span>
-                          <button onClick={() => updateQuantity(String(product.id), qty + 1)} className="grid h-6 w-6 place-items-center text-sm font-black">+</button>
+                          <button onClick={() => updateQuantity(String(product.id), qty - 1)} className="grid h-6 w-6 place-items-center text-sm font-semibold">−</button>
+                          <span className="text-[10px] font-semibold">{qty}</span>
+                          <button onClick={() => updateQuantity(String(product.id), qty + 1)} className="grid h-6 w-6 place-items-center text-sm font-semibold">+</button>
                         </div>
                       ) : (
-                        <button onClick={() => addToCart(product)} className="flex h-7 w-full items-center justify-center gap-1.5 rounded-md bg-[#078b70] text-[10px] font-black text-white transition hover:bg-[#06735f]"><ShoppingBag className="h-3 w-3" /> Add to Cart</button>
+                        <button onClick={() => addToCart(product)} className="flex h-7 w-full items-center justify-center gap-1.5 rounded-md bg-[#078b70] text-[10px] font-semibold text-white transition hover:bg-[#06735f]"><ShoppingBag className="h-3 w-3" /> Add to Cart</button>
                       )}
                     </div>
                   </article>
@@ -382,22 +382,22 @@ export default function LandingPage() {
         <section id="subscriptions" className="scroll-mt-28 mx-5 mb-0 rounded-[10px] bg-[#f5f7f6] p-3 xl:scroll-mt-20 lg:mx-10 lg:px-6">
           <div className="grid gap-3 lg:grid-cols-[180px_1fr_1fr_1fr]">
             <div className="flex flex-col justify-center px-2">
-              <h2 className="text-[16px] font-black">Subscribe & Save</h2>
+              <h2 className="text-[16px] font-semibold">Subscribe & Save</h2>
               <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-600">Goodness on repeat.<br />Save more with<br />flexible subscriptions.</p>
-              <Link href="/login" className="mt-3 inline-flex items-center gap-2 text-[10px] font-black text-[#087765]">Sign in for all plans <ArrowRight className="h-3 w-3" /></Link>
+              <Link href="/login" className="mt-3 inline-flex items-center gap-2 text-[10px] font-semibold text-[#087765]">Sign in for all plans <ArrowRight className="h-3 w-3" /></Link>
             </div>
             {visiblePlans.map((plan) => {
               const save = planSavings(plan);
               const image = plan.imageUrl || plan.mobileImageUrl;
               return (
-                <article key={plan.id} className="relative grid min-h-[112px] grid-cols-[105px_1fr] overflow-hidden rounded-[8px] border border-[#e1e6e3] bg-white p-2 shadow-sm">
-                  {save > 0 ? <span className="absolute right-2 top-2 rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black text-emerald-700">Save {save}%</span> : null}
+                <article key={plan.id} className="relative grid min-h-[112px] grid-cols-[105px_1fr] overflow-hidden rounded-[8px] border border-[#e1e6e3] bg-white p-2 ">
+                  {save > 0 ? <span className="absolute right-2 top-2 rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700">Save {save}%</span> : null}
                   <div className="mr-3 overflow-hidden rounded-md bg-[#eef2ef]">{image ? <img src={image} alt={plan.name || 'Subscription plan'} className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center"><PackageCheck className="h-7 w-7 text-emerald-700" /></div>}</div>
                   <div className="min-w-0 pr-1">
-                    <h3 className="line-clamp-1 text-[11px] font-black">{plan.name}</h3>
+                    <h3 className="line-clamp-1 text-[11px] font-semibold">{plan.name}</h3>
                     <p className="mt-1 line-clamp-1 text-[10px] font-semibold text-slate-500">{plan.description || `${plan.totalDeliveries || ''} scheduled deliveries`}</p>
                     <div className="mt-2 flex items-baseline gap-1"><strong className="text-[11px]">{moneyFromPaise(plan.pricePaise)}</strong>{Number(plan.mrpPaise) > Number(plan.pricePaise) ? <span className="text-[10px] text-slate-400 line-through">{moneyFromPaise(plan.mrpPaise)}</span> : null}</div>
-                    <Link href="/login" className="mt-2 inline-flex h-7 items-center rounded-md bg-[#078b70] px-3 text-[10px] font-black text-white">Sign in to subscribe</Link>
+                    <Link href="/login" className="mt-2 inline-flex h-7 items-center rounded-md bg-[#078b70] px-3 text-[10px] font-semibold text-white">Sign in to subscribe</Link>
                   </div>
                 </article>
               );
@@ -423,22 +423,22 @@ export default function LandingPage() {
         <div className="mx-auto max-w-[1448px] px-6 py-8 lg:px-10">
           <div className="grid grid-cols-2 gap-6 md:grid-cols-3 lg:grid-cols-5">
             <div className="col-span-2 md:col-span-3 lg:col-span-1"><AagamLogo inverse compact label="Fresh, quality and trust" /><p className="mt-3 max-w-[230px] text-[10px] font-semibold leading-4 text-white/70">Your trusted neighbourhood partner for fresh groceries and everyday essentials.</p><p className="mt-4 text-[10px] text-white/50">&copy; 2026 Aagaam Retail Pvt. Ltd. All rights reserved.</p></div>
-            <div><h3 className="text-[11px] font-black">Shop</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><Link href="/shop">All Categories</Link><Link href="/shop?category=Fruits+%26+Vegetables">Fruits & Vegetables</Link><Link href="/shop?category=Dairy+%26+Eggs">Dairy & Eggs</Link><Link href="/shop/deals">Deals</Link><Link href="/shop?category=Beverages">Beverages</Link></div></div>
-            <div><h3 className="text-[11px] font-black">Help</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><a href="tel:+918340064486">Contact Us</a><a href="#offers">Browse catalogue</a><a href="#offers">Current offers</a><a href="#subscriptions">Subscription plans</a></div></div>
-            <div><h3 className="text-[11px] font-black">Company</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></div></div>
-            <div><h3 className="text-[11px] font-black">Updates</h3><p className="mt-1 text-[10px] font-semibold text-white/60">Browse current promotions and savings.</p><a href="#offers" className="mt-2 inline-flex h-8 items-center gap-2 rounded-md bg-[#20bfa6] px-4 text-[10px] font-black text-white">View offers <ArrowRight className="h-3 w-3" /></a></div>
+            <div><h3 className="text-[11px] font-semibold">Shop</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><Link href="/shop">All Categories</Link><Link href="/shop?category=Fruits+%26+Vegetables">Fruits & Vegetables</Link><Link href="/shop?category=Dairy+%26+Eggs">Dairy & Eggs</Link><Link href="/shop/deals">Deals</Link><Link href="/shop?category=Beverages">Beverages</Link></div></div>
+            <div><h3 className="text-[11px] font-semibold">Help</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><a href="tel:+918340064486">Contact Us</a><a href="#offers">Browse catalogue</a><a href="#offers">Current offers</a><a href="#subscriptions">Subscription plans</a></div></div>
+            <div><h3 className="text-[11px] font-semibold">Company</h3><div className="mt-2 grid gap-1 text-[10px] font-semibold text-white/70"><a href="#about">About Us</a><Link href="/partner">Careers & Partners</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></div></div>
+            <div><h3 className="text-[11px] font-semibold">Updates</h3><p className="mt-1 text-[10px] font-semibold text-white/60">Browse current promotions and savings.</p><a href="#offers" className="mt-2 inline-flex h-8 items-center gap-2 rounded-md bg-[#20bfa6] px-4 text-[10px] font-semibold text-white">View offers <ArrowRight className="h-3 w-3" /></a></div>
           </div>
         </div>
       </footer>
 
       {totalItems > 0 && (
         <>
-          <Link href="/login" className="fixed bottom-6 left-6 z-50 flex h-12 items-center gap-2 rounded-full bg-[#078b70] px-4 text-[11px] font-black text-white shadow-lg transition hover:bg-[#06735f] md:hidden">
+          <Link href="/login" className="fixed bottom-6 left-6 z-50 flex h-12 items-center gap-2 rounded-full bg-[#078b70] px-4 text-[11px] font-semibold text-white  transition hover:bg-[#06735f] md:hidden">
             <ShoppingBag className="h-4 w-4" />
             <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] text-[#063b3a]">{totalItems}</span>
             <span>View cart</span>
           </Link>
-          <Link href="/login" className="fixed bottom-6 left-1/2 z-50 hidden h-12 -translate-x-1/2 items-center gap-3 rounded-full bg-[#078b70] px-6 text-[13px] font-black text-white shadow-xl transition hover:bg-[#06735f] md:flex">
+          <Link href="/login" className="fixed bottom-6 left-1/2 z-50 hidden h-12 -translate-x-1/2 items-center gap-3 rounded-full bg-[#078b70] px-6 text-[13px] font-semibold text-white  transition hover:bg-[#06735f] md:flex">
             <ShoppingBag className="h-5 w-5" />
             <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-[#063b3a]">{totalItems}</span>
             <span>View cart</span>
@@ -451,7 +451,7 @@ export default function LandingPage() {
         <button
           type="button"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="fixed bottom-6 right-6 z-50 grid h-10 w-10 place-items-center rounded-full bg-[#087765] text-white shadow-lg transition hover:bg-[#06735f] md:hidden"
+          className="fixed bottom-6 right-6 z-50 grid h-10 w-10 place-items-center rounded-full bg-[#087765] text-white  transition hover:bg-[#06735f] md:hidden"
           aria-label="Back to top"
         >
           <ChevronUp className="h-5 w-5" />

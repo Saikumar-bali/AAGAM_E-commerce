@@ -185,10 +185,10 @@ export default function SubscriptionDetailsPage() {
         <section className="rounded-[30px] bg-gradient-to-br from-emerald-800 to-teal-700 p-6 text-white sm:p-8">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-center">
             <div>
-              <p className="text-xs font-black uppercase tracking-[.2em] text-emerald-200">
+              <p className="text-xs font-semibold uppercase tracking-[.2em] text-emerald-200">
                 {String(s.status).replaceAll("_", " ")}
               </p>
-              <h1 className="mt-3 text-3xl font-black">{s.plan?.name}</h1>
+              <h1 className="mt-3 text-3xl font-semibold">{s.plan?.name}</h1>
               <p className="mt-2 text-emerald-100">
                 {s.fundingCycle === "WEEKLY"
                   ? "Weekly cash funding"
@@ -218,10 +218,10 @@ export default function SubscriptionDetailsPage() {
         {canCancelBeforePayment ? (
           <section className="flex flex-col gap-4 rounded-[24px] border border-red-200 bg-red-50 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-wider text-red-700">
+              <p className="text-xs font-semibold uppercase tracking-wider text-red-700">
                 No payment collected
               </p>
-              <h2 className="mt-1 text-lg font-black text-slate-900">
+              <h2 className="mt-1 text-lg font-semibold text-slate-900">
                 Changed your mind?
               </h2>
               <p className="mt-1 text-sm font-semibold text-slate-600">
@@ -232,7 +232,7 @@ export default function SubscriptionDetailsPage() {
             <button
               onClick={() => setShowCancel(true)}
               disabled={busy !== ""}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-red-700 px-5 font-black text-white disabled:opacity-50"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-red-700 px-5 font-semibold text-white disabled:opacity-50"
             >
               <XCircle className="h-5 w-5" />
               Cancel before payment
@@ -251,10 +251,10 @@ export default function SubscriptionDetailsPage() {
           return (
             <section className="flex flex-col gap-4 rounded-[24px] border border-amber-300 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-wider text-amber-700">
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
                   Subscription expiring in {daysUntilExpiry} day{daysUntilExpiry > 1 ? "s" : ""}
                 </p>
-                <h2 className="mt-1 text-lg font-black text-slate-900">
+                <h2 className="mt-1 text-lg font-semibold text-slate-900">
                   {s.plan?.name} ends {new Date(s.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                 </h2>
                 <p className="mt-1 text-sm font-semibold text-slate-600">
@@ -267,14 +267,14 @@ export default function SubscriptionDetailsPage() {
         <section className="grid gap-4 md:grid-cols-[1fr_auto]">
           <div className="rounded-[24px] border border-slate-200 bg-white p-5">
             <div className="flex items-start gap-4">
-              <span className="rounded-2xl bg-amber-600 p-3 text-white">
+              <span className="rounded-xl bg-amber-600 p-3 text-white">
                 <CalendarDays className="h-6 w-6" />
               </span>
               <div>
-                <p className="text-xs font-black uppercase tracking-wider text-amber-700">
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
                   Next delivery
                 </p>
-                <h2 className="mt-1 text-2xl font-black text-slate-900">
+                <h2 className="mt-1 text-2xl font-semibold text-slate-900">
                   {formatDate(next?.serviceDate || s.nextDeliveryDate)}
                 </h2>
                 <p className="mt-1 text-sm font-bold text-slate-500">
@@ -287,7 +287,7 @@ export default function SubscriptionDetailsPage() {
           </div>
           <button
             onClick={() => void track()}
-            className="flex min-h-24 items-center justify-center gap-2 rounded-[24px] bg-emerald-100 px-8 font-black text-emerald-800"
+            className="flex min-h-24 items-center justify-center gap-2 rounded-[24px] bg-emerald-100 px-8 font-semibold text-emerald-800"
           >
             <Route className="h-5 w-5" />
             Track current order
@@ -323,7 +323,7 @@ export default function SubscriptionDetailsPage() {
         </section>
         <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
           <section className="rounded-[24px] border border-slate-200 bg-white p-5">
-            <h2 className="text-xl font-black text-slate-900">
+            <h2 className="text-xl font-semibold text-slate-900">
               Delivery calendar & history
             </h2>
             <div className="mt-4 divide-y divide-slate-100">
@@ -352,7 +352,7 @@ export default function SubscriptionDetailsPage() {
                       Day {d.sequenceNumber} ·{" "}
                       {String(d.status).replaceAll("_", " ")}
                     </p>
-                    <p className="mt-1 text-xs font-black text-emerald-700">{minuteTime(s.deliveryWindowStartMinute)}–{minuteTime(s.deliveryWindowEndMinute)}</p>
+                    <p className="mt-1 text-xs font-semibold text-emerald-700">{minuteTime(s.deliveryWindowStartMinute)}–{minuteTime(s.deliveryWindowEndMinute)}</p>
                   </div>
                   <strong
                     className={
@@ -367,7 +367,7 @@ export default function SubscriptionDetailsPage() {
           </section>
           <aside className="space-y-5">
             <section className="rounded-[24px] border border-slate-200 bg-white p-5">
-              <h2 className="text-lg font-black text-slate-900">Preferences</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Preferences</h2>
               <Info
                 icon={<MapPin />}
                 label="Address"
@@ -390,13 +390,13 @@ export default function SubscriptionDetailsPage() {
             </section>
             {s.fundingAllocations?.length ? (
               <section className="rounded-[24px] border border-slate-200 bg-white p-5">
-                <h2 className="text-lg font-black text-slate-900">
+                <h2 className="text-lg font-semibold text-slate-900">
                   Funding receipts
                 </h2>
                 {s.fundingAllocations.map((a: any) => (
                   <div
                     key={a.id}
-                    className="mt-3 rounded-2xl bg-emerald-50 p-4"
+                    className="mt-3 rounded-xl bg-emerald-50 p-4"
                   >
                     <strong className="text-emerald-800">
                       {formatPaise(a.amountPaise)} received
@@ -413,18 +413,18 @@ export default function SubscriptionDetailsPage() {
         </div>
         {showCancel ? (
           <div
-            className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/60 p-4 "
             role="dialog"
             aria-modal="true"
             aria-label="Cancel subscription before payment"
           >
-            <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="w-full max-w-lg rounded-xl bg-white p-6 ">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-red-700">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-red-700">
                     Before first payment
                   </p>
-                  <h2 className="mt-2 text-2xl font-black text-slate-950">
+                  <h2 className="mt-2 text-2xl font-semibold text-slate-950">
                     Cancel this subscription?
                   </h2>
                   <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
@@ -446,20 +446,20 @@ export default function SubscriptionDetailsPage() {
                 onChange={(event) => setCancelReason(event.target.value)}
                 rows={3}
                 placeholder="Why are you cancelling?"
-                className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-red-400"
+                className="mt-5 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-red-400"
               />
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <button
                   onClick={() => setShowCancel(false)}
                   disabled={busy === "cancel"}
-                  className="min-h-12 rounded-2xl border border-slate-200 font-black text-slate-700 disabled:opacity-50"
+                  className="min-h-12 rounded-xl border border-slate-200 font-semibold text-slate-700 disabled:opacity-50"
                 >
                   Keep subscription
                 </button>
                 <button
                   onClick={() => void cancelBeforePayment()}
                   disabled={busy === "cancel" || cancelReason.trim().length < 5}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-red-700 px-4 font-black text-white disabled:opacity-50"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 font-semibold text-white disabled:opacity-50"
                 >
                   {busy === "cancel" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -491,7 +491,7 @@ function Action({
     <button
       disabled={disabled}
       onClick={onClick}
-      className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white font-black text-slate-700 hover:border-emerald-300 disabled:opacity-50"
+      className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white font-semibold text-slate-700 hover:border-emerald-300 disabled:opacity-50"
     >
       <span className="text-emerald-700 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>
       {label}
@@ -512,7 +512,7 @@ function Info({
       <span className="text-emerald-700 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>
       <div>
         <p className="text-xs font-bold uppercase text-slate-400">{label}</p>
-        <p className="mt-1 text-sm font-black capitalize text-slate-800">
+        <p className="mt-1 text-sm font-semibold capitalize text-slate-800">
           {value}
         </p>
       </div>

@@ -129,11 +129,11 @@ export default function CustomerTrackingMap({ markers }: CustomerTrackingMapProp
   }, [validMarkers]);
 
   if (validMarkers.length === 0) {
-    return <div className="flex h-[240px] items-center justify-center rounded-2xl bg-slate-100 text-sm font-medium text-slate-400 sm:h-[280px]">No location data available</div>;
+    return <div className="flex h-[240px] items-center justify-center rounded-xl bg-slate-100 text-sm font-medium text-slate-400 sm:h-[280px]">No location data available</div>;
   }
 
   return (
-    <div className="h-[240px] w-full overflow-hidden rounded-2xl sm:h-[280px]">
+    <div className="h-[240px] w-full overflow-hidden rounded-xl sm:h-[280px]">
       <div ref={containerRef} className="h-full w-full" />
     </div>
   );

@@ -56,7 +56,7 @@ function statusBadge(status: string) {
   const cfg = config[status] || { color: 'bg-slate-100 text-slate-600', icon: Clock, label: status };
   const Icon = cfg.icon;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-black ${cfg.color}`}>
+    <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-semibold ${cfg.color}`}>
       <Icon className="h-3 w-3" /> {cfg.label}
     </span>
   );
@@ -272,19 +272,19 @@ export default function StoreDeliveriesPage() {
         </header>
 
         <section className="grid gap-2 sm:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 ">
             <p className="text-[10px] font-badge text-slate-400">Today's Deliveries</p>
             <p className="mt-1 text-xl font-kpi text-slate-900">{counts.all}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 ">
             <p className="text-[10px] font-badge text-slate-400">Pending</p>
             <p className="mt-1 text-xl font-kpi text-blue-700">{counts.pending}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 ">
             <p className="text-[10px] font-badge text-slate-400">Out for Delivery</p>
             <p className="mt-1 text-xl font-kpi text-orange-700">{counts.delivering}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 ">
             <p className="text-[10px] font-badge text-slate-400">Cash to Collect</p>
             <p className="mt-1 text-xl font-kpi text-emerald-700">{money(totalCash)}</p>
           </div>
@@ -303,10 +303,10 @@ export default function StoreDeliveriesPage() {
         </nav>
 
         {!selectedStoreId ? (
-          <div className="grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
+          <div className="grid min-h-48 place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
             <div>
               <Truck className="mx-auto h-10 w-10 text-slate-300" />
-              <p className="mt-3 font-black text-slate-700">Select a store to view deliveries</p>
+              <p className="mt-3 font-semibold text-slate-700">Select a store to view deliveries</p>
             </div>
           </div>
         ) : loading ? (
@@ -314,10 +314,10 @@ export default function StoreDeliveriesPage() {
             <Loader2 className="h-8 w-8 animate-spin text-emerald-700" />
           </div>
         ) : filteredDeliveries.length === 0 ? (
-          <div className="grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
+          <div className="grid min-h-48 place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
             <div>
               <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
-              <p className="mt-3 font-black text-slate-700">No deliveries found</p>
+              <p className="mt-3 font-semibold text-slate-700">No deliveries found</p>
               <p className="mt-1 text-xs text-slate-500">
                 {filter === 'all' ? 'No deliveries scheduled for today.' : `No ${filter} deliveries.`}
               </p>
@@ -326,14 +326,14 @@ export default function StoreDeliveriesPage() {
         ) : (
           <div className="space-y-3">
             {filteredDeliveries.map((d) => (
-              <article key={d.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <article key={d.id} className="rounded-xl border border-slate-200 bg-white p-4 ">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
                     <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
                       <Route className="h-5 w-5" />
                     </span>
                     <div>
-                      <p className="font-black text-slate-900">
+                      <p className="font-semibold text-slate-900">
                         #{d.sequenceNumber} · {d.customer.name || 'Customer'}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-500 flex items-center gap-1">
@@ -359,20 +359,20 @@ export default function StoreDeliveriesPage() {
                   <div className="text-right">
                     {statusBadge(d.status)}
                     <div className="mt-1 flex items-center justify-end gap-1.5">
-                      <span className={`rounded-lg px-1.5 py-0.5 text-[10px] font-black ${
+                      <span className={`rounded-lg px-1.5 py-0.5 text-[10px] font-semibold ${
                         d.deliverySlot === 'AM' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'
                       }`}>{d.deliverySlot}</span>
                       <span className="text-xs text-slate-500">{d.window}</span>
                     </div>
                     {d.status === 'DELIVERED' && d.cashCollectedPaise ? (
                       <div className="mt-1">
-                        <p className="text-sm font-black text-emerald-700">{money(d.cashCollectedPaise)}</p>
+                        <p className="text-sm font-semibold text-emerald-700">{money(d.cashCollectedPaise)}</p>
                         {d.cashCollectedPaise !== d.expectedAmountPaise && (
                           <p className="text-[10px] text-slate-400">Expected: {money(d.expectedAmountPaise)}</p>
                         )}
                       </div>
                     ) : (
-                      <p className="mt-1 text-sm font-black text-slate-900">{money(d.expectedAmountPaise)}</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{money(d.expectedAmountPaise)}</p>
                     )}
                   </div>
                 </div>
@@ -382,7 +382,7 @@ export default function StoreDeliveriesPage() {
                     <button
                       disabled={working === d.id}
                       onClick={() => void startDelivery(d.id)}
-                      className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-black text-white hover:bg-emerald-800 disabled:opacity-50"
+                      className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
                     >
                       <Truck className="h-3.5 w-3.5" /> Start Delivery
                     </button>
@@ -392,7 +392,7 @@ export default function StoreDeliveriesPage() {
                       <button
                         disabled={working === d.id}
                         onClick={() => openVerify(d)}
-                        className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-700 text-xs font-black text-white hover:bg-teal-800 disabled:opacity-50"
+                        className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-700 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
                       >
                         <PackageCheck className="h-3.5 w-3.5" /> Complete & Collect Cash
                       </button>
@@ -402,7 +402,7 @@ export default function StoreDeliveriesPage() {
                           const reason = prompt('Enter failure reason:');
                           if (reason) void markFailed(d.id, reason);
                         }}
-                        className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 hover:bg-red-100 disabled:opacity-50"
+                        className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
                       >
                         <AlertTriangle className="h-3.5 w-3.5" /> Failed
                       </button>
@@ -420,7 +420,7 @@ export default function StoreDeliveriesPage() {
                   )}
                   <button
                     onClick={() => openEdit(d)}
-                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50"
+                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     <Edit3 className="h-3.5 w-3.5" /> Edit
                   </button>
@@ -431,20 +431,20 @@ export default function StoreDeliveriesPage() {
         )}
 
         {verifyModal && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-            <div className="max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:rounded-2xl">
-              <h2 className="text-lg font-black text-slate-900">Verify & Complete Delivery</h2>
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0  sm:items-center sm:p-4">
+            <div className="max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5  sm:rounded-xl">
+              <h2 className="text-lg font-semibold text-slate-900">Verify & Complete Delivery</h2>
               <p className="mt-1 text-xs text-slate-500">Customer: {verifyModal.customer.name}</p>
 
               <div className="mt-4 space-y-3">
                 <div className="rounded-xl bg-emerald-50 p-3">
-                  <p className="text-[10px] font-black uppercase text-emerald-700">Order Total</p>
-                  <p className="mt-1 text-2xl font-black text-emerald-900">
+                  <p className="text-[10px] font-semibold uppercase text-emerald-700">Order Total</p>
+                  <p className="mt-1 text-2xl font-semibold text-emerald-900">
                     {money(verifyModal.expectedAmountPaise)}
                   </p>
                 </div>
 
-                <label className="block text-xs font-black text-slate-700">
+                <label className="block text-xs font-semibold text-slate-700">
                   Customer Name (for verification)
                   <input
                     value={verifyName}
@@ -454,7 +454,7 @@ export default function StoreDeliveriesPage() {
                   />
                 </label>
 
-                <label className="block text-xs font-black text-slate-700">
+                <label className="block text-xs font-semibold text-slate-700">
                   Customer Phone (for verification)
                   <input
                     value={verifyPhone}
@@ -464,7 +464,7 @@ export default function StoreDeliveriesPage() {
                   />
                 </label>
 
-                <label className="block text-xs font-black text-slate-700">
+                <label className="block text-xs font-semibold text-slate-700">
                   Cash Collected (₹)
                   <input
                     value={verifyCash}
@@ -477,7 +477,7 @@ export default function StoreDeliveriesPage() {
                   />
                 </label>
 
-                <label className="block text-xs font-black text-slate-700">
+                <label className="block text-xs font-semibold text-slate-700">
                   Notes (optional)
                   <textarea
                     value={verifyNotes}
@@ -492,14 +492,14 @@ export default function StoreDeliveriesPage() {
               <div className="mt-4 flex gap-2">
                 <button
                   onClick={() => setVerifyModal(null)}
-                  className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-black"
+                  className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   disabled={working === verifyModal.id}
                   onClick={() => void completeDelivery()}
-                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-black text-white disabled:opacity-50"
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-semibold text-white disabled:opacity-50"
                 >
                   {working === verifyModal.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   Complete Delivery
@@ -510,20 +510,20 @@ export default function StoreDeliveriesPage() {
         )}
 
         {editModal && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-            <div className="max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:rounded-2xl">
-              <h2 className="text-lg font-black text-slate-900">Edit Delivery</h2>
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0  sm:items-center sm:p-4">
+            <div className="max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5  sm:rounded-xl">
+              <h2 className="text-lg font-semibold text-slate-900">Edit Delivery</h2>
               <p className="mt-1 text-xs text-slate-500">
                 Customer: {editModal.customer.name} · #{editModal.sequenceNumber}
               </p>
 
               <div className="mt-4 space-y-3">
                 <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-[10px] font-black uppercase text-slate-500">Current Status</p>
+                  <p className="text-[10px] font-semibold uppercase text-slate-500">Current Status</p>
                   <p className="mt-1">{statusBadge(editModal.status)}</p>
                 </div>
 
-                <label className="block text-xs font-black text-slate-700">
+                <label className="block text-xs font-semibold text-slate-700">
                   Update Status
                   <select
                     value={editStatus}
@@ -535,7 +535,7 @@ export default function StoreDeliveriesPage() {
                   </select>
                 </label>
 
-                <label className="block text-xs font-black text-slate-700">
+                <label className="block text-xs font-semibold text-slate-700">
                   Cash Collected (₹)
                   <input
                     value={editCash}
@@ -548,7 +548,7 @@ export default function StoreDeliveriesPage() {
                   />
                 </label>
 
-                <label className="block text-xs font-black text-slate-700">
+                <label className="block text-xs font-semibold text-slate-700">
                   Notes
                   <textarea
                     value={editNotes}
@@ -563,14 +563,14 @@ export default function StoreDeliveriesPage() {
               <div className="mt-4 flex gap-2">
                 <button
                   onClick={() => setEditModal(null)}
-                  className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-black"
+                  className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   disabled={working === editModal.id}
                   onClick={() => void submitEdit()}
-                  className={`inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-xs font-black text-white disabled:opacity-50 ${editStatus === 'FAILED' ? 'bg-red-600' : 'bg-emerald-700'}`}
+                  className={`inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-50 ${editStatus === 'FAILED' ? 'bg-red-600' : 'bg-emerald-700'}`}
                 >
                   {working === editModal.id ? <Loader2 className="h-4 w-4 animate-spin" /> : editStatus === 'FAILED' ? <XCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
                   Mark as {editStatus === 'FAILED' ? 'Failed' : 'Delivered'}

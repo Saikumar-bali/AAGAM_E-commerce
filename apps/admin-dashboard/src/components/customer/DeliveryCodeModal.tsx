@@ -97,8 +97,8 @@ export default function DeliveryCodeModal({ deliveryJobId, open, onClose }: Prop
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+      <div className="absolute inset-0 bg-slate-950/60 " onClick={onClose} />
+      <div className="relative w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white ">
         <button
           onClick={onClose}
           className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
@@ -108,12 +108,12 @@ export default function DeliveryCodeModal({ deliveryJobId, open, onClose }: Prop
 
         <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-violet-950 p-6 pb-5 text-white">
           <div className="flex items-start gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 ring-1 ring-white/15">
               <ShieldCheck className="h-5 w-5 text-violet-200" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-300">Secure handoff</p>
-              <h2 className="mt-1 text-lg font-black tracking-tight">Delivery verification code</h2>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-violet-300">Secure handoff</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-tight">Delivery verification code</h2>
               <p className="mt-1 text-xs font-semibold leading-5 text-slate-300">
                 Read this code to the rider only after checking the parcel. Never share before handoff.
               </p>
@@ -123,9 +123,9 @@ export default function DeliveryCodeModal({ deliveryJobId, open, onClose }: Prop
 
         <div className="p-6">
           {code ? (
-            <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-6 text-center shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-violet-500">Delivery OTP</p>
-              <p className="mt-3 font-mono text-3xl font-black tracking-[0.22em] text-slate-950 sm:text-5xl sm:tracking-[0.3em]">{formatCode(code)}</p>
+            <div className="rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-6 text-center ">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-violet-500">Delivery OTP</p>
+              <p className="mt-3 font-mono text-3xl font-semibold tracking-[0.22em] text-slate-950 sm:text-5xl sm:tracking-[0.3em]">{formatCode(code)}</p>
               {remaining > 0 ? (
                 <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-slate-500">
                   <Clock3 className="h-3.5 w-3.5" /> Expires in {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}
@@ -148,13 +148,13 @@ export default function DeliveryCodeModal({ deliveryJobId, open, onClose }: Prop
             <button
               onClick={() => void load(deliveryJobId)}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
             </button>
             <button
               onClick={onClose}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white transition hover:bg-slate-800"
+              className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
             >
               Done
             </button>

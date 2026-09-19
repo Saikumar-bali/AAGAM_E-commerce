@@ -310,7 +310,7 @@ export default function OrdersPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <p className="enterprise-kicker">Store fulfillment</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight">
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
             Order Queue
           </h1>
           <p className="mt-2 text-sm text-slate-500">
@@ -329,18 +329,18 @@ export default function OrdersPage() {
       </div>
       <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-6">
         {lanes.map((lane) => (
-          <div key={lane} className="rounded-2xl border bg-white p-4 shadow-sm">
-            <p className="text-xs font-black uppercase text-slate-400">
+          <div key={lane} className="rounded-xl border bg-white p-4 ">
+            <p className="text-xs font-semibold uppercase text-slate-400">
               {lane}
             </p>
-            <p className="mt-1 text-2xl font-black text-slate-950">
+            <p className="mt-1 text-2xl font-semibold text-slate-950">
               {laneCounts[lane] || 0}
             </p>
           </div>
         ))}
       </div>
       {error && (
-        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
           {error}
         </div>
       )}
@@ -349,14 +349,14 @@ export default function OrdersPage() {
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="h-24 animate-pulse rounded-2xl bg-slate-100"
+              className="h-24 animate-pulse rounded-xl bg-slate-100"
             />
           ))}
         </div>
       ) : orders.length === 0 ? (
         <div className="rounded-[2rem] border border-dashed border-slate-200 p-16 text-center">
           <ShoppingCart className="mx-auto h-16 w-16 text-slate-300" />
-          <p className="mt-6 text-2xl font-black text-slate-950">
+          <p className="mt-6 text-2xl font-semibold text-slate-950">
             No orders yet
           </p>
           <p className="mt-2 text-sm text-slate-500">
@@ -374,11 +374,11 @@ export default function OrdersPage() {
             return (
               <div
                 key={order.id}
-                className="enterprise-card p-5 transition hover:-translate-y-0.5"
+                className="enterprise-card p-5 transition "
               >
                 <div className="flex items-center gap-4">
                   <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                    className={`flex h-12 w-12 items-center justify-center rounded-xl ${
                       config.cls.split(" ")[0]
                     }`}
                   >
@@ -386,19 +386,19 @@ export default function OrdersPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-black text-slate-950">
+                      <p className="text-sm font-semibold text-slate-950">
                         #{order.id.slice(-8).toUpperCase()}
                       </p>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-black ${config.cls}`}
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${config.cls}`}
                       >
                         {config.label}
                       </span>
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                         {config.lane}
                       </span>
                       {order.storeDelivery && (
-                        <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-700">
+                        <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
                           Store Delivery
                         </span>
                       )}
@@ -422,7 +422,7 @@ export default function OrdersPage() {
                     )}
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-black text-slate-950">
+                    <p className="text-lg font-semibold text-slate-950">
                       ₹
                       {Number(
                         order.payment?.method === "COD" &&
@@ -453,7 +453,7 @@ export default function OrdersPage() {
                       </p>
                     )}
                     {order.subscriptionId && (
-                      <p className="mt-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                      <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
                         Subscription
                         {order.subscriptionSequence
                           ? ` · Day ${order.subscriptionSequence}`
@@ -466,17 +466,17 @@ export default function OrdersPage() {
                   </div>
                 </div>
                 {deliveryWindow && (
-                  <div className="mt-4 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
+                  <div className="mt-4 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
                     <CalendarClock className="h-5 w-5 shrink-0 text-emerald-700" />
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Scheduled delivery</p>
-                      <p className="mt-0.5 text-sm font-black">{deliveryWindow}</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Scheduled delivery</p>
+                      <p className="mt-0.5 text-sm font-semibold">{deliveryWindow}</p>
                       <p className="mt-0.5 text-[11px] font-semibold text-emerald-700">Preparation opens two hours before this window.</p>
                     </div>
                   </div>
                 )}
-                <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-                  <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase text-slate-500">
+                <div className="mt-4 rounded-xl bg-slate-50 p-4">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
                     <ClipboardList className="h-4 w-4" /> Picking list
                   </div>
                   <div className="grid gap-2 md:grid-cols-2">
@@ -489,7 +489,7 @@ export default function OrdersPage() {
                           <span className="font-bold text-slate-700">
                             {item.product?.name || "Product"}
                           </span>
-                          <span className="rounded-lg bg-slate-900 px-2 py-1 text-xs font-black text-white">
+                          <span className="rounded-lg bg-slate-900 px-2 py-1 text-xs font-semibold text-white">
                             x{item.quantity}
                           </span>
                         </div>
@@ -500,7 +500,7 @@ export default function OrdersPage() {
                               disabled={
                                 actionLoading === `${item.id}-unavailable`
                               }
-                              className="rounded-lg border border-amber-200 px-2 py-1 text-[11px] font-black text-amber-700"
+                              className="rounded-lg border border-amber-200 px-2 py-1 text-[11px] font-semibold text-amber-700"
                             >
                               Unavailable
                             </button>
@@ -509,7 +509,7 @@ export default function OrdersPage() {
                               disabled={
                                 actionLoading === `${item.id}-substitutes`
                               }
-                              className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-700"
+                              className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700"
                             >
                               Substitutes
                             </button>
@@ -536,17 +536,17 @@ export default function OrdersPage() {
                   </div>
                 </div>
                 {order.status === "PACKED" && (
-                  <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-black text-violet-700">
+                  <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700">
                     Packed and ready. You can deliver with your store staff or wait for rider dispatch.
                   </div>
                 )}
                 {order.status === "STORE_DELIVERING" && (
-                  <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-black text-orange-700">
+                  <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-700">
                     Currently out for delivery by store staff.
                   </div>
                 )}
                 {order.status === "STORE_DELIVERED" && (
-                  <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">
+                  <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
                     Successfully delivered directly by store staff.
                   </div>
                 )}

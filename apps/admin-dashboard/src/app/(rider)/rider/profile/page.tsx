@@ -124,31 +124,31 @@ export default function RiderProfilePage() {
         ) : (
           <>
             <section className="grid gap-4 lg:grid-cols-3">
-              <div className="rounded-2xl border bg-white p-5">
+              <div className="rounded-xl border bg-white p-5">
                 <UserRound className="h-6 w-6 text-emerald-600" />
-                <p className="mt-3 font-black">{data?.user?.name || "Rider"}</p>
+                <p className="mt-3 font-semibold">{data?.user?.name || "Rider"}</p>
                 <p className="text-sm text-slate-500">{data?.user?.email}</p>
-                <p className="mt-3 text-xs font-black uppercase text-slate-400">
+                <p className="mt-3 text-xs font-semibold uppercase text-slate-400">
                   Account approval
                 </p>
-                <p className="font-black">{data?.approvalStatus}</p>
+                <p className="font-semibold">{data?.approvalStatus}</p>
               </div>
-              <div className="rounded-2xl border bg-white p-5">
+              <div className="rounded-xl border bg-white p-5">
                 <Truck className="h-6 w-6 text-indigo-600" />
-                <p className="mt-3 text-xs font-black uppercase text-slate-400">
+                <p className="mt-3 text-xs font-semibold uppercase text-slate-400">
                   Vehicle
                 </p>
-                <p className="font-black">
+                <p className="font-semibold">
                   {data?.vehicleType || "Not supplied"} ·{" "}
                   {data?.vehicleNumber || "No number"}
                 </p>
               </div>
-              <div className="rounded-2xl border bg-white p-5">
+              <div className="rounded-xl border bg-white p-5">
                 <ShieldCheck className="h-6 w-6 text-amber-600" />
-                <p className="mt-3 text-xs font-black uppercase text-slate-400">
+                <p className="mt-3 text-xs font-semibold uppercase text-slate-400">
                   Bank details
                 </p>
-                <p className="font-black">
+                <p className="font-semibold">
                   {data?.bank?.accountMasked || "Not supplied"}
                 </p>
                 <p className="text-sm text-slate-500">
@@ -156,8 +156,8 @@ export default function RiderProfilePage() {
                 </p>
               </div>
             </section>
-            <section className="rounded-2xl border bg-white p-5">
-              <p className="font-black">
+            <section className="rounded-xl border bg-white p-5">
+              <p className="font-semibold">
                 Vehicle, emergency contact and protected bank update
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -171,7 +171,7 @@ export default function RiderProfilePage() {
                 ].map(([key, label]) => (
                   <label
                     key={key}
-                    className="text-xs font-black uppercase text-slate-500"
+                    className="text-xs font-semibold uppercase text-slate-500"
                   >
                     {label}
                     <input
@@ -191,13 +191,13 @@ export default function RiderProfilePage() {
               </p>
               <button
                 onClick={save}
-                className="mt-4 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white"
+                className="mt-4 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white"
               >
                 Save protected profile
               </button>
             </section>
-            <section className="rounded-2xl border bg-white p-5">
-              <p className="font-black">
+            <section className="rounded-xl border bg-white p-5">
+              <p className="font-semibold">
                 <FileCheck2 className="mr-2 inline h-5 w-5" />
                 Documents
               </p>
@@ -211,7 +211,7 @@ export default function RiderProfilePage() {
                       className="grid gap-2 rounded-xl bg-slate-50 p-4 sm:grid-cols-[1fr_auto]"
                     >
                       <div>
-                        <p className="font-black">
+                        <p className="font-semibold">
                           {row.type.replace(/_/g, " ")}
                         </p>
                         <p className="text-xs text-slate-500">
@@ -229,7 +229,7 @@ export default function RiderProfilePage() {
                         />
                       </div>
                       <span
-                        className={`text-xs font-black ${
+                        className={`text-xs font-semibold ${
                           expired ? "text-red-700" : "text-slate-600"
                         }`}
                       >
@@ -289,7 +289,7 @@ export default function RiderProfilePage() {
               <button
                 disabled={!doc.storageKey || uploading}
                 onClick={addDocument}
-                className="mt-3 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-40"
+                className="mt-3 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
               >
                 Submit for review
               </button>

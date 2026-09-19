@@ -290,11 +290,11 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
 
   return (
     <div className="space-y-5">
-      <section className="rounded-[2rem] border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white shadow-xl">
+      <section className="rounded-[2rem] border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white ">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-indigo-300">Communication controls</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight">{title}</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-300">Communication controls</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h1>
             <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-300">
               Choose which events appear in your in-app inbox and which are also delivered to registered devices.
             </p>
@@ -302,7 +302,7 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
           <div className="flex flex-wrap gap-2">
             <Link
               href={backHref}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-slate-950"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950"
             >
               <ArrowLeft className="h-4 w-4" /> Back to inbox
             </Link>
@@ -310,7 +310,7 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
               type="button"
               onClick={() => void loadPreferences()}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-black text-white disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
             </button>
@@ -319,25 +319,25 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
       </section>
 
       {message && (
-        <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-900">
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-900">
           {message}
         </div>
       )}
 
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-[2rem] border border-slate-200 bg-white p-5 ">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-indigo-600" />
-              <h2 className="text-xl font-black text-slate-950">Global defaults</h2>
+              <h2 className="text-xl font-semibold text-slate-950">Global defaults</h2>
             </div>
             <p className="mt-1 text-sm font-semibold text-slate-500">
               Events without a custom setting inherit these defaults.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex min-w-56 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <span className="inline-flex items-center gap-2 text-sm font-black text-slate-700">
+            <div className="flex min-w-56 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
                 <BellRing className="h-4 w-4 text-indigo-600" /> Device push
               </span>
               <Toggle
@@ -347,8 +347,8 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
                 onChange={(value) => void updateGlobal('pushEnabled', value)}
               />
             </div>
-            <div className="flex min-w-56 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <span className="inline-flex items-center gap-2 text-sm font-black text-slate-700">
+            <div className="flex min-w-56 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
                 <Inbox className="h-4 w-4 text-teal-600" /> In-app inbox
               </span>
               <Toggle
@@ -362,11 +362,11 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      <section className="rounded-[2rem] border border-slate-200 bg-white p-4  sm:p-6">
         <div className="mb-5 flex items-center gap-2">
           <Settings2 className="h-5 w-5 text-indigo-600" />
           <div>
-            <h2 className="text-xl font-black text-slate-950">Event-specific controls</h2>
+            <h2 className="text-xl font-semibold text-slate-950">Event-specific controls</h2>
             <p className="text-sm font-semibold text-slate-500">Changing a switch creates a custom setting for that event.</p>
           </div>
         </div>
@@ -382,17 +382,17 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
               if (!preference) return null;
               const eventSaving = savingKey?.startsWith(`${event.eventType}:`) || false;
               return (
-                <article key={event.eventType} className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
+                <article key={event.eventType} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-black text-slate-950">{event.title}</h3>
+                        <h3 className="text-base font-semibold text-slate-950">{event.title}</h3>
                         {event.critical && (
-                          <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-800">
+                          <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
                             Operational
                           </span>
                         )}
-                        <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wide ${
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
                           preference.inherited
                             ? 'bg-slate-200 text-slate-600'
                             : 'bg-indigo-100 text-indigo-700'
@@ -406,8 +406,8 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
                   </div>
 
                   <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
-                      <span className="inline-flex items-center gap-2 text-xs font-black text-slate-700">
+                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
                         <BellRing className="h-4 w-4 text-indigo-600" /> Push
                       </span>
                       <Toggle
@@ -417,8 +417,8 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
                         onChange={(value) => void updateEvent(event.eventType, 'pushEnabled', value)}
                       />
                     </div>
-                    <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
-                      <span className="inline-flex items-center gap-2 text-xs font-black text-slate-700">
+                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
                         <Inbox className="h-4 w-4 text-teal-600" /> In-app
                       </span>
                       <Toggle
@@ -436,7 +436,7 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
         )}
       </section>
 
-      <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
+      <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
         <CheckCircle2 className="h-5 w-5" /> In-app and device preferences are stored independently for your account.
       </div>
     </div>

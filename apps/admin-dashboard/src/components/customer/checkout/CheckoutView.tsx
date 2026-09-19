@@ -323,16 +323,16 @@ export default function CheckoutView({ state, actions }: { state: CheckoutViewSt
   if (cartLines.length === 0 && !orderId) {
     return (
       <div className="mx-auto max-w-lg py-16 text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-teal-100 bg-teal-50">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-xl border border-teal-100 bg-teal-50">
           <ShoppingBag className="h-7 w-7 text-teal-800" />
         </div>
-        <h1 className="mt-5 text-2xl font-extrabold tracking-[-0.02em] text-teal-950">Your basket is empty</h1>
+        <h1 className="mt-5 text-xl font-semibold tracking-[-0.02em] text-teal-950">Your basket is empty</h1>
         <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-600">
           Browse fresh groceries and daily essentials, then come back here to check out.
         </p>
         <button
           onClick={actions.onBrowse}
-          className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-teal-800 px-6 py-3.5 text-sm font-extrabold text-white shadow-[0_10px_30px_rgba(15,23,42,0.14)] transition hover:bg-teal-900"
+          className="mt-7 inline-flex items-center gap-2 rounded-xl bg-teal-800 px-6 py-3.5 text-sm font-semibold text-white  transition hover:bg-teal-900"
         >
           Browse products
         </button>
@@ -346,7 +346,7 @@ export default function CheckoutView({ state, actions }: { state: CheckoutViewSt
         <div className="mx-auto grid h-20 w-20 place-items-center rounded-full border border-teal-100 bg-teal-50">
           <Check className="aagam-check-pop h-9 w-9 text-teal-700" strokeWidth={2.5} />
         </div>
-        <h1 className="mt-6 text-3xl font-extrabold tracking-[-0.02em] text-teal-950">Order placed</h1>
+        <h1 className="mt-6 text-xl font-semibold tracking-[-0.02em] text-teal-950">Order placed</h1>
         <p className="mt-2 text-sm font-bold text-slate-500">Order #{orderId.slice(-8).toUpperCase()}</p>
         <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-600">
           Thank you — your order is confirmed. You can follow it live from your orders page.
@@ -354,13 +354,13 @@ export default function CheckoutView({ state, actions }: { state: CheckoutViewSt
         <div className="mt-8 flex flex-col gap-3">
           <button
             onClick={actions.onViewOrder}
-            className="w-full rounded-2xl bg-teal-800 py-4 text-sm font-extrabold text-white shadow-[0_10px_30px_rgba(15,23,42,0.14)] transition hover:bg-teal-900"
+            className="w-full rounded-xl bg-teal-800 py-4 text-sm font-semibold text-white  transition hover:bg-teal-900"
           >
             View order
           </button>
           <button
             onClick={actions.onBrowse}
-            className="w-full rounded-2xl border border-slate-200 bg-white py-4 text-sm font-extrabold text-slate-800 transition hover:border-teal-300 hover:text-teal-800"
+            className="w-full rounded-xl border border-slate-200 bg-white py-4 text-sm font-semibold text-slate-800 transition hover:border-teal-300 hover:text-teal-800"
           >
             Continue shopping
           </button>
@@ -375,13 +375,13 @@ export default function CheckoutView({ state, actions }: { state: CheckoutViewSt
         <button
           onClick={actions.onBack}
           aria-label="Back to shop"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:border-teal-300 hover:text-teal-800"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-teal-300 hover:text-teal-800"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-3.5 w-3.5" />
         </button>
         <div className="min-w-0">
-          <h1 className="flex items-center gap-2 text-xl font-extrabold tracking-[-0.02em] text-teal-950 sm:text-2xl">
-            <Lock className="h-4 w-4 shrink-0 text-teal-700" aria-hidden />
+          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-[-0.02em] text-teal-950 sm:text-2xl">
+            <Lock className="h-3.5 w-3.5 shrink-0 text-teal-700" aria-hidden />
             Secure checkout
           </h1>
           <p className="mt-0.5 truncate text-xs font-semibold text-slate-500 sm:text-sm">
@@ -389,9 +389,9 @@ export default function CheckoutView({ state, actions }: { state: CheckoutViewSt
             {selectedAddress ? <> · delivering to {selectedAddress.city || selectedAddress.pincode}</> : ' · choose where we deliver'}
           </p>
         </div>
-        <div className="ml-auto hidden items-baseline gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 shadow-[0_2px_10px_rgba(15,23,42,0.05)] sm:flex">
+        <div className="ml-auto hidden items-baseline gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5  sm:flex">
           <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Total</span>
-          <span className="text-lg font-extrabold tabular-nums text-teal-950">{money(grandTotal)}</span>
+          <span className="text-lg font-semibold tabular-nums text-teal-950">{money(grandTotal)}</span>
         </div>
       </header>
 
@@ -416,8 +416,8 @@ export default function CheckoutView({ state, actions }: { state: CheckoutViewSt
           </ol>
 
           {error ? (
-            <div role="alert" className="mt-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
-              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+            <div role="alert" className="mt-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-600" />
               <div>
                 <p className="text-sm font-bold text-red-800">Something needs your attention</p>
                 <p className="mt-1 text-sm leading-5 text-red-700">{error}</p>
@@ -467,20 +467,20 @@ function Step({ n, title, done, doneSummary, isLast, children }: {
       {done ? (
         <span
           aria-hidden
-          className="absolute left-0 top-0 grid h-8 w-8 sm:h-9 sm:w-9 place-items-center rounded-full border border-teal-700 bg-teal-700 text-white shadow-xs"
+          className="absolute left-0 top-0 grid h-8 w-8 sm:h-9 sm:w-9 place-items-center rounded-full border border-teal-700 bg-teal-700 text-white "
         >
-          <Check key={`done-${n}`} className="aagam-check-pop h-4 w-4 sm:h-5 sm:w-5" strokeWidth={3} />
+          <Check key={`done-${n}`} className="aagam-check-pop h-3.5 w-3.5 sm:h-5 sm:w-5" strokeWidth={3} />
         </span>
       ) : (
         <span
           aria-hidden
-          className="absolute left-0 top-0 grid h-8 w-8 sm:h-9 sm:w-9 place-items-center rounded-full border border-slate-300 bg-white text-xs sm:text-sm font-extrabold text-slate-500 shadow-xs"
+          className="absolute left-0 top-0 grid h-8 w-8 sm:h-9 sm:w-9 place-items-center rounded-full border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-500 "
         >
           {n}
         </span>
       )}
       <div className="flex flex-col justify-center min-h-[2rem]">
-        <h2 className="text-base font-extrabold tracking-tight text-teal-950 sm:text-lg">{title}</h2>
+        <h2 className="text-base font-semibold tracking-tight text-teal-950 sm:text-lg">{title}</h2>
         {done && doneSummary ? (
           <p className="mt-0.5 text-xs font-semibold text-teal-700 leading-normal">{doneSummary}</p>
         ) : null}
@@ -496,7 +496,7 @@ function AddressStep({ state, actions }: { state: CheckoutViewState; actions: Ch
     <div role="group" aria-label="Choose a delivery address">
       {loadingAddresses ? (
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin text-teal-700" /> Loading saved addresses…
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-700" /> Loading saved addresses…
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -505,10 +505,10 @@ function AddressStep({ state, actions }: { state: CheckoutViewState; actions: Ch
             return (
               <div
                 key={address.id}
-                className={`relative flex flex-col justify-between rounded-2xl border p-4 transition-all duration-150 ${
+                className={`relative flex flex-col justify-between rounded-xl border p-4 transition-all duration-150 ${
                   selected
-                    ? 'border-teal-600 bg-teal-50/40 shadow-xs ring-1 ring-teal-600/30'
-                    : 'border-slate-200 bg-white shadow-xs hover:border-teal-300'
+                    ? 'border-teal-600 bg-teal-50/40  ring-1 ring-teal-600/30'
+                    : 'border-slate-200 bg-white  hover:border-teal-300'
                 }`}
               >
                 <button
@@ -519,11 +519,11 @@ function AddressStep({ state, actions }: { state: CheckoutViewState; actions: Ch
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full border border-teal-200/80 bg-teal-50/90 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-teal-800">
+                      <span className="rounded-full border border-teal-200/80 bg-teal-50/90 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-teal-800">
                         {address.label || 'Address'}
                       </span>
                       {address.isDefault ? (
-                        <span className="rounded-full bg-teal-800 px-2.5 py-0.5 text-[10px] font-extrabold text-white shadow-xs">
+                        <span className="rounded-full bg-teal-800 px-2.5 py-0.5 text-[10px] font-semibold text-white ">
                           Default
                         </span>
                       ) : null}
@@ -531,7 +531,7 @@ function AddressStep({ state, actions }: { state: CheckoutViewState; actions: Ch
                     <RadioDot selected={selected} />
                   </div>
                   <div className="mt-2.5">
-                    <p className="text-sm font-extrabold text-slate-900">{address.recipientName}</p>
+                    <p className="text-sm font-semibold text-slate-900">{address.recipientName}</p>
                     <p className="mt-1 text-xs leading-relaxed text-slate-600">
                       <span>{address.line1}{address.line2 ? `, ${address.line2}` : ''}</span>
                       <span className="block text-slate-500 font-medium">
@@ -551,7 +551,7 @@ function AddressStep({ state, actions }: { state: CheckoutViewState; actions: Ch
                       e.stopPropagation();
                       actions.onOpenEditAddress(address);
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:border-teal-300 hover:bg-slate-50 hover:text-teal-800"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700  transition hover:border-teal-300 hover:bg-slate-50 hover:text-teal-800"
                   >
                     <Pencil className="h-3.5 w-3.5 text-slate-500" />
                     <span>Edit</span>
@@ -575,12 +575,12 @@ function AddressStep({ state, actions }: { state: CheckoutViewState; actions: Ch
           <button
             type="button"
             onClick={actions.onOpenNewAddress}
-            className="group flex min-h-[7rem] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white/70 p-4 text-slate-500 shadow-xs transition hover:border-teal-500 hover:bg-teal-50/30 hover:text-teal-900"
+            className="group flex min-h-[7rem] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-white/70 p-4 text-slate-500  transition hover:border-teal-500 hover:bg-teal-50/30 hover:text-teal-900"
           >
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-teal-50 text-teal-700 transition group-hover:bg-teal-100 group-hover:scale-105">
-              <Plus className="h-4 w-4" strokeWidth={2.5} />
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
             </span>
-            <span className="text-sm font-extrabold text-slate-800 group-hover:text-teal-950">Add new address</span>
+            <span className="text-sm font-semibold text-slate-800 group-hover:text-teal-950">Add new address</span>
             <span className="text-xs font-medium text-slate-500">Pin it on the map for accurate delivery</span>
           </button>
         </div>
@@ -597,15 +597,15 @@ function DeliveryTimeStep({ state, actions }: { state: CheckoutViewState; action
   return (
     <div role="group" aria-label="Choose a delivery time">
       {storeClosed ? (
-        <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700" />
           <div>
-            <p className="text-sm font-extrabold text-amber-900">The store is closed right now</p>
+            <p className="text-sm font-semibold text-amber-900">The store is closed right now</p>
             <p className="mt-1 text-xs font-semibold leading-5 text-amber-800">
               {storeStatus?.nextOpenAt ? (
                 <>
                   You can still pre-order — delivery starts from{' '}
-                  <span className="font-extrabold">
+                  <span className="font-semibold">
                     {new Date(storeStatus.nextOpenAt).toLocaleString('en-IN', {
                       weekday: 'short',
                       day: 'numeric',
@@ -630,7 +630,7 @@ function DeliveryTimeStep({ state, actions }: { state: CheckoutViewState; action
           <OptionTile
             selected={fulfillmentType === 'IMMEDIATE'}
             onClick={() => actions.onSetFulfillment('IMMEDIATE')}
-            icon={<Zap className="h-5 w-5 text-teal-700" />}
+            icon={<Zap className="h-3.5 w-3.5 text-teal-700" />}
             title="Deliver now"
             subtitle="Fastest available delivery"
           />
@@ -638,7 +638,7 @@ function DeliveryTimeStep({ state, actions }: { state: CheckoutViewState; action
         <OptionTile
           selected={fulfillmentType === 'SCHEDULED'}
           onClick={() => actions.onSetFulfillment('SCHEDULED')}
-          icon={<CalendarDays className="h-5 w-5 text-teal-700" />}
+          icon={<CalendarDays className="h-3.5 w-3.5 text-teal-700" />}
           title={storeClosed ? 'Pre-order delivery' : 'Schedule delivery'}
           subtitle="Reserve up to 7 days ahead"
         />
@@ -647,8 +647,8 @@ function DeliveryTimeStep({ state, actions }: { state: CheckoutViewState; action
       {fulfillmentType === 'SCHEDULED' ? (
         <div className="mt-5">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-500">Available windows</p>
-            {loadingSlots ? <Loader2 className="h-4 w-4 animate-spin text-teal-700" aria-label="Loading delivery windows" /> : null}
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Available windows</p>
+            {loadingSlots ? <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-700" aria-label="Loading delivery windows" /> : null}
           </div>
           <div className="grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
             {availableSlots.map((slot) => {
@@ -665,7 +665,7 @@ function DeliveryTimeStep({ state, actions }: { state: CheckoutViewState; action
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-extrabold text-slate-900">{formatSlotDay(slot.windowStart, storeStatus?.timezone)}</p>
+                      <p className="text-sm font-semibold text-slate-900">{formatSlotDay(slot.windowStart, storeStatus?.timezone)}</p>
                       <p className="mt-0.5 text-xs font-bold text-teal-700">
                         {slot.label} · {formatSlotTime(slot.windowStart, storeStatus?.timezone)}–{formatSlotTime(slot.windowEnd, storeStatus?.timezone)}
                       </p>
@@ -680,7 +680,7 @@ function DeliveryTimeStep({ state, actions }: { state: CheckoutViewState; action
             })}
           </div>
           {!loadingSlots && availableSlots.length === 0 ? (
-            <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+            <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
               No scheduled windows are open for this address yet. Try “Deliver now” or check back soon.
             </p>
           ) : null}
@@ -697,14 +697,14 @@ function PaymentStep({ state, actions }: { state: CheckoutViewState; actions: Ch
       <OptionTile
         selected={paymentMethod === 'COD'}
         onClick={() => actions.onSetPayment('COD')}
-        icon={<Banknote className="h-5 w-5 text-teal-700" />}
+        icon={<Banknote className="h-3.5 w-3.5 text-teal-700" />}
         title="Cash on delivery"
         subtitle="Pay when your order arrives"
       />
       <OptionTile
         selected={paymentMethod === 'ONLINE'}
         onClick={() => actions.onSetPayment('ONLINE')}
-        icon={<CreditCard className="h-5 w-5 text-teal-700" />}
+        icon={<CreditCard className="h-3.5 w-3.5 text-teal-700" />}
         title="Pay online"
         subtitle="Pay securely before delivery"
       />
@@ -724,18 +724,18 @@ function OptionTile({ selected, onClick, icon, title, subtitle }: {
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`flex items-center gap-3.5 rounded-2xl border p-4 text-left transition-all duration-150 ${
+      className={`flex items-center gap-3.5 rounded-xl border p-4 text-left transition-all duration-150 ${
         selected
-          ? 'border-teal-600 bg-teal-50/40 shadow-xs ring-1 ring-teal-600/30'
-          : 'border-slate-200 bg-white shadow-xs hover:border-teal-300'
+          ? 'border-teal-600 bg-teal-50/40  ring-1 ring-teal-600/30'
+          : 'border-slate-200 bg-white  hover:border-teal-300'
       }`}
     >
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-teal-100 bg-teal-50 text-teal-800 shadow-xs">
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-teal-100 bg-teal-50 text-teal-800 ">
         {icon}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center justify-between gap-2">
-          <span className="text-sm font-extrabold text-slate-900">{title}</span>
+          <span className="text-sm font-semibold text-slate-900">{title}</span>
           <RadioDot selected={selected} />
         </span>
         <span className="mt-0.5 block text-xs font-medium leading-5 text-slate-500">{subtitle}</span>
@@ -748,7 +748,7 @@ function RadioDot({ selected }: { selected: boolean }) {
   return (
     <span
       aria-hidden
-      className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 transition-colors ${
+      className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border-2 transition-colors ${
         selected ? 'border-teal-700 bg-white' : 'border-slate-300 bg-white'
       }`}
     >
@@ -796,10 +796,10 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
   const tax = quote?.invoice.taxAmount ?? 0;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_34px_rgba(15,23,42,0.07)]">
+    <div className="rounded-xl border border-slate-200 bg-white ">
       <div className="border-b border-slate-100 px-5 py-4">
         <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-base font-extrabold tracking-[-0.01em] text-teal-950">Order summary</h2>
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-teal-950">Order summary</h2>
           <span className="text-xs font-bold text-slate-500">{totalUnits} {totalUnits === 1 ? 'item' : 'items'}</span>
         </div>
         {quote?.store?.name ? (
@@ -811,7 +811,7 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
       </div>
 
       <div className="px-5 py-4">
-        <h3 className="mb-3 text-sm font-black text-slate-800">Bill Details</h3>
+        <h3 className="mb-3 text-sm font-semibold text-slate-800">Bill Details</h3>
         {showSkeleton ? (
           <div className="space-y-3" aria-hidden>
             {[0, 1, 2].map((i) => (
@@ -830,7 +830,7 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
                   <p className="truncate font-bold text-slate-800">{item.name}</p>
                   <p className="mt-0.5 text-xs tabular-nums text-slate-500">{item.quantity} × {money(item.unitPrice)}</p>
                 </div>
-                <p className="shrink-0 font-extrabold tabular-nums text-slate-950">{money(item.lineTotal)}</p>
+                <p className="shrink-0 font-semibold tabular-nums text-slate-950">{money(item.lineTotal)}</p>
               </li>
             ))}
           </ul>
@@ -840,9 +840,9 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
 
         {isUnserviceable ? (
           <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-600" />
             <div>
-              <p className="text-xs font-extrabold text-rose-900">Delivery Unavailable</p>
+              <p className="text-xs font-semibold text-rose-900">Delivery Unavailable</p>
               <p className="mt-0.5 text-[11px] font-semibold text-rose-700">
                 This address is outside our 25 km delivery range{quote?.distanceKm != null ? ` (${quote.distanceKm.toFixed(1)} km away)` : ''}. Please select an address closer to our store.
               </p>
@@ -850,9 +850,9 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
           </div>
         ) : firstOrderFree ? (
           <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
-            <Tag className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+            <Tag className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700" />
             <div>
-              <p className="text-xs font-extrabold text-emerald-800">First order — delivery is free</p>
+              <p className="text-xs font-semibold text-emerald-800">First order — delivery is free</p>
               <p className="mt-0.5 text-[11px] font-semibold text-emerald-800/80">Welcome to Aagaam. The delivery fee is on us for this order.</p>
             </div>
           </div>
@@ -867,19 +867,19 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
             </div>
           </div>
         ) : freeUnlocked && freeMinimum != null ? (
-          <p className="mb-4 flex items-center gap-1.5 text-xs font-extrabold text-emerald-700"><Check className="h-3.5 w-3.5" /> Free delivery unlocked on this order</p>
+          <p className="mb-4 flex items-center gap-1.5 text-xs font-semibold text-emerald-700"><Check className="h-3.5 w-3.5" /> Free delivery unlocked on this order</p>
         ) : null}
 
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between">
             <span className="font-semibold text-slate-500">Subtotal</span>
-            <span className="font-extrabold tabular-nums text-slate-950">{money(subtotal)}</span>
+            <span className="font-semibold tabular-nums text-slate-950">{money(subtotal)}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 font-semibold text-slate-500">
               <Truck className="h-3.5 w-3.5" /> Delivery fee
             </span>
-            <span className={`font-extrabold tabular-nums ${isUnserviceable ? 'text-rose-600' : deliveryFee === 0 ? 'text-emerald-700' : 'text-slate-950'}`}>
+            <span className={`font-semibold tabular-nums ${isUnserviceable ? 'text-rose-600' : deliveryFee === 0 ? 'text-emerald-700' : 'text-slate-950'}`}>
               {isUnserviceable ? 'Not serviceable' : deliveryFee === 0 ? 'FREE' : money(deliveryFee)}
             </span>
           </div>
@@ -888,13 +888,13 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
               <span className="flex items-center gap-1.5 font-semibold text-emerald-700">
                 <Tag className="h-3.5 w-3.5" /> Discount
               </span>
-              <span className="font-extrabold tabular-nums text-emerald-700">-{money(discount)}</span>
+              <span className="font-semibold tabular-nums text-emerald-700">-{money(discount)}</span>
             </div>
           ) : null}
           {tax > 0 ? (
             <div className="flex items-center justify-between">
               <span className="font-semibold text-slate-500">Tax</span>
-              <span className="font-extrabold tabular-nums text-slate-950">{money(tax)}</span>
+              <span className="font-semibold tabular-nums text-slate-950">{money(tax)}</span>
             </div>
           ) : null}
         </div>
@@ -905,21 +905,21 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
           {quote?.appliedCoupon ? (
             <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
               <div className="flex min-w-0 items-center gap-2">
-                <Tag className="h-4 w-4 shrink-0 text-emerald-700" />
+                <Tag className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-extrabold text-emerald-800">{quote.appliedCoupon.code} applied</p>
+                  <p className="truncate text-xs font-semibold text-emerald-800">{quote.appliedCoupon.code} applied</p>
                   <p className="text-xs font-bold tabular-nums text-emerald-700">You save {money(quote.appliedCoupon.discountAmount)}</p>
                 </div>
               </div>
-              <button onClick={actions.onRemoveCoupon} className="shrink-0 rounded-lg px-2 py-1 text-xs font-extrabold text-slate-600 underline-offset-2 transition hover:text-red-600 hover:underline">
+              <button onClick={actions.onRemoveCoupon} className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600 underline-offset-2 transition hover:text-red-600 hover:underline">
                 Remove
               </button>
             </div>
           ) : (
             <>
               <div className="flex items-baseline justify-between gap-2">
-                <label htmlFor={couponInputId} className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-500">Coupon</label>
-                <button onClick={actions.onBrowseDeals} className="text-xs font-extrabold text-teal-700 underline-offset-2 transition hover:text-teal-900 hover:underline">
+                <label htmlFor={couponInputId} className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Coupon</label>
+                <button onClick={actions.onBrowseDeals} className="text-xs font-semibold text-teal-700 underline-offset-2 transition hover:text-teal-900 hover:underline">
                   Browse deals
                 </button>
               </div>
@@ -932,12 +932,12 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
                   placeholder="Enter code"
                   autoComplete="off"
                   spellCheck={false}
-                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-extrabold uppercase tracking-wide text-slate-900 caret-teal-700 outline-none transition placeholder:font-semibold placeholder:normal-case placeholder:tracking-normal placeholder:text-slate-500 focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10"
+                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold uppercase tracking-wide text-slate-900 caret-teal-700 outline-none transition placeholder:font-semibold placeholder:normal-case placeholder:tracking-normal placeholder:text-slate-500 focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10"
                 />
                 <button
                   onClick={actions.onApplyCoupon}
                   disabled={loadingQuote}
-                  className="shrink-0 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-extrabold text-white transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="shrink-0 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Apply
                 </button>
@@ -949,17 +949,17 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
 
         <div className="my-4 border-t border-dashed border-slate-200" aria-hidden />
 
-        <div className="flex items-center justify-between rounded-2xl bg-teal-950 px-4 py-3.5">
-          <span className="text-sm font-extrabold text-white">Grand Total</span>
-          <span className="text-xl font-extrabold tabular-nums text-white">{money(grandTotal)}</span>
+        <div className="flex items-center justify-between rounded-xl bg-teal-950 px-4 py-3.5">
+          <span className="text-sm font-semibold text-white">Grand Total</span>
+          <span className="text-xl font-semibold tabular-nums text-white">{money(grandTotal)}</span>
         </div>
 
         <button
           onClick={actions.onPlaceOrder}
           disabled={!canPlace || placingOrder}
-          className="mt-4 hidden w-full items-center justify-center gap-2 rounded-2xl bg-teal-800 py-4 text-sm font-extrabold text-white shadow-[0_10px_30px_rgba(15,23,42,0.16)] transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none lg:flex"
+          className="mt-4 hidden w-full items-center justify-center gap-2 rounded-xl bg-teal-800 py-4 text-sm font-semibold text-white  transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none lg:flex"
         >
-          {placingOrder ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
+          {placingOrder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
           {placeLabel}
         </button>
         {placeHint ? (
@@ -971,7 +971,7 @@ function OrderSummary({ state, actions, billItems, subtotal, grandTotal, totalUn
             <p className="flex items-start gap-1.5 text-xs font-semibold leading-5 text-slate-500">
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
               <span>
-                Delivering to <span className="font-extrabold text-slate-800">{selectedAddress.recipientName}</span>
+                Delivering to <span className="font-semibold text-slate-800">{selectedAddress.recipientName}</span>
                 {selectedAddress.label ? <span className="font-bold text-slate-500"> · {selectedAddress.label}</span> : null}
               </span>
             </p>
@@ -997,18 +997,18 @@ function MobileActionBar({ grandTotal, canPlace, placeLabel, placingOrder, onPla
   onPlaceOrder: () => void;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pl-4 pr-4 pt-3 backdrop-blur lg:hidden">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pl-4 pr-4 pt-3  lg:hidden">
       <div className="mx-auto flex max-w-6xl items-center gap-4">
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Total</p>
-          <p className="text-lg font-extrabold leading-tight tabular-nums text-teal-950">{money(grandTotal)}</p>
+          <p className="text-lg font-semibold leading-tight tabular-nums text-teal-950">{money(grandTotal)}</p>
         </div>
         <button
           onClick={onPlaceOrder}
           disabled={!canPlace || placingOrder}
-          className="ml-auto flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-teal-800 px-5 text-sm font-extrabold text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)] transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+          className="ml-auto flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 text-sm font-semibold text-white  transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
         >
-          {placingOrder ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
+          {placingOrder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
           {placeLabel}
         </button>
       </div>
@@ -1030,19 +1030,19 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
   const hasLocation = draft.latitude != null && draft.longitude != null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-2 sm:p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-2 sm:p-4 ">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         className={step === 'map'
-          ? 'flex h-[95dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]'
-          : 'max-h-[96dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]'
+          ? 'flex h-[95dvh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-100 bg-white '
+          : 'max-h-[96dvh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-100 bg-white '
         }
       >
-        <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur">
+        <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-4 ">
           <div>
-            <h2 id={titleId} className="text-lg font-extrabold tracking-[-0.01em] text-teal-950">
+            <h2 id={titleId} className="text-lg font-semibold tracking-[-0.01em] text-teal-950">
               {editingAddressId ? 'Edit address' : step === 'map' ? 'Pin your location' : 'Address details'}
             </h2>
             <p className="mt-0.5 text-xs font-semibold text-slate-500">
@@ -1054,7 +1054,7 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
             aria-label="Close address form"
             className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </button>
         </header>
 
@@ -1064,9 +1064,9 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
               <button
                 onClick={actions.onUseLiveLocation}
                 disabled={locating}
-                className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-3 text-xs font-extrabold text-teal-800 transition hover:border-teal-300 hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-3 text-xs font-semibold text-teal-800 transition hover:border-teal-300 hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+                {locating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}
                 {locating ? 'Locating…' : 'Use my live location'}
               </button>
             </div>
@@ -1080,15 +1080,15 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
                   fullHeight
                 />
               ) : (
-                <div className="flex h-full items-center justify-center rounded-2xl border-2 border-dashed border-teal-200 bg-teal-50/40 p-6 text-center">
+                <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
                   <div>
                     <p className="text-sm font-bold text-slate-600">Pin your location on the map or use your live location above.</p>
                     {defaultMapCenter ? (
                       <button
                         onClick={() => actions.onMapPinChange(defaultMapCenter.latitude, defaultMapCenter.longitude)}
-                        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-teal-300 bg-white px-3.5 py-2 text-xs font-extrabold text-teal-800 transition hover:border-teal-400"
+                        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-teal-300 bg-white px-3.5 py-2 text-xs font-semibold text-teal-800 transition hover:border-teal-400"
                       >
-                        <MapPin className="h-4 w-4" /> Open the map
+                        <MapPin className="h-3.5 w-3.5" /> Open the map
                       </button>
                     ) : null}
                   </div>
@@ -1099,14 +1099,14 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
             <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
               <button
                 onClick={actions.onCloseAddressForm}
-                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-700 transition hover:border-slate-300"
+                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
               >
                 Cancel
               </button>
               <button
                 onClick={() => setStep('details')}
                 disabled={!hasLocation}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_24px_rgba(15,23,42,0.14)] transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-3 text-sm font-semibold text-white  transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
                 Next
               </button>
@@ -1116,13 +1116,13 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
           <div className="space-y-4 px-5 py-5">
             {hasLocation && (
               <div className="flex items-center gap-3 rounded-xl border border-teal-100 bg-teal-50/50 px-4 py-2.5">
-                <MapPin className="h-4 w-4 shrink-0 text-teal-600" />
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-teal-600" />
                 <span className="truncate text-xs font-semibold text-teal-800">
                   {draft.line1 || `${draft.latitude?.toFixed(5)}, ${draft.longitude?.toFixed(5)}`}
                 </span>
                 <button
                   onClick={() => setStep('map')}
-                  className="ml-auto shrink-0 rounded-lg px-3 py-2 text-xs font-extrabold text-teal-700 hover:bg-teal-100 hover:underline"
+                  className="ml-auto shrink-0 rounded-lg px-3 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-100 hover:underline"
                 >
                   Change
                 </button>
@@ -1145,16 +1145,16 @@ function AddressFormModal({ state, actions }: { state: CheckoutViewState; action
             <div className="flex gap-3 pt-1">
               <button
                 onClick={() => setStep('map')}
-                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-700 transition hover:border-slate-300"
+                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
               >
                 Back
               </button>
               <button
                 onClick={actions.onSaveAddress}
                 disabled={savingAddress}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_24px_rgba(15,23,42,0.14)] transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-3 text-sm font-semibold text-white  transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
-                {savingAddress ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {savingAddress ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                 {editingAddressId ? 'Update address' : 'Save address'}
               </button>
             </div>
@@ -1180,7 +1180,7 @@ function Field({ label, value, onChange, placeholder, className = '', type = 'te
   const id = useId();
   return (
     <div className={className}>
-      <label htmlFor={id} className={`mb-1.5 block text-[11px] font-extrabold uppercase tracking-[0.08em] ${error ? 'text-red-700' : 'text-slate-500'}`}>
+      <label htmlFor={id} className={`mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] ${error ? 'text-red-700' : 'text-slate-500'}`}>
         {label}
         {required && <span className="ml-1 text-red-600">*</span>}
       </label>

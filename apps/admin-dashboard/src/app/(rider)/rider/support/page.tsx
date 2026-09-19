@@ -105,8 +105,8 @@ export default function RiderSupportPage() {
         ) : (
           <section className="grid gap-5 xl:grid-cols-[380px_1fr]">
             <div className="space-y-4">
-              <div className="rounded-2xl border bg-white p-5">
-                <p className="font-black">
+              <div className="rounded-xl border bg-white p-5">
+                <p className="font-semibold">
                   <Headphones className="mr-2 inline h-5 w-5" />
                   Create ticket
                 </p>
@@ -171,7 +171,7 @@ export default function RiderSupportPage() {
                       uploading
                     }
                     onClick={create}
-                    className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-40"
+                    className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
                   >
                     Open ticket
                   </button>
@@ -185,8 +185,8 @@ export default function RiderSupportPage() {
                     className="w-full rounded-xl border bg-white p-4 text-left"
                   >
                     <div className="flex justify-between gap-2">
-                      <p className="font-black">{row.subject}</p>
-                      <span className="text-xs font-black text-slate-500">
+                      <p className="font-semibold">{row.subject}</p>
+                      <span className="text-xs font-semibold text-slate-500">
                         {row.status}
                       </span>
                     </div>
@@ -200,7 +200,7 @@ export default function RiderSupportPage() {
                 ))}
               </div>
             </div>
-            <div className="rounded-2xl border bg-white p-5">
+            <div className="rounded-xl border bg-white p-5">
               {!selected ? (
                 <EmptyPanel
                   title="Select a ticket"
@@ -210,7 +210,7 @@ export default function RiderSupportPage() {
                 <>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xl font-black">{selected.subject}</p>
+                      <p className="text-xl font-semibold">{selected.subject}</p>
                       <p className="text-sm text-slate-500">
                         {selected.status} ·{" "}
                         {new Date(selected.createdAt).toLocaleString("en-IN")}
@@ -228,7 +228,7 @@ export default function RiderSupportPage() {
                             : "mr-8 bg-slate-100"
                         }`}
                       >
-                        <p className="text-xs font-black text-slate-500">
+                        <p className="text-xs font-semibold text-slate-500">
                           {message.senderRole} ·{" "}
                           {new Date(message.createdAt).toLocaleString("en-IN")}
                         </p>
@@ -255,7 +255,7 @@ export default function RiderSupportPage() {
                       <button
                         disabled={!reply.trim()}
                         onClick={send}
-                        className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-40"
+                        className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
                       >
                         Send
                       </button>

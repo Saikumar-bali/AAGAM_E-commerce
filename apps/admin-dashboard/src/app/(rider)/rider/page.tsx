@@ -305,28 +305,26 @@ export default function RiderDashboard() {
     : "";
   return (
     <DashboardLayout allowedRole="RIDER">
-      <div className="space-y-6">
-        <header className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-6 text-white shadow-xl">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-4">
+        <header className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">
-                Rider operations
-              </p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight">
-                Delivery Workspace
+              <p className="enterprise-kicker">Rider operations</p>
+              <h1 className="mt-2 text-lg font-semibold tracking-[-0.02em] text-slate-950 sm:text-xl">
+                Delivery workspace
               </h1>
-              <p className="mt-2 text-sm text-slate-300">
-                Only jobs offered to you or already assigned to you appear here.
+              <p className="mt-0.5 text-xs text-slate-500">
+                Jobs offered to you or assigned to you.
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <span
-                className={`rounded-full px-3 py-1.5 text-xs font-black ${
+                className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                   workspace.rider?.status === "ONLINE"
-                    ? "bg-emerald-400/20 text-emerald-200"
+                    ? "bg-emerald-50 text-emerald-700"
                     : workspace.rider?.status === "BUSY"
-                    ? "bg-amber-400/20 text-amber-200"
-                    : "bg-slate-400/20 text-slate-300"
+                    ? "bg-amber-50 text-amber-700"
+                    : "bg-slate-100 text-slate-500"
                 }`}
               >
                 {workspace.rider?.status || "OFFLINE"}
@@ -334,94 +332,95 @@ export default function RiderDashboard() {
               <button
                 onClick={fetchWorkspace}
                 disabled={loading}
-                className="rounded-xl bg-white/10 p-2.5 hover:bg-white/20 disabled:opacity-50"
+                className="enterprise-button"
                 aria-label="Refresh rider workspace"
               >
                 <RefreshCw
-                  className={`h-5 w-5 ${loading ? "animate-spin" : ""}`}
+                  className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`}
                 />
+                Refresh
               </button>
             </div>
           </div>
         </header>
 
         {error && (
-          <div className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">
+          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
             <AlertCircle className="h-4 w-4" />
             {error}
           </div>
         )}
         {message && (
-          <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
             <CheckCircle2 className="h-4 w-4" />
             {message}
           </div>
         )}
 
-        <section className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+        <section className="grid gap-2 sm:grid-cols-3">
+          <div className="enterprise-card p-3 sm:p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               Pending offers
             </p>
-            <p className="mt-2 text-3xl font-black text-violet-700">
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-violet-700">
               {workspace.pendingOffers.length}
             </p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+          <div className="enterprise-card p-3 sm:p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               Active delivery
             </p>
-            <p className="mt-2 text-3xl font-black text-indigo-700">
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-indigo-700">
               {activeJobs.length}
             </p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+          <div className="enterprise-card p-3 sm:p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               Accepted offers
             </p>
-            <p className="mt-2 text-3xl font-black text-emerald-700">
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-700">
               {completedOffers}
             </p>
           </div>
         </section>
 
         {pendingOffer && (
-          <section className="overflow-hidden rounded-[2rem] border border-violet-200 bg-white shadow-lg">
-            <div className="flex items-center justify-between bg-violet-600 px-5 py-4 text-white">
+          <section className="overflow-hidden rounded-xl border border-violet-200 bg-white">
+            <div className="flex items-center justify-between bg-violet-600 px-4 py-3 text-white">
               <div>
-                <p className="text-xs font-black uppercase tracking-wider text-violet-200">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-200">
                   New delivery offer
                 </p>
-                <p className="mt-1 font-mono text-lg font-black">
+                <p className="mt-0.5 font-mono text-base font-semibold">
                   #{pendingOffer.deliveryJob.orderId.slice(0, 8).toUpperCase()}
                 </p>
               </div>
-              <div className="flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-sm font-black">
-                <Clock3 className="h-4 w-4" />{" "}
+              <div className="flex items-center gap-1.5 rounded-md bg-white/15 px-2 py-1 text-sm font-semibold">
+                <Clock3 className="h-3.5 w-3.5" />{" "}
                 {secondsLeft(pendingOffer.expiresAt) ?? "—"}s
               </div>
             </div>
-            <div className="grid gap-5 p-5 md:grid-cols-[1fr_auto]">
+            <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto]">
               <div>
-                <p className="flex items-center gap-2 text-sm font-black text-slate-900">
+                <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                   <Store className="h-4 w-4 text-violet-500" />
                   {pendingOffer.deliveryJob.order.store?.name || "Store"}
                 </p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-0.5 text-[11px] text-slate-500">
                   {pendingOffer.deliveryJob.order.store?.address ||
                     "Store address unavailable"}
                 </p>
-                <p className="mt-4 flex items-center gap-2 text-sm font-black text-slate-900">
+                <p className="mt-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
                   <UserRound className="h-4 w-4 text-violet-500" />
                   Delivery area
                 </p>
-                <p className="mt-1 text-sm text-slate-500">{offerAddress}</p>
-                {deliveryWindow(pendingOffer.deliveryJob.order) && <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800">Promised delivery · {deliveryWindow(pendingOffer.deliveryJob.order)}</p>}
-                <div className="mt-4 flex flex-wrap gap-2">
+                <p className="mt-0.5 text-[11px] text-slate-500">{offerAddress}</p>
+                {deliveryWindow(pendingOffer.deliveryJob.order) && <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-medium text-emerald-800">Promised delivery · {deliveryWindow(pendingOffer.deliveryJob.order)}</p>}
+                <div className="mt-3 flex flex-wrap gap-1.5">
                   {(pendingOffer.deliveryJob.order.items || []).map((item) => (
                     <span
                       key={item.id}
-                      className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600"
+                      className="rounded-md bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-600"
                     >
                       {item.product?.name || "Item"} × {item.quantity}
                     </span>
@@ -429,25 +428,25 @@ export default function RiderDashboard() {
                 </div>
               </div>
               <div className="text-left md:text-right">
-                <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                   Order value
                 </p>
-                <p className="mt-1 text-2xl font-black text-slate-950">
+                <p className="mt-1 text-xl font-semibold tabular-nums text-slate-950">
                   {formatINR(
                     Number(pendingOffer.deliveryJob.order.grandTotal || 0)
                   )}
                 </p>
-                <p className="mt-1 text-xs font-bold text-slate-500">
+                <p className="mt-0.5 text-[11px] text-slate-500">
                   {pendingOffer.deliveryJob.order.payment?.method ||
                     "Payment method unavailable"}
                 </p>
               </div>
             </div>
-            <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50 p-4 sm:flex-row sm:justify-end">
+            <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50 p-3 sm:flex-row sm:justify-end">
               <button
                 onClick={() => rejectOffer(pendingOffer)}
                 disabled={working !== null}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-5 text-sm font-black text-red-700 disabled:opacity-50"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 text-sm font-medium text-red-700 disabled:opacity-50"
               >
                 <XCircle className="h-4 w-4" />
                 Reject
@@ -457,7 +456,7 @@ export default function RiderDashboard() {
                 disabled={
                   working !== null || secondsLeft(pendingOffer.expiresAt) === 0
                 }
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-violet-600 px-6 text-sm font-black text-white disabled:opacity-50"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-violet-600 px-5 text-sm font-semibold text-white disabled:opacity-50"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 {working === `accept-${pendingOffer.id}`
@@ -478,42 +477,42 @@ export default function RiderDashboard() {
               addressValue(activeJob.order.addressSnapshot, "line1") ||
               addressValue(activeJob.order.addressSnapshot, "city") ||
               "Address available in order details";
-            return <section key={activeJob.id} className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            return <section key={activeJob.id} className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-wider text-slate-400">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                   Current delivery
                 </p>
-                <p className="mt-2 font-mono text-xl font-black text-slate-950">
+                <p className="mt-1 font-mono text-base font-semibold text-slate-950">
                   #{activeJob.orderId.slice(0, 8).toUpperCase()}
                 </p>
                 {meta && (
                   <span
-                    className={`mt-3 inline-flex rounded-full px-3 py-1.5 text-xs font-black ring-1 ${meta.cls}`}
+                    className={`mt-2 inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold ring-1 ${meta.cls}`}
                   >
                     {meta.label}
                   </span>
                 )}
-                <p className="mt-3 text-sm font-medium text-slate-500">
+                <p className="mt-2 text-[11px] text-slate-500">
                   {meta?.help || activeJob.status.replaceAll("_", " ")}
                 </p>
-                {deliveryWindow(activeJob.order) && <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800">Promised delivery · {deliveryWindow(activeJob.order)}</p>}
+                {deliveryWindow(activeJob.order) && <p className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-medium text-emerald-800">Promised delivery · {deliveryWindow(activeJob.order)}</p>}
               </div>
-              <p className="text-2xl font-black text-slate-950">
+              <p className="text-xl font-semibold tabular-nums text-slate-950">
                 {formatINR(Number(activeJob.order.grandTotal || 0))}
               </p>
             </div>
 
-            <div className="mt-6 grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                <p className="flex items-center gap-2 text-sm font-black text-slate-900">
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                   <Store className="h-4 w-4 text-indigo-500" />
                   Pickup store
                 </p>
-                <p className="mt-2 text-sm font-bold text-slate-800">
+                <p className="mt-1.5 text-sm font-medium text-slate-800">
                   {activeJob.order.store?.name || "Store"}
                 </p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-0.5 text-[11px] text-slate-500">
                   {activeJob.order.store?.address || "Address unavailable"}
                 </p>
                 <button
@@ -524,43 +523,43 @@ export default function RiderDashboard() {
                       activeJob.order.store?.address
                     )
                   }
-                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-black text-indigo-700 shadow-sm"
+                  className="mt-3 inline-flex items-center gap-2 rounded-md bg-white px-2.5 py-1.5 text-[11px] font-medium text-indigo-700"
                 >
-                  <Navigation className="h-4 w-4" />
+                  <Navigation className="h-3.5 w-3.5" />
                   Open directions
                 </button>
               </div>
-              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                <p className="flex items-center gap-2 text-sm font-black text-slate-900">
+              <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                   <MapPin className="h-4 w-4 text-emerald-500" />
                   Customer delivery
                 </p>
-                <p className="mt-2 text-sm font-bold text-slate-800">
+                <p className="mt-1.5 text-sm font-medium text-slate-800">
                   {activeJob.order.customer?.name || "Customer"}
                 </p>
                 <p className="mt-1 text-sm text-slate-500">{activeAddress}</p>
                 {activeJob.order.customer?.phone && (
                   <a
                     href={`tel:${activeJob.order.customer.phone}`}
-                    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-black text-emerald-700 shadow-sm"
+                    className="mt-3 inline-flex items-center gap-2 rounded-md bg-white px-2.5 py-1.5 text-[11px] font-medium text-emerald-700"
                   >
-                    <Phone className="h-4 w-4" />
+                    <Phone className="h-3.5 w-3.5" />
                     Call customer
                   </a>
                 )}
               </div>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-slate-100 p-4">
-              <p className="flex items-center gap-2 text-sm font-black text-slate-900">
+            <div className="mt-4 rounded-lg border border-slate-100 p-3">
+              <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                 <PackageCheck className="h-4 w-4 text-slate-500" />
                 Parcel items
               </p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
                 {(activeJob.order.items || []).map((item) => (
                   <div
                     key={item.id}
-                    className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700"
+                    className="rounded-md bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-700"
                   >
                     {item.product?.name || "Item"}{" "}
                     <span className="text-slate-400">× {item.quantity}</span>
@@ -570,11 +569,11 @@ export default function RiderDashboard() {
             </div>
 
             {activeJob.status === "RIDER_AT_STORE" && (
-              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
+              <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
                 <div>
-                  <p className="font-black">Store verification required</p>
-                  <p className="mt-1 text-sm">
+                  <p className="text-sm font-semibold">Store verification required</p>
+                  <p className="mt-0.5 text-[11px]">
                     Do not start delivery until the store verifies the parcel
                     handoff.
                   </p>
@@ -583,7 +582,7 @@ export default function RiderDashboard() {
             )}
 
             {nextAction && NextActionIcon && (
-              <div className="mt-5 flex justify-end">
+              <div className="mt-4 flex justify-end">
                 <button
                   onClick={() =>
                     act(
@@ -599,7 +598,7 @@ export default function RiderDashboard() {
                     )
                   }
                   disabled={working !== null}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-950 px-6 text-sm font-black text-white disabled:opacity-50"
+                  className="enterprise-button min-h-[44px] gap-2"
                 >
                   <NextActionIcon className="h-4 w-4" />
                   {working === `job-${activeJob.id}`
@@ -613,12 +612,12 @@ export default function RiderDashboard() {
           })}
           </div>
         ) : !pendingOffer && !loading ? (
-          <section className="rounded-[2rem] border border-dashed border-slate-300 bg-white p-12 text-center">
-            <Bike className="mx-auto h-10 w-10 text-slate-400" />
-            <h2 className="mt-4 text-xl font-black text-slate-800">
+          <section className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
+            <Bike className="mx-auto h-8 w-8 text-slate-300" />
+            <h2 className="mt-3 text-base font-semibold text-slate-800">
               No active delivery
             </h2>
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-1 text-[11px] text-slate-500">
               You will see a job here only after dispatch sends an offer.
             </p>
           </section>

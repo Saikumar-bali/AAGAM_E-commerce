@@ -39,7 +39,7 @@ interface Rider {
 const LiveTrackingMap = dynamic(() => import('@/components/LiveTrackingMap'), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full w-full items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50">
+    <div className="flex h-full w-full items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50">
       <div className="text-center">
         <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-emerald-500" />
         <p className="font-bold text-gray-500">Initializing live map...</p>
@@ -132,21 +132,21 @@ export default function AdminRidersPage() {
             <p className="font-medium text-gray-500">Track active Riders and create new Rider access through the verified Admin onboarding workflow.</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button onClick={() => { setSelectedRider(null); setShowMapModal(true); }} className="flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 font-bold text-white shadow-lg shadow-blue-900/10 transition-all hover:bg-blue-700">
+            <button onClick={() => { setSelectedRider(null); setShowMapModal(true); }} className="flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 font-bold text-white  shadow-blue-900/10 transition-all hover:bg-blue-700">
               <MapPin className="mr-2 h-5 w-5" /> Live Global Map
             </button>
             <InternalPartnerCreateButton fixedType="RIDER" buttonLabel="Add Rider" onCreated={continueInternalOnboarding} />
           </div>
         </div>
 
-        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm font-semibold text-teal-900">
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm font-semibold text-teal-900">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
-          <div><p className="font-black">One Rider creation path</p><p className="mt-1 text-xs leading-5 text-teal-800">Add Rider now uses the same Admin-controlled profile, zone, document and approval flow as Partner Applications. OTP is not required for Admin-created accounts.</p></div>
+          <div><p className="font-semibold">One Rider creation path</p><p className="mt-1 text-xs leading-5 text-teal-800">Add Rider now uses the same Admin-controlled profile, zone, document and approval flow as Partner Applications. OTP is not required for Admin-created accounts.</p></div>
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat) => (
-            <div key={stat.label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <div key={stat.label} className="rounded-xl border border-gray-100 bg-white p-5 ">
               <div className="flex items-center justify-between">
                 <div><p className="text-sm font-bold text-gray-500">{stat.label}</p><p className="mt-1 text-2xl font-bold text-gray-900">{stat.value}</p></div>
                 <div className={`rounded-xl p-3 ${stat.color}`}><stat.icon className="h-6 w-6 text-white" /></div>
@@ -156,7 +156,7 @@ export default function AdminRidersPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white ">
         <div className="border-b border-gray-50 bg-gray-50/50 p-4">
           <div className="flex flex-col items-center justify-between gap-4 lg:flex-row">
             <div className="relative w-full max-w-md flex-1">
@@ -192,8 +192,8 @@ export default function AdminRidersPage() {
       </div>
 
       {showMapModal ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-0 backdrop-blur-sm md:p-8">
-          <div className="flex h-full w-full max-w-6xl flex-col overflow-hidden bg-white shadow-2xl md:rounded-3xl">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-0  md:p-8">
+          <div className="flex h-full w-full max-w-6xl flex-col overflow-hidden bg-white  md:rounded-xl">
             <div className="flex items-center justify-between border-b border-gray-100 bg-white p-6">
               <div><h2 className="flex items-center text-xl font-bold text-gray-900"><MapPin className="mr-2 h-5 w-5 text-blue-600" />{selectedRider ? `Tracking: ${selectedRider.user?.name}` : 'Global Rider Monitor'}</h2><p className="text-sm font-bold text-gray-500">Real-time GPS updates from active riders</p></div>
               <button onClick={() => { setShowMapModal(false); setSelectedRider(null); }} className="rounded-xl p-2.5 transition hover:bg-gray-100"><X className="h-6 w-6 text-gray-500" /></button>

@@ -191,7 +191,7 @@ describe("Phase 5 pickup, delivery proof, COD, and failed-delivery gate", () => 
     );
     expect(riderDelivery).toContain("CUSTOMER_OTP_PIN");
     expect(riderPickup).toContain("STORE_PICKUP_PIN");
-    expect(storePickup).toContain("Confirm store handoff");
+    expect(storePickup).toContain("Confirm handoff");
     expect(admin).toContain("System failure resolution");
     expect(riderCod).toContain("Rider earnings never enter this ledger");
     expect(riderCod).not.toContain("/riders/portal/earnings");

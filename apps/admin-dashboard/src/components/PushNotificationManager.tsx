@@ -62,7 +62,7 @@ export default function PushNotificationManager({ onOpen, compact = false }: Pus
       disabled={loading}
       title={supported && !enabled ? 'Enable notifications and open inbox' : 'Open notifications'}
       aria-label={supported && !enabled ? 'Enable notifications and open inbox' : 'Open notifications'}
-      className={`relative flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-300 hover:text-teal-700 disabled:opacity-60 ${compact ? 'h-10 w-10' : 'h-12 w-12'}`}
+      className={`relative flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600  transition  hover:border-teal-300 hover:text-teal-700 disabled:opacity-60 ${compact ? 'h-10 w-10' : 'h-12 w-12'}`}
     >
       {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : enabled ? <Bell className="h-5 w-5" /> : <BellRing className="h-5 w-5" />}
       {enabled ? <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" /> : null}

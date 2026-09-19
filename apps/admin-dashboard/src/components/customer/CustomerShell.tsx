@@ -14,15 +14,15 @@ type CustomerShellProps = {
 export default function CustomerShell({ query, onQueryChange, children }: CustomerShellProps) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-teal-50/80 via-white to-slate-50">
-      <header className="sticky top-0 z-40 border-b border-teal-100/60 bg-white/95 shadow-[0_1px_12px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-teal-100/60 bg-white/95  ">
         <div className="mx-auto max-w-7xl px-2 sm:px-4">
           <div className="flex h-16 items-center gap-2 sm:gap-4">
             <Link href="/shop" className="flex shrink-0 items-center gap-2 sm:gap-2.5" aria-label="Aagaam shop home">
-              <span className="h-10 w-10 shrink-0 overflow-hidden rounded-xl shadow-md">
+              <span className="h-10 w-10 shrink-0 overflow-hidden rounded-xl ">
                 <Image src="/brand/aagam-logo-full.png" width={80} height={80} alt="Aagaam" className="block h-full w-full object-cover" priority unoptimized />
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-black leading-none tracking-tight text-slate-950 sm:text-lg">Aagaam</span>
+                <span className="block text-sm font-semibold leading-none tracking-tight text-slate-950 sm:text-lg">Aagaam</span>
                 <span className="mt-0.5 hidden text-[9px] font-bold uppercase tracking-[0.15em] text-teal-700 sm:block">fresh, quality and trust</span>
               </span>
             </Link>
@@ -50,7 +50,7 @@ export default function CustomerShell({ query, onQueryChange, children }: Custom
               <Link href="/shop/account" aria-label="Open account" className="hidden h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:border-teal-200 hover:text-teal-700 md:flex">
                 <User className="h-[18px] w-[18px]" />
               </Link>
-              <Link href="/shop/notifications" aria-label="Open notifications" className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:text-teal-700">
+              <Link href="/shop/notifications" aria-label="Open notifications" className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600  transition  hover:border-teal-200 hover:text-teal-700">
                 <Bell className="h-[18px] w-[18px]" />
               </Link>
             </div>

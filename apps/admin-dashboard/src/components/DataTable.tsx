@@ -66,12 +66,12 @@ export function DataTable<T>({
   const padding = compact ? 'px-3 py-2.5' : 'px-4 py-3.5';
 
   return (
-    <div className={bordered ? 'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm' : ''}>
+    <div className={bordered ? 'overflow-hidden rounded-xl border border-slate-200 bg-white ' : ''}>
       {(title || searchPlaceholder) && (
         <div className={bordered ? 'border-b border-slate-100 bg-slate-50/50' : ''}>
           <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              {title ? <h3 className="text-sm font-black text-slate-900">{title}</h3> : null}
+              {title ? <h3 className="text-sm font-semibold text-slate-900">{title}</h3> : null}
               {subtitle ? <p className="mt-0.5 text-xs font-semibold text-slate-500">{subtitle}</p> : null}
             </div>
             {searchPlaceholder && (
@@ -98,7 +98,7 @@ export function DataTable<T>({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`${padding} text-[10px] font-black uppercase tracking-wider text-slate-500 ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'}`}
+                  className={`${padding} text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'}`}
                   style={col.width ? { width: col.width, minWidth: col.width } : undefined}
                 >
                   {col.header}
