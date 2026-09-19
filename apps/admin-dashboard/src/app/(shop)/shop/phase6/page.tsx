@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiClient } from '@aagam/utils';
 import DashboardLayout from '@/components/DashboardLayout';
 import { formatINR } from '@/lib/currency';
@@ -10,6 +11,7 @@ type Product = { id: string; name: string; price: number; category?: { name: str
 type CartLine = { product: Product; quantity: number };
 
 export default function Phase6Page() {
+  const router = useRouter();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addressId, setAddressId] = useState('');
   const [serviceability, setServiceability] = useState<any>(null);
@@ -22,6 +24,22 @@ export default function Phase6Page() {
   const [placing, setPlacing] = useState(false);
   const [substitutes, setSubstitutes] = useState<Record<string, Product[]>>({});
   const [message, setMessage] = useState('');
+
+  // Gate: only accessible in development or with explicit flag
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (!isDev) {
+    return (
+      <DashboardLayout allowedRole="CUSTOMER">
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-lg font-semibold text-slate-950">Page not available</h1>
+            <p className="mt-1 text-sm text-slate-500">This development page is not available in production.</p>
+            <button onClick={() => router.push('/shop')} className="mt-4 enterprise-button">Back to shop</button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   const lines = Object.values(cart);
   const cartCount = lines.reduce((sum, line) => sum + line.quantity, 0);

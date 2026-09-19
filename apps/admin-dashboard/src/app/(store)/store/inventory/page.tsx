@@ -280,11 +280,11 @@ export default function InventoryPage() {
   return (
     <DashboardLayout allowedRole="STORE_OWNER">
       <div className="space-y-6 pb-28 lg:pb-8">
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="enterprise-kicker">Store assortment</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Products & inventory</h1>
-            <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-500">
+            <h1 className="mt-1 text-lg font-semibold tracking-tight text-slate-950 sm:text-3xl">Products & inventory</h1>
+            <p className="mt-0.5 max-w-2xl text-[11px] text-slate-500 sm:mt-2 sm:text-sm">
               Admin maintains the product catalogue. You choose what this store carries, set opening stock, and manage daily quantities.
             </p>
           </div>
@@ -294,7 +294,7 @@ export default function InventoryPage() {
                 aria-label="Select store"
                 value={selectedStoreId}
                 onChange={(event) => setSelectedStoreId(event.target.value)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-base sm:text-sm font-semibold"
               >
                 {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
               </select>
@@ -303,9 +303,9 @@ export default function InventoryPage() {
               type="button"
               onClick={() => selectedStoreId ? void loadInventory(selectedStoreId) : void loadStores()}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 disabled:opacity-50"
+              className="enterprise-button py-2"
             >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+              <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
             </button>
           </div>
         </header>
@@ -317,7 +317,12 @@ export default function InventoryPage() {
         ) : null}
 
         {message ? (
-          <div className={`rounded-xl border px-4 py-3 text-sm font-bold ${message.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+          <div
+            role={message.tone === 'error' ? 'alert' : 'status'}
+            aria-live={message.tone === 'error' ? 'assertive' : 'polite'}
+            ref={(el) => { if (el && message.tone === 'error') el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+            className={`rounded-lg border px-4 py-3 text-sm font-semibold ${message.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}
+          >
             {message.text}
           </div>
         ) : null}

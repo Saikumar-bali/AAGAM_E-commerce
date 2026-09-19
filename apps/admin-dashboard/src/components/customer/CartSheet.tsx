@@ -91,7 +91,7 @@ export default function CartSheet({
                 <p className="text-[11px] text-slate-500">{totalItems} item{totalItems !== 1 ? 's' : ''}</p>
               </div>
             </div>
-            <button onClick={onClose} aria-label="Close cart" className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors">
+            <button onClick={onClose} aria-label="Close cart" className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -125,17 +125,17 @@ export default function CartSheet({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <h4 className="text-sm font-medium text-slate-900 truncate">{item.name}</h4>
-                          <button onClick={() => onRemove(item.id)} aria-label={`Remove ${item.name}`} className="shrink-0 p-1 text-slate-300 hover:text-red-500 transition-colors">
+                          <button onClick={() => onRemove(item.id)} aria-label={`Remove ${item.name}`} className="shrink-0 p-1 text-slate-300 hover:text-red-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1">
                             <X className="h-3.5 w-3.5" />
                           </button>
                         </div>
                         <div className="mt-0.5 text-sm font-semibold text-teal-700">{formatINR(item.price)}</div>
                         <div className="mt-2 inline-flex items-center rounded-md border border-slate-200 bg-white">
-                          <button onClick={() => onDecrement(item.id)} aria-label="Decrease quantity" className="h-7 w-7 grid place-items-center hover:bg-slate-50 rounded-l-md text-slate-600 transition-colors">
+                          <button onClick={() => onDecrement(item.id)} aria-label="Decrease quantity" className="h-7 w-7 grid place-items-center hover:bg-slate-50 rounded-l-md text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-inset">
                             <Minus className="h-3 w-3" />
                           </button>
-                          <span className="w-8 text-center text-xs font-semibold text-slate-900 tabular-nums">{item.quantity}</span>
-                          <button onClick={() => onIncrement(item.id)} aria-label="Increase quantity" className="h-7 w-7 grid place-items-center hover:bg-slate-50 rounded-r-md text-slate-600 transition-colors">
+                          <span className="w-6 text-center text-[11px] font-semibold tabular-nums text-slate-900">{item.quantity}</span>
+                          <button onClick={() => onIncrement(item.id)} aria-label="Increase quantity" className="h-7 w-7 grid place-items-center hover:bg-slate-50 rounded-r-md text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-inset">
                             <Plus className="h-3 w-3" />
                           </button>
                         </div>

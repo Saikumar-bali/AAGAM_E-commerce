@@ -78,7 +78,7 @@ export default function ProductCard({ product, qty, onAdd, onIncrement, onDecrem
             <div className="flex items-center gap-1">
               <button
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleWish(); }}
-                className={`grid h-7 w-7 place-items-center rounded-md border transition-all ${
+                className={`grid h-7 w-7 place-items-center rounded-md border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 ${
                   wished
                     ? 'border-rose-200 bg-rose-50 text-rose-500'
                     : 'border-slate-200 bg-white text-slate-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-400'
@@ -92,7 +92,7 @@ export default function ProductCard({ product, qty, onAdd, onIncrement, onDecrem
                 <div className="inline-flex items-center rounded-md border border-slate-200 bg-white">
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDecrement(); }}
-                    className="h-7 w-7 grid place-items-center text-slate-600 hover:bg-slate-50 rounded-l-md transition-colors"
+                    className="h-7 w-7 grid place-items-center text-slate-600 hover:bg-slate-50 rounded-l-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-inset"
                     aria-label="Decrease quantity"
                   >
                     <Minus className="h-3 w-3" />
@@ -100,7 +100,7 @@ export default function ProductCard({ product, qty, onAdd, onIncrement, onDecrem
                   <span className="w-6 text-center text-[11px] font-semibold tabular-nums text-slate-900">{qty}</span>
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); onIncrement(); }}
-                    className="h-7 w-7 grid place-items-center text-slate-600 hover:bg-slate-50 rounded-r-md transition-colors"
+                    className="h-7 w-7 grid place-items-center text-slate-600 hover:bg-slate-50 rounded-r-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-inset"
                     aria-label="Increase quantity"
                   >
                     <Plus className="h-3 w-3" />
@@ -110,7 +110,7 @@ export default function ProductCard({ product, qty, onAdd, onIncrement, onDecrem
                 <button
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (!disabled) onAdd(); }}
                   disabled={disabled}
-                  className="inline-flex items-center gap-0.5 rounded-md bg-teal-700 px-2 py-1.5 text-[10px] font-semibold text-white transition-all hover:bg-teal-800 disabled:bg-slate-300 disabled:cursor-not-allowed sm:px-3 sm:py-2 sm:text-[11px]"
+                  className="inline-flex items-center gap-0.5 rounded-md bg-teal-700 px-2 py-1.5 text-[10px] font-semibold text-white transition-all hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 disabled:bg-slate-300 disabled:cursor-not-allowed sm:px-3 sm:py-2 sm:text-[11px]"
                 >
                   <Plus className="h-3 w-3" />
                   {disabled ? 'N/A' : 'ADD'}

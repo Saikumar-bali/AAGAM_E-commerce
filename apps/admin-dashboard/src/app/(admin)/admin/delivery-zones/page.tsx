@@ -78,6 +78,15 @@ export default function DeliveryZonesPage() {
       else payload.fallbackRadiusKm = null;
       if (editForm.timezone.trim()) payload.timezone = editForm.timezone.trim();
       else payload.timezone = null;
+
+      // Validate: if one coordinate is set, both must be set
+      if ((payload.centerLatitude !== null && payload.centerLongitude === null) ||
+          (payload.centerLatitude === null && payload.centerLongitude !== null)) {
+        setError('Both latitude and longitude must be set together, or both left empty.');
+        setSavingEdit(false);
+        return;
+      }
+
       await apiClient.patch(`/stores/delivery-zones/${id}`, payload);
       setMessage('Zone coordinates updated.');
       setEditingId(null);
