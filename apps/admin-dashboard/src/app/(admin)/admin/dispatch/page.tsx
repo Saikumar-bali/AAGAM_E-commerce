@@ -312,18 +312,17 @@ export default function AdminDispatchPage() {
                   </div>
 
                   {openOffer ? (
-                    <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
                       <div>
                         <p className="text-xs font-semibold text-amber-900">
                           Automatic offer sent to {offerRider}
                         </p>
-                        <p className="mt-1 text-[11px] font-medium text-amber-700">
-                          Manual assignment is locked until this offer is
-                          answered or reconciled.
+                        <p className="mt-0.5 text-[10px] text-amber-700">
+                          Manual assignment is locked until this offer is answered or expires.
                         </p>
                       </div>
-                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-semibold text-amber-800">
-                        <Clock3 className="h-3.5 w-3.5" />
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-amber-800">
+                        <Clock3 className="h-3 w-3" />
                         {remaining === null
                           ? 'Open'
                           : remaining > 0
@@ -341,7 +340,8 @@ export default function AdminDispatchPage() {
                             [order.id]: event.target.value,
                           }))
                         }
-                        className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
+                        aria-label={`Select rider for order ${order.id.slice(0, 8).toUpperCase()}`}
+                        className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
                       >
                         <option value="">Select available rider</option>
                         {availableRidersForOrder(order).map((rider) => (
@@ -362,13 +362,25 @@ export default function AdminDispatchPage() {
                           !selectedRiders[order.id] ||
                           assigning === order.id
                         }
-                        className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                        title={
+                          availableRidersForOrder(order).length === 0
+                            ? 'No riders are online. Add a rider or enable auto-offers.'
+                            : !selectedRiders[order.id]
+                              ? 'Select a rider first'
+                              : undefined
+                        }
+                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
                       >
                         {assigning === order.id
                           ? 'Assigning...'
                           : 'Assign Rider'}
                       </button>
                     </div>
+                  )}
+                  {availableRidersForOrder(order).length === 0 && !openOffer && (
+                    <p className="mt-1.5 text-[10px] text-amber-600">
+                      No riders are online. Add a rider or enable auto-offers.
+                    </p>
                   )}
                 </div>
               );

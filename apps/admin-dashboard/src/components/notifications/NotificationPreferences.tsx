@@ -289,56 +289,54 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
   };
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-[2rem] border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white ">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+    <div className="space-y-4">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-300">Communication controls</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h1>
-            <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-300">
+            <p className="enterprise-kicker">Preferences</p>
+            <h1 className="mt-1 text-lg font-semibold text-slate-950">{title}</h1>
+            <p className="mt-0.5 max-w-2xl text-xs text-slate-500">
               Choose which events appear in your in-app inbox and which are also delivered to registered devices.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
               href={backHref}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700"
             >
-              <ArrowLeft className="h-4 w-4" /> Back to inbox
+              <ArrowLeft className="h-3.5 w-3.5" /> Back to inbox
             </Link>
             <button
               type="button"
               onClick={() => void loadPreferences()}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+              className="enterprise-button py-2"
             >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
             </button>
           </div>
         </div>
       </section>
 
       {message && (
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-900">
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-[11px] font-medium text-indigo-900">
           {message}
         </div>
       )}
 
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-5 ">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-indigo-600" />
-              <h2 className="text-xl font-semibold text-slate-950">Global defaults</h2>
-            </div>
-            <p className="mt-1 text-sm font-semibold text-slate-500">
+            <p className="enterprise-kicker">Defaults</p>
+            <h2 className="mt-1 text-base font-semibold text-slate-950">Global defaults</h2>
+            <p className="mt-0.5 text-[11px] text-slate-500">
               Events without a custom setting inherit these defaults.
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex min-w-56 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <BellRing className="h-4 w-4 text-indigo-600" /> Device push
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="flex min-w-48 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+                <BellRing className="h-3.5 w-3.5 text-indigo-600" /> Device push
               </span>
               <Toggle
                 checked={globalPreference.pushEnabled}
@@ -347,9 +345,9 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
                 onChange={(value) => void updateGlobal('pushEnabled', value)}
               />
             </div>
-            <div className="flex min-w-56 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <Inbox className="h-4 w-4 text-teal-600" /> In-app inbox
+            <div className="flex min-w-48 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+                <Inbox className="h-3.5 w-3.5 text-teal-600" /> In-app inbox
               </span>
               <Toggle
                 checked={globalPreference.inAppEnabled}
@@ -362,53 +360,51 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-4  sm:p-6">
-        <div className="mb-5 flex items-center gap-2">
-          <Settings2 className="h-5 w-5 text-indigo-600" />
-          <div>
-            <h2 className="text-xl font-semibold text-slate-950">Event-specific controls</h2>
-            <p className="text-sm font-semibold text-slate-500">Changing a switch creates a custom setting for that event.</p>
-          </div>
+      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="mb-4">
+          <p className="enterprise-kicker">Events</p>
+          <h2 className="mt-1 text-base font-semibold text-slate-950">Event-specific controls</h2>
+          <p className="mt-0.5 text-[11px] text-slate-500">Changing a switch creates a custom setting for that event.</p>
         </div>
 
         {loading ? (
-          <div className="flex min-h-48 items-center justify-center text-sm font-bold text-slate-500">
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading preferences
+          <div className="flex min-h-48 items-center justify-center text-sm text-slate-500">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading preferences
           </div>
         ) : (
-          <div className="grid gap-3 xl:grid-cols-2">
+          <div className="grid gap-2 xl:grid-cols-2">
             {visibleEvents.map((event) => {
               const preference = eventPreferences[event.eventType];
               if (!preference) return null;
               const eventSaving = savingKey?.startsWith(`${event.eventType}:`) || false;
               return (
-                <article key={event.eventType} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <article key={event.eventType} className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-semibold text-slate-950">{event.title}</h3>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h3 className="text-sm font-semibold text-slate-950">{event.title}</h3>
                         {event.critical && (
-                          <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
-                            Operational
+                          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                            Critical
                           </span>
                         )}
-                        <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                        <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
                           preference.inherited
-                            ? 'bg-slate-200 text-slate-600'
+                            ? 'bg-slate-100 text-slate-500'
                             : 'bg-indigo-100 text-indigo-700'
                         }`}>
-                          {preference.inherited ? 'Uses global' : 'Custom'}
+                          {preference.inherited ? 'Global' : 'Custom'}
                         </span>
                       </div>
-                      <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{event.description}</p>
+                      <p className="mt-1 text-[11px] text-slate-600">{event.description}</p>
                     </div>
-                    {eventSaving && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-indigo-600" />}
+                    {eventSaving && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-600" />}
                   </div>
 
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
-                        <BellRing className="h-4 w-4 text-indigo-600" /> Push
+                  <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-2.5 py-2">
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-700">
+                        <BellRing className="h-3.5 w-3.5 text-indigo-600" /> Push
                       </span>
                       <Toggle
                         checked={preference.pushEnabled}
@@ -417,9 +413,9 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
                         onChange={(value) => void updateEvent(event.eventType, 'pushEnabled', value)}
                       />
                     </div>
-                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
-                        <Inbox className="h-4 w-4 text-teal-600" /> In-app
+                    <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-2.5 py-2">
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-700">
+                        <Inbox className="h-3.5 w-3.5 text-teal-600" /> In-app
                       </span>
                       <Toggle
                         checked={preference.inAppEnabled}
@@ -436,8 +432,8 @@ export default function NotificationPreferences({ role, backHref, title = 'Notif
         )}
       </section>
 
-      <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
-        <CheckCircle2 className="h-5 w-5" /> In-app and device preferences are stored independently for your account.
+      <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[11px] font-medium text-emerald-900">
+        <CheckCircle2 className="h-4 w-4" /> In-app and device preferences are stored independently for your account.
       </div>
     </div>
   );

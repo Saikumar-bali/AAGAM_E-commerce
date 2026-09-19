@@ -317,7 +317,12 @@ export default function InventoryPage() {
         ) : null}
 
         {message ? (
-          <div className={`rounded-xl border px-4 py-3 text-sm font-bold ${message.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+          <div
+            role={message.tone === 'error' ? 'alert' : 'status'}
+            aria-live={message.tone === 'error' ? 'assertive' : 'polite'}
+            ref={(el) => { if (el && message.tone === 'error') el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+            className={`rounded-lg border px-4 py-3 text-sm font-semibold ${message.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}
+          >
             {message.text}
           </div>
         ) : null}

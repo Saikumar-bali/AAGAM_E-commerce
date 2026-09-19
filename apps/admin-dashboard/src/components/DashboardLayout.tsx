@@ -96,6 +96,20 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
     return () => window.removeEventListener('keydown', shortcut);
   }, []);
 
+  // Per-route page titles
+  useEffect(() => {
+    const path = window.location.pathname;
+    const segments = path.split('/').filter(Boolean);
+    const pageName = segments[segments.length - 1] || 'Dashboard';
+    const formattedName = pageName
+      .replace(/-/g, ' ')
+      .replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
+    const roleLabel = allowedRole === 'ADMIN' ? 'Admin' : allowedRole === 'STORE_OWNER' ? 'Store' : allowedRole === 'RIDER' ? 'Rider' : 'Shop';
+    document.title = segments.length <= 2
+      ? `${formattedName} · Aagaam ${roleLabel}`
+      : `${formattedName} · Aagaam ${roleLabel}`;
+  }, [allowedRole]);
+
   useEffect(() => {
     if (!searchOpen || searchQuery.trim().length < 2) {
       setSearchResults([]);

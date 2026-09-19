@@ -394,14 +394,14 @@ export default function AdminOrdersPage() {
           <div className="flex flex-col lg:flex-row gap-4 items-center">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input type="text" placeholder="Search by order/store/customer/phone..." className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <input type="text" aria-label="Search orders" placeholder="Search by order/store/customer/phone..." className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <select aria-label="Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
               <option value="All">All Status</option>
               {statusOptions.map((status) => <option key={status} value={status}>{getStatusConfig(status).label}</option>)}
             </select>
             <div className="flex items-center gap-2">
-              <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700">
+              <select aria-label="Bulk status update value" value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700">
                 {statusOptions.map((status) => <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>)}
               </select>
               <button onClick={runBulkStatusUpdate} disabled={bulkUpdating || selectedOrderIds.length === 0} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold disabled:opacity-40">
@@ -413,7 +413,7 @@ export default function AdminOrdersPage() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead><tr className="bg-gray-50/50 border-b border-gray-100"><th className="px-4 py-4"><input type="checkbox" onChange={toggleSelectAllVisible} checked={filteredOrders.length > 0 && filteredOrders.every((o) => selectedOrderIds.includes(o.id))} /></th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Customer</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Store</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">SLA</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th></tr></thead>
+            <thead><tr className="bg-gray-50/50 border-b border-gray-100"><th className="px-4 py-4"><input type="checkbox" aria-label="Select all orders" onChange={toggleSelectAllVisible} checked={filteredOrders.length > 0 && filteredOrders.every((o) => selectedOrderIds.includes(o.id))} /></th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Customer</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Store</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">SLA</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th></tr></thead>
             <tbody className="divide-y divide-gray-50">
               {filteredOrders.map((order) => {
                 const statusConfig = getStatusConfig(order.status);
@@ -421,7 +421,7 @@ export default function AdminOrdersPage() {
                 const isAtRisk = (order.status === 'PENDING' && ageMinutes > 10) || (order.status === 'CONFIRMED' && ageMinutes > 20) || (order.status === 'OUT_FOR_DELIVERY' && ageMinutes > 45);
                 return (
                   <tr key={order.id} className="hover:bg-gray-50 transition-colors group">
-                    <td className="px-4 py-4"><input type="checkbox" checked={selectedOrderIds.includes(order.id)} onChange={() => toggleSelectOrder(order.id)} /></td>
+                    <td className="px-4 py-4"><input type="checkbox" aria-label={`Select order ${order.id.substring(0, 8)}`} checked={selectedOrderIds.includes(order.id)} onChange={() => toggleSelectOrder(order.id)} /></td>
                     <td className="px-6 py-4"><p className="text-sm font-mono font-bold text-gray-900">{order.id.substring(0, 8)}</p></td>
                     <td className="px-6 py-4"><div className="flex items-center"><div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 mr-3"><User className="h-4 w-4" /></div><p className="text-sm font-medium text-gray-900">{order.customer?.name || 'Unknown'}</p></div></td>
                     <td className="px-6 py-4"><div className="flex items-center text-sm text-gray-600"><Store className="h-4 w-4 mr-2 text-gray-400" />{order.store?.name || 'Unknown Store'}</div></td>
