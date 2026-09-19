@@ -389,29 +389,30 @@ export default function AdminOrdersPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl  border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-50 bg-gray-50/50">
-          <div className="flex flex-col lg:flex-row gap-4 items-center">
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="p-3 sm:p-4 border-b border-gray-50 bg-gray-50/50">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input type="text" aria-label="Search orders" placeholder="Search by order/store/customer/phone..." className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <input type="text" aria-label="Search orders" placeholder="Search by order/store/customer/phone..." className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
-            <select aria-label="Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-              <option value="All">All Status</option>
-              {statusOptions.map((status) => <option key={status} value={status}>{getStatusConfig(status).label}</option>)}
-            </select>
-            <div className="flex items-center gap-2">
-              <select aria-label="Bulk status update value" value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700">
+            <div className="flex flex-wrap gap-2">
+              <select aria-label="Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-base sm:text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="All">All Status</option>
+                {statusOptions.map((status) => <option key={status} value={status}>{getStatusConfig(status).label}</option>)}
+              </select>
+              <select aria-label="Bulk status update value" value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-base sm:text-sm font-medium text-gray-700">
                 {statusOptions.map((status) => <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>)}
               </select>
-              <button onClick={runBulkStatusUpdate} disabled={bulkUpdating || selectedOrderIds.length === 0} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold disabled:opacity-40">
+              <button onClick={runBulkStatusUpdate} disabled={bulkUpdating || selectedOrderIds.length === 0} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold disabled:opacity-40 min-h-[44px]">
                 {bulkUpdating ? 'Updating...' : `Bulk Update (${selectedOrderIds.length})`}
               </button>
             </div>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-3 sm:mx-0">
+          <div className="min-w-[800px] px-3 sm:px-0">
           <table className="w-full text-left border-collapse">
             <thead><tr className="bg-gray-50/50 border-b border-gray-100"><th className="px-4 py-4"><input type="checkbox" aria-label="Select all orders" onChange={toggleSelectAllVisible} checked={filteredOrders.length > 0 && filteredOrders.every((o) => selectedOrderIds.includes(o.id))} /></th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Customer</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Store</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">SLA</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th><th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th></tr></thead>
             <tbody className="divide-y divide-gray-50">
@@ -439,6 +440,7 @@ export default function AdminOrdersPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 

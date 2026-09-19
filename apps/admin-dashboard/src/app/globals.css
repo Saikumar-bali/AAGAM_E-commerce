@@ -95,11 +95,11 @@ body {
   }
 
   .enterprise-button {
-    @apply inline-flex items-center justify-center rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 active:scale-[0.98] active:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-slate-950;
+    @apply inline-flex items-center justify-center rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 active:scale-[0.98] active:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-slate-950 min-h-[44px];
   }
 
   .enterprise-input {
-    @apply w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10;
+    @apply w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-base font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 sm:text-sm;
   }
 
   .enterprise-kicker {
@@ -177,4 +177,19 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .aagam-check-pop { animation: none; }
+}
+
+/* iOS Safari: prevent auto-zoom on input focus for narrow viewports.
+   text-base = 16px; sm:text-sm = 14px on >= 640px. */
+@media (max-width: 639px) {
+  input, select, textarea {
+    font-size: max(1rem, inherit);
+  }
+}
+
+/* Touch-friendly tap targets on mobile */
+@media (pointer: coarse) {
+  button, a, [role="button"], [role="switch"], [role="tab"] {
+    min-height: 44px;
+  }
 }
