@@ -855,6 +855,9 @@ export class SubscriptionAdminReportingService {
     const slotEndMinute = firstSlot === 'PM' ? 20 * 60 : 9 * 60;
 
     const allItems = dto.deliveries.flatMap((d) => d.items);
+    if (!allItems.length) {
+      throw new BadRequestException('At least one product is required for custom deliveries');
+    }
     const productMap = new Map<string, { name: string; totalQuantity: number; weightGrams: number | null }>();
     for (const item of allItems) {
       const existing = productMap.get(item.productId);
