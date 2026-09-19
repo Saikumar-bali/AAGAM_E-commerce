@@ -136,7 +136,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
     <div className="relative flex h-screen overflow-hidden bg-slate-50 text-[13px] text-slate-950 xl:text-sm">
       <div className="pointer-events-none absolute inset-0 enterprise-subtle-grid opacity-40" />
       <Sidebar role={userRole as any} />
-      <main className="relative flex-1 overflow-y-auto py-3 pb-24 md:py-4 lg:pb-6">
+      <main className="relative flex-1 overflow-y-auto py-3 pl-3 pr-1 pb-24 md:py-4 md:pl-4 md:pr-2 lg:pb-6">
         <div className="mx-auto max-w-[1500px]">
           {showOperationsHeader ? (
             <header className="mb-4 rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
