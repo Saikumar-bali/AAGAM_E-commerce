@@ -251,12 +251,20 @@ export default function AdminSubscriptionsPage() {
     if (manualMode === 'custom') {
       for (const d of customDeliveries) {
         for (const item of d.items) {
+          if (!item.productId) {
+            toast.warning('Please select a product for all custom delivery items.');
+            return;
+          }
           const prod = products.find((p) => p.id === item.productId);
-          if (prod?.isActive === false) {
+          if (!prod) {
+            toast.warning('One or more selected products are unavailable. Please select active products.');
+            return;
+          }
+          if (prod.isActive === false) {
             toast.warning(`Product "${prod.name}" is inactive. Please activate it under Products first.`);
             return;
           }
-          if (prod && (!Number.isInteger(prod.weightGrams) || Number(prod.weightGrams) <= 0)) {
+          if (!Number.isInteger(prod.weightGrams) || Number(prod.weightGrams) <= 0) {
             toast.warning(`Product "${prod.name}" requires a positive unit weight (grams).`);
             return;
           }
@@ -594,7 +602,9 @@ export default function AdminSubscriptionsPage() {
 
     for (const item of selectedItems) {
       const prod = products.find((p) => p.id === item.productId);
-      if (!prod) continue;
+      if (!prod) {
+        return toast.warning('One or more selected products are unavailable. Please select active products.');
+      }
       if (prod.isActive === false) {
         return toast.warning(`Product "${prod.name}" is inactive. Please activate it under Products first.`);
       }

@@ -861,8 +861,17 @@ export class SubscriptionAdminReportingService {
       if (existing) {
         existing.totalQuantity += item.quantity;
       } else {
-        const product = await prisma.product.findUnique({ where: { id: item.productId }, select: { name: true, weightGrams: true } });
-        productMap.set(item.productId, { name: product?.name || 'Unknown', totalQuantity: item.quantity, weightGrams: product?.weightGrams ?? null });
+        const product = await prisma.product.findUnique({
+          where: { id: item.productId, isActive: true, deletedAt: null },
+          select: { name: true, weightGrams: true },
+        });
+        if (!product) {
+          throw new BadRequestException('One or more subscription products are unavailable or deleted');
+        }
+        if (!Number.isInteger(product.weightGrams) || Number(product.weightGrams) <= 0) {
+          throw new BadRequestException(`Product "${product.name}" requires a positive unit weight`);
+        }
+        productMap.set(item.productId, { name: product.name, totalQuantity: item.quantity, weightGrams: product.weightGrams });
       }
     }
 
