@@ -248,6 +248,22 @@ export default function AdminSubscriptionsPage() {
       return;
     }
 
+    if (manualMode === 'custom') {
+      for (const d of customDeliveries) {
+        for (const item of d.items) {
+          const prod = products.find((p) => p.id === item.productId);
+          if (prod?.isActive === false) {
+            toast.warning(`Product "${prod.name}" is inactive. Please activate it under Products first.`);
+            return;
+          }
+          if (prod && (!Number.isInteger(prod.weightGrams) || Number(prod.weightGrams) <= 0)) {
+            toast.warning(`Product "${prod.name}" requires a positive unit weight (grams).`);
+            return;
+          }
+        }
+      }
+    }
+
     setSavingManual(true);
     try {
       // Reuse the picked offline customer's record when the address was not
@@ -573,7 +589,20 @@ export default function AdminSubscriptionsPage() {
     const mrpPaise = rupeesToPaise(form.mrpRupees || form.priceRupees);
     if (form.name.trim().length < 3) return toast.warning('Enter a plan name of at least 3 characters.');
     if (pricePaise < 1 || mrpPaise < pricePaise) return toast.warning('Enter a valid price in rupees. MRP cannot be below the plan price.');
-    if (!form.items.some((item) => item.productId)) return toast.warning('Add at least one product to the subscription plan.');
+    const selectedItems = form.items.filter((item) => item.productId);
+    if (!selectedItems.length) return toast.warning('Add at least one product to the subscription plan.');
+
+    for (const item of selectedItems) {
+      const prod = products.find((p) => p.id === item.productId);
+      if (!prod) continue;
+      if (prod.isActive === false) {
+        return toast.warning(`Product "${prod.name}" is inactive. Please activate it under Products first.`);
+      }
+      if (!Number.isInteger(prod.weightGrams) || Number(prod.weightGrams) <= 0) {
+        return toast.warning(`Product "${prod.name}" requires a positive unit weight (grams) before it can be added to a subscription plan.`);
+      }
+    }
+
     if (form.deliveryStartTime === form.deliveryEndTime) return toast.warning('Choose different delivery start and end times.');
     if (form.deliveryFrequency === 'SELECTED_WEEKDAYS' && !form.selectedWeekdays.length) return toast.warning('Choose at least one delivery weekday.');
 
@@ -828,7 +857,12 @@ export default function AdminSubscriptionsPage() {
                                 setCustomDeliveries(updated);
                               }} className="flex-1 rounded-lg border border-slate-200 px-2 py-0.5 text-[10px]">
                                 <option value="">Select product</option>
-                                {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                {products.map((p) => {
+                                  const isInactive = p.isActive === false;
+                                  const isMissingWeight = !Number.isInteger(p.weightGrams) || Number(p.weightGrams) <= 0;
+                                  const label = `${p.name}${isInactive ? ' (Inactive in Catalog)' : isMissingWeight ? ' (Missing Unit Weight)' : ''}`;
+                                  return <option key={p.id} value={p.id} disabled={isInactive || isMissingWeight}>{label}</option>;
+                                })}
                               </select>
                               <input type="number" min="1" value={item.quantity} onChange={(e) => {
                                 const updated = [...customDeliveries];
@@ -1006,7 +1040,12 @@ export default function AdminSubscriptionsPage() {
                 <section>
                   <h3 className="text-sm font-semibold text-slate-900">Products in each delivery</h3>
                   <div className="mt-2 space-y-1.5">
-                    {form.items.map((item, index) => <div key={index} className="grid grid-cols-[1fr_92px_auto] gap-2"><select aria-label={`Product ${index + 1}`} value={item.productId} onChange={(event) => setForm({ ...form, items: form.items.map((current, itemIndex) => itemIndex === index ? { ...current, productId: event.target.value } : current) })} className="min-h-12 rounded-xl border border-slate-200 px-4"><option value="">Select product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select><input aria-label={`Quantity ${index + 1}`} className="min-h-12 rounded-xl border border-slate-200 px-3" type="number" min="1" value={item.quantityPerDelivery} onChange={(event) => setForm({ ...form, items: form.items.map((current, itemIndex) => itemIndex === index ? { ...current, quantityPerDelivery: event.target.value } : current) })} /><button type="button" aria-label={`Remove product ${index + 1}`} onClick={() => setForm({ ...form, items: form.items.filter((_, itemIndex) => itemIndex !== index) })} className="rounded-xl bg-red-50 px-3 text-red-700"><X className="h-4 w-4" /></button></div>)}
+                    {form.items.map((item, index) => <div key={index} className="grid grid-cols-[1fr_92px_auto] gap-2"><select aria-label={`Product ${index + 1}`} value={item.productId} onChange={(event) => setForm({ ...form, items: form.items.map((current, itemIndex) => itemIndex === index ? { ...current, productId: event.target.value } : current) })} className="min-h-12 rounded-xl border border-slate-200 px-4"><option value="">Select product</option>{products.map((product) => {
+                      const isInactive = product.isActive === false;
+                      const isMissingWeight = !Number.isInteger(product.weightGrams) || Number(product.weightGrams) <= 0;
+                      const label = `${product.name}${isInactive ? ' (Inactive in Catalog)' : isMissingWeight ? ' (Missing Unit Weight)' : ''}`;
+                      return <option key={product.id} value={product.id} disabled={isInactive || isMissingWeight}>{label}</option>;
+                    })}</select><input aria-label={`Quantity ${index + 1}`} className="min-h-12 rounded-xl border border-slate-200 px-3" type="number" min="1" value={item.quantityPerDelivery} onChange={(event) => setForm({ ...form, items: form.items.map((current, itemIndex) => itemIndex === index ? { ...current, quantityPerDelivery: event.target.value } : current) })} /><button type="button" aria-label={`Remove product ${index + 1}`} onClick={() => setForm({ ...form, items: form.items.filter((_, itemIndex) => itemIndex !== index) })} className="rounded-xl bg-red-50 px-3 text-red-700"><X className="h-4 w-4" /></button></div>)}
                     <button type="button" onClick={() => setForm({ ...form, items: [...form.items, { productId: '', quantityPerDelivery: '1' }] })} className="min-h-8 rounded-lg bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">+ Add product</button>
                   </div>
                 </section>
