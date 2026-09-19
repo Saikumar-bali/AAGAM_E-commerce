@@ -41,6 +41,7 @@ export default function SubscribeReviewPage() {
   const DELIVERY_WINDOWS = { AM: { start: 360, end: 540 }, PM: { start: 1020, end: 1200 } };
   const [instructions, setInstructions] = useState('');
   const [quote, setQuote] = useState<any>();
+  const [quoteError, setQuoteError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -80,9 +81,15 @@ export default function SubscribeReviewPage() {
     if (!addressId || !plan || !isValidStartDate) return;
     apiClient
       .post(`/subscriptions/plans/${encodeURIComponent(planId)}/quote`, payload)
-      .then((r) => setQuote(r.data))
-      .catch(() => {
-        // Interceptor displays error toast
+      .then((r) => {
+        setQuote(r.data);
+        setQuoteError(null);
+      })
+      .catch((e) => {
+        // The global interceptor shows a transient toast; keep a persistent, inline
+        // reason so the customer is not left retrying a plan that cannot be served.
+        setQuote(null);
+        setQuoteError(getToastErrorMessage(e, 'This plan is not available for the selected address.'));
       });
   }, [addressId, startDate, method, planId, plan, isValidStartDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -346,7 +353,7 @@ export default function SubscribeReviewPage() {
               />
             </div>
             <button
-              disabled={!addressId || !isValidStartDate || submitting}
+              disabled={!addressId || !isValidStartDate || submitting || Boolean(quoteError)}
               onClick={() => void submit()}
               className="mt-5 flex min-h-[44px] w-full items-center justify-center rounded-lg bg-emerald-700 px-5 font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -354,10 +361,20 @@ export default function SubscribeReviewPage() {
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : !isValidStartDate ? (
                 'Select a start date'
+              ) : quoteError ? (
+                'Not available at this address'
               ) : (
                 'Request subscription'
               )}
             </button>
+            {quoteError ? (
+              <p
+                role="alert"
+                className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900"
+              >
+                {quoteError} Choose a different delivery address to continue.
+              </p>
+            ) : null}
           </aside>
         </div>
       </div>

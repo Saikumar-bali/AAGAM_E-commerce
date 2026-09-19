@@ -10,6 +10,7 @@ import {
   prisma,
 } from '@aagam/database';
 import { UpsertSubscriptionPlanDto } from './subscriptions.dto';
+import { NO_FULFILMENT_BINDING_MESSAGE, planAvailability } from './subscription-plan-availability';
 import { nullableJson, requiredJson } from '../common/prisma-json';
 
 const planInclude = {
@@ -103,7 +104,22 @@ export class SubscriptionPlanService {
       },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
       include: planInclude,
+    }).then((plans) => plans.map((plan) => this.withAvailability(plan)));
+  }
+
+  /**
+   * A plan with neither a store nor a zone binding can never resolve an eligible
+   * store, so every subscribe attempt fails with STORE_OUT_OF_RADIUS. Publishing
+   * such a plan is blocked; this marks any legacy plan that slipped through so the
+   * customer-facing copy can explain why it cannot be bought instead of failing at
+   * the final commit.
+   */
+  private withAvailability<T extends { stores: unknown[]; zones: unknown[] }>(plan: T) {
+    const { isAvailable, availabilityIssue } = planAvailability({
+      storeCount: plan.stores?.length ?? 0,
+      zoneCount: plan.zones?.length ?? 0,
     });
+    return { ...plan, isAvailable, availabilityIssue };
   }
 
   async getPublic(idOrCode: string) {
@@ -120,7 +136,7 @@ export class SubscriptionPlanService {
       include: planInclude,
     });
     if (!plan) throw new NotFoundException('Subscription plan not found');
-    return plan;
+    return this.withAvailability(plan);
   }
 
   listAdmin(status?: SubscriptionPlanStatus) {
@@ -131,7 +147,7 @@ export class SubscriptionPlanService {
         ...planInclude,
         _count: { select: { subscriptions: true } },
       },
-    });
+    }).then((plans) => plans.map((plan) => this.withAvailability(plan)));
   }
 
   listForStore(ownerId: string) {
@@ -365,12 +381,17 @@ export class SubscriptionPlanService {
       if (plan.items.some((item) => !Number.isInteger(item.product.weightGrams) || Number(item.product.weightGrams) <= 0)) {
         throw new BadRequestException('Every subscription product requires a positive unit weight before publishing');
       }
+      // A plan with no store or zone binding can never resolve an eligible store.
+      // Customers would only discover this after picking an address and a start
+      // date, so refuse to publish instead.
+      if (!plan.stores.length && !plan.zones.length) {
+        throw new BadRequestException(NO_FULFILMENT_BINDING_MESSAGE);
+      }
       await tx.subscriptionPlan.update({
         where: { id },
         data: {
           status: SubscriptionPlanStatus.ACTIVE,
-          stores: plan.stores.length ? { create: plan.stores.map((s) => ({ storeId: s.storeId })) } : undefined,
-          zones: plan.zones.length ? { create: plan.zones.map((z) => ({ zoneId: z.zoneId })) } : undefined,
+          updatedById: actorId,
         },
       });
       const latest = await tx.subscriptionPlanVersion.findFirst({

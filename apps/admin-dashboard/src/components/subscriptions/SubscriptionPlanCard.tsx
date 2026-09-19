@@ -8,6 +8,9 @@ export const formatDate = (value?: string | null) => value ? new Date(value).toL
 
 export default function SubscriptionPlanCard({ plan, compact = false }: { plan: any; compact?: boolean }) {
   const savings = Math.max(0, Number(plan.mrpPaise || 0) - Number(plan.pricePaise || 0));
+  // A plan with no store or zone binding cannot resolve an eligible store, so the
+  // subscribe attempt is guaranteed to fail. Say so here rather than at the last step.
+  const unavailable = plan.isAvailable === false;
   return <article className="group flex flex-col overflow-hidden rounded-xl border border-emerald-100 bg-white transition hover:border-emerald-200">
     <div className="relative min-h-[120px] bg-emerald-50/30 p-4">
       <div className="absolute right-3 top-3 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-emerald-700">{plan.totalDeliveries} DELIVERIES</div>
@@ -23,6 +26,7 @@ export default function SubscriptionPlanCard({ plan, compact = false }: { plan: 
       <div className="mt-auto pt-4">
         <div className="flex flex-wrap items-baseline gap-2"><span className="text-lg font-semibold tabular-nums text-slate-900">{formatPaise(plan.pricePaise)}</span>{Number(plan.mrpPaise) > Number(plan.pricePaise) ? <span className="text-xs font-medium text-slate-400 line-through">{formatPaise(plan.mrpPaise)}</span> : null}{savings > 0 ? <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Save {formatPaise(savings)}</span> : null}</div>
         <Link href={`/shop/subscribe/${encodeURIComponent(plan.id)}`} className="mt-3 flex min-h-[40px] items-center justify-center rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">Choose plan</Link>
+        {unavailable ? <p role="status" className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-800">Not available yet — no store assigned to this plan.</p> : null}
       </div>
     </div>
   </article>;

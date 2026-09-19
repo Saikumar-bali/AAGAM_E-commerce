@@ -6,6 +6,7 @@ import DashboardLayout from '@/components/DashboardLayout';
 import { getToastErrorMessage, useToast } from '@/components/ToastProvider';
 import OfflineCustomerTracker from '@/components/offline-customers/OfflineCustomerTracker';
 import {
+  AlertTriangle,
   Archive,
   BarChart3,
   CalendarDays,
@@ -1033,7 +1034,7 @@ function Plans({ plans, onEdit, onLifecycle }: any) {
   if (!plans.length) return <EmptyState title="No subscription plans" copy="Create a plan to make it available to customers." />;
   return (
     <Table
-      headers={['Plan', 'Status', 'Duration', 'Deliveries', 'Schedule', 'Price', 'MRP', 'Created', 'Actions']}
+      headers={['Plan', 'Status', 'Availability', 'Duration', 'Deliveries', 'Schedule', 'Price', 'MRP', 'Created', 'Actions']}
       rows={plans.map((plan: any) => [
         <div key={plan.id} className="flex items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-emerald-50">{plan.imageUrl ? <img src={plan.imageUrl} alt="" className="h-full w-full object-contain" /> : <CalendarDays className="h-4 w-4 text-emerald-700" />}</div>
@@ -1043,6 +1044,17 @@ function Plans({ plans, onEdit, onLifecycle }: any) {
           </div>
         </div>,
         <StatusPill key={`status-${plan.id}`} status={plan.status} />,
+        // An ACTIVE plan with no store or zone binding is published but unbuyable;
+        // flag it so the operator can fix the binding instead of discovering it from
+        // customer complaints.
+        plan.isAvailable === false ? (
+          <div key={`avail-${plan.id}`} className="min-w-0">
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-800">
+              <AlertTriangle className="h-3 w-3" /> No store or zone
+            </span>
+            <p className="mt-1 text-[10px] font-semibold text-amber-700">Customers cannot subscribe</p>
+          </div>
+        ) : null,
         `${plan.durationDays || '—'} days`,
         String(plan.totalDeliveries ?? '—'),
         humanize(plan.deliveryFrequency),
@@ -1051,7 +1063,7 @@ function Plans({ plans, onEdit, onLifecycle }: any) {
         formatDate(plan.createdAt),
         <div key={`actions-${plan.id}`} className="flex flex-wrap gap-1">
           <button onClick={() => onEdit(plan)} className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] font-semibold"><Edit3 className="h-3 w-3" /> Edit</button>
-          {plan.status === 'DRAFT' ? <button onClick={() => onLifecycle(plan, 'publish')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-emerald-700 px-2 text-[10px] font-semibold text-white"><CheckCircle2 className="h-3 w-3" /> Publish</button> : null}
+          {plan.status === 'DRAFT' ? <button onClick={() => onLifecycle(plan, 'publish')} disabled={plan.isAvailable === false} title={plan.isAvailable === false ? 'Add at least one store or zone before publishing' : undefined} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-emerald-700 px-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"><CheckCircle2 className="h-3 w-3" /> Publish</button> : null}
           {plan.status === 'ACTIVE' ? <button onClick={() => onLifecycle(plan, 'pause')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-amber-50 px-2 text-[10px] font-semibold text-amber-800"><Pause className="h-3 w-3" /> Pause</button> : null}
           {plan.status === 'PAUSED' || plan.status === 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'activate')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-emerald-50 px-2 text-[10px] font-semibold text-emerald-800"><Play className="h-3 w-3" /> Activate</button> : null}
           {plan.status !== 'ARCHIVED' ? <button onClick={() => onLifecycle(plan, 'archive')} className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[10px] font-semibold text-slate-600"><Archive className="h-3 w-3" /> Archive</button> : null}
