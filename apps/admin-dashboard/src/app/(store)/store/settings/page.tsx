@@ -183,12 +183,12 @@ function StoreSettingsContent() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <p className="enterprise-kicker">Store settings</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight">
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
             {activeTab === 'hours' ? 'Operating hours' : 'Recycle Bin'}
           </h1>
         </div>
         {activeTab === 'hours' && summary ? (
-          <span className={`rounded-full px-4 py-2 text-xs font-black ${summary.tone === 'open' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
+          <span className={`rounded-full px-4 py-2 text-xs font-semibold ${summary.tone === 'open' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
             {summary.text}
           </span>
         ) : null}
@@ -197,9 +197,9 @@ function StoreSettingsContent() {
       <div className="mb-6 flex items-center gap-2 border-b border-slate-200 pb-3">
         <button
           onClick={() => setActiveTab('hours')}
-          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition-all ${
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
             activeTab === 'hours'
-              ? 'bg-slate-900 text-white shadow-sm'
+              ? 'bg-slate-900 text-white '
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
@@ -208,9 +208,9 @@ function StoreSettingsContent() {
         </button>
         <button
           onClick={() => setActiveTab('recycle-bin')}
-          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition-all ${
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
             activeTab === 'recycle-bin'
-              ? 'bg-rose-700 text-white shadow-sm'
+              ? 'bg-rose-700 text-white '
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
@@ -221,9 +221,9 @@ function StoreSettingsContent() {
 
       {activeTab === 'recycle-bin' ? (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 ">
             <div className="mb-4">
-              <h2 className="text-lg font-black text-slate-900">Deleted Customers Recycle Bin</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Deleted Customers Recycle Bin</h2>
               <p className="text-xs text-slate-500">
                 Customers in the Recycle Bin have their subscriptions paused and are hidden from delivery runs. You can restore them or permanently delete them.
               </p>
@@ -240,8 +240,8 @@ function StoreSettingsContent() {
         </div>
       ) : (
         <>
-          {error ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div> : null}
-          {saved ? <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">Operating hours saved. Changes apply to new orders immediately.</div> : null}
+          {error ? <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div> : null}
+          {saved ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">Operating hours saved. Changes apply to new orders immediately.</div> : null}
 
           {stores.length > 1 ? (
             <div className="mb-5 flex flex-wrap items-center gap-3">
@@ -257,7 +257,7 @@ function StoreSettingsContent() {
           ) : !selectedStoreId ? (
             <div className="rounded-[2rem] border border-dashed border-slate-200 p-16 text-center">
               <StoreIcon className="mx-auto h-16 w-16 text-slate-300" />
-              <p className="mt-6 text-2xl font-black text-slate-950">No stores yet</p>
+              <p className="mt-6 text-2xl font-semibold text-slate-950">No stores yet</p>
               <p className="mt-2 text-sm text-slate-500">Contact the admin to create your first store.</p>
             </div>
           ) : (
@@ -266,7 +266,7 @@ function StoreSettingsContent() {
                 <div className="mb-5 flex items-start gap-3">
                   <span className="grid h-10 w-10 place-items-center rounded-xl bg-teal-100 text-teal-700"><Clock className="h-5 w-5" /></span>
                   <div>
-                    <h2 className="text-lg font-black text-slate-950">Weekly schedule</h2>
+                    <h2 className="text-lg font-semibold text-slate-950">Weekly schedule</h2>
                     <p className="mt-1 text-sm text-slate-500">
                       When the store is closed, customers cannot order instantly — they see a &quot;store closed&quot; notice and can pre-order for the next open window. Days without hours stay closed; clearing all days makes the store open 24×7.
                     </p>
@@ -277,15 +277,15 @@ function StoreSettingsContent() {
                     const windows = draftByDay.get(dayOfWeek) || [];
                     const open = windows.length > 0;
                     return (
-                      <div key={dayOfWeek} className={`rounded-2xl border p-4 ${open ? 'border-teal-200 bg-teal-50/40' : 'border-slate-200 bg-slate-50/60'}`}>
+                      <div key={dayOfWeek} className={`rounded-xl border p-4 ${open ? 'border-teal-200 bg-teal-50/40' : 'border-slate-200 bg-slate-50/60'}`}>
                         <div className="flex items-center justify-between gap-3">
                           <label className="flex cursor-pointer items-center gap-3">
                             <input type="checkbox" checked={open} onChange={(event) => setDayOpen(dayOfWeek, event.target.checked)} className="h-4 w-4 accent-teal-700" />
-                            <span className={`text-sm font-black ${open ? 'text-slate-950' : 'text-slate-400'}`}>{label}</span>
-                            {open ? <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-black text-teal-700">Open</span> : <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-black text-slate-500">Closed</span>}
+                            <span className={`text-sm font-semibold ${open ? 'text-slate-950' : 'text-slate-400'}`}>{label}</span>
+                            {open ? <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-semibold text-teal-700">Open</span> : <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-500">Closed</span>}
                           </label>
                           {open && windows.length < 2 ? (
-                            <button onClick={() => addWindow(dayOfWeek)} className="rounded-lg border border-teal-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-teal-700 hover:bg-teal-50">+ Add window</button>
+                            <button onClick={() => addWindow(dayOfWeek)} className="rounded-lg border border-teal-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-teal-700 hover:bg-teal-50">+ Add window</button>
                           ) : null}
                         </div>
                         {open ? (
@@ -293,10 +293,10 @@ function StoreSettingsContent() {
                             {windows.map((window, index) => (
                               <div key={index} className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3">
                                 <input type="time" value={minutesToTime(window.openMinute)} onChange={(event) => setWindow(dayOfWeek, index, { openMinute: timeToMinutes(event.target.value) })} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:border-teal-500" />
-                                <span className="text-xs font-black text-slate-400">to</span>
+                                <span className="text-xs font-semibold text-slate-400">to</span>
                                 <input type="time" value={minutesToTime(window.closeMinute)} onChange={(event) => setWindow(dayOfWeek, index, { closeMinute: timeToMinutes(event.target.value) })} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm font-bold text-slate-900 outline-none focus:border-teal-500" />
                                 <span className="text-xs font-semibold text-slate-500">{minutesToLabel(window.openMinute)} – {minutesToLabel(window.closeMinute)}{window.closeMinute <= window.openMinute ? ' · crosses midnight' : ''}</span>
-                                <button onClick={() => removeWindow(dayOfWeek, index)} className="ml-auto rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-black text-red-700 hover:bg-red-100">Remove</button>
+                                <button onClick={() => removeWindow(dayOfWeek, index)} className="ml-auto rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-100">Remove</button>
                               </div>
                             ))}
                           </div>
@@ -308,14 +308,14 @@ function StoreSettingsContent() {
               </div>
 
               <div className="enterprise-card">
-                <h2 className="text-lg font-black text-slate-950">Timezone</h2>
+                <h2 className="text-lg font-semibold text-slate-950">Timezone</h2>
                 <p className="mt-1 text-sm text-slate-500">Hours above are interpreted in this zone. Times shown to customers match it.</p>
                 <select value={timezone} onChange={(event) => setTimezone(event.target.value)} className="mt-3 w-full max-w-xs rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-teal-500">
                   {TIMEZONE_OPTIONS.map((zone) => <option key={zone} value={zone}>{zone}</option>)}
                 </select>
               </div>
 
-              <button onClick={() => void save()} disabled={saving} className="flex items-center gap-2 rounded-xl bg-slate-950 px-6 py-3 text-sm font-black text-white transition hover:bg-slate-800 disabled:opacity-50">
+              <button onClick={() => void save()} disabled={saving} className="flex items-center gap-2 rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 {saving ? 'Saving…' : 'Save operating hours'}
               </button>

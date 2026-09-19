@@ -281,7 +281,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
     if (role !== "RIDER" || href !== "/rider/notifications" || riderUnread <= 0) return null;
     if (compact) return <span className="absolute right-2 top-1 h-2 w-2 rounded-full bg-red-500" />;
     return (
-      <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-black text-white">
+      <span className="ml-auto rounded-md bg-red-500 px-1.5 py-0.5 text-[9px] font-medium text-white">
         {riderUnread > 99 ? "99+" : riderUnread}
       </span>
     );
@@ -290,7 +290,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   return (
     <>
       <aside className="relative z-10 hidden h-screen w-[260px] flex-col bg-slate-950 text-white lg:flex">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.18),transparent_18rem),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.1),transparent_16rem)]" />
+        <div className="pointer-events-none absolute inset-0 " />
         <div className="relative px-5 pb-4 pt-6">
           {role === "CUSTOMER" ? (
             <Link href="/shop/account" className="-m-1.5 flex items-center gap-3 rounded-xl p-1.5 transition-colors hover:bg-white/5">
@@ -298,12 +298,12 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={profile.avatarUrl} alt="Profile" className="h-11 w-11 rounded-xl border-2 border-white/10 object-cover" />
               ) : (
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 border-white/10 bg-gradient-to-br from-teal-500/20 to-amber-500/20 text-sm font-black text-white">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 border-white/10 bg-white/10 text-sm font-semibold text-white">
                   {initials}
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-white">{profile.name || "Aagaam Customer"}</p>
+                <p className="truncate text-sm font-medium text-white">{profile.name || "Aagaam Customer"}</p>
                 <p className="truncate text-[11px] font-medium text-slate-400">{profile.email || "Customer Portal"}</p>
               </div>
             </Link>
@@ -313,7 +313,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
         </div>
 
         <nav className="relative flex-1 overflow-y-auto px-3" aria-label={`${roleLabel} navigation`}>
-          <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Navigation</p>
+          <p className="mb-2 px-3 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-500">Navigation</p>
           <div className="space-y-0.5">
             {currentMenu.map((item) => {
               const Icon = item.icon;
@@ -325,7 +325,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
                   aria-current={isActive ? "page" : undefined}
                   className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all ${
                     isActive
-                      ? "bg-white text-slate-950 shadow-lg shadow-black/10"
+                      ? "bg-white text-slate-950 "
                       : "text-slate-400 hover:bg-white/7 hover:text-white"
                   }`}
                 >
@@ -352,7 +352,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
 
       <nav
         ref={quickNavigationRef}
-        className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between rounded-2xl border border-white/60 bg-slate-950/95 p-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] text-white shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-2xl lg:hidden"
+        className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between rounded-xl border border-white/20 bg-slate-950/95 p-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] text-white   lg:hidden"
         aria-label="Quick navigation"
       >
         {quickMenu.map((item) => {
@@ -363,7 +363,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
               key={item.name}
               href={item.href}
               aria-current={isActive ? "page" : undefined}
-              className={`relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-bold transition ${
+              className={`relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-medium transition ${
                 isActive ? "bg-white text-slate-950" : "text-slate-400 active:bg-white/10"
               }`}
             >
@@ -380,7 +380,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
           aria-label="Open all navigation"
           aria-expanded={mobileMenuOpen}
           aria-controls="responsive-role-navigation"
-          className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-bold transition ${
+          className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[9px] font-medium transition ${
             mobileMenuOpen || hiddenRouteIsActive
               ? "bg-white text-slate-950"
               : "text-slate-400 active:bg-white/10"
@@ -400,26 +400,26 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
         >
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-slate-950/65 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-950/65 "
             onClick={() => setMobileMenuOpen(false)}
           />
           <aside
             ref={mobileDrawerRef}
             id="responsive-role-navigation"
             tabIndex={-1}
-            className="absolute inset-y-0 right-0 flex w-full max-w-[30rem] flex-col overflow-hidden border-l border-white/10 bg-slate-950 text-white shadow-2xl"
+            className="absolute inset-y-0 right-0 flex w-full max-w-[30rem] flex-col overflow-hidden border-l border-white/10 bg-slate-950 text-white "
           >
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-5">
               <div>
                 <AagamLogo inverse label={`${roleLabel} portal`} />
-                <p className="mt-3 text-[10px] font-black uppercase tracking-[0.2em] text-teal-300">Complete navigation</p>
+                <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-teal-300">Complete navigation</p>
               </div>
               <button
                 ref={mobileCloseButtonRef}
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
                 aria-label="Close all navigation"
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -436,9 +436,9 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
                       href={item.href}
                       aria-current={isActive ? "page" : undefined}
                       onClick={() => setMobileMenuOpen(false)}
-                      className={`group flex min-w-0 items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm font-bold transition ${
+                      className={`group flex min-w-0 items-center gap-3 rounded-xl border px-4 py-3.5 text-sm font-medium transition ${
                         isActive
-                          ? "border-white bg-white text-slate-950 shadow-xl"
+                          ? "border-white bg-white text-slate-950 "
                           : "border-white/10 bg-white/5 text-slate-300 hover:border-teal-400/40 hover:bg-teal-400/10 hover:text-white"
                       }`}
                     >
@@ -459,7 +459,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3.5 text-sm font-black text-red-200 transition hover:bg-red-500/20"
+                className="flex w-full items-center justify-center gap-3 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3.5 text-sm font-semibold text-red-200 transition hover:bg-red-500/20"
               >
                 <LogOut className="h-5 w-5" />
                 Sign out

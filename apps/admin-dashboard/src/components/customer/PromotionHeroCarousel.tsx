@@ -35,10 +35,10 @@ export default function PromotionHeroCarousel({
     return (
       <section
         data-testid="promotion-hero-empty"
-        className="rounded-3xl border border-slate-200 bg-white px-6 py-10 text-center shadow-sm"
+        className="rounded-xl border border-slate-200 bg-white px-6 py-10 text-center "
       >
         <BadgePercent className="mx-auto h-8 w-8 text-teal-600" />
-        <h1 className="mt-3 text-2xl font-black text-slate-950">
+        <h1 className="mt-3 text-2xl font-semibold text-slate-950">
           Fresh essentials, delivered quickly
         </h1>
         <p className="mt-2 text-sm font-semibold text-slate-500">
@@ -55,7 +55,7 @@ export default function PromotionHeroCarousel({
   return (
     <section
       data-testid="promotion-hero"
-      className="group relative min-h-[330px] overflow-hidden rounded-[2rem] border border-white/20 px-6 py-9 shadow-[0_24px_70px_-28px_rgba(15,23,42,0.55)] md:min-h-[390px] md:px-12 md:py-12"
+      className="group relative min-h-[330px] overflow-hidden rounded-xl border border-white/20 px-6 py-9  md:min-h-[390px] md:px-12 md:py-12"
       style={{
         backgroundColor: campaign.backgroundColor,
         color: "#FFFFFF",
@@ -81,11 +81,11 @@ export default function PromotionHeroCarousel({
       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/25 via-transparent to-white/5" />
       <div className="relative z-10 flex min-h-[258px] max-w-[560px] flex-col justify-center md:min-h-[294px]">
         {campaign.badgeText && (
-          <span className="w-fit rounded-full border border-teal-200/35 bg-teal-300/10 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-teal-100 backdrop-blur-md">
+          <span className="w-fit rounded-full border border-teal-200/35 bg-teal-300/10 px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-teal-100 ">
             {campaign.badgeText}
           </span>
         )}
-        <h1 className="mt-5 max-w-[540px] text-[2.15rem] font-black leading-[1.04] tracking-[-0.045em] text-white drop-shadow-sm md:text-[3.4rem]">
+        <h1 className="mt-5 max-w-[540px] text-[2.15rem] font-semibold leading-[1.04] tracking-[-0.045em] text-white drop- md:text-[3.4rem]">
           {campaign.title}
         </h1>
         {campaign.subtitle && (
@@ -101,7 +101,7 @@ export default function PromotionHeroCarousel({
         {campaign.targetUrl && (
           <button
             onClick={go}
-            className="mt-7 inline-flex w-fit items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-xl shadow-slate-950/20 transition-all hover:-translate-y-0.5 hover:bg-teal-50"
+            className="mt-7 inline-flex w-fit items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950  transition-all  hover:bg-teal-50"
           >
             {campaign.ctaLabel} <ArrowRight className="h-4 w-4" />
           </button>
@@ -114,14 +114,14 @@ export default function PromotionHeroCarousel({
             onClick={() =>
               setActive((active - 1 + visibleCampaigns.length) % visibleCampaigns.length)
             }
-            className="absolute left-3 top-1/2 z-20 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/25 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100"
+            className="absolute left-3 top-1/2 z-20 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/25 text-white opacity-0  transition-opacity group-hover:opacity-100"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button
             aria-label="Next campaign"
             onClick={() => setActive((active + 1) % visibleCampaigns.length)}
-            className="absolute right-3 top-1/2 z-20 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/25 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100"
+            className="absolute right-3 top-1/2 z-20 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/25 text-white opacity-0  transition-opacity group-hover:opacity-100"
           >
             <ChevronRight className="h-5 w-5" />
           </button>

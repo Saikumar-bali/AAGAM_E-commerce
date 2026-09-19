@@ -42,8 +42,8 @@ export default function PrivacyPage() {
       </header>
 
       <article className="mx-auto max-w-4xl px-5 py-10 sm:py-14">
-        <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-700">Public notice</p>
-        <h1 className="mt-3 text-4xl font-black tracking-tight">Privacy Policy</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Public notice</p>
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight">Privacy Policy</h1>
         <p className="mt-3 text-sm font-semibold text-slate-500">Last updated: 23 August 2026</p>
         <p className="mt-6 text-base font-medium leading-7 text-slate-600">
           This notice explains, at a practical level, the information Aagaam uses to operate its customer storefront, order fulfilment, subscriptions, delivery operations and support experience.
@@ -51,8 +51,8 @@ export default function PrivacyPage() {
 
         <div className="mt-10 space-y-5">
           {sections.map((section) => (
-            <section key={section.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-black">{section.title}</h2>
+            <section key={section.title} className="rounded-xl border border-slate-200 bg-white p-6 ">
+              <h2 className="text-lg font-semibold">{section.title}</h2>
               <p className="mt-2 text-sm font-medium leading-6 text-slate-600">{section.body}</p>
             </section>
           ))}

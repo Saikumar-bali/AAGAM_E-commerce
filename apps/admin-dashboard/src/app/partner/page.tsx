@@ -116,12 +116,12 @@ export default async function PartnerPage() {
     <main id="main-content" className="min-h-screen bg-[#f7f8f7] text-[#16231f] touch-manipulation" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui' }}>
       <a
         href="#main-content"
-        className="sr-only left-4 top-4 z-[100] rounded-[12px] bg-white px-4 py-2 text-[12px] font-black text-[#063b3a] shadow focus:not-sr-only focus:fixed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#067a64]"
+        className="sr-only left-4 top-4 z-[100] rounded-[12px] bg-white px-4 py-2 text-[12px] font-semibold text-[#063b3a] shadow focus:not-sr-only focus:fixed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#067a64]"
       >
         Skip to content
       </a>
       {/* Sticky header — from app/page.tsx:230 */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#063b3a] text-white shadow-sm">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#063b3a] text-white ">
         <div className="mx-auto flex h-[64px] max-w-[1448px] items-center gap-4 px-4 sm:px-5 lg:px-10">
           <div className="mr-2 shrink-0">
             <AagamLogo inverse compact label="Fresh, quality & trust" />
@@ -169,7 +169,7 @@ export default async function PartnerPage() {
 
           <a
             href="#download"
-            className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-[12px] bg-[#067a64] px-5 text-[11px] font-black text-white shadow-lg shadow-black/10 transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#063b3a] md:inline-flex min-h-[44px]"
+            className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-[12px] bg-[#067a64] px-5 text-[11px] font-semibold text-white  shadow-black/10 transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#063b3a] md:inline-flex min-h-[44px]"
           >
             Get partner app <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
           </a>
@@ -182,13 +182,13 @@ export default async function PartnerPage() {
           </Link>
           <Link
             href="/login"
-            className="ml-auto inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-[12px] bg-[#067a64] px-5 text-[11px] font-black text-white shadow-lg shadow-black/10 transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white md:hidden min-h-[44px]"
+            className="ml-auto inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-[12px] bg-[#067a64] px-5 text-[11px] font-semibold text-white  shadow-black/10 transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white md:hidden min-h-[44px]"
           >
             Sign in <User className="h-3.5 w-3.5" aria-hidden />
           </Link>
           <a
             href="#roles"
-            className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-[12px] bg-white px-5 text-[11px] font-black text-[#063b3a] shadow-lg shadow-black/10 transition hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white md:inline-flex min-h-[44px]"
+            className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-[12px] bg-white px-5 text-[11px] font-semibold text-[#063b3a]  shadow-black/10 transition hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white md:inline-flex min-h-[44px]"
           >
             Explore roles <ArrowRight className="h-3.5 w-3.5" aria-hidden />
           </a>
@@ -196,7 +196,7 @@ export default async function PartnerPage() {
         {/* mobile secondary nav */}
         <nav
           aria-label="Partner sections mobile"
-          className="flex h-10 items-center gap-1 overflow-x-auto border-t border-white/10 px-3 text-[10px] font-black text-white/85 xl:hidden"
+          className="flex h-10 items-center gap-1 overflow-x-auto border-t border-white/10 px-3 text-[10px] font-semibold text-white/85 xl:hidden"
         >
           <a
             href="#roles"
@@ -230,10 +230,10 @@ export default async function PartnerPage() {
         <section className="mx-auto max-w-[1448px] px-5 pb-8 pt-10 lg:px-10 lg:pb-10 lg:pt-14">
           <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
             <div>
-              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
                 <BadgeCheck className="h-3.5 w-3.5" aria-hidden /> Verified partner program
               </span>
-              <h1 className="mt-4 max-w-[680px] text-balance text-[32px] font-black leading-[0.95] tracking-[-0.04em] text-white sm:text-[40px] lg:text-[52px]">
+              <h1 className="mt-4 max-w-[680px] text-balance text-[32px] font-semibold leading-[0.95] tracking-[-0.04em] text-white sm:text-[40px] lg:text-[52px]">
                 <span translate="no">Partner with <span className="text-[#20c9a6]">AAGAM.</span></span>
                 <span className="mt-2 block text-[18px] font-semibold leading-7 text-white/85 sm:text-[20px]">
                   Grow with trusted stores and reliable earning — built for Bharat.
@@ -246,27 +246,27 @@ export default async function PartnerPage() {
               <div className="mt-6 flex flex-wrap gap-3">
                 <a
                   href="#download"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-[#067a64] px-7 text-[13px] font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.22)] transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#063b3a] min-h-[44px]"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-[#067a64] px-7 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.22)] transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#063b3a] min-h-[44px]"
                 >
                   Download partner app <ArrowRight className="h-4 w-4" aria-hidden />
                 </a>
                 <a
                   href="#roles"
-                  className="inline-flex h-11 items-center justify-center rounded-[12px] border border-white/20 bg-white/10 px-7 text-[13px] font-black text-white backdrop-blur transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white min-h-[44px]"
+                  className="inline-flex h-11 items-center justify-center rounded-[12px] border border-white/20 bg-white/10 px-7 text-[13px] font-semibold text-white  transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white min-h-[44px]"
                 >
                   View roles
                 </a>
               </div>
 
               {/* 3 trust stats */}
-              <div className="mt-8 grid grid-cols-3 divide-x divide-white/15 rounded-[16px] border border-white/10 bg-white/[0.06] p-4 backdrop-blur">
+              <div className="mt-8 grid grid-cols-3 divide-x divide-white/15 rounded-[16px] border border-white/10 bg-white/[0.06] p-4 ">
                 {[
                   { value: '98%', label: 'On-time payouts' },
                   { value: '350+', label: 'Partner stores' },
                   { value: '4.7★', label: 'Partner rating' },
                 ].map((stat) => (
                   <div key={stat.label} className="px-2 text-center first:pl-0 last:pr-0 sm:px-4">
-                    <div className="text-[20px] font-black tracking-tight text-white sm:text-[22px]">{stat.value}</div>
+                    <div className="text-[20px] font-semibold tracking-tight text-white sm:text-[22px]">{stat.value}</div>
                     <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/60">{stat.label}</div>
                   </div>
                 ))}
@@ -278,27 +278,27 @@ export default async function PartnerPage() {
               <div className="rounded-[20px] border border-white/10 bg-white p-3 shadow-[0_24px_64px_rgba(0,0,0,0.32)]">
                 <div className="rounded-[14px] bg-[#f7f8f7] p-4">
                   <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-2 text-[11px] font-black text-[#063b3a]">
+                    <span className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#063b3a]">
                       <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden /> Live operations
                     </span>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-[#475a56] border border-[#e6ecea]">AAGAM OS</span>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475a56] border border-[#e6ecea]">AAGAM OS</span>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <div className="rounded-[14px] border border-[#e6ecea] bg-white p-3">
-                      <div className="flex items-center gap-2 text-[11px] font-black text-[#063b3a]">
+                      <div className="flex items-center gap-2 text-[11px] font-semibold text-[#063b3a]">
                         <Store className="h-4 w-4 text-[#078b70]" aria-hidden /> Store
                       </div>
                       <p className="mt-2 text-[12px] font-bold leading-4 text-[#16231f]">Your stock, your margin</p>
                       <p className="mt-1 text-[11px] font-medium leading-4 text-[#475a56]">Orders routed to you by locality.</p>
-                      <span className="mt-3 inline-flex text-[11px] font-black text-[#067a64]">Avg +18% fill rate →</span>
+                      <span className="mt-3 inline-flex text-[11px] font-semibold text-[#067a64]">Avg +18% fill rate →</span>
                     </div>
                     <div className="rounded-[14px] border border-[#063b3a] bg-[#063b3a] p-3 text-white">
-                      <div className="flex items-center gap-2 text-[11px] font-black">
+                      <div className="flex items-center gap-2 text-[11px] font-semibold">
                         <Truck className="h-4 w-4 text-emerald-300" aria-hidden /> Delivery
                       </div>
                       <p className="mt-2 text-[12px] font-bold leading-4">Earn per run</p>
                       <p className="mt-1 text-[11px] font-medium leading-4 text-white/70">Flexible slots, instant tracking.</p>
-                      <span className="mt-3 inline-flex text-[11px] font-black text-emerald-300">Daily payouts →</span>
+                      <span className="mt-3 inline-flex text-[11px] font-semibold text-emerald-300">Daily payouts →</span>
                     </div>
                   </div>
                   <div className="mt-3 flex items-center gap-2 rounded-[12px] border border-emerald-100 bg-emerald-50 px-3 py-2.5">
@@ -308,7 +308,7 @@ export default async function PartnerPage() {
                 </div>
                 <div className="flex items-center justify-between px-1 pt-3">
                   <p className="text-[11px] font-semibold text-[#5a6e69]">Works with your existing phone — Android only</p>
-                  <span className="text-[11px] font-black text-[#067a64]">→ #download</span>
+                  <span className="text-[11px] font-semibold text-[#067a64]">→ #download</span>
                 </div>
               </div>
               {/* glow */}
@@ -324,15 +324,15 @@ export default async function PartnerPage() {
         <Section id="roles" className="scroll-mt-28">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#067a64]">Choose your role</p>
-              <h2 className="mt-1 text-[22px] font-black tracking-[-0.03em] text-[#063b3a] sm:text-[26px]">Two ways to partner</h2>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#067a64]">Choose your role</p>
+              <h2 className="mt-1 text-[22px] font-semibold tracking-[-0.03em] text-[#063b3a] sm:text-[26px]">Two ways to partner</h2>
               <p className="mt-1 max-w-[640px] text-[12px] font-medium leading-5 text-[#475a56]">
                 Both roles run on the same verified Android app. No marketplace juggling — one AAGAM identity for operations.
               </p>
             </div>
             <a
               href="#download"
-              className="hidden items-center gap-2 text-[12px] font-black text-[#067a64] hover:text-[#063b3a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#067a64] sm:inline-flex min-h-[44px]"
+              className="hidden items-center gap-2 text-[12px] font-semibold text-[#067a64] hover:text-[#063b3a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#067a64] sm:inline-flex min-h-[44px]"
             >
               Download to get started <ArrowRight className="h-4 w-4" aria-hidden />
             </a>
@@ -349,11 +349,11 @@ export default async function PartnerPage() {
                       <Store className="h-5 w-5" aria-hidden />
                     </span>
                     <div>
-                      <h3 className="text-[16px] font-black tracking-tight text-[#063b3a]">Store Partner</h3>
+                      <h3 className="text-[16px] font-semibold tracking-tight text-[#063b3a]">Store Partner</h3>
                       <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#475a56]">Kirana • Supermart • Fresh</p>
                     </div>
                   </div>
-                  <span className="hidden items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-[#067a64] sm:inline-flex">
+                  <span className="hidden items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-[#067a64] sm:inline-flex">
                     <Building2 className="h-3 w-3" aria-hidden /> Local demand
                   </span>
                 </div>
@@ -377,7 +377,7 @@ export default async function PartnerPage() {
                 <div className="mt-5 flex flex-wrap gap-2">
                   <a
                     href="#download"
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-[#067a64] px-5 text-[13px] font-black text-white transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#063b3a] min-h-[44px]"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-[#067a64] px-5 text-[13px] font-semibold text-white transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#063b3a] min-h-[44px]"
                   >
                     Get store app <ArrowRight className="h-4 w-4" aria-hidden />
                   </a>
@@ -403,11 +403,11 @@ export default async function PartnerPage() {
                       <Truck className="h-5 w-5" aria-hidden />
                     </span>
                     <div>
-                      <h3 className="text-[16px] font-black tracking-tight text-[#063b3a]">Delivery Partner</h3>
+                      <h3 className="text-[16px] font-semibold tracking-tight text-[#063b3a]">Delivery Partner</h3>
                       <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#475a56]">Full-time • Part-time • Fleet</p>
                     </div>
                   </div>
-                  <span className="hidden items-center gap-1 rounded-full border border-[#063b3a]/10 bg-[#063b3a] px-2.5 py-1 text-[10px] font-black text-white sm:inline-flex">
+                  <span className="hidden items-center gap-1 rounded-full border border-[#063b3a]/10 bg-[#063b3a] px-2.5 py-1 text-[10px] font-semibold text-white sm:inline-flex">
                     <Clock3 className="h-3 w-3" aria-hidden /> Flexible slots
                   </span>
                 </div>
@@ -431,7 +431,7 @@ export default async function PartnerPage() {
                 <div className="mt-5 flex flex-wrap gap-2">
                   <a
                     href="#download"
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-[#063b3a] px-5 text-[13px] font-black text-white transition hover:bg-[#042c2b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#067a64] min-h-[44px]"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-[#063b3a] px-5 text-[13px] font-semibold text-white transition hover:bg-[#042c2b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#067a64] min-h-[44px]"
                   >
                     Get delivery app <ArrowRight className="h-4 w-4" aria-hidden />
                   </a>
@@ -454,10 +454,10 @@ export default async function PartnerPage() {
           <div className="rounded-[16px] border border-[#e6ecea] bg-white p-4 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h2 className="text-[18px] font-black tracking-tight text-[#063b3a]">Why partners stay with AAGAM</h2>
+                <h2 className="text-[18px] font-semibold tracking-tight text-[#063b3a]">Why partners stay with AAGAM</h2>
                 <p className="mt-1 text-[12px] font-medium leading-5 text-[#475a56]">Premium ops without the marketplace tax. Operate like a national chain, keep your identity.</p>
               </div>
-              <span className="inline-flex items-center gap-2 rounded-full bg-[#063b3a] px-3 py-1.5 text-[11px] font-black text-white">
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#063b3a] px-3 py-1.5 text-[11px] font-semibold text-white">
                 <Sprout className="h-3.5 w-3.5 text-emerald-300" aria-hidden /> Built for Indian retail
               </span>
             </div>
@@ -489,10 +489,10 @@ export default async function PartnerPage() {
                   key={b.title}
                   className="rounded-[16px] border border-[#e6ecea] bg-[#f7f8f7] p-4 transition hover:border-[#d8e4e0] hover:bg-white"
                 >
-                  <span className="grid h-10 w-10 place-items-center rounded-[12px] bg-white text-[#078b70] shadow-sm border border-[#e6ecea]">
+                  <span className="grid h-10 w-10 place-items-center rounded-[12px] bg-white text-[#078b70]  border border-[#e6ecea]">
                     <b.icon className="h-5 w-5" aria-hidden />
                   </span>
-                  <h3 className="mt-3 text-[13px] font-black leading-tight text-[#063b3a]">{b.title}</h3>
+                  <h3 className="mt-3 text-[13px] font-semibold leading-tight text-[#063b3a]">{b.title}</h3>
                   <p className="mt-1 text-[12px] font-medium leading-5 text-[#475a56]">{b.copy}</p>
                 </div>
               ))}
@@ -507,10 +507,10 @@ export default async function PartnerPage() {
             <Card className="overflow-hidden">
               <div className="grid gap-0 lg:grid-cols-[1.35fr_0.9fr]">
                 <div className="p-5 sm:p-6 lg:p-7">
-                  <p className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#067a64]">
+                  <p className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#067a64]">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#078b70]" aria-hidden /> Secure Android distribution
                   </p>
-                  <h2 className="mt-2 text-[22px] font-black leading-none tracking-[-0.03em] text-[#063b3a] sm:text-[26px]">
+                  <h2 className="mt-2 text-[22px] font-semibold leading-none tracking-[-0.03em] text-[#063b3a] sm:text-[26px]">
                     Download the partner app
                   </h2>
                   <p className="mt-2 text-[12px] font-medium leading-5 text-[#475a56]">
@@ -536,7 +536,7 @@ export default async function PartnerPage() {
 
                 {/* QR placeholder + trust */}
                 <div className="border-t border-[#eef2f1] bg-[#fbfcfb] p-5 sm:p-6 lg:border-l lg:border-t-0 lg:bg-[#f7f8f7]">
-                  <p className="text-[12px] font-black text-[#063b3a]">Scan to download</p>
+                  <p className="text-[12px] font-semibold text-[#063b3a]">Scan to download</p>
                   <p className="mt-1 text-[11px] font-medium leading-4 text-[#5a6e69]">Open camera on Android and point at the code</p>
 
                   <div
@@ -553,11 +553,11 @@ export default async function PartnerPage() {
                         })}
                       </div>
                     </div>
-                    <p className="mt-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-[#475a56]">AAGAM Partners • Android</p>
+                    <p className="mt-3 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[#475a56]">AAGAM Partners • Android</p>
                   </div>
 
                   <div className="mt-4 rounded-[12px] border border-[#e6ecea] bg-white px-3 py-3">
-                    <p className="text-[11px] font-black text-[#063b3a]">After downloading</p>
+                    <p className="text-[11px] font-semibold text-[#063b3a]">After downloading</p>
                     <p className="mt-1 text-[11px] font-medium leading-4 text-[#475a56]">
                       Open the file from your notification shade. If Android asks, allow install from your browser/files — you can revoke it after.
                     </p>
@@ -576,7 +576,7 @@ export default async function PartnerPage() {
             {/* Side trust / steps */}
             <div className="grid gap-4">
               <Card className="p-5 sm:p-6">
-                <h3 className="text-[14px] font-black text-[#063b3a]">Onboarding in 3 steps</h3>
+                <h3 className="text-[14px] font-semibold text-[#063b3a]">Onboarding in 3 steps</h3>
                 <ol className="mt-4 space-y-3">
                   {[
                     { n: '01', t: 'Apply & verify', d: 'Share store/rider details. Phone + ID verification completes in hours.' },
@@ -584,16 +584,16 @@ export default async function PartnerPage() {
                     { n: '03', t: 'Go live', d: 'Complete profile, add location, and receive your first order / slot.' },
                   ].map((s) => (
                     <li key={s.n} className="flex gap-3">
-                      <span className="font-mono text-[11px] font-black tracking-[0.12em] text-[#078b70]">{s.n}</span>
+                      <span className="font-mono text-[11px] font-semibold tracking-[0.12em] text-[#078b70]">{s.n}</span>
                       <div className="min-w-0">
-                        <p className="text-[13px] font-black text-[#16231f]">{s.t}</p>
+                        <p className="text-[13px] font-semibold text-[#16231f]">{s.t}</p>
                         <p className="mt-1 text-[12px] font-medium leading-5 text-[#475a56]">{s.d}</p>
                       </div>
                     </li>
                   ))}
                 </ol>
                 <div className="mt-5 rounded-[12px] bg-[#063b3a] px-4 py-3 text-white">
-                  <p className="text-[12px] font-black">Questions?</p>
+                  <p className="text-[12px] font-semibold">Questions?</p>
                   <p className="mt-1 text-[11px] font-medium leading-4 text-white/70">
                     Approved partners can reach ops from the app after sign-in. New applicants will be contacted after verification.
                   </p>
@@ -601,7 +601,7 @@ export default async function PartnerPage() {
               </Card>
 
               <div className="rounded-[16px] border border-emerald-100 bg-emerald-50 p-4">
-                <p className="flex items-center gap-2 text-[12px] font-black text-[#063b3a]">
+                <p className="flex items-center gap-2 text-[12px] font-semibold text-[#063b3a]">
                   <ShieldCheck className="h-4 w-4 text-[#067a64]" aria-hidden /> Trust & safety
                 </p>
                 <p className="mt-2 text-[12px] font-medium leading-5 text-[#2f3e3a]">
@@ -616,7 +616,7 @@ export default async function PartnerPage() {
         <Section id="about" className="mt-8">
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="rounded-[16px] border border-[#e6ecea] bg-white p-5 sm:p-6">
-              <h3 className="text-[15px] font-black text-[#063b3a]">Built for neighbourhood commerce</h3>
+              <h3 className="text-[15px] font-semibold text-[#063b3a]">Built for neighbourhood commerce</h3>
               <p className="mt-2 text-[12px] font-medium leading-6 text-[#475a56]">
                 AAGAM serves customers through partner stores and delivery professionals — not a central warehouse. That means faster freshness, human accountability, and earnings that stay local. Our partner tools are deliberately simple: clear jobs, clear pay, clear support.
               </p>
@@ -627,14 +627,14 @@ export default async function PartnerPage() {
               </div>
             </div>
             <div className="rounded-[16px] bg-[#063b3a] p-5 text-white sm:p-6">
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-200">Partner promise</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">Partner promise</p>
               <p className="mt-2 text-[13px] font-medium leading-6 text-white/85">
                 “If you bring care to every order, we will bring consistency to your earnings.”
               </p>
               <p className="mt-3 text-[11px] font-bold text-emerald-200">— AAGAM Operations</p>
               <a
                 href="#download"
-                className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-white px-5 text-[13px] font-black text-[#063b3a] transition hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white min-h-[44px]"
+                className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-white px-5 text-[13px] font-semibold text-[#063b3a] transition hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white min-h-[44px]"
               >
                 Download for Android <ArrowRight className="h-4 w-4" aria-hidden />
               </a>
@@ -657,7 +657,7 @@ export default async function PartnerPage() {
             <p className="mt-4 text-[10px] font-semibold text-white/50">&copy; 2026 Aagaam Retail Pvt. Ltd. All rights reserved.</p>
           </div>
           <div>
-            <h3 className="text-[11px] font-black">Partner</h3>
+            <h3 className="text-[11px] font-semibold">Partner</h3>
             <div className="mt-3 grid gap-1 text-[12px] font-medium text-white/70">
               <a href="#roles" className="inline-flex min-h-[44px] items-center rounded px-1 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">
                 Store vs Delivery
@@ -674,7 +674,7 @@ export default async function PartnerPage() {
             </div>
           </div>
           <div>
-            <h3 className="text-[11px] font-black">Shop</h3>
+            <h3 className="text-[11px] font-semibold">Shop</h3>
             <div className="mt-3 grid gap-1 text-[12px] font-medium text-white/70">
               <Link href="/" className="inline-flex min-h-[44px] items-center rounded px-1 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">
                 Customer home
@@ -688,7 +688,7 @@ export default async function PartnerPage() {
             </div>
           </div>
           <div>
-            <h3 className="text-[11px] font-black">Support</h3>
+            <h3 className="text-[11px] font-semibold">Support</h3>
             <div className="mt-3 grid gap-1 text-[12px] font-medium text-white/70">
               <Link href="/terms" className="inline-flex min-h-[44px] items-center rounded px-1 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">
                 Terms & Conditions
@@ -702,11 +702,11 @@ export default async function PartnerPage() {
             </div>
           </div>
           <div>
-            <h3 className="text-[11px] font-black">Get the app</h3>
+            <h3 className="text-[11px] font-semibold">Get the app</h3>
             <p className="mt-3 text-[11px] font-medium leading-4 text-white/60">Android distribution for verified partners. No third-party store.</p>
             <a
               href="#download"
-              className="mt-3 inline-flex h-11 items-center gap-2 rounded-[12px] bg-[#067a64] px-4 text-[12px] font-black text-white transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white min-h-[44px]"
+              className="mt-3 inline-flex h-11 items-center gap-2 rounded-[12px] bg-[#067a64] px-4 text-[12px] font-semibold text-white transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white min-h-[44px]"
             >
               Download for Android <Download className="h-4 w-4" aria-hidden />
             </a>

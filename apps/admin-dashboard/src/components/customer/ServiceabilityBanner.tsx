@@ -18,7 +18,7 @@ export default function ServiceabilityBanner({ address, serviceability, onAddres
 
   return (
     <div className="relative">
-      <div className={`rounded-2xl border px-4 py-3 flex items-center gap-3 transition-colors ${
+      <div className={`rounded-xl border px-4 py-3 flex items-center gap-3 transition-colors ${
         serviceability === null
           ? 'border-slate-200 bg-slate-50'
           : serviceability.serviceable
@@ -33,7 +33,7 @@ export default function ServiceabilityBanner({ address, serviceability, onAddres
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-black text-slate-950 truncate">
+            <span className="text-sm font-semibold text-slate-950 truncate">
               {address.label || 'Address'}: {address.line1}, {address.city}
             </span>
           </div>
@@ -73,13 +73,13 @@ export default function ServiceabilityBanner({ address, serviceability, onAddres
       {showPicker && addresses.length > 1 && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setShowPicker(false)} />
-          <div className="absolute left-0 right-0 top-full mt-1 z-40 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl">
+          <div className="absolute left-0 right-0 top-full mt-1 z-40 rounded-xl border border-slate-100 bg-white p-2 ">
             {addresses.map((addr) => (
               <button
                 key={addr.id}
                 onClick={() => { onAddressChange(addr); setShowPicker(false); }}
                 className={`w-full text-left rounded-xl px-3 py-2.5 text-sm transition-colors ${
-                  addr.id === address.id ? 'bg-teal-50 text-teal-800 font-black' : 'text-slate-700 hover:bg-slate-50'
+                  addr.id === address.id ? 'bg-teal-50 text-teal-800 font-semibold' : 'text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 <span className="font-bold">{addr.label || 'Address'}</span>

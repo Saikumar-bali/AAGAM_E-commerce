@@ -111,13 +111,13 @@ export default function AvailabilityPage() {
           <PortalLoading />
         ) : (
           <>
-            <section className="rounded-2xl border bg-white p-5">
+            <section className="rounded-xl border bg-white p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-black uppercase text-slate-400">
+                  <p className="text-xs font-semibold uppercase text-slate-400">
                     Current status
                   </p>
-                  <p className="text-2xl font-black">
+                  <p className="text-2xl font-semibold">
                     {data?.status}
                     {data?.currentBreak ? " · BREAK" : ""}
                   </p>
@@ -125,14 +125,14 @@ export default function AvailabilityPage() {
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => status("ONLINE")}
-                    className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white"
+                    className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white"
                   >
                     <Power className="mr-2 inline h-4 w-4" />
                     Online
                   </button>
                   <button
                     onClick={() => status("OFFLINE")}
-                    className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-black text-white"
+                    className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
                   >
                     Offline
                   </button>
@@ -141,7 +141,7 @@ export default function AvailabilityPage() {
                       onClick={() =>
                         call("/riders/portal/availability/break/end")
                       }
-                      className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-black text-white"
+                      className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white"
                     >
                       End break
                     </button>
@@ -152,7 +152,7 @@ export default function AvailabilityPage() {
                           reason: "Scheduled break",
                         })
                       }
-                      className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800"
+                      className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800"
                     >
                       <Coffee className="mr-2 inline h-4 w-4" />
                       Start break
@@ -161,15 +161,15 @@ export default function AvailabilityPage() {
                 </div>
               </div>
             </section>
-            <section className="rounded-2xl border bg-white p-5">
-              <p className="font-black">Availability schedule</p>
+            <section className="rounded-xl border bg-white p-5">
+              <p className="font-semibold">Availability schedule</p>
               <div className="mt-4 space-y-2">
                 {schedule.map((row: any, index) => (
                   <div
                     key={row.dayOfWeek}
                     className="grid grid-cols-[110px_70px_1fr_1fr] items-center gap-2 rounded-xl bg-slate-50 p-3"
                   >
-                    <span className="text-sm font-black">
+                    <span className="text-sm font-semibold">
                       {days[row.dayOfWeek]}
                     </span>
                     <input
@@ -218,14 +218,14 @@ export default function AvailabilityPage() {
               </div>
               <button
                 onClick={save}
-                className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white"
+                className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white"
               >
                 Save schedule
               </button>
             </section>
             <section className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border bg-white p-5">
-                <p className="font-black">Current shift</p>
+              <div className="rounded-xl border bg-white p-5">
+                <p className="font-semibold">Current shift</p>
                 {data?.currentShift ? (
                   <p className="mt-3 text-sm font-semibold">
                     {new Date(data.currentShift.startsAt).toLocaleString(
@@ -241,8 +241,8 @@ export default function AvailabilityPage() {
                   </p>
                 )}
               </div>
-              <div className="rounded-2xl border bg-white p-5">
-                <p className="font-black">Upcoming shifts</p>
+              <div className="rounded-xl border bg-white p-5">
+                <p className="font-semibold">Upcoming shifts</p>
                 {data?.upcomingShifts?.length ? (
                   data.upcomingShifts.map((shift: any) => (
                     <p

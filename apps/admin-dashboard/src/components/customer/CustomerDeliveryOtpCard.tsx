@@ -57,7 +57,7 @@ export default function CustomerDeliveryOtpCard({ deliveryJobId, active }: Props
   if (!active || !deliveryJobId) return null;
 
   return (
-    <section className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 shadow-sm">
+    <section className="rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 ">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-700 text-white">
@@ -66,7 +66,7 @@ export default function CustomerDeliveryOtpCard({ deliveryJobId, active }: Props
           <div>
             <div className="flex items-center gap-2 text-violet-950">
               <ShieldCheck className="h-4 w-4" />
-              <h2 className="text-sm font-black">Customer-only delivery code</h2>
+              <h2 className="text-sm font-semibold">Customer-only delivery code</h2>
             </div>
             <p className="mt-1 max-w-xl text-sm font-semibold text-violet-800">
               Read this code to the rider only after checking the parcel. The rider cannot retrieve it from their account.
@@ -76,16 +76,16 @@ export default function CustomerDeliveryOtpCard({ deliveryJobId, active }: Props
         <button
           onClick={() => void load()}
           disabled={loading}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-black text-violet-800 disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-800 disabled:opacity-60"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh code
         </button>
       </div>
 
       {code ? (
-        <div className="mt-4 rounded-2xl border border-violet-200 bg-white p-5 text-center">
-          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-violet-500">Delivery OTP</p>
-          <p className="mt-2 font-mono text-4xl font-black tracking-[0.3em] text-slate-950">{code}</p>
+        <div className="mt-4 rounded-xl border border-violet-200 bg-white p-5 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-violet-500">Delivery OTP</p>
+          <p className="mt-2 font-mono text-4xl font-semibold tracking-[0.3em] text-slate-950">{code}</p>
           {expiresAt && (
             <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-slate-500">
               <Clock3 className="h-3.5 w-3.5" /> Expires {new Date(expiresAt).toLocaleTimeString('en-IN')}

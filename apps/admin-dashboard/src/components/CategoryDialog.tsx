@@ -63,10 +63,10 @@ export default function CategoryDialog({
       aria-labelledby="category-dialog-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
     >
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white ">
         <div className="flex items-center justify-between border-b border-gray-100 p-6">
           <div>
-            <h2 id="category-dialog-title" className="text-xl font-black text-gray-950">Manage Categories</h2>
+            <h2 id="category-dialog-title" className="text-xl font-semibold text-gray-950">Manage Categories</h2>
             <p className="text-sm font-semibold text-gray-500">
               Create, edit, delete, and drag to reorder categories.
             </p>
@@ -83,8 +83,8 @@ export default function CategoryDialog({
 
         <div className="p-6">
           {/* Create/Edit Form */}
-          <form onSubmit={handleSubmit} className="mb-6 rounded-2xl border border-gray-100 bg-gray-50 p-4">
-            <h3 className="text-sm font-black uppercase tracking-wider text-gray-500">
+          <form onSubmit={handleSubmit} className="mb-6 rounded-xl border border-gray-100 bg-gray-50 p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
               {editingCategory ? 'Edit category' : 'Create category'}
             </h3>
             {displayError && (
@@ -107,7 +107,7 @@ export default function CategoryDialog({
               <button
                 type="button"
                 onClick={() => { setEditingCategory(null); setCategoryName(''); setLocalError(''); }}
-                className="flex-1 rounded-xl bg-white px-4 py-3 font-black text-gray-700 hover:bg-gray-100"
+                className="flex-1 rounded-xl bg-white px-4 py-3 font-semibold text-gray-700 hover:bg-gray-100"
               >
                 Clear
               </button>
@@ -115,7 +115,7 @@ export default function CategoryDialog({
                 type="submit"
                 disabled={submitting}
                 aria-busy={submitting}
-                className="flex-1 rounded-xl bg-teal-700 px-4 py-3 font-black text-white hover:bg-teal-800 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 rounded-xl bg-teal-700 px-4 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {submitting ? (
                   <>
@@ -134,7 +134,7 @@ export default function CategoryDialog({
           {/* Sortable Category List */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-black uppercase tracking-wider text-gray-500">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
                 Existing categories
               </h3>
               <span className="text-xs font-semibold text-gray-400">
@@ -142,7 +142,7 @@ export default function CategoryDialog({
               </span>
             </div>
             {categories.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm font-semibold text-gray-400">
+              <p className="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm font-semibold text-gray-400">
                 No categories yet. Create one above.
               </p>
             ) : (

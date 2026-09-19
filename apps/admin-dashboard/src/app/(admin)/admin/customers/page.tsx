@@ -110,8 +110,8 @@ function CustomersSkeleton() {
   return (
     <DashboardLayout allowedRole="ADMIN">
       <div className="space-y-4">
-        <div className="h-28 animate-pulse rounded-2xl bg-gray-100" />
-        <div className="h-96 animate-pulse rounded-2xl bg-gray-100" />
+        <div className="h-28 animate-pulse rounded-xl bg-gray-100" />
+        <div className="h-96 animate-pulse rounded-xl bg-gray-100" />
       </div>
     </DashboardLayout>
   );
@@ -141,7 +141,7 @@ function AdminCustomersPageContent() {
         <p className="mt-1 font-medium text-gray-500">
           Registered app customers and offline store customers, side by side.
         </p>
-        <div className="mt-4 inline-flex gap-1 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-sm">
+        <div className="mt-4 inline-flex gap-1 rounded-xl border border-gray-100 bg-white p-1.5 ">
           {([
             ['registered', 'Registered Customers', Users],
             ['offline', 'Offline Customers', Store],
@@ -150,8 +150,8 @@ function AdminCustomersPageContent() {
               key={key}
               type="button"
               onClick={() => setTab(key)}
-              className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-black transition ${
-                tab === key ? 'bg-teal-700 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'
+              className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${
+                tab === key ? 'bg-teal-700 text-white ' : 'text-gray-500 hover:bg-gray-50'
               }`}
             >
               <Icon className="h-4 w-4" /> {label}
@@ -221,11 +221,11 @@ function RegisteredCustomersList() {
     <>
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map((stat) => (
-          <div key={stat.label} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-5">
+          <div key={stat.label} className="rounded-xl border border-gray-100 bg-white p-4  sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-gray-500">{stat.label}</p>
-                <p className="mt-1 text-2xl font-black text-gray-900">{stat.value}</p>
+                <p className="mt-1 text-2xl font-semibold text-gray-900">{stat.value}</p>
               </div>
               <div className="rounded-xl bg-teal-50 p-2.5 text-teal-700"><stat.icon className="h-5 w-5" /></div>
             </div>
@@ -233,7 +233,7 @@ function RegisteredCustomersList() {
         ))}
       </div>
 
-      <div className="mb-5 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+      <div className="mb-5 rounded-xl border border-gray-100 bg-white p-4 ">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full max-w-xl">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -250,9 +250,9 @@ function RegisteredCustomersList() {
                 key={status}
                 type="button"
                 onClick={() => setStatusFilter(status)}
-                className={`shrink-0 rounded-xl px-4 py-2.5 text-xs font-black transition ${
+                className={`shrink-0 rounded-xl px-4 py-2.5 text-xs font-semibold transition ${
                   statusFilter === status
-                    ? 'bg-teal-700 text-white shadow-sm'
+                    ? 'bg-teal-700 text-white '
                     : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                 }`}
               >
@@ -264,22 +264,22 @@ function RegisteredCustomersList() {
       </div>
 
       {error ? (
-        <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>
+        <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>
       ) : null}
 
       {loading ? (
         <div className="space-y-3">
-          {[1, 2, 3].map((item) => <div key={item} className="h-40 animate-pulse rounded-2xl bg-gray-100" />)}
+          {[1, 2, 3].map((item) => <div key={item} className="h-40 animate-pulse rounded-xl bg-gray-100" />)}
         </div>
       ) : filteredCustomers.length === 0 ? (
-        <div className="rounded-2xl border border-gray-100 bg-white px-6 py-16 text-center shadow-sm">
+        <div className="rounded-xl border border-gray-100 bg-white px-6 py-16 text-center ">
           <Users className="mx-auto mb-3 h-12 w-12 text-gray-300" />
           <p className="font-bold text-gray-600">No customers found</p>
         </div>
       ) : (
         <div className="space-y-4">
           {filteredCustomers.map((customer) => (
-            <article key={customer.id} className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <article key={customer.id} className="overflow-hidden rounded-xl border border-gray-100 bg-white ">
               <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_auto] xl:items-start">
                 <div className="flex min-w-0 items-start gap-3">
                   {customer.avatarUrl ? (
@@ -290,12 +290,12 @@ function RegisteredCustomersList() {
                   )}
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="truncate text-base font-black text-gray-900">{customer.name || 'Name not added'}</h2>
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-black ${customer.isActive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                      <h2 className="truncate text-base font-semibold text-gray-900">{customer.name || 'Name not added'}</h2>
+                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${customer.isActive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
                         {customer.isActive ? <CheckCircle2 className="mr-1 h-3 w-3" /> : <XCircle className="mr-1 h-3 w-3" />}
                         {customer.isActive ? 'Active' : 'Inactive'}
                       </span>
-                      {customer.emailVerified ? <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700"><ShieldCheck className="mr-1 h-3 w-3" />Email verified</span> : null}
+                      {customer.emailVerified ? <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700"><ShieldCheck className="mr-1 h-3 w-3" />Email verified</span> : null}
                     </div>
                     <p className="mt-1 break-all text-xs font-semibold text-gray-400">Customer ID: {customer.id}</p>
                     <div className="mt-3 space-y-1.5 text-sm font-semibold text-gray-600">
@@ -311,18 +311,18 @@ function RegisteredCustomersList() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs font-bold text-gray-400">Orders</p><p className="mt-1 flex items-center gap-2 font-black text-gray-900"><Package className="h-4 w-4 text-purple-500" />{customer._count.orders}</p></div>
-                  <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs font-bold text-gray-400">Subscriptions</p><p className="mt-1 flex items-center gap-2 font-black text-gray-900"><CalendarDays className="h-4 w-4 text-amber-500" />{customer._count.customerSubscriptions}</p></div>
+                  <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs font-bold text-gray-400">Orders</p><p className="mt-1 flex items-center gap-2 font-semibold text-gray-900"><Package className="h-4 w-4 text-purple-500" />{customer._count.orders}</p></div>
+                  <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs font-bold text-gray-400">Subscriptions</p><p className="mt-1 flex items-center gap-2 font-semibold text-gray-900"><CalendarDays className="h-4 w-4 text-amber-500" />{customer._count.customerSubscriptions}</p></div>
                   <div className="col-span-2 rounded-xl bg-gray-50 p-3"><p className="text-xs font-bold text-gray-400">Created</p><p className="mt-1 font-bold text-gray-700">{formatDate(customer.createdAt)}</p><p className="mt-1 text-[11px] font-semibold text-gray-400">Updated {formatDate(customer.updatedAt)}</p></div>
                 </div>
 
-                <div className="rounded-xl bg-teal-50 px-3 py-2 text-center text-xs font-black text-teal-800">
+                <div className="rounded-xl bg-teal-50 px-3 py-2 text-center text-xs font-semibold text-teal-800">
                   {customer.addresses.length} saved {customer.addresses.length === 1 ? 'address' : 'addresses'}
                 </div>
               </div>
 
               <div className="border-t border-gray-100 bg-gray-50/60 p-4 sm:p-5">
-                <div className="mb-3 flex items-center gap-2"><MapPin className="h-4 w-4 text-teal-700" /><h3 className="text-sm font-black text-gray-800">Saved addresses</h3></div>
+                <div className="mb-3 flex items-center gap-2"><MapPin className="h-4 w-4 text-teal-700" /><h3 className="text-sm font-semibold text-gray-800">Saved addresses</h3></div>
                 {customer.addresses.length === 0 ? (
                   <p className="rounded-xl border border-dashed border-gray-200 bg-white px-4 py-5 text-sm font-semibold text-gray-400">No address added by this customer.</p>
                 ) : (
@@ -330,8 +330,8 @@ function RegisteredCustomersList() {
                     {customer.addresses.map((address) => (
                       <div key={address.id} className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700">
                         <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <span className="font-black text-gray-900">{address.label || 'Address'}</span>
-                          {address.isDefault ? <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-black uppercase text-teal-700">Default</span> : null}
+                          <span className="font-semibold text-gray-900">{address.label || 'Address'}</span>
+                          {address.isDefault ? <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-teal-700">Default</span> : null}
                         </div>
                         <p className="font-bold text-gray-900">{address.recipientName}</p>
                         <p className="mt-1 leading-6">

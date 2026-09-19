@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -633,7 +633,7 @@ export default function ExcelReportPage() {
               <button
                 onClick={generateExcel}
                 disabled={isGenerating || orders.length === 0}
-                className="flex items-center px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10 disabled:opacity-50"
+                className="flex items-center px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all  shadow-emerald-900/10 disabled:opacity-50"
               >
                 <Download className={`h-4 w-4 mr-2 ${isGenerating ? 'animate-bounce' : ''}`} />
                 {isGenerating ? 'Generating...' : 'Download Excel'}
@@ -668,7 +668,7 @@ export default function ExcelReportPage() {
               color: 'bg-purple-500',
             },
           ].map((stat, idx) => (
-            <div key={idx} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <div key={idx} className="bg-white rounded-xl p-5  border border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
@@ -684,7 +684,7 @@ export default function ExcelReportPage() {
       )}
 
       {/* Table Container */}
-      <div className={`bg-white ${spreadsheetMode ? 'flex-1 flex flex-col overflow-hidden border-t border-gray-200' : 'rounded-2xl shadow-sm border border-gray-100 overflow-hidden'}`}>
+      <div className={`bg-white ${spreadsheetMode ? 'flex-1 flex flex-col overflow-hidden border-t border-gray-200' : 'rounded-xl  border border-gray-100 overflow-hidden'}`}>
         {/* Toolbar */}
         <div className={`p-3 border-b border-gray-200 bg-gray-50/50 flex flex-col lg:flex-row gap-3 items-center ${spreadsheetMode ? 'shrink-0' : ''}`}>
           <div className="relative flex-1 max-w-md">
@@ -773,7 +773,7 @@ export default function ExcelReportPage() {
                     >
                       <td className="px-3 py-2 border-r border-gray-200/50">
                         {isNew && (
-                          <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-green-500 text-white text-[10px] font-black">
+                          <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-green-500 text-white text-[10px] font-semibold">
                             N
                           </span>
                         )}
@@ -863,7 +863,7 @@ export default function ExcelReportPage() {
 
       {selectedOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl max-w-2xl w-full  max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Order Details</h2>

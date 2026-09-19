@@ -90,8 +90,8 @@ export default function DeliveryZonesPage() {
   };
 
   const zoneColumns = [
-    { key: 'order', header: '#', align: 'center' as const, width: '50px', render: (row: Zone, index: number) => <span className="grid h-8 w-8 place-items-center rounded-lg bg-teal-50 font-black text-teal-700">{index + 1}</span> },
-    { key: 'name', header: 'Zone Name', align: 'left' as const, render: (row: Zone) => <span className="font-black">{row.name}</span> },
+    { key: 'order', header: '#', align: 'center' as const, width: '50px', render: (row: Zone, index: number) => <span className="grid h-8 w-8 place-items-center rounded-lg bg-teal-50 font-semibold text-teal-700">{index + 1}</span> },
+    { key: 'name', header: 'Zone Name', align: 'left' as const, render: (row: Zone) => <span className="font-semibold">{row.name}</span> },
     {
       key: 'coords', header: 'Coordinates', align: 'left' as const,
       render: (row: Zone) => {
@@ -142,12 +142,12 @@ export default function DeliveryZonesPage() {
         return (
           <div className="text-xs">
             <span className="font-mono font-semibold">{row.centerLatitude}, {row.centerLongitude}</span>
-            {row.fallbackRadiusKm ? <span className="ml-1.5 text-teal-600 font-black">{'\u00B1'}{row.fallbackRadiusKm}km</span> : null}
+            {row.fallbackRadiusKm ? <span className="ml-1.5 text-teal-600 font-semibold">{'\u00B1'}{row.fallbackRadiusKm}km</span> : null}
           </div>
         );
       }
     },
-    { key: 'status', header: 'Status', align: 'center' as const, render: (row: Zone) => row.isActive ? <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">Active</span> : <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">Hidden</span> },
+    { key: 'status', header: 'Status', align: 'center' as const, render: (row: Zone) => row.isActive ? <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Active</span> : <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Hidden</span> },
     { key: 'actions', header: 'Actions', align: 'center' as const, render: (row: Zone, index: number) => {
       if (editingId === row.id) {
         return (
@@ -164,7 +164,7 @@ export default function DeliveryZonesPage() {
           <button onClick={() => void move(index, -1)} type="button" disabled={index === 0} className="rounded-xl border p-2 disabled:opacity-25" title="Move up"><ChevronUp className="h-4 w-4" /></button>
           <button onClick={() => void move(index, 1)} type="button" disabled={index === zones.length - 1} className="rounded-xl border p-2 disabled:opacity-25" title="Move down"><ChevronDown className="h-4 w-4" /></button>
           <button onClick={() => startEdit(row)} type="button" className="rounded-xl border p-2 text-slate-600 hover:bg-slate-50" title="Edit coordinates"><Pencil className="h-3.5 w-3.5" /></button>
-          <button onClick={() => void toggle(row)} type="button" className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black ${row.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`} title={row.isActive ? 'Hide' : 'Show'}><Power className="h-3.5 w-3.5" />{row.isActive ? 'Active' : 'Inactive'}</button>
+          <button onClick={() => void toggle(row)} type="button" className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold ${row.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`} title={row.isActive ? 'Hide' : 'Show'}><Power className="h-3.5 w-3.5" />{row.isActive ? 'Active' : 'Inactive'}</button>
         </div>
       );
     } },
@@ -174,22 +174,22 @@ export default function DeliveryZonesPage() {
     <DashboardLayout allowedRole="ADMIN">
       <div className="mx-auto max-w-5xl space-y-6 pb-12">
         <header>
-          <p className="text-xs font-black uppercase tracking-[.2em] text-teal-700">Service-area controls</p>
-          <h1 className="mt-2 text-3xl font-black">Delivery Zones</h1>
+          <p className="text-xs font-semibold uppercase tracking-[.2em] text-teal-700">Service-area controls</p>
+          <h1 className="mt-2 text-3xl font-semibold">Delivery Zones</h1>
           <p className="mt-2 text-sm font-semibold text-slate-500">
             Create zones, set center coordinates + radius for serviceability checks. Click the{' '}
             <Pencil className="inline h-3.5 w-3.5" /> icon to edit coordinates.
           </p>
         </header>
-        {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{String(error)}</div> : null}
-        {message ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">{message}</div> : null}
-        <form onSubmit={create} className="flex gap-3 rounded-3xl border bg-white p-5 shadow-sm">
+        {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{String(error)}</div> : null}
+        {message ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">{message}</div> : null}
+        <form onSubmit={create} className="flex gap-3 rounded-xl border bg-white p-5 ">
           <input value={name} onChange={(event) => setName(event.target.value)} placeholder="New service area, e.g. Rushikonda" className="min-w-0 flex-1 rounded-xl border px-4 py-3 font-semibold" required minLength={2} />
-          <button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-3 font-black text-white disabled:opacity-50">
+          <button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white disabled:opacity-50">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add zone
           </button>
         </form>
-        <div className="rounded-3xl border bg-white shadow-sm">
+        <div className="rounded-xl border bg-white ">
           <DataTable<Zone>
             columns={zoneColumns}
             data={zones}

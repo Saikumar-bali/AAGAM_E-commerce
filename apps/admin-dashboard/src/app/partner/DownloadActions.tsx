@@ -78,7 +78,7 @@ export default function DownloadActions({ downloadUrl, versionName, publishedAt 
             Updated {publishedLabel}
           </span>
         ) : null}
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-black tracking-wide text-[#475a56]" translate="no">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-[#475a56]" translate="no">
           <ShieldCheck className="h-3.5 w-3.5 text-[#078b70]" aria-hidden /> Secure AAGAM Distribution • Verified Build
         </span>
       </div>
@@ -89,7 +89,7 @@ export default function DownloadActions({ downloadUrl, versionName, publishedAt 
         onClick={handleDownload}
         disabled={!downloadUrl}
         aria-label={downloadUrl ? `Download AAGAM Partners version ${versionName || ''} for Android` : 'Partner build currently unavailable'}
-        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] bg-[#067a64] px-6 text-[14px] font-black text-white shadow-[0_8px_20px_rgba(6,122,100,0.28)] transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#063b3a] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none min-h-[44px]"
+        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] bg-[#067a64] px-6 text-[14px] font-semibold text-white shadow-[0_8px_20px_rgba(6,122,100,0.28)] transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#063b3a] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none min-h-[44px]"
       >
         <Download className="h-4 w-4 shrink-0" aria-hidden />
         Download for Android
@@ -128,7 +128,7 @@ export default function DownloadActions({ downloadUrl, versionName, publishedAt 
               setOpen(false);
               triggerRef.current?.focus();
             }}
-            className="absolute inset-0 bg-[#063b3a]/60 backdrop-blur-[2px] touch-manipulation"
+            className="absolute inset-0 bg-[#063b3a]/60 -[2px] touch-manipulation"
           />
           <div
             id="how-to-install-drawer"
@@ -143,7 +143,7 @@ export default function DownloadActions({ downloadUrl, versionName, publishedAt 
                   <Smartphone className="h-5 w-5" aria-hidden />
                 </span>
                 <div>
-                  <h3 id="install-title" className="text-[14px] font-black tracking-tight text-[#063b3a]">
+                  <h3 id="install-title" className="text-[14px] font-semibold tracking-tight text-[#063b3a]">
                     How to install on Android
                   </h3>
                   <p className="text-[12px] font-semibold text-[#5a6e69]">Takes about 30 seconds</p>
@@ -180,11 +180,11 @@ export default function DownloadActions({ downloadUrl, versionName, publishedAt 
                   },
                 ].map((step, idx) => (
                   <li key={step.title} className="flex gap-3 rounded-[14px] border border-[#e6ecea] bg-[#f7f8f7] p-3.5">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#063b3a] text-[12px] font-black text-white">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#063b3a] text-[12px] font-semibold text-white">
                       {idx + 1}
                     </span>
                     <div className="min-w-0">
-                      <h4 className="text-[13px] font-black text-[#16231f]">{step.title}</h4>
+                      <h4 className="text-[13px] font-semibold text-[#16231f]">{step.title}</h4>
                       <p className="mt-1 text-[12px] font-medium leading-5 text-[#475a56]">{step.copy}</p>
                     </div>
                   </li>
@@ -194,7 +194,7 @@ export default function DownloadActions({ downloadUrl, versionName, publishedAt 
               <div className="mt-5 flex items-start gap-3 rounded-[14px] border border-emerald-100 bg-emerald-50 p-3.5">
                 <FileCheck2 className="mt-0.5 h-5 w-5 shrink-0 text-[#067a64]" aria-hidden />
                 <div>
-                  <p className="text-[12px] font-black text-[#063b3a]">Verified & secure</p>
+                  <p className="text-[12px] font-semibold text-[#063b3a]">Verified & secure</p>
                   <p className="mt-1 text-[12px] font-medium leading-5 text-[#3b4f4b]">
                     Every build is signed and distributed directly by AAGAM. You will never be asked to enter payment details to install.
                   </p>
@@ -206,7 +206,7 @@ export default function DownloadActions({ downloadUrl, versionName, publishedAt 
                   type="button"
                   onClick={handleDownload}
                   disabled={!downloadUrl}
-                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[#067a64] px-5 text-[14px] font-black text-white transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#063b3a] disabled:opacity-50 min-h-[44px]"
+                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[#067a64] px-5 text-[14px] font-semibold text-white transition hover:bg-[#065f4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#063b3a] disabled:opacity-50 min-h-[44px]"
                 >
                   <Download className="h-4 w-4" aria-hidden />
                   Download for Android

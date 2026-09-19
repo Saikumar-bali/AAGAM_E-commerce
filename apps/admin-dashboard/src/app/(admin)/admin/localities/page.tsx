@@ -15,7 +15,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 
 const LocalityMapPicker = dynamic(
   () => import("@/components/LocalityMapPicker"),
-  { ssr: false, loading: () => <div className="grid h-[300px] place-items-center rounded-2xl bg-slate-50 text-xs text-slate-400">Loading map…</div> },
+  { ssr: false, loading: () => <div className="grid h-[300px] place-items-center rounded-xl bg-slate-50 text-xs text-slate-400">Loading map…</div> },
 );
 
 type Locality = {
@@ -63,10 +63,10 @@ function Modal({ title, subtitle, onClose, children }: {
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
-      <div className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+      <div className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white ">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
           <div>
-            <h2 className="text-xl font-black text-slate-950">{title}</h2>
+            <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
             <p className="text-xs font-semibold text-slate-500">{subtitle}</p>
           </div>
           <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100">
@@ -85,7 +85,7 @@ function Field({ label, wide, children }: {
   children: React.ReactElement<{ className?: string }>;
 }) {
   return (
-    <label className={`block text-xs font-black uppercase tracking-wide text-slate-500 ${wide ? "md:col-span-2" : ""}`}>
+    <label className={`block text-xs font-semibold uppercase tracking-wide text-slate-500 ${wide ? "md:col-span-2" : ""}`}>
       {label}
       {React.cloneElement(children, {
         className: `${children.props.className || ""} mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold normal-case tracking-normal text-slate-950 focus:border-teal-500 focus:outline-none`,
@@ -263,8 +263,8 @@ export default function LocalitiesPage() {
       <div className="mx-auto max-w-6xl space-y-8 pb-12">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-teal-600">Admin · Delivery</p>
-            <h1 className="text-2xl font-black text-slate-950">Localities</h1>
+            <p className="text-xs font-semibold uppercase tracking-widest text-teal-600">Admin · Delivery</p>
+            <h1 className="text-2xl font-semibold text-slate-950">Localities</h1>
             <p className="mt-1 max-w-2xl text-sm font-semibold text-slate-500">
               The list of serviceable villages and localities. Customers pick from this list when
               entering a manual delivery address, so the locality, pincode and city are always
@@ -274,45 +274,45 @@ export default function LocalitiesPage() {
           <button
             type="button"
             onClick={openCreate}
-            className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-black text-white hover:bg-teal-800"
+            className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
           >
             <Plus className="h-4 w-4" /> New locality
           </button>
         </header>
 
-        {message ? <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{message}</div> : null}
-        {error ? <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div> : null}
+        {message ? <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{message}</div> : null}
+        {error ? <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div> : null}
 
         <section>
-          <h2 className="mb-3 text-lg font-black text-slate-950">Serviceable localities</h2>
+          <h2 className="mb-3 text-lg font-semibold text-slate-950">Serviceable localities</h2>
           {loading ? (
-            <div className="grid place-items-center rounded-3xl bg-white p-12 text-slate-400">
+            <div className="grid place-items-center rounded-xl bg-white p-12 text-slate-400">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : localities.length === 0 ? (
-            <div className="rounded-3xl bg-white p-10 text-center text-sm font-semibold text-slate-500">
+            <div className="rounded-xl bg-white p-10 text-center text-sm font-semibold text-slate-500">
               No localities yet. Add the villages you want to serve — customers will pick from this list.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-3xl bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-xl bg-white ">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-5 py-4 font-black">Locality</th>
-                    <th className="px-5 py-4 font-black">City</th>
-                    <th className="px-5 py-4 font-black">Pincode</th>
-                    <th className="px-5 py-4 font-black">Zone</th>
-                    <th className="px-5 py-4 font-black">Centre</th>
-                    <th className="px-5 py-4 font-black">Radius</th>
-                    <th className="px-5 py-4 font-black">Status</th>
-                    <th className="px-5 py-4 text-right font-black">Actions</th>
+                    <th className="px-5 py-4 font-semibold">Locality</th>
+                    <th className="px-5 py-4 font-semibold">City</th>
+                    <th className="px-5 py-4 font-semibold">Pincode</th>
+                    <th className="px-5 py-4 font-semibold">Zone</th>
+                    <th className="px-5 py-4 font-semibold">Centre</th>
+                    <th className="px-5 py-4 font-semibold">Radius</th>
+                    <th className="px-5 py-4 font-semibold">Status</th>
+                    <th className="px-5 py-4 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {localities.map((locality) => (
                     <tr key={locality.id} className="hover:bg-teal-50/30">
                       <td className="px-5 py-4">
-                        <p className="font-black text-slate-950">{locality.name}</p>
+                        <p className="font-semibold text-slate-950">{locality.name}</p>
                         <p className="text-xs font-semibold text-slate-400">
                           {locality.aliases.length ? `aka ${locality.aliases.join(", ")}` : "no aliases"}
                         </p>
@@ -340,7 +340,7 @@ export default function LocalitiesPage() {
                         <button
                           type="button"
                           onClick={() => toggleActive(locality)}
-                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ${
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
                             locality.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
                           }`}
                         >
@@ -352,14 +352,14 @@ export default function LocalitiesPage() {
                         <button
                           type="button"
                           onClick={() => openEdit(locality)}
-                          className="rounded-xl px-3 py-1.5 text-xs font-black text-teal-700 hover:bg-teal-50"
+                          className="rounded-xl px-3 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-50"
                         >
                           Edit
                         </button>
                         <button
                           type="button"
                           onClick={() => remove(locality)}
-                          className="rounded-xl px-3 py-1.5 text-xs font-black text-red-600 hover:bg-red-50"
+                          className="rounded-xl px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
                         >
                           <Trash2 className="inline h-3.5 w-3.5" /> Delete
                         </button>
@@ -380,7 +380,7 @@ export default function LocalitiesPage() {
           onClose={() => setFormOpen(false)}
         >
           <form onSubmit={save} className="grid gap-4 md:grid-cols-2">
-            {formError ? <div className="md:col-span-2 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{formError}</div> : null}
+            {formError ? <div className="md:col-span-2 rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{formError}</div> : null}
             <Field label="Locality name" wide>
               <input
                 required
@@ -462,7 +462,7 @@ export default function LocalitiesPage() {
             </Field>
 
             <div className="md:col-span-2">
-              <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">Map &amp; Radius</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Map &amp; Radius</p>
               <p className="mb-3 text-xs text-slate-400">
                 Click the map to move the centre pin, or drag the marker. Use the slider below to set the delivery radius.
               </p>
@@ -492,7 +492,7 @@ export default function LocalitiesPage() {
                     <span>50 km</span>
                   </div>
                 </div>
-                <div className="grid place-items-center rounded-xl border border-slate-200 bg-slate-50 py-2 text-sm font-black text-slate-950">
+                <div className="grid place-items-center rounded-xl border border-slate-200 bg-slate-50 py-2 text-sm font-semibold text-slate-950">
                   {formRadius} km
                 </div>
               </div>
@@ -522,14 +522,14 @@ export default function LocalitiesPage() {
               <button
                 type="button"
                 onClick={() => setFormOpen(false)}
-                className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-600 hover:bg-slate-200"
+                className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-200"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-black text-white hover:bg-teal-800 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trees className="h-4 w-4" />}
                 {editingId ? "Save changes" : "Create locality"}

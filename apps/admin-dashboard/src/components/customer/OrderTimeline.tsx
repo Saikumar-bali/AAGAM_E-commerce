@@ -68,13 +68,13 @@ export default function OrderTimeline({ currentStatus, isStoreDelivery, timeline
 
   if (isCancelled) {
     return (
-      <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
+      <div className="rounded-xl border border-red-100 bg-red-50 p-5">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-red-100 text-red-600">
             <Clock className="h-5 w-5" />
           </div>
           <div>
-            <div className="text-sm font-black text-red-900">Order Cancelled</div>
+            <div className="text-sm font-semibold text-red-900">Order Cancelled</div>
             <div className="text-xs text-red-600">This order has been cancelled.</div>
           </div>
         </div>
@@ -83,8 +83,8 @@ export default function OrderTimeline({ currentStatus, isStoreDelivery, timeline
   }
 
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white p-5">
-      <div className="text-sm font-black text-slate-950 mb-4">Order Progress</div>
+    <div className="rounded-xl border border-slate-100 bg-white p-5">
+      <div className="text-sm font-semibold text-slate-950 mb-4">Order Progress</div>
       <div className="space-y-0">
         {flow.map((step, i) => {
           const completed = i <= currentStep;
@@ -107,7 +107,7 @@ export default function OrderTimeline({ currentStatus, isStoreDelivery, timeline
               <div className="pb-4">
                 <div className={`text-sm font-bold ${completed ? 'text-slate-950' : 'text-slate-400'}`}>
                   {step.label}
-                  {current && <span className="ml-2 text-xs font-black text-teal-600">Current</span>}
+                  {current && <span className="ml-2 text-xs font-semibold text-teal-600">Current</span>}
                 </div>
               </div>
             </div>
@@ -117,7 +117,7 @@ export default function OrderTimeline({ currentStatus, isStoreDelivery, timeline
 
       {timeline && timeline.length > 0 && (
         <div className="mt-4 border-t border-slate-100 pt-4">
-          <div className="text-xs font-black text-slate-500 uppercase tracking-wider mb-3">Activity Log</div>
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Activity Log</div>
           <div className="space-y-2.5 max-h-48 overflow-y-auto">
             {timeline.slice().reverse().map((event, i) => (
               <div key={i} className="flex gap-2 text-xs">

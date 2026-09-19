@@ -183,25 +183,24 @@ export default function ShopPage() {
         query={query}
         onQueryChange={setQuery}
       >
-        <div className="space-y-6 pb-24 md:pb-8">
+        <div className="space-y-5 pb-24 md:pb-8">
           <PromotionHeroCarousel campaigns={promotions.HOME_HERO} />
 
           <section>
-            <div className="mb-3 flex items-center gap-2">
-              <span className="text-lg">⚡</span>
-              <h2 className="text-sm font-black uppercase tracking-wider text-slate-950">Quick Links</h2>
+            <div className="mb-2.5 flex items-center gap-2">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Quick links</h2>
             </div>
             <div className="scrollbar-none flex gap-2 overflow-x-auto pb-1">
               {quickLinks.map((link) => (
                 <button
                   key={link.label}
                   onClick={() => router.push(link.href)}
-                  className="group flex shrink-0 items-center gap-2.5 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md"
+                  className="group flex shrink-0 items-center gap-2 rounded-lg border border-slate-100 bg-white px-3 py-2 text-left transition-all hover:border-teal-200"
                 >
-                  <span className="text-xl">{link.icon}</span>
-                  <span className="text-sm font-black text-slate-950 transition-colors group-hover:text-teal-700">{link.label}</span>
+                  <span className="text-base">{link.icon}</span>
+                  <span className="text-sm font-medium text-slate-950 transition-colors group-hover:text-teal-700">{link.label}</span>
                   {link.count != null && link.count > 0 && (
-                    <span className="ml-1 grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-amber-400 px-1 text-[10px] font-black text-slate-950">
+                    <span className="ml-1 grid h-5 min-w-[1.25rem] place-items-center rounded-md bg-amber-100 px-1 text-[10px] font-semibold text-amber-800">
                       {link.count}
                     </span>
                   )}
@@ -211,39 +210,37 @@ export default function ShopPage() {
           </section>
 
           {subscriptionPlans.length > 0 && (
-            <section className="rounded-[28px] border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 sm:p-6">
-              <div className="mb-5 flex items-end justify-between gap-3">
-                <div><p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700"><CalendarDays className="h-4 w-4" /> Subscribe & Save</p><h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Essentials on your schedule</h2><p className="mt-1 text-sm text-slate-600">Verified first or weekly cash funding. Funded deliveries are ₹0 due.</p></div>
-                <button onClick={() => router.push('/shop/subscriptions')} className="hidden min-h-11 items-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-black text-white sm:flex">View all <ArrowRight className="h-4 w-4" /></button>
+            <section className="rounded-xl border border-emerald-100 bg-emerald-50/30 p-4 sm:p-5">
+              <div className="mb-4 flex items-end justify-between gap-3">
+                <div><p className="enterprise-kicker"><CalendarDays className="mr-1.5 inline h-3 w-3" /> Subscribe & Save</p><h2 className="mt-2 text-lg font-semibold text-slate-950">Essentials on your schedule</h2><p className="mt-0.5 text-xs text-slate-600">Verified first or weekly cash funding. Funded deliveries are ₹0 due.</p></div>
+                <button onClick={() => router.push('/shop/subscriptions')} className="hidden min-h-[44px] items-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white sm:flex">View all <ArrowRight className="h-4 w-4" /></button>
               </div>
-              <div className="grid gap-4 lg:grid-cols-3">{subscriptionPlans.slice(0, 3).map((plan) => <SubscriptionPlanCard key={plan.id} plan={plan} compact />)}</div>
+              <div className="grid gap-3 lg:grid-cols-3">{subscriptionPlans.slice(0, 3).map((plan) => <SubscriptionPlanCard key={plan.id} plan={plan} compact />)}</div>
             </section>
           )}
 
           <section>
-            <div className="mb-3 flex items-center gap-2">
-              <span className="text-lg">🎉</span>
-              <h2 className="text-sm font-black uppercase tracking-wider text-slate-950">Today&apos;s Offers</h2>
+            <div className="mb-2.5 flex items-center gap-2">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Today&apos;s offers</h2>
             </div>
             <OfferBanner campaigns={promotions.HOME_TODAY_OFFERS} />
           </section>
 
           <section>
-            <div className="mb-4 flex items-end justify-between gap-3">
-              <div><p className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-700">Shop by department</p><h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Categories</h2></div>
-              <p className="hidden text-xs font-semibold text-slate-500 sm:block">Fresh picks from every aisle</p>
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div><p className="enterprise-kicker">Shop by department</p><h2 className="mt-2 text-lg font-semibold text-slate-950">Categories</h2></div>
+              <p className="hidden text-[11px] text-slate-500 sm:block">Fresh picks from every aisle</p>
             </div>
             <CategoryRail categories={categories} selectedId={selectedCategoryId} onSelect={setSelectedCategoryId} />
           </section>
 
           <section>
-            <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-lg">{selectedCategoryId || query ? '🔍' : '🛒'}</span>
-                  <h2 className="truncate text-sm font-black uppercase tracking-wider text-slate-950">{activeHeading}</h2>
+                  <h2 className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-400">{activeHeading}</h2>
                   {products.length > 0 && (
-                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">
+                    <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
                       {products.length} items
                     </span>
                   )}
@@ -253,7 +250,7 @@ export default function ShopPage() {
               <div className="relative shrink-0">
                 <button
                   onClick={() => setSortMenuOpen(!sortMenuOpen)}
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
                 >
                   <SlidersHorizontal className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">{SORT_OPTIONS.find((o) => o.value === sort)?.label}</span>
@@ -262,13 +259,13 @@ export default function ShopPage() {
                 {sortMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-30" onClick={() => setSortMenuOpen(false)} />
-                    <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-2xl border border-slate-100 bg-white p-1.5 shadow-xl">
+                    <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-xl border border-slate-100 bg-white p-1.5 ">
                       {SORT_OPTIONS.map((option) => (
                         <button
                           key={option.value}
                           onClick={() => { setSort(option.value); setSortMenuOpen(false); }}
                           className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition-colors ${
-                            sort === option.value ? 'bg-teal-50 font-black text-teal-800' : 'text-slate-700 hover:bg-slate-50'
+                            sort === option.value ? 'bg-teal-50 font-semibold text-teal-800' : 'text-slate-700 hover:bg-slate-50'
                           }`}
                         >
                           {option.label}
@@ -284,14 +281,14 @@ export default function ShopPage() {
           {loading ? (
             <div className="space-y-6">
               {Array.from({ length: 4 }).map((_, sectionIndex) => (
-                <section key={sectionIndex} className="rounded-3xl border border-slate-100 bg-white p-4">
+                <section key={sectionIndex} className="rounded-xl border border-slate-100 bg-white p-4">
                   <div className="mb-4 flex items-center justify-between">
                     <div className="h-5 w-36 rounded bg-slate-100" />
                     <div className="h-4 w-16 rounded bg-slate-100" />
                   </div>
                   <div className="flex gap-3 overflow-hidden">
                     {Array.from({ length: 5 }).map((__, i) => (
-                      <div key={i} className="w-[172px] shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-white animate-pulse sm:w-[190px] lg:w-[204px]">
+                      <div key={i} className="w-[172px] shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-white animate-pulse sm:w-[190px] lg:w-[204px]">
                         <div className="aspect-[4/3] bg-slate-100" />
                         <div className="space-y-2 p-3">
                           <div className="h-3 w-3/4 rounded bg-slate-100" />
@@ -317,13 +314,13 @@ export default function ShopPage() {
           ) : (
             <div className="space-y-7">
               {groupedSections.map((section) => (
-                <section key={section.id} id={`category-${section.id}`} className="rounded-3xl border border-slate-100 bg-white/80 p-4 shadow-sm shadow-slate-200/40">
+                <section key={section.id} id={`category-${section.id}`} className="rounded-xl border border-slate-100 bg-white/80 p-4  shadow-slate-200/40">
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-teal-50 text-lg">🛍️</span>
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-teal-50 text-lg">🛍️</span>
                         <div className="min-w-0">
-                          <h3 className="truncate text-lg font-black text-slate-950">{section.name}</h3>
+                          <h3 className="truncate text-lg font-semibold text-slate-950">{section.name}</h3>
                           <p className="text-xs font-bold text-slate-400">{section.products.length} item{section.products.length !== 1 ? 's' : ''}</p>
                         </div>
                       </div>
@@ -331,7 +328,7 @@ export default function ShopPage() {
                     {!selectedCategoryId && (
                       <button
                         onClick={() => setSelectedCategoryId(section.id === 'uncategorized' ? '' : section.id)}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition-colors hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800"
+                        className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800"
                       >
                         View all <ArrowRight className="h-3.5 w-3.5" />
                       </button>
@@ -353,17 +350,17 @@ export default function ShopPage() {
           {totalItems > 0 && (
             <>
               <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 hidden px-4 md:mx-auto md:block md:max-w-md md:px-0">
-                <div className="pointer-events-auto flex items-center justify-between rounded-2xl bg-slate-950 px-5 py-3.5 shadow-2xl shadow-slate-950/30">
+                <div className="pointer-events-auto flex items-center justify-between rounded-xl bg-slate-950 px-5 py-3.5  shadow-slate-950/30">
                   <button
                     onClick={() => setIsCartOpen(true)}
                     className="flex items-center gap-3 text-left transition hover:opacity-90"
                     aria-label="Open cart drawer"
                   >
-                    <div className="flex items-center gap-1 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-black text-white">
+                    <div className="flex items-center gap-1 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-semibold text-white">
                       <Package className="h-3.5 w-3.5" />
                       {totalItems} item{totalItems !== 1 ? 's' : ''}
                     </div>
-                    <span className="text-lg font-black text-white">₹{totalPrice.toFixed(0)}</span>
+                    <span className="text-lg font-semibold text-white">₹{totalPrice.toFixed(0)}</span>
                   </button>
                   <div className="flex items-center gap-2">
                     <button
@@ -374,7 +371,7 @@ export default function ShopPage() {
                     </button>
                     <button
                       onClick={() => router.push('/shop/checkout')}
-                      className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-teal-900/20 transition-all hover:-translate-y-0.5 hover:bg-teal-500"
+                      className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white  shadow-teal-900/20 transition-all  hover:bg-teal-500"
                     >
                       Checkout →
                     </button>
@@ -383,7 +380,7 @@ export default function ShopPage() {
               </div>
               <button
                 onClick={() => setIsCartOpen(true)}
-                className="fixed bottom-24 right-4 z-50 flex items-center gap-2 rounded-full bg-teal-600 px-4 py-3 text-xs font-black text-white shadow-xl shadow-teal-900/30 transition-all hover:-translate-y-0.5 hover:bg-teal-500 md:hidden"
+                className="fixed bottom-24 right-4 z-50 flex items-center gap-2 rounded-full bg-teal-600 px-4 py-3 text-xs font-semibold text-white  shadow-teal-900/30 transition-all  hover:bg-teal-500 md:hidden"
                 aria-label="Open cart drawer"
               >
                 <ShoppingCart className="h-4 w-4" />

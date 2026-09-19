@@ -78,64 +78,64 @@ export default function CartSheet({
 
   return createPortal(
     <div className="fixed inset-0 z-50 overflow-hidden">
-      <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-950/40 transition-opacity" onClick={onClose} />
       <div className="absolute inset-y-0 right-0 flex max-w-full" role="dialog" aria-modal="true" aria-label="Shopping cart">
         <div ref={panelRef} className="w-screen max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
-          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-white to-teal-50/50">
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-100 text-teal-700">
-                <ShoppingBag className="h-5 w-5" />
+          <div className="px-4 py-4 border-b border-slate-100 flex items-center justify-between bg-white">
+            <div className="flex items-center gap-2.5">
+              <div className="grid h-9 w-9 place-items-center rounded-md bg-teal-50 text-teal-700">
+                <ShoppingBag className="h-4 w-4" />
               </div>
               <div>
-                <h2 className="text-lg font-black text-slate-950">Your Cart</h2>
-                <p className="text-xs font-bold text-slate-500">{totalItems} item{totalItems !== 1 ? 's' : ''}</p>
+                <h2 className="text-base font-semibold text-slate-950">Your cart</h2>
+                <p className="text-[11px] text-slate-500">{totalItems} item{totalItems !== 1 ? 's' : ''}</p>
               </div>
             </div>
-            <button onClick={onClose} aria-label="Close cart" className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors">
-              <X className="h-5 w-5" />
+            <button onClick={onClose} aria-label="Close cart" className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors">
+              <X className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex-1 overflow-y-auto px-4 py-3">
             {cart.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center">
-                <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-teal-50 to-amber-50 border border-teal-100">
-                  <ShoppingBag className="h-9 w-9 text-teal-400" />
+                <div className="grid h-16 w-16 place-items-center rounded-lg bg-slate-50 border border-slate-100">
+                  <ShoppingBag className="h-7 w-7 text-slate-300" />
                 </div>
-                <h3 className="mt-4 text-lg font-black text-slate-950">Your cart is empty</h3>
-                <p className="mt-1 text-sm text-slate-500">Add items to start shopping!</p>
-                <button onClick={onClose} className="mt-5 rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-black text-white hover:bg-teal-700 transition-colors">
+                <h3 className="mt-3 text-base font-semibold text-slate-950">Your cart is empty</h3>
+                <p className="mt-1 text-xs text-slate-500">Add items to start shopping.</p>
+                <button onClick={onClose} className="mt-4 enterprise-button">
                   Browse products
                 </button>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 rounded-xl bg-teal-50 border border-teal-100 px-3 py-2">
-                  <Truck className="h-4 w-4 text-teal-700" />
-                  <span className="text-xs font-bold text-teal-800">Fast doorstep delivery</span>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 rounded-md bg-teal-50 border border-teal-100 px-2.5 py-1.5">
+                  <Truck className="h-3.5 w-3.5 text-teal-700" />
+                  <span className="text-[11px] font-medium text-teal-800">Fast doorstep delivery</span>
                 </div>
 
                 {cart.map((item) => {
                   const image = item.image || getProductImage(item);
                   return (
-                    <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 shadow-xs">
-                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
+                    <div key={item.id} className="flex items-center gap-2.5 rounded-lg border border-slate-100 bg-white p-3">
+                      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md border border-slate-100 bg-slate-50">
                         <img src={image} alt={item.name} className="h-full w-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
-                          <h4 className="text-sm font-bold text-slate-900 truncate">{item.name}</h4>
+                          <h4 className="text-sm font-medium text-slate-900 truncate">{item.name}</h4>
                           <button onClick={() => onRemove(item.id)} aria-label={`Remove ${item.name}`} className="shrink-0 p-1 text-slate-300 hover:text-red-500 transition-colors">
-                            <X className="h-4 w-4" />
+                            <X className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                        <div className="mt-1 text-sm font-extrabold text-teal-800">{formatINR(item.price)}</div>
-                        <div className="mt-2.5 inline-flex items-center rounded-xl border border-teal-200 bg-teal-50 shadow-2xs">
-                          <button onClick={() => onDecrement(item.id)} aria-label="Decrease quantity" className="h-7 w-7 grid place-items-center hover:bg-teal-100 rounded-l-xl text-teal-800 transition-colors">
+                        <div className="mt-0.5 text-sm font-semibold text-teal-700">{formatINR(item.price)}</div>
+                        <div className="mt-2 inline-flex items-center rounded-md border border-slate-200 bg-white">
+                          <button onClick={() => onDecrement(item.id)} aria-label="Decrease quantity" className="h-7 w-7 grid place-items-center hover:bg-slate-50 rounded-l-md text-slate-600 transition-colors">
                             <Minus className="h-3 w-3" />
                           </button>
-                          <span className="w-8 text-center text-xs font-black text-teal-900 tabular-nums">{item.quantity}</span>
-                          <button onClick={() => onIncrement(item.id)} aria-label="Increase quantity" className="h-7 w-7 grid place-items-center hover:bg-teal-100 rounded-r-xl text-teal-800 transition-colors">
+                          <span className="w-8 text-center text-xs font-semibold text-slate-900 tabular-nums">{item.quantity}</span>
+                          <button onClick={() => onIncrement(item.id)} aria-label="Increase quantity" className="h-7 w-7 grid place-items-center hover:bg-slate-50 rounded-r-md text-slate-600 transition-colors">
                             <Plus className="h-3 w-3" />
                           </button>
                         </div>
@@ -148,25 +148,25 @@ export default function CartSheet({
           </div>
 
           {cart.length > 0 && (
-            <div className="border-t border-slate-100 bg-white p-5 space-y-3 shadow-lg">
+            <div className="border-t border-slate-100 bg-white p-4 space-y-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-semibold text-slate-500">Subtotal ({totalItems} {totalItems === 1 ? 'item' : 'items'})</span>
-                <span className="text-lg font-black text-slate-950 tabular-nums">{formatINR(totalPrice)}</span>
+                <span className="font-medium text-slate-500">Subtotal ({totalItems} {totalItems === 1 ? 'item' : 'items'})</span>
+                <span className="text-base font-semibold tabular-nums text-slate-950">{formatINR(totalPrice)}</span>
               </div>
               <div className="flex items-center gap-2">
                 {onClear && (
                   <button
                     onClick={onClear}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-xs font-bold text-slate-600 transition hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-600 transition hover:bg-red-50 hover:border-red-200 hover:text-red-600"
                   >
                     Clear
                   </button>
                 )}
                 <button
                   onClick={onCheckout || onClose}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-800 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-teal-950/15 transition hover:bg-teal-900"
+                  className="enterprise-button flex flex-1 items-center justify-center gap-2 py-2.5"
                 >
-                  <span>Proceed to Checkout</span>
+                  <span>Proceed to checkout</span>
                   <span>→</span>
                 </button>
               </div>

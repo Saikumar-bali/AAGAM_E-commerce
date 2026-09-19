@@ -104,23 +104,23 @@ export default function RiderPhotoProofFallback() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-20 right-4 z-[70] inline-flex min-h-12 items-center gap-2 rounded-full bg-teal-700 px-4 text-sm font-black text-white shadow-xl hover:bg-teal-800"
+        className="fixed bottom-20 right-4 z-[70] inline-flex min-h-12 items-center gap-2 rounded-full bg-teal-700 px-4 text-sm font-semibold text-white  hover:bg-teal-800"
       >
         <Camera className="h-4 w-4" /> OTP unavailable? Photo proof
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Delivery photo proof">
-          <div className="relative w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4 " role="dialog" aria-modal="true" aria-label="Delivery photo proof">
+          <div className="relative w-full max-w-md rounded-xl bg-white p-5  sm:p-6">
             <button type="button" onClick={closeProof} className="absolute right-4 top-4 rounded-full bg-slate-100 p-2 text-slate-500"><X className="h-5 w-5" /></button>
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-teal-50"><ShieldCheck className="h-6 w-6 text-teal-700" /></div>
-            <p className="mt-4 text-xs font-black uppercase tracking-widest text-teal-700">Delivery fallback · #{String(job.order?.id || '').slice(-8).toUpperCase()}</p>
-            <h2 className="mt-1 text-2xl font-black text-slate-950">Use a delivery photo</h2>
+            <div className="grid h-12 w-12 place-items-center rounded-xl bg-teal-50"><ShieldCheck className="h-6 w-6 text-teal-700" /></div>
+            <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-teal-700">Delivery fallback · #{String(job.order?.id || '').slice(-8).toUpperCase()}</p>
+            <h2 className="mt-1 text-2xl font-semibold text-slate-950">Use a delivery photo</h2>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">Use this only when the customer cannot provide the OTP. A fresh photo and your GPS location are stored with the delivery audit.</p>
 
-            <label className="mt-5 block cursor-pointer rounded-2xl border-2 border-dashed border-teal-200 bg-teal-50/50 p-4 text-center">
+            <label className="mt-5 block cursor-pointer rounded-xl border-2 border-dashed border-teal-200 bg-teal-50/50 p-4 text-center">
               <Camera className="mx-auto h-9 w-9 text-teal-700" />
-              <span className="mt-2 block text-sm font-black text-teal-800">{file ? 'Photo selected — tap to retake or choose another' : 'Take delivery photo'}</span>
+              <span className="mt-2 block text-sm font-semibold text-teal-800">{file ? 'Photo selected — tap to retake or choose another' : 'Take delivery photo'}</span>
               <span className="mt-1 block text-xs font-semibold text-slate-500">JPG, PNG or WebP · up to 10 MB</span>
               <input
                 type="file"
@@ -139,7 +139,7 @@ export default function RiderPhotoProofFallback() {
               />
             </label>
 
-            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-700">
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-700">
               <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} className="mt-1 h-4 w-4" />
               <span>I confirm the parcel was handed over and this photo is genuine delivery proof.</span>
             </label>
@@ -149,7 +149,7 @@ export default function RiderPhotoProofFallback() {
               type="button"
               disabled={!file || !confirmed || submitting}
               onClick={() => void submit()}
-              className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-black text-white disabled:opacity-40"
+              className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white disabled:opacity-40"
             >
               <CheckCircle2 className="h-5 w-5" /> {submitting ? 'Saving proof…' : 'Submit photo proof & complete delivery'}
             </button>

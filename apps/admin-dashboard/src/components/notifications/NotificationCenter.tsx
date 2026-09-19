@@ -209,12 +209,12 @@ export default function NotificationCenter({
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-col gap-5 rounded-[2rem] border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white shadow-xl lg:flex-row lg:items-center lg:justify-between">
+      <section className="flex flex-col gap-5 rounded-[2rem] border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white  lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-indigo-300">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-300">
             Communication centre
           </p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight">{title}</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h1>
           <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-300">
             {subtitle}
           </p>
@@ -227,7 +227,7 @@ export default function NotificationCenter({
               type="button"
               onClick={enablePush}
               disabled={pushLoading || pushEnabled}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black ${
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold ${
                 pushEnabled
                   ? 'bg-emerald-100 text-emerald-800'
                   : 'bg-indigo-500 text-white hover:bg-indigo-400'
@@ -248,7 +248,7 @@ export default function NotificationCenter({
             type="button"
             onClick={fetchInbox}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-slate-950 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 disabled:opacity-60"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -257,38 +257,38 @@ export default function NotificationCenter({
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+        <article className="rounded-xl border border-slate-200 bg-white p-5 ">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Unread
           </p>
-          <p className="mt-2 text-3xl font-black text-indigo-700">{unreadCount}</p>
+          <p className="mt-2 text-3xl font-semibold text-indigo-700">{unreadCount}</p>
         </article>
 
-        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+        <article className="rounded-xl border border-slate-200 bg-white p-5 ">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Last 24 hours
           </p>
-          <p className="mt-2 text-3xl font-black text-slate-950">{recentCount}</p>
+          <p className="mt-2 text-3xl font-semibold text-slate-950">{recentCount}</p>
         </article>
 
-        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+        <article className="rounded-xl border border-slate-200 bg-white p-5 ">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Device delivery
           </p>
-          <p className={`mt-2 text-lg font-black ${
+          <p className={`mt-2 text-lg font-semibold ${
             pushEnabled ? 'text-emerald-700' : 'text-amber-700'
           }`}>
             {!pushSupported ? 'Unsupported' : pushEnabled ? 'Enabled' : 'Not enabled'}
           </p>
         </article>
 
-        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <article className="rounded-xl border border-slate-200 bg-white p-5 ">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Push preference
               </p>
-              <p className="mt-2 text-lg font-black text-slate-950">
+              <p className="mt-2 text-lg font-semibold text-slate-950">
                 {globalPush ? 'On' : 'Paused'}
               </p>
             </div>
@@ -309,17 +309,17 @@ export default function NotificationCenter({
       </section>
 
       {message && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
           {message}
         </div>
       )}
 
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      <section className="rounded-[2rem] border border-slate-200 bg-white p-4  sm:p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <Bell className="h-5 w-5 text-indigo-600" />
-              <h2 className="text-xl font-black text-slate-950">Inbox</h2>
+              <h2 className="text-xl font-semibold text-slate-950">Inbox</h2>
             </div>
             <p className="mt-1 text-sm font-semibold text-slate-500">
               Read state and delivery attempts are stored separately from order history.
@@ -334,9 +334,9 @@ export default function NotificationCenter({
             Loading notifications
           </div>
         ) : items.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-200 p-12 text-center">
+          <div className="rounded-xl border border-dashed border-slate-200 p-12 text-center">
             <Bell className="mx-auto h-12 w-12 text-slate-300" />
-            <p className="mt-4 text-lg font-black text-slate-950">
+            <p className="mt-4 text-lg font-semibold text-slate-950">
               No notifications yet
             </p>
             <p className="mt-1 text-sm font-semibold text-slate-500">
@@ -348,7 +348,7 @@ export default function NotificationCenter({
             {items.map((item) => (
               <article
                 key={item.id}
-                className={`group rounded-3xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md ${
+                className={`group rounded-xl border p-4 transition  hover:shadow-md ${
                   item.readAt
                     ? 'border-slate-200 bg-slate-50/70'
                     : 'border-indigo-200 bg-indigo-50/55'
@@ -361,7 +361,7 @@ export default function NotificationCenter({
                     className="min-w-0 flex-1 text-left"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${
                         item.readAt
                           ? 'bg-slate-200 text-slate-600'
                           : 'bg-indigo-600 text-white'
@@ -371,7 +371,7 @@ export default function NotificationCenter({
                       {!item.readAt && <span className="h-2 w-2 rounded-full bg-red-500" />}
                     </div>
 
-                    <h3 className="mt-3 text-base font-black text-slate-950">
+                    <h3 className="mt-3 text-base font-semibold text-slate-950">
                       {item.title}
                     </h3>
                     <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
@@ -393,7 +393,7 @@ export default function NotificationCenter({
                       <button
                         type="button"
                         onClick={() => markRead(item)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-black text-indigo-700"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700"
                       >
                         <CheckCheck className="h-4 w-4" />
                         Mark read

@@ -64,7 +64,7 @@ export default function EarningsPage() {
               />
             </section>
             {data?.records?.length ? (
-              <section className="overflow-hidden rounded-2xl border bg-white">
+              <section className="overflow-hidden rounded-xl border bg-white">
                 <div className="divide-y">
                   {data.records.map((row: any) => (
                     <div
@@ -72,7 +72,7 @@ export default function EarningsPage() {
                       className="grid gap-2 p-4 sm:grid-cols-[1fr_auto_auto]"
                     >
                       <div>
-                        <p className="font-black">
+                        <p className="font-semibold">
                           {row.type.replace(/_/g, " ")}
                         </p>
                         <p className="text-xs font-semibold text-slate-500">
@@ -82,11 +82,11 @@ export default function EarningsPage() {
                             : ""}
                         </p>
                       </div>
-                      <span className="text-sm font-black">
+                      <span className="text-sm font-semibold">
                         {row.type === "PENALTY" ? "-" : ""}
                         {moneyPaise(Math.abs(row.amountPaise))}
                       </span>
-                      <span className="text-xs font-black text-slate-500">
+                      <span className="text-xs font-semibold text-slate-500">
                         {row.status}
                       </span>
                     </div>

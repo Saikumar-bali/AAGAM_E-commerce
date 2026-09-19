@@ -224,10 +224,10 @@ function TrackingStateBanner({
   const effectiveState = status === "STORE_DELIVERING" ? "STORE_DELIVERING" : status === "STORE_DELIVERED" ? "STORE_DELIVERED" : state;
   const value = config[effectiveState] || config.NOT_ASSIGNED;
   return (
-    <div className={`rounded-2xl border ${value.border} ${value.bg} p-4`}>
+    <div className={`rounded-xl border ${value.border} ${value.bg} p-4`}>
       <div className="flex items-center gap-3">
         <div className={`h-2.5 w-2.5 rounded-full ${value.dot}`} />
-        <span className={`text-sm font-black ${value.text}`}>
+        <span className={`text-sm font-semibold ${value.text}`}>
           {value.label}
         </span>
       </div>
@@ -443,21 +443,21 @@ export default function CustomerOrderDetailPage() {
           <ArrowLeft className="h-4 w-4" /> Back to orders
         </button>
         {loading ? (
-          <div className="h-64 animate-pulse rounded-2xl bg-white" />
+          <div className="h-64 animate-pulse rounded-xl bg-white" />
         ) : error ? (
-          <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center text-sm font-bold text-red-700">
+          <div className="rounded-xl border border-red-100 bg-red-50 p-6 text-center text-sm font-bold text-red-700">
             {error}
           </div>
         ) : !order ? (
-          <div className="rounded-2xl bg-white p-6 text-center">
+          <div className="rounded-xl bg-white p-6 text-center">
             Order not found.
           </div>
         ) : (
           <div className="space-y-5">
-            <section className="rounded-2xl border border-slate-100 bg-white p-5">
+            <section className="rounded-xl border border-slate-100 bg-white p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <span className="font-mono text-lg font-black text-slate-950">
+                  <span className="font-mono text-lg font-semibold text-slate-950">
                     #{order.id.slice(-8).toUpperCase()}
                   </span>
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500">
@@ -470,7 +470,7 @@ export default function CustomerOrderDetailPage() {
                       {order.store?.name || "Store"}
                     </span>
                     <span
-                      className={`rounded-lg px-2 py-0.5 text-[10px] font-black ${
+                      className={`rounded-lg px-2 py-0.5 text-[10px] font-semibold ${
                         order.payment?.method === "COD"
                           ? "bg-amber-100 text-amber-700"
                           : "bg-blue-100 text-blue-700"
@@ -481,17 +481,17 @@ export default function CustomerOrderDetailPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-black text-slate-950">
+                  <div className="text-2xl font-semibold text-slate-950">
                     {formatINR(pricing.grandTotal)}
                   </div>
                   <div className="mt-2 flex flex-wrap justify-end gap-2">
                     {etaLabel && (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-black text-teal-700">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700">
                         <Truck className="h-3 w-3" /> {etaLabel}
                       </span>
                     )}
                     {distanceLabel && (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
                         <Navigation className="h-3 w-3" /> {distanceLabel}
                       </span>
                     )}
@@ -499,7 +499,7 @@ export default function CustomerOrderDetailPage() {
                 </div>
               </div>
             </section>
-            {deliveryWindow(order) && <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5"><p className="text-xs font-black uppercase tracking-wider text-emerald-700">Scheduled delivery</p><p className="mt-1 text-lg font-black text-emerald-900">{deliveryWindow(order)}</p><p className="mt-1 text-sm font-semibold text-emerald-800">Your order will be prepared and delivered within this window.</p></section>}
+            {deliveryWindow(order) && <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-5"><p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Scheduled delivery</p><p className="mt-1 text-lg font-semibold text-emerald-900">{deliveryWindow(order)}</p><p className="mt-1 text-sm font-semibold text-emerald-800">Your order will be prepared and delivered within this window.</p></section>}
             <TrackingStateBanner
               state={trackingState}
               status={order.status}
@@ -507,15 +507,15 @@ export default function CustomerOrderDetailPage() {
               isStoreDelivery={isStoreDelivery}
             />
             {isStoreDelivery && (
-              <section className="rounded-2xl border border-orange-200 bg-orange-50/70 p-5">
+              <section className="rounded-xl border border-orange-200 bg-orange-50/70 p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="grid h-10 w-10 place-items-center rounded-xl bg-orange-100 text-orange-700">
                       <Store className="h-5 w-5" />
                     </div>
                     <div>
-                      <div className="text-xs font-black uppercase tracking-wider text-orange-700">Store Direct Delivery</div>
-                      <div className="text-sm font-black text-slate-900">{order.store?.name || trackingPayload?.store?.name || "Local Store Partner"}</div>
+                      <div className="text-xs font-semibold uppercase tracking-wider text-orange-700">Store Direct Delivery</div>
+                      <div className="text-sm font-semibold text-slate-900">{order.store?.name || trackingPayload?.store?.name || "Local Store Partner"}</div>
                       {(order.store?.address || trackingPayload?.store?.address) && (
                         <div className="mt-0.5 text-xs text-slate-600 flex items-center gap-1">
                           <MapPin className="h-3 w-3 text-slate-400" /> {order.store?.address || trackingPayload?.store?.address}
@@ -526,7 +526,7 @@ export default function CustomerOrderDetailPage() {
                   {(order.store?.phone || trackingPayload?.store?.phone) && (
                     <a
                       href={`tel:${order.store?.phone || trackingPayload?.store?.phone}`}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-orange-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-orange-700 transition w-fit"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-orange-600 px-4 py-2 text-xs font-bold text-white  hover:bg-orange-700 transition w-fit"
                     >
                       <Phone className="h-3.5 w-3.5" /> Call Store Partner
                     </a>
@@ -541,14 +541,14 @@ export default function CustomerOrderDetailPage() {
                 </p>
               </section>
             )}
-            <section className="rounded-2xl border border-slate-100 bg-white p-5">
+            <section className="rounded-xl border border-slate-100 bg-white p-5">
               <div className="mb-4 flex items-center gap-2">
                 {isStoreDelivery ? (
                   <Store className="h-4 w-4 text-orange-600" />
                 ) : (
                   <Bike className="h-4 w-4 text-cyan-600" />
                 )}
-                <h2 className="text-sm font-black text-slate-950">
+                <h2 className="text-sm font-semibold text-slate-950">
                   {isStoreDelivery ? "Store Delivery Progress" : "Delivery progress"}
                 </h2>
               </div>
@@ -565,7 +565,7 @@ export default function CustomerOrderDetailPage() {
                       }`}
                     >
                       <CheckCircle2 className="mx-auto h-4 w-4" />
-                      <p className="mt-1 text-[11px] font-black">
+                      <p className="mt-1 text-[11px] font-semibold">
                         {step.label}
                       </p>
                     </div>
@@ -577,7 +577,7 @@ export default function CustomerOrderDetailPage() {
                 deliveryJobId && (
                   <button
                     onClick={() => setOtpModalOpen(true)}
-                    className="mt-4 inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-black text-violet-800 transition hover:bg-violet-100"
+                    className="mt-4 inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-800 transition hover:bg-violet-100"
                   >
                     <KeyRound className="h-4 w-4" />{" "}
                     {deliveryStatus === "RIDER_AT_CUSTOMER"
@@ -587,7 +587,7 @@ export default function CustomerOrderDetailPage() {
                 )}
             </section>
             {!isStoreDelivery && showTrackingMap && (
-              <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
+              <div className="overflow-hidden rounded-xl border border-slate-100 bg-white">
                 <CustomerTrackingMap markers={markers} />
                 <div className="border-t border-slate-100 p-4">
                   <div className="flex items-center justify-between text-xs text-slate-500">
@@ -614,10 +614,10 @@ export default function CustomerOrderDetailPage() {
               </div>
             )}
             {(order.status === "DELIVERED" || order.status === "STORE_DELIVERED") && (
-              <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+              <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
                 <div className="flex items-center gap-2 text-emerald-800">
                   <ShieldCheck className="h-5 w-5" />
-                  <h2 className="text-sm font-black">Delivery completed</h2>
+                  <h2 className="text-sm font-semibold">Delivery completed</h2>
                 </div>
                 <p className="mt-2 text-sm font-bold text-emerald-800">
                   Delivered at{" "}
@@ -650,12 +650,12 @@ export default function CustomerOrderDetailPage() {
             )}
             <OrderTimeline currentStatus={order.status} isStoreDelivery={isStoreDelivery} timeline={timeline} />
             {address && (
-              <section className="rounded-2xl border border-slate-100 bg-white p-5">
+              <section className="rounded-xl border border-slate-100 bg-white p-5">
                 <div className="mb-3 flex items-center gap-2">
                   <div className="grid h-8 w-8 place-items-center rounded-lg bg-teal-100 text-teal-700">
                     <MapPin className="h-4 w-4" />
                   </div>
-                  <span className="text-sm font-black text-slate-950">
+                  <span className="text-sm font-semibold text-slate-950">
                     Delivery Address
                   </span>
                 </div>
@@ -673,12 +673,12 @@ export default function CustomerOrderDetailPage() {
                 </div>
               </section>
             )}
-            <section className="rounded-2xl border border-slate-100 bg-white p-5">
+            <section className="rounded-xl border border-slate-100 bg-white p-5">
               <div className="mb-3 flex items-center gap-2">
                 <div className="grid h-8 w-8 place-items-center rounded-lg bg-violet-100 text-violet-700">
                   <Package className="h-4 w-4" />
                 </div>
-                <span className="text-sm font-black text-slate-950">
+                <span className="text-sm font-semibold text-slate-950">
                   Items ({items.length})
                 </span>
               </div>
@@ -691,7 +691,7 @@ export default function CustomerOrderDetailPage() {
                       className="flex items-center gap-3 rounded-xl border border-slate-50 bg-slate-50/50 px-3 py-2.5"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-black text-slate-950">
+                        <div className="truncate text-sm font-semibold text-slate-950">
                           {item?.product?.name ||
                             item?.name ||
                             `Item ${index + 1}`}
@@ -700,7 +700,7 @@ export default function CustomerOrderDetailPage() {
                           {line.quantity} × {formatINR(line.unitPrice)}
                         </div>
                       </div>
-                      <div className="text-sm font-black text-slate-950">
+                      <div className="text-sm font-semibold text-slate-950">
                         {formatINR(line.lineTotal)}
                       </div>
                     </div>
@@ -725,22 +725,22 @@ export default function CustomerOrderDetailPage() {
                 taxAmount={pricing.taxAmount}
                 grandTotal={pricing.grandTotal}
               />
-              <section className="rounded-2xl border border-slate-100 bg-white p-5">
-                <div className="mb-3 text-sm font-black text-slate-950">
+              <section className="rounded-xl border border-slate-100 bg-white p-5">
+                <div className="mb-3 text-sm font-semibold text-slate-950">
                   Delivery
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-center gap-2.5 text-sm">
                     <Truck className="h-4 w-4 text-teal-600" />
                     <span className="font-bold text-slate-800">Status:</span>
-                    <span className="font-black text-slate-950">
+                    <span className="font-semibold text-slate-950">
                       {order.status.replace(/_/g, " ")}
                     </span>
                   </div>
                   <div className="flex items-center gap-2.5 text-sm">
                     <Phone className="h-4 w-4 text-teal-600" />
                     <span className="font-bold text-slate-800">Rider:</span>
-                    <span className="font-black text-slate-950">
+                    <span className="font-semibold text-slate-950">
                       {trackingPayload?.rider?.name ||
                         order.rider?.user?.name ||
                         "Not assigned"}
@@ -751,7 +751,7 @@ export default function CustomerOrderDetailPage() {
                       href={`https://www.google.com/maps/dir/?api=1&destination=${livePoint.latitude},${livePoint.longitude}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 rounded-lg bg-teal-700 px-2.5 py-1.5 text-[11px] font-black text-white"
+                      className="inline-flex items-center gap-1 rounded-lg bg-teal-700 px-2.5 py-1.5 text-[11px] font-semibold text-white"
                     >
                       <ExternalLink className="h-3 w-3" /> Track on map
                     </a>
@@ -762,7 +762,7 @@ export default function CustomerOrderDetailPage() {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => router.push("/shop")}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
               >
                 <RotateCcw className="h-4 w-4" /> Reorder
               </button>
@@ -773,7 +773,7 @@ export default function CustomerOrderDetailPage() {
                     `/shop/support?orderId=${encodeURIComponent(order.id)}`
                   )
                 }
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
               >
                 <MessageSquare className="h-4 w-4" /> Support
               </button>

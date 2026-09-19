@@ -47,7 +47,7 @@ export default function RiderHistoryPage() {
           action={<RefreshButton onClick={load} loading={loading} />}
         />
         <ErrorBanner message={error} />
-        <section className="grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-3">
+        <section className="grid gap-3 rounded-xl border bg-white p-4 md:grid-cols-3">
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
@@ -89,14 +89,14 @@ export default function RiderHistoryPage() {
               return (
                 <article
                   key={job.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5"
+                  className="rounded-xl border border-slate-200 bg-white p-5"
                 >
                   <button
                     onClick={() => setOpen(open === job.id ? null : job.id)}
                     className="flex w-full items-start justify-between gap-4 text-left"
                   >
                     <div>
-                      <p className="font-mono font-black text-slate-950">
+                      <p className="font-mono font-semibold text-slate-950">
                         #{job.order.id.slice(-8).toUpperCase()}
                       </p>
                       <p className="mt-1 text-sm font-semibold text-slate-500">
@@ -110,7 +110,7 @@ export default function RiderHistoryPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black">
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">
                         {job.status.replace(/_/g, " ")}
                       </span>
                       <ChevronDown
@@ -122,14 +122,14 @@ export default function RiderHistoryPage() {
                   </button>
                   {open === job.id && (
                     <div className="mt-4 border-t pt-4">
-                      <p className="text-sm font-black">Job audit</p>
+                      <p className="text-sm font-semibold">Job audit</p>
                       <div className="mt-3 space-y-2">
                         {job.events.map((event: any) => (
                           <div
                             key={event.id}
                             className="rounded-xl bg-slate-50 p-3 text-sm"
                           >
-                            <span className="font-black">
+                            <span className="font-semibold">
                               {event.eventType.replace(/_/g, " ")}
                             </span>
                             <span className="ml-2 text-slate-500">

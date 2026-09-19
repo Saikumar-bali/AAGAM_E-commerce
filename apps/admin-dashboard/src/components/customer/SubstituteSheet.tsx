@@ -42,15 +42,15 @@ export default function SubstituteSheet({ productId, storeId, isOpen, onClose, o
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
-      <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="absolute inset-x-0 bottom-0 max-h-[70vh] rounded-t-3xl bg-white shadow-2xl flex flex-col">
+      <div className="absolute inset-0 bg-slate-950/40 " onClick={onClose} />
+      <div className="absolute inset-x-0 bottom-0 max-h-[70vh] rounded-t-3xl bg-white  flex flex-col">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="grid h-9 w-9 place-items-center rounded-xl bg-amber-100 text-amber-700">
               <ArrowRightLeft className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-950">Substitute Suggestions</h2>
+              <h2 className="text-base font-semibold text-slate-950">Substitute Suggestions</h2>
               <p className="text-xs font-bold text-slate-500">Same category, in stock</p>
             </div>
           </div>
@@ -63,7 +63,7 @@ export default function SubstituteSheet({ productId, storeId, isOpen, onClose, o
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-20 animate-pulse rounded-2xl bg-slate-100" />
+                <div key={i} className="h-20 animate-pulse rounded-xl bg-slate-100" />
               ))}
             </div>
           ) : substitutes.length === 0 ? (
@@ -79,17 +79,17 @@ export default function SubstituteSheet({ productId, storeId, isOpen, onClose, o
                 <button
                   key={sub.id}
                   onClick={() => onReplace(productId, sub)}
-                  className="w-full flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 text-left hover:border-teal-200 hover:bg-teal-50/30 transition-all"
+                  className="w-full flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 text-left hover:border-teal-200 hover:bg-teal-50/30 transition-all"
                 >
                   <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
                     <img src={getProductImage(sub)} alt={sub.name} className="h-full w-full object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-black text-slate-950 truncate">{sub.name}</div>
+                    <div className="text-sm font-semibold text-slate-950 truncate">{sub.name}</div>
                     <div className="text-xs font-bold text-slate-500">{sub.category?.name || 'Same category'}</div>
-                    <div className="text-sm font-black text-teal-700 mt-0.5">{formatINR(sub.price)}</div>
+                    <div className="text-sm font-semibold text-teal-700 mt-0.5">{formatINR(sub.price)}</div>
                   </div>
-                  <div className="shrink-0 rounded-xl bg-teal-700 px-3 py-1.5 text-xs font-black text-white">
+                  <div className="shrink-0 rounded-xl bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white">
                     Replace
                   </div>
                 </button>

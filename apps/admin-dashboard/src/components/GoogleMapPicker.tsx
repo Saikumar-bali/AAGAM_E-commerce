@@ -142,7 +142,7 @@ export default function GoogleMapPicker({ latitude, longitude, onChange, height 
   };
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-teal-200 bg-white">
+    <div className="flex flex-col overflow-hidden rounded-xl border border-teal-200 bg-white">
       <div className="relative">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -163,7 +163,7 @@ export default function GoogleMapPicker({ latitude, longitude, onChange, height 
         <button
           type="button"
           onClick={useMyLocation}
-          className="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-white px-3 py-1.5 text-[10px] font-black text-teal-700 shadow-sm hover:bg-teal-50"
+          className="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-white px-3 py-1.5 text-[10px] font-semibold text-teal-700  hover:bg-teal-50"
         >
           <Crosshair className="h-3 w-3" /> Use my live location
         </button>

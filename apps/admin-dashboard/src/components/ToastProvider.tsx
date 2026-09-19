@@ -151,11 +151,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           const style = visual[item.kind];
           const Icon = style.icon;
           return (
-            <div key={item.id} role={item.kind === 'error' ? 'alert' : 'status'} className={`pointer-events-auto w-full overflow-hidden rounded-2xl border p-3.5 shadow-[0_18px_55px_rgba(15,23,42,0.18)] backdrop-blur-xl ${style.shell}`}>
+            <div key={item.id} role={item.kind === 'error' ? 'alert' : 'status'} className={`pointer-events-auto w-full overflow-hidden rounded-xl border p-3.5   ${style.shell}`}>
               <div className="flex items-start gap-3">
                 <span className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl ${style.iconBox}`}><Icon className="h-5 w-5" /></span>
                 <div className="min-w-0 flex-1">
-                  {item.title ? <p className={`text-sm font-black ${style.title}`}>{item.title}</p> : null}
+                  {item.title ? <p className={`text-sm font-semibold ${style.title}`}>{item.title}</p> : null}
                   <p className="mt-0.5 break-words text-sm font-semibold leading-5 text-slate-600">{item.message}</p>
                 </div>
                 <button type="button" onClick={() => remove(item.id)} aria-label="Dismiss notification" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"><X className="h-4 w-4" /></button>

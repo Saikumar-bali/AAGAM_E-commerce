@@ -116,10 +116,10 @@ function Modal({ title, subtitle, onClose, children }: {
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
-      <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+      <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white ">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
           <div>
-            <h2 className="text-xl font-black text-slate-950">{title}</h2>
+            <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
             <p className="text-xs font-semibold text-slate-500">{subtitle}</p>
           </div>
           <button
@@ -143,7 +143,7 @@ function Field({ label, wide, children }: {
 }) {
   return (
     <label
-      className={`block text-xs font-black uppercase tracking-wide text-slate-500 ${wide ? "md:col-span-2" : ""}`}
+      className={`block text-xs font-semibold uppercase tracking-wide text-slate-500 ${wide ? "md:col-span-2" : ""}`}
     >
       {label}
       {React.cloneElement(children, {
@@ -323,10 +323,10 @@ export default function DeliveryFeeRulesPage() {
       <div className="mx-auto max-w-6xl space-y-8 pb-12">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-teal-600">
+            <p className="text-xs font-semibold uppercase tracking-widest text-teal-600">
               Admin · Delivery
             </p>
-            <h1 className="text-2xl font-black text-slate-950">Delivery Fee Rules</h1>
+            <h1 className="text-2xl font-semibold text-slate-950">Delivery Fee Rules</h1>
             <p className="mt-1 max-w-2xl text-sm font-semibold text-slate-500">
               Control the delivery fee per locality. The system detects the address
               (pincode, city or a locality keyword such as “Thummapala”) and applies
@@ -336,59 +336,59 @@ export default function DeliveryFeeRulesPage() {
           <button
             type="button"
             onClick={openCreate}
-            className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-black text-white hover:bg-teal-800"
+            className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
           >
             <Plus className="h-4 w-4" /> New rule
           </button>
         </header>
 
         {message ? (
-          <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
+          <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
             {message}
           </div>
         ) : null}
         {error ? (
-          <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+          <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
             {error}
           </div>
         ) : null}
 
         {!loading && rules.length > 0 && !rules.some((r) => r.matchType === "DEFAULT" && r.isActive) && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
-            No active <span className="font-black">DEFAULT</span> rule found. Addresses that don't match any specific rule
-            (pincode, city or keyword) will <span className="font-black">not be serviceable</span>. Create a DEFAULT rule as a catch-all fallback.
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+            No active <span className="font-semibold">DEFAULT</span> rule found. Addresses that don't match any specific rule
+            (pincode, city or keyword) will <span className="font-semibold">not be serviceable</span>. Create a DEFAULT rule as a catch-all fallback.
           </div>
         )}
 
         <section>
-          <h2 className="mb-3 text-lg font-black text-slate-950">Rules</h2>
+          <h2 className="mb-3 text-lg font-semibold text-slate-950">Rules</h2>
           {loading ? (
-            <div className="grid place-items-center rounded-3xl bg-white p-12 text-slate-400">
+            <div className="grid place-items-center rounded-xl bg-white p-12 text-slate-400">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : rules.length === 0 ? (
-            <div className="rounded-3xl bg-white p-10 text-center text-sm font-semibold text-slate-500">
+            <div className="rounded-xl bg-white p-10 text-center text-sm font-semibold text-slate-500">
               No rules yet. Create one to start controlling delivery fees.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-3xl bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-xl bg-white ">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-5 py-4 font-black">Rule</th>
-                    <th className="px-5 py-4 font-black">Match</th>
-                    <th className="px-5 py-4 font-black">Rate / fee</th>
-                    <th className="px-5 py-4 font-black">Store</th>
-                    <th className="px-5 py-4 font-black">Priority</th>
-                    <th className="px-5 py-4 font-black">Status</th>
-                    <th className="px-5 py-4 text-right font-black">Actions</th>
+                    <th className="px-5 py-4 font-semibold">Rule</th>
+                    <th className="px-5 py-4 font-semibold">Match</th>
+                    <th className="px-5 py-4 font-semibold">Rate / fee</th>
+                    <th className="px-5 py-4 font-semibold">Store</th>
+                    <th className="px-5 py-4 font-semibold">Priority</th>
+                    <th className="px-5 py-4 font-semibold">Status</th>
+                    <th className="px-5 py-4 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {rules.map((rule) => (
                     <tr key={rule.id} className="hover:bg-emerald-50/30">
                       <td className="px-5 py-4">
-                        <p className="font-black text-slate-950">{rule.name}</p>
+                        <p className="font-semibold text-slate-950">{rule.name}</p>
                         <p className="text-xs font-semibold text-slate-400">
                           {MATCH_TYPE_LABELS[rule.matchType]}
                         </p>
@@ -424,7 +424,7 @@ export default function DeliveryFeeRulesPage() {
                         <button
                           type="button"
                           onClick={() => toggleActive(rule)}
-                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ${
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
                             rule.isActive
                               ? "bg-emerald-100 text-emerald-700"
                               : "bg-slate-100 text-slate-500"
@@ -438,14 +438,14 @@ export default function DeliveryFeeRulesPage() {
                         <button
                           type="button"
                           onClick={() => openEdit(rule)}
-                          className="rounded-xl px-3 py-1.5 text-xs font-black text-teal-700 hover:bg-teal-50"
+                          className="rounded-xl px-3 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-50"
                         >
                           Edit
                         </button>
                         <button
                           type="button"
                           onClick={() => remove(rule)}
-                          className="rounded-xl px-3 py-1.5 text-xs font-black text-red-600 hover:bg-red-50"
+                          className="rounded-xl px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
                         >
                           <Trash2 className="inline h-3.5 w-3.5" /> Delete
                         </button>
@@ -459,13 +459,13 @@ export default function DeliveryFeeRulesPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-lg font-black text-slate-950">Test an address</h2>
+          <h2 className="mb-3 text-lg font-semibold text-slate-950">Test an address</h2>
           <form
             onSubmit={runMatchTest}
-            className="rounded-3xl bg-white p-5 shadow-sm"
+            className="rounded-xl bg-white p-5 "
           >
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block text-xs font-black uppercase tracking-wide text-slate-500">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Address line 1
                 <input
                   className={`mt-1 ${inputClass}`}
@@ -474,7 +474,7 @@ export default function DeliveryFeeRulesPage() {
                   placeholder="Anakapalle - Chodavaram Road, Tulsi Nagar, Thummapala"
                 />
               </label>
-              <label className="block text-xs font-black uppercase tracking-wide text-slate-500">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
                 City
                 <input
                   className={`mt-1 ${inputClass}`}
@@ -483,7 +483,7 @@ export default function DeliveryFeeRulesPage() {
                   placeholder="Anakapalle"
                 />
               </label>
-              <label className="block text-xs font-black uppercase tracking-wide text-slate-500">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Pincode
                 <input
                   className={`mt-1 ${inputClass}`}
@@ -492,7 +492,7 @@ export default function DeliveryFeeRulesPage() {
                   placeholder="531035"
                 />
               </label>
-              <label className="block text-xs font-black uppercase tracking-wide text-slate-500">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Store
                 <select
                   className={`mt-1 ${inputClass}`}
@@ -507,7 +507,7 @@ export default function DeliveryFeeRulesPage() {
                   ))}
                 </select>
               </label>
-              <label className="block text-xs font-black uppercase tracking-wide text-slate-500">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Distance (km)
                 <input
                   type="number"
@@ -518,7 +518,7 @@ export default function DeliveryFeeRulesPage() {
                   onChange={(event) => setTest({ ...test, distanceKm: event.target.value })}
                 />
               </label>
-              <label className="block text-xs font-black uppercase tracking-wide text-slate-500">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Subtotal (₹)
                 <input
                   type="number"
@@ -535,7 +535,7 @@ export default function DeliveryFeeRulesPage() {
               <button
                 type="submit"
                 disabled={testLoading}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
               >
                 {testLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -548,8 +548,8 @@ export default function DeliveryFeeRulesPage() {
           </form>
 
           {testResult ? (
-            <div className="mt-4 rounded-3xl bg-white p-5 shadow-sm">
-              <p className="text-sm font-black text-slate-950">
+            <div className="mt-4 rounded-xl bg-white p-5 ">
+              <p className="text-sm font-semibold text-slate-950">
                 Matched rule:{" "}
                 <span className="text-teal-700">
                   {testResult.matchedRule
@@ -558,29 +558,29 @@ export default function DeliveryFeeRulesPage() {
                 </span>
               </p>
               <dl className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-                <div className="rounded-2xl bg-slate-50 p-3">
-                  <dt className="text-xs font-black uppercase text-slate-400">Serviceable</dt>
-                  <dd className={`mt-1 text-lg font-black ${testResult.deliveryPricing.serviceable ? "text-emerald-600" : "text-red-600"}`}>
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <dt className="text-xs font-semibold uppercase text-slate-400">Serviceable</dt>
+                  <dd className={`mt-1 text-lg font-semibold ${testResult.deliveryPricing.serviceable ? "text-emerald-600" : "text-red-600"}`}>
                     {testResult.deliveryPricing.serviceable ? "Yes" : "No"}
                   </dd>
                 </div>
-                <div className="rounded-2xl bg-slate-50 p-3">
-                  <dt className="text-xs font-black uppercase text-slate-400">Rate</dt>
-                  <dd className="mt-1 text-lg font-black text-slate-950">
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <dt className="text-xs font-semibold uppercase text-slate-400">Rate</dt>
+                  <dd className="mt-1 text-lg font-semibold text-slate-950">
                     {testResult.deliveryPricing.flatFeePaise !== null
                       ? `₹${(testResult.deliveryPricing.flatFeePaise / 100).toFixed(2)} flat`
                       : `₹${(testResult.deliveryPricing.ratePaisePerKm / 100).toFixed(2)}/km`}
                   </dd>
                 </div>
-                <div className="rounded-2xl bg-slate-50 p-3">
-                  <dt className="text-xs font-black uppercase text-slate-400">Distance fee</dt>
-                  <dd className="mt-1 text-lg font-black text-slate-950">
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <dt className="text-xs font-semibold uppercase text-slate-400">Distance fee</dt>
+                  <dd className="mt-1 text-lg font-semibold text-slate-950">
                     ₹{(testResult.deliveryPricing.distanceFeePaise / 100).toFixed(2)}
                   </dd>
                 </div>
-                <div className="rounded-2xl bg-slate-50 p-3">
-                  <dt className="text-xs font-black uppercase text-slate-400">Payable fee</dt>
-                  <dd className="mt-1 text-lg font-black text-teal-700">
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <dt className="text-xs font-semibold uppercase text-slate-400">Payable fee</dt>
+                  <dd className="mt-1 text-lg font-semibold text-teal-700">
                     ₹{(testResult.deliveryPricing.payableFeePaise / 100).toFixed(2)}
                   </dd>
                 </div>
@@ -747,14 +747,14 @@ export default function DeliveryFeeRulesPage() {
               <button
                 type="button"
                 onClick={() => setFormOpen(false)}
-                className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-600 hover:bg-slate-200"
+                className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-200"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-black text-white hover:bg-teal-800 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <IndianRupee className="h-4 w-4" />}
                 {editingId ? "Save changes" : "Create rule"}

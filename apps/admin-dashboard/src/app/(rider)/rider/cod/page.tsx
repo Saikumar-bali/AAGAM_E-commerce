@@ -65,13 +65,13 @@ export default function CodPage() {
               />
             </section>
             {data?.pendingHandovers?.length ? (
-              <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                <p className="font-black text-amber-900">
+              <section className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+                <p className="font-semibold text-amber-900">
                   Pending store handovers
                 </p>
                 {data.pendingHandovers.map((row: any) => (
                   <div key={row.id} className="mt-3 rounded-xl bg-white p-4">
-                    <p className="font-mono font-black">
+                    <p className="font-mono font-semibold">
                       Order #{row.orderId.slice(-8).toUpperCase()}
                     </p>
                     <p className="text-sm font-bold text-amber-800">
@@ -91,8 +91,8 @@ export default function CodPage() {
                 body="Every recorded COD collection is already settled, or no COD has been collected."
               />
             )}
-            <section className="rounded-2xl border bg-white p-5">
-              <p className="font-black">Complete COD audit</p>
+            <section className="rounded-xl border bg-white p-5">
+              <p className="font-semibold">Complete COD audit</p>
               <div className="mt-3 space-y-2">
                 {data?.audit?.map((row: any) => (
                   <div
@@ -100,7 +100,7 @@ export default function CodPage() {
                     className="grid gap-1 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-[1fr_auto]"
                   >
                     <div>
-                      <p className="font-black">
+                      <p className="font-semibold">
                         {row.type.replace(/_/g, " ")} ·{" "}
                         {moneyPaise(row.amountPaise)}
                       </p>
@@ -109,7 +109,7 @@ export default function CodPage() {
                         {new Date(row.createdAt).toLocaleString("en-IN")}
                       </p>
                     </div>
-                    <span className="text-xs font-black text-slate-600">
+                    <span className="text-xs font-semibold text-slate-600">
                       {row.reference || row.settlementStatus}
                     </span>
                   </div>

@@ -107,7 +107,7 @@ function SortableProduct({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-xs font-black text-gray-950">{product.name}</p>
+              <p className="truncate text-xs font-semibold text-gray-950">{product.name}</p>
               {product.weightGrams ? (
                 <span className="inline-flex items-center rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 border border-sky-200 shrink-0" title="Delivery routing weight">
                   {product.weightGrams >= 1000 ? `${(product.weightGrams / 1000).toFixed(1)}kg` : `${product.weightGrams}g`}
@@ -129,14 +129,14 @@ function SortableProduct({
           {product.category?.name || 'Uncategorized'}
         </span>
       </td>
-      <td className="px-3.5 py-2 text-xs font-black text-gray-950">
+      <td className="px-3.5 py-2 text-xs font-semibold text-gray-950">
         ₹{Number(product.price || 0).toFixed(2)}
       </td>
       <td className="px-3.5 py-2">
         <div data-testid={`admin-stock-overview-${product.id}`}>
           <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1">
             <Store className="h-3.5 w-3.5 text-slate-400" />
-            <span className="text-xs font-black text-slate-800">
+            <span className="text-xs font-semibold text-slate-800">
               {selectedStoreId ? `${quantity} units` : 'Select store'}
             </span>
           </div>

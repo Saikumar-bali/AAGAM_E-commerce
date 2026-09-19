@@ -6,6 +6,7 @@ import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
 import { useToast } from '@/components/ToastProvider';
 import {
+  ArrowLeft,
   BadgeCheck,
   Calendar,
   Check,
@@ -115,51 +116,52 @@ export default function AccountPage() {
 
   return (
     <DashboardLayout allowedRole="CUSTOMER">
-      <div className="mx-auto max-w-4xl space-y-6 pb-8">
-        <section className="relative rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.1)]">
-          <div className="relative rounded-t-[2rem] bg-gradient-to-br from-teal-800 via-teal-700 to-cyan-500 px-5 py-6 text-white sm:px-8 sm:py-8">
-            <div className="absolute -right-10 -top-14 h-40 w-40 rounded-full bg-white/10" />
-            <div className="absolute bottom-0 right-1/3 h-20 w-20 rounded-full bg-cyan-200/10" />
-            <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-4">
-                {profile.avatarUrl ? <img src={profile.avatarUrl} alt="Profile" className="h-20 w-20 shrink-0 rounded-2xl border-4 border-white/90 object-cover shadow-xl sm:h-24 sm:w-24" /> : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border-4 border-white/90 bg-slate-950 text-2xl font-black text-white shadow-xl sm:h-24 sm:w-24 sm:text-3xl">{initials}</div>}
+      <div className="mx-auto max-w-4xl space-y-4 pb-8">
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 px-4 py-4 sm:px-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <button onClick={() => router.push('/shop')} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50">
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                {profile.avatarUrl ? <img src={profile.avatarUrl} alt="Profile" className="h-14 w-14 shrink-0 rounded-lg border border-slate-200 object-cover sm:h-16 sm:w-16" /> : <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-950 text-lg font-semibold text-white sm:h-16 sm:w-16">{initials}</div>}
                 <div className="min-w-0">
-                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-teal-100">Aagaam account</p>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-white/80">Manage your identity, delivery details and shopping shortcuts.</p>
+                  <p className="enterprise-kicker">Account</p>
+                  <p className="mt-1 text-[11px] text-slate-500">Manage your identity, delivery details and shopping shortcuts.</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
-                <ShieldCheck className="h-6 w-6 text-teal-100" />
-                <div><p className="text-sm font-black">Secure profile</p><p className="text-xs font-semibold text-white/70">Protected account session</p></div>
+              <div className="flex items-center gap-2 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+                <ShieldCheck className="h-4 w-4 text-teal-600" />
+                <div><p className="text-[11px] font-semibold text-slate-700">Secure profile</p><p className="text-[10px] text-slate-500">Protected account session</p></div>
               </div>
             </div>
           </div>
 
-          <div className="p-5 sm:p-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Personal profile</p>
-                {editingName ? <div className="mt-3 flex max-w-xl items-center gap-2"><input autoFocus value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && void handleSaveName()} className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20" placeholder="Your name" /><button onClick={() => void handleSaveName()} disabled={saving || nameDraft.trim().length < 2} aria-label="Save name" className="grid h-10 w-10 place-items-center rounded-xl bg-teal-600 text-white disabled:opacity-50">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}</button><button onClick={() => { setEditingName(false); setNameDraft(profile.name || ''); }} aria-label="Cancel editing" className="grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-slate-500"><X className="h-4 w-4" /></button></div> : <div className="mt-2 flex items-center gap-2"><h1 className="truncate text-2xl font-black tracking-[-0.03em] text-slate-950 sm:text-3xl">{profile.name || 'Aagaam customer'}</h1><button onClick={() => setEditingName(true)} aria-label="Edit name" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"><Pencil className="h-4 w-4" /></button></div>}
-                <p className="mt-2 text-sm font-semibold text-slate-500">Your profile information is used for receipts, support and delivery communication.</p>
+                <p className="enterprise-kicker">Personal profile</p>
+                {editingName ? <div className="mt-2 flex max-w-xl items-center gap-2"><input autoFocus value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && void handleSaveName()} className="enterprise-input" placeholder="Your name" /><button onClick={() => void handleSaveName()} disabled={saving || nameDraft.trim().length < 2} aria-label="Save name" className="grid h-9 w-9 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-50">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}</button><button onClick={() => { setEditingName(false); setNameDraft(profile.name || ''); }} aria-label="Cancel editing" className="grid h-9 w-9 place-items-center rounded-md bg-slate-100 text-slate-500"><X className="h-4 w-4" /></button></div> : <div className="mt-1.5 flex items-center gap-2"><h1 className="truncate text-lg font-semibold text-slate-950 sm:text-xl">{profile.name || 'Aagaam customer'}</h1><button onClick={() => setEditingName(true)} aria-label="Edit name" className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"><Pencil className="h-3.5 w-3.5" /></button></div>}
+                <p className="mt-1 text-[11px] text-slate-500">Your profile information is used for receipts, support and delivery communication.</p>
               </div>
             </div>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-3">
-              <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-slate-500 shadow-sm"><Mail className="h-4 w-4" /></span><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Email</p><p className="truncate text-sm font-semibold text-slate-900">{profile.email}</p></div></div>
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><BadgeCheck className="h-4 w-4" /></span><div><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Account status</p><p className="text-sm font-semibold text-slate-900">{profile.emailVerified ? 'Verified' : 'Active'}</p></div></div>
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-slate-500 shadow-sm"><Calendar className="h-4 w-4" /></span><div><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Member since</p><p className="text-sm font-semibold text-slate-900">{memberSince || 'Active member'}</p></div></div>
+            <div className="mt-4 grid gap-2 md:grid-cols-3">
+              <div className="flex min-w-0 items-center gap-2.5 rounded-lg border border-slate-100 bg-slate-50 p-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-white text-slate-400"><Mail className="h-4 w-4" /></span><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Email</p><p className="truncate text-[11px] font-medium text-slate-900">{profile.email}</p></div></div>
+              <div className="flex items-center gap-2.5 rounded-lg border border-slate-100 bg-slate-50 p-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><BadgeCheck className="h-4 w-4" /></span><div><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Account status</p><p className="text-[11px] font-medium text-slate-900">{profile.emailVerified ? 'Verified' : 'Active'}</p></div></div>
+              <div className="flex items-center gap-2.5 rounded-lg border border-slate-100 bg-slate-50 p-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-white text-slate-400"><Calendar className="h-4 w-4" /></span><div><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Member since</p><p className="text-[11px] font-medium text-slate-900">{memberSince || 'Active member'}</p></div></div>
             </div>
           </div>
         </section>
 
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-          <div className="flex items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Your workspace</p><h2 className="mt-2 text-xl font-black text-slate-950 sm:text-2xl">Shopping and account shortcuts</h2></div></div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{quickLinks.map((link) => <button key={link.label} onClick={() => router.push(link.href)} className="group flex min-h-24 items-center gap-3 rounded-2xl border border-slate-100 p-4 text-left transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md"><span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${link.color}`}><link.icon className="h-5 w-5" /></span><span className="min-w-0"><span className="block text-sm font-black text-slate-900">{link.label}</span><span className="mt-1 block text-xs font-semibold leading-5 text-slate-500">{link.description}</span></span></button>)}</div>
+        <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <div className="flex items-end justify-between gap-3"><div><p className="enterprise-kicker">Your workspace</p><h2 className="mt-2 text-lg font-semibold text-slate-950">Shopping and account shortcuts</h2></div></div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{quickLinks.map((link) => <button key={link.label} onClick={() => router.push(link.href)} className="group flex min-h-[60px] items-center gap-2.5 rounded-lg border border-slate-100 p-3 text-left transition hover:border-teal-200"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-md ${link.color}`}><link.icon className="h-4 w-4" /></span><span className="min-w-0"><span className="block text-sm font-medium text-slate-900">{link.label}</span><span className="mt-0.5 block text-[11px] text-slate-500">{link.description}</span></span></button>)}</div>
         </section>
 
-        <div className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div><p className="font-black text-slate-950">Finished shopping?</p><p className="mt-1 text-sm font-semibold text-slate-500">Sign out of this browser while keeping your account and order history safe.</p></div>
-          <button onClick={() => void handleLogout()} className="flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 py-3.5 text-sm font-bold text-red-700 transition hover:bg-red-100"><LogOut className="h-4 w-4" />Sign out</button>
+        <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div><p className="font-semibold text-slate-950">Finished shopping?</p><p className="mt-1 text-sm font-semibold text-slate-500">Sign out of this browser while keeping your account and order history safe.</p></div>
+          <button onClick={() => void handleLogout()} className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-3.5 text-sm font-bold text-red-700 transition hover:bg-red-100"><LogOut className="h-4 w-4" />Sign out</button>
         </div>
       </div>
     </DashboardLayout>
