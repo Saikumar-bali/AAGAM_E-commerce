@@ -391,8 +391,7 @@ export class SubscriptionPlanService {
         where: { id },
         data: {
           status: SubscriptionPlanStatus.ACTIVE,
-          stores: plan.stores.length ? { create: [...new Set(plan.stores.map((s) => s.storeId))].map((storeId) => ({ storeId })) } : undefined,
-          zones: plan.zones.length ? { create: [...new Set(plan.zones.map((z) => z.zoneId))].map((zoneId) => ({ zoneId })) } : undefined,
+          updatedById: actorId,
         },
       });
       const latest = await tx.subscriptionPlanVersion.findFirst({
