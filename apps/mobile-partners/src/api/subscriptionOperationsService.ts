@@ -428,12 +428,12 @@ export const subscriptionOperationsService = {
   },
 
   getSubscribers: async (): Promise<any[]> => {
-    const response = await apiClient.get('/subscriptions/subscribers');
+    const response = await apiClient.get('/store/subscriptions/subscribers');
     return Array.isArray(response.data) ? response.data : [];
   },
 
   getPlans: async (): Promise<any[]> => {
-    const response = await apiClient.get('/subscriptions/plans');
+    const response = await apiClient.get('/store/subscriptions/plans');
     return Array.isArray(response.data) ? response.data : [];
   },
 
@@ -441,7 +441,7 @@ export const subscriptionOperationsService = {
     const params: Record<string, string> = {};
     if (from) params.from = from;
     if (to) params.to = to;
-    const response = await apiClient.get('/subscriptions/calendar', { params });
+    const response = await apiClient.get('/store/subscriptions/calendar', { params });
     return Array.isArray(response.data) ? response.data : [];
   },
 
@@ -449,17 +449,18 @@ export const subscriptionOperationsService = {
     const params: Record<string, string> = {};
     if (year != null) params.year = String(year);
     if (month != null) params.month = String(month);
-    const response = await apiClient.get('/subscriptions/grid', { params });
+    const response = await apiClient.get('/store/subscriptions/grid', { params });
     return response.data;
   },
 
   setDefaultRider: async (subscriptionId: string, riderProfileId: string) => {
-    const response = await apiClient.post(`/subscriptions/${encodeURIComponent(subscriptionId)}/default-rider`, { riderProfileId });
+    const response = await apiClient.post(`/store/subscriptions/${encodeURIComponent(subscriptionId)}/default-rider`, { riderProfileId });
     return response.data;
   },
 
   autoDispatchDefaultRiders: async (date?: string) => {
-    const response = await apiClient.post('/subscriptions/auto-dispatch-default-riders', { date });
+    const dateStr = date || new Date().toISOString().slice(0, 10);
+    const response = await apiClient.post('/store/subscriptions/auto-dispatch-default-riders', { dateStr });
     return response.data;
   },
 };
