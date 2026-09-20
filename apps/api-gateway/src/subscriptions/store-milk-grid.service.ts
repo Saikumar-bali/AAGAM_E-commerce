@@ -1106,7 +1106,14 @@ export class StoreMilkGridService {
         lastRunId = run.id;
         lastRouteCode = run.routeCode;
 
-        let nextSeq = (await tx.deliveryRunStop.count({ where: { deliveryRunId: run.id } })) + 1;
+        // Sequence numbers must continue past the highest existing stop, not the
+        // stop count: removals and reordering leave gaps that a count would reuse,
+        // colliding with @@unique([deliveryRunId, sequenceNumber]).
+        const highestSeq = await tx.deliveryRunStop.aggregate({
+          where: { deliveryRunId: run.id },
+          _max: { sequenceNumber: true },
+        });
+        let nextSeq = (highestSeq._max.sequenceNumber ?? 0) + 1;
 
         for (const d of groupDeliveries) {
           let jobId = d.deliveryJobId;

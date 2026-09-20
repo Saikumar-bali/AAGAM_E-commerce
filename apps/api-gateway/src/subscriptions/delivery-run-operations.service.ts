@@ -302,8 +302,16 @@ export class DeliveryRunOperationsService {
 
       await prisma.$transaction(async (tx) => {
         await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-stop-finalize:${stopId}`}))`);
-        const currentStop = await tx.deliveryRunStop.findUnique({ where: { id: stopId } });
+        const currentStop = await tx.deliveryRunStop.findUnique({
+          where: { id: stopId },
+          include: { deliveryRun: { select: { riderId: true } } },
+        });
         if (!currentStop) throw new NotFoundException('Run stop not found');
+        // Re-assert ownership inside the transaction: the guarded pre-check ran
+        // outside it, so the run may have been reassigned in the meantime.
+        if (currentStop.deliveryRun.riderId !== rider.id) {
+          throw new NotFoundException('Assigned delivery run not found');
+        }
         if (currentStop.status === DeliveryRunStopStatus.DELIVERED) return;
         if (currentStop.version !== dto.version) throw new ConflictException('Run stop changed; refresh and try again');
 
@@ -354,31 +362,33 @@ export class DeliveryRunOperationsService {
           const ledger = await tx.codLedger.findUnique({
             where: { deliveryJobId: stop.deliveryJobId },
           });
-          if (ledger) {
-            await tx.codLedger.update({
-              where: { id: ledger.id },
-              data: {
-                riderId: rider.id,
-                collectedAmountPaise: cashCollected,
-                riderHoldingBalancePaise: cashCollected,
-                collectionTimestamp: new Date(),
-                status: 'HELD_BY_RIDER',
-              },
-            });
-            await tx.codLedgerEntry.create({
-              data: {
-                codLedgerId: ledger.id,
-                type: 'COLLECTED',
-                amountPaise: cashCollected,
-                holdingAfterPaise: cashCollected,
-                depositedAfterPaise: 0,
-                actorUserId: actor.id,
-                actorRole: actor.role,
-                reference: `RUN:${run.routeCode}:STOP:${stop.sequenceNumber}`,
-                idempotencyKey: `cod-stop-complete:${stop.id}:${cashCollected}`,
-              },
-            });
+          if (!ledger) {
+            throw new ConflictException('Cash was collected for a stop with no COD ledger to hold it');
           }
+          const holdingAfterPaise = ledger.riderHoldingBalancePaise + cashCollected;
+          await tx.codLedger.update({
+            where: { id: ledger.id },
+            data: {
+              riderId: rider.id,
+              collectedAmountPaise: { increment: cashCollected },
+              riderHoldingBalancePaise: { increment: cashCollected },
+              collectionTimestamp: new Date(),
+              status: 'HELD_BY_RIDER',
+            },
+          });
+          await tx.codLedgerEntry.create({
+            data: {
+              codLedgerId: ledger.id,
+              type: 'COLLECTED',
+              amountPaise: cashCollected,
+              holdingAfterPaise,
+              depositedAfterPaise: ledger.depositedAmountPaise,
+              actorUserId: actor.id,
+              actorRole: actor.role,
+              reference: `RUN:${run.routeCode}:STOP:${stop.sequenceNumber}`,
+              idempotencyKey: `cod-stop-complete:${stop.id}:${cashCollected}`,
+            },
+          });
         }
 
         // Finalize stop
@@ -395,22 +405,15 @@ export class DeliveryRunOperationsService {
           },
         });
 
-        // Finalize subscription delivery
-        await tx.subscriptionDelivery.update({
-          where: { id: stop.subscriptionDeliveryId },
-          data: {
-            status: SubscriptionDeliveryStatus.DELIVERED,
-            deliveredAt: new Date(),
-          },
-        });
-
-        // Update subscriber completed count
-        await tx.customerSubscription.update({
-          where: { id: stop.subscriptionDelivery.subscriptionId },
-          data: {
-            completedDeliveries: { increment: 1 },
-          },
-        });
+        // Consume the funded entitlement. This owns the delivery status, the
+        // completedDeliveries counter, and the funding-cycle transitions, so the
+        // photo proof path cannot diverge from the OTP and Trusted Drop paths.
+        await this.funding.consumeDeliveredWithinTransaction(
+          tx,
+          stop.subscriptionDeliveryId,
+          actor,
+          `entitlement:${key}`,
+        );
 
         // Update delivery run aggregates
         await tx.deliveryRun.update({
@@ -822,9 +825,11 @@ export class DeliveryRunOperationsService {
               actorUserId: actor.id,
               actorRole: actor.role,
               reference: `RUN:${run.routeCode}:STOP:${stop.sequenceNumber}:PAYMENT`,
-              idempotencyKey: `cod-payment:${stop.id}:${Date.now()}`,
+              idempotencyKey: `cod-payment:${stop.id}:${ledger.collectedAmountPaise + amtPaise}`,
             },
           });
+        } else {
+          throw new ConflictException('Payment recorded for a stop with no COD ledger to hold it');
         }
       }
 

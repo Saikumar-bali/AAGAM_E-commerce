@@ -25,6 +25,10 @@ export type DeliveryPricing = {
   flatFeePaise: number | null;
 };
 
+export function isWithinGlobalServiceRadius(distanceKm: number, maximumDistanceKm = DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM): boolean {
+  return Number.isFinite(distanceKm) && distanceKm >= 0 && distanceKm <= maximumDistanceKm;
+}
+
 export function calculateDeliveryPricing(
   distanceKm: number,
   subtotalPaise?: number,
@@ -34,19 +38,18 @@ export function calculateDeliveryPricing(
   const hasRule = Boolean(overrides.ruleId);
 
   if (!hasRule) {
-    const globalMaximum = DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM;
-    const validDistance = Number.isFinite(distanceKm) && distanceKm >= 0;
-    const serviceable = validDistance && distanceKm <= globalMaximum;
-    const distanceFeePaise = validDistance && serviceable ? Math.max(0, Math.round(distanceKm * DELIVERY_RATE_PAISE_PER_KM)) : 0;
+    // No rule matched this locality, so the address is not serviceable and nothing is charged.
+    // The distance fee stays 0 here so callers cannot render a fee the shop never collects;
+    // the distance radius is only consulted once a rule opts the locality in.
     return {
-      serviceable,
+      serviceable: false,
       ratePaisePerKm: DELIVERY_RATE_PAISE_PER_KM,
       freeDeliveryMinimumPaise: FREE_DELIVERY_MINIMUM_PAISE,
-      maximumDistanceKm: globalMaximum,
-      distanceFeePaise,
+      maximumDistanceKm: DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM,
+      distanceFeePaise: 0,
       waivedByThreshold: false,
       waivedByFirstOrder: false,
-      payableFeePaise: !serviceable ? 0 : distanceFeePaise,
+      payableFeePaise: 0,
       appliedRule: null,
       flatFeePaise: null,
     };

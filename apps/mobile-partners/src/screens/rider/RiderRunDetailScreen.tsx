@@ -47,6 +47,7 @@ import {
   subscriptionOperationsService,
 } from '../../api/subscriptionOperationsService';
 import type { RiderTabParamList } from '../../navigation/partnerNavigationTypes';
+import { riderService } from '../../api/riderService';
 import { RIDER_RUNS_QUERY_KEY } from './RiderRunsScreen';
 import { PartnerQrScanner } from '../../native/PartnerQrScanner';
 import { PartnerDocumentPicker } from '../../native/PartnerDocumentPicker';
@@ -129,7 +130,9 @@ function StatusChip({ value }: { value: string }) {
 }
 
 function ProofSummary({ stop }: { stop: DeliveryRunStop }) {
-  const isPhotoGps = (stop as any).proofMode === 'RIDER_PHOTO_GPS' || Boolean(stop.subscriptionDelivery);
+  // proofMode alone identifies photo-GPS stops. Guarding on subscriptionDelivery
+  // as well misfiled ordinary Trusted Drop and OTP stops into this branch.
+  const isPhotoGps = (stop as any).proofMode === 'RIDER_PHOTO_GPS';
   if (isPhotoGps) {
     if (stop.cashDuePaise > 0) {
       return (
@@ -323,11 +326,23 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   });
 
   const evidenceMutation = useMutation({
-    mutationFn: async (stop: DeliveryRunStop) => {
-      if (!dropToken) throw new Error('Scan the customer Trusted Drop QR first.');
+    mutationFn: async (args: { stop: DeliveryRunStop; photoGpsOnly: boolean }) => {
+      const { stop, photoGpsOnly } = args;
+      if (!photoGpsOnly && !dropToken) throw new Error('Scan the customer Trusted Drop QR first.');
       const picked = await PartnerDocumentPicker.captureImage();
-      if (!picked.type.startsWith('image/')) throw new Error('Trusted Drop proof must be a camera image.');
-      if (picked.size > 6 * 1024 * 1024) throw new Error('Trusted Drop photo must be 6 MB or smaller.');
+      if (!picked.type.startsWith('image/')) throw new Error('Delivery proof must be a camera image.');
+      if (picked.size > 6 * 1024 * 1024) throw new Error('Delivery proof photo must be 6 MB or smaller.');
+      if (photoGpsOnly) {
+        // This upload returns a real evidence/... storage key, which is what
+        // RiderPhotoProof.storageKey and the admin evidence viewer both expect.
+        const uploaded = await riderService.uploadEvidence({
+          uri: picked.uri,
+          name: picked.name,
+          type: picked.type,
+          size: picked.size,
+        });
+        return { id: uploaded.storageKey, name: picked.name };
+      }
       const result = await subscriptionOperationsService.uploadTrustedDropEvidence(runId, stop.id, {
         trustedDropToken: dropToken,
         file: { uri: picked.uri, name: picked.name, type: picked.type },
@@ -335,14 +350,24 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
       });
       return { ...result, name: picked.name };
     },
-    onSuccess: (result) => { setTrustedEvidenceId(result.id); setTrustedEvidenceName(result.name); Toast.show({ type: 'success', text1: 'Drop photo secured', text2: 'The evidence is bound to this stop, rider, and QR version.' }); },
+    onSuccess: (result, args) => {
+      setTrustedEvidenceId(result.id);
+      setTrustedEvidenceName(result.name);
+      Toast.show({
+        type: 'success',
+        text1: args.photoGpsOnly ? 'Delivery photo secured' : 'Drop photo secured',
+        text2: args.photoGpsOnly
+          ? 'The photo is stored against this stop.'
+          : 'The evidence is bound to this stop, rider, and QR version.',
+      });
+    },
     onError: (error) => Toast.show({ type: 'error', text1: 'Photo upload failed', text2: errorMessage(error) }),
   });
 
   const completeMutation = useMutation({
     mutationFn: async (stop: DeliveryRunStop) => {
       const coordinates = await currentLocation();
-      const isPhotoGps = (stop as any).proofMode === 'RIDER_PHOTO_GPS' || Boolean(stop.subscriptionDelivery);
+      const isPhotoGps = (stop as any).proofMode === 'RIDER_PHOTO_GPS';
       const trusted = stop.subscriptionDelivery?.subscription?.deliveryMethod === 'TRUSTED_DROP' && stop.cashDuePaise === 0;
       if (!(await PartnerConnectivity.getCurrent())) {
         if (trusted || isPhotoGps) {
@@ -494,13 +519,13 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
               <View style={selectedStop.cashDuePaise > 0 ? styles.cashDueBanner : styles.fundedBanner}><Banknote size={21} color={selectedStop.cashDuePaise > 0 ? '#8A4B00' : '#0F766E'} /><View style={styles.bannerCopy}><Text style={selectedStop.cashDuePaise > 0 ? styles.cashDueTitle : styles.fundedTitle}>{selectedStop.cashDuePaise > 0 ? `${money(selectedStop.cashDuePaise)} due now` : 'Customer amount due: ₹0'}</Text><Text style={selectedStop.cashDuePaise > 0 ? styles.cashDueText : styles.fundedText}>{selectedStop.cashDuePaise > 0 ? ((selectedStop as any).proofMode === 'RIDER_PHOTO_GPS' || Boolean(selectedStop.subscriptionDelivery) ? 'Collect the exact cash amount and take delivery photo proof. No OTP needed.' : 'Collect the exact amount only after valid OTP.') : 'Subscription already funded. Do not collect cash.'}</Text></View></View>
               {selectedStop.status !== 'ARRIVED' && !['DELIVERED', 'FAILED', 'CANCELLED', 'RETURNED'].includes(selectedStop.status) ? <TouchableOpacity style={styles.sheetPrimary} disabled={arriveMutation.isPending} onPress={() => arriveMutation.mutate(selectedStop)}><MapPin size={20} color="#FFFFFF" /><Text style={styles.sheetPrimaryText}>{arriveMutation.isPending ? 'Reading GPS…' : 'I have arrived'}</Text></TouchableOpacity> : null}
               {selectedStop.status === 'ARRIVED' ? <>
-                {((selectedStop as any).proofMode === 'RIDER_PHOTO_GPS' || Boolean(selectedStop.subscriptionDelivery)) ? (
+                {((selectedStop as any).proofMode === 'RIDER_PHOTO_GPS') ? (
                   <>
                     <Text style={styles.inputLabel}>Delivery Photo Proof</Text>
                     <TouchableOpacity
                       style={styles.otpButton}
                       disabled={evidenceMutation.isPending}
-                      onPress={() => evidenceMutation.mutate(selectedStop)}
+                      onPress={() => evidenceMutation.mutate({ stop: selectedStop, photoGpsOnly: true })}
                     >
                       <Camera size={19} color="#0F766E" />
                       <Text style={styles.otpButtonText}>
@@ -512,7 +537,7 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                 ) : (
                   <>
                     {!(selectedStop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP' && selectedStop.cashDuePaise === 0) ? <TouchableOpacity style={styles.otpButton} disabled={otpMutation.isPending} onPress={() => otpMutation.mutate(selectedStop)}><KeyRound size={19} color="#0F766E" /><Text style={styles.otpButtonText}>{otpMutation.isPending ? 'Sending OTP…' : 'Send / resend OTP'}</Text></TouchableOpacity> : null}
-                    {selectedStop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP' && selectedStop.cashDuePaise === 0 ? <><Text style={styles.inputLabel}>One-time Trusted Drop QR</Text><TouchableOpacity style={styles.otpButton} disabled={scanTrustedDropMutation.isPending} onPress={() => scanTrustedDropMutation.mutate()}><KeyRound size={19} color="#0F766E" /><Text style={styles.otpButtonText}>{dropToken ? 'QR scanned · scan again' : scanTrustedDropMutation.isPending ? 'Opening scanner…' : 'Scan customer QR'}</Text></TouchableOpacity><Text style={styles.inputLabel}>Fresh drop photo</Text><TouchableOpacity style={styles.otpButton} disabled={!dropToken || evidenceMutation.isPending} onPress={() => evidenceMutation.mutate(selectedStop)}><Camera size={19} color="#0F766E" /><Text style={styles.otpButtonText}>{trustedEvidenceId ? `Photo secured · ${trustedEvidenceName || 'evidence ready'}` : evidenceMutation.isPending ? 'Uploading secure photo…' : 'Take delivery photo'}</Text></TouchableOpacity><Text style={styles.fundedText}>The QR secret is never saved for offline replay. If connectivity changes before completion, rescan the current QR.</Text></> : <><Text style={styles.inputLabel}>Six-digit OTP</Text><TextInput style={[styles.input, styles.otpInput]} value={otpCode} onChangeText={(value) => setOtpCode(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" maxLength={6} placeholder="000000" placeholderTextColor="#94A3B8" /></>}
+                    {selectedStop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP' && selectedStop.cashDuePaise === 0 ? <><Text style={styles.inputLabel}>One-time Trusted Drop QR</Text><TouchableOpacity style={styles.otpButton} disabled={scanTrustedDropMutation.isPending} onPress={() => scanTrustedDropMutation.mutate()}><KeyRound size={19} color="#0F766E" /><Text style={styles.otpButtonText}>{dropToken ? 'QR scanned · scan again' : scanTrustedDropMutation.isPending ? 'Opening scanner…' : 'Scan customer QR'}</Text></TouchableOpacity><Text style={styles.inputLabel}>Fresh drop photo</Text><TouchableOpacity style={styles.otpButton} disabled={!dropToken || evidenceMutation.isPending} onPress={() => evidenceMutation.mutate({ stop: selectedStop, photoGpsOnly: false })}><Camera size={19} color="#0F766E" /><Text style={styles.otpButtonText}>{trustedEvidenceId ? `Photo secured · ${trustedEvidenceName || 'evidence ready'}` : evidenceMutation.isPending ? 'Uploading secure photo…' : 'Take delivery photo'}</Text></TouchableOpacity><Text style={styles.fundedText}>The QR secret is never saved for offline replay. If connectivity changes before completion, rescan the current QR.</Text></> : <><Text style={styles.inputLabel}>Six-digit OTP</Text><TextInput style={[styles.input, styles.otpInput]} value={otpCode} onChangeText={(value) => setOtpCode(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" maxLength={6} placeholder="000000" placeholderTextColor="#94A3B8" /></>}
                   </>
                 )}
                 <Text style={styles.inputLabel}>Delivery note (optional)</Text><TextInput style={[styles.input, styles.noteInput]} multiline value={deliveryNote} onChangeText={setDeliveryNote} placeholder="Quantity confirmed, drop location, recipient…" placeholderTextColor="#94A3B8" />
