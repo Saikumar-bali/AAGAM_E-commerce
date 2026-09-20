@@ -9,12 +9,16 @@ TypeScript monorepo (npm workspaces):
 - `apps/mobile-customer`, `apps/mobile-partners` — Expo / React Native
 - `packages/database` — Prisma schema and migrations
 - `packages/types`, `packages/utils`, `packages/ui`, `packages/mobile-shared` — shared packages
-  (`packages/ui` is imported by admin-dashboard, `packages/mobile-shared` by both Expo apps)
+  (`packages/ui` is declared by admin-dashboard and transpiled via `transpilePackages` in
+  its `next.config.js`, but no source file imports it yet; `packages/mobile-shared` is
+  imported by both Expo apps)
 
 ## Running the api-gateway tests
 
-The suite needs a reachable Postgres. Without `DATABASE_URL` you get ~604
-`PrismaClientInitializationError` noise failures that look like real bugs.
+The suite needs a reachable Postgres. Without a reachable `DATABASE_URL` the run
+is red — 26 of 117 suites / 187 of 677 tests as of this writing — almost all of it
+`PrismaClientInitializationError` noise that looks like real bugs. With Postgres up
+and migrations applied the suite is fully green.
 Build the workspace packages first, or `@aagam/database` and `@aagam/types`
 cannot resolve and `tsc` reports hundreds of unrelated errors.
 
@@ -22,7 +26,7 @@ cannot resolve and `tsc` reports hundreds of unrelated errors.
 npm ci   # matches CI; `npm install` also works
 
 # shared packages must be built before api-gateway will typecheck
-# (root `npm run build:api` does exactly these three, in this order)
+# (root `npm run build:api` runs these three first, then api-gateway)
 npm run build --workspace=packages/types
 npm run build --workspace=packages/utils
 npm run build --workspace=packages/database   # also runs prisma generate
@@ -40,13 +44,13 @@ npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
 npm run test:ci --workspace=apps/api-gateway
 ```
 
-`npm run test:ci` takes several minutes; run it in the background and poll the
-log rather than blocking the terminal.
+`npm run test:ci` takes about a minute on a warm build; run it in the background
+and poll the log rather than blocking the terminal.
 
 ## Comparing against a baseline
 
 To prove whether a change caused a failure, compare failing suites with and
-without it, since the suite has pre-existing failures:
+without it — for example a green run against Postgres versus a red run without one:
 
 ```bash
 git stash push -u -m baseline
