@@ -1128,7 +1128,13 @@ function Subscribers({ rows, onEditSubscriber }: { rows: any[]; onEditSubscriber
   const [trackerId, setTrackerId] = useState<string | null>(null);
   const filteredRows = rows.filter((item: any) => {
     if (sourceFilter === 'all') return true;
-    const isOffline = item.source === 'manual' || item.source === 'custom_manual' || item.customer?.email?.startsWith('offline.') || item.customer?.acquisitionSource === 'OFFLINE';
+    const isOffline =
+      item.source === 'manual' ||
+      item.source === 'custom_manual' ||
+      item.customer?.email?.startsWith('offline.') ||
+      item.customer?.phone?.startsWith('offline_') ||
+      item.customer?.acquisitionSource === 'OFFLINE' ||
+      item.customer?.acquisitionSource === 'OFFLINE_STORE';
     return sourceFilter === 'offline' ? isOffline : !isOffline;
   });
 

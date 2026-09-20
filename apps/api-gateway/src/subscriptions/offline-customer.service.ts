@@ -25,7 +25,6 @@ export class OfflineCustomerService {
           some: {
             OR: [
               { source: { in: ['manual', 'custom_manual'] } },
-              { deliveryMethod: 'PERSONAL_HANDOVER' },
               { isCustom: true },
               { storeDelivery: true },
             ],
@@ -107,17 +106,7 @@ export class OfflineCustomerService {
         : expected === 'recycleBin'
         ? this.recycleBinState
         : {};
-    const identityFilter =
-      expected === 'any' && mutation && actor?.role === Role.STORE_OWNER
-        ? {
-            role: Role.CUSTOMER,
-            OR: [
-              this.offlineIdentity,
-              { customerSubscriptions: { some: { homeStore: { ownerId: actor.id } } } },
-              { offlineStore: { ownerId: actor.id } },
-            ],
-          }
-        : this.offlineIdentity;
+    const identityFilter = this.offlineIdentity;
     const user = await prisma.user.findFirst({
       where: {
         id: customerId,

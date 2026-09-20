@@ -364,6 +364,8 @@ model RiderProfile {
   riderPhotoProofs         RiderPhotoProof[]
   deliveryRuns             DeliveryRun[]
   cashDepositBatches       CashDepositBatch[]
+  defaultSubscriptions     CustomerSubscription[]      @relation("CustomerSubscriptionDefaultRider")
+  temporarySubscriptions   CustomerSubscription[]      @relation("CustomerSubscriptionTemporaryRider")
   homeZone                  DeliveryZone?               @relation(fields: [homeZoneId], references: [id], onDelete: SetNull)
   preferredZoneLinks        DeliveryZonePreferredRider[]
   updatedAt                DateTime                    @updatedAt
@@ -1740,6 +1742,12 @@ model CustomerSubscription {
   address                    CustomerAddress            @relation(fields: [addressId], references: [id], onDelete: Restrict)
   homeStore                  Store?                     @relation(fields: [homeStoreId], references: [id], onDelete: SetNull)
   deliveryZone               DeliveryZone?              @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+  defaultRiderId             String?
+  defaultRider               RiderProfile?              @relation("CustomerSubscriptionDefaultRider", fields: [defaultRiderId], references: [id], onDelete: SetNull)
+  temporaryRiderId           String?
+  temporaryRider             RiderProfile?              @relation("CustomerSubscriptionTemporaryRider", fields: [temporaryRiderId], references: [id], onDelete: SetNull)
+  temporaryRiderStartDate    DateTime?
+  temporaryRiderEndDate      DateTime?
   cancelledBy                User?                      @relation("SubscriptionCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
   createdAt                  DateTime                   @default(now())
   updatedAt                  DateTime                   @updatedAt
@@ -1756,6 +1764,8 @@ model CustomerSubscription {
   @@index([status, nextDeliveryDate])
   @@index([homeStoreId, status])
   @@index([deliveryZoneId, status])
+  @@index([defaultRiderId])
+  @@index([temporaryRiderId])
 }
 
 model SubscriptionDelivery {

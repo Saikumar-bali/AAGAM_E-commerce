@@ -57,7 +57,7 @@ export const StorePickupSuccessScreen = ({ navigation, route }: { navigation?: a
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#057A55" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <View style={styles.hero}>
           <TouchableOpacity style={styles.backButton} onPress={backToOrders}>
@@ -77,7 +77,7 @@ export const StorePickupSuccessScreen = ({ navigation, route }: { navigation?: a
 
         <View style={styles.receiptCard}>
           <View style={styles.riderRow}>
-            <View style={styles.avatar}><UserRound size={38} color="#078B4D" fill="#078B4D" /></View>
+            <View style={styles.avatar}><UserRound size={38} color="#0F766E" fill="#0F766E" /></View>
             <View style={styles.riderCopy}>
               <Text style={styles.riderName}>{receipt.riderName}</Text>
               <Text style={styles.riderPhone}>{receipt.riderPhone || 'Phone unavailable'}</Text>
@@ -104,7 +104,7 @@ export const StorePickupSuccessScreen = ({ navigation, route }: { navigation?: a
         </View>
 
         <View style={styles.successBanner}>
-          <View style={styles.successIcon}><CheckCircle2 size={32} color="#FFFFFF" fill="#078B4D" /></View>
+          <View style={styles.successIcon}><CheckCircle2 size={32} color="#FFFFFF" fill="#0F766E" /></View>
           <Text style={styles.successBannerText}>Order has been successfully handed over</Text>
         </View>
 
@@ -133,41 +133,41 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8F9F8' },
   scroll: { flex: 1 },
   content: { paddingBottom: 40 },
-  hero: { height: 355, backgroundColor: '#057A55', alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  hero: { height: 355, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   backButton: { position: 'absolute', top: 60, left: 25, width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   confetti: { position: 'absolute', fontSize: 14 },
   shieldCircle: { height: 125, alignItems: 'center', justifyContent: 'center' },
   checkOverlay: { position: 'absolute', top: 42 },
-  successTitle: { color: '#FFFFFF', fontSize: 29, fontWeight: '900', marginTop: 22 },
+  successTitle: { color: '#FFFFFF', fontSize: 29, fontWeight: '600', marginTop: 22 },
   successSubtitle: { color: '#FFFFFF', fontSize: 21, marginTop: 8 },
   receiptCard: { marginHorizontal: 17, marginTop: -35, borderRadius: 22, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DFE3E1', padding: 20, elevation: 5, shadowColor: '#17261F', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12 },
   riderRow: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#EAF9EE', alignItems: 'center', justifyContent: 'center' },
   riderCopy: { flex: 1, marginLeft: 13 },
-  riderName: { color: '#151820', fontSize: 20, fontWeight: '900' },
-  riderPhone: { color: '#626B74', fontSize: 15, marginTop: 5 },
+  riderName: { color: '#151820', fontSize: 20, fontWeight: '600' },
+  riderPhone: { color: '#626B74', fontSize: 15, marginTop: 4 },
   verifiedColumn: { alignItems: 'flex-end' },
   verifiedPill: { borderRadius: 9, backgroundColor: '#EAF9EE', borderWidth: 1, borderColor: '#CBECCF', paddingHorizontal: 12, paddingVertical: 8 },
-  verifiedText: { color: '#087C35', fontSize: 13, fontWeight: '900' },
-  rating: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 9 },
-  ratingText: { color: '#151820', fontSize: 15, fontWeight: '900' },
+  verifiedText: { color: '#087C35', fontSize: 13, fontWeight: '600' },
+  rating: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
+  ratingText: { color: '#151820', fontSize: 15, fontWeight: '600' },
   divider: { height: 1, backgroundColor: '#E6E8E7', marginVertical: 16 },
   receiptRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center' },
   receiptLabel: { flex: 1, color: '#626B74', fontSize: 15 },
-  receiptValue: { color: '#151820', fontSize: 15, fontWeight: '900', textAlign: 'right', maxWidth: '58%' },
-  paymentPill: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  receiptValue: { color: '#151820', fontSize: 15, fontWeight: '600', textAlign: 'right', maxWidth: '58%' },
+  paymentPill: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
   prepaidPill: { backgroundColor: '#EAF9EE' },
   codPill: { backgroundColor: '#FFF1E5' },
-  paymentText: { fontSize: 12, fontWeight: '900' },
+  paymentText: { fontSize: 12, fontWeight: '600' },
   prepaidText: { color: '#087C35' },
   codText: { color: '#BE5B09' },
   successBanner: { minHeight: 92, marginHorizontal: 17, marginTop: 18, borderRadius: 16, borderWidth: 1, borderColor: '#BFE7CE', backgroundColor: '#EAF9EE', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, gap: 14 },
-  successIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#078B4D', alignItems: 'center', justifyContent: 'center' },
-  successBannerText: { flex: 1, color: '#08723F', fontSize: 16, lineHeight: 23, fontWeight: '700' },
-  primaryButton: { height: 62, borderRadius: 13, backgroundColor: '#078B4D', marginHorizontal: 17, marginTop: 20, alignItems: 'center', justifyContent: 'center' },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
-  detailsButton: { height: 65, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
-  detailsText: { color: '#087B4E', fontSize: 18, fontWeight: '900' },
+  successIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' },
+  successBannerText: { flex: 1, color: '#08723F', fontSize: 16, lineHeight: 23, fontWeight: '500' },
+  primaryButton: { height: 62, borderRadius: 13, backgroundColor: '#0F766E', marginHorizontal: 17, marginTop: 20, alignItems: 'center', justifyContent: 'center' },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 20, fontWeight: '600' },
+  detailsButton: { height: 65, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  detailsText: { color: '#087B4E', fontSize: 18, fontWeight: '600' },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F9F8', padding: 24 },
-  missingTitle: { color: '#151820', fontSize: 20, fontWeight: '900', marginBottom: 20 },
+  missingTitle: { color: '#151820', fontSize: 20, fontWeight: '600', marginBottom: 20 },
 });

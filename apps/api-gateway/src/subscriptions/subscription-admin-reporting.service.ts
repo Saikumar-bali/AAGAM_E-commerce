@@ -121,7 +121,7 @@ export class SubscriptionAdminReportingService {
       },
       orderBy: { createdAt: 'desc' },
       include: {
-        customer: { select: { id: true, name: true, email: true, phone: true } },
+        customer: { select: { id: true, name: true, email: true, phone: true, acquisitionSource: true } },
         plan: { select: { id: true, code: true, name: true } },
         planVersion: { select: { id: true, version: true, pricePaise: true, totalDeliveries: true } },
         homeStore: { select: { id: true, name: true } },

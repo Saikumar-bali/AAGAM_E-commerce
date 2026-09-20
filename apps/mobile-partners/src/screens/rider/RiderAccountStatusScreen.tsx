@@ -31,7 +31,7 @@ export const RiderAccountStatusScreen = ({ navigation }: { navigation: any }) =>
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider profile" style={styles.back} onPress={() => navigation.goBack()}><ArrowLeft size={23} color="#FFFFFF" /></TouchableOpacity>
         <View style={styles.flex}><Text style={styles.eyebrow}>RIDER LIFECYCLE</Text><Text style={styles.title}>Approval and eligibility</Text></View>
@@ -111,17 +111,17 @@ function Fact({ label: factLabel, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#067B5C', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, back: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '900', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 22, fontWeight: '900' },
+  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, back: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 22, fontWeight: '600' },
   content: { padding: 14 },
-  errorBanner: { marginBottom: 12, borderRadius: 15, borderWidth: 1, borderColor: '#FCD34D', backgroundColor: '#FFFBEB', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }, errorBannerTitle: { color: '#92400E', fontSize: 11, fontWeight: '900' }, errorBannerText: { color: '#B45309', fontSize: 10, marginTop: 3 }, errorRetry: { color: '#0F766E', fontWeight: '900' },
+  errorBanner: { marginBottom: 12, borderRadius: 15, borderWidth: 1, borderColor: '#FCD34D', backgroundColor: '#FFFBEB', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }, errorBannerTitle: { color: '#92400E', fontSize: 11, fontWeight: '600' }, errorBannerText: { color: '#B45309', fontSize: 10, marginTop: 4 }, errorRetry: { color: '#0F766E', fontWeight: '600' },
   heroCard: { borderRadius: 20, borderWidth: 1, padding: 19, alignItems: 'center' }, heroGood: { backgroundColor: '#F0FDF4', borderColor: '#86EFAC' }, heroAttention: { backgroundColor: '#FFFBEB', borderColor: '#FCD34D' },
-  heroLabel: { color: '#64748B', fontSize: 10, fontWeight: '900', marginTop: 10 }, heroTitle: { color: '#0F172A', fontSize: 24, fontWeight: '900', marginTop: 3 }, heroText: { color: '#475569', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 6 },
-  card: { marginTop: 12, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 15 }, cardTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900', marginBottom: 7 },
-  fact: { paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E2E8F0' }, factLabel: { color: '#64748B', fontSize: 10, fontWeight: '800' }, factValue: { color: '#0F172A', fontSize: 13, fontWeight: '700', marginTop: 3 },
-  row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E2E8F0' }, rowTitle: { color: '#0F172A', fontSize: 12, fontWeight: '900' }, rowMeta: { color: '#64748B', fontSize: 10, lineHeight: 15, marginTop: 3 },
-  primary: { minHeight: 48, borderRadius: 14, backgroundColor: '#067B5C', marginTop: 13, alignItems: 'center', justifyContent: 'center' }, primaryText: { color: '#FFFFFF', fontWeight: '900' },
-  warningCard: { marginTop: 12, borderRadius: 18, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', padding: 15 }, warningTitle: { color: '#991B1B', fontSize: 16, fontWeight: '900' }, changeRow: { flexDirection: 'row', gap: 9, marginTop: 12 }, changeTitle: { color: '#991B1B', fontSize: 12, fontWeight: '900' }, changeText: { color: '#7F1D1D', fontSize: 11, lineHeight: 17, marginTop: 3 },
+  heroLabel: { color: '#64748B', fontSize: 10, fontWeight: '600', marginTop: 10 }, heroTitle: { color: '#0F172A', fontSize: 24, fontWeight: '600', marginTop: 4 }, heroText: { color: '#475569', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 6 },
+  card: { marginTop: 12, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16 }, cardTitle: { color: '#0F172A', fontSize: 16, fontWeight: '600', marginBottom: 8 },
+  fact: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E2E8F0' }, factLabel: { color: '#64748B', fontSize: 10, fontWeight: '600' }, factValue: { color: '#0F172A', fontSize: 13, fontWeight: '500', marginTop: 4 },
+  row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E2E8F0' }, rowTitle: { color: '#0F172A', fontSize: 12, fontWeight: '600' }, rowMeta: { color: '#64748B', fontSize: 10, lineHeight: 15, marginTop: 4 },
+  primary: { minHeight: 48, borderRadius: 14, backgroundColor: '#0F766E', marginTop: 12, alignItems: 'center', justifyContent: 'center' }, primaryText: { color: '#FFFFFF', fontWeight: '600' },
+  warningCard: { marginTop: 12, borderRadius: 18, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', padding: 16 }, warningTitle: { color: '#991B1B', fontSize: 16, fontWeight: '600' }, changeRow: { flexDirection: 'row', gap: 8, marginTop: 12 }, changeTitle: { color: '#991B1B', fontSize: 12, fontWeight: '600' }, changeText: { color: '#7F1D1D', fontSize: 11, lineHeight: 17, marginTop: 4 },
   historyRow: { flexDirection: 'row', gap: 10, paddingVertical: 10 }, historyDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0F766E', marginTop: 4 }, note: { color: '#334155', fontSize: 11, lineHeight: 17, marginTop: 4 },
-  state: { minHeight: 420, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }, stateTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', marginTop: 10 }, stateText: { color: '#64748B', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 6 },
+  state: { minHeight: 420, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }, stateTitle: { color: '#0F172A', fontSize: 18, fontWeight: '600', marginTop: 10 }, stateText: { color: '#64748B', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 6 },
 });

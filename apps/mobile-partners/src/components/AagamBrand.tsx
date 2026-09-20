@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
+    gap: 12,
     marginRight: 'auto',
   },
   markShadow: {
@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontSize: 27,
     lineHeight: 30,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: -1.2,
   },
   nameCompact: {
@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     color: '#0F766E',
     fontSize: 9,
-    fontWeight: '900',
+    fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },

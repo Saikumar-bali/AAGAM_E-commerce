@@ -25,7 +25,7 @@ import { apiClient, useAuthStore } from '@aagam/mobile-shared';
 import Toast from 'react-native-toast-message';
 import { AagamMark } from '../components/AagamMark';
 
-const BRAND_GREEN = '#057A55';
+const BRAND_GREEN = '#0F766E';
 const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 10);
 const phoneForApi = (value: string) => `+91${digitsOnly(value)}`;
 // Keep phone OTP implementation intact for reuse when SMS/WhatsApp returns.
@@ -387,27 +387,27 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontSize: 34,
     lineHeight: 39,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: -1.4,
-    marginTop: 13,
+    marginTop: 12,
   },
   brandCaption: {
     color: BRAND_GREEN,
     fontSize: 12,
     lineHeight: 17,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: 2,
   },
   heroCopy: {
     alignItems: 'center',
     marginTop: 24,
-    marginBottom: 21,
+    marginBottom: 20,
   },
   title: {
     color: '#0F172A',
     fontSize: 30,
     lineHeight: 36,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: -0.9,
   },
   subtitle: {
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     textAlign: 'center',
-    marginTop: 7,
+    marginTop: 8,
     fontWeight: '600',
   },
   tabs: {
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: 8,
     paddingHorizontal: 6,
   },
   tabActive: {
@@ -447,20 +447,20 @@ const styles = StyleSheet.create({
   tabText: {
     color: '#6A7789',
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: '600',
     textAlign: 'center',
   },
   tabTextActive: {
     color: '#FFFFFF',
   },
   form: {
-    gap: 11,
+    gap: 12,
     marginTop: 21,
   },
   label: {
     color: '#334155',
     fontSize: 11,
-    fontWeight: '900',
+    fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.65,
     marginTop: 1,
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#D9E0E8',
     borderRadius: 18,
-    paddingHorizontal: 15,
+    paddingHorizontal: 16,
   },
   countryCode: {
     borderRightWidth: 1,
@@ -483,14 +483,14 @@ const styles = StyleSheet.create({
   },
   countryCodeText: {
     color: BRAND_GREEN,
-    fontWeight: '900',
+    fontWeight: '600',
   },
   input: {
     flex: 1,
     minWidth: 0,
     color: '#0F172A',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '500',
     paddingVertical: 0,
   },
   visibilityButton: {
@@ -505,10 +505,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 9,
+    gap: 8,
     borderRadius: 18,
     backgroundColor: BRAND_GREEN,
-    marginTop: 5,
+    marginTop: 4,
     shadowColor: BRAND_GREEN,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.23,
@@ -521,12 +521,12 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: '600',
   },
   sent: {
     textAlign: 'center',
     color: '#475569',
-    fontWeight: '800',
+    fontWeight: '600',
     marginVertical: 3,
   },
   otpRow: {
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
   },
   otpDigit: {
     fontSize: 22,
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#0F172A',
   },
   hidden: {
@@ -562,8 +562,8 @@ const styles = StyleSheet.create({
   link: {
     color: BRAND_GREEN,
     textAlign: 'center',
-    fontWeight: '900',
-    paddingTop: 3,
+    fontWeight: '600',
+    paddingTop: 4,
   },
   linkDisabled: {
     color: '#94A3B8',
@@ -571,7 +571,7 @@ const styles = StyleSheet.create({
   secondaryLink: {
     color: '#64748B',
     textAlign: 'center',
-    fontWeight: '800',
+    fontWeight: '500',
   },
   applyLink: {
     alignItems: 'center',
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
   },
   applyStrong: {
     color: BRAND_GREEN,
-    fontWeight: '900',
+    fontWeight: '600',
   },
 });
 

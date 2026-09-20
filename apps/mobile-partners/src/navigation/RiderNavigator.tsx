@@ -63,7 +63,7 @@ export const RiderNavigator = () => {
           shadowRadius: 10,
         },
         tabBarItemStyle: { borderRadius: 15 },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '700', marginTop: 2 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '500', marginTop: 2 },
       }}
     >
       <Tab.Screen
@@ -117,7 +117,7 @@ export const RiderNavigator = () => {
             backgroundColor: '#EF1D25',
             color: '#FFFFFF',
             fontSize: 10,
-            fontWeight: '900',
+            fontWeight: '600',
             minWidth: 20,
             height: 20,
             lineHeight: 20,

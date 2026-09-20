@@ -56,7 +56,7 @@ export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
         refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} />}
@@ -127,15 +127,15 @@ function MenuRow({ icon, title, subtitle, onPress }: { icon: React.ReactNode; ti
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  hero: { backgroundColor: '#067B5C', paddingHorizontal: 18, paddingBottom: 23 }, brandRow: { marginBottom: 17 }, profileRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
-  avatar: { width: 58, height: 58, borderRadius: 19, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#067B5C', fontSize: 20, fontWeight: '900' },
-  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '900', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 22, fontWeight: '900', marginTop: 2 }, subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 3 },
+  hero: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingBottom: 23 }, brandRow: { marginBottom: 16 }, profileRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
+  avatar: { width: 58, height: 58, borderRadius: 19, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#0F766E', fontSize: 20, fontWeight: '600' },
+  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 22, fontWeight: '600', marginTop: 2 }, subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },
   content: { padding: 14 },
-  statusCard: { borderRadius: 18, borderWidth: 1, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 11 }, statusApproved: { backgroundColor: '#F0FDF4', borderColor: '#86EFAC' }, statusAttention: { backgroundColor: '#FFFBEB', borderColor: '#FCD34D' },
-  statusLabel: { color: '#64748B', fontSize: 10, fontWeight: '800' }, statusValue: { color: '#0F172A', fontSize: 16, fontWeight: '900', marginTop: 2 }, statusHint: { color: '#475569', fontSize: 10, lineHeight: 15, marginTop: 3 },
-  sectionTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900', marginTop: 19, marginBottom: 8 },
-  menuRow: { minHeight: 74, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 13, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 11 },
-  menuIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, menuTitle: { color: '#0F172A', fontSize: 13, fontWeight: '900' }, menuSubtitle: { color: '#64748B', fontSize: 10, lineHeight: 15, marginTop: 3 },
-  logout: { minHeight: 52, borderRadius: 15, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, logoutText: { color: '#B91C1C', fontWeight: '900' },
+  statusCard: { borderRadius: 18, borderWidth: 1, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }, statusApproved: { backgroundColor: '#F0FDF4', borderColor: '#86EFAC' }, statusAttention: { backgroundColor: '#FFFBEB', borderColor: '#FCD34D' },
+  statusLabel: { color: '#64748B', fontSize: 10, fontWeight: '600' }, statusValue: { color: '#0F172A', fontSize: 16, fontWeight: '600', marginTop: 2 }, statusHint: { color: '#475569', fontSize: 10, lineHeight: 15, marginTop: 4 },
+  sectionTitle: { color: '#0F172A', fontSize: 15, fontWeight: '600', marginTop: 19, marginBottom: 8 },
+  menuRow: { minHeight: 74, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  menuIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, menuTitle: { color: '#0F172A', fontSize: 13, fontWeight: '600' }, menuSubtitle: { color: '#64748B', fontSize: 10, lineHeight: 15, marginTop: 4 },
+  logout: { minHeight: 52, borderRadius: 15, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, logoutText: { color: '#B91C1C', fontWeight: '600' },
   state: { minHeight: 420, alignItems: 'center', justifyContent: 'center' }, stateText: { color: '#64748B', marginTop: 10 },
 });

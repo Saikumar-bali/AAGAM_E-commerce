@@ -893,4 +893,114 @@ export class RecordCustomerPaymentDto {
   note?: string;
 }
 
+export class DispatchToRiderDto {
+  @IsArray()
+  @IsString({ each: true })
+  deliveryIds!: string[];
 
+  @IsString()
+  riderProfileId!: string;
+
+  @IsOptional()
+  @IsIn(['AM', 'PM'])
+  slot?: 'AM' | 'PM';
+
+  @IsOptional()
+  @IsBoolean()
+  saveAsDefaultRider?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  saveAsTemporaryRange?: boolean;
+
+  @IsOptional()
+  @IsString()
+  temporaryStartDate?: string;
+
+  @IsOptional()
+  @IsString()
+  temporaryEndDate?: string;
+}
+
+export class RiderExtraMilkDto {
+  @IsString()
+  extraQuantity!: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  extraPaise?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  consecutiveDays?: number;
+
+  @IsOptional()
+  @IsIn(['AM', 'PM'])
+  targetSlot?: 'AM' | 'PM';
+}
+
+export class RiderToggleSlotDto {
+  @IsOptional()
+  @IsIn(['AM', 'PM'])
+  targetSlot?: 'AM' | 'PM';
+}
+
+export class RiderRecordPaymentDto {
+  @IsInt()
+  @Min(1)
+  amountPaise!: number;
+
+  @IsOptional()
+  @IsIn(['CASH', 'PHONE_PE'])
+  paymentMode?: 'CASH' | 'PHONE_PE';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
+export class SetDefaultRiderDto {
+  @IsOptional()
+  @IsString()
+  riderProfileId?: string | null;
+}
+
+export class AutoDispatchDefaultRidersDto {
+  @IsString()
+  dateStr!: string;
+
+  @IsOptional()
+  @IsIn(['AM', 'PM', 'ALL'])
+  slot?: 'AM' | 'PM' | 'ALL';
+
+  @IsOptional()
+  @IsIn(['ALL', 'ONLINE', 'OFFLINE'])
+  channel?: 'ALL' | 'ONLINE' | 'OFFLINE';
+}
+
+export class SetTemporaryRiderDto {
+  @IsOptional()
+  @IsString()
+  riderProfileId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  endDate?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  applyToScheduledDeliveries?: boolean;
+}

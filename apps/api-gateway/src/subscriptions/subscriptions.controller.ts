@@ -75,6 +75,13 @@ import {
   UpdateAdminManualSubscriptionDto,
   RenewSubscriptionDto,
   RecordCustomerPaymentDto,
+  DispatchToRiderDto,
+  RiderExtraMilkDto,
+  RiderRecordPaymentDto,
+  RiderToggleSlotDto,
+  SetDefaultRiderDto,
+  SetTemporaryRiderDto,
+  AutoDispatchDefaultRidersDto,
 } from './subscriptions.dto';
 
 type AuthenticatedRequest = { user: { id: string; role: Role } };
@@ -345,6 +352,46 @@ export class RiderDeliveryRunsController {
   ) {
     return this.cash.submit(batchId, body, req.user, key);
   }
+
+  @Post(':runId/stops/:stopId/extra-milk')
+  extraMilk(
+    @Param('runId') runId: string,
+    @Param('stopId') stopId: string,
+    @Body() body: RiderExtraMilkDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.runs.extraMilk(runId, stopId, body, req.user);
+  }
+
+  @Post(':runId/stops/:stopId/toggle-slot')
+  toggleSlot(
+    @Param('runId') runId: string,
+    @Param('stopId') stopId: string,
+    @Body() body: RiderToggleSlotDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.runs.toggleSlot(runId, stopId, body, req.user);
+  }
+
+  @Post(':runId/stops/:stopId/record-payment')
+  recordPayment(
+    @Param('runId') runId: string,
+    @Param('stopId') stopId: string,
+    @Body() body: RiderRecordPaymentDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.runs.recordPayment(runId, stopId, body, req.user);
+  }
+
+  @Post(':runId/stops/:stopId/skip')
+  skip(
+    @Param('runId') runId: string,
+    @Param('stopId') stopId: string,
+    @Body() body: { reason?: string; note?: string },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.runs.skipStop(runId, stopId, body, req.user);
+  }
 }
 
 @Controller('store/subscription-operations')
@@ -431,6 +478,46 @@ export class StoreSubscriptionsController {
       month !== undefined && month !== '' ? parseInt(month, 10) : undefined,
     );
   }
+
+  @Get('available-riders')
+  availableRiders(@Req() req: AuthenticatedRequest) {
+    return this.milkGrid.getAvailableRiders(req.user);
+  }
+
+  @Post('dispatch-to-rider')
+  dispatchToRider(
+    @Body() body: DispatchToRiderDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.milkGrid.dispatchToRider(req.user, body);
+  }
+
+  @Post(':subscriptionId/default-rider')
+  setDefaultRider(
+    @Param('subscriptionId') subscriptionId: string,
+    @Body() body: SetDefaultRiderDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.milkGrid.setDefaultRider(req.user, subscriptionId, body.riderProfileId);
+  }
+
+  @Post(':subscriptionId/temporary-rider')
+  setTemporaryRider(
+    @Param('subscriptionId') subscriptionId: string,
+    @Body() body: SetTemporaryRiderDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.milkGrid.setTemporaryRider(req.user, subscriptionId, body);
+  }
+
+  @Post('auto-dispatch-default-riders')
+  autoDispatchDefaultRiders(
+    @Body() body: AutoDispatchDefaultRidersDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.milkGrid.autoDispatchDefaultRiders(req.user, body);
+  }
+
 
   @Post('deliveries/:id/quick-action')
   quickAction(

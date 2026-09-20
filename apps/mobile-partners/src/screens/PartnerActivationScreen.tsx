@@ -28,7 +28,7 @@ export function PartnerActivationScreen({ navigation }: any) {
       await clear();
       Alert.alert(
         'Account activated',
-        'Your password was created securely. Sign in to enter the approved partner workspace.',
+        'Account activated. Sign in to continue.',
         [{ text: 'Sign in', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Login' }] }) }],
       );
     } catch (error: any) {
@@ -39,10 +39,10 @@ export function PartnerActivationScreen({ navigation }: any) {
   return (
     <OnboardingShell
       title="Activate your partner account"
-      subtitle="Create the permanent password yourself. AAGAAM Admin cannot view, recover, or reuse this password."
+      subtitle="Create your password. It cannot be recovered by Aagaam."
       onBack={() => navigation.goBack()}
     >
-      <Section title="Secure password" subtitle="Use a unique password that is not shared with store staff or delivery coordinators.">
+      <Section title="Secure password" subtitle="Use a unique password. Don't share it with others.">
         <FormField testID="activation_password_input" label="New password" value={password} onChangeText={setPassword} secureTextEntry placeholder="At least 10 characters" autoCapitalize="none" />
         <FormField testID="activation_confirm_password_input" label="Confirm password" value={confirm} onChangeText={setConfirm} secureTextEntry placeholder="Repeat password" autoCapitalize="none" />
       </Section>

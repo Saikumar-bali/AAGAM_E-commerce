@@ -73,8 +73,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 5 },
     elevation: 7,
   },
-  dot: { width: 10, height: 10, borderRadius: 5, marginTop: 5, marginRight: 11 },
+  dot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, marginRight: 11 },
   copy: { flex: 1, minWidth: 0 },
-  title: { fontSize: 15, lineHeight: 20, fontWeight: '900' },
-  message: { marginTop: 3, color: '#334155', fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  title: { fontSize: 15, lineHeight: 20, fontWeight: '600' },
+  message: { marginTop: 4, color: '#334155', fontSize: 13, lineHeight: 18, fontWeight: '600' },
 });

@@ -106,7 +106,7 @@ export const RiderJobsScreen = ({
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
@@ -181,23 +181,23 @@ function JobCard({ item, onPress }: { item: RiderJobListItem; onPress: () => voi
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F7F8F7' }, scroll: { flex: 1 }, flex: { flex: 1 },
-  hero: { backgroundColor: '#067B5C', paddingHorizontal: 16, paddingBottom: 34 }, brandRow: { marginBottom: 15 }, headerRow: { flexDirection: 'row', alignItems: 'center' },
+  hero: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 34 }, brandRow: { marginBottom: 15 }, headerRow: { flexDirection: 'row', alignItems: 'center' },
   headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }, headerCopy: { flex: 1, paddingLeft: 8 },
-  title: { color: '#FFFFFF', fontSize: 23, fontWeight: '900' }, dateText: { color: '#FFFFFF', fontSize: 15, marginTop: 4 },
+  title: { color: '#FFFFFF', fontSize: 23, fontWeight: '600' }, dateText: { color: '#FFFFFF', fontSize: 15, marginTop: 4 },
   summaryCard: { marginTop: 16, minHeight: 96, borderRadius: 18, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 },
   summaryItem: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: '#E2E4E3' },
-  summaryValue: { fontSize: 25, fontWeight: '900' }, summaryLabel: { color: '#454A4D', fontSize: 11, marginTop: 4, textAlign: 'center' },
+  summaryValue: { fontSize: 25, fontWeight: '600' }, summaryLabel: { color: '#454A4D', fontSize: 11, marginTop: 4, textAlign: 'center' },
   listArea: { marginTop: -20, paddingHorizontal: 16 },
   receiptBanner: { borderRadius: 17, backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#99F6E4', padding: 14, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  receiptTitle: { color: '#0F172A', fontSize: 13, fontWeight: '900' }, receiptText: { color: '#475569', fontSize: 11, lineHeight: 16, marginTop: 2 }, receiptOpen: { color: '#0F766E', fontWeight: '900' },
-  jobCard: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E4E3', padding: 15, marginBottom: 12 },
-  deliveryWindow: { marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: '#99F6E4', backgroundColor: '#ECFDF5', padding: 10, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  deliveryWindowLabel: { color: '#0F766E', fontSize: 8, fontWeight: '900', letterSpacing: 0.6 }, deliveryWindowText: { color: '#134E4A', fontSize: 11, fontWeight: '800', marginTop: 2 },
-  cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 9 }, timelineDot: { width: 8, height: 8, borderRadius: 4 }, timeText: { color: '#424A50', fontSize: 12 }, orderId: { color: '#111111', fontSize: 13, fontWeight: '900', flex: 1 },
-  statusPill: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 }, statusPillText: { fontSize: 10, fontWeight: '900' },
-  routeRow: { flexDirection: 'row', marginTop: 14, minHeight: 108 }, routeTimeline: { width: 38, alignItems: 'center', paddingVertical: 3 }, routeLine: { width: 1, flex: 1, borderLeftWidth: 1, borderStyle: 'dashed', borderColor: '#B7C2BC' },
-  routeCopy: { flex: 1, justifyContent: 'space-between' }, routeLabel: { color: '#078D32', fontSize: 10, fontWeight: '800' }, routeName: { color: '#111111', fontSize: 13, fontWeight: '800', marginTop: 2 }, routeAddress: { color: '#475569', fontSize: 11, lineHeight: 16 }, distance: { alignSelf: 'flex-end', color: '#3B4145', fontSize: 12 },
-  stateCard: { minHeight: 220, borderRadius: 18, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', padding: 24, marginBottom: 12 }, stateTitle: { color: '#101513', fontSize: 17, fontWeight: '900', marginTop: 10 }, stateText: { color: '#6B7470', textAlign: 'center', marginTop: 6 },
-  onlineButton: { minHeight: 50, borderRadius: 12, backgroundColor: '#067B5C', alignItems: 'center', justifyContent: 'center', marginTop: 3 }, onlineButtonText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
-  onlineStateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 8 }, onlineStateDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#1CB238' }, offlineStateDot: { backgroundColor: '#A8AFAC' }, onlineStateText: { color: '#078D32', fontSize: 12, fontWeight: '700' }, offlineStateText: { color: '#707975' },
+  receiptTitle: { color: '#0F172A', fontSize: 13, fontWeight: '600' }, receiptText: { color: '#475569', fontSize: 11, lineHeight: 16, marginTop: 2 }, receiptOpen: { color: '#0F766E', fontWeight: '600' },
+  jobCard: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E4E3', padding: 16, marginBottom: 12 },
+  deliveryWindow: { marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: '#99F6E4', backgroundColor: '#ECFDF5', padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  deliveryWindowLabel: { color: '#0F766E', fontSize: 8, fontWeight: '600', letterSpacing: 0.6 }, deliveryWindowText: { color: '#134E4A', fontSize: 11, fontWeight: '600', marginTop: 2 },
+  cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, timelineDot: { width: 8, height: 8, borderRadius: 4 }, timeText: { color: '#424A50', fontSize: 12 }, orderId: { color: '#111111', fontSize: 13, fontWeight: '600', flex: 1 },
+  statusPill: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 }, statusPillText: { fontSize: 10, fontWeight: '600' },
+  routeRow: { flexDirection: 'row', marginTop: 14, minHeight: 108 }, routeTimeline: { width: 38, alignItems: 'center', paddingVertical: 4 }, routeLine: { width: 1, flex: 1, borderLeftWidth: 1, borderStyle: 'dashed', borderColor: '#B7C2BC' },
+  routeCopy: { flex: 1, justifyContent: 'space-between' }, routeLabel: { color: '#078D32', fontSize: 10, fontWeight: '600' }, routeName: { color: '#111111', fontSize: 13, fontWeight: '600', marginTop: 2 }, routeAddress: { color: '#475569', fontSize: 11, lineHeight: 16 }, distance: { alignSelf: 'flex-end', color: '#3B4145', fontSize: 12 },
+  stateCard: { minHeight: 220, borderRadius: 18, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', padding: 24, marginBottom: 12 }, stateTitle: { color: '#101513', fontSize: 17, fontWeight: '600', marginTop: 10 }, stateText: { color: '#6B7470', textAlign: 'center', marginTop: 6 },
+  onlineButton: { minHeight: 50, borderRadius: 12, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', marginTop: 4 }, onlineButtonText: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' },
+  onlineStateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8 }, onlineStateDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#1CB238' }, offlineStateDot: { backgroundColor: '#A8AFAC' }, onlineStateText: { color: '#078D32', fontSize: 12, fontWeight: '500' }, offlineStateText: { color: '#707975' },
 });

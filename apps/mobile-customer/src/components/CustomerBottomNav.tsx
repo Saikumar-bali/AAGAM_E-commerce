@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   item: { minWidth: 54, alignItems: 'center', justifyContent: 'center' },
   iconWrap: { position: 'relative', minWidth: 42, minHeight: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
   iconWrapActive: { backgroundColor: '#E6FFFA' },
-  label: { marginTop: 3, fontSize: 10, fontWeight: '900' },
+  label: { marginTop: 4, fontSize: 10, fontWeight: '600' },
   badge: { position: 'absolute', right: -5, top: -4, minWidth: 19, height: 19, borderRadius: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0F766E' },
-  badgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
+  badgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '600' },
 });

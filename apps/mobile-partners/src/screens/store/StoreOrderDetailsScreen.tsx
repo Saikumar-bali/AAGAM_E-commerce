@@ -104,7 +104,7 @@ function statusTone(status?: string | null) {
   if (status === 'PACKED' || status === 'RIDER_ASSIGNED' || status === 'OUT_FOR_DELIVERY' || status === 'STORE_DELIVERING') {
     return { color: '#B45A08', backgroundColor: '#FFF2E4' };
   }
-  return { color: '#087B5A', backgroundColor: '#E8F8EE' };
+  return { color: '#0F766E', backgroundColor: '#E8F8EE' };
 }
 
 export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: any; route?: any }) => {
@@ -238,7 +238,7 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#057A55" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 18) + 8 }]}>
         <View style={styles.headerShape} />
         <TouchableOpacity
@@ -269,13 +269,13 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
           <RefreshControl
             refreshing={orderQuery.isRefetching}
             onRefresh={() => void orderQuery.refetch()}
-            tintColor="#078B4D"
+            tintColor="#0F766E"
           />
         )}
       >
         {orderQuery.isLoading ? (
           <View style={styles.loading}>
-            <ActivityIndicator size="large" color="#078B4D" />
+            <ActivityIndicator size="large" color="#0F766E" />
             <Text style={styles.muted}>Loading order details…</Text>
           </View>
         ) : orderQuery.isError ? (
@@ -304,12 +304,12 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
                 </View>
               </View>
               <View style={styles.metaRow}>
-                <View style={styles.meta}><Package size={18} color="#087B5A" /><Text style={styles.metaText}>{order.items?.length || 0} lines</Text></View>
-                <View style={styles.meta}><CircleDollarSign size={18} color="#087B5A" /><Text style={styles.metaText}>₹{money(order.grandTotal, order.grandTotalPaise).toFixed(2)}</Text></View>
+                <View style={styles.meta}><Package size={18} color="#0F766E" /><Text style={styles.metaText}>{order.items?.length || 0} lines</Text></View>
+                <View style={styles.meta}><CircleDollarSign size={18} color="#0F766E" /><Text style={styles.metaText}>₹{money(order.grandTotal, order.grandTotalPaise).toFixed(2)}</Text></View>
               </View>
             </View>
 
-            <Section icon={<ClipboardCheck size={21} color="#087B5A" />} title="Picking list">
+            <Section icon={<ClipboardCheck size={21} color="#0F766E" />} title="Picking list">
               {(order.items || []).length === 0 ? (
                 <Text style={styles.emptyText}>No product lines were returned for this order.</Text>
               ) : (order.items || []).map((item: any) => {
@@ -352,7 +352,7 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.neutralButton} onPress={() => void loadSubstitutes(item.id)}>
                           {loadingSubstitutes === item.id
-                            ? <ActivityIndicator color="#087B5A" />
+                            ? <ActivityIndicator color="#0F766E" />
                             : <Text style={styles.neutralText}>Substitutes</Text>}
                         </TouchableOpacity>
                       </View>
@@ -370,7 +370,7 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
                               <Text style={styles.replacementName}>{product.name}</Text>
                               <Text style={styles.muted}>₹{money(product.price, product.pricePaise).toFixed(2)}</Text>
                             </View>
-                            <ChevronRight size={18} color="#087B5A" />
+                            <ChevronRight size={18} color="#0F766E" />
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -380,7 +380,7 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
               })}
             </Section>
 
-            <Section icon={<User size={21} color="#087B5A" />} title="Customer & delivery">
+            <Section icon={<User size={21} color="#0F766E" />} title="Customer & delivery">
               <Info
                 icon={<Phone size={18} color="#697078" />}
                 text={order.customer?.phone || order.addressSnapshot?.phoneE164 || order.customer?.email || 'Contact unavailable'}
@@ -391,12 +391,12 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
               />
             </Section>
 
-            <Section icon={<ShoppingBag size={21} color="#087B5A" />} title="Order total">
+            <Section icon={<ShoppingBag size={21} color="#0F766E" />} title="Order total">
               <PriceRow label="Subtotal" value={money(order.subtotal, order.subtotalPaise)} />
               <PriceRow label="Delivery" value={money(order.deliveryFee, order.deliveryFeePaise)} />
               <PriceRow label="Discount" value={-Math.abs(money(order.discount, order.discountPaise))} />
               <View style={styles.priceDivider} />
-              <PriceRow label="Grand total" value={money(order.grandTotal, order.grandTotalPaise)} strong />
+              <PriceRow label="Total" value={money(order.grandTotal, order.grandTotalPaise)} strong />
             </Section>
 
             {(STATUS_ACTIONS[order.status] || []).length ? (
@@ -483,10 +483,10 @@ const styles = StyleSheet.create({
     minHeight: 126,
     paddingHorizontal: 16,
     paddingBottom: 18,
-    backgroundColor: '#057A55',
+    backgroundColor: '#0F766E',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
+    gap: 12,
     overflow: 'hidden',
   },
   headerShape: {
@@ -499,56 +499,56 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
   headerButton: { width: 43, height: 43, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { color: '#BDF6DD', fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
-  headerTitle: { color: '#FFFFFF', fontSize: 21, fontWeight: '900', marginTop: 4 },
+  eyebrow: { color: '#BDF6DD', fontSize: 9, fontWeight: '600', letterSpacing: 1.2 },
+  headerTitle: { color: '#FFFFFF', fontSize: 21, fontWeight: '600', marginTop: 4 },
   loading: { minHeight: 300, alignItems: 'center', justifyContent: 'center', gap: 10 },
   muted: { color: '#697078', fontSize: 11, marginTop: 4 },
   overview: { borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E0E3E2', padding: 16, shadowColor: '#10241D', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
   overviewTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  customerName: { color: '#15181C', fontSize: 19, fontWeight: '900' },
-  statusChip: { maxWidth: 132, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7 },
-  statusText: { fontSize: 9, fontWeight: '900', textAlign: 'center' },
+  customerName: { color: '#15181C', fontSize: 19, fontWeight: '600' },
+  statusChip: { maxWidth: 132, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 8 },
+  statusText: { fontSize: 9, fontWeight: '600', textAlign: 'center' },
   metaRow: { marginTop: 15, flexDirection: 'row', gap: 15 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  metaText: { color: '#44504A', fontSize: 12, fontWeight: '800' },
+  metaText: { color: '#44504A', fontSize: 12, fontWeight: '600' },
   section: { marginTop: 14, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E0E3E2', padding: 16 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 13 },
-  sectionTitle: { color: '#15181C', fontSize: 16, fontWeight: '900' },
-  itemCard: { borderRadius: 16, backgroundColor: '#FAFBFA', borderWidth: 1, borderColor: '#E2E5E3', padding: 12, marginTop: 9 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  sectionTitle: { color: '#15181C', fontSize: 16, fontWeight: '600' },
+  itemCard: { borderRadius: 16, backgroundColor: '#FAFBFA', borderWidth: 1, borderColor: '#E2E5E3', padding: 12, marginTop: 8 },
   itemMain: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   productImage: { width: 52, height: 52, borderRadius: 12, backgroundColor: '#E5E9E7' },
   imageFallback: { width: 52, height: 52, borderRadius: 12, backgroundColor: '#E5E9E7', alignItems: 'center', justifyContent: 'center' },
-  itemName: { color: '#15181C', fontSize: 13, fontWeight: '900' },
-  lineTotal: { color: '#15181C', fontSize: 11, fontWeight: '900', marginTop: 4 },
+  itemName: { color: '#15181C', fontSize: 13, fontWeight: '600' },
+  lineTotal: { color: '#15181C', fontSize: 11, fontWeight: '600', marginTop: 4 },
   quantityBadge: { minWidth: 35, height: 35, borderRadius: 12, backgroundColor: '#E8F8EE', alignItems: 'center', justifyContent: 'center' },
-  quantityText: { color: '#087B5A', fontWeight: '900' },
+  quantityText: { color: '#0F766E', fontWeight: '600' },
   itemActions: { flexDirection: 'row', gap: 8, marginTop: 11 },
   dangerOutline: { flex: 1, minHeight: 41, borderRadius: 12, borderWidth: 1, borderColor: '#F2BABA', backgroundColor: '#FFF8F8', alignItems: 'center', justifyContent: 'center' },
-  dangerText: { color: '#B91C1C', fontSize: 11, fontWeight: '900' },
+  dangerText: { color: '#B91C1C', fontSize: 11, fontWeight: '600' },
   neutralButton: { flex: 1, minHeight: 41, borderRadius: 12, backgroundColor: '#E8F8EE', alignItems: 'center', justifyContent: 'center' },
-  neutralText: { color: '#087B5A', fontSize: 11, fontWeight: '900' },
+  neutralText: { color: '#0F766E', fontSize: 11, fontWeight: '600' },
   replacements: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E0E3E2' },
-  replacementLabel: { color: '#697078', fontSize: 10, fontWeight: '900', marginBottom: 5 },
+  replacementLabel: { color: '#697078', fontSize: 10, fontWeight: '600', marginBottom: 4 },
   replacement: { minHeight: 48, flexDirection: 'row', alignItems: 'center', borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E6E9E7', paddingHorizontal: 10, marginTop: 6 },
-  replacementName: { color: '#15181C', fontSize: 12, fontWeight: '900' },
-  info: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginTop: 10 },
-  infoText: { flex: 1, color: '#56605B', fontSize: 12, lineHeight: 18, fontWeight: '700' },
+  replacementName: { color: '#15181C', fontSize: 12, fontWeight: '600' },
+  info: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 10 },
+  infoText: { flex: 1, color: '#56605B', fontSize: 12, lineHeight: 18, fontWeight: '500' },
   priceRow: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   priceLabel: { color: '#697078', fontSize: 12 },
-  priceValue: { color: '#44504A', fontSize: 12, fontWeight: '800' },
+  priceValue: { color: '#44504A', fontSize: 12, fontWeight: '600' },
   priceDivider: { height: 1, backgroundColor: '#E5E8E6', marginVertical: 5 },
-  strong: { color: '#15181C', fontSize: 15, fontWeight: '900' },
+  strong: { color: '#15181C', fontSize: 15, fontWeight: '600' },
   emptyText: { color: '#697078', textAlign: 'center', paddingVertical: 18 },
-  actionsCard: { marginTop: 14, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E0E3E2', padding: 14, gap: 9 },
-  actionsTitle: { color: '#15181C', fontSize: 15, fontWeight: '900', marginBottom: 2 },
-  actionButton: { minHeight: 52, borderRadius: 14, backgroundColor: '#078B4D', alignItems: 'center', justifyContent: 'center' },
+  actionsCard: { marginTop: 14, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E0E3E2', padding: 14, gap: 8 },
+  actionsTitle: { color: '#15181C', fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  actionButton: { minHeight: 52, borderRadius: 14, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' },
   destructiveButton: { backgroundColor: '#B91C1C' },
-  actionText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+  actionText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
   disabled: { opacity: 0.5 },
   stateCard: { flex: 1, minHeight: 420, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7F8F7', padding: 28 },
   stateIcon: { width: 68, height: 68, borderRadius: 34, backgroundColor: '#FEECEC', alignItems: 'center', justifyContent: 'center' },
-  stateTitle: { color: '#15181C', fontSize: 20, fontWeight: '900', marginTop: 13, textAlign: 'center' },
+  stateTitle: { color: '#15181C', fontSize: 20, fontWeight: '600', marginTop: 12, textAlign: 'center' },
   stateText: { color: '#697078', lineHeight: 20, textAlign: 'center', marginTop: 8 },
-  stateButton: { minHeight: 48, borderRadius: 14, backgroundColor: '#078B4D', paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', marginTop: 18 },
-  stateButtonText: { color: '#FFFFFF', fontWeight: '900' },
+  stateButton: { minHeight: 48, borderRadius: 14, backgroundColor: '#0F766E', paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', marginTop: 18 },
+  stateButtonText: { color: '#FFFFFF', fontWeight: '600' },
 });

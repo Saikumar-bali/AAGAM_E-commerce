@@ -20,6 +20,12 @@ import {
   ShieldCheck,
   Store,
   X,
+  Camera,
+  Plus,
+  ArrowUpDown,
+  Sun,
+  Moon,
+  Loader2,
 } from "lucide-react";
 
 type RunStatus =
@@ -217,6 +223,26 @@ export default function RiderRunsPage() {
   const [submittedCash, setSubmittedCash] = useState("");
   const [pickupCrateCode, setPickupCrateCode] = useState("");
 
+  // Photo proof & in-flight states
+  const [evidenceStorageKey, setEvidenceStorageKey] = useState<string | null>(null);
+  const [evidencePreview, setEvidencePreview] = useState<string | null>(null);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const [collectedCashInput, setCollectedCashInput] = useState("");
+
+  // In-flight: Extra Milk Modal
+  const [extraMilkModalStop, setExtraMilkModalStop] = useState<RunStop | null>(null);
+  const [extraMilkText, setExtraMilkText] = useState("1 Packet Full Cream Milk");
+  const [extraPriceRupees, setExtraPriceRupees] = useState("40");
+
+  // In-flight: Payment Modal
+  const [paymentModalStop, setPaymentModalStop] = useState<RunStop | null>(null);
+  const [paymentAmountRupees, setPaymentAmountRupees] = useState("");
+  const [paymentMode, setPaymentMode] = useState<"CASH" | "PHONE_PE">("CASH");
+
+  // In-flight: Skip Modal
+  const [skipModalStop, setSkipModalStop] = useState<RunStop | null>(null);
+  const [skipReason, setSkipReason] = useState("Customer requested skip / not needed");
+
   const loadRuns = useCallback(async () => {
     setLoading(true);
     try {
@@ -358,27 +384,43 @@ export default function RiderRunsPage() {
     act(
       `complete-${stop.id}`,
       async () => {
+        const isPhotoGps = stop.proofMode === "RIDER_PHOTO_GPS";
         const trusted =
           stop.subscriptionDelivery.subscription.deliveryMethod ===
             "TRUSTED_DROP" && stop.cashDuePaise === 0;
-        if (trusted && (!dropToken.trim() || !proofReference.trim()))
-          throw new Error(
-            "Secure drop token and proof reference are required."
-          );
-        if (!trusted && !/^\d{6}$/.test(otpCode))
-          throw new Error("Enter the six-digit handover OTP.");
+
+        if (isPhotoGps) {
+          if (!evidenceStorageKey) {
+            throw new Error("Please capture or upload delivery photo proof before completing.");
+          }
+        } else if (trusted) {
+          if (!dropToken.trim() || !proofReference.trim())
+            throw new Error(
+              "Secure drop token and proof reference are required."
+            );
+        } else {
+          if (!/^\d{6}$/.test(otpCode))
+            throw new Error("Enter the six-digit handover OTP.");
+        }
+
         const gps = await coordinates();
+        const cashAmt = collectedCashInput.trim()
+          ? Math.round(parseFloat(collectedCashInput) * 100)
+          : stop.cashDuePaise > 0
+          ? stop.cashDuePaise
+          : undefined;
+
         await apiClient.post(
           `/rider/delivery-runs/${activeRun?.id}/stops/${stop.id}/complete`,
           {
             ...gps,
             version: stop.version,
             riderConfirmed: true,
-            otpCode: trusted ? undefined : otpCode,
-            trustedDropToken: trusted ? dropToken.trim() : undefined,
-            proofReference: trusted ? proofReference.trim() : undefined,
-            cashCollectedPaise:
-              stop.cashDuePaise > 0 ? stop.cashDuePaise : undefined,
+            evidenceId: isPhotoGps ? evidenceStorageKey : undefined,
+            otpCode: isPhotoGps || trusted ? undefined : otpCode,
+            trustedDropToken: trusted && !isPhotoGps ? dropToken.trim() : undefined,
+            proofReference: trusted && !isPhotoGps ? proofReference.trim() : undefined,
+            cashCollectedPaise: cashAmt,
             note: note.trim() || undefined,
           },
           {
@@ -392,8 +434,79 @@ export default function RiderRunsPage() {
         setDropToken("");
         setProofReference("");
         setNote("");
+        setEvidenceStorageKey(null);
+        setEvidencePreview(null);
+        setCollectedCashInput("");
       },
       "Delivery proof recorded and stop completed."
+    );
+
+  const handleExtraMilk = (stop: RunStop) =>
+    act(
+      `extra-${stop.id}`,
+      async () => {
+        if (!extraMilkText.trim()) throw new Error("Please enter milk/item description");
+        const extraPricePaise = extraPriceRupees.trim() ? Math.round(parseFloat(extraPriceRupees) * 100) : undefined;
+        await apiClient.post(
+          `/rider/delivery-runs/${activeRun?.id}/stops/${stop.id}/extra-milk`,
+          {
+            extraMilkText: extraMilkText.trim(),
+            extraPricePaise,
+          }
+        );
+        setExtraMilkModalStop(null);
+        await loadRuns();
+      },
+      "Extra milk added to stop successfully."
+    );
+
+  const handleToggleSlot = (stop: RunStop) =>
+    act(
+      `slot-${stop.id}`,
+      async () => {
+        await apiClient.post(
+          `/rider/delivery-runs/${activeRun?.id}/stops/${stop.id}/toggle-slot`,
+          {}
+        );
+        await loadRuns();
+      },
+      "Delivery slot updated."
+    );
+
+  const handleRecordPayment = (stop: RunStop) =>
+    act(
+      `pay-${stop.id}`,
+      async () => {
+        const amt = parseFloat(paymentAmountRupees);
+        if (isNaN(amt) || amt <= 0) throw new Error("Please enter a valid payment amount in rupees");
+        await apiClient.post(
+          `/rider/delivery-runs/${activeRun?.id}/stops/${stop.id}/record-payment`,
+          {
+            amountPaise: Math.round(amt * 100),
+            paymentMode,
+          }
+        );
+        setPaymentModalStop(null);
+        await loadRuns();
+      },
+      "Payment recorded successfully."
+    );
+
+  const handleSkipStop = (stop: RunStop) =>
+    act(
+      `skip-${stop.id}`,
+      async () => {
+        await apiClient.post(
+          `/rider/delivery-runs/${activeRun?.id}/stops/${stop.id}/skip`,
+          {
+            reason: skipReason,
+          }
+        );
+        setSkipModalStop(null);
+        setSelectedStop(null);
+        await loadRuns();
+      },
+      "Stop marked as skipped."
     );
 
   const fail = (stop: RunStop) =>
@@ -827,6 +940,12 @@ export default function RiderRunsPage() {
                             <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
                               {title(stop.status)}
                             </span>
+                            {stop.proofMode === "RIDER_PHOTO_GPS" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal-200 px-2 py-0.5 text-[10px] font-bold text-teal-800">
+                                <Camera className="h-3 w-3 text-teal-600" />
+                                Photo &amp; GPS
+                              </span>
+                            )}
                           </span>
                           <span className="mt-1 block truncate text-xs text-slate-500">
                             {snapshotText(
@@ -842,10 +961,8 @@ export default function RiderRunsPage() {
                             }`}
                           >
                             {stop.cashDuePaise > 0
-                              ? `Collect exactly ${money(
-                                  stop.cashDuePaise
-                                )} with OTP`
-                              : "Customer due ₹0 · subscription already funded"}
+                              ? `Collect ${money(stop.cashDuePaise)} (COD)`
+                              : "Customer due ₹0 · subscription funded"}
                           </span>
                         </span>
                         <ChevronRight className="h-5 w-5 text-slate-400" />
@@ -1011,6 +1128,63 @@ export default function RiderRunsPage() {
                     : "Subscription already funded. Do not collect cash."}
                 </p>
               </div>
+              {/* Rider In-Flight Actions */}
+              {selectedStop.status !== "DELIVERED" &&
+                selectedStop.status !== "FAILED" &&
+                selectedStop.status !== "CANCELLED" && (
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      In-Flight Stop Actions
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setExtraMilkModalStop(selectedStop)}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 transition-colors shadow-2xs"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Extra Item</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={working === `slot-${selectedStop.id}`}
+                        onClick={() => handleToggleSlot(selectedStop)}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-2 text-xs font-bold text-indigo-900 hover:bg-indigo-100 transition-colors shadow-2xs"
+                        title="Switch between Morning and Evening shifts"
+                      >
+                        <ArrowUpDown className="h-3.5 w-3.5" />
+                        <span>Toggle Shift</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentModalStop(selectedStop);
+                          setPaymentAmountRupees(
+                            selectedStop.cashDuePaise > 0
+                              ? (selectedStop.cashDuePaise / 100).toString()
+                              : ""
+                          );
+                        }}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-2 text-xs font-bold text-emerald-900 hover:bg-emerald-100 transition-colors shadow-2xs"
+                      >
+                        <Banknote className="h-3.5 w-3.5" />
+                        <span>Collect Pay</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSkipModalStop(selectedStop)}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 transition-colors shadow-2xs"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        <span>Skip Stop</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               {selectedStop.status !== "ARRIVED" &&
                 !["DELIVERED", "FAILED", "CANCELLED", "RETURNED"].includes(
                   selectedStop.status
@@ -1025,7 +1199,89 @@ export default function RiderRunsPage() {
                 )}
               {selectedStop.status === "ARRIVED" && (
                 <div className="mt-4 space-y-4">
-                  {!(
+                  {selectedStop.proofMode === "RIDER_PHOTO_GPS" ? (
+                    <div className="space-y-3 rounded-xl border border-teal-200 bg-teal-50/50 p-4">
+                      <div className="flex items-center gap-2 text-teal-900 font-bold text-sm">
+                        <Camera className="h-4 w-4 text-teal-700" />
+                        <span>Delivery Photo &amp; Location Proof</span>
+                      </div>
+                      <p className="text-xs text-slate-600">
+                        Take a clear photo of the delivery items placed at customer doorstep. GPS coordinates are recorded automatically on verify.
+                      </p>
+
+                      {/* Photo capture input */}
+                      <div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          id="stop-proof-camera"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setUploadingEvidence(true);
+                            try {
+                              const body = new FormData();
+                              body.append("file", file);
+                              const res = await apiClient.post("/upload/evidence", body);
+                              setEvidenceStorageKey(res.data.storageKey);
+                              setEvidencePreview(URL.createObjectURL(file));
+                              toast.success("Delivery photo captured!");
+                            } catch {
+                              toast.error("Failed to upload delivery photo");
+                            } finally {
+                              setUploadingEvidence(false);
+                            }
+                          }}
+                        />
+
+                        {evidencePreview ? (
+                          <div className="relative rounded-xl border border-teal-300 bg-white p-2 text-center">
+                            <img
+                              src={evidencePreview}
+                              alt="Delivery proof preview"
+                              className="max-h-48 w-auto mx-auto rounded-lg object-contain"
+                            />
+                            <label
+                              htmlFor="stop-proof-camera"
+                              className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-teal-800 cursor-pointer hover:underline"
+                            >
+                              <RefreshCw className="h-3 w-3" /> Retake Photo
+                            </label>
+                          </div>
+                        ) : (
+                          <label
+                            htmlFor="stop-proof-camera"
+                            className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-teal-300 bg-white p-6 cursor-pointer hover:bg-teal-50/50 transition-colors"
+                          >
+                            <Camera className="h-8 w-8 text-teal-600 mb-1" />
+                            <span className="text-xs font-bold text-teal-900">
+                              {uploadingEvidence ? "Uploading Proof..." : "Take / Upload Delivery Photo *"}
+                            </span>
+                            <span className="text-[10px] text-slate-400 mt-0.5">Camera or gallery</span>
+                          </label>
+                        )}
+                      </div>
+
+                      {/* Cash collection input if cash due */}
+                      {selectedStop.cashDuePaise > 0 && (
+                        <div className="pt-2 border-t border-teal-200">
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            Cash Collected (₹)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={collectedCashInput}
+                            onChange={(e) => setCollectedCashInput(e.target.value)}
+                            placeholder={`Expected: ₹${selectedStop.cashDuePaise / 100}`}
+                            className="w-full h-11 rounded-xl border border-slate-300 px-3 text-sm font-bold text-slate-800 bg-white outline-none focus:border-teal-600"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : !(
                     selectedStop.subscriptionDelivery.subscription
                       .deliveryMethod === "TRUSTED_DROP" &&
                     selectedStop.cashDuePaise === 0
@@ -1149,6 +1405,225 @@ export default function RiderRunsPage() {
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Extra Milk Modal */}
+        {extraMilkModalStop && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white p-5 border border-slate-200 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2 text-slate-900 font-bold">
+                  <Plus className="h-5 w-5 text-amber-600" />
+                  <span>Add Extra Item / Milk</span>
+                </div>
+                <button
+                  onClick={() => setExtraMilkModalStop(null)}
+                  className="rounded-lg p-1 text-slate-400 hover:text-slate-700"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <p className="text-slate-600">
+                  Stop #{extraMilkModalStop.sequenceNumber} · {extraMilkModalStop.deliveryJob.order.customer?.name}
+                </p>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Item Description / Quantity *
+                  </label>
+                  <input
+                    type="text"
+                    value={extraMilkText}
+                    onChange={(e) => setExtraMilkText(e.target.value)}
+                    placeholder="e.g. 1 Packet Buffalo Milk / 500ml Cow Milk"
+                    className="w-full h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold outline-none focus:border-amber-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Extra Price to Collect (₹, optional)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={extraPriceRupees}
+                    onChange={(e) => setExtraPriceRupees(e.target.value)}
+                    placeholder="40"
+                    className="w-full h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold outline-none focus:border-amber-600"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setExtraMilkModalStop(null)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={working === `extra-${extraMilkModalStop.id}`}
+                  onClick={() => handleExtraMilk(extraMilkModalStop)}
+                  className="rounded-xl bg-amber-600 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {working === `extra-${extraMilkModalStop.id}` ? "Adding..." : "Add Extra Item"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Record Payment Modal */}
+        {paymentModalStop && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white p-5 border border-slate-200 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2 text-slate-900 font-bold">
+                  <Banknote className="h-5 w-5 text-emerald-600" />
+                  <span>Record Customer Payment</span>
+                </div>
+                <button
+                  onClick={() => setPaymentModalStop(null)}
+                  className="rounded-lg p-1 text-slate-400 hover:text-slate-700"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <p className="text-slate-600">
+                  Stop #{paymentModalStop.sequenceNumber} · {paymentModalStop.deliveryJob.order.customer?.name}
+                </p>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Amount Received (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={paymentAmountRupees}
+                    onChange={(e) => setPaymentAmountRupees(e.target.value)}
+                    placeholder="Enter amount in ₹"
+                    className="w-full h-11 rounded-xl border border-slate-300 px-3 text-sm font-bold outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Payment Method
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMode("CASH")}
+                      className={`py-2 rounded-xl border text-xs font-bold transition-all ${
+                        paymentMode === "CASH"
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-900 shadow-xs"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      Cash Collection
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMode("PHONE_PE")}
+                      className={`py-2 rounded-xl border text-xs font-bold transition-all ${
+                        paymentMode === "PHONE_PE"
+                          ? "border-purple-500 bg-purple-50 text-purple-900 shadow-xs"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      PhonePe / UPI
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPaymentModalStop(null)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={working === `pay-${paymentModalStop.id}` || !paymentAmountRupees}
+                  onClick={() => handleRecordPayment(paymentModalStop)}
+                  className="rounded-xl bg-emerald-700 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  {working === `pay-${paymentModalStop.id}` ? "Recording..." : "Record Payment"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Skip Stop Modal */}
+        {skipModalStop && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white p-5 border border-slate-200 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2 text-slate-900 font-bold">
+                  <X className="h-5 w-5 text-rose-600" />
+                  <span>Mark Delivery as Skipped</span>
+                </div>
+                <button
+                  onClick={() => setSkipModalStop(null)}
+                  className="rounded-lg p-1 text-slate-400 hover:text-slate-700"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <p className="text-slate-600">
+                  Stop #{skipModalStop.sequenceNumber} · {skipModalStop.deliveryJob.order.customer?.name}
+                </p>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Reason for Skipping
+                  </label>
+                  <select
+                    value={skipReason}
+                    onChange={(e) => setSkipReason(e.target.value)}
+                    className="w-full h-11 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold outline-none focus:border-rose-600"
+                  >
+                    <option value="Customer requested skip / not needed">Customer requested skip today</option>
+                    <option value="Customer absent / door locked">Customer absent / door locked</option>
+                    <option value="Vacation / out of town">Customer on vacation / out of town</option>
+                    <option value="Customer refused delivery">Customer refused delivery</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSkipModalStop(null)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={working === `skip-${skipModalStop.id}`}
+                  onClick={() => handleSkipStop(skipModalStop)}
+                  className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-rose-700 disabled:opacity-50"
+                >
+                  {working === `skip-${skipModalStop.id}` ? "Skipping..." : "Confirm Skip"}
+                </button>
+              </div>
             </div>
           </div>
         )}

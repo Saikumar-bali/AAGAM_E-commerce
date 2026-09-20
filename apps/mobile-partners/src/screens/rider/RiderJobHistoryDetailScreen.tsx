@@ -47,7 +47,7 @@ export const RiderJobHistoryDetailScreen = ({ route, navigation }: { route: any;
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to delivery history" style={styles.headerButton} onPress={() => navigation.goBack()}>
           <ArrowLeft size={23} color="#FFFFFF" />
@@ -147,20 +147,20 @@ function Fact({ label: factLabel, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#067B5C', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '900', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 24, fontWeight: '900', marginTop: 2 },
+  eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600', marginTop: 2 },
   content: { padding: 14 },
   summaryCard: { borderRadius: 19, padding: 18, backgroundColor: '#0F172A' },
-  status: { color: '#A7F3D0', fontSize: 11, fontWeight: '900' }, store: { color: '#FFFFFF', fontSize: 21, fontWeight: '900', marginTop: 8 },
-  meta: { color: '#CBD5E1', fontSize: 11, marginTop: 5 }, amount: { color: '#FFFFFF', fontSize: 26, fontWeight: '900', marginTop: 16 },
-  card: { marginTop: 12, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 15 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 8 }, sectionTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
+  status: { color: '#A7F3D0', fontSize: 11, fontWeight: '600' }, store: { color: '#FFFFFF', fontSize: 21, fontWeight: '600', marginTop: 8 },
+  meta: { color: '#CBD5E1', fontSize: 11, marginTop: 4 }, amount: { color: '#FFFFFF', fontSize: 26, fontWeight: '600', marginTop: 16 },
+  card: { marginTop: 12, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }, sectionTitle: { color: '#0F172A', fontSize: 16, fontWeight: '600' },
   fact: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E2E8F0' },
-  factLabel: { color: '#64748B', fontSize: 10, fontWeight: '800' }, factValue: { color: '#0F172A', fontSize: 13, fontWeight: '700', lineHeight: 19, marginTop: 3 },
-  timelineRow: { flexDirection: 'row', gap: 10, paddingVertical: 9 }, timelineDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0F766E', marginTop: 4 },
-  timelineTitle: { color: '#0F172A', fontSize: 12, fontWeight: '800' }, timelineMeta: { color: '#64748B', fontSize: 10, marginTop: 2 },
-  primary: { minHeight: 52, borderRadius: 15, backgroundColor: '#067B5C', marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, primaryText: { color: '#FFFFFF', fontWeight: '900' },
-  secondary: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: '#99D8C8', marginTop: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, secondaryText: { color: '#0F766E', fontWeight: '900' },
-  state: { minHeight: 420, alignItems: 'center', justifyContent: 'center', padding: 28 }, stateTitle: { color: '#0F172A', fontSize: 19, fontWeight: '900' }, stateText: { color: '#64748B', textAlign: 'center', marginTop: 7 },
+  factLabel: { color: '#64748B', fontSize: 10, fontWeight: '600' }, factValue: { color: '#0F172A', fontSize: 13, fontWeight: '500', lineHeight: 19, marginTop: 4 },
+  timelineRow: { flexDirection: 'row', gap: 10, paddingVertical: 8 }, timelineDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0F766E', marginTop: 4 },
+  timelineTitle: { color: '#0F172A', fontSize: 12, fontWeight: '600' }, timelineMeta: { color: '#64748B', fontSize: 10, marginTop: 2 },
+  primary: { minHeight: 52, borderRadius: 15, backgroundColor: '#0F766E', marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, primaryText: { color: '#FFFFFF', fontWeight: '600' },
+  secondary: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: '#99D8C8', marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, secondaryText: { color: '#0F766E', fontWeight: '600' },
+  state: { minHeight: 420, alignItems: 'center', justifyContent: 'center', padding: 28 }, stateTitle: { color: '#0F172A', fontSize: 19, fontWeight: '600' }, stateText: { color: '#64748B', textAlign: 'center', marginTop: 8 },
 });

@@ -72,7 +72,7 @@ export const RiderDeliveryCompletedScreen = ({
           <Text style={styles.orderId}>#{shortRiderOrderId(receipt.orderId)}</Text>
         </View>
         <ReceiptRow label="Items Delivered" value={`${receipt.itemCount} Items`} strong />
-        <ReceiptRow label="Payment Method" value={receipt.paymentMethod} strong />
+        <ReceiptRow label="Payment method" value={receipt.paymentMethod} strong />
         <ReceiptRow label="Order Amount" value={formatRupees(receipt.orderAmount)} strong />
         <ReceiptRow label="Customer Paid" value={formatRupees(receipt.customerPaid)} strong />
       </Card>
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#FFFFFF' },
   header: { height: 82, paddingTop: 18, paddingHorizontal: 18, backgroundColor: '#078E67', flexDirection: 'row', alignItems: 'center' },
   headerSide: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, color: '#FFFFFF', fontSize: 21, fontWeight: '800', textAlign: 'center' },
+  headerTitle: { flex: 1, color: '#FFFFFF', fontSize: 21, fontWeight: '600', textAlign: 'center' },
   content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 112, gap: 16 },
   celebrationArea: { minHeight: 420, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   confetti: { position: 'absolute', color: '#16A34A', fontSize: 19 },
@@ -112,21 +112,21 @@ const styles = StyleSheet.create({
   packageArt: { marginTop: -12, width: 220, height: 122, alignItems: 'center', justifyContent: 'center' },
   medicalBag: { position: 'absolute', right: 42, bottom: 13, width: 75, height: 80, borderRadius: 13, backgroundColor: '#0AA46A', alignItems: 'center', justifyContent: 'center' },
   bagHandle: { position: 'absolute', top: -20, width: 45, height: 28, borderWidth: 8, borderColor: '#0AA46A', borderBottomWidth: 0, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
-  bagPlus: { color: '#FFFFFF', fontSize: 42, fontWeight: '900' },
-  successTitle: { color: '#07966D', fontSize: 27, fontWeight: '900', marginTop: 16 },
+  bagPlus: { color: '#FFFFFF', fontSize: 42, fontWeight: '600' },
+  successTitle: { color: '#07966D', fontSize: 27, fontWeight: '600', marginTop: 16 },
   successSubtitle: { color: '#667085', fontSize: 17, marginTop: 10 },
   card: { backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1, borderColor: '#E4E7EB', padding: 17, shadowColor: '#111827', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  cardTitle: { color: '#111827', fontSize: 21, fontWeight: '900' },
-  orderId: { color: '#667085', fontSize: 18, fontWeight: '700' },
+  cardTitle: { color: '#111827', fontSize: 21, fontWeight: '600' },
+  orderId: { color: '#667085', fontSize: 18, fontWeight: '500' },
   receiptRow: { minHeight: 56, borderBottomWidth: 1, borderBottomColor: '#EAECF0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   receiptLabel: { color: '#667085', fontSize: 16 },
   receiptValue: { color: '#111827', fontSize: 16, fontWeight: '600' },
-  receiptValueStrong: { fontWeight: '900' },
+  receiptValueStrong: { fontWeight: '600' },
   earningsCard: { backgroundColor: '#F0FAF6', borderColor: '#CBE8DC' },
   earningsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  earningsTitle: { color: '#07966D', fontSize: 21, fontWeight: '900' },
-  earningsTotal: { color: '#07966D', fontSize: 22, fontWeight: '900' },
+  earningsTitle: { color: '#07966D', fontSize: 21, fontWeight: '600' },
+  earningsTotal: { color: '#07966D', fontSize: 22, fontWeight: '600' },
   homeButton: { minHeight: 66, borderRadius: 17, backgroundColor: '#078E67', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
-  homeButtonText: { color: '#FFFFFF', fontSize: 21, fontWeight: '800' },
+  homeButtonText: { color: '#FFFFFF', fontSize: 21, fontWeight: '600' },
 });
