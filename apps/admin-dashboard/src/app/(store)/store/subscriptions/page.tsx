@@ -34,6 +34,7 @@ import {
   UserPlus,
   Users,
   X,
+  XCircle,
 } from "lucide-react";
 import MilkDeliveryGrid from "@/components/MilkDeliveryGrid";
 
@@ -269,6 +270,9 @@ export default function StoreSubscriptionOperationsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletingCustomer, setDeletingCustomer] = useState(false);
   const [binningCustomer, setBinningCustomer] = useState(false);
+  const [cancellingSubscriber, setCancellingSubscriber] = useState<SubscriberRow | null>(null);
+  const [cancelReason, setCancelReason] = useState('Customer requested plan change');
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
   const [editForm, setEditForm] = useState({
     mode: "renew" as "renew" | "schedule" | "cashflow" | "edit",
     renewalType: "same" as "same" | "switch" | "split",
@@ -889,6 +893,10 @@ export default function StoreSubscriptionOperationsPage() {
                   });
                 }}
                 onViewHistory={async (sub) => { setViewingHistory(sub); setHistoryLoading(true); try { const res = await apiClient.get(`/store/subscriptions/subscribers/${sub.id}/history`); setHistoryData(res.data); } catch { setHistoryData(null); } finally { setHistoryLoading(false); } }}
+                onCancel={(sub) => {
+                  setCancellingSubscriber(sub);
+                  setCancelReason('Customer requested plan change / cancellation');
+                }}
                 onAddOfflineCustomer={() => setAddCustomerModalOpen(true)}
               />
             )}
@@ -1454,7 +1462,7 @@ export default function StoreSubscriptionOperationsPage() {
                   onClick={() => setEditForm((prev) => ({ ...prev, mode: 'renew' }))}
                   className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${editForm.mode === 'renew' ? 'bg-white text-emerald-700 ' : 'text-slate-500 hover:text-slate-800'}`}
                 >
-                  🔄 Renew Plan
+                  🔄 Change / Renew Plan
                 </button>
                 <button
                   type="button"
@@ -1479,13 +1487,13 @@ export default function StoreSubscriptionOperationsPage() {
                 </button>
               </div>
 
-              {/* TAB 1: RENEW PLAN */}
+              {/* TAB 1: RENEW / CHANGE PLAN */}
               {editForm.mode === 'renew' && (
                 <div className="space-y-3.5">
                   <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3">
-                    <p className="text-xs font-semibold text-emerald-900">Start Next Renewal Cycle</p>
+                    <p className="text-xs font-semibold text-emerald-900">Change Plan or Start Next Renewal Cycle</p>
                     <p className="text-[10px] text-emerald-700 mt-0.5">
-                      Creates a clean new delivery & cash flow cycle. Previous cycle history and collected cash remain completely preserved.
+                      Switch to a different milk product/plan immediately, or renew the existing subscription. When switching plans, remaining unfulfilled deliveries from the old plan are automatically cancelled and the new plan starts cleanly on your chosen start date.
                     </p>
                   </div>
 
@@ -1771,11 +1779,15 @@ export default function StoreSubscriptionOperationsPage() {
                             note: editForm.note.trim() || undefined,
                           });
 
-                          toast.success("Subscription renewed successfully for next cycle!");
+                          toast.success(
+                            editForm.renewalType === 'switch'
+                              ? "Plan switched successfully! Old scheduled deliveries replaced with new plan."
+                              : "Subscription renewed successfully for next cycle!"
+                          );
                           setEditingSubscriber(null);
                           await load();
                         } catch (error) {
-                          toast.error(getToastErrorMessage(error, "Renewal failed"));
+                          toast.error(getToastErrorMessage(error, "Operation failed"));
                         } finally {
                           setWorking("");
                         }
@@ -1783,7 +1795,7 @@ export default function StoreSubscriptionOperationsPage() {
                       className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
                     >
                       {working === "renew-subscriber" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      Confirm Renewal
+                      {editForm.renewalType === 'switch' ? "Confirm Plan Change" : "Confirm Renewal"}
                     </button>
                   </div>
                 </div>
@@ -2048,6 +2060,32 @@ export default function StoreSubscriptionOperationsPage() {
                 </div>
               )}
 
+              {/* Subscription Status & Cancellation Action */}
+              {editingSubscriber.status !== 'CANCELLED' && (
+                <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/40 p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h4 className="text-xs font-semibold text-rose-900 flex items-center gap-1.5">
+                        <XCircle className="h-3.5 w-3.5 text-rose-600" /> Cancel Subscription
+                      </h4>
+                      <p className="text-[11px] text-rose-700 mt-0.5">
+                        Cancel this subscription and remove all remaining scheduled deliveries from future delivery runs and the milk grid.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCancellingSubscriber(editingSubscriber);
+                        setCancelReason('Customer requested cancellation / plan change');
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-300 bg-white px-3.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition whitespace-nowrap shadow-xs"
+                    >
+                      <XCircle className="h-3.5 w-3.5" /> Cancel Subscription
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Danger Zone: Offline Customer Management */}
               {isOfflineSubscriber(editingSubscriber) ? (
                 <div className="mt-6 rounded-xl border border-rose-200 bg-rose-50/50 p-4">
@@ -2111,6 +2149,87 @@ export default function StoreSubscriptionOperationsPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </Modal>
+        )}
+
+        {/* Modal: Confirm Subscription Cancellation */}
+        {cancellingSubscriber && (
+          <Modal
+            title={`Cancel Subscription: ${cancellingSubscriber.customer.name || 'Subscriber'}`}
+            onClose={() => {
+              if (!isSubmittingCancel) setCancellingSubscriber(null);
+            }}
+          >
+            <div className="space-y-4">
+              <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
+                  <div className="text-xs space-y-1">
+                    <p className="font-semibold text-amber-950">Confirm Subscription Cancellation</p>
+                    <p className="text-amber-800">
+                      This will cancel the active plan (<span className="font-bold">{cancellingSubscriber.plan.name}</span>) for{' '}
+                      <span className="font-bold">{cancellingSubscriber.customer.name || 'this customer'}</span>.
+                    </p>
+                    <p className="text-amber-700 text-[11px]">
+                      Delivered: <span className="font-bold">{cancellingSubscriber.completedDeliveries ?? 0}</span> days · All remaining future scheduled deliveries will be removed from delivery runs and the milk grid. Past delivered records and collected cash remain preserved.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Reason for Cancellation</label>
+                <input
+                  type="text"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="e.g. Customer requested plan change / Discontinued"
+                  className="h-10 w-full rounded-xl border border-slate-300 px-3 text-xs outline-none focus:border-rose-500 bg-white"
+                />
+              </div>
+
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
+                <p className="font-semibold text-slate-800">Looking to switch or change plan instead?</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  You can use <strong>&quot;Switch Plan&quot;</strong> in the Manage modal to automatically replace remaining deliveries with the new product starting tomorrow or on any chosen date.
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isSubmittingCancel}
+                  onClick={() => setCancellingSubscriber(null)}
+                  className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-semibold hover:bg-slate-50"
+                >
+                  Keep Subscription
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingCancel}
+                  onClick={async () => {
+                    setIsSubmittingCancel(true);
+                    try {
+                      const res = await apiClient.post(`/store/subscriptions/subscribers/${cancellingSubscriber.id}/cancel`, {
+                        reason: cancelReason.trim() || 'Cancelled by store owner',
+                      });
+                      toast.success(res.data?.message || 'Subscription cancelled successfully');
+                      setCancellingSubscriber(null);
+                      setEditingSubscriber(null);
+                      await load();
+                    } catch (err: any) {
+                      toast.error(getToastErrorMessage(err, 'Failed to cancel subscription'));
+                    } finally {
+                      setIsSubmittingCancel(false);
+                    }
+                  }}
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-rose-600 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                >
+                  {isSubmittingCancel ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                  Confirm Cancellation
+                </button>
+              </div>
             </div>
           </Modal>
         )}
@@ -2670,11 +2789,13 @@ function SubscribersSection({
   rows,
   onEdit,
   onViewHistory,
+  onCancel,
   onAddOfflineCustomer,
 }: {
   rows: SubscriberRow[];
   onEdit?: (sub: SubscriberRow) => void;
   onViewHistory?: (sub: SubscriberRow) => void;
+  onCancel?: (sub: SubscriberRow) => void;
   onAddOfflineCustomer?: () => void;
 }) {
   const [sourceFilter, setSourceFilter] = useState<'all' | 'online' | 'offline'>('all');
@@ -2832,8 +2953,18 @@ function SubscribersSection({
                         <button
                           onClick={() => onEdit(row)}
                           className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
+                          title="Manage, switch plan, or renew subscription"
                         >
-                          <Edit3 className="h-3 w-3" /> Edit
+                          <Edit3 className="h-3 w-3" /> Manage / Switch
+                        </button>
+                      )}
+                      {onCancel && row.status !== 'CANCELLED' && (
+                        <button
+                          onClick={() => onCancel(row)}
+                          className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 text-[10px] font-semibold text-rose-700 hover:bg-rose-100"
+                          title="Cancel subscription and stop future deliveries"
+                        >
+                          <XCircle className="h-3 w-3" /> Cancel
                         </button>
                       )}
                     </div>
