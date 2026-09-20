@@ -144,11 +144,18 @@ export const StoreOrderDetailsReferenceScreen = ({ navigation, route }: { naviga
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerIcon} onPress={() => navigation?.goBack?.()}><ArrowLeft size={31} color="#151922" /></TouchableOpacity>
-        <Text style={styles.headerTitle}>Order Details</Text>
-        <View style={styles.headerIcon} />
+        <View style={styles.headerGlow} />
+        <View style={styles.headerRow}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack?.()}>
+            <ArrowLeft size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={styles.flex}>
+            <Text style={styles.eyebrow}>ORDER DETAILS</Text>
+            <Text style={styles.title}>Order details</Text>
+          </View>
+        </View>
       </View>
       <ScrollView
         style={styles.scroll}
@@ -250,11 +257,14 @@ function StatusRow({ label, value, payment = false, tone }: { label: string; val
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FAFBFA' },
+  screen: { flex: 1, backgroundColor: '#F8FAFC' },
   flex: { flex: 1 },
-  header: { height: 112, paddingTop: 48, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF' },
-  headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', color: '#151922', fontSize: 24, fontWeight: '600' },
+  header: { backgroundColor: '#0F766E', paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
+  headerGlow: { position: 'absolute', top: -60, right: -60, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 56, gap: 12 },
+  backButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
+  title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600', marginTop: 2 },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 19, paddingBottom: 44 },
   orderHeading: { flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: 18 },
@@ -268,7 +278,7 @@ const styles = StyleSheet.create({
   customerName: { color: '#151922', fontSize: 19, fontWeight: '600' },
   customerPhone: { color: '#626B74', fontSize: 15, marginTop: 8 },
   callButton: { width: 62, height: 62, borderRadius: 31, borderWidth: 1, borderColor: '#D9DDDB', alignItems: 'center', justifyContent: 'center' },
-  itemsCard: { borderRadius: 16, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 16, marginTop: 14 },
+  itemsCard: { borderRadius: 16, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 16, marginTop: 16 },
   itemsTitle: { color: '#151922', fontSize: 18, fontWeight: '600', marginBottom: 8 },
   itemRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center' },
   itemBorder: { borderBottomWidth: 1, borderBottomColor: '#E9EBEA' },
@@ -288,7 +298,7 @@ const styles = StyleSheet.create({
   statusRowLabel: { flex: 1, color: '#616A74', fontSize: 15 },
   advancedButton: { height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   advancedText: { color: '#0F766E', fontSize: 14, fontWeight: '600' },
-  actionRow: { flexDirection: 'row', gap: 14, marginTop: 18 },
+  actionRow: { flexDirection: 'row', gap: 16, marginTop: 18 },
   actionButton: { flex: 1, height: 62, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   rejectButton: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E3262E' },
   acceptButton: { backgroundColor: '#0F766E' },

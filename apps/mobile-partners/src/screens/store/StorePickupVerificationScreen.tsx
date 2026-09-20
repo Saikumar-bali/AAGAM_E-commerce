@@ -173,15 +173,21 @@ export const StorePickupVerificationScreen = ({ navigation, route }: { navigatio
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerIcon} onPress={() => navigation?.goBack?.()}>
-          <ArrowLeft size={31} color="#151922" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Store Pickup Verification</Text>
-        <TouchableOpacity style={styles.headerIcon} onPress={() => void refresh()}>
-          <RefreshCw size={22} color="#59616B" />
-        </TouchableOpacity>
+        <View style={styles.headerGlow} />
+        <View style={styles.headerRow}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack?.()}>
+            <ArrowLeft size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={styles.flex}>
+            <Text style={styles.eyebrow}>PICKUP VERIFICATION</Text>
+            <Text style={styles.title}>Verify pickup</Text>
+          </View>
+          <TouchableOpacity style={styles.refreshButton} onPress={() => void refresh()}>
+            <RefreshCw size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -300,14 +306,18 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FAFBFA' },
+  screen: { flex: 1, backgroundColor: '#F8FAFC' },
   flex: { flex: 1 },
-  header: { height: 114, paddingTop: 50, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF' },
-  headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, color: '#151922', fontSize: 22, fontWeight: '600', textAlign: 'center' },
+  header: { backgroundColor: '#0F766E', paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
+  headerGlow: { position: 'absolute', top: -60, right: -60, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 56, gap: 12 },
+  backButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  refreshButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
+  title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600', marginTop: 2 },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 17, paddingBottom: 44 },
-  riderCard: { borderRadius: 18, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 17 },
+  riderCard: { borderRadius: 16, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 17 },
   riderTopRow: { flexDirection: 'row', alignItems: 'center' },
   riderAvatar: { width: 65, height: 65, borderRadius: 33, backgroundColor: '#E9F9EE', alignItems: 'center', justifyContent: 'center' },
   riderCopy: { flex: 1, marginLeft: 13 },
@@ -315,11 +325,11 @@ const styles = StyleSheet.create({
   riderPhone: { color: '#5F6872', fontSize: 15, marginTop: 4 },
   rating: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   ratingText: { color: '#151922', fontSize: 17, fontWeight: '600' },
-  metaLabel: { color: '#626B74', fontSize: 14, marginTop: 15 },
+  metaLabel: { color: '#626B74', fontSize: 14, marginTop: 16 },
   metaValue: { color: '#151922', fontSize: 16, fontWeight: '600', marginTop: 4 },
   vehicleCallRow: { flexDirection: 'row', alignItems: 'center' },
-  callButton: { width: 58, height: 58, borderRadius: 29, borderWidth: 1, borderColor: '#D9DDDB', alignItems: 'center', justifyContent: 'center' },
-  orderCard: { borderRadius: 17, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 10, marginTop: 12 },
+  callButton: { width: 58, height: 58, borderRadius: 28, borderWidth: 1, borderColor: '#D9DDDB', alignItems: 'center', justifyContent: 'center' },
+  orderCard: { borderRadius: 16, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 12, marginTop: 12 },
   infoRow: { minHeight: 51, flexDirection: 'row', alignItems: 'center' },
   infoLabel: { flex: 1, color: '#65707A', fontSize: 15 },
   infoValue: { color: '#151922', fontSize: 15, fontWeight: '600' },
@@ -329,7 +339,7 @@ const styles = StyleSheet.create({
   paymentText: { fontSize: 12, fontWeight: '600' },
   prepaidText: { color: '#087C35' },
   codText: { color: '#BE5B09' },
-  checklistCard: { borderRadius: 17, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 16, marginTop: 12 },
+  checklistCard: { borderRadius: 16, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 16, marginTop: 12 },
   checklistTitle: { color: '#087B4E', fontSize: 17, fontWeight: '600', marginBottom: 8 },
   itemRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center' },
   itemBorder: { borderBottomWidth: 1, borderBottomColor: '#E8EAE9' },
@@ -347,11 +357,11 @@ const styles = StyleSheet.create({
   pinArea: { alignItems: 'center', marginTop: 22 },
   pinTitle: { color: '#151922', fontSize: 18, fontWeight: '600' },
   pinSubtitle: { color: '#626B74', fontSize: 13, marginTop: 6, textAlign: 'center' },
-  pinRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 15 },
+  pinRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
   pinBox: { width: 45, height: 55, borderRadius: 9, borderWidth: 1, borderColor: '#CCD2CF', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   pinDigit: { color: '#087B4E', fontSize: 25, fontWeight: '600' },
   regenerateButton: { width: 45, height: 55, alignItems: 'center', justifyContent: 'center' },
-  issuePinButton: { height: 52, minWidth: 210, borderRadius: 10, borderWidth: 1, borderColor: '#0F766E', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginTop: 15 },
+  issuePinButton: { height: 52, minWidth: 210, borderRadius: 10, borderWidth: 1, borderColor: '#0F766E', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginTop: 16 },
   issuePinText: { color: '#0F766E', fontSize: 15, fontWeight: '600' },
   confirmButton: { height: 62, borderRadius: 13, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', marginTop: 24 },
   confirmText: { color: '#FFFFFF', fontSize: 20, fontWeight: '600' },

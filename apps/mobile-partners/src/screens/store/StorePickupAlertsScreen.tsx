@@ -88,15 +88,22 @@ export const StorePickupAlertsScreen = () => {
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={styles.header}>
-        <AagamBrand compact caption="Fast Quality and Trust" />
-        <TouchableOpacity style={styles.headerIcon} onPress={openNotifications}>
-          <Bell size={29} color="#26333D" />
-          {unreadCount > 0 ? (
-            <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>
-          ) : null}
-        </TouchableOpacity>
+        <View style={styles.headerGlow} />
+        <View style={styles.headerRow}>
+          <View style={styles.flex}>
+            <Text style={styles.eyebrow}>STORE OPERATIONS</Text>
+            <Text style={styles.title}>Pickup alerts</Text>
+            <Text style={styles.subtitle}>Rider pickups and delivery operations.</Text>
+          </View>
+          <TouchableOpacity style={styles.headerIcon} onPress={openNotifications}>
+            <Bell size={22} color="#FFFFFF" />
+            {unreadCount > 0 ? (
+              <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>
+            ) : null}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -232,27 +239,31 @@ function InfoRow({ label, value, strong = false }: { label: string; value: strin
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FFFFFF' },
+  screen: { flex: 1, backgroundColor: '#F8FAFC' },
   flex: { flex: 1 },
-  header: { height: 116, paddingTop: 49, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF' },
-  headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1, textAlign: 'center', color: '#141720', fontSize: 24, fontWeight: '600' },
-  notificationBadge: { position: 'absolute', right: 0, top: 0, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#F02525', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  header: { backgroundColor: '#0F766E', paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
+  headerGlow: { position: 'absolute', top: -60, right: -60, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)' },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 56 },
+  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
+  title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600', marginTop: 2 },
+  subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },
+  headerIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  notificationBadge: { position: 'absolute', right: -4, top: -4, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#EF1D25', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '600' },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 18, paddingBottom: 38 },
-  alertBanner: { minHeight: 92, borderRadius: 16, borderWidth: 1, borderColor: '#FFD4B4', backgroundColor: '#FFF5EC', flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16 },
+  alertBanner: { minHeight: 92, borderRadius: 16, borderWidth: 1, borderColor: '#FFD4B4', backgroundColor: '#FFF5EC', flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
   alertBell: { width: 53, height: 53, borderRadius: 16, backgroundColor: '#FFE8D5', alignItems: 'center', justifyContent: 'center' },
   alertTitle: { color: '#D85B04', fontSize: 18, fontWeight: '600' },
   alertSubtitle: { color: '#E26A18', fontSize: 15, marginTop: 4 },
-  tabs: { flexDirection: 'row', gap: 12, marginTop: 16, marginBottom: 14 },
-  tab: { flex: 1, height: 50, borderRadius: 25, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#F7F8F7', alignItems: 'center', justifyContent: 'center' },
+  tabs: { flexDirection: 'row', gap: 12, marginTop: 16, marginBottom: 16 },
+  tab: { flex: 1, height: 50, borderRadius: 999, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#F7F8F7', alignItems: 'center', justifyContent: 'center' },
   tabActive: { backgroundColor: '#0F766E', borderColor: '#0F766E' },
   tabText: { color: '#555D66', fontSize: 13, fontWeight: '600' },
   tabTextActive: { color: '#FFFFFF' },
-  pickupCard: { borderRadius: 19, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 16, marginBottom: 12 },
+  pickupCard: { borderRadius: 20, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 16, marginBottom: 12 },
   riderRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  riderAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#E9F9EE', alignItems: 'center', justifyContent: 'center' },
+  riderAvatar: { width: 48, height: 48, borderRadius: 999, backgroundColor: '#E9F9EE', alignItems: 'center', justifyContent: 'center' },
   riderPrefix: { color: '#68707A', fontSize: 14, marginLeft: 4 },
   riderName: { flex: 1, color: '#151820', fontSize: 16, fontWeight: '600' },
   time: { color: '#616A74', fontSize: 13 },
@@ -262,20 +273,20 @@ const styles = StyleSheet.create({
   infoValue: { color: '#222831', fontSize: 14 },
   infoValueStrong: { color: '#151820', fontSize: 14, fontWeight: '600' },
   middleDot: { color: '#67717A', marginHorizontal: 12 },
-  paymentPill: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  paymentPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
   prepaidPill: { backgroundColor: '#EAF9EE' },
   codPill: { backgroundColor: '#FFF1E5' },
   paymentText: { fontSize: 12, fontWeight: '600' },
   prepaidText: { color: '#087C35' },
   codText: { color: '#BE5B09' },
-  arrivedButton: { height: 51, borderRadius: 8, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  arrivedButton: { height: 51, borderRadius: 16, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   enRouteButton: { backgroundColor: '#356AC3' },
   arrivedButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   viewAllButton: { height: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   viewAllText: { color: '#0F766E', fontSize: 16, fontWeight: '600' },
-  otherOperationsButton: { minHeight: 56, borderRadius: 12, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10, marginTop: 6 },
+  otherOperationsButton: { minHeight: 56, borderRadius: 12, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 12, marginTop: 6 },
   otherOperationsText: { flex: 1, color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
-  otherCard: { borderRadius: 15, borderWidth: 1, borderColor: '#E1E4E3', backgroundColor: '#FFFFFF', padding: 16, marginBottom: 10 },
+  otherCard: { borderRadius: 16, borderWidth: 1, borderColor: '#E1E4E3', backgroundColor: '#FFFFFF', padding: 16, marginBottom: 12 },
   otherOrder: { color: '#151820', fontSize: 14, fontWeight: '600' },
   otherStatus: { color: '#B66B14', fontSize: 11, fontWeight: '600', marginTop: 4 },
   otherCustomer: { color: '#68707A', fontSize: 12, marginTop: 4 },

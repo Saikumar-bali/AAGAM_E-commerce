@@ -21,6 +21,9 @@ import { StoreSettingsScreen } from '../screens/store/StoreSettingsScreen';
 import { StorePickupAlertsScreen } from '../screens/store/StorePickupAlertsScreen';
 import { StorePickupVerificationEntryScreen } from '../screens/store/StorePickupVerificationEntryScreen';
 import { StorePickupSuccessEntryScreen } from '../screens/store/StorePickupSuccessEntryScreen';
+import { StoreSubscribersScreen } from '../screens/store/StoreSubscribersScreen';
+import { StoreSubscriptionPlansScreen } from '../screens/store/StoreSubscriptionPlansScreen';
+import { StoreMilkGridScreen } from '../screens/store/StoreMilkGridScreen';
 import { notificationService } from '../api/notificationService';
 import { storeService } from '../api/storeService';
 import { deliveryOperationsService } from '../api/deliveryOperationsService';
@@ -163,6 +166,9 @@ export const StoreNavigator = () => (
       <Stack.Screen name="StorePickupSuccess" component={StorePickupSuccessEntryScreen} />
       <Stack.Screen name="StoreReturnsCod" component={StoreDeliveryOperationsScreen} />
       <Stack.Screen name="StoreSubscriptionOperations" component={StoreSubscriptionOperationsScreen} />
+      <Stack.Screen name="StoreSubscribers" component={StoreSubscribersScreen} />
+      <Stack.Screen name="StoreSubscriptionPlans" component={StoreSubscriptionPlansScreen} />
+      <Stack.Screen name="StoreMilkGrid" component={StoreMilkGridScreen} />
     </Stack.Navigator>
     <StoreSubscriptionPreparationFab />
   </View>

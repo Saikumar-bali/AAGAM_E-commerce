@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   CashDepositBatchStatus,
   CustomerSubscriptionStatus,
@@ -1103,9 +1103,6 @@ export class SubscriptionAdminReportingService {
       });
 
       if (!existing) throw new NotFoundException('Subscription not found');
-      if (existing.status === CustomerSubscriptionStatus.CANCELLED) {
-        throw new BadRequestException('Cannot renew a cancelled subscription');
-      }
 
       // Resolve the target plan (same plan by default, or switched product/plan)
       let targetPlan = existing.plan;
@@ -1339,14 +1336,26 @@ export class SubscriptionAdminReportingService {
         },
       });
 
+      // Cancel any remaining unfulfilled scheduled deliveries of the old subscription so they don't clash
+      await tx.subscriptionDelivery.updateMany({
+        where: {
+          subscriptionId: existing.id,
+          status: { in: [SubscriptionDeliveryStatus.SCHEDULED, SubscriptionDeliveryStatus.ORDER_GENERATED] },
+        },
+        data: {
+          status: SubscriptionDeliveryStatus.CANCELLED,
+          skipReason: `Cancelled due to plan switch / renewal to ${targetPlan.name} (cycle #${nextCycleNumber})`,
+        },
+      });
+
       // Mark the old subscription as COMPLETED so it doesn't appear alongside the new one
-      if (existing.status !== CustomerSubscriptionStatus.COMPLETED) {
+      if (existing.status !== CustomerSubscriptionStatus.COMPLETED && existing.status !== CustomerSubscriptionStatus.CANCELLED) {
         await tx.customerSubscription.update({
           where: { id: existing.id },
           data: {
             status: CustomerSubscriptionStatus.COMPLETED,
             cancelledAt: new Date(),
-            cancellationReason: `Renewed to cycle #${nextCycleNumber} (subscription ${renewalSub.id})`,
+            cancellationReason: `Renewed / Switched to cycle #${nextCycleNumber} (${targetPlan.name}, subscription ${renewalSub.id})`,
           },
         });
       }
@@ -1360,6 +1369,69 @@ export class SubscriptionAdminReportingService {
         amountCollectedPaise: initialCash,
       };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10000, timeout: 30000 });
+  }
+
+  async cancelSubscription(
+    subscriptionId: string,
+    reason: string,
+    actorId: string,
+    actorRole: Role = Role.ADMIN,
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const sub = await tx.customerSubscription.findUnique({
+        where: { id: subscriptionId },
+        include: { homeStore: { select: { ownerId: true } }, plan: true, customer: true },
+      });
+      if (!sub) throw new NotFoundException('Subscription not found');
+      if (actorRole !== Role.ADMIN && sub.homeStore?.ownerId !== actorId) {
+        throw new ForbiddenException('You do not have access to this subscription');
+      }
+      if (sub.status === CustomerSubscriptionStatus.CANCELLED) {
+        throw new BadRequestException('Subscription is already cancelled');
+      }
+
+      // Cancel all future unfulfilled scheduled deliveries
+      const cancelledDeliveries = await tx.subscriptionDelivery.updateMany({
+        where: {
+          subscriptionId,
+          status: { in: [SubscriptionDeliveryStatus.SCHEDULED, SubscriptionDeliveryStatus.ORDER_GENERATED] },
+        },
+        data: {
+          status: SubscriptionDeliveryStatus.CANCELLED,
+          skipReason: reason?.trim() || 'Cancelled by store owner',
+        },
+      });
+
+      const updated = await tx.customerSubscription.update({
+        where: { id: subscriptionId },
+        data: {
+          status: CustomerSubscriptionStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancellationReason: reason?.trim() || 'Cancelled by store owner',
+          cancelledById: actorId,
+          nextDeliveryDate: null,
+          nextCashCollectionDate: null,
+        },
+      });
+
+      await tx.subscriptionAuditEntry.create({
+        data: {
+          subscriptionId,
+          actorUserId: actorId,
+          actorRole,
+          action: 'SUBSCRIPTION_CANCELLED',
+          reason: reason?.trim() || 'Cancelled by store owner',
+          idempotencyKey: `store-cancel:${subscriptionId}:${Date.now()}`,
+        },
+      });
+
+      return {
+        success: true,
+        subscription: updated,
+        cancelledDeliveriesCount: cancelledDeliveries.count,
+        message: `Subscription for ${sub.customer?.name || 'Customer'} has been cancelled. ${cancelledDeliveries.count} scheduled delivery/deliveries cancelled.`,
+      };
+    });
   }
 
   async recordCustomerPayment(

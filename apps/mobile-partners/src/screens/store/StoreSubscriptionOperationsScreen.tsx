@@ -18,6 +18,7 @@ import {
   ArrowLeft,
   Banknote,
   Box,
+  CalendarDays,
   CheckCircle2,
   ChevronRight,
   CircleAlert,
@@ -28,6 +29,7 @@ import {
   ScanLine,
   Store,
   Truck,
+  Users,
   X,
 } from "lucide-react-native";
 import {
@@ -327,6 +329,20 @@ export const StoreSubscriptionOperationsScreen = ({
             Prepare by route, verify bag counts, hand off once, then preserve
             independent proof and COD accountability for every customer stop.
           </Text>
+          <View style={styles.quickNavRow}>
+            <TouchableOpacity style={styles.quickNav} onPress={() => navigation.navigate('StoreSubscribers' as never)}>
+              <Users size={18} color="#0F766E" />
+              <Text style={styles.quickNavText}>Subscribers</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickNav} onPress={() => navigation.navigate('StoreSubscriptionPlans' as never)}>
+              <Box size={18} color="#0F766E" />
+              <Text style={styles.quickNavText}>Plans</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickNav} onPress={() => navigation.navigate('StoreMilkGrid' as never)}>
+              <CalendarDays size={18} color="#0F766E" />
+              <Text style={styles.quickNavText}>Grid</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.heroMetrics}>
             <View style={styles.heroMetric}>
               <Text style={styles.heroMetricValue}>{runs.length}</Text>
@@ -943,8 +959,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 17,
     paddingTop: 24,
     paddingBottom: 22,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     overflow: "hidden",
   },
   heroGlow: {
@@ -986,19 +1002,22 @@ const styles = StyleSheet.create({
     color: "#D8F8EA",
     fontSize: 12,
     lineHeight: 18,
-    marginTop: 14,
+    marginTop: 16,
     maxWidth: 335,
   },
   heroMetrics: {
     flexDirection: "row",
     marginTop: 18,
-    borderRadius: 17,
+    borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.12)",
     paddingVertical: 12,
   },
   heroMetric: { flex: 1, alignItems: "center" },
   heroMetricValue: { color: "#FFFFFF", fontSize: 17, fontWeight: '600' },
   heroMetricLabel: { color: "#CAF4E3", fontSize: 9, marginTop: 2 },
+  quickNavRow: { flexDirection: "row", marginTop: 12, gap: 8 },
+  quickNav: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)" },
+  quickNavText: { color: "#FFFFFF", fontSize: 11, fontWeight: '600' },
   heroDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.23)" },
   segmentRow: { paddingHorizontal: 16, paddingVertical: 16, gap: 8 },
   segment: {
@@ -1030,14 +1049,14 @@ const styles = StyleSheet.create({
   stateCard: {
     minHeight: 190,
     marginHorizontal: 16,
-    borderRadius: 22,
+    borderRadius: 20,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E1EAE6",
     alignItems: "center",
     justifyContent: "center",
     padding: 25,
-    gap: 10,
+    gap: 12,
   },
   stateTitle: {
     color: "#17211D",
@@ -1063,7 +1082,7 @@ const styles = StyleSheet.create({
   retryText: { color: "#FFFFFF", fontWeight: '600' },
   runCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: "#E1EAE6",
     padding: 16,
@@ -1097,24 +1116,24 @@ const styles = StyleSheet.create({
   statusNeutralText: { color: "#475569" },
   runMetrics: {
     flexDirection: "row",
-    marginTop: 14,
+    marginTop: 16,
     borderRadius: 14,
     backgroundColor: "#F7FAF8",
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   metric: { flex: 1, alignItems: "center" },
   metricValue: { color: "#17211D", fontSize: 14, fontWeight: '600' },
   metricDanger: { color: "#B42318" },
   metricLabel: { color: "#7B8781", fontSize: 9, marginTop: 2 },
   productSummary: {
-    marginTop: 10,
+    marginTop: 12,
     borderRadius: 13,
     backgroundColor: "#EFF8F4",
-    padding: 10,
+    padding: 12,
     gap: 4,
   },
   productSummaryText: { color: "#27604D", fontSize: 11, fontWeight: '500' },
-  customerList: { marginTop: 10, gap: 8 },
+  customerList: { marginTop: 12, gap: 8 },
   customerRow: {
     minHeight: 35,
     borderBottomWidth: 1,
@@ -1172,7 +1191,7 @@ const styles = StyleSheet.create({
     minHeight: 36,
     borderRadius: 12,
     backgroundColor: "#E8F7F0",
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
@@ -1214,7 +1233,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     borderRadius: 13,
     backgroundColor: "#F8FAF9",
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   verifyButton: {
     minHeight: 50,
@@ -1230,14 +1249,14 @@ const styles = StyleSheet.create({
   verifyButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: '600' },
   exceptionCard: {
     backgroundColor: "#FFF9F8",
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#F2C4C0",
-    padding: 14,
-    marginBottom: 11,
+    padding: 16,
+    marginBottom: 12,
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
+    gap: 12,
   },
   exceptionCopy: { flex: 1 },
   exceptionTitle: { color: "#8F1E17", fontSize: 13, fontWeight: '600' },
@@ -1270,7 +1289,7 @@ const styles = StyleSheet.create({
   },
   sheetHeader: {
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#EDF1EF",
     flexDirection: "row",
@@ -1299,9 +1318,9 @@ const styles = StyleSheet.create({
   },
   sheetContent: { padding: 18, paddingBottom: 36 },
   expectedBox: {
-    borderRadius: 17,
+    borderRadius: 16,
     backgroundColor: "#E8F7F0",
-    padding: 14,
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -1312,7 +1331,7 @@ const styles = StyleSheet.create({
     color: "#334155",
     fontSize: 12,
     fontWeight: '600',
-    marginTop: 14,
+    marginTop: 16,
     marginBottom: 8,
   },
   input: {
@@ -1321,7 +1340,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#D5DEDA",
     backgroundColor: "#FAFCFB",
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     color: "#17211D",
     fontSize: 14,
   },
@@ -1351,9 +1370,9 @@ const styles = StyleSheet.create({
   sheetPrimaryText: { color: "#FFFFFF", fontSize: 14, fontWeight: '600' },
   cashCompare: {
     flexDirection: "row",
-    borderRadius: 17,
+    borderRadius: 16,
     backgroundColor: "#FFF5DE",
-    paddingVertical: 13,
+    paddingVertical: 12,
   },
   moneyInput: { fontSize: 20, fontWeight: '600' },
   auditNote: { color: "#64748B", fontSize: 11, lineHeight: 17, marginTop: 12 },

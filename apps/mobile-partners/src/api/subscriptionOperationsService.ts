@@ -336,6 +336,24 @@ export const subscriptionOperationsService = {
     return response.data;
   },
 
+  addExtraMilk: async (
+    runId: string,
+    stopId: string,
+    input: {
+      extraQuantity: string;
+      extraPaise?: number;
+      consecutiveDays?: number;
+      targetSlot?: 'AM' | 'PM';
+      note?: string;
+    },
+  ) => {
+    const response = await apiClient.post(
+      `/rider/delivery-runs/${encodeURIComponent(runId)}/stops/${encodeURIComponent(stopId)}/extra-milk`,
+      input,
+    );
+    return response.data;
+  },
+
   getCashAccountability: async (runId: string): Promise<CashAccountability> => {
     const response = await apiClient.get(`/rider/delivery-runs/${encodeURIComponent(runId)}/cash-accountability`);
     return response.data;
@@ -406,6 +424,42 @@ export const subscriptionOperationsService = {
       input,
       requestHeaders(mutationKey('cash-verify', batchId, input.version)),
     );
+    return response.data;
+  },
+
+  getSubscribers: async (): Promise<any[]> => {
+    const response = await apiClient.get('/subscriptions/subscribers');
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
+  getPlans: async (): Promise<any[]> => {
+    const response = await apiClient.get('/subscriptions/plans');
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
+  getCalendar: async (from?: string, to?: string): Promise<any[]> => {
+    const params: Record<string, string> = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+    const response = await apiClient.get('/subscriptions/calendar', { params });
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
+  getGrid: async (year?: number, month?: number): Promise<any> => {
+    const params: Record<string, string> = {};
+    if (year != null) params.year = String(year);
+    if (month != null) params.month = String(month);
+    const response = await apiClient.get('/subscriptions/grid', { params });
+    return response.data;
+  },
+
+  setDefaultRider: async (subscriptionId: string, riderProfileId: string) => {
+    const response = await apiClient.post(`/subscriptions/${encodeURIComponent(subscriptionId)}/default-rider`, { riderProfileId });
+    return response.data;
+  },
+
+  autoDispatchDefaultRiders: async (date?: string) => {
+    const response = await apiClient.post('/subscriptions/auto-dispatch-default-riders', { date });
     return response.data;
   },
 };

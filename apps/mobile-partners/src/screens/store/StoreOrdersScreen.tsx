@@ -188,21 +188,28 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={styles.header}>
-        <AagamBrand compact caption="Fast Quality and Trust" />
-        <TouchableOpacity
-          accessibilityLabel="Open notifications"
-          style={styles.headerIcon}
-          onPress={openNotifications}
-        >
-          <Bell size={29} color="#425B65" />
-          {unreadCount > 0 ? (
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-            </View>
-          ) : null}
-        </TouchableOpacity>
+        <View style={styles.headerGlow} />
+        <View style={styles.headerRow}>
+          <View style={styles.flex}>
+            <Text style={styles.eyebrow}>STORE ORDERS</Text>
+            <Text style={styles.title}>Orders</Text>
+            <Text style={styles.subtitle}>Manage and track customer orders.</Text>
+          </View>
+          <TouchableOpacity
+            accessibilityLabel="Open notifications"
+            style={styles.headerIcon}
+            onPress={openNotifications}
+          >
+            <Bell size={22} color="#FFFFFF" />
+            {unreadCount > 0 ? (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -421,13 +428,17 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FAFBFA' }, flex: { flex: 1 },
-  header: { height: 115, paddingTop: 50, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF' },
-  headerIcon: { width: 50, height: 50, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', color: '#11131A', fontSize: 25, fontWeight: '600' },
-  notificationBadge: { position: 'absolute', right: 1, top: 1, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#F02525', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
+  header: { backgroundColor: '#0F766E', paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
+  headerGlow: { position: 'absolute', top: -60, right: -60, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)' },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 56 },
+  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
+  title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600', marginTop: 2 },
+  subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },
+  headerIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  notificationBadge: { position: 'absolute', right: -4, top: -4, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#EF1D25', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '600' },
-  tabsScroll: { maxHeight: 69, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E3E5E4' },
+  tabsScroll: { maxHeight: 56, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
   tabs: { paddingHorizontal: 18, gap: 20, alignItems: 'stretch' },
   tab: { minWidth: 76, height: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderBottomWidth: 4, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: '#0F766E' },
@@ -439,24 +450,24 @@ const styles = StyleSheet.create({
   tabCountTextActive: { color: '#FFFFFF' },
   content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20 },
   storeRail: { gap: 8, paddingBottom: 8 },
-  storeChip: { maxWidth: 190, height: 39, borderRadius: 13, borderWidth: 1, borderColor: '#CFE4DB', backgroundColor: '#FFFFFF', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  storeChip: { maxWidth: 190, height: 39, borderRadius: 12, borderWidth: 1, borderColor: '#CFE4DB', backgroundColor: '#FFFFFF', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   storeChipActive: { backgroundColor: '#0F766E', borderColor: '#0F766E' },
   storeChipText: { color: '#0F766E', fontSize: 11, fontWeight: '600', flexShrink: 1 },
   storeChipTextActive: { color: '#FFFFFF' },
-  searchBox: { height: 48, borderRadius: 14, borderWidth: 1, borderColor: '#D9DEDC', backgroundColor: '#FFFFFF', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 2 },
+  searchBox: { height: 48, borderRadius: 16, borderWidth: 1, borderColor: '#D9DEDC', backgroundColor: '#FFFFFF', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 2 },
   searchInput: { flex: 1, color: '#11131A', fontSize: 13, fontWeight: '500' },
-  orderCard: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E4E3', padding: 17, marginTop: 12, shadowColor: '#1C2923', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  orderTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  orderCard: { borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E4E3', padding: 16, marginTop: 12, shadowColor: '#1C2923', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  orderTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   orderId: { flex: 1, color: '#11131A', fontSize: 19, fontWeight: '600' },
-  statusPill: { borderRadius: 8, paddingHorizontal: 11, paddingVertical: 8 },
+  statusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   statusText: { fontSize: 11, fontWeight: '600' },
   orderTime: { color: '#5D6570', fontSize: 13 },
   customerName: { color: '#11131A', fontSize: 17, fontWeight: '600', marginTop: 12 },
   customerPhone: { color: '#5D6570', fontSize: 15, marginTop: 4 },
-  scheduleBanner: { marginTop: 12, borderRadius: 13, borderWidth: 1, borderColor: '#B8E5D5', backgroundColor: '#ECFDF5', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  scheduleBanner: { marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: '#B8E5D5', backgroundColor: '#ECFDF5', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
   scheduleLabel: { color: '#0F766E', fontSize: 9, fontWeight: '600', letterSpacing: 0.7 },
   scheduleTime: { color: '#12352A', fontSize: 12, fontWeight: '600', marginTop: 2 },
-  itemsPreview: { borderRadius: 11, backgroundColor: '#F7F9F8', paddingHorizontal: 11, paddingVertical: 8, marginTop: 12 },
+  itemsPreview: { borderRadius: 12, backgroundColor: '#F7F9F8', paddingHorizontal: 12, paddingVertical: 8, marginTop: 12 },
   previewRow: { minHeight: 27, flexDirection: 'row', alignItems: 'center' },
   previewName: { flex: 1, color: '#4B535C', fontSize: 11, fontWeight: '500' },
   previewQuantity: { color: '#161A1D', fontSize: 11, fontWeight: '600', marginLeft: 10 },
@@ -466,7 +477,7 @@ const styles = StyleSheet.create({
   itemCount: { color: '#59616B', fontSize: 14 },
   paymentRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center' },
   paymentLabel: { color: '#626A74', fontSize: 14, marginRight: 18 },
-  paymentPill: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  paymentPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
   prepaidPill: { backgroundColor: '#EAF9EE', borderWidth: 1, borderColor: '#C8EBCF' },
   codPill: { backgroundColor: '#FFF3E8', borderWidth: 1, borderColor: '#FFD7B4' },
   paymentText: { fontSize: 12, fontWeight: '600' },
@@ -475,8 +486,8 @@ const styles = StyleSheet.create({
   stateCard: { minHeight: 250, alignItems: 'center', justifyContent: 'center', padding: 28 },
   stateTitle: { color: '#171A1D', fontSize: 18, fontWeight: '600', marginTop: 12, textAlign: 'center' },
   stateText: { color: '#6D747B', fontSize: 13, marginTop: 8, textAlign: 'center', lineHeight: 20 },
-  pagination: { marginTop: 18, borderRadius: 16, borderWidth: 1, borderColor: '#E2E4E3', backgroundColor: '#FFFFFF', padding: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  pageButton: { minHeight: 39, borderRadius: 11, backgroundColor: '#EAF9F1', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pagination: { marginTop: 18, borderRadius: 16, borderWidth: 1, borderColor: '#E2E4E3', backgroundColor: '#FFFFFF', padding: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  pageButton: { minHeight: 39, borderRadius: 12, backgroundColor: '#EAF9F1', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
   pageButtonText: { color: '#0F766E', fontSize: 10, fontWeight: '600' },
   pageLabel: { color: '#5D6570', fontSize: 9, fontWeight: '600', textAlign: 'center' },
   disabled: { opacity: 0.38 },

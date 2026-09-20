@@ -607,6 +607,15 @@ export class StoreSubscriptionsController {
     return this.reporting.renewSubscription(id, body, req.user.id, req.user.role);
   }
 
+  @Post('subscribers/:id/cancel')
+  cancelSubscription(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reporting.cancelSubscription(id, body?.reason || 'Cancelled by store owner', req.user.id, req.user.role);
+  }
+
   @Post('subscribers/:id/record-payment')
   recordPayment(
     @Param('id') id: string,
@@ -942,6 +951,15 @@ export class AdminSubscriptionsController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.reporting.renewSubscription(id, body, req.user.id, req.user.role);
+  }
+
+  @Post('subscribers/:id/cancel')
+  cancelSubscription(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reporting.cancelSubscription(id, body?.reason || 'Cancelled by admin', req.user.id, req.user.role);
   }
 
   @Post('subscribers/:id/record-payment')
