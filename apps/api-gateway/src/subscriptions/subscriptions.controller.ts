@@ -79,6 +79,8 @@ import {
   RiderExtraMilkDto,
   RiderRecordPaymentDto,
   RiderToggleSlotDto,
+  SetDefaultRiderDto,
+  AutoDispatchDefaultRidersDto,
 } from './subscriptions.dto';
 
 type AuthenticatedRequest = { user: { id: string; role: Role } };
@@ -487,6 +489,23 @@ export class StoreSubscriptionsController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.milkGrid.dispatchToRider(req.user, body);
+  }
+
+  @Post(':subscriptionId/default-rider')
+  setDefaultRider(
+    @Param('subscriptionId') subscriptionId: string,
+    @Body() body: SetDefaultRiderDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.milkGrid.setDefaultRider(req.user, subscriptionId, body.riderProfileId);
+  }
+
+  @Post('auto-dispatch-default-riders')
+  autoDispatchDefaultRiders(
+    @Body() body: AutoDispatchDefaultRidersDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.milkGrid.autoDispatchDefaultRiders(req.user, body);
   }
 
 

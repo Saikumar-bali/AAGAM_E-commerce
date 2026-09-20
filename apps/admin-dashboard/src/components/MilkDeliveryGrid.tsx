@@ -89,6 +89,11 @@ interface GridRow {
     dailyQuantity: string;
   };
   slot: string;
+  defaultRider?: {
+    id: string;
+    name: string;
+    phone?: string;
+  } | null;
   allPlans: PlanInfo[];
   days: Record<number, GridCell | null>;
   totalDeliveredDays: number;
@@ -308,6 +313,10 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
   const [bulkDispatchType, setBulkDispatchType] = useState<'ALL' | 'ONLINE' | 'OFFLINE'>('ALL');
   const [selectedDeliveryIds, setSelectedDeliveryIds] = useState<string[]>([]);
   const [riderDispatchSubmitting, setRiderDispatchSubmitting] = useState(false);
+  const [dispatchTargetDayNum, setDispatchTargetDayNum] = useState<number>(today.getDate());
+  const [saveAsDefaultRider, setSaveAsDefaultRider] = useState<boolean>(false);
+  const [autoDispatching, setAutoDispatching] = useState<boolean>(false);
+  const [cellDefaultRiderChecked, setCellDefaultRiderChecked] = useState<boolean>(false);
 
   // Photo proof viewing state
   const [viewingPhotoProof, setViewingPhotoProof] = useState<any | null>(null);
@@ -671,11 +680,29 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
   // Open Rider Dispatch Modal
   const openRiderDispatchModal = async () => {
     setDispatchRiderModalOpen(true);
+    setDispatchTargetDayNum(currentDayNum);
+    setSaveAsDefaultRider(false);
     await loadAvailableRiders();
     const ids: string[] = [];
     filteredRows.forEach((row) => {
       const cell = row.days[currentDayNum];
       if (cell && cell.status !== 'DELIVERED' && cell.status !== 'SKIPPED') {
+        ids.push(cell.deliveryId);
+      }
+    });
+    setSelectedDeliveryIds(ids);
+  };
+
+  // Switch target date in dispatch modal
+  const handleTargetDayChange = (newDay: number) => {
+    setDispatchTargetDayNum(newDay);
+    const ids: string[] = [];
+    filteredRows.forEach((row) => {
+      const cell = row.days[newDay];
+      if (cell && cell.status !== 'DELIVERED' && cell.status !== 'SKIPPED') {
+        if (bulkDispatchSlot !== 'ALL' && cell.deliverySlot !== bulkDispatchSlot) return;
+        if (bulkDispatchType === 'ONLINE' && row.customer.customerType !== 'online') return;
+        if (bulkDispatchType === 'OFFLINE' && row.customer.customerType !== 'offline') return;
         ids.push(cell.deliveryId);
       }
     });
@@ -698,11 +725,12 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
         riderProfileId: selectedRiderId,
         deliveryIds: selectedDeliveryIds,
         slot: bulkDispatchSlot === 'ALL' ? undefined : bulkDispatchSlot,
+        saveAsDefaultRider,
       });
       toast.success(
         `Successfully dispatched ${res.data?.dispatchedCount || selectedDeliveryIds.length} orders to ${
           res.data?.riderName || 'rider'
-        }!`
+        }!${saveAsDefaultRider ? ' (Saved as permanent default rider)' : ''}`
       );
       setDispatchRiderModalOpen(false);
       setSelectedDeliveryIds([]);
@@ -714,16 +742,54 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
     }
   };
 
-  // Assign single delivery to rider
-  const handleAssignSingleRider = async (deliveryId: string, riderId: string) => {
+  // 1-Click Auto-Dispatch all stops that have a pre-assigned default rider
+  const handleAutoDispatchDefaultRiders = async () => {
+    setAutoDispatching(true);
+    try {
+      const targetYear = gridData?.year || today.getFullYear();
+      const targetMonth = gridData?.month !== undefined ? gridData.month : today.getMonth();
+      const targetDate = new Date(Date.UTC(targetYear, targetMonth, dispatchTargetDayNum));
+      const dateStr = targetDate.toISOString().slice(0, 10);
+
+      const res = await apiClient.post('/store/subscriptions/auto-dispatch-default-riders', {
+        dateStr,
+        slot: bulkDispatchSlot === 'ALL' ? undefined : bulkDispatchSlot,
+        channel: bulkDispatchType === 'ALL' ? undefined : bulkDispatchType,
+      });
+
+      if (res.data?.dispatchedCount === 0) {
+        toast.info(res.data?.message || 'No orders with pre-assigned default riders found for this date.');
+      } else {
+        const breakdownStr = Object.values(res.data?.riderBreakdown || {})
+          .map((r: any) => `${r.name}: ${r.count}`)
+          .join(', ');
+        toast.success(`⚡ Auto-dispatched ${res.data.dispatchedCount} orders! (${breakdownStr})`);
+        setDispatchRiderModalOpen(false);
+        setSelectedDeliveryIds([]);
+        await loadGrid();
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to auto-dispatch default riders');
+    } finally {
+      setAutoDispatching(false);
+    }
+  };
+
+  // Assign single delivery to rider with optional default rider setting
+  const handleAssignSingleRider = async (deliveryId: string, riderId: string, saveDefault?: boolean) => {
     if (!riderId) return;
     setActionLoading(true);
     try {
       const res = await apiClient.post('/store/subscriptions/dispatch-to-rider', {
         riderProfileId: riderId,
         deliveryIds: [deliveryId],
+        saveAsDefaultRider: saveDefault,
       });
-      toast.success(`Delivery assigned to ${res.data?.riderName || 'rider'}!`);
+      toast.success(
+        `Delivery assigned to ${res.data?.riderName || 'rider'}!${
+          saveDefault ? ' (Saved as permanent default rider)' : ''
+        }`
+      );
       setSelectedCell(null);
       await loadGrid();
     } catch (err: any) {
@@ -748,11 +814,11 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
     }
   };
 
-  // Deliveries eligible for rider dispatch today
+  // Deliveries eligible for rider dispatch for selected target day
   const dispatchEligibleStops = useMemo(() => {
     const list: Array<{ row: GridRow; cell: GridCell }> = [];
     filteredRows.forEach((row) => {
-      const cell = row.days[currentDayNum];
+      const cell = row.days[dispatchTargetDayNum];
       if (!cell) return;
       if (bulkDispatchSlot !== 'ALL' && cell.deliverySlot !== bulkDispatchSlot) return;
       if (bulkDispatchType === 'ONLINE' && row.customer.customerType !== 'online') return;
@@ -760,7 +826,12 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
       list.push({ row, cell });
     });
     return list;
-  }, [filteredRows, currentDayNum, bulkDispatchSlot, bulkDispatchType]);
+  }, [filteredRows, dispatchTargetDayNum, bulkDispatchSlot, bulkDispatchType]);
+
+  // Stops on target day that already have a pre-assigned default rider
+  const stopsWithDefaultRider = useMemo(() => {
+    return dispatchEligibleStops.filter((s) => !!s.row.defaultRider);
+  }, [dispatchEligibleStops]);
 
   // Render individual delivery card
   const renderDeliveryCard = (row: GridRow, displayIndex: number, originalIndex: number, isPending: boolean) => {
@@ -811,12 +882,17 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               )}
             </div>
             <p className="text-xs text-slate-500 mt-1">{row.customer.address}</p>
-            {cell?.assignedRider && (
+            {cell?.assignedRider ? (
               <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-50 rounded px-1.5 py-0.5 border border-purple-200 w-fit">
                 <Truck className="h-3 w-3 text-purple-600" />
                 <span>Rider: {cell.assignedRider.name}</span>
               </div>
-            )}
+            ) : row.defaultRider ? (
+              <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 rounded px-1.5 py-0.5 border border-indigo-200 w-fit">
+                <UserCheck className="h-3 w-3 text-indigo-600" />
+                <span>Default: {row.defaultRider.name}</span>
+              </div>
+            ) : null}
           </div>
 
           <div className="flex flex-col items-end gap-1 shrink-0">
@@ -1366,6 +1442,12 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                         <span>{row.customer.phone}</span>
                       </div>
                       <div className="text-[10px] text-slate-400 truncate max-w-[180px]">{row.customer.address}</div>
+                      {row.defaultRider && (
+                        <div className="flex items-center gap-1 text-[10px] font-semibold text-purple-700 mt-0.5" title={`Pre-assigned default rider: ${row.defaultRider.name}`}>
+                          <UserCheck className="h-2.5 w-2.5 text-purple-600 shrink-0" />
+                          <span className="truncate max-w-[170px]">Default: {row.defaultRider.name}</span>
+                        </div>
+                      )}
                     </td>
 
                     {/* Plan & Slot */}
@@ -1765,35 +1847,72 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                           </button>
                         </div>
 
+                        {/* Default Rider indicator if assigned */}
+                        {selectedCell.row.defaultRider && (
+                          <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-2.5 flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-1.5 font-semibold text-indigo-950">
+                              <UserCheck className="h-3.5 w-3.5 text-indigo-600" />
+                              Pre-Assigned Default Rider:
+                            </span>
+                            <span className="font-bold text-indigo-900">{selectedCell.row.defaultRider.name}</span>
+                          </div>
+                        )}
+
                         {/* Assigned Rider Section */}
                         {selectedCell.cell.assignedRider ? (
-                          <div className="rounded-xl border border-purple-200 bg-purple-50/70 p-3 flex items-center justify-between shadow-2xs">
-                            <div className="flex items-center gap-2.5">
-                              <div className="h-8 w-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-700">
-                                <Truck className="h-4 w-4" />
+                          <div className="rounded-xl border border-purple-200 bg-purple-50/70 p-3 space-y-2 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2.5">
+                                <div className="h-8 w-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-700">
+                                  <Truck className="h-4 w-4" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-semibold text-purple-900">
+                                    Assigned Rider: {selectedCell.cell.assignedRider.name}
+                                  </p>
+                                  <p className="text-[10px] text-purple-600">{selectedCell.cell.assignedRider.phone}</p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="text-xs font-semibold text-purple-900">
-                                  Rider: {selectedCell.cell.assignedRider.name}
-                                </p>
-                                <p className="text-[10px] text-purple-600">{selectedCell.cell.assignedRider.phone}</p>
-                              </div>
+                              {selectedCell.cell.status !== 'DELIVERED' && (
+                                <button
+                                  disabled={actionLoading}
+                                  onClick={() => {
+                                    setSelectedDeliveryIds([selectedCell.cell!.deliveryId]);
+                                    setDispatchRiderModalOpen(true);
+                                  }}
+                                  className="rounded-lg border border-purple-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-purple-800 hover:bg-purple-50 transition-colors shadow-2xs"
+                                >
+                                  Reassign
+                                </button>
+                              )}
                             </div>
-                            {selectedCell.cell.status !== 'DELIVERED' && (
+                            {selectedCell.cell.status !== 'DELIVERED' && !selectedCell.row.defaultRider && (
                               <button
+                                type="button"
                                 disabled={actionLoading}
-                                onClick={() => {
-                                  setSelectedDeliveryIds([selectedCell.cell!.deliveryId]);
-                                  setDispatchRiderModalOpen(true);
+                                onClick={async () => {
+                                  if (!selectedCell.cell?.assignedRider?.id) return;
+                                  setActionLoading(true);
+                                  try {
+                                    await apiClient.post(`/store/subscriptions/${selectedCell.row.subscriptionId}/default-rider`, {
+                                      riderProfileId: selectedCell.cell.assignedRider.id,
+                                    });
+                                    toast.success(`Set ${selectedCell.cell.assignedRider.name} as permanent default rider!`);
+                                    await loadGrid();
+                                  } catch (err: any) {
+                                    toast.error(err?.response?.data?.message || 'Failed to set default rider');
+                                  } finally {
+                                    setActionLoading(false);
+                                  }
                                 }}
-                                className="rounded-lg border border-purple-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-purple-800 hover:bg-purple-50 transition-colors shadow-2xs"
+                                className="w-full text-center py-1 text-[10px] font-semibold text-purple-700 hover:underline border-t border-purple-200/60 pt-1.5"
                               >
-                                Reassign
+                                Set {selectedCell.cell.assignedRider.name} as permanent default rider for this customer
                               </button>
                             )}
                           </div>
                         ) : selectedCell.cell.status !== 'DELIVERED' ? (
-                          <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5 shadow-2xs">
+                          <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2 shadow-2xs">
                             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                               Delegate Stop to Rider
                             </p>
@@ -1802,7 +1921,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                 className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-purple-500"
                                 onChange={(e) => {
                                   if (e.target.value) {
-                                    void handleAssignSingleRider(selectedCell.cell!.deliveryId, e.target.value);
+                                    void handleAssignSingleRider(selectedCell.cell!.deliveryId, e.target.value, cellDefaultRiderChecked);
                                   }
                                 }}
                                 defaultValue=""
@@ -1816,6 +1935,15 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                 ))}
                               </select>
                             </div>
+                            <label className="flex items-center gap-2 pt-0.5 text-[11px] font-medium text-slate-600 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={cellDefaultRiderChecked}
+                                onChange={(e) => setCellDefaultRiderChecked(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                              />
+                              <span>Set as permanent default rider for {selectedCell.row.customer.name}</span>
+                            </label>
                           </div>
                         ) : null}
 
@@ -2492,7 +2620,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Dispatch Deliveries to Rider</h3>
                   <p className="text-xs text-slate-500">
-                    Delegate today&apos;s deliveries to an active delivery partner (Day {currentDayNum} · {monthLabel})
+                    Pre-assign and delegate scheduled deliveries to an active delivery partner ({monthLabel})
                   </p>
                 </div>
               </div>
@@ -2506,6 +2634,106 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
             {/* Modal Body */}
             <div className="overflow-y-auto p-5 space-y-4 flex-1">
+              {/* Target Delivery Date Selector */}
+              <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-purple-950">
+                    Target Delivery Date
+                  </label>
+                  <span className="text-xs font-bold text-purple-700 bg-white border border-purple-200 px-2.5 py-0.5 rounded-lg shadow-2xs">
+                    {new Date(
+                      Date.UTC(
+                        gridData?.year || today.getFullYear(),
+                        gridData?.month !== undefined ? gridData.month : today.getMonth(),
+                        dispatchTargetDayNum
+                      )
+                    ).toLocaleDateString('en-IN', {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleTargetDayChange(currentDayNum)}
+                    className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all border ${
+                      dispatchTargetDayNum === currentDayNum
+                        ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    Today (Day {currentDayNum})
+                  </button>
+                  {currentDayNum < (gridData?.daysInMonth || 31) && (
+                    <button
+                      type="button"
+                      onClick={() => handleTargetDayChange(currentDayNum + 1)}
+                      className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all border ${
+                        dispatchTargetDayNum === currentDayNum + 1
+                          ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      Tomorrow (Day {currentDayNum + 1})
+                    </button>
+                  )}
+                  <select
+                    value={dispatchTargetDayNum}
+                    onChange={(e) => handleTargetDayChange(Number(e.target.value))}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-purple-600"
+                  >
+                    {Array.from({ length: gridData?.daysInMonth || 31 }, (_, i) => i + 1).map((d) => (
+                      <option key={d} value={d}>
+                        Day {d} {d === currentDayNum ? '(Today)' : d === currentDayNum + 1 ? '(Tomorrow)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {dispatchTargetDayNum > currentDayNum && (
+                  <p className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                    📅 <strong>Pre-dispatching in advance:</strong> Deliveries will be scheduled and assigned to the rider ahead of time so they can review their run before their shift.
+                  </p>
+                )}
+              </div>
+
+              {/* 1-Click Auto-Dispatch for Customers with Default Rider */}
+              {stopsWithDefaultRider.length > 0 && (
+                <div className="rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-purple-50 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                  <div>
+                    <p className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                      Pre-Assigned Default Riders ({stopsWithDefaultRider.length} orders ready)
+                    </p>
+                    <p className="text-[11px] text-indigo-700">
+                      Instantly dispatch each order to its designated default rider with 1 click.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={autoDispatching}
+                    onClick={handleAutoDispatchDefaultRiders}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-700 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-indigo-800 disabled:opacity-50 active:scale-95 transition-all shrink-0"
+                  >
+                    {autoDispatching ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Auto-dispatching...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-3.5 w-3.5" />
+                        <span>⚡ Auto-Dispatch ({stopsWithDefaultRider.length})</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
               {/* Rider Selector */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
@@ -2584,7 +2812,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-700">
-                    Deliveries for Today ({dispatchEligibleStops.length} matching)
+                    Deliveries for Day {dispatchTargetDayNum} ({dispatchEligibleStops.length} matching)
                   </span>
                   <div className="flex gap-2">
                     <button
@@ -2610,7 +2838,9 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
                 <div className="max-h-56 overflow-y-auto space-y-1.5 rounded-xl border border-slate-200 p-2 bg-slate-50/50">
                   {dispatchEligibleStops.length === 0 ? (
-                    <p className="text-xs text-slate-500 text-center py-6">No matching deliveries for today.</p>
+                    <p className="text-xs text-slate-500 text-center py-6">
+                      No matching deliveries for Day {dispatchTargetDayNum}.
+                    </p>
                   ) : (
                     dispatchEligibleStops.map(({ row, cell }) => {
                       const isSelected = selectedDeliveryIds.includes(cell.deliveryId);
@@ -2668,6 +2898,11 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                 Assigned: {cell.assignedRider.name}
                               </span>
                             )}
+                            {row.defaultRider && (
+                              <span className="rounded bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 text-[9px] font-bold text-indigo-900">
+                                Default: {row.defaultRider.name}
+                              </span>
+                            )}
                           </div>
                         </label>
                       );
@@ -2699,32 +2934,44 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3 bg-slate-50 shrink-0">
-              <button
-                type="button"
-                onClick={() => setDispatchRiderModalOpen(false)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={riderDispatchSubmitting || selectedDeliveryIds.length === 0 || !selectedRiderId}
-                onClick={handleDispatchToRider}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-purple-700 px-5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-purple-800 disabled:opacity-50 active:scale-95 transition-all"
-              >
-                {riderDispatchSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Dispatching Run...</span>
-                  </>
-                ) : (
-                  <>
-                    <Truck className="h-4 w-4" />
-                    <span>Dispatch {selectedDeliveryIds.length} Stops</span>
-                  </>
-                )}
-              </button>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 bg-slate-50 shrink-0">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer mr-auto">
+                <input
+                  type="checkbox"
+                  checked={saveAsDefaultRider}
+                  onChange={(e) => setSaveAsDefaultRider(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                />
+                <span>Save as permanent default rider for selected customers</span>
+              </label>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setDispatchRiderModalOpen(false)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={riderDispatchSubmitting || selectedDeliveryIds.length === 0 || !selectedRiderId}
+                  onClick={handleDispatchToRider}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-purple-700 px-5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-purple-800 disabled:opacity-50 active:scale-95 transition-all"
+                >
+                  {riderDispatchSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Dispatching Run...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Truck className="h-4 w-4" />
+                      <span>Dispatch {selectedDeliveryIds.length} Stops</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

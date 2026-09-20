@@ -904,6 +904,10 @@ export class DispatchToRiderDto {
   @IsOptional()
   @IsIn(['AM', 'PM'])
   slot?: 'AM' | 'PM';
+
+  @IsOptional()
+  @IsBoolean()
+  saveAsDefaultRider?: boolean;
 }
 
 export class RiderExtraMilkDto {
@@ -952,5 +956,21 @@ export class RiderRecordPaymentDto {
   note?: string;
 }
 
+export class SetDefaultRiderDto {
+  @IsOptional()
+  @IsString()
+  riderProfileId?: string | null;
+}
 
+export class AutoDispatchDefaultRidersDto {
+  @IsString()
+  dateStr!: string;
 
+  @IsOptional()
+  @IsIn(['AM', 'PM', 'ALL'])
+  slot?: 'AM' | 'PM' | 'ALL';
+
+  @IsOptional()
+  @IsIn(['ALL', 'ONLINE', 'OFFLINE'])
+  channel?: 'ALL' | 'ONLINE' | 'OFFLINE';
+}
