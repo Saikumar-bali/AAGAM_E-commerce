@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
   headerIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   notificationBadge: { position: 'absolute', right: -4, top: -4, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#EF1D25', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '600' },
-  tabsScroll: { maxHeight: 56, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  tabsScroll: { maxHeight: 72, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
   tabs: { paddingHorizontal: 18, gap: 20, alignItems: 'stretch' },
   tab: { minWidth: 76, height: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderBottomWidth: 4, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: '#0F766E' },

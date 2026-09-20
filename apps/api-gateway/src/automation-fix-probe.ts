@@ -4,6 +4,6 @@
  */
 export function fib(n: number): number {
   if (n < 0) throw new RangeError('n must be non-negative');
-  if (n <= 1) return 1;
+  if (n < 2) return n;
   return fib(n - 1) + fib(n - 2);
 }

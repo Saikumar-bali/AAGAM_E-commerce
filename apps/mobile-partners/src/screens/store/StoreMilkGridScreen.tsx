@@ -143,7 +143,7 @@ export const StoreMilkGridScreen = ({ navigation }: { navigation: any }) => {
               {grid.map((row: any, rowIndex: number) => (
                 <View key={row.subscriptionId || rowIndex} style={[styles.gridRow, rowIndex % 2 === 0 && styles.gridRowEven]}>
                   <View style={styles.nameCell}>
-                    <Text style={styles.customerName} numberOfLines={1}>{row.customerName || row.name || `Customer ${rowIndex + 1}`}</Text>
+                    <Text style={styles.customerName} numberOfLines={1}>{row.customer?.name || row.customerName || row.name || `Customer ${rowIndex + 1}`}</Text>
                     {row.defaultRider ? (
                       <Text style={styles.riderLabel} numberOfLines={1}>{row.defaultRider.name || 'Rider assigned'}</Text>
                     ) : null}
