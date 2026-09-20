@@ -19,7 +19,7 @@ export const StoreOperationsRouteScreen = ({ route }: { route?: any }) => {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F5F3EE' },
-  contextBanner: { backgroundColor: '#ECFDF5', borderBottomWidth: 1, borderBottomColor: '#A7F3D0', paddingHorizontal: 18, paddingVertical: 10 },
+  contextBanner: { backgroundColor: '#ECFDF5', borderBottomWidth: 1, borderBottomColor: '#A7F3D0', paddingHorizontal: 18, paddingVertical: 12 },
   contextLabel: { color: '#047857', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
   contextText: { color: '#065F46', fontSize: 12, fontWeight: '600', marginTop: 2 },
 });

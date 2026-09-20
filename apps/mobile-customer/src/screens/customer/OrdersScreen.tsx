@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   errorBanner: {
-    marginBottom: 14,
+    marginBottom: 16,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#FCD34D",
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 16,
-    marginBottom: 14,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },

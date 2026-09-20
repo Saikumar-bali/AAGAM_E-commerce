@@ -635,7 +635,7 @@ export const SubscriptionDetailScreen = () => {
                 width: 280,
                 height: 280,
                 alignSelf: "center",
-                borderRadius: 18,
+                borderRadius: 16,
               }}
               resizeMode="contain"
             />
@@ -860,8 +860,8 @@ const styles = StyleSheet.create({
     color: "#0F766E",
   },
   title: { fontSize: 21, fontWeight: '600', color: "#173D32" },
-  content: { padding: 16, gap: 14 },
-  hero: { backgroundColor: "#0F766E", borderRadius: 25, padding: 18 },
+  content: { padding: 16, gap: 16 },
+  hero: { backgroundColor: "#0F766E", borderRadius: 24, padding: 18 },
   heroTop: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -907,7 +907,7 @@ const styles = StyleSheet.create({
   heroFactStrong: { color: "#FFFFFF", fontWeight: '600' },
   nextCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
+    borderRadius: 20,
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -945,7 +945,7 @@ const styles = StyleSheet.create({
   action: {
     flex: 1,
     minHeight: 70,
-    borderRadius: 18,
+    borderRadius: 16,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -956,7 +956,7 @@ const styles = StyleSheet.create({
   actionText: { fontSize: 11, fontWeight: '600', color: "#29483D" },
   section: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
+    borderRadius: 20,
     padding: 16,
     borderWidth: 1,
     borderColor: "#E1E9E5",
@@ -975,7 +975,7 @@ const styles = StyleSheet.create({
   link: { color: "#0F766E", fontWeight: '600' },
   info: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
     alignItems: "center",
     paddingVertical: 8,
     borderTopWidth: 1,
@@ -993,7 +993,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingVertical: 11,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: "#EFF3F1",
   },
@@ -1019,7 +1019,7 @@ const styles = StyleSheet.create({
   cashDue: { color: "#B85D00" },
   receipt: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
     alignItems: "center",
     paddingVertical: 12,
     borderTopWidth: 1,
@@ -1036,7 +1036,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     minHeight: 50,
-    borderRadius: 17,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E7B5B5",
     alignItems: "center",
@@ -1080,7 +1080,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  sheetContent: { paddingHorizontal: 18, paddingBottom: 34, gap: 13 },
+  sheetContent: { paddingHorizontal: 18, paddingBottom: 34, gap: 12 },
   sheetCopy: { color: "#687A72", fontSize: 12, lineHeight: 18 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
@@ -1100,14 +1100,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#D9E4DE",
     borderRadius: 15,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     color: "#1F3F35",
     backgroundColor: "#FBFDFC",
   },
   multiline: { minHeight: 92, textAlignVertical: "top", paddingTop: 13 },
   primaryButton: {
     minHeight: 52,
-    borderRadius: 17,
+    borderRadius: 16,
     backgroundColor: "#0F766E",
     alignItems: "center",
     justifyContent: "center",

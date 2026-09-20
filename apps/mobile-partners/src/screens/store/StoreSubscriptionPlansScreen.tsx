@@ -162,6 +162,6 @@ const styles = StyleSheet.create({
   itemQty: { color: '#0F172A', fontSize: 12, fontWeight: '600' },
   moreItems: { color: '#0F766E', fontSize: 11, fontWeight: '600', marginTop: 4 },
   statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statusPill: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999 },
   statusText: { fontSize: 10, fontWeight: '600' },
 });
