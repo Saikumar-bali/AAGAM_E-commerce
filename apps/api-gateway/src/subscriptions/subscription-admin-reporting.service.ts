@@ -1389,6 +1389,9 @@ export class SubscriptionAdminReportingService {
       if (sub.status === CustomerSubscriptionStatus.CANCELLED) {
         throw new BadRequestException('Subscription is already cancelled');
       }
+      if (sub.status === CustomerSubscriptionStatus.COMPLETED) {
+        throw new BadRequestException('Subscription is already completed');
+      }
 
       // Cancel all future unfulfilled scheduled deliveries
       const cancelledDeliveries = await tx.subscriptionDelivery.updateMany({
