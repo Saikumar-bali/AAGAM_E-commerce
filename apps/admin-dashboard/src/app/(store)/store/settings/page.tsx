@@ -223,9 +223,9 @@ function StoreSettingsContent() {
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-200 bg-white p-6 ">
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">Deleted Customers Recycle Bin</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Offline Customers & Recycle Bin</h2>
               <p className="text-xs text-slate-500">
-                Customers in the Recycle Bin have their subscriptions paused and are hidden from delivery runs. You can restore them or permanently delete them.
+                Manage offline customers, restore them from the Recycle Bin, or permanently delete them.
               </p>
             </div>
             <OfflineCustomersPage
@@ -234,7 +234,6 @@ function StoreSettingsContent() {
               canManage
               allowedRole="STORE_OWNER"
               initialMode="recycleBin"
-              modeOnly="recycleBin"
             />
           </div>
         </div>

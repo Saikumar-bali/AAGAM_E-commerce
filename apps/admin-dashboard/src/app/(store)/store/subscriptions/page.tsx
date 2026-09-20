@@ -110,6 +110,7 @@ type Tab = "grid" | "subscribers" | "plans" | "calendar" | "prep" | "runs" | "fo
 
 type SubscriberRow = {
   id: string;
+  source?: string | null;
   status: string;
   startDate: string;
   createdAt: string;
@@ -119,8 +120,9 @@ type SubscriberRow = {
   fundedDeliveryCount?: number;
   deliveryMethod?: string | null;
   storeDelivery?: boolean;
+  isCustom?: boolean;
   homeStore: { id: string; name: string } | null;
-  customer: { id: string; name: string | null; email: string | null; phone: string | null };
+  customer: { id: string; name: string | null; email: string | null; phone: string | null; acquisitionSource?: string | null };
   deliveryContact?: { phone: string; name?: string | null } | null;
   plan: { id: string; code: string; name: string };
   planVersion: {
@@ -217,6 +219,21 @@ const formatPaise = (paise: number) => new Intl.NumberFormat("en-IN", { style: "
 const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
 const humanize = (value: unknown) => String(value || "Unknown").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 
+function isOfflineSubscriber(row: {
+  source?: string | null;
+  deliveryMethod?: string | null;
+  customer?: { email?: string | null; phone?: string | null; acquisitionSource?: string | null } | null;
+}): boolean {
+  return Boolean(
+    row.source === 'manual' ||
+    row.source === 'custom_manual' ||
+    row.customer?.email?.startsWith('offline.') ||
+    row.customer?.phone?.startsWith('offline_') ||
+    row.customer?.acquisitionSource === 'OFFLINE' ||
+    row.customer?.acquisitionSource === 'OFFLINE_STORE'
+  );
+}
+
 export default function StoreSubscriptionOperationsPage() {
   const toast = useToast();
   const [tab, setTab] = useState<Tab>("grid");
@@ -251,6 +268,7 @@ export default function StoreSubscriptionOperationsPage() {
   } | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletingCustomer, setDeletingCustomer] = useState(false);
+  const [binningCustomer, setBinningCustomer] = useState(false);
   const [editForm, setEditForm] = useState({
     mode: "renew" as "renew" | "schedule" | "cashflow" | "edit",
     renewalType: "same" as "same" | "switch" | "split",
@@ -2030,30 +2048,69 @@ export default function StoreSubscriptionOperationsPage() {
                 </div>
               )}
 
-              {/* Danger Zone: Permanent Account Deletion */}
-              <div className="mt-6 rounded-xl border border-rose-200 bg-rose-50/50 p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <h4 className="text-xs font-semibold text-rose-900 flex items-center gap-1.5">
-                      <Trash2 className="h-3.5 w-3.5 text-rose-600" /> Danger Zone: Permanent Account Deletion
-                    </h4>
-                    <p className="text-[11px] text-rose-700 mt-0.5">
-                      Permanently delete this customer account, all subscriptions, pending deliveries, and data from your store.
-                    </p>
+              {/* Danger Zone: Offline Customer Management */}
+              {isOfflineSubscriber(editingSubscriber) ? (
+                <div className="mt-6 rounded-xl border border-rose-200 bg-rose-50/50 p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h4 className="text-xs font-semibold text-rose-900 flex items-center gap-1.5">
+                        <Trash2 className="h-3.5 w-3.5 text-rose-600" /> Offline Customer Management
+                      </h4>
+                      <p className="text-[11px] text-rose-700 mt-0.5">
+                        Move this customer to the Recycle Bin (pauses deliveries and allows restore from Settings) or permanently purge all records.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={binningCustomer}
+                        onClick={async () => {
+                          setBinningCustomer(true);
+                          try {
+                            await apiClient.delete(`/store/subscriptions/offline-customers/${editingSubscriber.customer.id}`);
+                            toast.success(`${editingSubscriber.customer.name || 'Customer'} moved to Recycle Bin`);
+                            setEditingSubscriber(null);
+                            await load();
+                          } catch (err: any) {
+                            toast.error(getToastErrorMessage(err, 'Failed to move customer to Recycle Bin'));
+                          } finally {
+                            setBinningCustomer(false);
+                          }
+                        }}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition whitespace-nowrap disabled:opacity-50"
+                      >
+                        {binningCustomer ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        Move to Recycle Bin
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPermanentDeleteCustomerModal({
+                          customerId: editingSubscriber.customer.id,
+                          customerName: editingSubscriber.customer.name || 'Subscriber',
+                          customerPhone: editingSubscriber.customer.phone || '',
+                        })}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700 transition whitespace-nowrap"
+                      >
+                        Delete Forever
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setPermanentDeleteCustomerModal({
-                      customerId: editingSubscriber.customer.id,
-                      customerName: editingSubscriber.customer.name || 'Subscriber',
-                      customerPhone: editingSubscriber.customer.phone || '',
-                    })}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-rose-700 transition  whitespace-nowrap"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete Account
-                  </button>
                 </div>
-              </div>
+              ) : (
+                <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50/60 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-xl bg-blue-100 p-2 text-blue-700">
+                      <Users className="h-4 w-4" />
+                    </div>
+                    <div className="space-y-0.5 text-xs text-blue-900">
+                      <p className="font-semibold text-blue-950">Online Registered Account</p>
+                      <p className="text-blue-700">
+                        This customer registered via the AAGAM app/website. Online customer accounts cannot be deleted by store owners. Current subscription status: <span className="font-bold uppercase">{editingSubscriber.status}</span>.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </Modal>
         )}
@@ -2621,11 +2678,29 @@ function SubscribersSection({
   onAddOfflineCustomer?: () => void;
 }) {
   const [sourceFilter, setSourceFilter] = useState<'all' | 'online' | 'offline'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'CANCELLED'>('all');
+
   const filteredRows = rows.filter((row) => {
-    if (sourceFilter === 'all') return true;
-    const isOffline = row.deliveryMethod === 'PERSONAL_HANDOVER' || row.customer?.email?.startsWith('offline.');
-    return sourceFilter === 'offline' ? isOffline : !isOffline;
+    const isOffline = isOfflineSubscriber(row);
+    if (sourceFilter === 'offline' && !isOffline) return false;
+    if (sourceFilter === 'online' && isOffline) return false;
+
+    if (statusFilter === 'ACTIVE') return row.status === 'ACTIVE';
+    if (statusFilter === 'CANCELLED') return row.status === 'CANCELLED';
+    return true;
   });
+
+  const counts = useMemo(() => {
+    const offlineRows = rows.filter(isOfflineSubscriber);
+    const onlineRows = rows.filter((r) => !isOfflineSubscriber(r));
+    return {
+      all: rows.length,
+      online: onlineRows.length,
+      offline: offlineRows.length,
+      active: rows.filter((r) => r.status === 'ACTIVE').length,
+      cancelled: rows.filter((r) => r.status === 'CANCELLED').length,
+    };
+  }, [rows]);
 
   return (
     <section className="space-y-2">
@@ -2634,23 +2709,56 @@ function SubscribersSection({
           <h2 className="text-base font-semibold text-slate-900">Customer subscriptions</h2>
           <p className="text-xs font-semibold text-slate-500">Store subscription records for your assigned stores.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {onAddOfflineCustomer && (
             <button
               onClick={onAddOfflineCustomer}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800  transition-all"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 transition-all shadow-sm"
             >
               <UserPlus className="h-3.5 w-3.5" /> Add Offline Customer
             </button>
           )}
-          <div className="flex gap-1.5">
-            {(['all', 'online', 'offline'] as const).map((filter) => (
+          <a
+            href="/store/settings?tab=recycle-bin"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-slate-500" /> Recycle Bin
+          </a>
+          <div className="flex gap-1">
+            {(['all', 'online', 'offline'] as const).map((filter) => {
+              const count = filter === 'all' ? counts.all : filter === 'online' ? counts.online : counts.offline;
+              return (
+                <button
+                  key={filter}
+                  onClick={() => setSourceFilter(filter)}
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                    sourceFilter === filter ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                  <span className={`ml-1.5 rounded-full px-1.5 py-0.2 text-[10px] ${
+                    sourceFilter === filter ? 'bg-emerald-800 text-emerald-100' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex gap-1 border-l border-slate-200 pl-2">
+            {(['all', 'ACTIVE', 'CANCELLED'] as const).map((status) => (
               <button
-                key={filter}
-                onClick={() => setSourceFilter(filter)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${sourceFilter === filter ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
+                  statusFilter === status
+                    ? status === 'CANCELLED'
+                      ? 'bg-rose-700 text-white'
+                      : 'bg-slate-800 text-white'
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                }`}
               >
-                {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                {status === 'all' ? 'All' : status === 'ACTIVE' ? `Active (${counts.active})` : `Cancelled (${counts.cancelled})`}
               </button>
             ))}
           </div>
@@ -2689,7 +2797,7 @@ function SubscribersSection({
                     {row.homeStore?.name || "—"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5">
-                    {row.storeDelivery || row.deliveryMethod === 'PERSONAL_HANDOVER' ? (
+                    {row.storeDelivery ? (
                       <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                         <Truck className="h-3 w-3" /> Store
                       </span>
