@@ -173,7 +173,7 @@ export const PartnerNotificationsScreen = ({ navigation }: { navigation?: any })
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <PartnerTabBrand inverse caption={brandCaption} style={styles.brandRow} />
         <View style={styles.headerTitleRow}>
@@ -315,18 +315,18 @@ function AlertCard({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8F9F8' },
   header: {
-    backgroundColor: '#067B5C',
+    backgroundColor: '#0F766E',
     paddingHorizontal: 18,
     paddingBottom: 18,
   },
-  brandRow: { marginBottom: 17 },
+  brandRow: { marginBottom: 16 },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  title: { color: '#FFFFFF', fontSize: 31, fontWeight: '800' },
-  filters: { flexDirection: 'row', gap: 9, marginTop: 22 },
+  title: { color: '#FFFFFF', fontSize: 31, fontWeight: '600' },
+  filters: { flexDirection: 'row', gap: 8, marginTop: 22 },
   filterButton: {
     flex: 1,
     height: 50,
@@ -343,22 +343,22 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
     elevation: 3,
   },
-  filterText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  filterText: { color: '#FFFFFF', fontSize: 15, fontWeight: '500' },
   filterTextActive: { color: '#086D51' },
   filterCount: {
     minWidth: 28,
     height: 28,
     borderRadius: 14,
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     backgroundColor: '#98E95D',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  filterCountText: { color: '#076440', fontSize: 14, fontWeight: '900' },
+  filterCountText: { color: '#076440', fontSize: 14, fontWeight: '600' },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 17, paddingTop: 14, paddingBottom: 116 },
-  section: { marginBottom: 13 },
-  sectionTitle: { color: '#111111', fontSize: 17, fontWeight: '800', marginVertical: 10 },
+  section: { marginBottom: 12 },
+  sectionTitle: { color: '#111111', fontSize: 17, fontWeight: '600', marginVertical: 10 },
   alertCard: {
     minHeight: 91,
     borderRadius: 16,
@@ -367,8 +367,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 11,
-    marginBottom: 9,
+    padding: 12,
+    marginBottom: 8,
     shadowColor: '#1D2C27',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -382,13 +382,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  alertCopy: { flex: 1, paddingHorizontal: 13 },
-  alertTitle: { color: '#080808', fontSize: 16, fontWeight: '900' },
-  alertBody: { color: '#555C64', fontSize: 13, lineHeight: 19, marginTop: 3 },
+  alertCopy: { flex: 1, paddingHorizontal: 12 },
+  alertTitle: { color: '#080808', fontSize: 16, fontWeight: '600' },
+  alertBody: { color: '#555C64', fontSize: 13, lineHeight: 19, marginTop: 4 },
   alertMeta: { alignItems: 'flex-end', justifyContent: 'space-between', alignSelf: 'stretch', paddingVertical: 4 },
   alertTime: { color: '#5C636B', fontSize: 12 },
   unreadDot: { width: 13, height: 13, borderRadius: 7, backgroundColor: '#2DB72E' },
   stateCard: { minHeight: 330, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  stateTitle: { color: '#111827', fontSize: 18, fontWeight: '900', marginTop: 12 },
-  stateText: { color: '#69717B', textAlign: 'center', marginTop: 7, lineHeight: 20 },
+  stateTitle: { color: '#111827', fontSize: 18, fontWeight: '600', marginTop: 12 },
+  stateText: { color: '#69717B', textAlign: 'center', marginTop: 8, lineHeight: 20 },
 });

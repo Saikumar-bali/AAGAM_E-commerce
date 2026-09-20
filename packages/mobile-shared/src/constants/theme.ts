@@ -52,7 +52,7 @@ export const SHADOWS = {
 
 export const FONTS = {
   regular: { fontWeight: '400' as const },
-  medium: { fontWeight: '600' as const },
-  bold: { fontWeight: '800' as const },
-  heavy: { fontWeight: '900' as const },
+  medium: { fontWeight: '500' as const },
+  semibold: { fontWeight: '600' as const },
+  bold: { fontWeight: '600' as const },
 };

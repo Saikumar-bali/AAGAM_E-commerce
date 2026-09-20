@@ -41,7 +41,7 @@ const partnerTheme = {
 
 const LoadingScreen = () => (
   <View style={styles.loadingContainer} accessibilityLabel="Loading Aagaam Partner Workspace">
-    <StatusBar barStyle="light-content" backgroundColor="#057A55" />
+    <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
     <View style={styles.loadingTopGlow} />
     <View style={styles.loadingBottomGlow} />
 
@@ -50,7 +50,7 @@ const LoadingScreen = () => (
       <Text style={styles.loadingBrandName}>Aagaam</Text>
       <Text style={styles.loadingBrandCaption}>PARTNERS</Text>
       <View style={styles.loadingRolePill}>
-        <Bike size={15} color="#057A55" strokeWidth={2.4} />
+        <Bike size={15} color="#0F766E" strokeWidth={2.4} />
         <Text style={styles.loadingRoleText}>RIDER & STORE</Text>
       </View>
     </View>
@@ -84,7 +84,7 @@ const LoadingScreen = () => (
             ))}
           </View>
           <View style={styles.storeBody}>
-            <Store size={54} color="#057A55" strokeWidth={1.9} />
+            <Store size={54} color="#0F766E" strokeWidth={1.9} />
             <View style={styles.packageStack}>
               <Package size={25} color="#C9822A" fill="#F6D394" />
               <Package size={20} color="#C9822A" fill="#F6D394" />
@@ -161,7 +161,7 @@ const RootNavigator = () => {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#057A55',
+    backgroundColor: '#0F766E',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 82,
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 39,
     lineHeight: 44,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: -1.5,
     marginTop: 16,
   },
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     lineHeight: 19,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: 2.5,
   },
   loadingRolePill: {
@@ -227,9 +227,9 @@ const styles = StyleSheet.create({
     marginTop: 11,
   },
   loadingRoleText: {
-    color: '#057A55',
+    color: '#0F766E',
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: 0.8,
   },
   loadingScene: {
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    paddingHorizontal: 5,
+    paddingHorizontal: 4,
     position: 'relative',
   },
   loadingSkylineOne: {
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 23,
     lineHeight: 29,
-    fontWeight: '900',
+    fontWeight: '600',
     textAlign: 'center',
   },
   loadingHint: {
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
-    marginTop: 7,
+    marginTop: 8,
     fontWeight: '600',
   },
   loadingDots: {
@@ -409,12 +409,12 @@ const styles = StyleSheet.create({
   },
   blockedContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4F7FB', padding: 24 },
   blockedCard: { backgroundColor: '#FFFFFF', borderRadius: 30, padding: 32, alignItems: 'center', elevation: 6, maxWidth: 350, width: '100%', borderWidth: 1, borderColor: '#E8EEF4' },
-  blockedTitle: { fontSize: 22, fontWeight: '900', color: '#0F172A', marginTop: 26, marginBottom: 8, textAlign: 'center' },
+  blockedTitle: { fontSize: 22, fontWeight: '600', color: '#0F172A', marginTop: 26, marginBottom: 8, textAlign: 'center' },
   blockedMessage: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22, fontWeight: '600' },
   primaryButton: { marginTop: 24, width: '100%', minHeight: 50, borderRadius: 16, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
   secondaryButton: { marginTop: 10, width: '100%', minHeight: 48, borderRadius: 16, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
-  secondaryButtonText: { color: '#334155', fontSize: 15, fontWeight: '800' },
+  secondaryButtonText: { color: '#334155', fontSize: 15, fontWeight: '600' },
   disabledButton: { opacity: 0.55 },
 });
 export default RootNavigator;

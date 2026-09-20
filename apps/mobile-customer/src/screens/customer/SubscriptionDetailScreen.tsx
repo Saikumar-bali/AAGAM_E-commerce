@@ -45,6 +45,7 @@ import {
 } from "../../api/subscriptionService";
 import type { CustomerStackParamList } from "../../navigation/customerNavigationTypes";
 import { getUserSafeError, notify } from "../../ui/notify";
+import { DeliveryCalendarStrip } from '../../components/orders/DeliveryCalendarStrip';
 import { CustomerQrCode } from "../../native/CustomerQrCode";
 
 const date = (value?: string | null) =>
@@ -282,7 +283,7 @@ export const SubscriptionDetailScreen = () => {
   if (query.isLoading)
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#087B5B" />
+        <ActivityIndicator size="large" color="#0F766E" />
       </View>
     );
   if (!query.data)
@@ -390,7 +391,7 @@ export const SubscriptionDetailScreen = () => {
             style={styles.trackButton}
             onPress={() => tracking.mutate()}
           >
-            <Route size={18} color="#087B5B" />
+            <Route size={18} color="#0F766E" />
             <Text style={styles.trackButtonText}>Track</Text>
           </Pressable>
         </View>
@@ -404,7 +405,7 @@ export const SubscriptionDetailScreen = () => {
             onPress={() => lifecycle.mutate("skip")}
             style={styles.action}
           >
-            <SkipForward size={20} color="#087B5B" />
+            <SkipForward size={20} color="#0F766E" />
             <Text style={styles.actionText}>Skip next</Text>
           </Pressable>
           {subscription.status === "PAUSED" ? (
@@ -413,7 +414,7 @@ export const SubscriptionDetailScreen = () => {
               onPress={() => lifecycle.mutate("resume")}
               style={styles.action}
             >
-              <Play size={20} color="#087B5B" />
+              <Play size={20} color="#0F766E" />
               <Text style={styles.actionText}>Resume</Text>
             </Pressable>
           ) : (
@@ -422,7 +423,7 @@ export const SubscriptionDetailScreen = () => {
               onPress={() => lifecycle.mutate("pause")}
               style={styles.action}
             >
-              <Pause size={20} color="#087B5B" />
+              <Pause size={20} color="#0F766E" />
               <Text style={styles.actionText}>Pause</Text>
             </Pressable>
           )}
@@ -437,9 +438,9 @@ export const SubscriptionDetailScreen = () => {
               style={styles.action}
             >
               {showQr.isPending ? (
-                <RefreshCw size={20} color="#087B5B" />
+                <RefreshCw size={20} color="#0F766E" />
               ) : (
-                <QrCode size={20} color="#087B5B" />
+                <QrCode size={20} color="#0F766E" />
               )}
               <Text style={styles.actionText}>Show QR</Text>
             </Pressable>
@@ -455,14 +456,14 @@ export const SubscriptionDetailScreen = () => {
             ) : null}
           </View>
           <Info
-            icon={<Clock3 size={18} color="#087B5B" />}
+            icon={<Clock3 size={18} color="#0F766E" />}
             label="Window"
             value={`${minuteTime(
               subscription.deliveryWindowStartMinute
             )} – ${minuteTime(subscription.deliveryWindowEndMinute)}`}
           />
           <Info
-            icon={<MapPin size={18} color="#087B5B" />}
+            icon={<MapPin size={18} color="#0F766E" />}
             label="Handover"
             value={subscription.deliveryMethod.replaceAll("_", " ")}
           />
@@ -485,8 +486,13 @@ export const SubscriptionDetailScreen = () => {
               </Text>
             </Pressable>
           </View>
+          {!deliveriesQuery.isLoading && deliveries.length > 0 ? (
+            <View style={{ marginBottom: 12 }}>
+              <DeliveryCalendarStrip deliveries={deliveries} />
+            </View>
+          ) : null}
           {deliveriesQuery.isLoading ? (
-            <ActivityIndicator color="#087B5B" />
+            <ActivityIndicator color="#0F766E" />
           ) : (
             visible.map((delivery) => (
               <DeliveryRow key={delivery.id} delivery={delivery} startMinute={subscription.deliveryWindowStartMinute} endMinute={subscription.deliveryWindowEndMinute} />
@@ -498,7 +504,7 @@ export const SubscriptionDetailScreen = () => {
             <Text style={styles.sectionTitle}>Cash funding receipts</Text>
             {subscription.fundingAllocations.map((allocation) => (
               <View key={allocation.id} style={styles.receipt}>
-                <ReceiptIndianRupee size={20} color="#087B5B" />
+                <ReceiptIndianRupee size={20} color="#0F766E" />
                 <View style={styles.flex}>
                   <Text style={styles.deliveryDate}>
                     ₹{(allocation.amountPaise / 100).toLocaleString("en-IN")}{" "}
@@ -634,7 +640,7 @@ export const SubscriptionDetailScreen = () => {
               resizeMode="contain"
             />
           ) : (
-            <ActivityIndicator color="#087B5B" />
+            <ActivityIndicator color="#0F766E" />
           )}
           <Text style={styles.sheetCopy}>
             {qrExpiresAt
@@ -849,13 +855,13 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     fontSize: 10,
-    fontWeight: "900",
+    fontWeight: '600',
     letterSpacing: 1.1,
-    color: "#087B5B",
+    color: "#0F766E",
   },
-  title: { fontSize: 21, fontWeight: "900", color: "#173D32" },
+  title: { fontSize: 21, fontWeight: '600', color: "#173D32" },
   content: { padding: 16, gap: 14 },
-  hero: { backgroundColor: "#087B5B", borderRadius: 25, padding: 18 },
+  hero: { backgroundColor: "#0F766E", borderRadius: 25, padding: 18 },
   heroTop: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -864,13 +870,13 @@ const styles = StyleSheet.create({
   heroLabel: {
     color: "#BFEADA",
     fontSize: 10,
-    fontWeight: "900",
+    fontWeight: '600',
     letterSpacing: 1.1,
   },
   heroNumber: {
     color: "#FFFFFF",
     fontSize: 34,
-    fontWeight: "900",
+    fontWeight: '600',
     marginTop: 4,
   },
   heroSub: { color: "#D3F3E6" },
@@ -883,7 +889,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  ringText: { color: "#FFFFFF", fontWeight: "900" },
+  ringText: { color: "#FFFFFF", fontWeight: '600' },
   track: {
     height: 8,
     borderRadius: 99,
@@ -898,11 +904,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   heroFact: { color: "#CDEEE1", fontSize: 12 },
-  heroFactStrong: { color: "#FFFFFF", fontWeight: "900" },
+  heroFactStrong: { color: "#FFFFFF", fontWeight: '600' },
   nextCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 22,
-    padding: 15,
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -919,12 +925,12 @@ const styles = StyleSheet.create({
   },
   nextLabel: {
     fontSize: 9,
-    fontWeight: "900",
+    fontWeight: '600',
     letterSpacing: 1,
     color: "#92704D",
   },
-  nextDate: { fontSize: 18, fontWeight: "900", color: "#173D32", marginTop: 2 },
-  nextMeta: { fontSize: 11, color: "#65766F", marginTop: 3 },
+  nextDate: { fontSize: 18, fontWeight: '600', color: "#173D32", marginTop: 2 },
+  nextMeta: { fontSize: 11, color: "#65766F", marginTop: 4 },
   trackButton: {
     minHeight: 44,
     paddingHorizontal: 12,
@@ -934,7 +940,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 2,
   },
-  trackButtonText: { fontSize: 10, fontWeight: "900", color: "#087B5B" },
+  trackButtonText: { fontSize: 10, fontWeight: '600', color: "#0F766E" },
   actions: { flexDirection: "row", gap: 8 },
   action: {
     flex: 1,
@@ -947,7 +953,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E1E9E5",
   },
-  actionText: { fontSize: 11, fontWeight: "900", color: "#29483D" },
+  actionText: { fontSize: 11, fontWeight: '600', color: "#29483D" },
   section: {
     backgroundColor: "#FFFFFF",
     borderRadius: 22,
@@ -962,23 +968,23 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 17,
-    fontWeight: "900",
+    fontWeight: '600',
     color: "#183D32",
-    marginBottom: 13,
+    marginBottom: 12,
   },
-  link: { color: "#087B5B", fontWeight: "900" },
+  link: { color: "#0F766E", fontWeight: '600' },
   info: {
     flexDirection: "row",
     gap: 10,
     alignItems: "center",
-    paddingVertical: 9,
+    paddingVertical: 8,
     borderTopWidth: 1,
     borderTopColor: "#EFF3F1",
   },
   infoLabel: { fontSize: 10, color: "#75857E" },
   infoValue: {
     fontSize: 13,
-    fontWeight: "800",
+    fontWeight: '600',
     color: "#29483D",
     marginTop: 2,
     textTransform: "capitalize",
@@ -986,7 +992,7 @@ const styles = StyleSheet.create({
   deliveryRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 11,
+    gap: 12,
     paddingVertical: 11,
     borderTopWidth: 1,
     borderTopColor: "#EFF3F1",
@@ -1001,15 +1007,15 @@ const styles = StyleSheet.create({
   },
   dotDone: { backgroundColor: "#0B8E66" },
   dotSkipped: { backgroundColor: "#D7A24F" },
-  deliveryDate: { fontSize: 13, fontWeight: "900", color: "#29483D" },
-  deliveryWindow: { marginTop: 3, fontSize: 11, fontWeight: "900", color: "#047857" },
+  deliveryDate: { fontSize: 13, fontWeight: '600', color: "#29483D" },
+  deliveryWindow: { marginTop: 4, fontSize: 11, fontWeight: '600', color: "#047857" },
   deliveryMeta: {
     fontSize: 10,
     color: "#718079",
     marginTop: 2,
     textTransform: "capitalize",
   },
-  cash: { fontWeight: "900", color: "#087B5B" },
+  cash: { fontWeight: '600', color: "#0F766E" },
   cashDue: { color: "#B85D00" },
   receipt: {
     flexDirection: "row",
@@ -1021,11 +1027,11 @@ const styles = StyleSheet.create({
   },
   receiptStatus: {
     fontSize: 9,
-    fontWeight: "900",
-    color: "#087B5B",
+    fontWeight: '600',
+    color: "#0F766E",
     backgroundColor: "#E7F7EF",
     paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: 99,
   },
   cancelButton: {
@@ -1037,7 +1043,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#FFF8F8",
   },
-  cancelText: { color: "#A33131", fontWeight: "900" },
+  cancelText: { color: "#A33131", fontWeight: '600' },
   modalBackdrop: {
     flex: 1,
     justifyContent: "flex-end",
@@ -1065,7 +1071,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 12,
   },
-  sheetTitle: { fontSize: 20, fontWeight: "900", color: "#173D32" },
+  sheetTitle: { fontSize: 20, fontWeight: '600', color: "#173D32" },
   close: {
     width: 42,
     height: 42,
@@ -1086,9 +1092,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  chipActive: { borderColor: "#087B5B", backgroundColor: "#EAF8F1" },
-  chipText: { fontSize: 11, fontWeight: "800", color: "#64766E" },
-  chipTextActive: { color: "#087B5B" },
+  chipActive: { borderColor: "#0F766E", backgroundColor: "#EAF8F1" },
+  chipText: { fontSize: 11, fontWeight: '600', color: "#64766E" },
+  chipTextActive: { color: "#0F766E" },
   input: {
     minHeight: 50,
     borderWidth: 1,
@@ -1102,21 +1108,21 @@ const styles = StyleSheet.create({
   primaryButton: {
     minHeight: 52,
     borderRadius: 17,
-    backgroundColor: "#087B5B",
+    backgroundColor: "#0F766E",
     alignItems: "center",
     justifyContent: "center",
   },
   dangerButton: { backgroundColor: "#A73535" },
   disabled: { opacity: 0.45 },
-  primaryButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
-  methodList: { gap: 9 },
+  primaryButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: '600' },
+  methodList: { gap: 8 },
   method: {
-    padding: 13,
+    padding: 12,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#DCE6E1",
   },
-  methodActive: { borderColor: "#087B5B", backgroundColor: "#EEFAF4" },
-  methodTitle: { fontWeight: "900", color: "#24483C" },
-  methodCopy: { fontSize: 11, color: "#6E7E77", marginTop: 3 },
+  methodActive: { borderColor: "#0F766E", backgroundColor: "#EEFAF4" },
+  methodTitle: { fontWeight: '600', color: "#24483C" },
+  methodCopy: { fontSize: 11, color: "#6E7E77", marginTop: 4 },
 });

@@ -49,7 +49,7 @@ export const RiderReceiptScreen = ({ route, navigation }: { route: any; navigati
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to delivery detail" style={styles.headerButton} onPress={() => navigation.goBack()}>
           <ArrowLeft size={23} color="#FFFFFF" />
@@ -147,18 +147,18 @@ function Fact({ label: factLabel, value, strong = false }: { label: string; valu
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#067B5C', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '900', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 24, fontWeight: '900' },
+  eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600' },
   content: { padding: 14 },
   heroCard: { borderRadius: 22, backgroundColor: '#0F172A', alignItems: 'center', padding: 22 },
   check: { width: 58, height: 58, borderRadius: 29, backgroundColor: '#059669', alignItems: 'center', justifyContent: 'center' },
-  status: { color: '#A7F3D0', fontSize: 12, fontWeight: '900', marginTop: 12 }, receiptId: { color: '#FFFFFF', fontSize: 17, fontWeight: '900', marginTop: 5 }, issued: { color: '#CBD5E1', fontSize: 11, marginTop: 5 },
-  card: { marginTop: 12, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 15 },
-  cardTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900', marginBottom: 5 },
+  status: { color: '#A7F3D0', fontSize: 12, fontWeight: '600', marginTop: 12 }, receiptId: { color: '#FFFFFF', fontSize: 17, fontWeight: '600', marginTop: 4 }, issued: { color: '#CBD5E1', fontSize: 11, marginTop: 4 },
+  card: { marginTop: 12, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16 },
+  cardTitle: { color: '#0F172A', fontSize: 16, fontWeight: '600', marginBottom: 4 },
   fact: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E2E8F0' },
-  factLabel: { color: '#64748B', fontSize: 10, fontWeight: '800' }, factValue: { color: '#0F172A', fontSize: 13, fontWeight: '700', lineHeight: 19, marginTop: 3 }, factStrong: { color: '#067B5C', fontSize: 17, fontWeight: '900' },
+  factLabel: { color: '#64748B', fontSize: 10, fontWeight: '600' }, factValue: { color: '#0F172A', fontSize: 13, fontWeight: '500', lineHeight: 19, marginTop: 4 }, factStrong: { color: '#0F766E', fontSize: 17, fontWeight: '600' },
   emptyText: { color: '#64748B', fontSize: 12, paddingVertical: 10 },
-  timelineRow: { flexDirection: 'row', gap: 10, paddingVertical: 9, alignItems: 'flex-start' }, timelineTitle: { color: '#0F172A', fontSize: 12, fontWeight: '800' }, timelineMeta: { color: '#64748B', fontSize: 10, marginTop: 2 },
-  state: { minHeight: 440, alignItems: 'center', justifyContent: 'center', padding: 28 }, stateTitle: { color: '#0F172A', fontSize: 19, fontWeight: '900' }, stateText: { color: '#64748B', textAlign: 'center', marginTop: 7 },
+  timelineRow: { flexDirection: 'row', gap: 10, paddingVertical: 8, alignItems: 'flex-start' }, timelineTitle: { color: '#0F172A', fontSize: 12, fontWeight: '600' }, timelineMeta: { color: '#64748B', fontSize: 10, marginTop: 2 },
+  state: { minHeight: 440, alignItems: 'center', justifyContent: 'center', padding: 28 }, stateTitle: { color: '#0F172A', fontSize: 19, fontWeight: '600' }, stateText: { color: '#64748B', textAlign: 'center', marginTop: 8 },
 });

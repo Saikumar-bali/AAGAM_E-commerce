@@ -118,7 +118,7 @@ export const StoreOrderDetailsReferenceScreen = ({ navigation, route }: { naviga
   const updateStatus = (action: { status: StoreOrderStatus; label: string; destructive?: boolean }) => Alert.alert(
     `${action.label}?`,
     action.status === 'CANCELLED'
-      ? 'This changes the customer order and is recorded in the audit trail.'
+      ? 'This action is recorded and cannot be undone.'
       : action.status === 'PACKED'
         ? 'Confirm that the order is packed for rider pickup.'
         : 'The customer and store queue will be updated.',
@@ -153,14 +153,14 @@ export const StoreOrderDetailsReferenceScreen = ({ navigation, route }: { naviga
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor="#078B4D" />}
+        refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor="#0F766E" />}
       >
         {query.isLoading ? (
           <State loading text="Loading order details…" />
         ) : query.isError ? (
           <State title="Order unavailable" text={errorMessage(query.error)} />
         ) : !order ? (
-          <State title="Order no longer available" text="It may have moved stores or changed while this screen was open." />
+          <State title="Order no longer available" text="It may have been updated or moved." />
         ) : (
           <>
             <View style={styles.orderHeading}>
@@ -172,12 +172,12 @@ export const StoreOrderDetailsReferenceScreen = ({ navigation, route }: { naviga
             </View>
 
             <View style={styles.customerCard}>
-              <View style={styles.avatar}><UserRound size={40} color="#078B4D" fill="#078B4D" /></View>
+              <View style={styles.avatar}><UserRound size={40} color="#0F766E" fill="#0F766E" /></View>
               <View style={styles.customerCopy}>
                 <Text style={styles.customerName}>{orderCustomerName(order)}</Text>
                 <Text style={styles.customerPhone}>{orderCustomerPhone(order) || 'Contact unavailable'}</Text>
               </View>
-              <TouchableOpacity style={styles.callButton} onPress={() => void callCustomer()}><Phone size={29} color="#078B4D" /></TouchableOpacity>
+              <TouchableOpacity style={styles.callButton} onPress={() => void callCustomer()}><Phone size={29} color="#0F766E" /></TouchableOpacity>
             </View>
 
             <View style={styles.itemsCard}>
@@ -196,21 +196,21 @@ export const StoreOrderDetailsReferenceScreen = ({ navigation, route }: { naviga
               {!order.items?.length ? <Text style={styles.emptyItems}>No item lines were returned for this order.</Text> : null}
               <View style={styles.divider} />
               <PriceRow label="Subtotal" value={formatStoreMoney(subtotal)} />
-              <PriceRow label="Delivery Fee" value={deliveryFee === 0 ? 'FREE' : formatStoreMoney(deliveryFee)} green={deliveryFee === 0} />
+              <PriceRow label="Delivery fee" value={deliveryFee === 0 ? 'FREE' : formatStoreMoney(deliveryFee)} green={deliveryFee === 0} />
               <PriceRow label="Discount" value={`- ${formatStoreMoney(discount)}`} />
               <View style={styles.divider} />
-              <PriceRow label="Total Amount" value={formatStoreMoney(total)} strong />
+              <PriceRow label="Total" value={formatStoreMoney(total)} strong />
             </View>
 
             <View style={styles.statusRows}>
-              <StatusRow label="Payment Method" value={payment} payment />
-              <StatusRow label="Preparation Status" value={statusLabel(order.status)} tone={tone} />
+              <StatusRow label="Payment method" value={payment} payment />
+              <StatusRow label="Status" value={statusLabel(order.status)} tone={tone} />
             </View>
 
             {['PENDING', 'PAYMENT_PENDING', 'CONFIRMED', 'PICKING'].includes(order.status) ? (
               <TouchableOpacity style={styles.advancedButton} onPress={() => navigation?.navigate?.('AdvancedOrderDetails', { orderId, storeId, order })}>
                 <Text style={styles.advancedText}>Item availability & substitutes</Text>
-                <ChevronRight size={20} color="#078B4D" />
+                <ChevronRight size={20} color="#0F766E" />
               </TouchableOpacity>
             ) : null}
 
@@ -236,7 +236,7 @@ export const StoreOrderDetailsReferenceScreen = ({ navigation, route }: { naviga
 };
 
 function State({ title, text, loading = false }: { title?: string; text: string; loading?: boolean }) {
-  return <View style={styles.state}>{loading ? <ActivityIndicator size="large" color="#078B4D" /> : null}{title ? <Text style={styles.stateTitle}>{title}</Text> : null}<Text style={styles.stateText}>{text}</Text></View>;
+  return <View style={styles.state}>{loading ? <ActivityIndicator size="large" color="#0F766E" /> : null}{title ? <Text style={styles.stateTitle}>{title}</Text> : null}<Text style={styles.stateText}>{text}</Text></View>;
 }
 
 function PriceRow({ label, value, strong = false, green = false }: { label: string; value: string; strong?: boolean; green?: boolean }) {
@@ -254,49 +254,49 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { height: 112, paddingTop: 48, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF' },
   headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', color: '#151922', fontSize: 24, fontWeight: '900' },
+  headerTitle: { flex: 1, textAlign: 'center', color: '#151922', fontSize: 24, fontWeight: '600' },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 19, paddingBottom: 44 },
-  orderHeading: { flexDirection: 'row', alignItems: 'center', marginTop: 3, marginBottom: 18 },
-  orderCode: { color: '#151922', fontSize: 25, fontWeight: '900' },
+  orderHeading: { flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: 18 },
+  orderCode: { color: '#151922', fontSize: 25, fontWeight: '600' },
   orderDate: { color: '#616A74', fontSize: 15, marginTop: 8 },
-  statusPill: { borderRadius: 10, paddingHorizontal: 15, paddingVertical: 9 },
-  statusText: { fontSize: 13, fontWeight: '900' },
-  customerCard: { minHeight: 116, borderRadius: 16, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15 },
+  statusPill: { borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
+  statusText: { fontSize: 13, fontWeight: '600' },
+  customerCard: { minHeight: 116, borderRadius: 16, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
   avatar: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#EAF9EE', alignItems: 'center', justifyContent: 'center' },
   customerCopy: { flex: 1, marginLeft: 14 },
-  customerName: { color: '#151922', fontSize: 19, fontWeight: '900' },
-  customerPhone: { color: '#626B74', fontSize: 15, marginTop: 7 },
+  customerName: { color: '#151922', fontSize: 19, fontWeight: '600' },
+  customerPhone: { color: '#626B74', fontSize: 15, marginTop: 8 },
   callButton: { width: 62, height: 62, borderRadius: 31, borderWidth: 1, borderColor: '#D9DDDB', alignItems: 'center', justifyContent: 'center' },
   itemsCard: { borderRadius: 16, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 16, marginTop: 14 },
-  itemsTitle: { color: '#151922', fontSize: 18, fontWeight: '900', marginBottom: 8 },
+  itemsTitle: { color: '#151922', fontSize: 18, fontWeight: '600', marginBottom: 8 },
   itemRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center' },
   itemBorder: { borderBottomWidth: 1, borderBottomColor: '#E9EBEA' },
   productImage: { width: 42, height: 52, borderRadius: 7, backgroundColor: '#F0F2F1' },
   imageFallback: { width: 42, height: 52, borderRadius: 7, backgroundColor: '#F0F2F1', alignItems: 'center', justifyContent: 'center' },
-  itemName: { flex: 1, color: '#151922', fontSize: 15, fontWeight: '800', marginHorizontal: 12 },
-  itemPrice: { color: '#151922', fontSize: 15, fontWeight: '800' },
+  itemName: { flex: 1, color: '#151922', fontSize: 15, fontWeight: '600', marginHorizontal: 12 },
+  itemPrice: { color: '#151922', fontSize: 15, fontWeight: '600' },
   emptyItems: { color: '#747C83', paddingVertical: 20, textAlign: 'center' },
   divider: { height: 1, backgroundColor: '#E7E9E8', marginVertical: 10 },
   priceRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center' },
   priceLabel: { flex: 1, color: '#616A74', fontSize: 15 },
   priceValue: { color: '#4C555F', fontSize: 15 },
-  priceStrong: { color: '#151922', fontSize: 17, fontWeight: '900' },
-  green: { color: '#138C37', fontWeight: '900' },
-  statusRows: { paddingHorizontal: 12, marginTop: 17 },
+  priceStrong: { color: '#151922', fontSize: 17, fontWeight: '600' },
+  green: { color: '#138C37', fontWeight: '600' },
+  statusRows: { paddingHorizontal: 12, marginTop: 16 },
   statusRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center' },
   statusRowLabel: { flex: 1, color: '#616A74', fontSize: 15 },
-  advancedButton: { height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
-  advancedText: { color: '#078B4D', fontSize: 14, fontWeight: '900' },
+  advancedButton: { height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  advancedText: { color: '#0F766E', fontSize: 14, fontWeight: '600' },
   actionRow: { flexDirection: 'row', gap: 14, marginTop: 18 },
   actionButton: { flex: 1, height: 62, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   rejectButton: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E3262E' },
-  acceptButton: { backgroundColor: '#078B4D' },
-  actionText: { fontSize: 18, fontWeight: '900' },
+  acceptButton: { backgroundColor: '#0F766E' },
+  actionText: { fontSize: 18, fontWeight: '600' },
   rejectText: { color: '#D51D25' },
   acceptText: { color: '#FFFFFF' },
   disabled: { opacity: 0.5 },
   state: { minHeight: 500, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  stateTitle: { color: '#171A1D', fontSize: 19, fontWeight: '900', textAlign: 'center', marginTop: 12 },
-  stateText: { color: '#6D747B', fontSize: 13, marginTop: 7, textAlign: 'center', lineHeight: 20 },
+  stateTitle: { color: '#171A1D', fontSize: 19, fontWeight: '600', textAlign: 'center', marginTop: 12 },
+  stateText: { color: '#6D747B', fontSize: 13, marginTop: 8, textAlign: 'center', lineHeight: 20 },
 });

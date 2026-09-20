@@ -67,13 +67,13 @@ const StoreTabs = () => {
     backgroundColor: '#E1262F',
     color: '#FFFFFF',
     fontSize: 9,
-    fontWeight: '900' as const,
+    fontWeight: '600' as const,
   };
 
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#078B4D',
+        tabBarActiveTintColor: '#0F766E',
         tabBarInactiveTintColor: '#5D6570',
         headerShown: false,
         tabBarHideOnKeyboard: true,
@@ -97,7 +97,7 @@ const StoreTabs = () => {
           paddingHorizontal: 0,
         },
         tabBarIconStyle: { marginTop: 0 },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '800', marginTop: 2 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', marginTop: 2 },
       }}
     >
       <Tab.Screen

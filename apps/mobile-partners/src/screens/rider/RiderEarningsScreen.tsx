@@ -56,7 +56,7 @@ export const RiderEarningsScreen = ({ navigation }: { navigation: any }) => {
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <PartnerTabBrand inverse caption="RIDER PARTNER" style={styles.brandRow} />
         <View style={styles.headerMain}>
@@ -142,23 +142,23 @@ function Summary({ label: summaryLabel, value }: { label: string; value: string 
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#067B5C', paddingHorizontal: 18, paddingBottom: 20 }, brandRow: { marginBottom: 15 }, headerMain: { flexDirection: 'row', alignItems: 'center' },
-  eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '900', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 27, fontWeight: '900', marginTop: 2 },
+  header: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingBottom: 20 }, brandRow: { marginBottom: 15 }, headerMain: { flexDirection: 'row', alignItems: 'center' },
+  eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 27, fontWeight: '600', marginTop: 2 },
   headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   content: { padding: 14 },
   pendingCard: { borderRadius: 20, backgroundColor: '#0F172A', padding: 18, flexDirection: 'row', alignItems: 'center', gap: 13 },
   iconBox: { width: 52, height: 52, borderRadius: 16, backgroundColor: '#059669', alignItems: 'center', justifyContent: 'center' },
-  pendingLabel: { color: '#A7F3D0', fontSize: 11, fontWeight: '900' }, pendingAmount: { color: '#FFFFFF', fontSize: 27, fontWeight: '900', marginTop: 3 }, pendingMeta: { color: '#CBD5E1', fontSize: 10, marginTop: 3 },
+  pendingLabel: { color: '#A7F3D0', fontSize: 11, fontWeight: '600' }, pendingAmount: { color: '#FFFFFF', fontSize: 27, fontWeight: '600', marginTop: 4 }, pendingMeta: { color: '#CBD5E1', fontSize: 10, marginTop: 4 },
   summaryRow: { flexDirection: 'row', gap: 8, marginTop: 10 }, summaryCard: { flex: 1, borderRadius: 15, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 12 },
-  summaryLabel: { color: '#64748B', fontSize: 10, fontWeight: '800' }, summaryValue: { color: '#0F172A', fontSize: 15, fontWeight: '900', marginTop: 5 },
-  rangeCard: { marginTop: 10, borderRadius: 15, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 10, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  rangeButton: { flex: 1, minHeight: 36, borderRadius: 10, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' }, rangeButtonActive: { backgroundColor: '#CCFBF1' }, rangeText: { color: '#64748B', fontWeight: '800', fontSize: 11 }, rangeTextActive: { color: '#0F766E' },
-  payoutButton: { marginTop: 10, minHeight: 70, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#99D8C8', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 11 },
-  payoutTitle: { color: '#0F172A', fontSize: 14, fontWeight: '900' }, payoutText: { color: '#64748B', fontSize: 10, marginTop: 3 },
-  sectionTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900', marginTop: 18, marginBottom: 9 },
-  entryCard: { borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 13, marginBottom: 9, flexDirection: 'row', alignItems: 'center', gap: 11 },
+  summaryLabel: { color: '#64748B', fontSize: 10, fontWeight: '600' }, summaryValue: { color: '#0F172A', fontSize: 15, fontWeight: '600', marginTop: 4 },
+  rangeCard: { marginTop: 10, borderRadius: 15, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  rangeButton: { flex: 1, minHeight: 36, borderRadius: 10, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' }, rangeButtonActive: { backgroundColor: '#CCFBF1' }, rangeText: { color: '#64748B', fontWeight: '600', fontSize: 11 }, rangeTextActive: { color: '#0F766E' },
+  payoutButton: { marginTop: 10, minHeight: 70, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#99D8C8', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  payoutTitle: { color: '#0F172A', fontSize: 14, fontWeight: '600' }, payoutText: { color: '#64748B', fontSize: 10, marginTop: 4 },
+  sectionTitle: { color: '#0F172A', fontSize: 17, fontWeight: '600', marginTop: 18, marginBottom: 8 },
+  entryCard: { borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
   entryIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, penaltyIcon: { backgroundColor: '#FEE2E2' },
-  entryTitle: { color: '#0F172A', fontSize: 12, fontWeight: '900' }, entryReference: { color: '#475569', fontSize: 10, marginTop: 3 }, entryDate: { color: '#94A3B8', fontSize: 9, marginTop: 3 },
-  entryAmount: { color: '#067B5C', fontSize: 15, fontWeight: '900' }, penaltyAmount: { color: '#B91C1C' },
-  state: { minHeight: 250, alignItems: 'center', justifyContent: 'center', padding: 26 }, stateTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', marginTop: 10 }, stateText: { color: '#64748B', fontSize: 12, textAlign: 'center', lineHeight: 18, marginTop: 6 },
+  entryTitle: { color: '#0F172A', fontSize: 12, fontWeight: '600' }, entryReference: { color: '#475569', fontSize: 10, marginTop: 4 }, entryDate: { color: '#94A3B8', fontSize: 9, marginTop: 4 },
+  entryAmount: { color: '#0F766E', fontSize: 15, fontWeight: '600' }, penaltyAmount: { color: '#B91C1C' },
+  state: { minHeight: 250, alignItems: 'center', justifyContent: 'center', padding: 24 }, stateTitle: { color: '#0F172A', fontSize: 18, fontWeight: '600', marginTop: 10 }, stateText: { color: '#64748B', fontSize: 12, textAlign: 'center', lineHeight: 18, marginTop: 6 },
 });

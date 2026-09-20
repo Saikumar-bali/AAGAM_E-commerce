@@ -107,7 +107,7 @@ export const StorePickupVerificationScreen = ({ navigation, route }: { navigatio
   const issuePin = async () => {
     if (!job) return;
     if (!ready) {
-      Alert.alert('Rider checklist pending', 'The rider must verify every packed item before a pickup PIN can be issued.');
+      Alert.alert('Rider checklist pending', 'The rider must verify all items first.');
       return;
     }
     setBusy('PIN');
@@ -187,19 +187,19 @@ export const StorePickupVerificationScreen = ({ navigation, route }: { navigatio
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={jobQuery.isRefetching} onRefresh={() => void refresh()} tintColor="#078B4D" />}
+        refreshControl={<RefreshControl refreshing={jobQuery.isRefetching} onRefresh={() => void refresh()} tintColor="#0F766E" />}
       >
         {jobQuery.isLoading ? (
-          <View style={styles.stateCard}><ActivityIndicator size="large" color="#078B4D" /><Text style={styles.stateText}>Loading pickup verification…</Text></View>
+          <View style={styles.stateCard}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.stateText}>Loading pickup verification…</Text></View>
         ) : jobQuery.isError ? (
           <View style={styles.stateCard}><Text style={styles.stateTitle}>Pickup verification unavailable</Text><Text style={styles.stateText}>{errorMessage(jobQuery.error)}</Text></View>
         ) : !job ? (
-          <View style={styles.stateCard}><Package size={45} color="#A8B0B7" /><Text style={styles.stateTitle}>Rider is no longer waiting</Text><Text style={styles.stateText}>The pickup may already be completed or reassigned.</Text></View>
+          <View style={styles.stateCard}><Package size={45} color="#A8B0B7" /><Text style={styles.stateTitle}>Rider is no longer waiting</Text><Text style={styles.stateText}>This pickup may already be complete.</Text></View>
         ) : (
           <>
             <View style={styles.riderCard}>
               <View style={styles.riderTopRow}>
-                <View style={styles.riderAvatar}><UserRound size={42} color="#078B4D" fill="#078B4D" /></View>
+                <View style={styles.riderAvatar}><UserRound size={42} color="#0F766E" fill="#0F766E" /></View>
                 <View style={styles.riderCopy}>
                   <Text style={styles.riderName}>{rider.name}</Text>
                   <Text style={styles.riderPhone}>{rider.phone || 'Phone unavailable'}</Text>
@@ -216,7 +216,7 @@ export const StorePickupVerificationScreen = ({ navigation, route }: { navigatio
                   <Text style={styles.metaValue}>{rider.vehicleNumber || 'Vehicle unavailable'}</Text>
                 </View>
                 <TouchableOpacity style={styles.callButton} onPress={() => void callRider()}>
-                  <Phone size={27} color="#078B4D" />
+                  <Phone size={27} color="#0F766E" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -265,12 +265,12 @@ export const StorePickupVerificationScreen = ({ navigation, route }: { navigatio
                     <View key={`${digit}-${index}`} style={styles.pinBox}><Text style={styles.pinDigit}>{digit}</Text></View>
                   ))}
                   <TouchableOpacity style={styles.regenerateButton} disabled={busy === 'PIN'} onPress={() => void issuePin()}>
-                    {busy === 'PIN' ? <ActivityIndicator color="#078B4D" /> : <RotateCw size={29} color="#078B4D" />}
+                    {busy === 'PIN' ? <ActivityIndicator color="#0F766E" /> : <RotateCw size={29} color="#0F766E" />}
                   </TouchableOpacity>
                 </View>
               ) : (
                 <TouchableOpacity style={[styles.issuePinButton, (!ready || busy) && styles.disabled]} disabled={!ready || Boolean(busy)} onPress={() => void issuePin()}>
-                  {busy === 'PIN' ? <ActivityIndicator color="#078B4D" /> : <Text style={styles.issuePinText}>Generate Rider PIN</Text>}
+                  {busy === 'PIN' ? <ActivityIndicator color="#0F766E" /> : <Text style={styles.issuePinText}>Generate Rider PIN</Text>}
                 </TouchableOpacity>
               )}
             </View>
@@ -304,59 +304,59 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { height: 114, paddingTop: 50, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF' },
   headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, color: '#151922', fontSize: 22, fontWeight: '900', textAlign: 'center' },
+  headerTitle: { flex: 1, color: '#151922', fontSize: 22, fontWeight: '600', textAlign: 'center' },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 17, paddingBottom: 44 },
   riderCard: { borderRadius: 18, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 17 },
   riderTopRow: { flexDirection: 'row', alignItems: 'center' },
   riderAvatar: { width: 65, height: 65, borderRadius: 33, backgroundColor: '#E9F9EE', alignItems: 'center', justifyContent: 'center' },
   riderCopy: { flex: 1, marginLeft: 13 },
-  riderName: { color: '#151922', fontSize: 19, fontWeight: '900' },
-  riderPhone: { color: '#5F6872', fontSize: 15, marginTop: 5 },
+  riderName: { color: '#151922', fontSize: 19, fontWeight: '600' },
+  riderPhone: { color: '#5F6872', fontSize: 15, marginTop: 4 },
   rating: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  ratingText: { color: '#151922', fontSize: 17, fontWeight: '900' },
+  ratingText: { color: '#151922', fontSize: 17, fontWeight: '600' },
   metaLabel: { color: '#626B74', fontSize: 14, marginTop: 15 },
-  metaValue: { color: '#151922', fontSize: 16, fontWeight: '800', marginTop: 5 },
+  metaValue: { color: '#151922', fontSize: 16, fontWeight: '600', marginTop: 4 },
   vehicleCallRow: { flexDirection: 'row', alignItems: 'center' },
   callButton: { width: 58, height: 58, borderRadius: 29, borderWidth: 1, borderColor: '#D9DDDB', alignItems: 'center', justifyContent: 'center' },
-  orderCard: { borderRadius: 17, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 10, marginTop: 13 },
+  orderCard: { borderRadius: 17, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 10, marginTop: 12 },
   infoRow: { minHeight: 51, flexDirection: 'row', alignItems: 'center' },
   infoLabel: { flex: 1, color: '#65707A', fontSize: 15 },
-  infoValue: { color: '#151922', fontSize: 15, fontWeight: '900' },
-  paymentPill: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  infoValue: { color: '#151922', fontSize: 15, fontWeight: '600' },
+  paymentPill: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
   prepaidPill: { backgroundColor: '#EAF9EE' },
   codPill: { backgroundColor: '#FFF1E5' },
-  paymentText: { fontSize: 12, fontWeight: '900' },
+  paymentText: { fontSize: 12, fontWeight: '600' },
   prepaidText: { color: '#087C35' },
   codText: { color: '#BE5B09' },
-  checklistCard: { borderRadius: 17, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 16, marginTop: 13 },
-  checklistTitle: { color: '#087B4E', fontSize: 17, fontWeight: '900', marginBottom: 8 },
+  checklistCard: { borderRadius: 17, borderWidth: 1, borderColor: '#E0E3E2', backgroundColor: '#FFFFFF', padding: 16, marginTop: 12 },
+  checklistTitle: { color: '#087B4E', fontSize: 17, fontWeight: '600', marginBottom: 8 },
   itemRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center' },
   itemBorder: { borderBottomWidth: 1, borderBottomColor: '#E8EAE9' },
   checkBox: { width: 28, height: 28, borderRadius: 5, backgroundColor: '#0A9A50', alignItems: 'center', justifyContent: 'center' },
   itemName: { flex: 1, color: '#151922', fontSize: 15, marginLeft: 12 },
-  itemQuantity: { color: '#151922', fontSize: 16, fontWeight: '900' },
+  itemQuantity: { color: '#151922', fontSize: 16, fontWeight: '600' },
   emptyItems: { color: '#777F86', fontSize: 13, paddingVertical: 18 },
   parcelSummary: { minHeight: 68, borderTopWidth: 1, borderTopColor: '#E7E9E8', flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  parcelLabel: { color: '#087B4E', fontSize: 17, fontWeight: '900' },
-  parcelCount: { flex: 1, color: '#151922', fontSize: 28, fontWeight: '900', marginLeft: 22 },
-  readinessBanner: { borderRadius: 10, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  parcelLabel: { color: '#087B4E', fontSize: 17, fontWeight: '600' },
+  parcelCount: { flex: 1, color: '#151922', fontSize: 28, fontWeight: '600', marginLeft: 22 },
+  readinessBanner: { borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   readyBanner: { backgroundColor: '#EAF9EE' },
   waitingBanner: { backgroundColor: '#FFF5E7' },
-  readinessText: { flex: 1, fontSize: 12, fontWeight: '800' },
+  readinessText: { flex: 1, fontSize: 12, fontWeight: '600' },
   pinArea: { alignItems: 'center', marginTop: 22 },
-  pinTitle: { color: '#151922', fontSize: 18, fontWeight: '900' },
+  pinTitle: { color: '#151922', fontSize: 18, fontWeight: '600' },
   pinSubtitle: { color: '#626B74', fontSize: 13, marginTop: 6, textAlign: 'center' },
-  pinRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 15 },
+  pinRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 15 },
   pinBox: { width: 45, height: 55, borderRadius: 9, borderWidth: 1, borderColor: '#CCD2CF', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  pinDigit: { color: '#087B4E', fontSize: 25, fontWeight: '900' },
+  pinDigit: { color: '#087B4E', fontSize: 25, fontWeight: '600' },
   regenerateButton: { width: 45, height: 55, alignItems: 'center', justifyContent: 'center' },
-  issuePinButton: { height: 52, minWidth: 210, borderRadius: 10, borderWidth: 1, borderColor: '#078B4D', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginTop: 15 },
-  issuePinText: { color: '#078B4D', fontSize: 15, fontWeight: '900' },
-  confirmButton: { height: 62, borderRadius: 13, backgroundColor: '#078B4D', alignItems: 'center', justifyContent: 'center', marginTop: 24 },
-  confirmText: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
+  issuePinButton: { height: 52, minWidth: 210, borderRadius: 10, borderWidth: 1, borderColor: '#0F766E', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginTop: 15 },
+  issuePinText: { color: '#0F766E', fontSize: 15, fontWeight: '600' },
+  confirmButton: { height: 62, borderRadius: 13, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', marginTop: 24 },
+  confirmText: { color: '#FFFFFF', fontSize: 20, fontWeight: '600' },
   disabled: { opacity: 0.45 },
   stateCard: { minHeight: 440, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  stateTitle: { color: '#171A1D', fontSize: 18, fontWeight: '900', marginTop: 12, textAlign: 'center' },
-  stateText: { color: '#6D747B', fontSize: 13, marginTop: 7, textAlign: 'center', lineHeight: 20 },
+  stateTitle: { color: '#171A1D', fontSize: 18, fontWeight: '600', marginTop: 12, textAlign: 'center' },
+  stateText: { color: '#6D747B', fontSize: 13, marginTop: 8, textAlign: 'center', lineHeight: 20 },
 });

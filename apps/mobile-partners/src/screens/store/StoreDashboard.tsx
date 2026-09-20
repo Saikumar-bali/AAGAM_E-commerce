@@ -54,7 +54,7 @@ function locationLabel(store: StoreSummary) {
 function statusTone(status: string) {
   if (status === 'ACTIVE') return { color: '#138C37', backgroundColor: '#EAF9EC' };
   if (status === 'PENDING') return { color: '#ED7D16', backgroundColor: '#FFF3E7' };
-  return { color: '#087B5A', backgroundColor: '#EAF8F2' };
+  return { color: '#0F766E', backgroundColor: '#EAF8F2' };
 }
 
 export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
@@ -99,7 +99,7 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#057A55" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -130,14 +130,14 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
             </TouchableOpacity>
           </View>
           <Text style={styles.welcome}>Welcome back,</Text>
-          <Text style={styles.storeName} numberOfLines={1}>{headline} 👋</Text>
+          <Text style={styles.storeName} numberOfLines={1}>{headline}</Text>
           <Text style={styles.heroSubtitle}>Have a great day ahead!</Text>
         </View>
 
         <View style={styles.bodySheet}>
           {storesQuery.isLoading ? (
             <View style={styles.stateCard}>
-              <ActivityIndicator size="large" color="#078B61" />
+              <ActivityIndicator size="large" color="#0F766E" />
               <Text style={styles.stateText}>Loading your stores…</Text>
             </View>
           ) : storesQuery.isError ? (
@@ -164,9 +164,9 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
               </View>
 
               <View style={styles.statsGrid}>
-                <DashboardStat icon={Store} title="Stores" value={String(totals.stores)} subtitle="Assigned" tone="#087B5A" iconBackground="#E8F8EE" />
+                <DashboardStat icon={Store} title="Stores" value={String(totals.stores)} subtitle="Assigned" tone="#0F766E" iconBackground="#E8F8EE" />
                 <DashboardStat icon={ShoppingCart} title="Orders" value={String(totals.orders)} subtitle="All time" tone="#1557A4" iconBackground="#E8F1FD" />
-                <DashboardStat icon={IndianRupee} title="Revenue" value={`₹ ${totals.revenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} subtitle="Recorded" tone="#087B5A" iconBackground="#E8F8EE" />
+                <DashboardStat icon={IndianRupee} title="Revenue" value={`₹ ${totals.revenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} subtitle="Recorded" tone="#0F766E" iconBackground="#E8F8EE" />
                 <DashboardStat icon={Box} title="Products" value={String(totals.inventory)} subtitle="In Inventory" tone="#5A2DB7" iconBackground="#F0EAFE" />
               </View>
 
@@ -177,13 +177,13 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
                 style={styles.subscriptionRunCard}
                 onPress={() => navigation?.getParent?.()?.navigate?.('StoreSubscriptionOperations')}
               >
-                <View style={styles.subscriptionRunIcon}><Route size={25} color="#087B5A" /></View>
+                <View style={styles.subscriptionRunIcon}><Route size={25} color="#0F766E" /></View>
                 <View style={styles.subscriptionRunCopy}>
                   <Text style={styles.subscriptionRunEyebrow}>SUBSCRIPTION OPERATIONS</Text>
                   <Text style={styles.subscriptionRunTitle}>Morning runs & cash control</Text>
-                  <Text style={styles.subscriptionRunText}>Forecast demand, verify bags, confirm pickup and settle rider cash.</Text>
+                  <Text style={styles.subscriptionRunText}>Forecast demand, pack bags, and settle cash.</Text>
                 </View>
-                <ChevronRight size={22} color="#087B5A" />
+                <ChevronRight size={22} color="#0F766E" />
               </TouchableOpacity>
 
               <View style={styles.sectionHeader}>
@@ -208,7 +208,7 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
                         params: { storeId: store.id },
                       })}
                     >
-                      <View style={styles.storeIcon}><Store size={23} color="#087B5A" /></View>
+                      <View style={styles.storeIcon}><Store size={23} color="#0F766E" /></View>
                       <View style={styles.storeCopy}>
                         <Text style={styles.storeRowName} numberOfLines={1}>{store.name || 'Store'}</Text>
                         <Text style={styles.storeAddress} numberOfLines={1}>{locationLabel(store)}</Text>
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 106 },
   hero: {
     minHeight: 292,
-    backgroundColor: '#057A55',
+    backgroundColor: '#0F766E',
     paddingTop: 48,
     paddingHorizontal: 20,
     overflow: 'hidden',
@@ -299,17 +299,17 @@ const styles = StyleSheet.create({
     minWidth: 23,
     height: 23,
     borderRadius: 12,
-    paddingHorizontal: 5,
+    paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F02525',
     borderWidth: 2,
-    borderColor: '#057A55',
+    borderColor: '#0F766E',
   },
-  notificationBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
+  notificationBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '600' },
   welcome: { color: '#E9FFF6', fontSize: 16, marginTop: 18 },
-  storeName: { color: '#FFFFFF', fontSize: 32, fontWeight: '900', marginTop: 4 },
-  heroSubtitle: { color: '#F1FFF9', fontSize: 17, marginTop: 7 },
+  storeName: { color: '#FFFFFF', fontSize: 32, fontWeight: '600', marginTop: 4 },
+  heroSubtitle: { color: '#F1FFF9', fontSize: 17, marginTop: 8 },
   bodySheet: {
     minHeight: 520,
     marginTop: -6,
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 48,
     marginBottom: 16,
-    gap: 9,
+    gap: 8,
   },
   searchInput: {
     flex: 1,
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
   searchClear: {
     fontSize: 16,
     color: '#94A3B8',
-    fontWeight: '700',
+    fontWeight: '500',
   },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   statCard: {
@@ -360,29 +360,29 @@ const styles = StyleSheet.create({
   },
   statHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   statIcon: { width: 43, height: 43, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  statTitle: { fontSize: 15, fontWeight: '900' },
-  statValue: { color: '#10131A', fontSize: 29, fontWeight: '900', marginTop: 23 },
-  statSubtitle: { color: '#626871', fontSize: 13, marginTop: 5 },
+  statTitle: { fontSize: 15, fontWeight: '600' },
+  statValue: { color: '#10131A', fontSize: 29, fontWeight: '600', marginTop: 23 },
+  statSubtitle: { color: '#626871', fontSize: 13, marginTop: 4 },
   subscriptionRunCard: { marginTop: 18, borderRadius: 20, backgroundColor: '#EAF8F2', borderWidth: 1, borderColor: '#B8E0D0', padding: 14, flexDirection: 'row', alignItems: 'center' },
   subscriptionRunIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   subscriptionRunCopy: { flex: 1, marginHorizontal: 11 },
-  subscriptionRunEyebrow: { color: '#087B5A', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  subscriptionRunTitle: { color: '#17211D', fontSize: 14, fontWeight: '900', marginTop: 2 },
+  subscriptionRunEyebrow: { color: '#0F766E', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
+  subscriptionRunTitle: { color: '#17211D', fontSize: 14, fontWeight: '600', marginTop: 2 },
   subscriptionRunText: { color: '#557166', fontSize: 10, lineHeight: 15, marginTop: 2 },
-  sectionHeader: { marginTop: 15, marginBottom: 13, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { color: '#111417', fontSize: 19, fontWeight: '900' },
-  viewAll: { color: '#078B61', fontSize: 14, fontWeight: '800' },
+  sectionHeader: { marginTop: 15, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sectionTitle: { color: '#111417', fontSize: 19, fontWeight: '600' },
+  viewAll: { color: '#0F766E', fontSize: 14, fontWeight: '600' },
   storeList: { borderRadius: 17, borderWidth: 1, borderColor: '#E1E4E3', backgroundColor: '#FFFFFF', overflow: 'hidden' },
-  storeRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13 },
+  storeRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
   storeRowBorder: { borderBottomWidth: 1, borderBottomColor: '#ECEEED' },
   storeIcon: { width: 45, height: 45, borderRadius: 13, backgroundColor: '#E8F8EE', alignItems: 'center', justifyContent: 'center' },
   storeCopy: { flex: 1, marginLeft: 12, marginRight: 8 },
-  storeRowName: { color: '#15181C', fontSize: 14, fontWeight: '900' },
+  storeRowName: { color: '#15181C', fontSize: 14, fontWeight: '600' },
   storeAddress: { color: '#697078', fontSize: 11, marginTop: 4 },
-  statusPill: { borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7 },
-  statusText: { fontSize: 10, fontWeight: '900' },
+  statusPill: { borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8 },
+  statusText: { fontSize: 10, fontWeight: '600' },
   stateCard: { minHeight: 300, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  stateTitle: { color: '#161A1D', fontSize: 18, fontWeight: '900', marginTop: 12, textAlign: 'center' },
-  stateText: { color: '#6D747B', fontSize: 13, textAlign: 'center', marginTop: 7 },
+  stateTitle: { color: '#161A1D', fontSize: 18, fontWeight: '600', marginTop: 12, textAlign: 'center' },
+  stateText: { color: '#6D747B', fontSize: 13, textAlign: 'center', marginTop: 8 },
   emptyAssigned: { minHeight: 220, alignItems: 'center', justifyContent: 'center', padding: 24 },
 });

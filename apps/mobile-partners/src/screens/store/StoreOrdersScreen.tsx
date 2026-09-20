@@ -247,7 +247,7 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
           <RefreshControl
             refreshing={storesQuery.isFetching || ordersQuery.isFetching}
             onRefresh={() => void refresh()}
-            tintColor="#078B61"
+            tintColor="#0F766E"
           />
         )}
         ListHeaderComponent={(
@@ -266,7 +266,7 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
                       style={[styles.storeChip, selected && styles.storeChipActive]}
                       onPress={() => setSelectedStoreId(store.id)}
                     >
-                      <Store size={15} color={selected ? '#FFFFFF' : '#087B5A'} />
+                      <Store size={15} color={selected ? '#FFFFFF' : '#0F766E'} />
                       <Text
                         style={[styles.storeChipText, selected && styles.storeChipTextActive]}
                         numberOfLines={1}
@@ -320,7 +320,7 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
                   style={[styles.pageButton, page <= 1 && styles.disabled]}
                   onPress={() => setPage((current) => Math.max(1, current - 1))}
                 >
-                  <ChevronLeft size={17} color="#087B5A" />
+                  <ChevronLeft size={17} color="#0F766E" />
                   <Text style={styles.pageButtonText}>Previous</Text>
                 </TouchableOpacity>
                 <Text style={styles.pageLabel}>Page {page} of {totalPages} · {total} orders</Text>
@@ -331,7 +331,7 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
                   onPress={() => setPage((current) => Math.min(totalPages, current + 1))}
                 >
                   <Text style={styles.pageButtonText}>Next</Text>
-                  <ChevronRight size={17} color="#087B5A" />
+                  <ChevronRight size={17} color="#0F766E" />
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -356,7 +356,7 @@ function StateCard({
 }) {
   return (
     <View style={styles.stateCard}>
-      {loading ? <ActivityIndicator size="large" color="#078B61" /> : icon}
+      {loading ? <ActivityIndicator size="large" color="#0F766E" /> : icon}
       <Text style={styles.stateTitle}>{title}</Text>
       <Text style={styles.stateText}>{text}</Text>
     </View>
@@ -392,7 +392,7 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
       <Text style={styles.customerName}>{orderCustomerName(order)}</Text>
       <Text style={styles.customerPhone}>{phone || 'Contact unavailable'}</Text>
 
-      {scheduledWindow ? <View style={styles.scheduleBanner}><CalendarClock size={18} color="#087B5A"/><View style={styles.flex}><Text style={styles.scheduleLabel}>SCHEDULED DELIVERY</Text><Text style={styles.scheduleTime}>{scheduledWindow}</Text></View></View> : null}
+      {scheduledWindow ? <View style={styles.scheduleBanner}><CalendarClock size={18} color="#0F766E"/><View style={styles.flex}><Text style={styles.scheduleLabel}>SCHEDULED DELIVERY</Text><Text style={styles.scheduleTime}>{scheduledWindow}</Text></View></View> : null}
 
       {items.length ? (
         <View style={styles.itemsPreview}>
@@ -424,60 +424,60 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#FAFBFA' }, flex: { flex: 1 },
   header: { height: 115, paddingTop: 50, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF' },
   headerIcon: { width: 50, height: 50, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', color: '#11131A', fontSize: 25, fontWeight: '900' },
+  headerTitle: { flex: 1, textAlign: 'center', color: '#11131A', fontSize: 25, fontWeight: '600' },
   notificationBadge: { position: 'absolute', right: 1, top: 1, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#F02525', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
+  notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '600' },
   tabsScroll: { maxHeight: 69, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E3E5E4' },
   tabs: { paddingHorizontal: 18, gap: 20, alignItems: 'stretch' },
-  tab: { minWidth: 76, height: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderBottomWidth: 4, borderBottomColor: 'transparent' },
-  tabActive: { borderBottomColor: '#0C904A' },
-  tabText: { color: '#5C626B', fontSize: 13, fontWeight: '700' },
-  tabTextActive: { color: '#0A843E', fontWeight: '900' },
+  tab: { minWidth: 76, height: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderBottomWidth: 4, borderBottomColor: 'transparent' },
+  tabActive: { borderBottomColor: '#0F766E' },
+  tabText: { color: '#5C626B', fontSize: 13, fontWeight: '500' },
+  tabTextActive: { color: '#0F766E', fontWeight: '600' },
   tabCount: { minWidth: 28, height: 28, borderRadius: 14, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF1F3' },
-  tabCountActive: { backgroundColor: '#1B934A' },
-  tabCountText: { color: '#3F474F', fontSize: 12, fontWeight: '900' },
+  tabCountActive: { backgroundColor: '#0F766E' },
+  tabCountText: { color: '#3F474F', fontSize: 12, fontWeight: '600' },
   tabCountTextActive: { color: '#FFFFFF' },
   content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20 },
   storeRail: { gap: 8, paddingBottom: 8 },
-  storeChip: { maxWidth: 190, height: 39, borderRadius: 13, borderWidth: 1, borderColor: '#CFE4DB', backgroundColor: '#FFFFFF', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  storeChipActive: { backgroundColor: '#087B5A', borderColor: '#087B5A' },
-  storeChipText: { color: '#087B5A', fontSize: 11, fontWeight: '800', flexShrink: 1 },
+  storeChip: { maxWidth: 190, height: 39, borderRadius: 13, borderWidth: 1, borderColor: '#CFE4DB', backgroundColor: '#FFFFFF', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  storeChipActive: { backgroundColor: '#0F766E', borderColor: '#0F766E' },
+  storeChipText: { color: '#0F766E', fontSize: 11, fontWeight: '600', flexShrink: 1 },
   storeChipTextActive: { color: '#FFFFFF' },
-  searchBox: { height: 48, borderRadius: 14, borderWidth: 1, borderColor: '#D9DEDC', backgroundColor: '#FFFFFF', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 6, marginBottom: 2 },
-  searchInput: { flex: 1, color: '#11131A', fontSize: 13, fontWeight: '700' },
-  orderCard: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E4E3', padding: 17, marginTop: 13, shadowColor: '#1C2923', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  searchBox: { height: 48, borderRadius: 14, borderWidth: 1, borderColor: '#D9DEDC', backgroundColor: '#FFFFFF', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 2 },
+  searchInput: { flex: 1, color: '#11131A', fontSize: 13, fontWeight: '500' },
+  orderCard: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E4E3', padding: 17, marginTop: 12, shadowColor: '#1C2923', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   orderTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  orderId: { flex: 1, color: '#11131A', fontSize: 19, fontWeight: '900' },
-  statusPill: { borderRadius: 8, paddingHorizontal: 11, paddingVertical: 7 },
-  statusText: { fontSize: 11, fontWeight: '900' },
+  orderId: { flex: 1, color: '#11131A', fontSize: 19, fontWeight: '600' },
+  statusPill: { borderRadius: 8, paddingHorizontal: 11, paddingVertical: 8 },
+  statusText: { fontSize: 11, fontWeight: '600' },
   orderTime: { color: '#5D6570', fontSize: 13 },
-  customerName: { color: '#11131A', fontSize: 17, fontWeight: '900', marginTop: 13 },
+  customerName: { color: '#11131A', fontSize: 17, fontWeight: '600', marginTop: 12 },
   customerPhone: { color: '#5D6570', fontSize: 15, marginTop: 4 },
-  scheduleBanner: { marginTop: 13, borderRadius: 13, borderWidth: 1, borderColor: '#B8E5D5', backgroundColor: '#ECFDF5', padding: 11, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  scheduleLabel: { color: '#087B5A', fontSize: 9, fontWeight: '900', letterSpacing: 0.7 },
-  scheduleTime: { color: '#12352A', fontSize: 12, fontWeight: '800', marginTop: 2 },
-  itemsPreview: { borderRadius: 11, backgroundColor: '#F7F9F8', paddingHorizontal: 11, paddingVertical: 7, marginTop: 13 },
+  scheduleBanner: { marginTop: 12, borderRadius: 13, borderWidth: 1, borderColor: '#B8E5D5', backgroundColor: '#ECFDF5', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  scheduleLabel: { color: '#0F766E', fontSize: 9, fontWeight: '600', letterSpacing: 0.7 },
+  scheduleTime: { color: '#12352A', fontSize: 12, fontWeight: '600', marginTop: 2 },
+  itemsPreview: { borderRadius: 11, backgroundColor: '#F7F9F8', paddingHorizontal: 11, paddingVertical: 8, marginTop: 12 },
   previewRow: { minHeight: 27, flexDirection: 'row', alignItems: 'center' },
-  previewName: { flex: 1, color: '#4B535C', fontSize: 11, fontWeight: '700' },
-  previewQuantity: { color: '#161A1D', fontSize: 11, fontWeight: '900', marginLeft: 10 },
-  moreItems: { color: '#078B4D', fontSize: 10, fontWeight: '900', marginTop: 3 },
-  orderMetaRow: { marginTop: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  orderTotal: { color: '#11131A', fontSize: 21, fontWeight: '900' },
+  previewName: { flex: 1, color: '#4B535C', fontSize: 11, fontWeight: '500' },
+  previewQuantity: { color: '#161A1D', fontSize: 11, fontWeight: '600', marginLeft: 10 },
+  moreItems: { color: '#0F766E', fontSize: 10, fontWeight: '600', marginTop: 4 },
+  orderMetaRow: { marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  orderTotal: { color: '#11131A', fontSize: 21, fontWeight: '600' },
   itemCount: { color: '#59616B', fontSize: 14 },
   paymentRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center' },
   paymentLabel: { color: '#626A74', fontSize: 14, marginRight: 18 },
-  paymentPill: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  paymentPill: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
   prepaidPill: { backgroundColor: '#EAF9EE', borderWidth: 1, borderColor: '#C8EBCF' },
   codPill: { backgroundColor: '#FFF3E8', borderWidth: 1, borderColor: '#FFD7B4' },
-  paymentText: { fontSize: 12, fontWeight: '900' },
+  paymentText: { fontSize: 12, fontWeight: '600' },
   prepaidText: { color: '#087C35' },
   codText: { color: '#B85907' },
   stateCard: { minHeight: 250, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  stateTitle: { color: '#171A1D', fontSize: 18, fontWeight: '900', marginTop: 12, textAlign: 'center' },
-  stateText: { color: '#6D747B', fontSize: 13, marginTop: 7, textAlign: 'center', lineHeight: 20 },
+  stateTitle: { color: '#171A1D', fontSize: 18, fontWeight: '600', marginTop: 12, textAlign: 'center' },
+  stateText: { color: '#6D747B', fontSize: 13, marginTop: 8, textAlign: 'center', lineHeight: 20 },
   pagination: { marginTop: 18, borderRadius: 16, borderWidth: 1, borderColor: '#E2E4E3', backgroundColor: '#FFFFFF', padding: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  pageButton: { minHeight: 39, borderRadius: 11, backgroundColor: '#EAF9F1', paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 3 },
-  pageButtonText: { color: '#087B5A', fontSize: 10, fontWeight: '900' },
-  pageLabel: { color: '#5D6570', fontSize: 9, fontWeight: '800', textAlign: 'center' },
+  pageButton: { minHeight: 39, borderRadius: 11, backgroundColor: '#EAF9F1', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pageButtonText: { color: '#0F766E', fontSize: 10, fontWeight: '600' },
+  pageLabel: { color: '#5D6570', fontSize: 9, fontWeight: '600', textAlign: 'center' },
   disabled: { opacity: 0.38 },
 });

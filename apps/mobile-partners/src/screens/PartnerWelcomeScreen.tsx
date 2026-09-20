@@ -14,8 +14,8 @@ import { AagamMark } from '../components/AagamMark';
 import { resolveApplicantInitialRoute } from '../navigation/applicantRoute';
 import { usePartnerOnboardingStore } from '../onboarding/usePartnerOnboardingStore';
 
-const BRAND_GREEN = '#057A55';
-const ACTION_GREEN = '#078B4D';
+const BRAND_GREEN = '#0F766E';
+const ACTION_GREEN = '#0F766E';
 
 export function PartnerWelcomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -98,7 +98,7 @@ export function PartnerWelcomeScreen({ navigation }: any) {
             onPress={() => startApplication('RIDER')}
           >
             <View style={[styles.roleIcon, styles.riderIcon]}>
-              <Bike size={34} color="#078B61" strokeWidth={2.3} />
+              <Bike size={34} color="#0F766E" strokeWidth={2.3} />
             </View>
             <Text style={styles.roleTitle}>Delivery Partner</Text>
           </TouchableOpacity>
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    paddingHorizontal: 22,
+    paddingHorizontal: 24,
   },
   brandBlock: {
     alignItems: 'center',
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontSize: 35,
     lineHeight: 40,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: -1.4,
     marginTop: 14,
   },
@@ -188,29 +188,29 @@ const styles = StyleSheet.create({
     color: BRAND_GREEN,
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: 2.2,
     marginTop: 1,
   },
   headingBlock: {
     alignItems: 'center',
-    marginTop: 37,
-    marginBottom: 25,
+    marginTop: 36,
+    marginBottom: 24,
   },
   kicker: {
     color: BRAND_GREEN,
     fontSize: 11,
     lineHeight: 16,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    marginBottom: 7,
+    marginBottom: 8,
   },
   title: {
     color: '#0F172A',
     fontSize: 31,
     lineHeight: 37,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: -1,
     textAlign: 'center',
   },
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     textAlign: 'center',
     maxWidth: 330,
-    marginTop: 9,
+    marginTop: 8,
     fontWeight: '600',
   },
   signInButton: {
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#FFFFFF',
     fontSize: 19,
-    fontWeight: '900',
+    fontWeight: '600',
     textAlign: 'center',
     marginLeft: -8,
   },
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontSize: 15,
     lineHeight: 20,
-    fontWeight: '900',
+    fontWeight: '600',
     textAlign: 'center',
     marginTop: 14,
   },
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginTop: 17,
+    marginTop: 16,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.05,
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#0F172A',
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: '600',
     marginLeft: 12,
   },
 });

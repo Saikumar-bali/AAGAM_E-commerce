@@ -25,6 +25,6 @@ export const RootNavigator = () => {
 
 const styles = StyleSheet.create({
   loadingPage: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 28, gap: 15 },
-  loadingTitle: { color: '#0F172A', fontSize: 21, fontWeight: '900', marginTop: 5 }, loadingSub: { color: '#64748B', fontSize: 13, fontWeight: '600', marginTop: -7 },
-  wrongRolePage: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 32 }, wrongRoleTitle: { color: '#0F172A', fontSize: 22, fontWeight: '900', marginTop: 26 }, wrongRoleText: { color: '#64748B', fontSize: 15, fontWeight: '600', marginTop: 10, textAlign: 'center', lineHeight: 22 },
+  loadingTitle: { color: '#0F172A', fontSize: 21, fontWeight: '600', marginTop: 4 }, loadingSub: { color: '#64748B', fontSize: 13, fontWeight: '600', marginTop: -7 },
+  wrongRolePage: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 32 }, wrongRoleTitle: { color: '#0F172A', fontSize: 22, fontWeight: '600', marginTop: 26 }, wrongRoleText: { color: '#64748B', fontSize: 15, fontWeight: '600', marginTop: 10, textAlign: 'center', lineHeight: 22 },
 });

@@ -74,7 +74,7 @@ export function PartnerResumeScreen({ navigation }: any) {
   return (
     <OnboardingShell
       title="Resume your application"
-      subtitle="Use the phone number or email already attached to the application. No application ID or secret token is required."
+      subtitle="Enter the phone or email from your application."
       onBack={() => navigation.goBack()}
     >
       {!masked ? (
@@ -120,23 +120,23 @@ export function PartnerResumeScreen({ navigation }: any) {
           <TouchableOpacity onPress={() => { setMasked(''); setCode(''); }}><Text style={styles.change}>Use a different contact</Text></TouchableOpacity>
         </Section>
       )}
-      <View style={styles.secure}><ShieldCheck size={17} color={palette.green} /><Text style={styles.secureText}>Recovery rotates the old application access secret and restores your saved profile, documents and review status.</Text></View>
+      <View style={styles.secure}><ShieldCheck size={17} color={palette.green} /><Text style={styles.secureText}>Recovery restores your saved application and documents.</Text></View>
     </OnboardingShell>
   );
 }
 
 const styles = StyleSheet.create({
   identityIcon: { width: 58, height: 58, borderRadius: 20, backgroundColor: '#F0FDFA', alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
-  otpRow: { flexDirection: 'row', gap: 7, justifyContent: 'space-between' },
+  otpRow: { flexDirection: 'row', gap: 8, justifyContent: 'space-between' },
   otpCell: { flex: 1, maxWidth: 52, height: 58, borderRadius: 15, borderWidth: 1.5, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
   otpCellActive: { borderColor: '#14B8A6', backgroundColor: '#F0FDFA' },
-  otpDigit: { color: palette.ink, fontSize: 23, fontWeight: '900' },
+  otpDigit: { color: palette.ink, fontSize: 23, fontWeight: '600' },
   hiddenInput: { position: 'absolute', width: 1, height: 1, opacity: 0 },
   resend: { alignItems: 'center', paddingVertical: 8 },
-  resendText: { color: palette.teal, fontSize: 12, fontWeight: '900' },
+  resendText: { color: palette.teal, fontSize: 12, fontWeight: '600' },
   resendDisabled: { color: '#94A3B8' },
-  change: { color: '#64748B', textAlign: 'center', fontSize: 12, fontWeight: '800' },
+  change: { color: '#64748B', textAlign: 'center', fontSize: 12, fontWeight: '600' },
   devCode: { color: '#64748B', textAlign: 'center', fontSize: 11 },
-  secure: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', borderRadius: 15, backgroundColor: '#F0FDF4', padding: 13 },
-  secureText: { flex: 1, color: '#166534', fontSize: 11, lineHeight: 17, fontWeight: '700' },
+  secure: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', borderRadius: 15, backgroundColor: '#F0FDF4', padding: 12 },
+  secureText: { flex: 1, color: '#166534', fontSize: 11, lineHeight: 17, fontWeight: '500' },
 });

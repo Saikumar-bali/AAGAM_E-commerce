@@ -39,7 +39,7 @@ export const RiderDocumentPreviewScreen = ({ route, navigation }: { route: any; 
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#067B5C" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider documents" style={styles.headerButton} onPress={() => navigation.goBack()}><ArrowLeft size={23} color="#FFFFFF" /></TouchableOpacity>
         <View style={styles.flex}><Text style={styles.eyebrow}>SIGNED PRIVATE PREVIEW</Text><Text style={styles.title}>{document ? label(document.type) : 'Document preview'}</Text></View>
@@ -91,13 +91,13 @@ function Fact({ label: factLabel, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#067B5C', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '900', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 21, fontWeight: '900' },
+  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 21, fontWeight: '600' },
   previewFrame: { height: 430, margin: 14, borderRadius: 18, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1' }, webview: { flex: 1, backgroundColor: '#FFFFFF' },
-  pdfState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }, pdfTitle: { color: '#0F172A', fontSize: 19, fontWeight: '900', marginTop: 12 }, pdfText: { color: '#64748B', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 7 },
-  primary: { minHeight: 50, borderRadius: 14, backgroundColor: '#067B5C', marginTop: 17, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, primaryText: { color: '#FFFFFF', fontWeight: '900' },
-  card: { marginHorizontal: 14, marginBottom: 12, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 15 }, cardTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900', marginBottom: 6 },
-  fact: { paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E2E8F0' }, factLabel: { color: '#64748B', fontSize: 10, fontWeight: '800' }, factValue: { color: '#0F172A', fontSize: 13, fontWeight: '700', marginTop: 3 },
-  historyRow: { flexDirection: 'row', gap: 10, paddingVertical: 10 }, dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0F766E', marginTop: 4 }, historyTitle: { color: '#0F172A', fontSize: 12, fontWeight: '900' }, historyMeta: { color: '#64748B', fontSize: 10, marginTop: 3 }, historyNote: { color: '#7F1D1D', fontSize: 10, lineHeight: 15, marginTop: 4 },
-  state: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }, stateTitle: { color: '#0F172A', fontSize: 19, fontWeight: '900' }, stateText: { color: '#64748B', textAlign: 'center', marginTop: 8 },
+  pdfState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }, pdfTitle: { color: '#0F172A', fontSize: 19, fontWeight: '600', marginTop: 12 }, pdfText: { color: '#64748B', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 8 },
+  primary: { minHeight: 50, borderRadius: 14, backgroundColor: '#0F766E', marginTop: 16, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, primaryText: { color: '#FFFFFF', fontWeight: '600' },
+  card: { marginHorizontal: 14, marginBottom: 12, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16 }, cardTitle: { color: '#0F172A', fontSize: 16, fontWeight: '600', marginBottom: 6 },
+  fact: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E2E8F0' }, factLabel: { color: '#64748B', fontSize: 10, fontWeight: '600' }, factValue: { color: '#0F172A', fontSize: 13, fontWeight: '500', marginTop: 4 },
+  historyRow: { flexDirection: 'row', gap: 10, paddingVertical: 10 }, dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0F766E', marginTop: 4 }, historyTitle: { color: '#0F172A', fontSize: 12, fontWeight: '600' }, historyMeta: { color: '#64748B', fontSize: 10, marginTop: 4 }, historyNote: { color: '#7F1D1D', fontSize: 10, lineHeight: 15, marginTop: 4 },
+  state: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }, stateTitle: { color: '#0F172A', fontSize: 19, fontWeight: '600' }, stateText: { color: '#64748B', textAlign: 'center', marginTop: 8 },
 });

@@ -248,7 +248,7 @@ export const LoginScreen = () => {
             </View> : null}
 
             {mode === 'PHONE' ? !masked ? <>
-              <View style={styles.infoPanel}><ShieldCheck size={18} color="#0F766E" /><Text style={styles.infoText}>A single-use OTP keeps your account protected.</Text></View>
+              <View style={styles.infoPanel}><ShieldCheck size={18} color="#0F766E" /><Text style={styles.infoText}>A one-time code keeps your account safe.</Text></View>
               <Text style={styles.label}>Mobile number</Text>
               <View style={styles.inputWrapper}><View style={styles.countryCode}><Text style={styles.countryCodeText}>+91</Text></View><TextInput testID="customer_phone_input" style={styles.input} value={phone} onChangeText={(value) => setPhone(digitsOnly(value))} placeholder="10-digit mobile number" keyboardType="number-pad" autoComplete="tel-national" textContentType="telephoneNumber" maxLength={10} placeholderTextColor="#94A3B8" /></View>
               <TouchableOpacity style={[styles.primary, (requesting || phone.length !== 10) && styles.buttonDisabled]} onPress={requestCode} disabled={requesting || phone.length !== 10}>{requesting ? <ActivityIndicator color="#fff" /> : <><Text style={styles.primaryText}>Continue with OTP</Text><ArrowRight size={19} color="#fff" /></>}</TouchableOpacity>
@@ -272,7 +272,7 @@ export const LoginScreen = () => {
 
             {!masked ? <><View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>or</Text><View style={styles.line} /></View><TouchableOpacity style={[styles.google, !googleClientConfigured && styles.buttonDisabled]} onPress={handleGoogleLogin} disabled={googleLoading || !googleClientConfigured}>{googleLoading ? <ActivityIndicator /> : <><GoogleG size={22} /><Text style={styles.googleText}>Continue with Google</Text></>}</TouchableOpacity></> : null}
           </View>
-          <View style={styles.secure}><ShieldCheck size={19} color="#0F766E" /><Text style={styles.secureText}>Your data is secure and protected with industry-standard encryption.</Text></View>
+          <View style={styles.secure}><ShieldCheck size={19} color="#0F766E" /><Text style={styles.secureText}>Your data is encrypted and secure.</Text></View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -287,49 +287,49 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 34, paddingBottom: 42, justifyContent: 'center' },
   header: { alignItems: 'center', marginBottom: 22 },
   brandLockup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 17 },
-  brandName: { color: '#0F172A', fontSize: 34, lineHeight: 38, fontWeight: '900', letterSpacing: -1.2 },
-  brandCaption: { marginTop: 1, color: '#0F766E', fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
-  subtitle: { marginTop: 24, color: '#64748B', fontWeight: '700', textAlign: 'center', lineHeight: 20 },
+  brandName: { color: '#0F172A', fontSize: 34, lineHeight: 38, fontWeight: '600', letterSpacing: -1.2 },
+  brandCaption: { marginTop: 1, color: '#0F766E', fontSize: 11, fontWeight: '600', letterSpacing: 1.1 },
+  subtitle: { marginTop: 24, color: '#64748B', fontWeight: '500', textAlign: 'center', lineHeight: 20 },
   card: { backgroundColor: '#FFFFFF', borderRadius: 30, padding: 22, gap: 13, borderWidth: 1, borderColor: '#E7EEF5', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.11, shadowRadius: 25, elevation: 7 },
-  cardTitle: { fontSize: 24, fontWeight: '900', color: '#0F172A', letterSpacing: -0.7 },
+  cardTitle: { fontSize: 24, fontWeight: '600', color: '#0F172A', letterSpacing: -0.7 },
   cardSubtitle: { color: '#64748B', lineHeight: 20, marginBottom: 2 },
-  tabs: { flexDirection: 'row', padding: 4, borderRadius: 15, backgroundColor: '#EEF2F7', marginTop: 3 },
-  tab: { flex: 1, height: 44, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  tabs: { flexDirection: 'row', padding: 4, borderRadius: 15, backgroundColor: '#EEF2F7', marginTop: 4 },
+  tab: { flex: 1, height: 44, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   tabActive: { backgroundColor: '#0F766E' },
-  tabText: { color: '#64748B', fontWeight: '900' },
+  tabText: { color: '#64748B', fontWeight: '600' },
   tabTextActive: { color: '#FFFFFF' },
-  infoPanel: { flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 15, padding: 12, backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#99F6E4' },
-  infoText: { flex: 1, color: '#115E59', fontSize: 12, fontWeight: '700', lineHeight: 17 },
-  label: { color: '#334155', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 2 },
-  inputWrapper: { minHeight: 57, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 17, borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC', paddingHorizontal: 15 },
+  infoPanel: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 15, padding: 12, backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#99F6E4' },
+  infoText: { flex: 1, color: '#115E59', fontSize: 12, fontWeight: '500', lineHeight: 17 },
+  label: { color: '#334155', fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 2 },
+  inputWrapper: { minHeight: 57, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 17, borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC', paddingHorizontal: 16 },
   countryCode: { borderRightWidth: 1, borderRightColor: '#CBD5E1', paddingRight: 11 },
-  countryCodeText: { color: '#0F766E', fontWeight: '900' },
-  input: { flex: 1, color: '#0F172A', fontSize: 15, fontWeight: '700' },
-  forgot: { marginTop: -5, textAlign: 'right', color: '#0F766E', fontSize: 13, fontWeight: '900' },
-  accountPrompt: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
-  accountPromptText: { color: '#64748B', fontSize: 13, fontWeight: '700' },
-  accountPromptLink: { color: '#0F766E', fontSize: 13, fontWeight: '900' },
-  primary: { minHeight: 58, borderRadius: 17, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9, shadowColor: '#0F766E', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 15, elevation: 4 },
-  primaryText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
+  countryCodeText: { color: '#0F766E', fontWeight: '600' },
+  input: { flex: 1, color: '#0F172A', fontSize: 15, fontWeight: '500' },
+  forgot: { marginTop: -5, textAlign: 'right', color: '#0F766E', fontSize: 13, fontWeight: '600' },
+  accountPrompt: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  accountPromptText: { color: '#64748B', fontSize: 13, fontWeight: '500' },
+  accountPromptLink: { color: '#0F766E', fontSize: 13, fontWeight: '600' },
+  primary: { minHeight: 58, borderRadius: 17, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, shadowColor: '#0F766E', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 15, elevation: 4 },
+  primaryText: { color: '#FFFFFF', fontWeight: '600', fontSize: 15 },
   buttonDisabled: { opacity: 0.5 },
-  sent: { color: '#475569', fontWeight: '800', textAlign: 'center' },
-  profilePanel: { backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#99F6E4', borderRadius: 19, padding: 14, gap: 11 },
-  profileTitle: { color: '#134E4A', fontWeight: '900', fontSize: 15 },
+  sent: { color: '#475569', fontWeight: '600', textAlign: 'center' },
+  profilePanel: { backgroundColor: '#F0FDFA', borderWidth: 1, borderColor: '#99F6E4', borderRadius: 19, padding: 14, gap: 12 },
+  profileTitle: { color: '#134E4A', fontWeight: '600', fontSize: 15 },
   profileHelp: { color: '#0F766E', fontSize: 12, lineHeight: 17 },
-  otpLabel: { color: '#334155', fontSize: 12, fontWeight: '900', textAlign: 'center', marginTop: 2 },
+  otpLabel: { color: '#334155', fontSize: 12, fontWeight: '600', textAlign: 'center', marginTop: 2 },
   otpRow: { flexDirection: 'row', gap: 6 },
   otpCell: { flex: 1, height: 54, borderRadius: 13, borderWidth: 1.5, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
   otpActive: { borderColor: '#14B8A6', backgroundColor: '#F0FDFA' },
-  otpDigit: { color: '#0F172A', fontSize: 22, fontWeight: '900' },
+  otpDigit: { color: '#0F172A', fontSize: 22, fontWeight: '600' },
   hiddenOtpInput: { position: 'absolute', height: 1, width: 1, opacity: 0 },
-  link: { color: '#0F766E', fontWeight: '900', textAlign: 'center' },
+  link: { color: '#0F766E', fontWeight: '600', textAlign: 'center' },
   linkDisabled: { color: '#94A3B8' },
-  secondaryLink: { color: '#64748B', fontWeight: '800', textAlign: 'center' },
+  secondaryLink: { color: '#64748B', fontWeight: '600', textAlign: 'center' },
   divider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   line: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
-  dividerText: { color: '#94A3B8', fontWeight: '800' },
+  dividerText: { color: '#94A3B8', fontWeight: '600' },
   google: { minHeight: 55, borderRadius: 17, borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  googleText: { color: '#1E293B', fontWeight: '900' },
-  secure: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  secureText: { color: '#64748B', fontSize: 11, fontWeight: '700' },
+  googleText: { color: '#1E293B', fontWeight: '600' },
+  secure: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  secureText: { color: '#64748B', fontSize: 11, fontWeight: '500' },
 });

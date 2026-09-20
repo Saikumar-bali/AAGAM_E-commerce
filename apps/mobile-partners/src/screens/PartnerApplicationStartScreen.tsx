@@ -108,7 +108,7 @@ export function PartnerApplicationStartScreen({ navigation, route }: any) {
 }
 
 const styles = StyleSheet.create({
-  primaryLabel: { color: palette.teal, fontSize: 12, fontWeight: '900' },
-  contactLabel: { color: palette.muted, fontSize: 12, fontWeight: '900' },
+  primaryLabel: { color: palette.teal, fontSize: 12, fontWeight: '600' },
+  contactLabel: { color: palette.muted, fontSize: 12, fontWeight: '600' },
   consent: { color: '#64748B', fontSize: 11, lineHeight: 17, textAlign: 'center', paddingHorizontal: 8 },
 });

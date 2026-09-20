@@ -227,7 +227,7 @@ export function PartnerVerificationScreen({ navigation }: any) {
   return (
     <OnboardingShell
       title={phoneFlow ? 'Verify your phone' : 'Verify your email'}
-      subtitle="This protects your application and future Rider or Store account."
+      subtitle="This verifies your application."
       onBack={leaveVerification}
     >
       <Section title="Verification code">
@@ -302,7 +302,7 @@ export function PartnerVerificationScreen({ navigation }: any) {
       </TouchableOpacity>
       <View style={styles.secureNote}>
         <CheckCircle2 size={16} color={palette.green} />
-        <Text style={styles.secureNoteText}>AAGAAM never asks you to share this code with another person.</Text>
+        <Text style={styles.secureNoteText}>Never share this code with anyone.</Text>
       </View>
     </OnboardingShell>
   );
@@ -310,28 +310,28 @@ export function PartnerVerificationScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   heroIcon: { width: 64, height: 64, borderRadius: 22, backgroundColor: '#F0FDFA', alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
-  sentText: { color: palette.muted, fontSize: 13, fontWeight: '700', textAlign: 'center' },
-  destination: { color: palette.ink, fontSize: 16, fontWeight: '900', textAlign: 'center' },
-  otpRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 7, marginTop: 8 },
+  sentText: { color: palette.muted, fontSize: 13, fontWeight: '500', textAlign: 'center' },
+  destination: { color: palette.ink, fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  otpRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 8 },
   otpCell: { flex: 1, maxWidth: 52, height: 58, borderRadius: 15, borderWidth: 1.5, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
   otpCellActive: { borderColor: '#14B8A6', backgroundColor: '#F0FDFA' },
   otpCellFilled: { borderColor: '#5EEAD4', backgroundColor: '#ECFEFF' },
-  otpDigit: { color: palette.ink, fontSize: 23, fontWeight: '900' },
+  otpDigit: { color: palette.ink, fontSize: 23, fontWeight: '600' },
   hiddenInput: { position: 'absolute', width: 1, height: 1, opacity: 0 },
   resendButton: { alignItems: 'center', paddingVertical: 10 },
-  resendText: { color: palette.teal, fontSize: 12, fontWeight: '900' },
+  resendText: { color: palette.teal, fontSize: 12, fontWeight: '600' },
   resendDisabled: { color: '#94A3B8' },
   phoneVerification: { gap: 10 },
   helper: { color: palette.muted, fontSize: 12, lineHeight: 18, fontWeight: '600' },
   helpCard: { borderRadius: 17, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC', padding: 14 },
   helpHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  helpTitle: { color: palette.ink, fontSize: 12, fontWeight: '900' },
+  helpTitle: { color: palette.ink, fontSize: 12, fontWeight: '600' },
   helpBody: { gap: 8, marginTop: 10 },
-  reference: { color: '#475569', fontSize: 10, lineHeight: 16, fontWeight: '800' },
-  changeContact: { alignItems: 'center', paddingVertical: 7 },
-  changeContactText: { color: palette.teal, fontSize: 12, fontWeight: '900' },
+  reference: { color: '#475569', fontSize: 10, lineHeight: 16, fontWeight: '600' },
+  changeContact: { alignItems: 'center', paddingVertical: 8 },
+  changeContactText: { color: palette.teal, fontSize: 12, fontWeight: '600' },
   secureNote: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
-  secureNoteText: { color: palette.muted, fontSize: 10, lineHeight: 15, fontWeight: '700', flex: 1 },
+  secureNoteText: { color: palette.muted, fontSize: 10, lineHeight: 15, fontWeight: '500', flex: 1 },
   devCode: { borderRadius: 12, padding: 10, backgroundColor: '#FFF7ED', alignItems: 'center' },
-  devCodeText: { color: '#9A3412', fontSize: 10, fontWeight: '900' },
+  devCodeText: { color: '#9A3412', fontSize: 10, fontWeight: '600' },
 });

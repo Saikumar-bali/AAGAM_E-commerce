@@ -136,7 +136,7 @@ export const StoreSettingsScreen = () => {
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#057A55" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <ScrollView
         style={styles.page}
         contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 12) + 100 }]}
@@ -154,7 +154,7 @@ export const StoreSettingsScreen = () => {
         <View style={styles.bodySheet}>
           {storesQuery.isLoading ? (
             <View style={styles.center}>
-              <ActivityIndicator size="large" color="#078B4D" />
+              <ActivityIndicator size="large" color="#0F766E" />
               <Text style={styles.muted}>Loading assigned stores…</Text>
             </View>
           ) : storesQuery.isError ? (
@@ -206,12 +206,12 @@ export const StoreSettingsScreen = () => {
 
               <View style={styles.summaryGrid}>
                 <View style={styles.summaryCard}>
-                  <View style={styles.summaryIcon}><MapPin size={21} color="#087B5A" /></View>
+                  <View style={styles.summaryIcon}><MapPin size={21} color="#0F766E" /></View>
                   <Text style={styles.summaryTitle}>Store location</Text>
                   <Text testID="store_settings_coordinates" style={styles.summaryText}>{coordinates}</Text>
                 </View>
                 <View style={styles.summaryCard}>
-                  <View style={styles.summaryIcon}><Store size={21} color="#087B5A" /></View>
+                  <View style={styles.summaryIcon}><Store size={21} color="#0F766E" /></View>
                   <Text style={styles.summaryTitle}>Store snapshot</Text>
                   <Text style={styles.summaryMetric}>{orderCount}</Text>
                   <Text style={styles.summaryText}>All-time orders</Text>
@@ -231,7 +231,7 @@ export const StoreSettingsScreen = () => {
             onPress={() => void openNotificationSettings()}
             activeOpacity={0.75}
           >
-            <View style={styles.actionIcon}><BellRing size={22} color="#087B5A" /></View>
+            <View style={styles.actionIcon}><BellRing size={22} color="#0F766E" /></View>
             <View style={styles.actionCopy}>
               <Text style={styles.cardTitle}>Operational notifications</Text>
               <Text style={styles.cardText}>Manage new order, picking, dispatch and delivery alerts.</Text>
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1 },
   hero: {
     minHeight: 238,
-    backgroundColor: '#057A55',
+    backgroundColor: '#0F766E',
     paddingHorizontal: 20,
     paddingBottom: 30,
     overflow: 'hidden',
@@ -300,8 +300,8 @@ const styles = StyleSheet.create({
     top: -92,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  eyebrow: { color: '#BDF6DD', fontSize: 10, fontWeight: '900', letterSpacing: 1.4, marginTop: 24 },
-  title: { color: '#FFFFFF', fontSize: 31, fontWeight: '900', marginTop: 4 },
+  eyebrow: { color: '#BDF6DD', fontSize: 10, fontWeight: '600', letterSpacing: 1.4, marginTop: 24 },
+  title: { color: '#FFFFFF', fontSize: 31, fontWeight: '600', marginTop: 4 },
   subtitle: { color: '#E9FFF6', fontSize: 14, lineHeight: 20, marginTop: 6, maxWidth: 310 },
   bodySheet: {
     marginTop: -22,
@@ -315,33 +315,33 @@ const styles = StyleSheet.create({
   center: { minHeight: 220, alignItems: 'center', justifyContent: 'center', gap: 10 },
   muted: { color: '#697078', fontSize: 13 },
   storeRow: { gap: 8, paddingBottom: 15 },
-  storeChip: { paddingHorizontal: 15, paddingVertical: 10, borderRadius: 14, backgroundColor: '#E5E9E7', borderWidth: 1, borderColor: '#D9DEDC' },
-  storeChipActive: { backgroundColor: '#078B4D', borderColor: '#078B4D' },
-  storeChipText: { color: '#44504A', fontWeight: '800' },
+  storeChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, backgroundColor: '#E5E9E7', borderWidth: 1, borderColor: '#D9DEDC' },
+  storeChipActive: { backgroundColor: '#0F766E', borderColor: '#0F766E' },
+  storeChipText: { color: '#44504A', fontWeight: '600' },
   storeChipTextActive: { color: '#FFFFFF' },
-  sectionHeading: { marginTop: 5, marginBottom: 11 },
-  sectionTitle: { color: '#111417', fontSize: 19, fontWeight: '900' },
+  sectionHeading: { marginTop: 4, marginBottom: 11 },
+  sectionTitle: { color: '#111417', fontSize: 19, fontWeight: '600' },
   sectionCaption: { color: '#697078', fontSize: 12, marginTop: 2 },
   card: { backgroundColor: '#FFFFFF', borderRadius: 19, padding: 17, marginBottom: 14, borderWidth: 1, borderColor: '#E0E3E2', shadowColor: '#10241D', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
-  cardTitle: { color: '#15181C', fontSize: 15, fontWeight: '900' },
+  cardTitle: { color: '#15181C', fontSize: 15, fontWeight: '600' },
   cardText: { color: '#697078', fontSize: 12, lineHeight: 18, marginTop: 4 },
   field: { marginBottom: 14 },
-  label: { color: '#4E5953', fontSize: 10, fontWeight: '900', marginBottom: 7, textTransform: 'uppercase', letterSpacing: 0.7 },
-  input: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: '#D7DDDA', backgroundColor: '#FAFBFA', paddingHorizontal: 13, color: '#111417', fontSize: 14 },
+  label: { color: '#4E5953', fontSize: 10, fontWeight: '600', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.7 },
+  input: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: '#D7DDDA', backgroundColor: '#FAFBFA', paddingHorizontal: 12, color: '#111417', fontSize: 14 },
   multiline: { minHeight: 90, paddingTop: 13, textAlignVertical: 'top' },
-  primaryButton: { minHeight: 51, borderRadius: 14, backgroundColor: '#078B4D', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 3 },
-  primaryText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+  primaryButton: { minHeight: 51, borderRadius: 14, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 },
+  primaryText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
   disabled: { opacity: 0.55 },
-  summaryGrid: { flexDirection: 'row', gap: 11, marginBottom: 15 },
+  summaryGrid: { flexDirection: 'row', gap: 12, marginBottom: 15 },
   summaryCard: { flex: 1, minHeight: 160, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E0E3E2', padding: 14 },
   summaryIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#E8F8EE', alignItems: 'center', justifyContent: 'center' },
-  summaryTitle: { color: '#15181C', fontSize: 13, fontWeight: '900', marginTop: 12 },
-  summaryText: { color: '#697078', fontSize: 10, lineHeight: 15, marginTop: 5 },
-  summaryMetric: { color: '#111417', fontSize: 25, fontWeight: '900', marginTop: 9 },
-  summaryRevenue: { color: '#087B5A', fontSize: 12, fontWeight: '900', marginTop: 7 },
-  actionCard: { minHeight: 86, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E0E3E2', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 13 },
+  summaryTitle: { color: '#15181C', fontSize: 13, fontWeight: '600', marginTop: 12 },
+  summaryText: { color: '#697078', fontSize: 10, lineHeight: 15, marginTop: 4 },
+  summaryMetric: { color: '#111417', fontSize: 25, fontWeight: '600', marginTop: 8 },
+  summaryRevenue: { color: '#0F766E', fontSize: 12, fontWeight: '600', marginTop: 8 },
+  actionCard: { minHeight: 86, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E0E3E2', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   actionIcon: { width: 45, height: 45, borderRadius: 14, backgroundColor: '#E8F8EE', alignItems: 'center', justifyContent: 'center' },
   actionCopy: { flex: 1 },
   logoutButton: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: '#F2C7C7', backgroundColor: '#FFF7F7', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 2 },
-  logoutText: { color: '#B91C1C', fontWeight: '900' },
+  logoutText: { color: '#B91C1C', fontWeight: '600' },
 });

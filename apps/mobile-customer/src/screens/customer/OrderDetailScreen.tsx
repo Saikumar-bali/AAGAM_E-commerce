@@ -125,7 +125,7 @@ const TrackingStateBanner = ({
           <View style={[styles.banner, styles.bannerDelivered]}>
             <View style={[styles.bannerDot, { backgroundColor: "#10B981" }]} />
             <Text style={[styles.bannerText, { color: "#065F46" }]}>
-              {isStoreDelivery ? "Delivered by store partner!" : "Order delivered!"}
+              {isStoreDelivery ? "Delivered by store partner." : "Order delivered."}
             </Text>
           </View>
         </View>
@@ -339,8 +339,8 @@ export const OrderDetailScreen = () => {
         {isSubscription ? (
           <Text style={styles.subscriptionHeroNote}>
             {amountSummary.amountRupees > 0
-              ? "This cash collection funds your subscription. The delivery item value is not an extra charge."
-              : "This delivery is already funded by your subscription."}
+              ? "This payment funds your subscription. No extra charge."
+              : "This delivery is prepaid."}
           </Text>
         ) : null}
       </View>
@@ -365,7 +365,7 @@ export const OrderDetailScreen = () => {
 
       {isStoreDelivery ? (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Store Direct Delivery</Text>
+          <Text style={styles.cardTitle}>Store delivery</Text>
           <Text style={[styles.bodyText, { marginTop: 4 }]}>
             This order is being fulfilled and delivered directly by {trackingPayload?.store?.name || "the store team"}.
           </Text>
@@ -604,35 +604,35 @@ const styles = StyleSheet.create({
   orderId: {
     color: "#CCFBF1",
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: '600',
     textTransform: "uppercase",
   },
   statusText: {
     marginTop: 8,
     color: "#FFFFFF",
     fontSize: 28,
-    fontWeight: "800",
+    fontWeight: '600',
   },
   metaText: { marginTop: 6, color: "#E6FFFA" },
   amountLabel: {
     marginTop: 14,
     color: "#99F6E4",
     fontSize: 11,
-    fontWeight: "900",
+    fontWeight: '600',
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
   totalText: {
-    marginTop: 3,
+    marginTop: 4,
     color: "#FFFFFF",
     fontSize: 30,
-    fontWeight: "800",
+    fontWeight: '600',
   },
   subscriptionHeroNote: {
     marginTop: 8,
     color: "#CCFBF1",
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: '500',
     lineHeight: 16,
   },
   card: {
@@ -654,28 +654,28 @@ const styles = StyleSheet.create({
   scheduleTitle: {
     color: "#047857",
     fontSize: 11,
-    fontWeight: "900",
+    fontWeight: '600',
     textTransform: "uppercase",
   },
   scheduleValue: {
     marginTop: 4,
     color: "#064E3B",
     fontSize: 15,
-    fontWeight: "900",
+    fontWeight: '600',
   },
   scheduleHelp: {
     marginTop: 4,
     color: "#047857",
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: '500',
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: '600',
     color: "#0F172A",
     marginBottom: 12,
   },
-  boldText: { color: "#0F172A", fontWeight: "800" },
+  boldText: { color: "#0F172A", fontWeight: '600' },
   bodyText: { marginTop: 4, color: "#475569" },
   row: {
     flexDirection: "row",
@@ -689,11 +689,11 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: "#E2E8F0",
-    marginTop: 5,
+    marginTop: 4,
   },
   timelineDotActive: { backgroundColor: "#0F766E" },
   timelineTextActive: { color: "#0F766E" },
-  errorText: { color: "#B91C1C", fontWeight: "700" },
+  errorText: { color: "#B91C1C", fontWeight: '500' },
   callBtn: {
     marginTop: 10,
     alignSelf: "flex-start",
@@ -702,7 +702,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  callBtnText: { color: "#FFFFFF", fontWeight: "800", fontSize: 12 },
+  callBtnText: { color: "#FFFFFF", fontWeight: '600', fontSize: 12 },
   trackingMap: { height: 200, marginBottom: 12 },
   trackingInfo: {
     flexDirection: "row",
@@ -714,13 +714,13 @@ const styles = StyleSheet.create({
   trackingInfoItem: { alignItems: "center" },
   trackingInfoLabel: {
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: '500',
     color: "#94A3B8",
     textTransform: "uppercase",
   },
   trackingInfoValue: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: '600',
     color: "#0F172A",
     marginTop: 2,
   },
@@ -735,13 +735,13 @@ const styles = StyleSheet.create({
   riderInfoRow: { flex: 1 },
   riderLabel: {
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: '500',
     color: "#94A3B8",
     textTransform: "uppercase",
   },
   riderName: {
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: '600',
     color: "#0F172A",
     marginTop: 2,
   },
@@ -762,7 +762,7 @@ const styles = StyleSheet.create({
   },
   bannerText: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: '500',
     color: "#475569",
     flex: 1,
   },
@@ -800,10 +800,10 @@ const styles = StyleSheet.create({
     marginTop: 16,
     borderRadius: 18,
     backgroundColor: "#0F172A",
-    paddingVertical: 15,
+    paddingVertical: 16,
     alignItems: "center",
   },
-  reviewButtonText: { color: "#FFFFFF", fontWeight: "900" },
+  reviewButtonText: { color: "#FFFFFF", fontWeight: '600' },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -811,15 +811,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     gap: 12,
   },
-  discountText: { color: "#047857", fontWeight: "900" },
+  discountText: { color: "#047857", fontWeight: '600' },
   totalRow: {
     marginTop: 8,
     paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
   },
-  totalLabel: { color: "#0F172A", fontSize: 16, fontWeight: "900" },
-  totalValue: { color: "#0F766E", fontSize: 20, fontWeight: "900" },
+  totalLabel: { color: "#0F172A", fontSize: 16, fontWeight: '600' },
+  totalValue: { color: "#0F766E", fontSize: 20, fontWeight: '600' },
   subscriptionInfoBox: {
     marginTop: 4,
     borderRadius: 14,
@@ -831,7 +831,7 @@ const styles = StyleSheet.create({
   subscriptionInfoTitle: {
     color: "#115E59",
     fontSize: 11,
-    fontWeight: "900",
+    fontWeight: '600',
     textTransform: "uppercase",
   },
   subscriptionInfoText: {
@@ -852,6 +852,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     color: "#0F766E",
     fontSize: 14,
-    fontWeight: "900",
+    fontWeight: '600',
   },
 });

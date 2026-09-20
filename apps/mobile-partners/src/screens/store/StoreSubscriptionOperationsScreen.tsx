@@ -289,7 +289,7 @@ export const StoreSubscriptionOperationsScreen = ({
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#057A55" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -320,7 +320,7 @@ export const StoreSubscriptionOperationsScreen = ({
               <Text style={styles.title}>Morning Runs</Text>
             </View>
             <View style={styles.headerIcon}>
-              <Route size={27} color="#057A55" />
+              <Route size={27} color="#0F766E" />
             </View>
           </View>
           <Text style={styles.subtitle}>
@@ -402,7 +402,7 @@ export const StoreSubscriptionOperationsScreen = ({
 
         {loading ? (
           <View style={styles.stateCard}>
-            <ActivityIndicator size="large" color="#087B5A" />
+            <ActivityIndicator size="large" color="#0F766E" />
             <Text style={styles.stateText}>
               Loading subscription operations…
             </Text>
@@ -447,7 +447,7 @@ export const StoreSubscriptionOperationsScreen = ({
               <EmptyState
                 icon={Route}
                 title="No routes today"
-                text="Generated subscription orders will be grouped here by store, slot, and delivery cluster."
+                text="Subscription routes will appear here when available."
               />
             )}
           </View>
@@ -478,7 +478,7 @@ export const StoreSubscriptionOperationsScreen = ({
                       </Text>
                     </View>
                     <View style={styles.productTotalBadge}>
-                      <Box size={17} color="#087B5A" />
+                      <Box size={17} color="#0F766E" />
                       <Text style={styles.productTotalText}>
                         {row.productTotals.reduce(
                           (sum, item) => sum + item.quantity,
@@ -504,7 +504,7 @@ export const StoreSubscriptionOperationsScreen = ({
               <EmptyState
                 icon={PackageCheck}
                 title="No forecast demand"
-                text="Future active occurrences will appear without reserving inventory upfront."
+                text="Upcoming subscription deliveries will appear here."
               />
             )}
           </View>
@@ -578,7 +578,7 @@ export const StoreSubscriptionOperationsScreen = ({
               <EmptyState
                 icon={Banknote}
                 title="No cash batches"
-                text="Submitted rider batches will appear here for independent store verification."
+                text="Rider cash batches will appear here for verification."
               />
             )}
           </View>
@@ -608,7 +608,7 @@ export const StoreSubscriptionOperationsScreen = ({
               <EmptyState
                 icon={CheckCircle2}
                 title="No open exceptions"
-                text="Failed, retry-pending, and return-required stops will appear here."
+                text="Problem deliveries will appear here."
               />
             )}
           </View>
@@ -641,7 +641,7 @@ export const StoreSubscriptionOperationsScreen = ({
               keyboardShouldPersistTaps="handled"
             >
               <View style={styles.expectedBox}>
-                <PackageCheck size={25} color="#087B5A" />
+                <PackageCheck size={25} color="#0F766E" />
                 <View>
                   <Text style={styles.expectedLabel}>
                     Expected customer bags
@@ -669,7 +669,7 @@ export const StoreSubscriptionOperationsScreen = ({
                 Route crate QR / code (optional)
               </Text>
               <View style={styles.scanInput}>
-                <ScanLine size={20} color="#087B5A" />
+                <ScanLine size={20} color="#0F766E" />
                 <TextInput
                   style={styles.scanTextInput}
                   value={crateCode}
@@ -816,7 +816,7 @@ function RunCard({
     <View style={styles.runCard}>
       <View style={styles.runHeader}>
         <View style={styles.runIcon}>
-          <Route size={22} color="#087B5A" />
+          <Route size={22} color="#0F766E" />
         </View>
         <View style={styles.runCopy}>
           <Text style={styles.runCode}>{run.routeCode}</Text>
@@ -939,7 +939,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#F3F7F5" },
   content: { paddingBottom: 110 },
   hero: {
-    backgroundColor: "#057A55",
+    backgroundColor: "#0F766E",
     paddingHorizontal: 17,
     paddingTop: 24,
     paddingBottom: 22,
@@ -961,7 +961,7 @@ const styles = StyleSheet.create({
   backButton: {
     width: 44,
     height: 44,
-    borderRadius: 15,
+    borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.13)",
     alignItems: "center",
     justifyContent: "center",
@@ -970,10 +970,10 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: "#B9F6DF",
     fontSize: 10,
-    fontWeight: "900",
+    fontWeight: '600',
     letterSpacing: 1.2,
   },
-  title: { color: "#FFFFFF", fontSize: 27, fontWeight: "900", marginTop: 2 },
+  title: { color: "#FFFFFF", fontSize: 27, fontWeight: '600', marginTop: 2 },
   headerIcon: {
     width: 50,
     height: 50,
@@ -997,23 +997,23 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   heroMetric: { flex: 1, alignItems: "center" },
-  heroMetricValue: { color: "#FFFFFF", fontSize: 17, fontWeight: "900" },
+  heroMetricValue: { color: "#FFFFFF", fontSize: 17, fontWeight: '600' },
   heroMetricLabel: { color: "#CAF4E3", fontSize: 9, marginTop: 2 },
   heroDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.23)" },
-  segmentRow: { paddingHorizontal: 16, paddingVertical: 15, gap: 8 },
+  segmentRow: { paddingHorizontal: 16, paddingVertical: 16, gap: 8 },
   segment: {
     minHeight: 42,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#D7E1DC",
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 13,
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
+    gap: 8,
   },
-  segmentActive: { backgroundColor: "#087B5A", borderColor: "#087B5A" },
-  segmentText: { color: "#475569", fontSize: 11, fontWeight: "900" },
+  segmentActive: { backgroundColor: "#0F766E", borderColor: "#0F766E" },
+  segmentText: { color: "#475569", fontSize: 11, fontWeight: '600' },
   segmentTextActive: { color: "#FFFFFF" },
   segmentCount: {
     minWidth: 20,
@@ -1024,7 +1024,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   segmentCountActive: { backgroundColor: "rgba(255,255,255,0.2)" },
-  segmentCountText: { color: "#475569", fontSize: 9, fontWeight: "900" },
+  segmentCountText: { color: "#475569", fontSize: 9, fontWeight: '600' },
   segmentCountTextActive: { color: "#FFFFFF" },
   sectionBody: { paddingHorizontal: 16 },
   stateCard: {
@@ -1042,7 +1042,7 @@ const styles = StyleSheet.create({
   stateTitle: {
     color: "#17211D",
     fontSize: 17,
-    fontWeight: "900",
+    fontWeight: '600',
     textAlign: "center",
   },
   stateText: {
@@ -1054,20 +1054,20 @@ const styles = StyleSheet.create({
   retryButton: {
     minHeight: 47,
     borderRadius: 14,
-    backgroundColor: "#087B5A",
+    backgroundColor: "#0F766E",
     paddingHorizontal: 18,
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
+    gap: 8,
   },
-  retryText: { color: "#FFFFFF", fontWeight: "900" },
+  retryText: { color: "#FFFFFF", fontWeight: '600' },
   runCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 22,
     borderWidth: 1,
     borderColor: "#E1EAE6",
-    padding: 15,
-    marginBottom: 13,
+    padding: 16,
+    marginBottom: 12,
   },
   runHeader: { flexDirection: "row", alignItems: "center" },
   runIcon: {
@@ -1079,8 +1079,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   runCopy: { flex: 1, marginLeft: 11 },
-  runCode: { color: "#17211D", fontSize: 16, fontWeight: "900" },
-  runWindow: { color: "#087B5A", fontSize: 11, fontWeight: "900", marginTop: 3 },
+  runCode: { color: "#17211D", fontSize: 16, fontWeight: '600' },
+  runWindow: { color: "#0F766E", fontSize: 11, fontWeight: '600', marginTop: 4 },
   runRider: { color: "#64748B", fontSize: 11, marginTop: 2 },
   statusChip: {
     borderRadius: 11,
@@ -1088,9 +1088,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     maxWidth: 110,
   },
-  statusText: { fontSize: 8, fontWeight: "900", textAlign: "center" },
+  statusText: { fontSize: 8, fontWeight: '600', textAlign: "center" },
   statusReady: { backgroundColor: "#E5F7EE" },
-  statusReadyText: { color: "#087B5A" },
+  statusReadyText: { color: "#0F766E" },
   statusWarning: { backgroundColor: "#FFF1D6" },
   statusWarningText: { color: "#8A4B00" },
   statusNeutral: { backgroundColor: "#EEF2F6" },
@@ -1103,7 +1103,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   metric: { flex: 1, alignItems: "center" },
-  metricValue: { color: "#17211D", fontSize: 14, fontWeight: "900" },
+  metricValue: { color: "#17211D", fontSize: 14, fontWeight: '600' },
   metricDanger: { color: "#B42318" },
   metricLabel: { color: "#7B8781", fontSize: 9, marginTop: 2 },
   productSummary: {
@@ -1113,8 +1113,8 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 4,
   },
-  productSummaryText: { color: "#27604D", fontSize: 11, fontWeight: "700" },
-  customerList: { marginTop: 10, gap: 7 },
+  productSummaryText: { color: "#27604D", fontSize: 11, fontWeight: '500' },
+  customerList: { marginTop: 10, gap: 8 },
   customerRow: {
     minHeight: 35,
     borderBottomWidth: 1,
@@ -1132,33 +1132,33 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 24,
     fontSize: 10,
-    fontWeight: "900",
+    fontWeight: '600',
   },
   customerText: { flex: 1, color: "#475569", fontSize: 11 },
-  customerProof: { color: "#087B5A", fontSize: 10, fontWeight: "900" },
+  customerProof: { color: "#0F766E", fontSize: 10, fontWeight: '600' },
   moreCustomers: {
     color: "#64748B",
     fontSize: 10,
-    fontWeight: "700",
-    marginTop: 3,
+    fontWeight: '500',
+    marginTop: 4,
   },
   runPrimary: {
     minHeight: 50,
-    marginTop: 13,
+    marginTop: 12,
     borderRadius: 15,
-    backgroundColor: "#087B5A",
+    backgroundColor: "#0F766E",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-  runPrimaryText: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
+  runPrimaryText: { color: "#FFFFFF", fontSize: 13, fontWeight: '600' },
   forecastCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#E1EAE6",
-    padding: 15,
+    padding: 16,
     marginBottom: 12,
   },
   forecastTop: {
@@ -1166,7 +1166,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  forecastDate: { color: "#17211D", fontSize: 16, fontWeight: "900" },
+  forecastDate: { color: "#17211D", fontSize: 16, fontWeight: '600' },
   forecastStops: { color: "#64748B", fontSize: 11, marginTop: 2 },
   productTotalBadge: {
     minHeight: 36,
@@ -1175,9 +1175,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 4,
   },
-  productTotalText: { color: "#087B5A", fontSize: 11, fontWeight: "900" },
+  productTotalText: { color: "#0F766E", fontSize: 11, fontWeight: '600' },
   productList: { marginTop: 12, gap: 8 },
   productRow: {
     flexDirection: "row",
@@ -1186,14 +1186,14 @@ const styles = StyleSheet.create({
     borderBottomColor: "#EEF2F0",
     paddingBottom: 7,
   },
-  productName: { color: "#475569", fontSize: 12, fontWeight: "700" },
-  productQuantity: { color: "#17211D", fontSize: 12, fontWeight: "900" },
+  productName: { color: "#475569", fontSize: 12, fontWeight: '500' },
+  productQuantity: { color: "#17211D", fontSize: 12, fontWeight: '600' },
   cashCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#E1EAE6",
-    padding: 15,
+    padding: 16,
     marginBottom: 12,
   },
   cashHeader: { flexDirection: "row", alignItems: "center" },
@@ -1206,12 +1206,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cashCopy: { flex: 1, marginLeft: 10 },
-  cashReference: { color: "#17211D", fontSize: 13, fontWeight: "900" },
+  cashReference: { color: "#17211D", fontSize: 13, fontWeight: '600' },
   cashStatus: { color: "#8A5A14", fontSize: 10, marginTop: 2 },
-  cashAmount: { color: "#704000", fontSize: 18, fontWeight: "900" },
+  cashAmount: { color: "#704000", fontSize: 18, fontWeight: '600' },
   cashGrid: {
     flexDirection: "row",
-    marginTop: 13,
+    marginTop: 12,
     borderRadius: 13,
     backgroundColor: "#F8FAF9",
     paddingVertical: 10,
@@ -1221,13 +1221,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
     borderRadius: 15,
     backgroundColor: "#A15C00",
-    paddingHorizontal: 13,
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
+    gap: 8,
   },
-  verifyButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
+  verifyButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: '600' },
   exceptionCard: {
     backgroundColor: "#FFF9F8",
     borderRadius: 18,
@@ -1240,14 +1240,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   exceptionCopy: { flex: 1 },
-  exceptionTitle: { color: "#8F1E17", fontSize: 13, fontWeight: "900" },
+  exceptionTitle: { color: "#8F1E17", fontSize: 13, fontWeight: '600' },
   exceptionText: {
     color: "#A34740",
     fontSize: 11,
     lineHeight: 16,
-    marginTop: 3,
+    marginTop: 4,
   },
-  exceptionRoute: { color: "#64748B", fontSize: 10, marginTop: 5 },
+  exceptionRoute: { color: "#64748B", fontSize: 10, marginTop: 4 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(15,23,42,0.47)",
@@ -1278,15 +1278,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   sheetEyebrow: {
-    color: "#087B5A",
+    color: "#0F766E",
     fontSize: 10,
-    fontWeight: "900",
+    fontWeight: '600',
     letterSpacing: 1.1,
   },
   sheetTitle: {
     color: "#17211D",
     fontSize: 20,
-    fontWeight: "900",
+    fontWeight: '600',
     marginTop: 2,
   },
   closeButton: {
@@ -1306,14 +1306,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  expectedLabel: { color: "#476A5D", fontSize: 11, fontWeight: "700" },
-  expectedValue: { color: "#087B5A", fontSize: 25, fontWeight: "900" },
+  expectedLabel: { color: "#476A5D", fontSize: 11, fontWeight: '500' },
+  expectedValue: { color: "#0F766E", fontSize: 25, fontWeight: '600' },
   inputLabel: {
     color: "#334155",
     fontSize: 12,
-    fontWeight: "900",
+    fontWeight: '600',
     marginTop: 14,
-    marginBottom: 7,
+    marginBottom: 8,
   },
   input: {
     minHeight: 50,
@@ -1332,7 +1332,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#B8DDCE",
     backgroundColor: "#F3FBF7",
-    paddingHorizontal: 13,
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -1342,19 +1342,19 @@ const styles = StyleSheet.create({
     minHeight: 54,
     marginTop: 16,
     borderRadius: 16,
-    backgroundColor: "#087B5A",
+    backgroundColor: "#0F766E",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-  sheetPrimaryText: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
+  sheetPrimaryText: { color: "#FFFFFF", fontSize: 14, fontWeight: '600' },
   cashCompare: {
     flexDirection: "row",
     borderRadius: 17,
     backgroundColor: "#FFF5DE",
     paddingVertical: 13,
   },
-  moneyInput: { fontSize: 20, fontWeight: "900" },
+  moneyInput: { fontSize: 20, fontWeight: '600' },
   auditNote: { color: "#64748B", fontSize: 11, lineHeight: 17, marginTop: 12 },
 });
