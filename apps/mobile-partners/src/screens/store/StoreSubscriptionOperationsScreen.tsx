@@ -18,6 +18,7 @@ import {
   ArrowLeft,
   Banknote,
   Box,
+  CalendarDays,
   CheckCircle2,
   ChevronRight,
   CircleAlert,
@@ -28,6 +29,7 @@ import {
   ScanLine,
   Store,
   Truck,
+  Users,
   X,
 } from "lucide-react-native";
 import {
@@ -327,6 +329,20 @@ export const StoreSubscriptionOperationsScreen = ({
             Prepare by route, verify bag counts, hand off once, then preserve
             independent proof and COD accountability for every customer stop.
           </Text>
+          <View style={styles.quickNavRow}>
+            <TouchableOpacity style={styles.quickNav} onPress={() => navigation.navigate('StoreSubscribers' as never)}>
+              <Users size={18} color="#0F766E" />
+              <Text style={styles.quickNavText}>Subscribers</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickNav} onPress={() => navigation.navigate('StoreSubscriptionPlans' as never)}>
+              <Box size={18} color="#0F766E" />
+              <Text style={styles.quickNavText}>Plans</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickNav} onPress={() => navigation.navigate('StoreMilkGrid' as never)}>
+              <CalendarDays size={18} color="#0F766E" />
+              <Text style={styles.quickNavText}>Grid</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.heroMetrics}>
             <View style={styles.heroMetric}>
               <Text style={styles.heroMetricValue}>{runs.length}</Text>
@@ -999,6 +1015,9 @@ const styles = StyleSheet.create({
   heroMetric: { flex: 1, alignItems: "center" },
   heroMetricValue: { color: "#FFFFFF", fontSize: 17, fontWeight: '600' },
   heroMetricLabel: { color: "#CAF4E3", fontSize: 9, marginTop: 2 },
+  quickNavRow: { flexDirection: "row", marginTop: 12, gap: 8 },
+  quickNav: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)" },
+  quickNavText: { color: "#FFFFFF", fontSize: 11, fontWeight: '600' },
   heroDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.23)" },
   segmentRow: { paddingHorizontal: 16, paddingVertical: 16, gap: 8 },
   segment: {

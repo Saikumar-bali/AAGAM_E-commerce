@@ -709,9 +709,10 @@ export class DeliveryRunOperationsService {
     if (!stop) throw new NotFoundException('Run stop not found');
 
     const extraQty = dto.extraQuantity?.trim() || '+1L';
-    const extraPaise = dto.extraPaise || 8000;
+    const extraPaise = dto.extraPaise !== undefined ? dto.extraPaise : 8000;
     const notePrefix = `[EXTRA: ${extraQty}|${extraPaise}]`;
     const fullNote = `${notePrefix} ${dto.note?.trim() || 'Rider field add-on'}`.trim();
+    const count = Math.max(1, Math.min(30, dto.consecutiveDays || 1));
 
     return prisma.$transaction(async (tx) => {
       await tx.subscriptionDelivery.update({
@@ -735,13 +736,55 @@ export class DeliveryRunOperationsService {
           version: { increment: 1 },
         },
       });
+
+      let futureScheduledCount = 0;
+      if (count > 1) {
+        const curDelivery = await tx.subscriptionDelivery.findUnique({
+          where: { id: stop.subscriptionDeliveryId },
+          select: { sequenceNumber: true, subscriptionId: true },
+        });
+        if (curDelivery) {
+          const futureDeliveries = await tx.subscriptionDelivery.findMany({
+            where: {
+              subscriptionId: curDelivery.subscriptionId,
+              sequenceNumber: {
+                gt: curDelivery.sequenceNumber,
+                lt: curDelivery.sequenceNumber + count,
+              },
+              status: { in: [SubscriptionDeliveryStatus.SCHEDULED, SubscriptionDeliveryStatus.ORDER_GENERATED, SubscriptionDeliveryStatus.PREPARING] },
+            },
+            select: { id: true },
+          });
+          if (futureDeliveries.length > 0) {
+            await tx.subscriptionDelivery.updateMany({
+              where: { id: { in: futureDeliveries.map((d) => d.id) } },
+              data: {
+                deferredReason: fullNote,
+                cashDuePaise: { increment: extraPaise },
+              },
+            });
+            futureScheduledCount = futureDeliveries.length;
+          }
+        }
+      }
+
+      const totalScheduledDays = 1 + futureScheduledCount;
+      const totalExtraPaise = extraPaise * totalScheduledDays;
+
       const sub = await tx.customerSubscription.update({
         where: { id: stop.subscriptionDelivery.subscriptionId },
         data: {
-          amountDuePaise: { increment: extraPaise },
+          amountDuePaise: { increment: totalExtraPaise },
         },
       });
-      return { success: true, extraPaise, extraQuantity: extraQty, subscription: sub };
+      return {
+        success: true,
+        extraPaise,
+        extraQuantity: extraQty,
+        scheduledDays: totalScheduledDays,
+        totalExtraPaise,
+        subscription: sub,
+      };
     });
   }
 

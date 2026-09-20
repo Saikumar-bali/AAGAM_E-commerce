@@ -144,11 +144,18 @@ export const StoreOrderDetailsReferenceScreen = ({ navigation, route }: { naviga
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerIcon} onPress={() => navigation?.goBack?.()}><ArrowLeft size={31} color="#151922" /></TouchableOpacity>
-        <Text style={styles.headerTitle}>Order Details</Text>
-        <View style={styles.headerIcon} />
+        <View style={styles.headerGlow} />
+        <View style={styles.headerRow}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack?.()}>
+            <ArrowLeft size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={styles.flex}>
+            <Text style={styles.eyebrow}>ORDER DETAILS</Text>
+            <Text style={styles.title}>Order details</Text>
+          </View>
+        </View>
       </View>
       <ScrollView
         style={styles.scroll}
@@ -250,11 +257,14 @@ function StatusRow({ label, value, payment = false, tone }: { label: string; val
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FAFBFA' },
+  screen: { flex: 1, backgroundColor: '#F8FAFC' },
   flex: { flex: 1 },
-  header: { height: 112, paddingTop: 48, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF' },
-  headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', color: '#151922', fontSize: 24, fontWeight: '600' },
+  header: { backgroundColor: '#0F766E', paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
+  headerGlow: { position: 'absolute', top: -60, right: -60, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 56, gap: 12 },
+  backButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
+  title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600', marginTop: 2 },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 19, paddingBottom: 44 },
   orderHeading: { flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: 18 },

@@ -88,15 +88,22 @@ export const StorePickupAlertsScreen = () => {
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={styles.header}>
-        <AagamBrand compact caption="Fast Quality and Trust" />
-        <TouchableOpacity style={styles.headerIcon} onPress={openNotifications}>
-          <Bell size={29} color="#26333D" />
-          {unreadCount > 0 ? (
-            <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>
-          ) : null}
-        </TouchableOpacity>
+        <View style={styles.headerGlow} />
+        <View style={styles.headerRow}>
+          <View style={styles.flex}>
+            <Text style={styles.eyebrow}>STORE OPERATIONS</Text>
+            <Text style={styles.title}>Pickup alerts</Text>
+            <Text style={styles.subtitle}>Rider pickups and delivery operations.</Text>
+          </View>
+          <TouchableOpacity style={styles.headerIcon} onPress={openNotifications}>
+            <Bell size={22} color="#FFFFFF" />
+            {unreadCount > 0 ? (
+              <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>
+            ) : null}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -232,12 +239,16 @@ function InfoRow({ label, value, strong = false }: { label: string; value: strin
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FFFFFF' },
+  screen: { flex: 1, backgroundColor: '#F8FAFC' },
   flex: { flex: 1 },
-  header: { height: 116, paddingTop: 49, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF' },
-  headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1, textAlign: 'center', color: '#141720', fontSize: 24, fontWeight: '600' },
-  notificationBadge: { position: 'absolute', right: 0, top: 0, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#F02525', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  header: { backgroundColor: '#0F766E', paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
+  headerGlow: { position: 'absolute', top: -60, right: -60, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)' },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 56 },
+  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
+  title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600', marginTop: 2 },
+  subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },
+  headerIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  notificationBadge: { position: 'absolute', right: -4, top: -4, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#EF1D25', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '600' },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 18, paddingBottom: 38 },

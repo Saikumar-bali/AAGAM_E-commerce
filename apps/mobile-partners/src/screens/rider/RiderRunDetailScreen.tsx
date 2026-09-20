@@ -25,6 +25,7 @@ import {
   ArrowLeft,
   ArrowUp,
   Banknote,
+  CalendarDays,
   Camera,
   CheckCircle2,
   ChevronRight,
@@ -35,6 +36,7 @@ import {
   Navigation,
   Package,
   Phone,
+  Plus,
   RefreshCw,
   Route,
   ShieldCheck,
@@ -64,6 +66,21 @@ const FAILURE_REASONS: Array<{ value: DeliveryFailureReason; label: string }> = 
   { value: 'VEHICLE_BREAKDOWN', label: 'Vehicle breakdown' },
   { value: 'SAFETY_CONCERN', label: 'Safety concern' },
   { value: 'OTHER', label: 'Other' },
+];
+
+const EXTRA_PRESETS = [
+  { label: '+0.5L', qty: '+0.5L', price: '40' },
+  { label: '+1L', qty: '+1L', price: '80' },
+  { label: '+1.5L', qty: '+1.5L', price: '120' },
+  { label: '+2L', qty: '+2L', price: '160' },
+];
+
+const SCHEDULE_DAYS = [
+  { label: 'Today (1d)', days: 1 },
+  { label: '2 Days', days: 2 },
+  { label: '3 Days', days: 3 },
+  { label: '5 Days', days: 5 },
+  { label: '7 Days', days: 7 },
 ];
 
 type Coordinates = { latitude: number; longitude: number; accuracyMetres?: number };
@@ -220,6 +237,12 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const [cashAmount, setCashAmount] = useState('');
   const [createdBatch, setCreatedBatch] = useState<{ id: string; version: number; expectedAmountPaise: number } | null>(null);
   const [offlinePending, setOfflinePending] = useState(0);
+  const [extraMilkOpen, setExtraMilkOpen] = useState(false);
+  const [extraPreset, setExtraPreset] = useState('+1L');
+  const [extraQty, setExtraQty] = useState('+1L');
+  const [extraPriceRupees, setExtraPriceRupees] = useState('80');
+  const [extraDays, setExtraDays] = useState(1);
+  const [extraNote, setExtraNote] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -464,6 +487,40 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
     onError: (error) => Toast.show({ type: 'error', text1: 'Cash submission failed', text2: errorMessage(error) }),
   });
 
+  const extraMilkMutation = useMutation({
+    mutationFn: async ({
+      stop,
+      quantity,
+      paise,
+      days,
+      note,
+    }: {
+      stop: DeliveryRunStop;
+      quantity: string;
+      paise: number;
+      days: number;
+      note?: string;
+    }) => {
+      return subscriptionOperationsService.addExtraMilk(runId, stop.id, {
+        extraQuantity: quantity,
+        extraPaise: paise,
+        consecutiveDays: days,
+        note,
+      });
+    },
+    onSuccess: async (_result, vars) => {
+      setExtraMilkOpen(false);
+      setExtraNote('');
+      await refresh();
+      Toast.show({
+        type: 'success',
+        text1: `Extra milk attached! (${vars.quantity})`,
+        text2: `Scheduled for ${vars.days} day${vars.days > 1 ? 's' : ''} (+₹${((vars.paise / 100) * vars.days).toFixed(0)}). Cash due updated.`,
+      });
+    },
+    onError: (error) => Toast.show({ type: 'error', text1: 'Could not add extra milk', text2: errorMessage(error) }),
+  });
+
   const openNavigation = (stop: DeliveryRunStop) => {
     const snapshot = stop.subscriptionDelivery.subscription.addressSnapshot || {};
     const latitude = typeof snapshot.latitude === 'number' ? snapshot.latitude : undefined;
@@ -517,6 +574,156 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
               <Text style={styles.sheetAddress}>{addressFrom(selectedStop)}</Text>
               {selectedStop.deliveryJob.order.customer?.phone ? <TouchableOpacity style={styles.contactRow} onPress={() => void Linking.openURL(`tel:${selectedStop.deliveryJob.order.customer.phone}`)}><Phone size={18} color="#0F766E" /><Text style={styles.contactText}>Call customer</Text></TouchableOpacity> : null}
               <View style={selectedStop.cashDuePaise > 0 ? styles.cashDueBanner : styles.fundedBanner}><Banknote size={21} color={selectedStop.cashDuePaise > 0 ? '#8A4B00' : '#0F766E'} /><View style={styles.bannerCopy}><Text style={selectedStop.cashDuePaise > 0 ? styles.cashDueTitle : styles.fundedTitle}>{selectedStop.cashDuePaise > 0 ? `${money(selectedStop.cashDuePaise)} due now` : 'Customer amount due: ₹0'}</Text><Text style={selectedStop.cashDuePaise > 0 ? styles.cashDueText : styles.fundedText}>{selectedStop.cashDuePaise > 0 ? ((selectedStop as any).proofMode === 'RIDER_PHOTO_GPS' || Boolean(selectedStop.subscriptionDelivery) ? 'Collect the exact cash amount and take delivery photo proof. No OTP needed.' : 'Collect the exact amount only after valid OTP.') : 'Subscription already funded. Do not collect cash.'}</Text></View></View>
+
+              {/* Extra Milk & Scheduling section for active subscription stops */}
+              {Boolean(selectedStop.subscriptionDelivery) && !['DELIVERED', 'FAILED', 'CANCELLED', 'RETURNED'].includes(selectedStop.status) ? (
+                <View style={styles.extraContainer}>
+                  {(selectedStop.subscriptionDelivery as any).deferredReason?.includes('[EXTRA:') ? (
+                    <View style={styles.extraActiveBanner}>
+                      <Package size={15} color="#704000" />
+                      <Text style={styles.extraActiveText}>
+                        Extra attached: {(selectedStop.subscriptionDelivery as any).deferredReason.replace(/\[EXTRA:\s*([^\]|]+)[^\]]*\].*/, '$1')}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {!extraMilkOpen ? (
+                    <TouchableOpacity
+                      style={styles.extraTriggerButton}
+                      onPress={() => setExtraMilkOpen(true)}
+                    >
+                      <Plus size={16} color="#0F766E" />
+                      <Text style={styles.extraTriggerText}>+ Extra Milk / Schedule Further Orders</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.extraCard}>
+                      <View style={styles.extraHeaderRow}>
+                        <View style={styles.extraTitleRow}>
+                          <Package size={17} color="#0F766E" />
+                          <Text style={styles.extraCardTitle}>Extra Milk / Further Orders</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => setExtraMilkOpen(false)} style={styles.extraCloseButton}>
+                          <X size={17} color="#64748B" />
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={styles.extraCardSubtitle}>
+                        Add extra milk today or schedule for upcoming days like the store grid does.
+                      </Text>
+
+                      {/* Quantity Preset Chips */}
+                      <Text style={styles.extraLabel}>Select Quantity</Text>
+                      <View style={styles.chipRow}>
+                        {EXTRA_PRESETS.map((p) => (
+                          <TouchableOpacity
+                            key={p.label}
+                            style={[styles.presetChip, extraPreset === p.label && styles.presetChipActive]}
+                            onPress={() => {
+                              setExtraPreset(p.label);
+                              setExtraQty(p.qty);
+                              setExtraPriceRupees(p.price);
+                            }}
+                          >
+                            <Text style={[styles.presetChipText, extraPreset === p.label && styles.presetChipTextActive]}>
+                              {p.label}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+
+                      {/* Custom Quantity & Rate inputs */}
+                      <View style={styles.extraInputRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.extraLabel}>Rate / Day (₹)</Text>
+                          <TextInput
+                            style={[styles.input, styles.extraInput]}
+                            keyboardType="numeric"
+                            value={extraPriceRupees}
+                            onChangeText={setExtraPriceRupees}
+                            placeholder="80"
+                            placeholderTextColor="#94A3B8"
+                          />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 8 }}>
+                          <Text style={styles.extraLabel}>Label</Text>
+                          <TextInput
+                            style={[styles.input, styles.extraInput]}
+                            value={extraQty}
+                            onChangeText={setExtraQty}
+                            placeholder="+1L"
+                            placeholderTextColor="#94A3B8"
+                          />
+                        </View>
+                      </View>
+
+                      {/* Scheduling Duration */}
+                      <Text style={styles.extraLabel}>Schedule for Days</Text>
+                      <View style={styles.chipRow}>
+                        {SCHEDULE_DAYS.map((opt) => (
+                          <TouchableOpacity
+                            key={opt.days}
+                            style={[styles.dayChip, extraDays === opt.days && styles.dayChipActive]}
+                            onPress={() => setExtraDays(opt.days)}
+                          >
+                            <CalendarDays size={12} color={extraDays === opt.days ? '#FFFFFF' : '#0F766E'} />
+                            <Text style={[styles.dayChipText, extraDays === opt.days && styles.dayChipTextActive]}>
+                              {opt.label}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+
+                      {/* Optional Note */}
+                      <Text style={styles.extraLabel}>Note (optional)</Text>
+                      <TextInput
+                        style={[styles.input, styles.extraNoteInput]}
+                        value={extraNote}
+                        onChangeText={setExtraNote}
+                        placeholder="Customer requested extra milk at delivery…"
+                        placeholderTextColor="#94A3B8"
+                      />
+
+                      {/* Summary Banner */}
+                      <View style={styles.extraSummary}>
+                        <Text style={styles.extraSummaryText}>
+                          Adding <Text style={{ fontWeight: '700' }}>{extraQty}</Text> at ₹{extraPriceRupees || '0'}/day
+                          {extraDays > 1 ? ` for ${extraDays} days (Total: ₹${(Number(extraPriceRupees || 0) * extraDays).toFixed(0)})` : ' for today'}
+                        </Text>
+                        <Text style={styles.extraSummaryNote}>
+                          Today&apos;s COD cash collection increases by ₹{extraPriceRupees || '0'}.
+                        </Text>
+                      </View>
+
+                      {/* Submit button */}
+                      <TouchableOpacity
+                        style={styles.extraSubmitBtn}
+                        disabled={extraMilkMutation.isPending || !Number(extraPriceRupees)}
+                        onPress={() => {
+                          const paise = Math.round(Number(extraPriceRupees || 0) * 100);
+                          extraMilkMutation.mutate({
+                            stop: selectedStop,
+                            quantity: extraQty.trim() || '+1L',
+                            paise: paise > 0 ? paise : 8000,
+                            days: extraDays,
+                            note: extraNote.trim() || undefined,
+                          });
+                        }}
+                      >
+                        {extraMilkMutation.isPending ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Plus size={18} color="#FFFFFF" />
+                        )}
+                        <Text style={styles.extraSubmitText}>
+                          {extraMilkMutation.isPending
+                            ? 'Attaching extra milk…'
+                            : `Attach ${extraQty} (+₹${extraPriceRupees || '0'} today)`}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ) : null}
+
               {selectedStop.status !== 'ARRIVED' && !['DELIVERED', 'FAILED', 'CANCELLED', 'RETURNED'].includes(selectedStop.status) ? <TouchableOpacity style={styles.sheetPrimary} disabled={arriveMutation.isPending} onPress={() => arriveMutation.mutate(selectedStop)}><MapPin size={20} color="#FFFFFF" /><Text style={styles.sheetPrimaryText}>{arriveMutation.isPending ? 'Reading GPS…' : 'I have arrived'}</Text></TouchableOpacity> : null}
               {selectedStop.status === 'ARRIVED' ? <>
                 {((selectedStop as any).proofMode === 'RIDER_PHOTO_GPS') ? (
@@ -587,4 +794,33 @@ const styles = StyleSheet.create({
   pickupReceiptHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   pickupReceiptTitle: { color: '#17211D', fontSize: 14, fontWeight: '600' },
   pickupReceiptText: { color: '#64748B', fontSize: 11, lineHeight: 17, marginTop: 4 },
+  extraContainer: { marginTop: 12 },
+  extraActiveBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFF7E6', borderRadius: 12, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1, borderColor: '#FEDF89', marginBottom: 8 },
+  extraActiveText: { color: '#704000', fontSize: 11, fontWeight: '600' },
+  extraTriggerButton: { minHeight: 44, borderRadius: 14, borderWidth: 1, borderColor: '#9ED6BF', backgroundColor: '#EFFBF5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  extraTriggerText: { color: '#0F766E', fontSize: 13, fontWeight: '600' },
+  extraCard: { borderRadius: 18, backgroundColor: '#F6FBF9', borderWidth: 1, borderColor: '#C8EADB', padding: 14 },
+  extraHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  extraTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  extraCardTitle: { color: '#0F766E', fontSize: 15, fontWeight: '600' },
+  extraCloseButton: { padding: 4 },
+  extraCardSubtitle: { color: '#64748B', fontSize: 11, lineHeight: 16, marginTop: 4 },
+  extraLabel: { color: '#334155', fontSize: 11, fontWeight: '600', marginTop: 10, marginBottom: 5 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  presetChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 11, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF' },
+  presetChipActive: { borderColor: '#0F766E', backgroundColor: '#E6F8EF' },
+  presetChipText: { color: '#475569', fontSize: 12, fontWeight: '600' },
+  presetChipTextActive: { color: '#0F766E' },
+  extraInputRow: { flexDirection: 'row', marginTop: 2 },
+  extraInput: { minHeight: 42, paddingHorizontal: 10, fontSize: 13 },
+  dayChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 11, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF' },
+  dayChipActive: { borderColor: '#0F766E', backgroundColor: '#0F766E' },
+  dayChipText: { color: '#0F766E', fontSize: 11, fontWeight: '600' },
+  dayChipTextActive: { color: '#FFFFFF' },
+  extraNoteInput: { minHeight: 44, paddingHorizontal: 10, fontSize: 12 },
+  extraSummary: { marginTop: 11, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D5E6DF', padding: 10 },
+  extraSummaryText: { color: '#17211D', fontSize: 12, fontWeight: '500' },
+  extraSummaryNote: { color: '#0F766E', fontSize: 10, marginTop: 2, fontWeight: '500' },
+  extraSubmitBtn: { minHeight: 46, marginTop: 12, borderRadius: 14, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  extraSubmitText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
 });

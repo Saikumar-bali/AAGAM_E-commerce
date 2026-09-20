@@ -188,21 +188,28 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <View style={styles.header}>
-        <AagamBrand compact caption="Fast Quality and Trust" />
-        <TouchableOpacity
-          accessibilityLabel="Open notifications"
-          style={styles.headerIcon}
-          onPress={openNotifications}
-        >
-          <Bell size={29} color="#425B65" />
-          {unreadCount > 0 ? (
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-            </View>
-          ) : null}
-        </TouchableOpacity>
+        <View style={styles.headerGlow} />
+        <View style={styles.headerRow}>
+          <View style={styles.flex}>
+            <Text style={styles.eyebrow}>STORE ORDERS</Text>
+            <Text style={styles.title}>Orders</Text>
+            <Text style={styles.subtitle}>Manage and track customer orders.</Text>
+          </View>
+          <TouchableOpacity
+            accessibilityLabel="Open notifications"
+            style={styles.headerIcon}
+            onPress={openNotifications}
+          >
+            <Bell size={22} color="#FFFFFF" />
+            {unreadCount > 0 ? (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -421,13 +428,17 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FAFBFA' }, flex: { flex: 1 },
-  header: { height: 115, paddingTop: 50, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF' },
-  headerIcon: { width: 50, height: 50, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', color: '#11131A', fontSize: 25, fontWeight: '600' },
-  notificationBadge: { position: 'absolute', right: 1, top: 1, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#F02525', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
+  header: { backgroundColor: '#0F766E', paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
+  headerGlow: { position: 'absolute', top: -60, right: -60, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)' },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 56 },
+  eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
+  title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600', marginTop: 2 },
+  subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },
+  headerIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  notificationBadge: { position: 'absolute', right: -4, top: -4, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#EF1D25', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '600' },
-  tabsScroll: { maxHeight: 69, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E3E5E4' },
+  tabsScroll: { maxHeight: 56, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
   tabs: { paddingHorizontal: 18, gap: 20, alignItems: 'stretch' },
   tab: { minWidth: 76, height: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderBottomWidth: 4, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: '#0F766E' },

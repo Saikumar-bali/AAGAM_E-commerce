@@ -386,12 +386,12 @@ export const StoreDeliveryOperationsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#F5F3EE' },
+  page: { flex: 1, backgroundColor: '#F8FAFC' },
   content: { paddingBottom: 20 },
-  hero: { backgroundColor: '#0F172A', paddingTop: 56, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eyebrow: { color: '#5EEAD4', fontSize: 10, fontWeight: '600', letterSpacing: 1.5 },
+  hero: { backgroundColor: '#0F766E', paddingTop: 56, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '600', letterSpacing: 1.5 },
   title: { color: '#FFFFFF', fontSize: 28, fontWeight: '600', marginTop: 4 },
-  subtitle: { color: '#CBD5E1', fontSize: 12, lineHeight: 18, marginTop: 4, maxWidth: 280 },
+  subtitle: { color: '#D1FAE5', fontSize: 12, lineHeight: 18, marginTop: 4, maxWidth: 280 },
   refreshButton: { width: 44, height: 44, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   center: { minHeight: 280, alignItems: 'center', justifyContent: 'center', gap: 12 },
   muted: { color: '#64748B' },

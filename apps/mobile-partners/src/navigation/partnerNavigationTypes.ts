@@ -62,4 +62,7 @@ export type RootStackParamList = {
   ApplicationStatus: undefined;
   ActivatePartner: undefined;
   ResumeApplication: undefined;
+  StoreSubscribers: undefined;
+  StoreSubscriptionPlans: undefined;
+  StoreMilkGrid: undefined;
 };
