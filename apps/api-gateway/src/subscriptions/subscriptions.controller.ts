@@ -80,6 +80,7 @@ import {
   RiderRecordPaymentDto,
   RiderToggleSlotDto,
   SetDefaultRiderDto,
+  SetTemporaryRiderDto,
   AutoDispatchDefaultRidersDto,
 } from './subscriptions.dto';
 
@@ -498,6 +499,15 @@ export class StoreSubscriptionsController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.milkGrid.setDefaultRider(req.user, subscriptionId, body.riderProfileId);
+  }
+
+  @Post(':subscriptionId/temporary-rider')
+  setTemporaryRider(
+    @Param('subscriptionId') subscriptionId: string,
+    @Body() body: SetTemporaryRiderDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.milkGrid.setTemporaryRider(req.user, subscriptionId, body);
   }
 
   @Post('auto-dispatch-default-riders')

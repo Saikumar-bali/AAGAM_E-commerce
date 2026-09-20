@@ -908,6 +908,18 @@ export class DispatchToRiderDto {
   @IsOptional()
   @IsBoolean()
   saveAsDefaultRider?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  saveAsTemporaryRange?: boolean;
+
+  @IsOptional()
+  @IsString()
+  temporaryStartDate?: string;
+
+  @IsOptional()
+  @IsString()
+  temporaryEndDate?: string;
 }
 
 export class RiderExtraMilkDto {
@@ -973,4 +985,22 @@ export class AutoDispatchDefaultRidersDto {
   @IsOptional()
   @IsIn(['ALL', 'ONLINE', 'OFFLINE'])
   channel?: 'ALL' | 'ONLINE' | 'OFFLINE';
+}
+
+export class SetTemporaryRiderDto {
+  @IsOptional()
+  @IsString()
+  riderProfileId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  endDate?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  applyToScheduledDeliveries?: boolean;
 }

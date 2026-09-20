@@ -34,15 +34,19 @@ export function calculateDeliveryPricing(
   const hasRule = Boolean(overrides.ruleId);
 
   if (!hasRule) {
+    const globalMaximum = DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM;
+    const validDistance = Number.isFinite(distanceKm) && distanceKm >= 0;
+    const serviceable = validDistance && distanceKm <= globalMaximum;
+    const distanceFeePaise = validDistance && serviceable ? Math.max(0, Math.round(distanceKm * DELIVERY_RATE_PAISE_PER_KM)) : 0;
     return {
-      serviceable: false,
+      serviceable,
       ratePaisePerKm: DELIVERY_RATE_PAISE_PER_KM,
       freeDeliveryMinimumPaise: FREE_DELIVERY_MINIMUM_PAISE,
-      maximumDistanceKm: DEFAULT_MAXIMUM_DELIVERY_DISTANCE_KM,
-      distanceFeePaise: 0,
+      maximumDistanceKm: globalMaximum,
+      distanceFeePaise,
       waivedByThreshold: false,
       waivedByFirstOrder: false,
-      payableFeePaise: 0,
+      payableFeePaise: !serviceable ? 0 : distanceFeePaise,
       appliedRule: null,
       flatFeePaise: null,
     };

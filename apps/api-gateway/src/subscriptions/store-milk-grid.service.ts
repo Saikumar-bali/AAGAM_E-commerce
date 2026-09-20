@@ -57,6 +57,13 @@ export interface GridRow {
     name: string;
     phone?: string;
   } | null;
+  temporaryRider?: {
+    id: string;
+    name: string;
+    phone?: string;
+    startDate?: string | null;
+    endDate?: string | null;
+  } | null;
   /** All distinct plans this customer had deliveries for in this month. */
   allPlans: PlanInfo[];
   days: Record<number, GridCell | null>;
@@ -105,6 +112,12 @@ export class StoreMilkGridService {
         plan: { select: { id: true, name: true, code: true } },
         homeStore: { select: { id: true, name: true } },
         defaultRider: {
+          select: {
+            id: true,
+            user: { select: { name: true, phone: true } },
+          },
+        },
+        temporaryRider: {
           select: {
             id: true,
             user: { select: { name: true, phone: true } },
@@ -339,6 +352,15 @@ export class StoreMilkGridService {
               id: (activeSub as any).defaultRider.id,
               name: (activeSub as any).defaultRider.user.name || 'Assigned Rider',
               phone: (activeSub as any).defaultRider.user.phone || '',
+            }
+          : null,
+        temporaryRider: (activeSub as any).temporaryRider?.user
+          ? {
+              id: (activeSub as any).temporaryRider.id,
+              name: (activeSub as any).temporaryRider.user.name || 'Temporary Rider',
+              phone: (activeSub as any).temporaryRider.user.phone || '',
+              startDate: (activeSub as any).temporaryRiderStartDate?.toISOString() || null,
+              endDate: (activeSub as any).temporaryRiderEndDate?.toISOString() || null,
             }
           : null,
         allPlans,
@@ -976,6 +998,9 @@ export class StoreMilkGridService {
       riderProfileId: string;
       slot?: 'AM' | 'PM';
       saveAsDefaultRider?: boolean;
+      saveAsTemporaryRange?: boolean;
+      temporaryStartDate?: string;
+      temporaryEndDate?: string;
     },
   ) {
     if (!dto.deliveryIds?.length) throw new BadRequestException('At least one delivery must be selected');
@@ -1218,6 +1243,24 @@ export class StoreMilkGridService {
         });
       }
 
+      if (dto.saveAsTemporaryRange && dto.temporaryStartDate && dto.temporaryEndDate) {
+        const subIds = Array.from(new Set(deliveries.map((d) => d.subscriptionId)));
+        const start = new Date(dto.temporaryStartDate);
+        const end = new Date(dto.temporaryEndDate);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && start <= end) {
+          const startDay = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate(), 0, 0, 0, 0));
+          const endDay = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate(), 23, 59, 59, 999));
+          await tx.customerSubscription.updateMany({
+            where: { id: { in: subIds } },
+            data: {
+              temporaryRiderId: rider.id,
+              temporaryRiderStartDate: startDay,
+              temporaryRiderEndDate: endDay,
+            },
+          });
+        }
+      }
+
       return {
         success: true,
         runId: lastRunId,
@@ -1274,7 +1317,91 @@ export class StoreMilkGridService {
   }
 
   /**
-   * 1-Click Auto-Dispatch by Pre-Assigned Default Riders for any target date.
+   * Sets or clears a temporary substitute rider for a customer subscription within a date range.
+   */
+  async setTemporaryRider(
+    actor: { id: string; role: Role; email?: string },
+    subscriptionId: string,
+    dto: { riderProfileId?: string | null; startDate?: string; endDate?: string; applyToScheduledDeliveries?: boolean },
+  ) {
+    const sub = await prisma.customerSubscription.findUnique({
+      where: { id: subscriptionId },
+      include: { homeStore: true },
+    });
+    if (!sub) throw new NotFoundException('Subscription not found');
+
+    const isMaster = actor.role === Role.ADMIN || (actor.email && (actor.email.includes('aagaam') || actor.email.includes('aagam') || actor.email.includes('store@')));
+    if (!isMaster && sub.homeStore?.ownerId !== actor.id) {
+      throw new ForbiddenException('You can only set temporary rider for subscriptions in your store');
+    }
+
+    if (dto.riderProfileId && dto.startDate && dto.endDate) {
+      const rider = await prisma.riderProfile.findFirst({
+        where: { id: dto.riderProfileId, approvalStatus: 'APPROVED', user: { isActive: true } },
+        include: { user: { select: { name: true, phone: true } } },
+      });
+      if (!rider) throw new BadRequestException('Selected rider is not active and approved');
+
+      const start = new Date(dto.startDate);
+      const end = new Date(dto.endDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
+        throw new BadRequestException('Invalid start or end date');
+      }
+
+      const startDay = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate(), 0, 0, 0, 0));
+      const endDay = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate(), 23, 59, 59, 999));
+
+      await prisma.customerSubscription.update({
+        where: { id: subscriptionId },
+        data: {
+          temporaryRiderId: rider.id,
+          temporaryRiderStartDate: startDay,
+          temporaryRiderEndDate: endDay,
+        },
+      });
+
+      if (dto.applyToScheduledDeliveries) {
+        const deliveries = await prisma.subscriptionDelivery.findMany({
+          where: {
+            subscriptionId,
+            serviceDate: { gte: startDay, lte: endDay },
+            status: { in: ['SCHEDULED', 'RESCHEDULED', 'ASSIGNED'] },
+          },
+          select: { id: true },
+        });
+        if (deliveries.length > 0) {
+          await this.dispatchToRider(actor, {
+            riderProfileId: rider.id,
+            deliveryIds: deliveries.map((d) => d.id),
+          });
+        }
+      }
+
+      return {
+        success: true,
+        temporaryRider: {
+          id: rider.id,
+          name: rider.user.name,
+          phone: rider.user.phone,
+          startDate: startDay.toISOString(),
+          endDate: endDay.toISOString(),
+        },
+      };
+    } else {
+      await prisma.customerSubscription.update({
+        where: { id: subscriptionId },
+        data: {
+          temporaryRiderId: null,
+          temporaryRiderStartDate: null,
+          temporaryRiderEndDate: null,
+        },
+      });
+      return { success: true, temporaryRider: null };
+    }
+  }
+
+  /**
+   * 1-Click Auto-Dispatch by Pre-Assigned Default / Temporary Riders for any target date.
    */
   async autoDispatchDefaultRiders(
     actor: { id: string; role: Role; email?: string },
@@ -1304,9 +1431,12 @@ export class StoreMilkGridService {
         subscription: {
           ...storeFilter,
           ...channelFilter,
-          defaultRiderId: { not: null },
           customer: { isActive: true },
           status: { not: 'COMPLETED' },
+          OR: [
+            { defaultRiderId: { not: null } },
+            { temporaryRiderId: { not: null } },
+          ],
         },
       },
       include: {
@@ -1315,6 +1445,10 @@ export class StoreMilkGridService {
             id: true,
             defaultRiderId: true,
             defaultRider: { select: { id: true, user: { select: { name: true } } } },
+            temporaryRiderId: true,
+            temporaryRiderStartDate: true,
+            temporaryRiderEndDate: true,
+            temporaryRider: { select: { id: true, user: { select: { name: true } } } },
           },
         },
       },
@@ -1325,14 +1459,27 @@ export class StoreMilkGridService {
         success: true,
         dispatchedCount: 0,
         riderBreakdown: {},
-        message: 'No eligible deliveries with pre-assigned default riders found for this date.',
+        message: 'No eligible deliveries with pre-assigned default or temporary riders found for this date.',
       };
     }
 
-    // Group deliveries by default rider
+    // Group deliveries by effective rider (temporary rider if active for this date, otherwise default rider)
     const byRider = new Map<string, string[]>();
     for (const d of deliveries) {
-      const riderId = d.subscription.defaultRiderId!;
+      const sub = d.subscription;
+      let riderId: string | null = null;
+      if (
+        sub.temporaryRiderId &&
+        sub.temporaryRiderStartDate &&
+        sub.temporaryRiderEndDate &&
+        dayStart >= sub.temporaryRiderStartDate &&
+        dayStart <= sub.temporaryRiderEndDate
+      ) {
+        riderId = sub.temporaryRiderId;
+      } else if (sub.defaultRiderId) {
+        riderId = sub.defaultRiderId;
+      }
+      if (!riderId) continue;
       const list = byRider.get(riderId) || [];
       list.push(d.id);
       byRider.set(riderId, list);

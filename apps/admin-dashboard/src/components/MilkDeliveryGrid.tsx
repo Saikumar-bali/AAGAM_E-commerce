@@ -94,6 +94,13 @@ interface GridRow {
     name: string;
     phone?: string;
   } | null;
+  temporaryRider?: {
+    id: string;
+    name: string;
+    phone?: string;
+    startDate?: string | null;
+    endDate?: string | null;
+  } | null;
   allPlans: PlanInfo[];
   days: Record<number, GridCell | null>;
   totalDeliveredDays: number;
@@ -317,6 +324,17 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
   const [saveAsDefaultRider, setSaveAsDefaultRider] = useState<boolean>(false);
   const [autoDispatching, setAutoDispatching] = useState<boolean>(false);
   const [cellDefaultRiderChecked, setCellDefaultRiderChecked] = useState<boolean>(false);
+  const [dispatchMode, setDispatchMode] = useState<'SINGLE_DAY' | 'DATE_RANGE'>('SINGLE_DAY');
+  const [dispatchRangeStartDay, setDispatchRangeStartDay] = useState<number>(today.getDate());
+  const [dispatchRangeEndDay, setDispatchRangeEndDay] = useState<number>(Math.min(today.getDate() + 4, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()));
+  const [saveAsTemporaryRange, setSaveAsTemporaryRange] = useState<boolean>(false);
+
+  // Single cell temporary rider assignment states
+  const [cellTempRiderId, setCellTempRiderId] = useState<string>('');
+  const [cellTempStartDate, setCellTempStartDate] = useState<string>('');
+  const [cellTempEndDate, setCellTempEndDate] = useState<string>('');
+  const [cellTempApplyDeliveries, setCellTempApplyDeliveries] = useState<boolean>(true);
+  const [cellTempSubmitting, setCellTempSubmitting] = useState<boolean>(false);
 
   // Photo proof viewing state
   const [viewingPhotoProof, setViewingPhotoProof] = useState<any | null>(null);
