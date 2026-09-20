@@ -8,7 +8,8 @@ TypeScript monorepo (npm workspaces):
 - `apps/admin-dashboard` — Next.js
 - `apps/mobile-customer`, `apps/mobile-partners` — Expo / React Native
 - `packages/database` — Prisma schema and migrations
-- `packages/types`, `packages/utils` — shared packages
+- `packages/types`, `packages/utils`, `packages/ui`, `packages/mobile-shared` — shared packages
+  (`packages/ui` is imported by admin-dashboard, `packages/mobile-shared` by both Expo apps)
 
 ## Running the api-gateway tests
 
@@ -18,9 +19,10 @@ Build the workspace packages first, or `@aagam/database` and `@aagam/types`
 cannot resolve and `tsc` reports hundreds of unrelated errors.
 
 ```bash
-npm install
+npm ci   # matches CI; `npm install` also works
 
 # shared packages must be built before api-gateway will typecheck
+# (root `npm run build:api` does exactly these three, in this order)
 npm run build --workspace=packages/types
 npm run build --workspace=packages/utils
 npm run build --workspace=packages/database   # also runs prisma generate
@@ -55,10 +57,15 @@ git stash pop
 
 ## Migrations
 
-New migrations in this repo are written idempotently
-(`ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, and
-`DO $$ ... EXCEPTION WHEN duplicate_object` around foreign keys) so that
-`migrate deploy` still succeeds if the DDL was already applied manually.
+Follow CI: apply migrations with `migrate deploy` (not `prisma db push`), so
+tests run against the schema migrations actually produce.
+
+Recent migrations are written idempotently (`ADD COLUMN IF NOT EXISTS`,
+`CREATE INDEX IF NOT EXISTS`, and a `DO $$ ... EXCEPTION WHEN duplicate_object`
+or `IF NOT EXISTS` guard around foreign keys) so that `migrate deploy` still
+succeeds if the DDL was already applied manually. This is the pattern to copy
+for new migrations, not a description of the whole directory: most earlier
+migrations use plain `ADD COLUMN` / `CREATE TABLE` and are not idempotent.
 
 ## Automations
 
