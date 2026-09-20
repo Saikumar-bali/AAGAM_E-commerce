@@ -739,16 +739,30 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
     }
     setRiderDispatchSubmitting(true);
     try {
+      const targetYear = gridData?.year || today.getFullYear();
+      const targetMonth = gridData?.month !== undefined ? gridData.month : today.getMonth();
+      const isRange = dispatchMode === 'DATE_RANGE';
+      const rangeStartDate = new Date(Date.UTC(targetYear, targetMonth, Math.min(dispatchRangeStartDay, dispatchRangeEndDay))).toISOString().slice(0, 10);
+      const rangeEndDate = new Date(Date.UTC(targetYear, targetMonth, Math.max(dispatchRangeStartDay, dispatchRangeEndDay))).toISOString().slice(0, 10);
+
       const res = await apiClient.post('/store/subscriptions/dispatch-to-rider', {
         riderProfileId: selectedRiderId,
         deliveryIds: selectedDeliveryIds,
         slot: bulkDispatchSlot === 'ALL' ? undefined : bulkDispatchSlot,
-        saveAsDefaultRider,
+        saveAsDefaultRider: isRange ? false : saveAsDefaultRider,
+        saveAsTemporaryRange: isRange ? saveAsTemporaryRange : false,
+        temporaryStartDate: isRange ? rangeStartDate : undefined,
+        temporaryEndDate: isRange ? rangeEndDate : undefined,
       });
+      const savedLabel = isRange && saveAsTemporaryRange
+        ? ` (Saved as temp rider ${rangeStartDate} – ${rangeEndDate})`
+        : saveAsDefaultRider
+        ? ' (Saved as permanent default rider)'
+        : '';
       toast.success(
         `Successfully dispatched ${res.data?.dispatchedCount || selectedDeliveryIds.length} orders to ${
           res.data?.riderName || 'rider'
-        }!${saveAsDefaultRider ? ' (Saved as permanent default rider)' : ''}`
+        }!${savedLabel}`
       );
       setDispatchRiderModalOpen(false);
       setSelectedDeliveryIds([]);
@@ -817,7 +831,40 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
     }
   };
 
+  // Set temporary substitute rider for a single subscription (date-range)
+  const handleSetTemporaryRider = async (subscriptionId: string) => {
+    if (!cellTempRiderId) {
+      toast.error('Please select a rider');
+      return;
+    }
+    if (!cellTempStartDate || !cellTempEndDate) {
+      toast.error('Please select both start and end dates');
+      return;
+    }
+    setCellTempSubmitting(true);
+    try {
+      await apiClient.post(`/store/subscriptions/${subscriptionId}/temporary-rider`, {
+        riderProfileId: cellTempRiderId,
+        temporaryStartDate: cellTempStartDate,
+        temporaryEndDate: cellTempEndDate,
+        applyExistingDeliveries: cellTempApplyDeliveries,
+      });
+      const rider = availableRiders.find((r) => r.id === cellTempRiderId);
+      toast.success(`Set ${rider?.name || 'rider'} as temp substitute from ${cellTempStartDate} to ${cellTempEndDate}!`);
+      setCellTempRiderId('');
+      setCellTempStartDate('');
+      setCellTempEndDate('');
+      setSelectedCell(null);
+      await loadGrid();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to set temporary rider');
+    } finally {
+      setCellTempSubmitting(false);
+    }
+  };
+
   // Open Photo Proof Viewer
+
   const openPhotoProof = async (proof: any) => {
     setViewingPhotoProof(proof);
     setViewingPhotoUrl(null);
@@ -835,16 +882,32 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
   // Deliveries eligible for rider dispatch for selected target day
   const dispatchEligibleStops = useMemo(() => {
     const list: Array<{ row: GridRow; cell: GridCell }> = [];
-    filteredRows.forEach((row) => {
-      const cell = row.days[dispatchTargetDayNum];
-      if (!cell) return;
-      if (bulkDispatchSlot !== 'ALL' && cell.deliverySlot !== bulkDispatchSlot) return;
-      if (bulkDispatchType === 'ONLINE' && row.customer.customerType !== 'online') return;
-      if (bulkDispatchType === 'OFFLINE' && row.customer.customerType !== 'offline') return;
-      list.push({ row, cell });
-    });
+    if (dispatchMode === 'DATE_RANGE') {
+      // Collect stops across all days in the range
+      const start = Math.min(dispatchRangeStartDay, dispatchRangeEndDay);
+      const end = Math.max(dispatchRangeStartDay, dispatchRangeEndDay);
+      filteredRows.forEach((row) => {
+        for (let day = start; day <= end; day++) {
+          const cell = row.days[day];
+          if (!cell) continue;
+          if (bulkDispatchSlot !== 'ALL' && cell.deliverySlot !== bulkDispatchSlot) continue;
+          if (bulkDispatchType === 'ONLINE' && row.customer.customerType !== 'online') continue;
+          if (bulkDispatchType === 'OFFLINE' && row.customer.customerType !== 'offline') continue;
+          list.push({ row, cell });
+        }
+      });
+    } else {
+      filteredRows.forEach((row) => {
+        const cell = row.days[dispatchTargetDayNum];
+        if (!cell) return;
+        if (bulkDispatchSlot !== 'ALL' && cell.deliverySlot !== bulkDispatchSlot) return;
+        if (bulkDispatchType === 'ONLINE' && row.customer.customerType !== 'online') return;
+        if (bulkDispatchType === 'OFFLINE' && row.customer.customerType !== 'offline') return;
+        list.push({ row, cell });
+      });
+    }
     return list;
-  }, [filteredRows, dispatchTargetDayNum, bulkDispatchSlot, bulkDispatchType]);
+  }, [filteredRows, dispatchTargetDayNum, dispatchRangeStartDay, dispatchRangeEndDay, dispatchMode, bulkDispatchSlot, bulkDispatchType]);
 
   // Stops on target day that already have a pre-assigned default rider
   const stopsWithDefaultRider = useMemo(() => {
@@ -1965,6 +2028,89 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                           </div>
                         ) : null}
 
+                        {/* Temporary Substitute Rider Section */}
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2.5 shadow-2xs">
+                          <div className="flex items-center gap-2">
+                            <div className="h-7 w-7 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                              <UserCheck className="h-3.5 w-3.5" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-amber-950">Temporary Substitute Rider</p>
+                              <p className="text-[10px] text-amber-700">
+                                {selectedCell.row.temporaryRider
+                                  ? `Currently: ${selectedCell.row.temporaryRider.name} (${
+                                      selectedCell.row.temporaryRider.startDate
+                                        ? new Date(selectedCell.row.temporaryRider.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                                        : ''
+                                    }–${
+                                      selectedCell.row.temporaryRider.endDate
+                                        ? new Date(selectedCell.row.temporaryRider.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                                        : ''
+                                    })`
+                                  : 'Assign a substitute rider for a specific date window'
+                                }
+                              </p>
+                            </div>
+                          </div>
+
+                          <select
+                            value={cellTempRiderId}
+                            onChange={(e) => setCellTempRiderId(e.target.value)}
+                            className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-amber-500"
+                          >
+                            <option value="">Select substitute rider...</option>
+                            {availableRiders.map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.name} ({r.phone})
+                              </option>
+                            ))}
+                          </select>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-bold text-amber-800 mb-0.5">From Date</label>
+                              <input
+                                type="date"
+                                value={cellTempStartDate}
+                                onChange={(e) => setCellTempStartDate(e.target.value)}
+                                className="w-full rounded-xl border border-amber-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:border-amber-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-amber-800 mb-0.5">To Date</label>
+                              <input
+                                type="date"
+                                value={cellTempEndDate}
+                                onChange={(e) => setCellTempEndDate(e.target.value)}
+                                className="w-full rounded-xl border border-amber-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:border-amber-500"
+                              />
+                            </div>
+                          </div>
+
+                          <label className="flex items-center gap-2 text-[11px] font-medium text-amber-900 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={cellTempApplyDeliveries}
+                              onChange={(e) => setCellTempApplyDeliveries(e.target.checked)}
+                              className="h-3.5 w-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                            />
+                            <span>Also re-dispatch existing deliveries in this date range to substitute rider</span>
+                          </label>
+
+                          <button
+                            type="button"
+                            disabled={cellTempSubmitting || !cellTempRiderId || !cellTempStartDate || !cellTempEndDate}
+                            onClick={() => handleSetTemporaryRider(selectedCell.row.subscriptionId)}
+                            className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-amber-700 disabled:opacity-50 active:scale-95 transition-all"
+                          >
+                            {cellTempSubmitting ? (
+                              <><Loader2 className="h-3.5 w-3.5 animate-spin" /><span>Saving...</span></>
+                            ) : (
+                              <><UserCheck className="h-3.5 w-3.5" /><span>Set Temporary Rider</span></>
+                            )}
+                          </button>
+                        </div>
+
                         {/* Photo Proof Section */}
                         {selectedCell.cell.photoProof && (
                           <div className="rounded-xl border border-teal-200 bg-teal-50/70 p-3 flex items-center justify-between shadow-2xs">
@@ -2656,68 +2802,137 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold uppercase tracking-wider text-purple-950">
-                    Target Delivery Date
+                    {dispatchMode === 'DATE_RANGE' ? 'Date Range' : 'Target Delivery Date'}
                   </label>
                   <span className="text-xs font-bold text-purple-700 bg-white border border-purple-200 px-2.5 py-0.5 rounded-lg shadow-2xs">
-                    {new Date(
-                      Date.UTC(
-                        gridData?.year || today.getFullYear(),
-                        gridData?.month !== undefined ? gridData.month : today.getMonth(),
-                        dispatchTargetDayNum
-                      )
-                    ).toLocaleDateString('en-IN', {
-                      weekday: 'short',
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
+                    {dispatchMode === 'DATE_RANGE' ? (
+                      <>
+                        Day {Math.min(dispatchRangeStartDay, dispatchRangeEndDay)} – Day {Math.max(dispatchRangeStartDay, dispatchRangeEndDay)}
+                        {' '}({Math.abs(dispatchRangeEndDay - dispatchRangeStartDay) + 1} days)
+                      </>
+                    ) : (
+                      new Date(
+                        Date.UTC(
+                          gridData?.year || today.getFullYear(),
+                          gridData?.month !== undefined ? gridData.month : today.getMonth(),
+                          dispatchTargetDayNum
+                        )
+                      ).toLocaleDateString('en-IN', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })
+                    )}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleTargetDayChange(currentDayNum)}
-                    className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all border ${
-                      dispatchTargetDayNum === currentDayNum
-                        ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    Today (Day {currentDayNum})
-                  </button>
-                  {currentDayNum < (gridData?.daysInMonth || 31) && (
-                    <button
-                      type="button"
-                      onClick={() => handleTargetDayChange(currentDayNum + 1)}
-                      className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all border ${
-                        dispatchTargetDayNum === currentDayNum + 1
-                          ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
-                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      Tomorrow (Day {currentDayNum + 1})
-                    </button>
-                  )}
-                  <select
-                    value={dispatchTargetDayNum}
-                    onChange={(e) => handleTargetDayChange(Number(e.target.value))}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-purple-600"
-                  >
-                    {Array.from({ length: gridData?.daysInMonth || 31 }, (_, i) => i + 1).map((d) => (
-                      <option key={d} value={d}>
-                        Day {d} {d === currentDayNum ? '(Today)' : d === currentDayNum + 1 ? '(Tomorrow)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {dispatchMode === 'SINGLE_DAY' && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleTargetDayChange(currentDayNum)}
+                        className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all border ${
+                          dispatchTargetDayNum === currentDayNum
+                            ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        Today (Day {currentDayNum})
+                      </button>
+                      {currentDayNum < (gridData?.daysInMonth || 31) && (
+                        <button
+                          type="button"
+                          onClick={() => handleTargetDayChange(currentDayNum + 1)}
+                          className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all border ${
+                            dispatchTargetDayNum === currentDayNum + 1
+                              ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          Tomorrow (Day {currentDayNum + 1})
+                        </button>
+                      )}
+                      <select
+                        value={dispatchTargetDayNum}
+                        onChange={(e) => handleTargetDayChange(Number(e.target.value))}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-purple-600"
+                      >
+                        {Array.from({ length: gridData?.daysInMonth || 31 }, (_, i) => i + 1).map((d) => (
+                          <option key={d} value={d}>
+                            Day {d} {d === currentDayNum ? '(Today)' : d === currentDayNum + 1 ? '(Tomorrow)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                {dispatchTargetDayNum > currentDayNum && (
-                  <p className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
-                    📅 <strong>Pre-dispatching in advance:</strong> Deliveries will be scheduled and assigned to the rider ahead of time so they can review their run before their shift.
-                  </p>
+                    {dispatchTargetDayNum > currentDayNum && (
+                      <p className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                        📅 <strong>Pre-dispatching in advance:</strong> Deliveries will be scheduled and assigned to the rider ahead of time so they can review their run before their shift.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
+
+              {/* Dispatch Mode Switcher */}
+              <div className="flex items-center gap-2">
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Dispatch Mode</label>
+                <div className="flex rounded-xl border border-slate-200 p-0.5 bg-slate-50 text-xs font-bold w-full">
+                  <button
+                    type="button"
+                    onClick={() => setDispatchMode('SINGLE_DAY')}
+                    className={`flex-1 rounded-lg py-2 transition-all ${
+                      dispatchMode === 'SINGLE_DAY'
+                        ? 'bg-white text-purple-900 shadow-xs font-bold'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Single Day
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDispatchMode('DATE_RANGE')}
+                    className={`flex-1 rounded-lg py-2 transition-all ${
+                      dispatchMode === 'DATE_RANGE'
+                        ? 'bg-white text-purple-900 shadow-xs font-bold'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Date Range
+                  </button>
+                </div>
+              </div>
+
+              {dispatchMode === 'DATE_RANGE' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">From (Day)</label>
+                    <select
+                      value={dispatchRangeStartDay}
+                      onChange={(e) => setDispatchRangeStartDay(Number(e.target.value))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-purple-600"
+                    >
+                      {Array.from({ length: gridData?.daysInMonth || 31 }, (_, i) => i + 1).map((d) => (
+                        <option key={d} value={d}>Day {d}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">To (Day)</label>
+                    <select
+                      value={dispatchRangeEndDay}
+                      onChange={(e) => setDispatchRangeEndDay(Number(e.target.value))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-purple-600"
+                    >
+                      {Array.from({ length: gridData?.daysInMonth || 31 }, (_, i) => i + 1).map((d) => (
+                        <option key={d} value={d}>Day {d}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {/* 1-Click Auto-Dispatch for Customers with Default Rider */}
               {stopsWithDefaultRider.length > 0 && (
@@ -2830,7 +3045,10 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-700">
-                    Deliveries for Day {dispatchTargetDayNum} ({dispatchEligibleStops.length} matching)
+                    {dispatchMode === 'DATE_RANGE'
+                      ? `Deliveries Days ${Math.min(dispatchRangeStartDay, dispatchRangeEndDay)}–${Math.max(dispatchRangeStartDay, dispatchRangeEndDay)} (${dispatchEligibleStops.length} matching)`
+                      : `Deliveries for Day ${dispatchTargetDayNum} (${dispatchEligibleStops.length} matching)`
+                    }
                   </span>
                   <div className="flex gap-2">
                     <button
@@ -2921,6 +3139,15 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                 Default: {row.defaultRider.name}
                               </span>
                             )}
+                            {row.temporaryRider && (() => {
+                              const tStart = row.temporaryRider?.startDate ? new Date(row.temporaryRider.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '';
+                              const tEnd = row.temporaryRider?.endDate ? new Date(row.temporaryRider.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '';
+                              return (
+                                <span className="rounded bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-bold text-amber-900">
+                                  Temp: {row.temporaryRider?.name} ({tStart}–{tEnd})
+                                </span>
+                              );
+                            })()}
                           </div>
                         </label>
                       );
@@ -2953,15 +3180,27 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
             {/* Footer */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 bg-slate-50 shrink-0">
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer mr-auto">
-                <input
-                  type="checkbox"
-                  checked={saveAsDefaultRider}
-                  onChange={(e) => setSaveAsDefaultRider(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
-                />
-                <span>Save as permanent default rider for selected customers</span>
-              </label>
+              {dispatchMode === 'DATE_RANGE' ? (
+                <label className="flex items-center gap-2 text-xs font-semibold text-amber-800 cursor-pointer mr-auto">
+                  <input
+                    type="checkbox"
+                    checked={saveAsTemporaryRange}
+                    onChange={(e) => setSaveAsTemporaryRange(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                  />
+                  <span>Save as temporary substitute rider for this date range</span>
+                </label>
+              ) : (
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer mr-auto">
+                  <input
+                    type="checkbox"
+                    checked={saveAsDefaultRider}
+                    onChange={(e) => setSaveAsDefaultRider(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                  />
+                  <span>Save as permanent default rider for selected customers</span>
+                </label>
+              )}
 
               <div className="flex items-center gap-2 shrink-0">
                 <button
