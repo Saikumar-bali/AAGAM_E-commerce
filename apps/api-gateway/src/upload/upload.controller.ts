@@ -86,6 +86,21 @@ export class UploadController {
   async evidenceUrl(@Query('key') storageKey: string, @Req() req: any) {
     if (!validPrivateKey(storageKey)) throw new BadRequestException('Invalid evidence key');
     let authorized = hasUserRole(req.user, Role.ADMIN) || storageKey.startsWith(`evidence/${req.user.id}/`);
+    if (!authorized && hasUserRole(req.user, Role.STORE_OWNER)) {
+      const proof = await prisma.riderPhotoProof.findFirst({
+        where: {
+          storageKey,
+          subscriptionDelivery: {
+            OR: [
+              { store: { ownerId: req.user.id } },
+              { subscription: { homeStore: { ownerId: req.user.id } } },
+            ],
+          },
+        },
+        select: { id: true },
+      });
+      if (proof) authorized = true;
+    }
     if (!authorized && hasUserRole(req.user, Role.RIDER)) {
       const rider = await prisma.riderProfile.findUnique({
         where: { userId: req.user.id },

@@ -27,6 +27,9 @@ import {
   ConfirmRunPickupReceiptDto,
   FailRunStopDto,
   ReorderRunStopDto,
+  RiderExtraMilkDto,
+  RiderRecordPaymentDto,
+  RiderToggleSlotDto,
   RunVersionDto,
 } from './subscriptions.dto';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
@@ -286,6 +289,153 @@ export class DeliveryRunOperationsService {
     const payment = stop.deliveryJob.order.payment;
     let trustedDropChallengeId: string | null = null;
 
+    if (stop.proofMode === SubscriptionProofMode.RIDER_PHOTO_GPS) {
+      if (!Number.isFinite(dto.latitude) || !Number.isFinite(dto.longitude)) {
+        throw new BadRequestException('GPS coordinates (latitude, longitude) are required for Rider Photo Proof completion');
+      }
+      const photoKey = dto.evidenceId || (dto as any).proofReference;
+      if (!photoKey) {
+        throw new BadRequestException('A delivery photo proof is required before completing this stop');
+      }
+
+      const cashCollected = dto.cashCollectedPaise || 0;
+
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-stop-finalize:${stopId}`}))`);
+        const currentStop = await tx.deliveryRunStop.findUnique({ where: { id: stopId } });
+        if (!currentStop) throw new NotFoundException('Run stop not found');
+        if (currentStop.status === DeliveryRunStopStatus.DELIVERED) return;
+        if (currentStop.version !== dto.version) throw new ConflictException('Run stop changed; refresh and try again');
+
+        // Upsert RiderPhotoProof
+        await tx.riderPhotoProof.upsert({
+          where: { deliveryRunStopId: stop.id },
+          create: {
+            deliveryRunStopId: stop.id,
+            deliveryJobId: stop.deliveryJobId,
+            subscriptionDeliveryId: stop.subscriptionDeliveryId,
+            riderProfileId: rider.id,
+            storageKey: photoKey,
+            capturedAt: new Date(),
+            gpsLat: dto.latitude,
+            gpsLng: dto.longitude,
+            accuracyMetres: dto.accuracyMetres ?? null,
+            cashCollectedPaise: cashCollected > 0 ? cashCollected : null,
+          },
+          update: {
+            storageKey: photoKey,
+            capturedAt: new Date(),
+            gpsLat: dto.latitude,
+            gpsLng: dto.longitude,
+            accuracyMetres: dto.accuracyMetres ?? null,
+            cashCollectedPaise: cashCollected > 0 ? cashCollected : null,
+          },
+        });
+
+        // Cash collection handling
+        if (cashCollected > 0) {
+          await tx.subscriptionDelivery.update({
+            where: { id: stop.subscriptionDeliveryId },
+            data: {
+              cashCollectedPaise: cashCollected,
+              cashCollectedAt: new Date(),
+            },
+          });
+          const sub = stop.subscriptionDelivery.subscription;
+          await tx.customerSubscription.update({
+            where: { id: sub.id },
+            data: {
+              amountCollectedPaise: { increment: cashCollected },
+              amountDuePaise: { decrement: cashCollected },
+            },
+          });
+
+          // Track in COD ledger for rider cash accountability
+          const ledger = await tx.codLedger.findUnique({
+            where: { deliveryJobId: stop.deliveryJobId },
+          });
+          if (ledger) {
+            await tx.codLedger.update({
+              where: { id: ledger.id },
+              data: {
+                riderId: rider.id,
+                collectedAmountPaise: cashCollected,
+                riderHoldingBalancePaise: cashCollected,
+                collectionTimestamp: new Date(),
+                status: 'HELD_BY_RIDER',
+              },
+            });
+            await tx.codLedgerEntry.create({
+              data: {
+                codLedgerId: ledger.id,
+                type: 'COLLECTED',
+                amountPaise: cashCollected,
+                holdingAfterPaise: cashCollected,
+                depositedAfterPaise: 0,
+                actorUserId: actor.id,
+                actorRole: actor.role,
+                reference: `RUN:${run.routeCode}:STOP:${stop.sequenceNumber}`,
+                idempotencyKey: `cod-stop-complete:${stop.id}:${cashCollected}`,
+              },
+            });
+          }
+        }
+
+        // Finalize stop
+        await tx.deliveryRunStop.update({
+          where: { id: stopId },
+          data: {
+            status: DeliveryRunStopStatus.DELIVERED,
+            deliveredAt: new Date(),
+            latitude: dto.latitude,
+            longitude: dto.longitude,
+            accuracyMetres: dto.accuracyMetres,
+            proofReference: `rider-photo:${photoKey}`,
+            version: { increment: 1 },
+          },
+        });
+
+        // Finalize subscription delivery
+        await tx.subscriptionDelivery.update({
+          where: { id: stop.subscriptionDeliveryId },
+          data: {
+            status: SubscriptionDeliveryStatus.DELIVERED,
+            deliveredAt: new Date(),
+          },
+        });
+
+        // Update subscriber completed count
+        await tx.customerSubscription.update({
+          where: { id: stop.subscriptionDelivery.subscriptionId },
+          data: {
+            completedDeliveries: { increment: 1 },
+          },
+        });
+
+        // Update delivery run aggregates
+        await tx.deliveryRun.update({
+          where: { id: runId },
+          data: {
+            completedStopCount: { increment: 1 },
+            collectedCashPaise: { increment: cashCollected },
+            version: { increment: 1 },
+          },
+        });
+
+        // Update delivery job
+        if (stop.deliveryJobId) {
+          await tx.deliveryJob.update({
+            where: { id: stop.deliveryJobId },
+            data: {
+              status: DeliveryJobStatus.DELIVERED,
+            },
+          });
+        }
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+      return prisma.deliveryRunStop.findUnique({ where: { id: stopId } });
+    }
+
     if (deliveryMethod === SubscriptionDeliveryMethod.TRUSTED_DROP && stop.cashDuePaise === 0) {
       if (!dto.trustedDropToken) throw new BadRequestException('Scan the current Trusted Drop QR before completing the stop');
       if (!dto.evidenceId) throw new BadRequestException('Capture and upload a Trusted Drop photo before completing the stop');
@@ -544,4 +694,190 @@ export class DeliveryRunOperationsService {
       ledgers,
     };
   }
+
+  async extraMilk(
+    runId: string,
+    stopId: string,
+    dto: RiderExtraMilkDto,
+    actor: Actor,
+  ) {
+    const { run } = await this.ownedRun(runId, actor);
+    const stop = run.stops.find((candidate) => candidate.id === stopId);
+    if (!stop) throw new NotFoundException('Run stop not found');
+
+    const extraQty = dto.extraQuantity?.trim() || '+1L';
+    const extraPaise = dto.extraPaise || 8000;
+    const notePrefix = `[EXTRA: ${extraQty}|${extraPaise}]`;
+    const fullNote = `${notePrefix} ${dto.note?.trim() || 'Rider field add-on'}`.trim();
+
+    return prisma.$transaction(async (tx) => {
+      await tx.subscriptionDelivery.update({
+        where: { id: stop.subscriptionDeliveryId },
+        data: {
+          deferredReason: fullNote,
+          cashDuePaise: { increment: extraPaise },
+        },
+      });
+      await tx.deliveryRunStop.update({
+        where: { id: stop.id },
+        data: {
+          cashDuePaise: { increment: extraPaise },
+          version: { increment: 1 },
+        },
+      });
+      await tx.deliveryRun.update({
+        where: { id: run.id },
+        data: {
+          expectedCashPaise: { increment: extraPaise },
+          version: { increment: 1 },
+        },
+      });
+      const sub = await tx.customerSubscription.update({
+        where: { id: stop.subscriptionDelivery.subscriptionId },
+        data: {
+          amountDuePaise: { increment: extraPaise },
+        },
+      });
+      return { success: true, extraPaise, extraQuantity: extraQty, subscription: sub };
+    });
+  }
+
+  async toggleSlot(
+    runId: string,
+    stopId: string,
+    dto: RiderToggleSlotDto,
+    actor: Actor,
+  ) {
+    const { run } = await this.ownedRun(runId, actor);
+    const stop = run.stops.find((candidate) => candidate.id === stopId);
+    if (!stop) throw new NotFoundException('Run stop not found');
+
+    const curSlot = stop.subscriptionDelivery.deliverySlot || 'AM';
+    const newSlot = dto.targetSlot || (curSlot === 'AM' ? 'PM' : 'AM');
+
+    await prisma.subscriptionDelivery.update({
+      where: { id: stop.subscriptionDeliveryId },
+      data: { deliverySlot: newSlot },
+    });
+
+    return { success: true, newSlot };
+  }
+
+  async recordPayment(
+    runId: string,
+    stopId: string,
+    dto: RiderRecordPaymentDto,
+    actor: Actor,
+  ) {
+    const { rider, run } = await this.ownedRun(runId, actor);
+    const stop = run.stops.find((candidate) => candidate.id === stopId);
+    if (!stop) throw new NotFoundException('Run stop not found');
+
+    const amtPaise = dto.amountPaise;
+    if (!amtPaise || amtPaise <= 0) throw new BadRequestException('Payment amount must be greater than 0');
+
+    const mode = dto.paymentMode === 'PHONE_PE' ? '[PHONE_PE]' : '[CASH]';
+    const noteTag = `${mode} ${dto.note || ''}`.trim();
+
+    return prisma.$transaction(async (tx) => {
+      await tx.subscriptionDelivery.update({
+        where: { id: stop.subscriptionDeliveryId },
+        data: {
+          cashCollectedPaise: { increment: amtPaise },
+          cashCollectedAt: new Date(),
+          failureReason: noteTag,
+        },
+      });
+
+      const sub = await tx.customerSubscription.update({
+        where: { id: stop.subscriptionDelivery.subscriptionId },
+        data: {
+          amountCollectedPaise: { increment: amtPaise },
+          amountDuePaise: { decrement: amtPaise },
+        },
+      });
+
+      if (dto.paymentMode !== 'PHONE_PE') {
+        const ledger = await tx.codLedger.findUnique({
+          where: { deliveryJobId: stop.deliveryJobId },
+        });
+        if (ledger) {
+          await tx.codLedger.update({
+            where: { id: ledger.id },
+            data: {
+              riderId: rider.id,
+              collectedAmountPaise: { increment: amtPaise },
+              riderHoldingBalancePaise: { increment: amtPaise },
+              collectionTimestamp: new Date(),
+              status: 'HELD_BY_RIDER',
+            },
+          });
+          await tx.codLedgerEntry.create({
+            data: {
+              codLedgerId: ledger.id,
+              type: 'COLLECTED',
+              amountPaise: amtPaise,
+              holdingAfterPaise: ledger.riderHoldingBalancePaise + amtPaise,
+              depositedAfterPaise: 0,
+              actorUserId: actor.id,
+              actorRole: actor.role,
+              reference: `RUN:${run.routeCode}:STOP:${stop.sequenceNumber}:PAYMENT`,
+              idempotencyKey: `cod-payment:${stop.id}:${Date.now()}`,
+            },
+          });
+        }
+      }
+
+      return { success: true, amountPaise: amtPaise, subscription: sub };
+    });
+  }
+
+  async skipStop(
+    runId: string,
+    stopId: string,
+    dto: { reason?: string; note?: string },
+    actor: Actor,
+  ) {
+    const { run } = await this.ownedRun(runId, actor);
+    const stop = run.stops.find((candidate) => candidate.id === stopId);
+    if (!stop) throw new NotFoundException('Run stop not found');
+
+    return prisma.$transaction(async (tx) => {
+      await tx.deliveryRunStop.update({
+        where: { id: stopId },
+        data: {
+          status: DeliveryRunStopStatus.CANCELLED,
+          failureReason: dto.reason || dto.note || 'Skipped by customer request',
+          version: { increment: 1 },
+        },
+      });
+
+      await tx.subscriptionDelivery.update({
+        where: { id: stop.subscriptionDeliveryId },
+        data: {
+          status: SubscriptionDeliveryStatus.SKIPPED,
+          skippedAt: new Date(),
+          skipReason: dto.reason || dto.note || 'Skipped by customer request',
+        },
+      });
+
+      await tx.customerSubscription.update({
+        where: { id: stop.subscriptionDelivery.subscriptionId },
+        data: {
+          skippedDeliveries: { increment: 1 },
+        },
+      });
+
+      await tx.deliveryRun.update({
+        where: { id: run.id },
+        data: {
+          failedStopCount: { increment: 1 },
+          version: { increment: 1 },
+        },
+      });
+
+      return { success: true, stopId };
+    });
+  }
 }
+

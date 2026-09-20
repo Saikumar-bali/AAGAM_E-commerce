@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { prisma, Role, SubscriptionDeliveryStatus } from '@aagam/database';
+import { prisma, Role, SubscriptionDeliveryStatus, PaymentMethod, PaymentStatus } from '@aagam/database';
 import { parseAddOns, parseVolumeLiters, sumAddOnLiters } from './delivery-add-on';
 
 export interface GridCell {
@@ -15,6 +15,19 @@ export interface GridCell {
   note: string | null;
   /** Plan label when this delivery's plan differs from the row's primary plan. */
   planLabel: string | null;
+  assignedRider?: {
+    id: string;
+    name: string;
+    phone: string;
+  } | null;
+  photoProof?: {
+    storageKey: string;
+    capturedAt: string;
+    gpsLat: number | null;
+    gpsLng: number | null;
+    accuracyMetres: number | null;
+    riderName?: string;
+  } | null;
 }
 
 export interface PlanInfo {
@@ -91,6 +104,26 @@ export class StoreMilkGridService {
             serviceDate: {
               gte: startOfMonth,
               lte: endOfMonth,
+            },
+          },
+          include: {
+            riderPhotoProof: {
+              include: {
+                riderProfile: {
+                  include: { user: { select: { name: true, phone: true } } },
+                },
+              },
+            },
+            runStop: {
+              include: {
+                deliveryRun: {
+                  include: {
+                    rider: {
+                      include: { user: { select: { name: true, phone: true } } },
+                    },
+                  },
+                },
+              },
             },
           },
           orderBy: { serviceDate: 'asc' },
@@ -203,6 +236,23 @@ export class StoreMilkGridService {
             paymentMode,
             note: d.skipReason || d.failureReason || null,
             planLabel,
+            assignedRider: (d as any).runStop?.deliveryRun?.rider?.user
+              ? {
+                  id: (d as any).runStop.deliveryRun.riderId,
+                  name: (d as any).runStop.deliveryRun.rider.user.name || 'Assigned Rider',
+                  phone: (d as any).runStop.deliveryRun.rider.user.phone || '',
+                }
+              : null,
+            photoProof: (d as any).riderPhotoProof
+              ? {
+                  storageKey: (d as any).riderPhotoProof.storageKey,
+                  capturedAt: (d as any).riderPhotoProof.capturedAt.toISOString(),
+                  gpsLat: (d as any).riderPhotoProof.gpsLat,
+                  gpsLng: (d as any).riderPhotoProof.gpsLng,
+                  accuracyMetres: (d as any).riderPhotoProof.accuracyMetres,
+                  riderName: (d as any).riderPhotoProof.riderProfile?.user?.name,
+                }
+              : null,
           };
 
           daysMap[dayNum] = cell;
@@ -872,5 +922,264 @@ export class StoreMilkGridService {
       whatsappText,
       whatsappUrl: sub.customer.phone ? `https://wa.me/91${sub.customer.phone}?text=${encodeURIComponent(whatsappText)}` : null,
     };
+  }
+
+  /**
+   * Return approved active delivery riders for store selection.
+   */
+  async getAvailableRiders(_actor: { id: string; role: Role }) {
+    const riders = await prisma.riderProfile.findMany({
+      where: {
+        approvalStatus: 'APPROVED',
+        user: { isActive: true },
+      },
+      include: {
+        user: { select: { id: true, name: true, phone: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return riders.map((r) => ({
+      id: r.id,
+      name: r.user.name || 'Delivery Rider',
+      phone: r.user.phone || '',
+      status: r.status,
+    }));
+  }
+
+  /**
+   * Dispatches subscription deliveries (both offline & online) to a chosen delivery rider.
+   * Ensures Order, DeliveryJob, DeliveryRun, and DeliveryRunStop with proofMode: RIDER_PHOTO_GPS.
+   */
+  async dispatchToRider(
+    actor: { id: string; role: Role; email?: string },
+    dto: {
+      deliveryIds: string[];
+      riderProfileId: string;
+      slot?: 'AM' | 'PM';
+    },
+  ) {
+    if (!dto.deliveryIds?.length) throw new BadRequestException('At least one delivery must be selected');
+    if (!dto.riderProfileId) throw new BadRequestException('A delivery rider must be selected');
+
+    const rider = await prisma.riderProfile.findFirst({
+      where: { id: dto.riderProfileId, approvalStatus: 'APPROVED', user: { isActive: true } },
+      include: { user: { select: { id: true, name: true, phone: true } } },
+    });
+    if (!rider) throw new BadRequestException('Selected rider is not active and approved');
+
+    const deliveries = await prisma.subscriptionDelivery.findMany({
+      where: { id: { in: dto.deliveryIds } },
+      include: {
+        subscription: {
+          include: {
+            customer: true,
+            homeStore: { select: { id: true, ownerId: true, name: true, address: true, latitude: true, longitude: true } },
+            plan: true,
+          },
+        },
+        order: { include: { items: true, payment: true } },
+        deliveryJob: true,
+        runStop: true,
+      },
+    });
+
+    if (!deliveries.length) throw new NotFoundException('No matching deliveries found');
+
+    const isMaster = actor.role === Role.ADMIN || (actor.email && (actor.email.includes('aagaam') || actor.email.includes('aagam') || actor.email.includes('store@')));
+    for (const d of deliveries) {
+      if (!isMaster && d.subscription.homeStore?.ownerId !== actor.id) {
+        throw new ForbiddenException('You can only dispatch deliveries for your assigned store');
+      }
+    }
+
+    const first = deliveries[0];
+    const store = first.subscription.homeStore || await prisma.store.findFirst({ where: { ownerId: actor.id } });
+    if (!store) throw new BadRequestException('Store could not be determined for dispatch');
+
+    const slot = dto.slot || first.deliverySlot || 'AM';
+    const serviceDate = first.serviceDate;
+    const dateStr = serviceDate.toISOString().slice(0, 10);
+    const cleanStoreName = (store.name || 'STORE').replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase();
+    const routeCode = `RUN-${cleanStoreName}-${slot}-${dateStr}-${rider.id.slice(-4)}`;
+
+    return prisma.$transaction(async (tx) => {
+      let run = await tx.deliveryRun.findFirst({
+        where: {
+          storeId: store.id,
+          serviceDate,
+          deliverySlot: slot,
+          riderId: rider.id,
+          status: { not: 'CANCELLED' },
+        },
+      });
+
+      if (!run) {
+        const slotStart = new Date(serviceDate);
+        slotStart.setUTCHours(slot === 'AM' ? 5 : 17, 0, 0, 0);
+        const slotEnd = new Date(serviceDate);
+        slotEnd.setUTCHours(slot === 'AM' ? 9 : 21, 0, 0, 0);
+
+        run = await tx.deliveryRun.create({
+          data: {
+            routeCode,
+            storeId: store.id,
+            riderId: rider.id,
+            serviceDate,
+            slotStart,
+            slotEnd,
+            deliveryCluster: 'LOCAL',
+            deliverySlot: slot,
+            status: 'IN_PROGRESS',
+            startedAt: new Date(),
+            pickupConfirmedAt: new Date(),
+          },
+        });
+      }
+
+      let nextSeq = (await tx.deliveryRunStop.count({ where: { deliveryRunId: run.id } })) + 1;
+
+      for (const d of deliveries) {
+        let jobId = d.deliveryJobId;
+        if (!jobId) {
+          let orderId = d.order?.id;
+          if (!orderId) {
+            const newOrder = await tx.order.create({
+              data: {
+                customerId: d.subscription.customerId,
+                storeId: store.id,
+                status: 'PACKED',
+                orderSource: 'SUBSCRIPTION',
+                totalAmount: (d.cashDuePaise || 0) / 100,
+                subtotal: (d.cashDuePaise || 0) / 100,
+                grandTotal: (d.cashDuePaise || 0) / 100,
+                subtotalPaise: d.cashDuePaise || 0,
+                grandTotalPaise: d.cashDuePaise || 0,
+                currency: 'INR',
+                subscriptionDeliveryId: d.id,
+                scheduledDeliveryDate: d.serviceDate,
+                payment: {
+                  create: {
+                    method: (d.cashDuePaise || 0) > 0 ? PaymentMethod.COD : PaymentMethod.SUBSCRIPTION_CASH_CREDIT,
+                    status: (d.cashDuePaise || 0) > 0 ? PaymentStatus.PENDING_COD : PaymentStatus.SUBSCRIPTION_FUNDED,
+                    provider: (d.cashDuePaise || 0) > 0 ? 'COD' : 'SUBSCRIPTION_ENTITLEMENT',
+                    amount: (d.cashDuePaise || 0) / 100,
+                    amountPaise: d.cashDuePaise || 0,
+                    currency: 'INR',
+                  },
+                },
+                customerSnapshot: {
+                  id: d.subscription.customer.id,
+                  name: d.subscription.customer.name,
+                  phone: d.subscription.customer.phone,
+                },
+                addressSnapshot: (d.subscription.addressSnapshot as any) || {},
+                itemsSnapshot: (d.subscription.itemsSnapshot as any) || undefined,
+                items: (() => {
+                  const rawItems = (d.subscription.itemsSnapshot as any) || [];
+                  const validItems = Array.isArray(rawItems)
+                    ? rawItems.filter((it: any) => it && it.productId && it.productId !== 'manual-sub')
+                    : [];
+                  if (validItems.length === 0) return undefined;
+                  return {
+                    create: validItems.map((it: any) => ({
+                      productId: it.productId,
+                      quantity: Number(it.quantity) || 1,
+                      price: Number(it.price ?? (it.unitPricePaise ? it.unitPricePaise / 100 : 0)),
+                      unitPricePaise: Number(it.unitPricePaise ?? d.cashDuePaise ?? 0),
+                      lineTotalPaise: Number(it.lineTotalPaise ?? d.cashDuePaise ?? 0),
+                    })),
+                  };
+                })(),
+              },
+            });
+            orderId = newOrder.id;
+          }
+
+          const createdJob = await tx.deliveryJob.create({
+            data: {
+              orderId,
+              status: 'OUT_FOR_DELIVERY',
+              currentRiderId: rider.id,
+            },
+          });
+          jobId = createdJob.id;
+
+          await tx.subscriptionDelivery.update({
+            where: { id: d.id },
+            data: { deliveryJobId: jobId },
+          });
+
+          await tx.codLedger.upsert({
+            where: { deliveryJobId: jobId },
+            create: {
+              deliveryJobId: jobId,
+              orderId,
+              riderId: rider.id,
+              expectedAmountPaise: d.cashDuePaise,
+              collectedAmountPaise: 0,
+              riderHoldingBalancePaise: 0,
+              status: 'AWAITING_COLLECTION',
+            },
+            update: {
+              riderId: rider.id,
+              expectedAmountPaise: d.cashDuePaise,
+            },
+          });
+        }
+
+        let stop = await tx.deliveryRunStop.findUnique({
+          where: { subscriptionDeliveryId: d.id },
+        });
+
+        if (!stop) {
+          stop = await tx.deliveryRunStop.create({
+            data: {
+              deliveryRunId: run.id,
+              deliveryJobId: jobId,
+              subscriptionDeliveryId: d.id,
+              sequenceNumber: nextSeq++,
+              proofMode: 'RIDER_PHOTO_GPS',
+              cashDuePaise: d.cashDuePaise,
+              expectedItemCount: 1,
+              expectedParcelCount: 1,
+              status: 'ARRIVED',
+            },
+          });
+        }
+
+        await tx.subscriptionDelivery.update({
+          where: { id: d.id },
+          data: {
+            status: SubscriptionDeliveryStatus.ASSIGNED,
+            proofMode: 'RIDER_PHOTO_GPS',
+          },
+        });
+      }
+
+      const totals = await tx.deliveryRunStop.aggregate({
+        where: { deliveryRunId: run.id },
+        _count: { _all: true },
+        _sum: { cashDuePaise: true },
+      });
+
+      await tx.deliveryRun.update({
+        where: { id: run.id },
+        data: {
+          totalStopCount: totals._count._all,
+          expectedCashPaise: totals._sum.cashDuePaise ?? 0,
+          status: 'IN_PROGRESS',
+          version: { increment: 1 },
+        },
+      });
+
+      return {
+        success: true,
+        runId: run.id,
+        routeCode: run.routeCode,
+        dispatchedCount: deliveries.length,
+        riderName: rider.user.name,
+      };
+    });
   }
 }

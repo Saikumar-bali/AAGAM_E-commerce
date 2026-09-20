@@ -30,6 +30,10 @@ import {
   Minimize2,
   Scale,
   Package,
+  Camera,
+  UserCheck,
+  MapPin,
+  ExternalLink,
 } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 
@@ -45,6 +49,22 @@ interface GridCell {
   paymentMode: 'CASH' | 'PHONE_PE' | 'DUE' | null;
   note: string | null;
   planLabel: string | null;
+  assignedRider?: {
+    id: string;
+    name: string;
+    phone: string;
+    routeCode?: string;
+  } | null;
+  photoProof?: {
+    id: string;
+    storageKey: string;
+    capturedAt: string;
+    gpsLat?: number | null;
+    gpsLng?: number | null;
+    accuracyMetres?: number | null;
+    cashCollectedPaise?: number;
+    signedUrl?: string | null;
+  } | null;
 }
 
 interface PlanInfo {
@@ -277,6 +297,22 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
   const [consecutiveDays, setConsecutiveDays] = useState(4);
   const [paymentAmount, setPaymentAmount] = useState('80');
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'PHONE_PE'>('CASH');
+
+  // Rider Dispatch States
+  const [dispatchRiderModalOpen, setDispatchRiderModalOpen] = useState(false);
+  const [availableRiders, setAvailableRiders] = useState<
+    Array<{ id: string; name: string; phone: string; status: string; pendingRunCount: number }>
+  >([]);
+  const [selectedRiderId, setSelectedRiderId] = useState('');
+  const [bulkDispatchSlot, setBulkDispatchSlot] = useState<'AM' | 'PM' | 'ALL'>('ALL');
+  const [bulkDispatchType, setBulkDispatchType] = useState<'ALL' | 'ONLINE' | 'OFFLINE'>('ALL');
+  const [selectedDeliveryIds, setSelectedDeliveryIds] = useState<string[]>([]);
+  const [riderDispatchSubmitting, setRiderDispatchSubmitting] = useState(false);
+
+  // Photo proof viewing state
+  const [viewingPhotoProof, setViewingPhotoProof] = useState<any | null>(null);
+  const [viewingPhotoUrl, setViewingPhotoUrl] = useState<string | null>(null);
+  const [loadingPhotoUrl, setLoadingPhotoUrl] = useState(false);
 
   // Load live catalog products for dynamic dropdowns. Store owners cannot read
   // `/admin/products` and must only be offered what their own store carries, so
@@ -611,6 +647,121 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
     };
   }, [filteredRows, currentDayNum]);
 
+  // Load active riders for dispatch
+  const loadAvailableRiders = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/store/subscriptions/available-riders');
+      const riders = Array.isArray(res.data) ? res.data : [];
+      setAvailableRiders(riders);
+      if (riders.length > 0 && !selectedRiderId) {
+        setSelectedRiderId(riders[0].id);
+      }
+      return riders;
+    } catch {
+      return [];
+    }
+  }, [selectedRiderId]);
+
+  useEffect(() => {
+    if (selectedCell && availableRiders.length === 0) {
+      void loadAvailableRiders();
+    }
+  }, [selectedCell, availableRiders.length, loadAvailableRiders]);
+
+  // Open Rider Dispatch Modal
+  const openRiderDispatchModal = async () => {
+    setDispatchRiderModalOpen(true);
+    await loadAvailableRiders();
+    const ids: string[] = [];
+    filteredRows.forEach((row) => {
+      const cell = row.days[currentDayNum];
+      if (cell && cell.status !== 'DELIVERED' && cell.status !== 'SKIPPED') {
+        ids.push(cell.deliveryId);
+      }
+    });
+    setSelectedDeliveryIds(ids);
+  };
+
+  // Submit Rider Dispatch
+  const handleDispatchToRider = async () => {
+    if (!selectedRiderId) {
+      toast.error('Please choose an approved rider');
+      return;
+    }
+    if (selectedDeliveryIds.length === 0) {
+      toast.error('Please select at least one delivery stop');
+      return;
+    }
+    setRiderDispatchSubmitting(true);
+    try {
+      const res = await apiClient.post('/store/subscriptions/dispatch-to-rider', {
+        riderProfileId: selectedRiderId,
+        deliveryIds: selectedDeliveryIds,
+        slot: bulkDispatchSlot === 'ALL' ? undefined : bulkDispatchSlot,
+      });
+      toast.success(
+        `Successfully dispatched ${res.data?.dispatchedCount || selectedDeliveryIds.length} orders to ${
+          res.data?.riderName || 'rider'
+        }!`
+      );
+      setDispatchRiderModalOpen(false);
+      setSelectedDeliveryIds([]);
+      await loadGrid();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to dispatch to rider');
+    } finally {
+      setRiderDispatchSubmitting(false);
+    }
+  };
+
+  // Assign single delivery to rider
+  const handleAssignSingleRider = async (deliveryId: string, riderId: string) => {
+    if (!riderId) return;
+    setActionLoading(true);
+    try {
+      const res = await apiClient.post('/store/subscriptions/dispatch-to-rider', {
+        riderProfileId: riderId,
+        deliveryIds: [deliveryId],
+      });
+      toast.success(`Delivery assigned to ${res.data?.riderName || 'rider'}!`);
+      setSelectedCell(null);
+      await loadGrid();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to assign to rider');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Open Photo Proof Viewer
+  const openPhotoProof = async (proof: any) => {
+    setViewingPhotoProof(proof);
+    setViewingPhotoUrl(null);
+    setLoadingPhotoUrl(true);
+    try {
+      const res = await apiClient.get(`/upload/evidence-url?key=${encodeURIComponent(proof.storageKey)}`);
+      setViewingPhotoUrl(res.data?.url || res.data?.signedUrl);
+    } catch {
+      toast.error('Could not load photo proof');
+    } finally {
+      setLoadingPhotoUrl(false);
+    }
+  };
+
+  // Deliveries eligible for rider dispatch today
+  const dispatchEligibleStops = useMemo(() => {
+    const list: Array<{ row: GridRow; cell: GridCell }> = [];
+    filteredRows.forEach((row) => {
+      const cell = row.days[currentDayNum];
+      if (!cell) return;
+      if (bulkDispatchSlot !== 'ALL' && cell.deliverySlot !== bulkDispatchSlot) return;
+      if (bulkDispatchType === 'ONLINE' && row.customer.customerType !== 'online') return;
+      if (bulkDispatchType === 'OFFLINE' && row.customer.customerType !== 'offline') return;
+      list.push({ row, cell });
+    });
+    return list;
+  }, [filteredRows, currentDayNum, bulkDispatchSlot, bulkDispatchType]);
+
   // Render individual delivery card
   const renderDeliveryCard = (row: GridRow, displayIndex: number, originalIndex: number, isPending: boolean) => {
     const cell = row.days[currentDayNum];
@@ -660,6 +811,12 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               )}
             </div>
             <p className="text-xs text-slate-500 mt-1">{row.customer.address}</p>
+            {cell?.assignedRider && (
+              <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-50 rounded px-1.5 py-0.5 border border-purple-200 w-fit">
+                <Truck className="h-3 w-3 text-purple-600" />
+                <span>Rider: {cell.assignedRider.name}</span>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col items-end gap-1 shrink-0">
@@ -686,8 +843,18 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
             <span>{row.customer.phone}</span>
           </a>
 
-          {/* Delivery Status Badge */}
-          <div>
+          {/* Delivery Status Badge & Proof */}
+          <div className="flex items-center gap-1.5">
+            {cell?.photoProof && (
+              <button
+                onClick={() => openPhotoProof(cell.photoProof)}
+                className="inline-flex items-center gap-1 rounded-md bg-teal-50 border border-teal-200 px-2 py-0.5 text-[11px] font-semibold text-teal-800 hover:bg-teal-100 transition-colors shadow-2xs"
+                title="View Camera & GPS proof"
+              >
+                <Camera className="h-3 w-3 text-teal-600" />
+                Proof
+              </button>
+            )}
             {isDelivered ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white shadow-2xs">
                 <Check className="h-3 w-3 stroke-[3]" />
@@ -831,6 +998,15 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
           {/* Right Action Buttons */}
           <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={openRiderDispatchModal}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-purple-700 px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-purple-800 transition-all active:scale-95"
+              title="Delegate deliveries to an active rider"
+            >
+              <Truck className="h-3.5 w-3.5" />
+              <span>Dispatch to Rider</span>
+            </button>
+
             <button
               onClick={openDispatchSummary}
               className="inline-flex items-center gap-1 rounded-xl bg-amber-400 px-2.5 py-1 text-xs font-semibold text-slate-900 shadow-xs hover:bg-amber-300 transition-all"
@@ -1302,6 +1478,26 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                 Due
                               </span>
                             ) : null}
+
+                            {/* Assigned Rider Badge */}
+                            {cell.assignedRider && (
+                              <span
+                                className="mt-0.5 inline-flex items-center gap-0.5 text-[7px] font-bold text-purple-700 bg-purple-100 rounded px-1"
+                                title={`Rider: ${cell.assignedRider.name}`}
+                              >
+                                <Truck className="h-2 w-2" /> {cell.assignedRider.name.slice(0, 5)}
+                              </span>
+                            )}
+
+                            {/* Photo Proof Badge */}
+                            {cell.photoProof && (
+                              <span
+                                className="mt-0.5 inline-flex items-center gap-0.5 text-[7px] font-bold text-teal-700 bg-teal-100 rounded px-1"
+                                title="Photo proof captured"
+                              >
+                                <Camera className="h-2 w-2" /> Proof
+                              </span>
+                            )}
                           </div>
                         </td>
                       );
@@ -1568,6 +1764,84 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                             Mark Skipped (Not Taken)
                           </button>
                         </div>
+
+                        {/* Assigned Rider Section */}
+                        {selectedCell.cell.assignedRider ? (
+                          <div className="rounded-xl border border-purple-200 bg-purple-50/70 p-3 flex items-center justify-between shadow-2xs">
+                            <div className="flex items-center gap-2.5">
+                              <div className="h-8 w-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-700">
+                                <Truck className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-purple-900">
+                                  Rider: {selectedCell.cell.assignedRider.name}
+                                </p>
+                                <p className="text-[10px] text-purple-600">{selectedCell.cell.assignedRider.phone}</p>
+                              </div>
+                            </div>
+                            {selectedCell.cell.status !== 'DELIVERED' && (
+                              <button
+                                disabled={actionLoading}
+                                onClick={() => {
+                                  setSelectedDeliveryIds([selectedCell.cell!.deliveryId]);
+                                  setDispatchRiderModalOpen(true);
+                                }}
+                                className="rounded-lg border border-purple-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-purple-800 hover:bg-purple-50 transition-colors shadow-2xs"
+                              >
+                                Reassign
+                              </button>
+                            )}
+                          </div>
+                        ) : selectedCell.cell.status !== 'DELIVERED' ? (
+                          <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5 shadow-2xs">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              Delegate Stop to Rider
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <select
+                                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-purple-500"
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    void handleAssignSingleRider(selectedCell.cell!.deliveryId, e.target.value);
+                                  }
+                                }}
+                                defaultValue=""
+                                disabled={actionLoading}
+                              >
+                                <option value="" disabled>Select rider to assign...</option>
+                                {availableRiders.map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    {r.name} ({r.phone}) · {r.pendingRunCount} active run(s)
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {/* Photo Proof Section */}
+                        {selectedCell.cell.photoProof && (
+                          <div className="rounded-xl border border-teal-200 bg-teal-50/70 p-3 flex items-center justify-between shadow-2xs">
+                            <div className="flex items-center gap-2.5">
+                              <div className="h-8 w-8 rounded-lg bg-teal-100 flex items-center justify-center text-teal-700">
+                                <Camera className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-teal-900">Proof of Delivery Captured</p>
+                                <p className="text-[10px] text-teal-600">
+                                  GPS: {selectedCell.cell.photoProof.gpsLat?.toFixed(4)}, {selectedCell.cell.photoProof.gpsLng?.toFixed(4)} (±{selectedCell.cell.photoProof.accuracyMetres || 0}m)
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => openPhotoProof(selectedCell.cell!.photoProof)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-teal-800 transition-colors"
+                            >
+                              <Camera className="h-3.5 w-3.5" />
+                              View Proof
+                            </button>
+                          </div>
+                        )}
 
                         {/* Quick Ledger Snapshot */}
                         <div className="rounded-xl border border-slate-100 bg-white p-3 text-xs">
@@ -2201,6 +2475,364 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Dispatch to Rider Modal */}
+      {dispatchRiderModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-3 sm:p-4 overflow-y-auto">
+          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white border border-slate-200 overflow-hidden shadow-xl">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 bg-white shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700">
+                  <Truck className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Dispatch Deliveries to Rider</h3>
+                  <p className="text-xs text-slate-500">
+                    Delegate today&apos;s deliveries to an active delivery partner (Day {currentDayNum} · {monthLabel})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDispatchRiderModalOpen(false)}
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="overflow-y-auto p-5 space-y-4 flex-1">
+              {/* Rider Selector */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Select Delivery Rider
+                </label>
+                {availableRiders.length === 0 ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-center justify-between">
+                    <span>No active, approved riders found. Please register or activate a rider first.</span>
+                    <button
+                      type="button"
+                      onClick={() => void loadAvailableRiders()}
+                      className="ml-2 font-bold underline"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedRiderId}
+                    onChange={(e) => setSelectedRiderId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-purple-600 focus:bg-white transition-colors"
+                  >
+                    {availableRiders.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name} · {r.phone} ({r.pendingRunCount} active run{r.pendingRunCount === 1 ? '' : 's'})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Filter Controls */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">Shift Filter</label>
+                  <div className="flex rounded-xl border border-slate-200 p-0.5 bg-slate-50 text-xs font-bold">
+                    {(['ALL', 'AM', 'PM'] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setBulkDispatchSlot(s)}
+                        className={`flex-1 rounded-lg py-1.5 transition-all ${
+                          bulkDispatchSlot === s
+                            ? 'bg-white text-purple-900 shadow-xs font-bold'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        {s === 'ALL' ? 'All Slots' : `${s} Shift`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">Customer Channel</label>
+                  <div className="flex rounded-xl border border-slate-200 p-0.5 bg-slate-50 text-xs font-bold">
+                    {(['ALL', 'ONLINE', 'OFFLINE'] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setBulkDispatchType(t)}
+                        className={`flex-1 rounded-lg py-1.5 transition-all ${
+                          bulkDispatchType === t
+                            ? 'bg-white text-purple-900 shadow-xs font-bold'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        {t === 'ALL' ? 'All' : t === 'ONLINE' ? 'Online' : 'Offline'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Delivery Selection List */}
+              <div className="space-y-2 pt-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">
+                    Deliveries for Today ({dispatchEligibleStops.length} matching)
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allIds = dispatchEligibleStops.map((s) => s.cell.deliveryId);
+                        setSelectedDeliveryIds(allIds);
+                      }}
+                      className="text-xs font-bold text-purple-700 hover:underline"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDeliveryIds([])}
+                      className="text-xs font-bold text-slate-500 hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-56 overflow-y-auto space-y-1.5 rounded-xl border border-slate-200 p-2 bg-slate-50/50">
+                  {dispatchEligibleStops.length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-6">No matching deliveries for today.</p>
+                  ) : (
+                    dispatchEligibleStops.map(({ row, cell }) => {
+                      const isSelected = selectedDeliveryIds.includes(cell.deliveryId);
+                      return (
+                        <label
+                          key={cell.deliveryId}
+                          className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-purple-300 bg-purple-50/80 text-purple-950 font-semibold'
+                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedDeliveryIds((prev) => [...prev, cell.deliveryId]);
+                                } else {
+                                  setSelectedDeliveryIds((prev) => prev.filter((id) => id !== cell.deliveryId));
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                            />
+                            <div className="truncate">
+                              <p className="font-semibold text-slate-900 truncate">{row.customer.name}</p>
+                              <p className="text-[11px] text-slate-500 truncate">{row.customer.address}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                row.customer.customerType === 'offline'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-blue-100 text-blue-800'
+                              }`}
+                            >
+                              {row.customer.customerType === 'offline' ? 'OFFLINE' : 'ONLINE'}
+                            </span>
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">
+                              {cell.deliverySlot}
+                            </span>
+                            <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                              {cell.baseQuantity}
+                            </span>
+                            {cell.cashDuePaise > 0 && (
+                              <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
+                                ₹{(cell.cashDuePaise / 100).toFixed(0)} COD
+                              </span>
+                            )}
+                            {cell.assignedRider && (
+                              <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[9px] font-bold text-purple-800">
+                                Assigned: {cell.assignedRider.name}
+                              </span>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Selection Summary */}
+              <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3 flex flex-wrap items-center justify-between text-xs font-semibold text-purple-900">
+                <span>Selected: {selectedDeliveryIds.length} stops</span>
+                <span>
+                  Estimated Volume:{' '}
+                  {dispatchEligibleStops
+                    .filter((s) => selectedDeliveryIds.includes(s.cell.deliveryId))
+                    .reduce((sum, s) => sum + (parseFloat(s.cell.extraMilk || s.cell.baseQuantity) || 1), 0)}{' '}
+                  L
+                </span>
+                <span>
+                  Expected Cash:{' '}
+                  ₹
+                  {(
+                    dispatchEligibleStops
+                      .filter((s) => selectedDeliveryIds.includes(s.cell.deliveryId))
+                      .reduce((sum, s) => sum + (s.cell.cashDuePaise || 0), 0) / 100
+                  ).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3 bg-slate-50 shrink-0">
+              <button
+                type="button"
+                onClick={() => setDispatchRiderModalOpen(false)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={riderDispatchSubmitting || selectedDeliveryIds.length === 0 || !selectedRiderId}
+                onClick={handleDispatchToRider}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-purple-700 px-5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-purple-800 disabled:opacity-50 active:scale-95 transition-all"
+              >
+                {riderDispatchSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Dispatching Run...</span>
+                  </>
+                ) : (
+                  <>
+                    <Truck className="h-4 w-4" />
+                    <span>Dispatch {selectedDeliveryIds.length} Stops</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Photo & GPS Proof Viewer Modal */}
+      {viewingPhotoProof && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 overflow-y-auto"
+          onClick={() => setViewingPhotoProof(null)}
+        >
+          <div
+            className="relative w-full max-w-lg rounded-2xl bg-white p-5 border border-slate-200 shadow-xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-teal-100 flex items-center justify-center text-teal-700">
+                  <Camera className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Proof of Delivery</h3>
+                  <p className="text-[11px] text-slate-500">Camera photo and GPS coordinates verified on delivery</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingPhotoProof(null)}
+                className="rounded-xl p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Photo Preview */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 min-h-60 flex items-center justify-center overflow-hidden">
+              {loadingPhotoUrl ? (
+                <div className="flex flex-col items-center gap-2 py-10">
+                  <Loader2 className="h-7 w-7 animate-spin text-teal-600" />
+                  <p className="text-xs font-semibold text-slate-600">Loading delivery photograph...</p>
+                </div>
+              ) : viewingPhotoUrl ? (
+                <img
+                  src={viewingPhotoUrl}
+                  alt="Delivery Proof"
+                  className="max-h-80 w-auto rounded-lg object-contain mx-auto shadow-xs"
+                />
+              ) : (
+                <div className="text-center py-10 text-xs text-slate-500">
+                  <Camera className="h-8 w-8 mx-auto text-slate-300 mb-1" />
+                  <span>Photo preview unavailable</span>
+                </div>
+              )}
+            </div>
+
+            {/* GPS Details & Timestamp */}
+            <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-500">Captured At:</span>
+                <span className="font-bold text-slate-800">
+                  {viewingPhotoProof.capturedAt ? new Date(viewingPhotoProof.capturedAt).toLocaleString('en-IN') : '—'}
+                </span>
+              </div>
+
+              {viewingPhotoProof.gpsLat && viewingPhotoProof.gpsLng ? (
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-500">GPS Coordinates:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-semibold text-slate-800">
+                      {viewingPhotoProof.gpsLat.toFixed(5)}, {viewingPhotoProof.gpsLng.toFixed(5)}
+                    </span>
+                    <a
+                      href={`https://www.google.com/maps?q=${viewingPhotoProof.gpsLat},${viewingPhotoProof.gpsLng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded bg-teal-50 border border-teal-200 px-1.5 py-0.5 text-[10px] font-bold text-teal-700 hover:bg-teal-100 transition-colors"
+                    >
+                      <MapPin className="h-3 w-3" /> Maps
+                    </a>
+                  </div>
+                </div>
+              ) : null}
+
+              {viewingPhotoProof.accuracyMetres ? (
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-500">GPS Accuracy:</span>
+                  <span className="font-bold text-slate-800">±{viewingPhotoProof.accuracyMetres.toFixed(1)} metres</span>
+                </div>
+              ) : null}
+
+              {viewingPhotoProof.cashCollectedPaise > 0 && (
+                <div className="flex items-center justify-between border-t border-slate-200/60 pt-1.5">
+                  <span className="font-semibold text-slate-500">Cash Collected:</span>
+                  <span className="font-bold text-emerald-700">₹{(viewingPhotoProof.cashCollectedPaise / 100).toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setViewingPhotoProof(null)}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
