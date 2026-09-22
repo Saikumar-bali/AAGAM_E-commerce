@@ -249,7 +249,7 @@ underneath an intentional display face.
 
 Structural moves (not just paint):
 
-1. A **ledger head**: plan name with a real "Day 12 of 24" figure, and the term
+1. A **ledger head**: plan name with a real "Day 12 of 30" figure, and the term
    rendered as a horizon strip instead of a ring gauge.
 2. A **horizon rail** on the left spine showing position in the term — replaces
    the decorative ring, which encodes a percentage the text already states.
