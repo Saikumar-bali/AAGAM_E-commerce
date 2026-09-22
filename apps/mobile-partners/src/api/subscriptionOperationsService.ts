@@ -428,12 +428,12 @@ export const subscriptionOperationsService = {
   },
 
   getSubscribers: async (): Promise<any[]> => {
-    const response = await apiClient.get('/subscriptions/subscribers');
+    const response = await apiClient.get('/store/subscriptions/subscribers');
     return Array.isArray(response.data) ? response.data : [];
   },
 
   getPlans: async (): Promise<any[]> => {
-    const response = await apiClient.get('/subscriptions/plans');
+    const response = await apiClient.get('/store/subscriptions/plans');
     return Array.isArray(response.data) ? response.data : [];
   },
 
@@ -441,7 +441,7 @@ export const subscriptionOperationsService = {
     const params: Record<string, string> = {};
     if (from) params.from = from;
     if (to) params.to = to;
-    const response = await apiClient.get('/subscriptions/calendar', { params });
+    const response = await apiClient.get('/store/subscriptions/calendar', { params });
     return Array.isArray(response.data) ? response.data : [];
   },
 
@@ -449,7 +449,7 @@ export const subscriptionOperationsService = {
     const params: Record<string, string> = {};
     if (year != null) params.year = String(year);
     if (month != null) params.month = String(month);
-    const response = await apiClient.get('/subscriptions/grid', { params });
+    const response = await apiClient.get('/store/subscriptions/grid', { params });
     return response.data;
   },
 
@@ -460,6 +460,42 @@ export const subscriptionOperationsService = {
 
   autoDispatchDefaultRiders: async (date?: string) => {
     const response = await apiClient.post('/subscriptions/auto-dispatch-default-riders', { date });
+    return response.data;
+  },
+
+  createOfflineCustomer: async (input: {
+    name: string;
+    phone: string;
+    line1: string;
+    line2?: string;
+    landmark?: string;
+    city: string;
+    state: string;
+    pincode: string;
+    latitude?: number;
+    longitude?: number;
+    storeId?: string;
+  }) => {
+    const response = await apiClient.post('/store/subscriptions/manual-customer', input);
+    return response.data;
+  },
+
+  createManualSubscription: async (input: {
+    storeId: string;
+    planId: string;
+    customerId: string;
+    addressId: string;
+    startDate: string;
+    totalDeliveries?: number;
+    deliverySlot?: string;
+    frequency?: string;
+    splitItems?: { amProductName: string; amQuantity: string; pmProductName: string; pmQuantity: string };
+    vacationRange?: { fromDate: string; toDate: string; policy: string };
+    initialCashCollectedPaise?: number;
+    storeDelivery?: boolean;
+    note?: string;
+  }) => {
+    const response = await apiClient.post('/store/subscriptions/manual-subscribe', input);
     return response.data;
   },
 };
