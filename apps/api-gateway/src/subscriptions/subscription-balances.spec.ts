@@ -1,4 +1,4 @@
-import { reconcileSubscriptionBalance, sumDeliveryCash } from './subscription-balances';
+import { computeVoidAdjustment, reconcileSubscriptionBalance, sumDeliveryCash } from './subscription-balances';
 
 describe('sumDeliveryCash', () => {
   it('totals cash recorded across deliveries', () => {
@@ -80,5 +80,37 @@ describe('reconcileSubscriptionBalance', () => {
       deliveryCashPaise: 0,
       driftPaise: 0,
     });
+  });
+});
+
+describe('computeVoidAdjustment', () => {
+  // Regression: Nookalamma's ledger held only ₹50 against a ₹130 day cell.
+  // Voiding the full ₹130 must return only the ₹50 the ledger actually held,
+  // otherwise due grows by the ₹80 of reconciliation drift and the customer's
+  // collected + due would exceed the subscription price.
+  it('returns only the ledger portion to due when the ledger is short of the cell', () => {
+    expect(computeVoidAdjustment(5000, 13000)).toEqual({
+      amountCollectedPaise: 0,
+      dueRestoredPaise: 5000,
+    });
+  });
+
+  it('preserves collected + due for a consistent ledger', () => {
+    const { amountCollectedPaise, dueRestoredPaise } = computeVoidAdjustment(13000, 13000);
+    expect(amountCollectedPaise).toBe(0);
+    expect(dueRestoredPaise).toBe(13000);
+  });
+
+  it('handles partial voids against a fully recorded ledger', () => {
+    expect(computeVoidAdjustment(13000, 5000)).toEqual({
+      amountCollectedPaise: 8000,
+      dueRestoredPaise: 5000,
+    });
+  });
+
+  it('tolerates null, negative and zero inputs', () => {
+    expect(computeVoidAdjustment(null, 1000)).toEqual({ amountCollectedPaise: 0, dueRestoredPaise: 0 });
+    expect(computeVoidAdjustment(1000, 0)).toEqual({ amountCollectedPaise: 1000, dueRestoredPaise: 0 });
+    expect(computeVoidAdjustment(-500, 1000)).toEqual({ amountCollectedPaise: 0, dueRestoredPaise: 0 });
   });
 });

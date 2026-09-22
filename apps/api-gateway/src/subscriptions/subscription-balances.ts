@@ -55,3 +55,23 @@ export function reconcileSubscriptionBalance(
 
   return { amountCollectedPaise, amountDuePaise, deliveryCashPaise, driftPaise };
 }
+
+/**
+ * Splits a voided amount into the part that actually leaves the raw collected
+ * ledger and the part that returns to due. The ledger can be short of the cash
+ * evidenced on a delivery (reconciliation drift); only what is really removed
+ * from the ledger may be added back to due, otherwise collected + due would
+ * exceed the subscription price.
+ */
+export function computeVoidAdjustment(
+  ledgerCollectedPaise: number | null | undefined,
+  voidPaise: number,
+): { amountCollectedPaise: number; dueRestoredPaise: number } {
+  const ledgerCollected = Math.max(0, ledgerCollectedPaise || 0);
+  const voided = Math.max(0, voidPaise);
+  const dueRestoredPaise = Math.min(ledgerCollected, voided);
+  return {
+    amountCollectedPaise: Math.max(0, ledgerCollected - voided),
+    dueRestoredPaise,
+  };
+}

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { randomUUID } from 'crypto';
 import { prisma, Role, SubscriptionDeliveryStatus, PaymentMethod, PaymentStatus } from '@aagam/database';
 import { parseAddOns, parseVolumeLiters, sumAddOnLiters } from './delivery-add-on';
-import { reconcileSubscriptionBalance } from './subscription-balances';
+import { computeVoidAdjustment, reconcileSubscriptionBalance } from './subscription-balances';
 
 export interface GridCell {
   deliveryId: string;
@@ -665,6 +665,10 @@ export class StoreMilkGridService {
       const voidPaise = Math.min(requested, collectedOnCell);
 
       const remainingCellCash = collectedOnCell - voidPaise;
+      const { amountCollectedPaise, dueRestoredPaise } = computeVoidAdjustment(
+        sub.amountCollectedPaise,
+        voidPaise,
+      );
 
       await prisma.$transaction([
         prisma.subscriptionDelivery.update({
@@ -680,11 +684,12 @@ export class StoreMilkGridService {
         prisma.customerSubscription.update({
           where: { id: sub.id },
           data: {
-            amountCollectedPaise: Math.max(0, (sub.amountCollectedPaise || 0) - voidPaise),
-            // Return the full voided amount to the balance so collected + due
-            // continues to equal the subscription price, even when the ledger
-            // was already short of the cash evidenced on this delivery.
-            amountDuePaise: (sub.amountDuePaise || 0) + voidPaise,
+            amountCollectedPaise,
+            // Return only the amount actually removed from the raw collected
+            // ledger so collected + due continues to equal the subscription
+            // price, even when the ledger was already short of the cash
+            // evidenced on this delivery.
+            amountDuePaise: (sub.amountDuePaise || 0) + dueRestoredPaise,
           },
         }),
         prisma.subscriptionAuditEntry.create({
