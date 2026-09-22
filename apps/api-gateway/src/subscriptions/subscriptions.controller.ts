@@ -524,7 +524,7 @@ export class StoreSubscriptionsController {
     @Param('id') id: string,
     @Body()
     body: {
-      type: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT' | 'ATTACH_EVENING_MILK';
+      type: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT' | 'VOID_PAYMENT' | 'ATTACH_EVENING_MILK';
       extraQuantity?: string;
       extraPaise?: number;
       paymentMode?: 'CASH' | 'PHONE_PE';

@@ -524,7 +524,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
   // Cell quick action
   const handleQuickAction = async (
     deliveryId: string,
-    actionType: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT' | 'ATTACH_EVENING_MILK',
+    actionType: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT' | 'VOID_PAYMENT' | 'ATTACH_EVENING_MILK',
     options?: { extraQuantity?: string; amountPaise?: number; extraPaise?: number; paymentMode?: 'CASH' | 'PHONE_PE'; note?: string; consecutiveDays?: number; targetSlot?: 'AM' | 'PM' },
   ) => {
     setActionLoading(true);
@@ -544,6 +544,8 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
           ? 'Delivery marked as skipped!'
           : actionType === 'TOGGLE_SLOT'
           ? 'Shift toggled!'
+          : actionType === 'VOID_PAYMENT'
+          ? 'Payment voided and moved back to Due!'
           : 'Payment recorded!',
       );
       setSelectedCell(null);
@@ -2559,6 +2561,41 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                             </button>
                           </div>
                         </div>
+
+                        {/* Void / correct a wrongly recorded payment on this cell */}
+                        {selectedCell.cell!.cashCollectedPaise > 0 && (
+                          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-semibold text-amber-950">Void Recorded Payment</p>
+                              <span className="text-xs font-bold text-amber-800">
+                                On this day: ₹{(selectedCell.cell!.cashCollectedPaise / 100).toFixed(2)}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-amber-800">
+                              Removes cash recorded against this day and moves it back to Due. Use this to
+                              correct an amount entered by mistake.
+                            </p>
+                            <button
+                              disabled={actionLoading}
+                              onClick={() => {
+                                const cellCashRupees = (selectedCell.cell!.cashCollectedPaise / 100).toFixed(2);
+                                if (
+                                  !window.confirm(
+                                    `Void ₹${cellCashRupees} recorded on this day? The amount returns to the customer's Due balance.`,
+                                  )
+                                ) {
+                                  return;
+                                }
+                                handleQuickAction(selectedCell.cell!.deliveryId, 'VOID_PAYMENT', {
+                                  amountPaise: selectedCell.cell!.cashCollectedPaise,
+                                });
+                              }}
+                              className="w-full rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                            >
+                              Void this day&apos;s payment
+                            </button>
+                          </div>
+                        )}
 
                         {/* Renew Plan Section */}
                         <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 flex items-center justify-between gap-3">

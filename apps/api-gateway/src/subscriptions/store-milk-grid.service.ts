@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { prisma, Role, SubscriptionDeliveryStatus, PaymentMethod, PaymentStatus } from '@aagam/database';
 import { parseAddOns, parseVolumeLiters, sumAddOnLiters } from './delivery-add-on';
+import { reconcileSubscriptionBalance } from './subscription-balances';
 
 export interface GridCell {
   deliveryId: string;
@@ -307,6 +309,14 @@ export class StoreMilkGridService {
 
       const totalLiters = calculatedDeliveredLiters;
 
+      // Money columns must agree with the day cells rendered in the same row.
+      // The ledger can lag the cash evidenced on deliveries, so reconcile the
+      // whole customer (all merged subscriptions) before totalling.
+      const reconciled = reconcileSubscriptionBalance(
+        activeSub,
+        custSubs.flatMap((sub) => sub.deliveries),
+      );
+
       // Build allPlans array sorted by earliest day
       const allPlans: PlanInfo[] = Array.from(planDayMap.values())
         .map((p) => ({
@@ -368,8 +378,8 @@ export class StoreMilkGridService {
         totalDeliveredDays,
         totalExtraLiters,
         totalLiters,
-        totalCollectedPaise: activeSub.amountCollectedPaise || 0,
-        totalDuePaise: activeSub.amountDuePaise || 0,
+        totalCollectedPaise: reconciled.amountCollectedPaise,
+        totalDuePaise: reconciled.amountDuePaise,
       });
     }
 
@@ -390,7 +400,7 @@ export class StoreMilkGridService {
     actor: { id: string; role: Role; email?: string },
     deliveryId: string,
     action: {
-      type: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT' | 'ATTACH_EVENING_MILK';
+      type: 'TOGGLE_DELIVERED' | 'SKIP' | 'EXTRA_MILK' | 'TOGGLE_SLOT' | 'RECORD_PAYMENT' | 'VOID_PAYMENT' | 'ATTACH_EVENING_MILK';
       extraQuantity?: string;
       extraPaise?: number;
       paymentMode?: 'CASH' | 'PHONE_PE';
@@ -644,6 +654,64 @@ export class StoreMilkGridService {
       ]);
 
       return { success: true, delivery: updated[0], subscription: updated[1] };
+    }
+
+    if (action.type === 'VOID_PAYMENT') {
+      const collectedOnCell = Math.max(0, delivery.cashCollectedPaise || 0);
+      if (collectedOnCell <= 0) {
+        throw new BadRequestException('This delivery has no recorded payment to void');
+      }
+      const requested = action.amountPaise && action.amountPaise > 0 ? action.amountPaise : collectedOnCell;
+      const voidPaise = Math.min(requested, collectedOnCell);
+
+      const remainingCellCash = collectedOnCell - voidPaise;
+
+      await prisma.$transaction([
+        prisma.subscriptionDelivery.update({
+          where: { id: deliveryId },
+          data: {
+            cashCollectedPaise: remainingCellCash,
+            cashCollectedAt: remainingCellCash > 0 ? delivery.cashCollectedAt : null,
+            failureReason: remainingCellCash > 0
+              ? delivery.failureReason
+              : null,
+          },
+        }),
+        prisma.customerSubscription.update({
+          where: { id: sub.id },
+          data: {
+            amountCollectedPaise: Math.max(0, (sub.amountCollectedPaise || 0) - voidPaise),
+            // Return the full voided amount to the balance so collected + due
+            // continues to equal the subscription price, even when the ledger
+            // was already short of the cash evidenced on this delivery.
+            amountDuePaise: (sub.amountDuePaise || 0) + voidPaise,
+          },
+        }),
+        prisma.subscriptionAuditEntry.create({
+          data: {
+            subscriptionId: sub.id,
+            actorUserId: actor.id,
+            actorRole: actor.role,
+            action: 'PAYMENT_VOIDED',
+            reason: action.note?.trim() || `Voided ₹${(voidPaise / 100).toFixed(2)} recorded on delivery ${delivery.sequenceNumber}`,
+            metadata: {
+              deliveryId,
+              voidedPaise: voidPaise,
+              cellCashBeforePaise: collectedOnCell,
+              cellCashAfterPaise: remainingCellCash,
+              ledgerCollectedBeforePaise: sub.amountCollectedPaise || 0,
+              ledgerDueBeforePaise: sub.amountDuePaise || 0,
+            },
+            idempotencyKey: `payment-void:${deliveryId}:${randomUUID()}`,
+          },
+        }),
+      ]);
+
+      return {
+        success: true,
+        voidedPaise: voidPaise,
+        cellCashCollectedPaise: remainingCellCash,
+      };
     }
 
     throw new BadRequestException('Unsupported action type');
@@ -933,8 +1001,9 @@ export class StoreMilkGridService {
       0,
     );
 
-    const totalPaidRupees = (sub.amountCollectedPaise || 0) / 100;
-    const totalDueRupees = (sub.amountDuePaise || 0) / 100;
+    const { amountCollectedPaise, amountDuePaise } = reconcileSubscriptionBalance(sub, sub.deliveries);
+    const totalPaidRupees = amountCollectedPaise / 100;
+    const totalDueRupees = amountDuePaise / 100;
 
     const whatsappText = `*🥛 AAGAM MILK DELIVERY - MONTHLY STATEMENT*\n` +
       `--------------------------------\n` +
