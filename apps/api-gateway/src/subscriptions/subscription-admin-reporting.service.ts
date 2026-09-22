@@ -16,6 +16,7 @@ import { SubscriptionCashFundingService } from './subscription-cash-funding.serv
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { isOneOf } from '../common/enum-membership';
 import { normalizePhoneE164 } from '../contact-verification/contact-otp.service';
+import { reconcileSubscriptionBalance } from './subscription-balances';
 
 function deliveryContact(snapshot: Prisma.JsonValue) {
   const address = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)
@@ -131,10 +132,8 @@ export class SubscriptionAdminReportingService {
       take: 500,
     }).then((rows) => rows.map((row) => {
       const contact = deliveryContact(row.addressSnapshot);
-      const deliveryCash = row.deliveries ? row.deliveries.reduce((sum, d) => sum + (d.cashCollectedPaise || 0), 0) : 0;
       const completedCount = row.deliveries ? row.deliveries.filter((d) => d.status === 'DELIVERED').length : row.completedDeliveries;
-      const amountCollectedPaise = Math.max(row.amountCollectedPaise || 0, deliveryCash);
-      const amountDuePaise = Math.max(0, (row.amountDuePaise || 0) - (amountCollectedPaise - (row.amountCollectedPaise || 0)));
+      const { amountCollectedPaise, amountDuePaise } = reconcileSubscriptionBalance(row, row.deliveries);
       const completedDeliveries = Math.max(row.completedDeliveries || 0, completedCount);
       const status = (amountDuePaise === 0 && row.status === 'PENDING_CASH_COLLECTION') ? 'ACTIVE' : row.status;
       return {

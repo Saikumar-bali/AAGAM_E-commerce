@@ -53,6 +53,28 @@ git stash pop
 # then diff the FAIL lines of the two runs
 ```
 
+## Subscription money is derived, not read raw
+
+A subscription's cash lives in two places that can drift apart: the
+`CustomerSubscription.amountCollectedPaise` / `amountDuePaise` ledger, and the
+per-delivery `SubscriptionDelivery.cashCollectedPaise` day cells. Absolute
+writers (`createManualSubscription`, `renewSubscription`,
+`updateManualSubscription`) and partial ledger updates can leave the ledger
+short of the cash already recorded on deliveries.
+
+Any reader that shows a "Paid" or "Due" figure must go through
+`reconcileSubscriptionBalance` in
+`apps/api-gateway/src/subscriptions/subscription-balances.ts`, which treats the
+ledger as a floor and absorbs the missing day-cell cash. Reading the raw columns
+renders a Paid figure that disagrees with the day cells in the same row. This is
+exactly what produced the 31-Day Matrix showing Paid Rs 50 next to a Rs 130 cell
+for Nookalamma.
+
+When adding a new money column, use the helper rather than the raw column, and
+keep values scoped the way the row is scoped: the Subscribers tab lists one
+subscription per row, while the grid merges a customer's active and previous
+subscriptions into a single row and must reconcile across all of them.
+
 ## Migrations
 
 New migrations in this repo are written idempotently

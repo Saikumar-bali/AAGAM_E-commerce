@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Role, prisma } from '@aagam/database';
 import { startOfUtcDay } from './subscription-calendar.service';
+import { reconcileSubscriptionBalance } from './subscription-balances';
 
 export type OfflineCustomerActor = { id: string; role: Role };
 
@@ -450,9 +451,8 @@ export class OfflineCustomerService {
       };
     });
 
-    const totalCashCollectedOnDeliveries = subscription.deliveries.reduce((sum: number, d: { cashCollectedPaise?: number | null }) => sum + (d.cashCollectedPaise || 0), 0);
-    const effectiveCollectedPaise = Math.max(subscription.amountCollectedPaise || 0, totalCashCollectedOnDeliveries);
-    const effectiveDuePaise = Math.max(0, (subscription.amountDuePaise || 0) - (effectiveCollectedPaise - (subscription.amountCollectedPaise || 0)));
+    const { amountCollectedPaise: effectiveCollectedPaise, amountDuePaise: effectiveDuePaise } =
+      reconcileSubscriptionBalance(subscription, subscription.deliveries);
 
     const summary = {
       totalDays: subscription.deliveries.length,
