@@ -119,7 +119,10 @@ token actually sits on:
 | Report icon `#B96600` on white | `:431`, `:471` | **4.23** | passes 3:1 UI floor |
 | Strip weekday / empty text `#94A3B8` | `DeliveryCalendarStrip.tsx:218`, `:244` | **2.45** | fails 4.5 |
 
-Six of the seven rows fail the applicable threshold; the report icon is above the 3:1 floor but below the 4.5:1 text floor, so it is kept and re-checked as an icon. This is partly a **token-level** problem: `theme.ts` ships
+The report icon is the one row above its applicable threshold: at **4.23:1** it
+clears the 3:1 non-text floor, so it is **not** counted as a failure. It is below
+4.5:1, but as a UI graphic the 3:1 floor is the one that applies. The other six
+rows fail their applicable threshold. This is partly a **token-level** problem: `theme.ts` ships
 `textMuted: '#94A3B8'`, which is **2.45:1** on `theme.ts:background '#F8FAFC'` —
 below AA wherever it is used as text. Several labels are additionally 9–10 pt
 (`:857`, `:872`, `:927`, `:943`, `:984`, `:1013`, `:1029`), so small size and low
