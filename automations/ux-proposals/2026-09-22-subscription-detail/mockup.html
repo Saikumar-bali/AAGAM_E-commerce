@@ -479,10 +479,11 @@ svg.ico{display:block}
 .btn.ghost .ico{color:var(--brand)}
 .btn.danger{color:var(--danger);border-color:var(--danger-edge);background:var(--danger-soft)}
 .btn[aria-disabled="true"]{opacity:.55;background:#F2EEE7}
-.btn .busy{
-  width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.35);
-  border-top-color:#fff;animation:spin 800ms linear infinite;flex:0 0 auto
+.busy{
+  width:18px;height:18px;border-radius:50%;border:2px solid rgba(11,79,70,.25);
+  border-top-color:#0B4F46;animation:spin 800ms linear infinite;flex:0 0 auto
 }
+.btn .busy{border-color:rgba(255,255,255,.35);border-top-color:#fff}
 .two-up{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .two-up .btn{min-height:60px;font-size:13.5px;padding:0 12px}
 
@@ -783,6 +784,7 @@ label:focus-visible{
   .spinner{animation:none;border-top-color:rgba(15,118,110,.22)}
   .btn .busy{animation:none;border-top-color:rgba(255,255,255,.35);position:relative}
   .btn .busy::after{content:"";position:absolute;inset:3px;background:rgba(255,255,255,.85);border-radius:50%}
+  .busy{animation:none;border-top-color:rgba(11,79,70,.25)}
 }
 </style>
 </head>
@@ -1082,6 +1084,8 @@ label:focus-visible{
                     <div class="action"><span>Report</span></div>
                     <div class="action"><span>Show QR</span></div>
                   </div>
+                </div>
+              </div>
               <div class="st st-sheet" style="--d:flex;flex-direction:column">
                 <div class="body">
                   <div class="hero">
@@ -1132,8 +1136,6 @@ label:focus-visible{
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
                 </div>
               </div>
 
@@ -1194,7 +1196,7 @@ label:focus-visible{
                     </div>
                     <div class="fig">
                       <div class="big"><small>Day</small> 12<small> / 30</small></div>
-                      <div class="bigsub">25&nbsp;Sep&nbsp;–&nbsp;24&nbsp;Oct 2026</div>
+                      <div class="bigsub">25 Sep – 24 Oct 2026 · Day 12 of 30</div>
                     </div>
                     <div class="rail">
                       <div class="bar" role="img" aria-label="Term progress: 12 of 30 deliveries completed, 40 percent">
@@ -1260,7 +1262,7 @@ label:focus-visible{
 
                   <!-- QR in progress: real progress affordance (was P2) -->
                   <div class="inline" role="status">
-                    <div class="busy" style="border-color:rgba(11,79,70,.25);border-top-color:#0B4F46" aria-hidden="true"></div>
+                    <div class="busy" aria-hidden="true"></div>
                     <span class="grow"><strong>Preparing your QR…</strong> this usually takes a second.</span>
                   </div>
 
@@ -1292,7 +1294,7 @@ label:focus-visible{
                     <div class="hrow">
                       <div class="day">12</div>
                       <div class="mid">
-                        <div class="dt">Mon, 22 Sep</div>
+                        <div class="dt">Tue, 22 Sep</div>
                         <div class="sub">05:30–07:00 · photo proof</div>
                         <span class="badge b-del"><span class="mk">✓</span>Delivered</span>
                       </div>
@@ -1312,7 +1314,7 @@ label:focus-visible{
                     <div class="hrow">
                       <div class="day">10</div>
                       <div class="mid">
-                        <div class="dt">Sat, 20 Sep</div>
+                        <div class="dt">Sun, 20 Sep</div>
                         <div class="sub">05:30–07:00 · cash collected</div>
                         <span class="badge b-del"><span class="mk">✓</span>Delivered</span>
                       </div>
@@ -1322,7 +1324,7 @@ label:focus-visible{
                     <div class="hrow">
                       <div class="day">13</div>
                       <div class="mid">
-                        <div class="dt">Tue, 23 Sep</div>
+                        <div class="dt">Wed, 23 Sep</div>
                         <div class="sub">05:30–07:00 · scheduled</div>
                         <span class="badge b-sch"><span class="mk">›</span>Scheduled</span>
                       </div>
@@ -1446,7 +1448,7 @@ label:focus-visible{
 
                   <!-- partial failure: history failed, plan loaded -->
                   <div class="amount-card">
-                    <div class="hd"><h3>Delivery history</h3></div>
+                    <div class="hd"><h3>Delivery history (day 13, next)</h3></div>
                     <div class="inline err">
                       <span class="grow">Delivery history didn't load. This is not an empty history — it's a failed request.</span>
                     </div>
@@ -1469,7 +1471,7 @@ label:focus-visible{
                     <div class="cap"><span class="l">Delivery ledger</span><span class="r">ACTIVE</span></div>
                     <div class="fig">
                       <div class="big"><small>Day</small> 12<small> / 30</small></div>
-                      <div class="bigsub">25 Sep – 24 Oct 2026</div>
+                      <div class="bigsub">25 Sep – 24 Oct 2026 · Day 12 of 30</div>
                     </div>
                     <div class="rail">
                       <div class="bar" role="img" aria-label="Term progress: 12 of 30 deliveries completed, 40 percent"><i style="width:40%"></i></div>
@@ -1482,7 +1484,7 @@ label:focus-visible{
                   </div>
 
                   <div class="amount-card">
-                    <div class="hd"><h3>Next delivery</h3><span class="when">Tue, 23 Sep · 05:30–07:00</span></div>
+                    <div class="hd"><h3>Next delivery</h3><span class="when">Wed, 23 Sep · 05:30–07:00</span></div>
                     <div class="amt-total" style="border-top:1px solid var(--rule);padding-top:10px">
                       <div class="lbl">Due now, at the door</div><div class="ct">₹0</div>
                     </div>
@@ -1490,7 +1492,7 @@ label:focus-visible{
                   </div>
 
                   <div class="act-group">
-                    <button class="btn ghost" type="button" aria-disabled="true">
+                    <button class="btn ghost" type="button" disabled aria-disabled="true">
                       <svg class="ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 4.5 12 8l-6-3.5"/><path d="M12 8v12"/><path d="m6 19.5 6-3.5 6 3.5"/></svg>
                       <span class="grow">Skip next<span class="hint">Needs a connection — will be available when you're back online</span></span>
                     </button>
@@ -1507,7 +1509,7 @@ label:focus-visible{
                     <div class="cap"><span class="l">Delivery ledger</span><span class="r">ACTIVE</span></div>
                     <div class="fig">
                       <div class="big"><small>Day</small> 12<small> / 30</small></div>
-                      <div class="bigsub">25&nbsp;Sep&nbsp;–&nbsp;24&nbsp;Oct 2026</div>
+                      <div class="bigsub">25 Sep – 24 Oct 2026 · Day 12 of 30</div>
                     </div>
                     <div class="rail">
                       <div class="bar" role="img" aria-label="Term progress: 12 of 30 deliveries completed, 40 percent"><i style="width:40%"></i></div>
@@ -1635,7 +1637,7 @@ label:focus-visible{
           </div>
 
           <div class="amount-card" style="max-width:none">
-            <div class="hd"><h3>Next delivery</h3><span class="when">Tue, 23 Sep · 05:30–07:00</span></div>
+            <div class="hd"><h3>Next delivery</h3><span class="when">Wed, 23 Sep · 05:30–07:00</span></div>
             <div class="amount-rule"></div>
             <div class="amt-row"><div class="lbl">Milk · 1 L<em>Trusted doorstep, one-time QR</em></div><div class="ct">₹40</div></div>
             <div class="amt-row"><div class="lbl">Prepaid balance applied<em>Covers day 13 of the term</em></div><div class="ct">−₹40</div></div>
@@ -1663,10 +1665,10 @@ label:focus-visible{
 
             <div class="hist">
               <div class="hd"><h3>Recent deliveries</h3><button class="all" type="button">View all 12</button></div>
-              <div class="hrow"><div class="day">12</div><div class="mid"><div class="dt">Mon, 22 Sep</div><div class="sub">05:30–07:00 · photo proof</div><span class="badge b-del"><span class="mk">✓</span>Delivered</span></div><div class="amt"><span class="v">₹0</span><span class="u">due</span></div></div>
+              <div class="hrow"><div class="day">12</div><div class="mid"><div class="dt">Tue, 22 Sep</div><div class="sub">05:30–07:00 · photo proof</div><span class="badge b-del"><span class="mk">✓</span>Delivered</span></div><div class="amt"><span class="v">₹0</span><span class="u">due</span></div></div>
               <div class="hrow"><div class="day">11</div><div class="mid"><div class="dt">Sun, 21 Sep</div><div class="sub">05:30–07:00 · skipped by you</div><span class="badge b-skip"><span class="mk">—</span>Skipped</span></div><div class="amt"><span class="v">₹0</span><span class="u">due</span></div></div>
-              <div class="hrow"><div class="day">10</div><div class="mid"><div class="dt">Sat, 20 Sep</div><div class="sub">05:30–07:00 · cash collected</div><span class="badge b-del"><span class="mk">✓</span>Delivered</span></div><div class="amt"><span class="v due">₹40</span><span class="u">paid</span></div></div>
-              <div class="hrow"><div class="day">13</div><div class="mid"><div class="dt">Tue, 23 Sep</div><div class="sub">05:30–07:00 · scheduled</div><span class="badge b-sch"><span class="mk">›</span>Scheduled</span></div><div class="amt"><span class="v">₹0</span><span class="u">due</span></div></div>
+              <div class="hrow"><div class="day">10</div><div class="mid"><div class="dt">Sun, 20 Sep</div><div class="sub">05:30–07:00 · cash collected</div><span class="badge b-del"><span class="mk">✓</span>Delivered</span></div><div class="amt"><span class="v due">₹40</span><span class="u">paid</span></div></div>
+              <div class="hrow"><div class="day">13</div><div class="mid"><div class="dt">Wed, 23 Sep</div><div class="sub">05:30–07:00 · scheduled</div><span class="badge b-sch"><span class="mk">›</span>Scheduled</span></div><div class="amt"><span class="v">₹0</span><span class="u">due</span></div></div>
             </div>
           </div>
         </div>

@@ -116,10 +116,10 @@ token actually sits on:
 | `heroLabel` `#BFEADA` 10 px on `#0F766E` | `:870`–`:872` | **4.17** | fails 4.5 |
 | `heroFact` `#CDEEE1` 12 px on `#0F766E` | `:906` | **4.41** | fails 4.5 |
 | Ring border `#65C7A7` on `#0F766E` | `:883`, `:888` | **2.68** | fails 3:1 UI floor |
-| Report icon `#B96600` on white | `:431`, `:471` | **4.23** | fails 3:1 UI floor |
+| Report icon `#B96600` on white | `:431`, `:471` | **4.23** | passes 3:1 UI floor |
 | Strip weekday / empty text `#94A3B8` | `DeliveryCalendarStrip.tsx:218`, `:244` | **2.45** | fails 4.5 |
 
-This is partly a **token-level** problem: `theme.ts` ships
+Six of the seven rows fail the applicable threshold; the report icon is above the 3:1 floor but below the 4.5:1 text floor, so it is kept and re-checked as an icon. This is partly a **token-level** problem: `theme.ts` ships
 `textMuted: '#94A3B8'`, which is **2.45:1** on `theme.ts:background '#F8FAFC'` —
 below AA wherever it is used as text. Several labels are additionally 9–10 pt
 (`:857`, `:872`, `:927`, `:943`, `:984`, `:1013`, `:1029`), so small size and low
@@ -275,7 +275,7 @@ Structural moves (not just paint):
 | P4 | Empty deliveries render an empty titled box (`:482`–`:499`) | Purpose-written empty state: says the plan has no scheduled delivery yet, shows the next expected window, offers "View plans" | The customer knows whether this is normal or a problem |
 | P5 | No connectivity signal anywhere; failures are fleeting toasts (`:151`–`:277`) | Persistent offline banner, plus actions that queue with an explicit "will send when back online" state and online-only actions disabled with a reason | Offline becomes a visible state instead of a disappearing toast |
 | P6 | 4 money representations, one non-numeric (`:382`–`:387`, `:510`, `:475`, `:760`) | One right-aligned `Amount` column; `Due now ₹40` / `Prepaid ₹0`; funding summarised as `₹280 prepaid · covers days 1–7`; "Funded left" reworded to "Deliveries still prepaid" with an inline explainer | One reading rule for money; no domain guessing |
-| P7 | 7 contrast failures incl. 2.45 and 2.68 (`:984`, `:1012`, `:870`, `:906`, `:883`; strip `:218`, `:244`); control edges only ~1.5:1 | Token-level fixes (§6); text pairs measured ≥ 4.5:1; interactive boundaries moved to dedicated `controlEdge`/`dangerEdge` tokens, measured ≥ 3:1; the decorative rail track and badge fills stay soft on purpose (§5 note) | Meets AA at normal text size; every button and meter boundary is visible to low-vision users |
+| P7 | 6 contrast failures incl. 2.45 and 2.68 (`:984`, `:1012`, `:870`, `:906`, `:883`; strip `:218`, `:244`); control edges only ~1.5:1 | Token-level fixes (§6); text pairs measured ≥ 4.5:1; interactive boundaries moved to dedicated `controlEdge`/`dangerEdge` tokens, measured ≥ 3:1; the decorative rail track and badge fills stay soft on purpose (§5 note) | Meets AA at normal text size; every button and meter boundary is visible to low-vision users |
 | P8 | Unlabelled back/chips/close/edit; colour-only selection (`:320`, `:544`–`:568`, `:453`, `:1075`) | Real `accessibilityLabel` / `accessibilityRole` / `accessibilityState={{selected}}`; selected chips gain a check glyph and a weight change; close gains `hitSlop` | Screen-reader users can identify and operate every control; selection survives greyscale |
 | P9 | Sub-44 pt targets: `link` ~17–20 pt, chips 40 pt, close 42 pt, strip nav 36 pt, 6 px dots (`:975`, `:1086`, `:1075`, strip `:214`, `:188`) | Text links become 46 pt rows or gain `hitSlop` to 46; chips and close → 46 pt; strip nav → 46 × 46; status dots replaced by labelled badges | Meets the 44 pt minimum; calendar status readable without colour |
 | P10 | Bare spinners, layout jump (`:283`, `:494`) | Skeletons that reserve the real layout's height | No content jump; perceived load feels shorter |
@@ -504,7 +504,7 @@ I could not run any of the following; each is a real gate, not a formality.
    distinguishable from the teal brand.
 10. **Calibration of the current-screen reconstruction.** The "current" panel in
     the mockup is a static HTML reconstruction of RN styles, not a screenshot of
-    the running app. Its 10 measured contrast failures correspond to the real
+    the running app. Its measured contrast failures correspond to the real
     hex values at the lines cited in P7, but the reconstruction cannot prove
     fidelity of spacing or exact layout. A real device screenshot should replace
     it before this goes further.
