@@ -52,12 +52,16 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
   const [selectedPlanId, setSelectedPlanId] = useState('');
 
   useEffect(() => {
+    // Single-store owners have no meaningful store choice; still default to
+    // their store so the flow works without an extra tap.
     if (!selectedStoreId && stores.length > 0) setSelectedStoreId(stores[0].id);
   }, [stores, selectedStoreId]);
 
   // The plans endpoint returns every plan for the owner, plus unbound ACTIVE
   // plans. Narrow to plans the selected store is actually allowed by, using the
   // same rule the backend applies against the plan's applicability snapshot.
+  // The plan itself is only ever chosen by the user: an implicit default could
+  // silently commit the customer to a billing plan.
   const applicablePlans = useMemo(() => {
     if (!selectedStoreId) return [];
     return plans.filter((plan: any) => {
@@ -66,16 +70,6 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
       return plan.status === 'ACTIVE';
     });
   }, [plans, selectedStoreId]);
-
-  useEffect(() => {
-    if (applicablePlans.length === 0) {
-      if (selectedPlanId) setSelectedPlanId('');
-      return;
-    }
-    if (!applicablePlans.some((plan: any) => plan.id === selectedPlanId)) {
-      setSelectedPlanId(applicablePlans[0].id);
-    }
-  }, [applicablePlans, selectedPlanId]);
 
   const save = async () => {
     if (!name.trim()) {
@@ -95,8 +89,8 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
       Toast.show({ type: 'error', text1: 'No store found', text2: '' });
       return;
     }
-    if (!selectedPlanId) {
-      Toast.show({ type: 'error', text1: 'No plan found', text2: '' });
+    if (!selectedPlanId || !applicablePlans.some((plan: any) => plan.id === selectedPlanId)) {
+      Toast.show({ type: 'error', text1: 'Please select a plan', text2: '' });
       return;
     }
 
