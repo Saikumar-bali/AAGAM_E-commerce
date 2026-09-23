@@ -6,10 +6,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Box,
+  CalendarDays,
   CircleCheck,
   Ellipsis,
   House,
   ShoppingCart,
+  Users,
 } from 'lucide-react-native';
 import { StoreDashboard } from '../screens/store/StoreDashboard';
 import { StoreDeliveryOperationsScreen } from '../screens/store/StoreDeliveryOperationsScreen';
@@ -21,6 +23,7 @@ import { StoreSettingsScreen } from '../screens/store/StoreSettingsScreen';
 import { StorePickupAlertsScreen } from '../screens/store/StorePickupAlertsScreen';
 import { StorePickupVerificationEntryScreen } from '../screens/store/StorePickupVerificationEntryScreen';
 import { StorePickupSuccessEntryScreen } from '../screens/store/StorePickupSuccessEntryScreen';
+import { StoreOfflineCustomerScreen } from '../screens/store/StoreOfflineCustomerScreen';
 import { StoreSubscribersScreen } from '../screens/store/StoreSubscribersScreen';
 import { StoreSubscriptionPlansScreen } from '../screens/store/StoreSubscriptionPlansScreen';
 import { StoreMilkGridScreen } from '../screens/store/StoreMilkGridScreen';
@@ -135,6 +138,33 @@ const StoreTabs = () => {
         }}
       />
       <Tab.Screen
+        name="Subscribers"
+        component={StoreSubscribersScreen}
+        options={{
+          title: 'Subscribers',
+          tabBarButtonTestID: 'tab_subscribers',
+          tabBarIcon: ({ color, size, focused }) => <Users size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.7 : 2} />,
+        }}
+      />
+      <Tab.Screen
+        name="Plans"
+        component={StoreSubscriptionPlansScreen}
+        options={{
+          title: 'Plans',
+          tabBarButtonTestID: 'tab_plans',
+          tabBarIcon: ({ color, size, focused }) => <Box size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
+        }}
+      />
+      <Tab.Screen
+        name="MilkGrid"
+        component={StoreMilkGridScreen}
+        options={{
+          title: 'Milk Grid',
+          tabBarButtonTestID: 'tab_milk_grid',
+          tabBarIcon: ({ color, size, focused }) => <CalendarDays size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
+        }}
+      />
+      <Tab.Screen
         name="Operations"
         component={StorePickupAlertsScreen}
         options={{
@@ -169,6 +199,7 @@ export const StoreNavigator = () => (
       <Stack.Screen name="StoreSubscribers" component={StoreSubscribersScreen} />
       <Stack.Screen name="StoreSubscriptionPlans" component={StoreSubscriptionPlansScreen} />
       <Stack.Screen name="StoreMilkGrid" component={StoreMilkGridScreen} />
+      <Stack.Screen name="StoreOfflineCustomer" component={StoreOfflineCustomerScreen} />
     </Stack.Navigator>
     <StoreSubscriptionPreparationFab />
   </View>

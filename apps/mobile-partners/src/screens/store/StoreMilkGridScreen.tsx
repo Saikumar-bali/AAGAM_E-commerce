@@ -51,14 +51,14 @@ export const StoreMilkGridScreen = ({ navigation }: { navigation: any }) => {
     mutationFn: () => subscriptionOperationsService.autoDispatchDefaultRiders(),
     onSuccess: (data: any) => {
       Toast.show({ type: 'success', text1: 'Auto-dispatch complete', text2: data?.message || 'Riders assigned to routes.' });
-      void queryClient.invalidateQueries({ queryKey: ['store-milk-grid'] });
+      void queryClient.invalidateQueries({ queryKey: ['store-milk-grid', year, month] });
     },
     onError: () => Toast.show({ type: 'error', text1: 'Auto-dispatch failed', text2: 'Try again.' }),
   });
 
   const daysInMonth = getDaysInMonth(year, month);
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const grid = gridQuery.data?.grid || gridQuery.data?.rows || [];
+  const grid = (gridQuery.data?.rows || gridQuery.data?.grid || []) as any[];
   const todayDate = today.getDate();
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
 

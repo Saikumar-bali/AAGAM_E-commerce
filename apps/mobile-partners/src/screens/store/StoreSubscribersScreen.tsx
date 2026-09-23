@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ArrowLeft, CalendarDays, ChevronRight, IndianRupee, Pause, Users } from 'lucide-react-native';
+import { ArrowLeft, CalendarDays, ChevronRight, IndianRupee, Pause, Users, UserPlus } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
+import Toast from 'react-native-toast-message';
 import { subscriptionOperationsService } from '../../api/subscriptionOperationsService';
 
 type Segment = 'Active' | 'Paused' | 'Cancelled' | 'All';
@@ -79,6 +80,15 @@ export const StoreSubscribersScreen = ({ navigation }: { navigation: any }) => {
           </TouchableOpacity>
         ))}
       </View>
+
+      <TouchableOpacity
+        style={styles.addOfflineBtn}
+        onPress={() => navigation.navigate('StoreOfflineCustomer' as never)}
+        activeOpacity={0.8}
+      >
+        <UserPlus size={16} color="#FFFFFF" />
+        <Text style={styles.addOfflineText}>Add Offline Customer</Text>
+      </TouchableOpacity>
 
       {query.isLoading ? (
         <View style={styles.center}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.muted}>Loading subscribers…</Text></View>
@@ -169,4 +179,6 @@ const styles = StyleSheet.create({
   cardMeta: { flexDirection: 'row', marginTop: 12, gap: 16 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: { color: '#475569', fontSize: 11 },
+  addOfflineBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#0F766E', marginHorizontal: 16, marginVertical: 8, paddingVertical: 12, borderRadius: 14 },
+  addOfflineText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
 });
