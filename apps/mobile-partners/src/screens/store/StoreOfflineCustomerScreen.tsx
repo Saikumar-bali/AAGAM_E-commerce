@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -48,8 +48,34 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
 
   const stores = Array.isArray(storesQuery.data) ? storesQuery.data : [];
   const plans = Array.isArray(plansQuery.data) ? plansQuery.data : [];
-  const selectedStoreId = stores[0]?.id || '';
-  const selectedPlanId = plans[0]?.id || '';
+  const [selectedStoreId, setSelectedStoreId] = useState('');
+  const [selectedPlanId, setSelectedPlanId] = useState('');
+
+  useEffect(() => {
+    if (!selectedStoreId && stores.length > 0) setSelectedStoreId(stores[0].id);
+  }, [stores, selectedStoreId]);
+
+  // The plans endpoint returns every plan for the owner, plus unbound ACTIVE
+  // plans. Narrow to plans the selected store is actually allowed by, using the
+  // same rule the backend applies against the plan's applicability snapshot.
+  const applicablePlans = useMemo(() => {
+    if (!selectedStoreId) return [];
+    return plans.filter((plan: any) => {
+      const boundStoreIds = Array.isArray(plan.stores) ? plan.stores.map((entry: any) => entry?.store?.id || entry?.storeId) : [];
+      if (boundStoreIds.length > 0) return boundStoreIds.includes(selectedStoreId);
+      return plan.status === 'ACTIVE';
+    });
+  }, [plans, selectedStoreId]);
+
+  useEffect(() => {
+    if (applicablePlans.length === 0) {
+      if (selectedPlanId) setSelectedPlanId('');
+      return;
+    }
+    if (!applicablePlans.some((plan: any) => plan.id === selectedPlanId)) {
+      setSelectedPlanId(applicablePlans[0].id);
+    }
+  }, [applicablePlans, selectedPlanId]);
 
   const save = async () => {
     if (!name.trim()) {
@@ -244,6 +270,43 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
           <Text style={styles.sectionTitle}>Subscription</Text>
 
           <View style={styles.field}>
+            <Text style={styles.label}>Store</Text>
+            <View style={styles.pillRow}>
+              {stores.map((store: any) => (
+                <TouchableOpacity
+                  key={store.id}
+                  style={[styles.pill, selectedStoreId === store.id && styles.pillActive]}
+                  onPress={() => {
+                    setSelectedStoreId(store.id);
+                    setSelectedPlanId('');
+                  }}
+                >
+                  <Text style={[styles.pillText, selectedStoreId === store.id && styles.pillTextActive]}>{store.name || store.id}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Plan</Text>
+            {applicablePlans.length === 0 ? (
+              <Text style={styles.muted}>No plans available for the selected store.</Text>
+            ) : (
+              <View style={styles.pillRow}>
+                {applicablePlans.map((plan: any) => (
+                  <TouchableOpacity
+                    key={plan.id}
+                    style={[styles.pill, selectedPlanId === plan.id && styles.pillActive]}
+                    onPress={() => setSelectedPlanId(plan.id)}
+                  >
+                    <Text style={[styles.pillText, selectedPlanId === plan.id && styles.pillTextActive]}>{plan.name || plan.internalName || plan.code}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.field}>
             <Text style={styles.label}>Frequency</Text>
             <View style={styles.pillRow}>
               {['DAILY', 'ALTERNATE_DAYS', 'WEEKDAYS'].map((f) => (
@@ -311,6 +374,7 @@ const styles = StyleSheet.create({
   pillActive: { backgroundColor: '#CCFBF1', borderColor: '#0F766E' },
   pillText: { fontSize: 11, fontWeight: '600', color: '#64748B' },
   pillTextActive: { color: '#0F766E' },
+  muted: { color: '#64748B', fontSize: 12 },
   saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 51, borderRadius: 14, backgroundColor: '#0F766E', marginTop: 8 },
   saveBtnDisabled: { opacity: 0.55 },
   saveBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
