@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -21,6 +21,7 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -32,7 +33,6 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
   const [longitude, setLongitude] = useState(83.0039);
   const [deliverySlot, setDeliverySlot] = useState('MORNING');
   const [frequency, setFrequency] = useState('DAILY');
-  const [paymentMode, setPaymentMode] = useState('CASH');
   const [note, setNote] = useState('');
 
   const storesQuery = useQuery({
@@ -74,6 +74,10 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
       return;
     }
 
+    if (submittingRef.current) {
+      return;
+    }
+    submittingRef.current = true;
     setSaving(true);
     try {
       const custRes = await subscriptionOperationsService.createOfflineCustomer({
@@ -88,19 +92,22 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
         longitude,
         storeId: selectedStoreId,
       });
-      const customer = custRes.data.customer;
-      const addressData = custRes.data.address;
+      const customer = custRes.customer;
+      const addressData = custRes.address;
+
+      const today = new Date();
+      const startDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
       await subscriptionOperationsService.createManualSubscription({
         storeId: selectedStoreId,
         planId: selectedPlanId,
         customerId: customer.id,
         addressId: addressData.id,
-        startDate: new Date().toISOString().slice(0, 10),
+        startDate,
         totalDeliveries: 30,
         deliverySlot,
         frequency,
-        initialCashCollectedPaise: paymentMode === 'DUE' ? 0 : 0,
+        initialCashCollectedPaise: 0,
         storeDelivery: true,
         note,
       });
@@ -113,6 +120,7 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
       const message = error?.response?.data?.message || error?.message || 'Could not create customer.';
       Toast.show({ type: 'error', text1: 'Creation failed', text2: String(message) });
     } finally {
+      submittingRef.current = false;
       setSaving(false);
     }
   };
@@ -245,21 +253,6 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
                   onPress={() => setFrequency(f)}
                 >
                   <Text style={[styles.pillText, frequency === f && styles.pillTextActive]}>{f}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Payment mode</Text>
-            <View style={styles.pillRow}>
-              {['CASH', 'PHONE_PE', 'DUE'].map((m) => (
-                <TouchableOpacity
-                  key={m}
-                  style={[styles.pill, paymentMode === m && styles.pillActive]}
-                  onPress={() => setPaymentMode(m)}
-                >
-                  <Text style={[styles.pillText, paymentMode === m && styles.pillTextActive]}>{m}</Text>
                 </TouchableOpacity>
               ))}
             </View>

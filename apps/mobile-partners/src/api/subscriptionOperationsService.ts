@@ -475,7 +475,7 @@ export const subscriptionOperationsService = {
     latitude?: number;
     longitude?: number;
     storeId?: string;
-  }) => {
+  }): Promise<{ customer: { id: string }; address: { id: string } }> => {
     const response = await apiClient.post('/store/subscriptions/manual-customer', input);
     return response.data;
   },
