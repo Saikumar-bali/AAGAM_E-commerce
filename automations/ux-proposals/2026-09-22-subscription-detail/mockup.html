@@ -1,0 +1,1713 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UX proposal — customer subscription detail (AAGAM)</title>
+<style>
+/* ============================================================
+   AAGAM UX proposal mockup — static, self-contained, no deps.
+   Direction: "Morning ledger" — a paper-warm household accounts
+   book. Warm base, near-black ink, one amber accent reserved for
+   money owed. Status is carried by words + shape, not colour alone.
+   ============================================================ */
+
+/* ---- current screen (reconstruction) palette ---- */
+:root{
+  --c-bg:#F4F8F6;
+  --c-surface:#FFFFFF;
+  --c-ink:#173D32;
+  --c-ink2:#29483D;
+  --c-brand:#0F766E;
+  --c-brand-soft:#E7F7EF;
+  --c-amber:#B96600;
+  --c-amber-icon:#D66B00;
+  --c-label:#92704D;
+  --c-muted:#65766F;
+  --c-faint:#75857E;
+  --c-meta:#718079;
+  --c-ink-muted:#64766E;
+  --c-rule:#E1E9E5;
+  --c-rule-soft:#EFF3F1;
+  --c-ring:#65C7A7;
+
+  /* ---- proposed "Morning ledger" palette (see proposal.md §6) ---- */
+  --paper:#FAF7F2;
+  --paper-raised:#FFFDF9;
+  --rule:#E7DFD3;
+  --rule-strong:#D8CDBC;
+  /* interactive-control boundary: --rule-strong is a *decorative* divider and
+     only reaches ~1.5:1, below the 3:1 WCAG 1.4.11 floor. Controls get their
+     own token. */
+  --control-edge:#93836D;
+  --ink:#0B2A22;
+  --ink-2:#4A5C55;
+  --ink-muted:#55655F;
+  --brand:#0B4F46;
+  --brand-soft:#E3F1EC;
+  --on-brand:#F0FDFA;
+  --on-brand-muted:#C7F0E2;
+  --on-brand-faint:#9FE3D0;
+  --cash:#8A4B00;
+  --cash-soft:#FBEEDC;
+  --ok:#0B6B4F;
+  --ok-soft:#DFF3EA;
+  --danger:#9F1F1F;
+  --danger-soft:#FBE7E7;
+  /* boundary for destructive controls; #E3BDBD only reached 1.6:1 */
+  --danger-edge:#B96E6E;
+  --link:#0B5F57;
+  --focus:#0B4F46;
+
+  /* status badge pairs */
+  --b-del-bg:#DFF3EA; --b-del-ink:#0B5F45;
+  --b-sch-bg:#E6EDF9; --b-sch-ink:#274B86;
+  --b-skip-bg:#FBEEDC; --b-skip-ink:#7A4A12;
+  --b-fail-bg:#FBE7E7; --b-fail-ink:#8F2323;
+  --b-canc-bg:#ECEDEF; --b-canc-ink:#4B5563;
+
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", system-ui, sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
+  --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  --focus-w: 3px;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  font-family:var(--sans);
+  background:#EDE8DE;
+  color:#22201C;
+  line-height:1.5;
+  font-size:15px;
+}
+.page{max-width:1360px;margin:0 auto;padding:28px 20px 80px}
+
+/* ---------- page chrome ---------- */
+.masthead{border-bottom:2px solid #22201C;padding-bottom:18px;margin-bottom:8px}
+.masthead .kicker{
+  font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:#5C574D;margin:0 0 8px
+}
+.masthead h1{
+  font-family:var(--serif);font-weight:600;font-size:clamp(26px,4vw,42px);
+  line-height:1.08;margin:0 0 10px;letter-spacing:-.01em
+}
+.masthead p{margin:0;max-width:74ch;color:#3D3931}
+.masthead .files{
+  font-family:var(--mono);font-size:11.5px;color:#5C574D;margin-top:10px
+}
+.note{
+  margin:18px 0 0;padding:12px 14px;background:#FFF7E4;border:1px solid #E4D3A6;
+  border-left:4px solid #B8860B;font-size:13px;color:#4A402A
+}
+
+/* ---------- state switcher ---------- */
+.switch{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.switcher{
+  display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:26px 0 6px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5C574D
+}
+.switcher .grp{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+.switcher label{
+  cursor:pointer;border:1.5px solid #B9B1A1;background:#FBF8F1;color:#3D3931;
+  padding:9px 14px;min-height:46px;display:inline-flex;align-items:center;
+  font-family:var(--sans);font-size:12.5px;font-weight:600;letter-spacing:0;
+  border-radius:2px;
+}
+/* the real radios live before .page; reflect their focus onto the labels */
+#s-default:focus-visible ~ .page label[for=s-default],
+#s-loading:focus-visible ~ .page label[for=s-loading],
+#s-empty:focus-visible ~ .page label[for=s-empty],
+#s-error:focus-visible ~ .page label[for=s-error],
+#s-offline:focus-visible ~ .page label[for=s-offline],
+#s-sheet:focus-visible ~ .page label[for=s-sheet]{
+  outline:var(--focus-w) solid var(--focus);outline-offset:2px
+}
+#s-default:checked ~ .page label[for=s-default],
+#s-loading:checked ~ .page label[for=s-loading],
+#s-empty:checked ~ .page label[for=s-empty],
+#s-error:checked ~ .page label[for=s-error],
+#s-offline:checked ~ .page label[for=s-offline],
+#s-sheet:checked ~ .page label[for=s-sheet]{
+  background:#22201C;color:#FBF8F1;border-color:#22201C
+}
+
+/* ---------- state visibility mechanism ---------- */
+.st{display:none}
+#s-default:checked ~ .page .st-default{display:var(--d,block)}
+#s-loading:checked ~ .page .st-loading{display:var(--d,block)}
+#s-empty:checked   ~ .page .st-empty{display:var(--d,block)}
+#s-error:checked   ~ .page .st-error{display:var(--d,block)}
+#s-offline:checked ~ .page .st-offline{display:var(--d,block)}
+#s-sheet:checked   ~ .page .st-sheet{display:var(--d,block)}
+
+/* ---------- comparison layout ---------- */
+.compare{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:34px;margin-top:22px
+}
+@media (max-width:980px){ .compare{grid-template-columns:minmax(0,1fr)} }
+
+.col > h2{
+  font-family:var(--serif);font-size:20px;margin:0 0 4px;font-weight:600;
+  display:flex;align-items:baseline;gap:10px
+}
+.col > h2 .tag{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  padding:3px 7px;border:1px solid currentColor;border-radius:2px;font-weight:500
+}
+.col.current > h2{color:#6B655A}
+.col.proposed > h2{color:var(--brand)}
+.col > .sub{margin:0 0 16px;font-size:13px;color:#5C574D}
+
+.frames{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+
+/* phone frame */
+.phone{
+  width:360px;flex:0 0 360px;background:#1B1915;padding:9px;border-radius:30px;
+  box-shadow:0 18px 46px rgba(34,32,28,.24)
+}
+.phone .glass{
+  border-radius:22px;overflow:hidden;background:#fff;position:relative;
+  display:flex;flex-direction:column
+}
+.phone .caption{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:#CFC7B6;text-align:center;padding:6px 0 2px
+}
+.viewport{width:360px;overflow:hidden}
+.scrollable{max-height:none}
+
+/* measure annotations */
+.measures{
+  flex:1 1 240px;min-width:220px;max-width:300px;font-size:12.5px;color:#3D3931
+}
+.measures h3{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:#5C574D;margin:0 0 10px
+}
+.measures ol{margin:0;padding-left:0;list-style:none;display:grid;gap:9px}
+.measures li{
+  padding:9px 11px;background:#FBF8F1;border:1px solid #DCD4C5;border-left:3px solid #B23A2E;
+  border-radius:2px;line-height:1.45
+}
+.measures li.ok{border-left-color:#2F6B4F}
+.measures li b{font-family:var(--mono);font-size:11px;letter-spacing:.04em}
+.measures code{font-family:var(--mono);font-size:11px;background:#EFEAE0;padding:1px 4px;border-radius:2px}
+
+/* ---------- shared bits ---------- */
+.sr{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0
+}
+.a-bar{
+  display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fff;min-height:60px
+}
+.a-icon{
+  width:44px;height:44px;border-radius:15px;background:#EFF7F3;
+  display:flex;align-items:center;justify-content:center;flex:0 0 auto
+}
+.a-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.13em;color:var(--c-brand);font-weight:600}
+.a-title{font-size:21px;font-weight:600;color:var(--c-ink);line-height:1.15}
+.a-growth{flex:1 1 auto;min-width:0}
+svg.ico{display:block}
+
+/* ============================================================
+   CURRENT screen reconstruction
+   ============================================================ */
+.current-ui{
+  background:var(--c-bg);width:360px;min-height:660px;
+  display:flex;flex-direction:column;font-size:14px;color:var(--c-ink)
+}
+.current-ui .body{padding:16px;display:flex;flex-direction:column;gap:16px}
+
+.hero{background:var(--c-brand);border-radius:24px;padding:18px;color:#fff}
+.hero .top{display:flex;justify-content:space-between;align-items:center}
+.hero .lab{color:#BFEADA;font-size:10px;font-weight:600;letter-spacing:.11em}
+.hero .num{color:#fff;font-size:34px;font-weight:600;margin-top:4px;line-height:1}
+.hero .sub{color:#D3F3E6;font-size:13px}
+.ring{
+  width:72px;height:72px;border-radius:36px;border:8px solid var(--c-ring);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:13px;
+  flex:0 0 auto
+}
+.track{height:8px;border-radius:99px;background:rgba(255,255,255,.18);margin-top:16px;overflow:hidden}
+.track i{display:block;height:100%;background:#D4F7E9;width:40%}
+.hero .facts{display:flex;justify-content:space-between;margin-top:12px}
+.hero .facts span{color:#CDEEE1;font-size:12px}
+.hero .facts b{color:#fff;font-weight:600}
+
+.next-card{
+  background:#fff;border:1px solid var(--c-rule);border-radius:20px;padding:16px;
+  display:flex;align-items:center;gap:12px
+}
+.next-ic{
+  width:48px;height:48px;border-radius:16px;background:var(--c-amber-icon);flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center
+}
+.next-lab{font-size:9px;font-weight:600;letter-spacing:.1em;color:var(--c-label)}
+.next-date{font-size:18px;font-weight:600;color:var(--c-ink);margin-top:2px}
+.next-meta{font-size:11px;color:var(--c-muted);margin-top:4px}
+.track-btn{
+  min-height:44px;padding:0 12px;border-radius:14px;background:var(--c-brand-soft);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  color:var(--c-brand);flex:0 0 auto
+}
+.track-btn span{font-size:10px;font-weight:600}
+
+.actions{display:flex;gap:8px}
+.action{
+  flex:1;min-height:70px;background:#fff;border:1px solid var(--c-rule);border-radius:16px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  padding:6px 4px;text-align:center;min-width:0
+}
+.action span{font-size:11px;font-weight:600;color:var(--c-ink2);line-height:1.2}
+.action.clip span{white-space:normal}
+.action.disabled{opacity:.45}
+
+.section{background:#fff;border:1px solid var(--c-rule);border-radius:20px;padding:16px}
+.sec-head{display:flex;justify-content:space-between;align-items:center}
+.sec-title{font-size:17px;font-weight:600;color:#183D32;margin:0 0 12px}
+.link{color:var(--c-brand);font-weight:600;font-size:14px}
+.info{
+  display:flex;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--c-rule-soft)
+}
+.info .il{font-size:10px;color:var(--c-faint)}
+.info .iv{font-size:13px;font-weight:600;color:var(--c-ink2);margin-top:2px;text-transform:capitalize}
+.row{
+  display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--c-rule-soft)
+}
+.dot{
+  width:30px;height:30px;border-radius:15px;background:#DDE7E2;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center
+}
+.dot.done{background:#0B8E66}
+.dot.skip{background:#D7A24F}
+.row .d-date{font-size:13px;font-weight:600;color:var(--c-ink2)}
+.row .d-meta{font-size:10px;color:var(--c-meta);margin-top:2px}
+.row .d-win{font-size:11px;font-weight:600;color:#047857;margin-top:4px}
+.row .cash{margin-left:auto;font-weight:600;color:var(--c-brand);font-size:14px}
+.row .cash.due{color:#B85D00}
+.cancel-btn{
+  min-height:50px;border:1px solid #E7B5B5;border-radius:16px;background:#FFF8F8;
+  display:flex;align-items:center;justify-content:center;color:#A33131;font-weight:600;font-size:14px
+}
+.cal{
+  background:#fff;border:1px solid #E2E8F0;border-radius:20px;padding:12px;margin-bottom:12px
+}
+.cal-head{display:flex;align-items:center;justify-content:space-between}
+.cal-nav{width:36px;height:36px;border-radius:12px;background:#F0FDFA;display:flex;align-items:center;justify-content:center}
+.cal-month{font-size:16px;font-weight:600;color:#0F172A}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:8px}
+.cal-cell{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.cal-cell i{display:block;width:6px;height:6px;border-radius:3px;font-style:normal}
+.cal-cell b{font-size:13px;font-weight:500;color:#0F172A}
+.cal-week{font-size:11px;font-weight:600;color:#94A3B8;text-align:center}
+.cal-legend{display:flex;gap:12px;margin-top:10px;flex-wrap:wrap}
+.cal-legend span{font-size:10px;color:#64748B;display:flex;align-items:center;gap:5px}
+.cal-legend i{width:8px;height:8px;border-radius:4px;display:block}
+
+/* current: loading / empty / error */
+.c-center{display:var(--d,flex);align-items:center;justify-content:center;min-height:560px;flex-direction:column;gap:14px;color:var(--c-ink)}
+.spinner{
+  width:36px;height:36px;border-radius:50%;
+  border:3px solid rgba(15,118,110,.22);border-top-color:var(--c-brand);
+  animation:spin 900ms linear infinite
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.c-empty .sec-title{margin-bottom:0}
+.c-empty .blank{
+  color:var(--c-faint);font-size:12px;padding:14px 0 2px;font-style:italic
+}
+
+/* ============================================================
+   PROPOSED "Morning ledger" screen
+   ============================================================ */
+.proposed-ui{
+  background:var(--paper);width:360px;min-height:660px;color:var(--ink);
+  display:flex;flex-direction:column;position:relative
+}
+.proposed-ui .paper-grain{
+  position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(11,42,34,.028) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 90% at 12% -10%, rgba(11,79,70,.05), transparent 60%);
+}
+.ledger-bar{
+  display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--paper-raised);
+  border-bottom:1px solid var(--rule);position:relative;z-index:1;min-height:56px
+}
+.ledger-bar .back{
+  display:flex;align-items:center;gap:6px;min-height:46px;padding:0 10px 0 6px;
+  border-radius:6px;color:var(--brand);font-weight:600;font-size:13.5px
+}
+.ledger-bar .plan{
+  font-family:var(--serif);font-size:19px;font-weight:600;letter-spacing:-.01em;
+  flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.ledger-bar .more{
+  width:46px;height:46px;min-height:46px;border-radius:6px;border:1px solid var(--control-edge);
+  background:transparent;display:flex;align-items:center;justify-content:center;flex:0 0 auto
+}
+.ledger-body{padding:14px;display:flex;flex-direction:column;gap:12px;position:relative;z-index:1}
+
+/* ledger head */
+.ledger-head{
+  background:var(--paper-raised);border:1px solid var(--rule);border-radius:6px;overflow:hidden
+}
+/* the ledger header is reused (without its frame) as the scrimmed backdrop
+   behind the cancel sheet, so the sheet is anchored to the screen it acts on */
+.sheet-backdrop-head{
+  background:var(--paper-raised);border-bottom:1px solid var(--rule);
+  padding:14px 18px 6px;opacity:.55;filter:saturate(.7)
+}
+.sheet-backdrop-head .fig{padding:0}
+.sheet-backdrop-head .rail{padding:0 0 8px}
+.ledger-head .cap,
+.sheet-backdrop-head .cap{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px 8px
+}
+.sheet-backdrop-head .cap{padding:0 0 8px}
+.ledger-head .cap .l,
+.sheet-backdrop-head .cap .l{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-muted)
+}
+.ledger-head .cap .r,
+.sheet-backdrop-head .cap .r{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--brand);font-weight:600;
+  border:1px solid var(--brand);border-radius:999px;padding:3px 9px
+}
+.ledger-head .fig,
+.sheet-backdrop-head .fig{
+  display:flex;align-items:flex-end;gap:14px;padding:0 14px 10px
+}
+.sheet-backdrop-head .fig{padding:0}
+.ledger-head .big,
+.sheet-backdrop-head .big{
+  font-family:var(--serif);font-size:44px;font-weight:600;line-height:.92;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;color:var(--ink)
+}
+.ledger-head .big small,
+.sheet-backdrop-head .big small{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink-2);letter-spacing:0}
+.ledger-head .bigsub,
+.sheet-backdrop-head .bigsub{font-size:12.5px;color:var(--ink-2);padding-bottom:5px}
+
+/* horizon rail */
+.rail{padding:0 14px 14px}
+.sheet-backdrop-head .rail{padding:0 0 12px}
+.rail .bar{
+  height:14px;border-radius:3px;background:var(--brand-soft);position:relative;overflow:hidden;
+  border:1px solid var(--control-edge)
+}
+.rail .bar i{position:absolute;inset:0 auto 0 0;width:40%;background:var(--brand);display:block}
+.rail .bar i::after{
+  content:"";position:absolute;inset:0;
+  background-image:repeating-linear-gradient(90deg, rgba(250,247,242,.55) 0 1px, transparent 1px 14px)
+}
+.rail .ticks{display:flex;justify-content:space-between;margin-top:7px}
+.rail .ticks span{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--ink-muted)
+}
+.rail .ticks span.now{color:var(--brand);font-weight:600}
+
+/* glossary row */
+.gloss{
+  display:flex;gap:10px;align-items:flex-start;padding:10px 14px;
+  border-top:1px dashed var(--rule-strong);background:#F5F1E9
+}
+.gloss .k{font-size:12.5px;color:var(--ink-2);flex:1 1 auto}
+.gloss .v{
+  font-family:var(--serif);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)
+}
+.gloss .v em{font-family:var(--sans);font-style:normal;font-size:11.5px;color:var(--ink-muted);display:block;letter-spacing:.02em}
+
+/* amount / next delivery */
+.amount-card{
+  background:var(--paper-raised);border:1px solid var(--rule);border-radius:6px;padding:13px 14px
+}
+.amount-card .hd{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;
+  gap:6px 10px;margin-bottom:10px
+}
+.amount-card .hd h3{
+  margin:0;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600;min-width:0
+}
+.amount-card .hd .when{
+  font-size:13px;font-weight:600;color:var(--brand);background:var(--brand-soft);
+  border-radius:999px;padding:4px 10px;min-width:0
+}
+.amount-rule{border-top:1px solid var(--rule);margin:0 0 2px}
+.amt-row{display:flex;align-items:baseline;gap:12px;padding:8px 0}
+.amt-row .lbl{flex:1 1 auto;font-size:13.5px;color:var(--ink-2)}
+.amt-row .lbl em{display:block;font-style:normal;font-size:11.5px;color:var(--ink-muted);margin-top:2px}
+.amt-row .ct{
+  font-family:var(--serif);font-size:21px;font-weight:600;font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em;white-space:nowrap;color:var(--ink)
+}
+.amt-row .ct.due{color:var(--cash)}
+.amt-total{
+  display:flex;align-items:baseline;gap:12px;padding:10px 0 2px;border-top:2px solid var(--rule-strong);
+  margin-top:4px
+}
+.amt-total .lbl{flex:1 1 auto;font-size:13.5px;font-weight:600}
+.amt-total .ct{
+  font-family:var(--serif);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;
+  color:var(--cash);letter-spacing:-.01em
+}
+.amt-note{
+  font-size:11.5px;color:var(--ink-muted);margin-top:8px;line-height:1.45;
+  border-top:1px dashed var(--rule-strong);padding-top:8px
+}
+
+/* actions */
+.act-group{display:flex;flex-direction:column;gap:9px}
+.btn{
+  min-height:52px;border-radius:6px;border:1px solid var(--control-edge);background:var(--paper-raised);
+  display:flex;align-items:center;gap:11px;padding:0 14px;font-size:14.5px;font-weight:600;
+  color:var(--ink);text-align:left;width:100%
+}
+.btn .grow{flex:1 1 auto;min-width:0}
+.btn .hint{display:block;font-size:11.5px;font-weight:500;color:var(--ink-muted);margin-top:1px}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.primary .hint{color:var(--on-brand-muted)}
+.btn.primary .ico{color:var(--on-brand)}
+.btn.ghost .ico{color:var(--brand)}
+.btn.danger{color:var(--danger);border-color:var(--danger-edge);background:var(--danger-soft)}
+.btn[aria-disabled="true"]{opacity:.55;background:#F2EEE7}
+.busy{
+  width:18px;height:18px;border-radius:50%;border:2px solid rgba(11,79,70,.25);
+  border-top-color:#0B4F46;animation:spin 800ms linear infinite;flex:0 0 auto
+}
+.btn .busy{border-color:rgba(255,255,255,.35);border-top-color:#fff}
+.two-up{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.two-up .btn{min-height:60px;font-size:13.5px;padding:0 12px}
+
+/* inline status */
+.inline{
+  display:flex;gap:9px;align-items:flex-start;border-radius:6px;padding:10px 12px;font-size:12.5px;
+  border:1px solid var(--control-edge);background:var(--paper-raised);color:var(--ink-2)
+}
+.inline.ok{border-color:#B6DCC7;background:var(--ok-soft);color:var(--ok)}
+.inline.err{border-color:#E3BDBD;background:var(--danger-soft);color:var(--danger)}
+.inline .grow{flex:1 1 auto}
+.inline .act{
+  font-weight:700;text-decoration:underline;text-underline-offset:2px;white-space:nowrap;
+  min-height:24px;display:inline-flex;align-items:center
+}
+
+/* preferences summary */
+.prefs{
+  background:var(--paper-raised);border:1px solid var(--rule);border-radius:6px;padding:13px 14px
+}
+.prefs .hd{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px;margin-bottom:9px}
+.prefs .hd h3{
+  margin:0;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600;min-width:0
+}
+.prefs .edit{
+  min-height:46px;min-width:46px;display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;
+  padding:0;color:var(--link);font-weight:700;font-size:13.5px;
+  text-decoration:underline;text-underline-offset:2px
+}
+.pref-line{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--rule)}
+.pref-line:first-of-type{border-top:0}
+.pref-line .k{font-size:12.5px;color:var(--ink-muted);width:78px;flex:0 0 auto}
+.pref-line .v{font-size:13.5px;font-weight:600;color:var(--ink);flex:1 1 auto}
+.pref-line .v em{display:block;font-style:normal;font-weight:400;font-size:11.5px;color:var(--ink-muted);margin-top:2px}
+
+/* history */
+.hist{
+  background:var(--paper-raised);border:1px solid var(--rule);border-radius:6px;padding:13px 14px
+}
+.hist .hd{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px;margin-bottom:6px}
+.hist .hd h3{
+  margin:0;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600;min-width:0
+}
+.hist .hd .all{
+  min-height:46px;min-width:46px;display:inline-flex;align-items:center;justify-content:flex-end;
+  padding:0;color:var(--link);font-weight:700;font-size:13.5px;text-decoration:underline;text-underline-offset:2px
+}
+.hrow{
+  display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--rule)
+}
+.hrow:first-of-type{border-top:0}
+.hrow .day{
+  width:26px;flex:0 0 auto;text-align:right;font-family:var(--mono);font-size:11px;
+  color:var(--ink-muted);letter-spacing:.02em
+}
+.hrow .mid{flex:1 1 auto;min-width:0}
+.hrow .dt{font-size:13.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.hrow .sub{font-size:11.5px;color:var(--ink-muted);margin-top:2px;font-variant-numeric:tabular-nums}
+.badge{
+  display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.02em;
+  border-radius:3px;padding:3px 7px;margin-top:5px;white-space:nowrap
+}
+.badge .mk{font-family:var(--mono);font-size:10px;line-height:1}
+.b-del{background:var(--b-del-bg);color:var(--b-del-ink)}
+.b-sch{background:var(--b-sch-bg);color:var(--b-sch-ink)}
+.b-skip{background:var(--b-skip-bg);color:var(--b-skip-ink)}
+.b-fail{background:var(--b-fail-bg);color:var(--b-fail-ink)}
+.b-canc{background:var(--b-canc-bg);color:var(--b-canc-ink)}
+.hrow .amt{
+  text-align:right;flex:0 0 auto;min-width:62px
+}
+.hrow .amt .v{
+  font-family:var(--serif);font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)
+}
+.hrow .amt .v.due{color:var(--cash)}
+.hrow .amt .u{font-size:10px;color:var(--ink-muted);display:block;letter-spacing:.02em}
+
+/* offline banner + skeletons + error/empty */
+.banner{
+  display:flex;gap:10px;align-items:flex-start;padding:11px 14px;font-size:12.5px;
+  background:var(--cash-soft);color:#5C3A08;border-bottom:1px solid #E7CFA6;position:relative;z-index:1
+}
+.banner.err{background:var(--danger-soft);color:#7A1D1D;border-bottom-color:#E3BDBD}
+.banner .grow{flex:1 1 auto}
+.banner .act{
+  font-weight:700;text-decoration:underline;text-underline-offset:2px;
+  /* 44pt touch target without visually inflating the banner row */
+  min-height:44px;padding:0 6px;margin:-9px -6px 0;
+  display:inline-flex;align-items:center;white-space:nowrap;border-radius:6px
+}
+.sk{
+  background:linear-gradient(90deg,#EFE9DE 25%,#F7F3EB 37%,#EFE9DE 63%);
+  background-size:400% 100%;animation:shimmer 1.3s ease-in-out infinite;border-radius:4px
+}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+.sk-cap{height:11px;width:44%}
+.sk-big{height:38px;width:58%;margin-top:10px}
+.sk-bar{height:14px;width:100%;margin-top:16px}
+.sk-btn{height:52px;width:100%}
+.sk-line{height:12px;width:78%}
+.sk-amt{height:20px;width:54px}
+.sk-row{display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid var(--rule)}
+.sk-row:first-of-type{border-top:0}
+
+.empty-wrap, .error-wrap{padding:6px 2px 2px;text-align:left}
+.empty-wrap .mk, .error-wrap .mk{
+  width:46px;height:46px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--rule-strong);background:var(--brand-soft);color:var(--brand);margin-bottom:11px
+}
+.error-wrap .mk{background:var(--danger-soft);border-color:#E3BDBD;color:var(--danger)}
+.empty-wrap h3, .error-wrap h3{
+  font-family:var(--serif);font-size:19px;margin:0 0 6px;font-weight:600;letter-spacing:-.01em
+}
+.empty-wrap p, .error-wrap p{margin:0 0 6px;font-size:13px;color:var(--ink-2);max-width:44ch}
+.empty-wrap .facts{
+  margin:12px 0 14px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:10px 0
+}
+.empty-wrap .facts div{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-2);padding:3px 0}
+.empty-wrap .facts b{color:var(--ink);font-variant-numeric:tabular-nums}
+.err-code{
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-muted);letter-spacing:.04em;
+  margin-top:12px;word-break:break-all
+}
+
+/* focus visibility everywhere interactive */
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible,
+label:focus-visible{
+  outline:var(--focus-w) solid var(--focus);outline-offset:2px;border-radius:3px
+}
+
+/* ---------- desktop-width rendering of the proposal ---------- */
+.desktop-strip{margin-top:34px;border-top:2px solid #22201C;padding-top:20px}
+.desktop-strip > h2{
+  font-family:var(--serif);font-size:20px;font-weight:600;margin:0 0 4px;color:var(--brand)
+}
+.desktop-strip > .sub{margin:0 0 16px;font-size:13px;color:#5C574D}
+.desk{
+  width:100%;background:var(--paper);border:1px solid var(--rule-strong);border-radius:8px;
+  overflow:hidden;color:var(--ink);position:relative
+}
+.desk .paper-grain{
+  position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:radial-gradient(120% 90% at 8% -10%, rgba(11,79,70,.06), transparent 60%);
+}
+.desk-bar{
+  display:flex;align-items:center;gap:16px;padding:14px 26px;background:var(--paper-raised);
+  border-bottom:1px solid var(--rule);position:relative;z-index:1
+}
+.desk-bar .plan{font-family:var(--serif);font-size:23px;font-weight:600}
+.desk-bar .crumbs{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-muted)}
+.desk-bar .spacer{flex:1 1 auto}
+.desk-bar .search{
+  min-height:46px;min-width:280px;border:1px solid var(--rule-strong);border-radius:6px;
+  background:#fff;display:flex;align-items:center;gap:9px;padding:0 13px;color:var(--ink-muted);font-size:13.5px
+}
+.desk-grid{
+  display:grid;grid-template-columns:240px minmax(0,1fr) 320px;gap:0;position:relative;z-index:1
+}
+@media (max-width:1080px){ .desk-grid{grid-template-columns:220px minmax(0,1fr)} .desk-side{display:none} }
+.desk-rail{border-right:1px solid var(--rule);padding:20px 18px;background:#F7F3EC}
+.desk-rail h3{
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-muted);margin:0 0 12px
+}
+.desk-rail .item{
+  display:flex;align-items:center;gap:9px;min-height:46px;padding:0 9px;border-radius:6px;
+  font-size:13.5px;font-weight:600;color:var(--ink-2)
+}
+.desk-rail .item.on{background:var(--brand-soft);color:var(--brand);box-shadow:inset 3px 0 0 var(--brand)}
+.desk-rail .gl{
+  margin-top:22px;border-top:1px solid var(--rule);padding-top:14px
+}
+.desk-rail .gl .k{font-size:12px;color:var(--ink-muted);margin:0 0 3px}
+.desk-rail .gl .v{
+  font-family:var(--serif);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;margin:0 0 12px
+}
+.desk-main{padding:22px 26px;display:flex;flex-direction:column;gap:16px}
+.desk-main .h1{
+  font-family:var(--serif);font-size:29px;font-weight:600;letter-spacing:-.015em;margin:0
+}
+.desk-main .h1sub{font-size:13.5px;color:var(--ink-2);margin-top:5px}
+.desk-main .wide{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media (max-width:820px){ .desk-main .wide{grid-template-columns:1fr} }
+.desk-side{padding:22px 20px;display:flex;flex-direction:column;gap:14px;border-left:1px solid var(--rule)}
+.desk-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.desk-actions .btn{width:auto;white-space:nowrap}
+.foot{
+  margin-top:40px;border-top:1px solid #C9C1B1;padding-top:16px;font-size:12.5px;color:#5C574D;
+  max-width:80ch
+}
+.foot p{margin:0 0 8px}
+.kbd{
+  font-family:var(--mono);font-size:11px;border:1px solid #B9B1A1;border-bottom-width:2px;
+  border-radius:3px;padding:1px 5px;background:#FBF8F1
+}
+
+/* ---------- modal / action sheet surfaces (P13) ---------- */
+.scrim{
+  position:absolute;inset:0;background:rgba(11,42,42,.52);
+  display:flex;align-items:flex-end;justify-content:center
+}
+.sheet{
+  width:100%;background:var(--paper-raised);border-top:1px solid var(--rule-strong);
+  border-radius:20px 20px 0 0;max-height:88%;overflow:auto;
+  box-shadow:0 -8px 28px rgba(11,42,42,.22)
+}
+.sheet-grip{
+  width:52px;height:5px;border-radius:99px;background:var(--control-edge);
+  opacity:.5;margin:10px auto 2px
+}
+.sheet-head{
+  display:flex;align-items:flex-start;gap:12px;flex:0 0 auto;
+  padding:8px 14px 12px 18px;border-bottom:1px solid var(--rule)
+}
+.sheet-head h3{
+  font-family:var(--serif);font-size:20px;font-weight:600;margin:0;color:var(--ink);
+  flex:1 1 auto;min-width:0
+}
+.sheet-head .why{display:block;font-family:var(--sans);font-size:12.5px;font-weight:400;
+  color:var(--ink-2);margin-top:4px;line-height:1.45}
+.sheet-x{
+  flex:0 0 auto;width:46px;height:46px;border-radius:12px;
+  border:1.5px solid var(--control-edge);background:var(--paper);
+  color:var(--ink);display:inline-flex;align-items:center;justify-content:center;cursor:pointer
+}
+.sheet-x:focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:2px}
+.sheet-body{padding:14px 18px 20px;display:flex;flex-direction:column;gap:14px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13px;font-weight:600;color:var(--ink)}
+.field label .opt{font-weight:400;color:var(--ink-muted)}
+.field .help{font-size:12.5px;color:var(--ink-2)}
+.field textarea{
+  width:100%;min-height:96px;resize:vertical;font:inherit;font-size:14px;color:var(--ink);
+  background:#fff;border:1.5px solid var(--control-edge);border-radius:12px;padding:12px 14px
+}
+.field textarea::placeholder{color:#6E7A74}
+.field textarea:focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:2px}
+.field .count{font-size:12px;color:var(--ink-muted);text-align:right}
+.scope{
+  border:1px solid var(--rule);border-left:3px solid var(--cash);background:var(--cash-soft);
+  border-radius:6px;padding:12px 14px;font-size:13px;color:#4A3A1E;line-height:1.5
+}
+.scope b{color:#6B3A00}
+.sheet-actions{display:flex;flex-direction:column;gap:9px}
+.sheet-actions .row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+@media (max-width:420px){ .sheet-actions .row{grid-template-columns:1fr} }
+/* Disabled destructive action: neutral (not a washed-out red, which loses both
+   the 4.5:1 text ratio and the "this is irreversible" signal), with an explicit
+   edge so "unavailable" reads as a deliberate state rather than a low-contrast
+   button. --disabled-edge measures 4.49:1 on the fill and 5.89:1 on the sheet. */
+:root{ --disabled-fill:#E6DED2; --disabled-edge:#6F6152; --disabled-ink:#4A5C55 }
+.btn:disabled,.btn[aria-disabled="true"]{cursor:not-allowed}
+.btn.disabled-solid[aria-disabled="true"]{
+  background:var(--disabled-fill);border:1.5px solid var(--disabled-edge);color:var(--disabled-ink)
+}
+.btn.disabled-solid[aria-disabled="true"] .hint{color:var(--disabled-ink)}
+
+/* cancel sheet (P13–P14) */
+/* display comes from .st / #s-sheet:checked so the sheet cannot leak into
+   other states at load time. */
+.st-sheet{position:relative;min-height:660px}
+/* The action bar is a direct child of .sheet, which has no horizontal padding,
+   so it must not carry the negative side margins used by padded-parent bars:
+   those overhang 18px per side and are clipped by .sheet's overflow:hidden,
+   truncating the label. A negative bottom margin likewise pushes 20px of box
+   past the sheet's clipped edge. Keep the bar flush and inset by its own
+   padding instead, so nothing is cut off at 360px. */
+.sheet-actions.sticky{
+  position:sticky;bottom:0;margin:0;padding:12px 18px 16px;
+  background:var(--paper-raised);border-top:1px solid var(--rule-strong);
+  display:flex;flex-direction:column;gap:9px;flex:0 0 auto
+}
+.field .count{font-variant-numeric:tabular-nums}
+.field .count b{color:var(--ink);font-weight:600}
+.field .req{font-weight:600;color:var(--danger);font-size:12.5px}
+.sheet-head .why b{color:var(--ink)}
+.chipset{display:flex;flex-wrap:wrap;gap:8px}
+.chipset .chip{
+  display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;
+  border-radius:999px;border:1.5px solid var(--control-edge);background:var(--paper);
+  font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer
+}
+.chipset .chip[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.chipset .chip:focus-visible,.sheet-x:focus-visible,.btn:focus-visible,.field textarea:focus-visible{
+  outline:var(--focus-w) solid var(--focus);outline-offset:2px
+}
+.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.review-grid .kv{border:1px solid var(--rule);border-radius:6px;padding:9px 11px;background:var(--paper)}
+.review-grid .kv dt{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+.review-grid .kv dd{margin:3px 0 0;font-size:14.5px;font-weight:600;color:var(--ink)}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important;scroll-behavior:auto!important}
+  .sk{animation:none;background:#EFE9DE}
+  .spinner{animation:none;border-top-color:rgba(15,118,110,.22)}
+  .btn .busy{animation:none;border-top-color:rgba(255,255,255,.35);position:relative}
+  .btn .busy::after{content:"";position:absolute;inset:3px;background:rgba(255,255,255,.85);border-radius:50%}
+  .busy{animation:none;border-top-color:rgba(11,79,70,.25)}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== state radios (CSS-only switching, keyboard reachable) ===== -->
+<input class="switch" type="radio" name="state" id="s-default" checked>
+<input class="switch" type="radio" name="state" id="s-loading">
+<input class="switch" type="radio" name="state" id="s-empty">
+<input class="switch" type="radio" name="state" id="s-error">
+<input class="switch" type="radio" name="state" id="s-offline">
+<input class="switch" type="radio" name="state" id="s-sheet">
+
+<div class="page">
+
+  <header class="masthead">
+    <p class="kicker">AAGAM · UX proposal · static mockup</p>
+    <h1>Customer subscription detail, redrawn as a morning ledger</h1>
+    <p>
+      A side-by-side comparison of <strong>SubscriptionDetailScreen</strong> as it
+      ships today and a proposed redesign. The shipped screen is reconstructed
+      faithfully from source; the proposal applies the “Morning ledger” direction —
+      warm paper, near-black ink, one amber accent reserved for money owed, and
+      status carried by words and shape rather than colour alone.
+    </p>
+    <p class="files">
+      screen&nbsp;apps/mobile-customer/src/screens/customer/SubscriptionDetailScreen.tsx&nbsp;·
+      tokens&nbsp;packages/mobile-shared/src/constants/theme.ts&nbsp;·
+      full rationale&nbsp;./proposal.md
+    </p>
+  </header>
+
+  <div class="note">
+    <strong>This page changes no application code.</strong> It is a static HTML
+    mockup with inline CSS and no dependencies. The “current” column is a
+    hand-reconstruction of the shipped screen for visual comparison, not a
+    rendered build. Toggle the states below; all five are live on both sides.
+  </div>
+
+  <div class="switcher">
+    <span>State</span>
+    <div class="grp" role="radiogroup" aria-label="Preview state">
+      <label for="s-default">Default</label>
+      <label for="s-loading">Loading</label>
+      <label for="s-empty">Empty</label>
+      <label for="s-error">Error</label>
+      <label for="s-offline">Offline</label>
+      <label for="s-sheet">Cancel sheet</label>
+    </div>
+  </div>
+
+  <div class="compare">
+
+    <!-- ============================ CURRENT ============================ -->
+    <section class="col current">
+      <h2>Current<span class="tag">as shipped</span></h2>
+      <p class="sub">
+        Reconstructed from <code>SubscriptionDetailScreen.tsx</code>. Four equal
+        action tiles, a 2.68:1 ring, 9–10&nbsp;pt labels down to 3.88:1, and only
+        two of the five states handled.
+      </p>
+
+      <div class="frames">
+        <div class="phone">
+          <div class="caption">360 px</div>
+          <div class="glass">
+            <div class="viewport current-ui">
+
+              <!-- header -->
+              <div class="a-bar">
+                <div class="a-icon" aria-hidden="true"><svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#173D32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></div>
+                <div class="a-growth">
+                  <div class="a-eyebrow">SUBSCRIPTION</div>
+                  <div class="a-title">Morning Milk · 1 L</div>
+                </div>
+                <div class="a-icon" aria-hidden="true"><svg class="ico" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#173D32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></div>
+              </div>
+
+              <!-- DEFAULT -->
+              <div class="st st-default" style="--d:flex;flex-direction:column">
+                <div class="body">
+                  <div class="hero">
+                    <div class="top">
+                      <div>
+                        <div class="lab">PLAN PROGRESS</div>
+                        <div class="num">12 of 30</div>
+                        <div class="sub">deliveries completed</div>
+                      </div>
+                      <div class="ring">40%</div>
+                    </div>
+                    <div class="track"><i></i></div>
+                    <div class="facts">
+                      <span>Funded left <b>4</b></span>
+                      <span>Skipped <b>2</b></span>
+                    </div>
+                  </div>
+
+                  <div class="next-card">
+                    <div class="next-ic" aria-hidden="true"><svg class="ico" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div>
+                    <div class="a-growth">
+                      <div class="next-lab">NEXT DELIVERY</div>
+                      <div class="next-date">Wed, 23 Sep</div>
+                      <div class="next-meta">Cash due ₹40</div>
+                    </div>
+                    <div class="track-btn" aria-hidden="true">
+                      <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>
+                      <span>Track</span>
+                    </div>
+                  </div>
+
+                  <div class="actions">
+                    <div class="action clip"><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 4.5 12 8l-6-3.5"/><path d="M12 8v12"/><path d="m6 19.5 6-3.5 6 3.5"/></svg><span>Skip next</span></div>
+                    <div class="action"><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg><span>Pause</span></div>
+                    <div class="action"><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B96600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span>Report</span></div>
+                    <div class="action clip"><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg><span>Show QR</span></div>
+                  </div>
+
+                  <div class="section">
+                    <div class="sec-head"><div class="sec-title" style="margin-bottom:0">Delivery preferences</div><span class="link">Edit</span></div>
+                    <div class="info" style="margin-top:12px">
+                      <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                      <div class="a-growth"><div class="il">Window</div><div class="iv">05:30 – 07:00</div></div>
+                    </div>
+                    <div class="info">
+                      <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+                      <div class="a-growth"><div class="il">Handover</div><div class="iv">Trusted drop</div></div>
+                    </div>
+                    <div class="info">
+                      <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B96600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12"/><path d="M6 8h12"/><path d="m6 13 8.5 8"/><path d="M6 13h3"/><path d="M9 13c6.667 0 6.667-10 0-10"/></svg>
+                      <div class="a-growth"><div class="il">Funding</div><div class="iv" style="text-transform:none">Cash every seven deliveries</div></div>
+                    </div>
+                  </div>
+
+                  <div class="section">
+                    <div class="sec-head"><div class="sec-title" style="margin-bottom:0">Calendar &amp; history</div><span class="link">View all</span></div>
+                    <div class="cal" style="margin-top:12px">
+                      <div class="cal-head">
+                        <div class="cal-nav" aria-hidden="true"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></div>
+                        <div class="cal-month">September 2026</div>
+                        <div class="cal-nav" aria-hidden="true"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></div>
+                      </div>
+                      <div class="cal-grid">
+                        <div class="cal-week">S</div><div class="cal-week">M</div><div class="cal-week">T</div><div class="cal-week">W</div><div class="cal-week">T</div><div class="cal-week">F</div><div class="cal-week">S</div>
+                        <div class="cal-cell"><b>30</b></div><div class="cal-cell"><b>31</b></div>
+                        <div class="cal-cell"><b>1</b><i style="background:#0F766E"></i></div>
+                        <div class="cal-cell"><b>2</b><i style="background:#0F766E"></i></div>
+                        <div class="cal-cell"><b>3</b><i style="background:#0F766E"></i></div>
+                        <div class="cal-cell"><b>4</b><i style="background:#3B82F6"></i></div>
+                        <div class="cal-cell"><b>5</b><i style="background:#0F766E"></i></div>
+                        <div class="cal-cell"><b>6</b><i style="background:#0F766E"></i></div>
+                        <div class="cal-cell"><b>7</b><i style="background:#F59E0B"></i></div>
+                        <div class="cal-cell"><b>8</b><i style="background:#0F766E"></i></div>
+                        <div class="cal-cell"><b>9</b><i style="background:#0F766E"></i></div>
+                        <div class="cal-cell"><b>10</b><i style="background:#3B82F6"></i></div>
+                        <div class="cal-cell"><b>11</b><i style="background:#0F766E"></i></div>
+                        <div class="cal-cell"><b>12</b><i style="background:#0F766E"></i></div>
+                      </div>
+                      <div class="cal-legend">
+                        <span><i style="background:#0F766E"></i>Delivered</span>
+                        <span><i style="background:#3B82F6"></i>Scheduled</span>
+                        <span><i style="background:#F59E0B"></i>Skipped</span>
+                        <span><i style="background:#EF4444"></i>Failed</span>
+                      </div>
+                    </div>
+
+                    <!-- delivery rows -->
+                    <div class="row">
+                      <div class="dot done" aria-hidden="true"><svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg></div>
+                      <div class="a-growth">
+                        <div class="d-date">Tue, 22 Sep</div>
+                        <div class="d-meta">Day 12 · DELIVERED</div>
+                        <div class="d-win">05:30–07:00</div>
+                      </div>
+                      <div class="cash">₹0</div>
+                    </div>
+                    <div class="row">
+                      <div class="dot skip" aria-hidden="true"></div>
+                      <div class="a-growth">
+                        <div class="d-date">Mon, 21 Sep</div>
+                        <div class="d-meta">Day 11 · SKIPPED</div>
+                        <div class="d-win">05:30–07:00</div>
+                      </div>
+                      <div class="cash">₹0</div>
+                    </div>
+                    <div class="row">
+                      <div class="dot done" aria-hidden="true"><svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg></div>
+                      <div class="a-growth">
+                        <div class="d-date">Sun, 20 Sep</div>
+                        <div class="d-meta">Day 10 · DELIVERED</div>
+                        <div class="d-win">05:30–07:00</div>
+                      </div>
+                      <div class="cash due">₹40</div>
+                    </div>
+                  </div>
+
+                  <div class="section">
+                    <div class="sec-title">Cash funding receipts</div>
+                    <div class="row" style="border-top:0">
+                      <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12"/><path d="M6 8h12"/><path d="m6 13 8.5 8"/><path d="M6 13h3"/><path d="M9 13c6.667 0 6.667-10 0-10"/></svg>
+                      <div class="a-growth">
+                        <div class="d-date">₹280 funded</div>
+                        <div class="d-meta">Deliveries 8–14 · Fri, 18 Sep</div>
+                      </div>
+                      <span class="badge b-del" style="margin-top:0">RECEIVED</span>
+                    </div>
+                  </div>
+
+                  <div class="cancel-btn">Cancel subscription</div>
+                </div>
+              </div><!-- /current default -->
+
+              <!-- current LOADING -->
+              <div class="st st-loading" style="--d:flex">
+                <div class="c-center" style="--d:flex">
+                  <div class="spinner" role="status" aria-label="Loading subscription"></div>
+                  <div style="font-size:12px;color:#75857E">Loading… (centred spinner, blank screen)</div>
+                </div>
+              </div>
+
+              <!-- current EMPTY -->
+              <div class="st st-empty" style="--d:flex;flex-direction:column">
+                <div class="body">
+                  <div class="hero">
+                    <div class="top">
+                      <div>
+                        <div class="lab">PLAN PROGRESS</div>
+                        <div class="num">0 of 30</div>
+                        <div class="sub">deliveries completed</div>
+                      </div>
+                      <div class="ring">0%</div>
+                    </div>
+                    <div class="track"><i style="width:0"></i></div>
+                    <div class="facts"><span>Funded left <b>0</b></span><span>Skipped <b>0</b></span></div>
+                  </div>
+                  <div class="next-card">
+                    <div class="next-ic" aria-hidden="true"><svg class="ico" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div>
+                    <div class="a-growth">
+                      <div class="next-lab">NEXT DELIVERY</div>
+                      <div class="next-date">—</div>
+                      <div class="next-meta">Subscription funded · Customer due ₹0</div>
+                    </div>
+                    <div class="track-btn" aria-hidden="true">
+                      <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>
+                      <span>Track</span>
+                    </div>
+                  </div>
+                  <div class="actions">
+                    <div class="action disabled"><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 4.5 12 8l-6-3.5"/><path d="M12 8v12"/><path d="m6 19.5 6-3.5 6 3.5"/></svg><span>Skip next</span></div>
+                    <div class="action disabled"><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg><span>Pause</span></div>
+                    <div class="action disabled"><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B96600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span>Report</span></div>
+                    <div class="action disabled"><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/></svg><span>Show QR</span></div>
+                  </div>
+                  <div class="section c-empty">
+                    <div class="sec-title">Calendar &amp; history</div>
+                    <div class="blank">(empty titled box — no message, no next step)</div>
+                  </div>
+                  <div class="cancel-btn">Cancel subscription</div>
+                </div>
+              </div>
+
+              <!-- current ERROR -->
+              <div class="st st-error" style="--d:flex">
+                <div class="c-center" style="--d:flex">
+                  <div style="font-size:13.5px;color:#173D32;text-align:center;max-width:22ch">Subscription could not be loaded.</div>
+                  <div style="font-size:11.5px;color:#75857E;text-align:center;max-width:26ch">No retry, no cause, no support link.</div>
+                </div>
+              </div>
+
+              <!-- current OFFLINE (identical to default) -->
+              <div class="st st-offline" style="--d:flex;flex-direction:column">
+                <div class="body">
+                  <div class="hero">
+                    <div class="top">
+                      <div>
+                        <div class="lab">PLAN PROGRESS</div>
+                        <div class="num">12 of 30</div>
+                        <div class="sub">deliveries completed</div>
+                      </div>
+                      <div class="ring">40%</div>
+                    </div>
+                    <div class="track"><i></i></div>
+                    <div class="facts"><span>Funded left <b>4</b></span><span>Skipped <b>2</b></span></div>
+                  </div>
+                  <div class="section" style="border-color:#E7B5B5;background:#FFF8F8">
+                    <div class="sec-title" style="margin-bottom:6px;color:#A33131">Offline</div>
+                    <div style="font-size:12px;color:#718079;line-height:1.5">
+                      Today there is <strong>no offline counterpart</strong>.
+                      <code>NetInfo</code> is never imported in this screen, so an
+                      offline customer sees exactly this screen — all buttons look
+                      enabled — and a tap produces a toast that appears and vanishes.
+                      That is the evidence for problem P5.
+                    </div>
+                  </div>
+                  <div class="actions">
+                    <div class="action"><span>Skip next</span></div>
+                    <div class="action"><span>Pause</span></div>
+                    <div class="action"><span>Report</span></div>
+                    <div class="action"><span>Show QR</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="st st-sheet" style="--d:flex;flex-direction:column">
+                <div class="body">
+                  <div class="hero">
+                    <div class="top">
+                      <div>
+                        <div class="lab">PLAN PROGRESS</div>
+                        <div class="num">12 of 30</div>
+                        <div class="sub">deliveries completed</div>
+                      </div>
+                      <div class="ring">40%</div>
+                    </div>
+                    <div class="track"><i></i></div>
+                    <div class="facts"><span>Funded left <b>4</b></span><span>Skipped <b>2</b></span></div>
+                  </div>
+                  <div class="section">
+                    <div class="sec-title" style="margin-bottom:6px">What the shipped modal does today</div>
+                    <div style="font-size:12px;color:#718079;line-height:1.5">
+                      Tapping <em>Cancel subscription</em> (genuinely below the fold — see P14)
+                      opens a bare sheet: a handle, the title, a 42&nbsp;px <code>X</code> whose only
+                      accessible name is the glyph, a placeholder-only textarea
+                      (<code>:676</code>), and a solid red button at
+                      <code>opacity:0.45</code> (<code>:1116</code>) reading
+                      <strong>1.98:1</strong>. Below, the same sheet rebuilt.
+                    </div>
+                  </div>
+                </div>
+                <div class="scrim">
+                  <div class="sheet">
+                    <div class="sheet-grip"></div>
+                    <div class="sheet-head">
+                      <h3>Cancel subscription?</h3>
+                      <span class="sheet-x" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#25463B" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                      </span>
+                    </div>
+                    <div class="sheet-body">
+                      <p class="sheet-copy" style="margin:0;font-size:12px;color:#687A72;line-height:1.5">
+                        Generated orders remain in the normal order workflow. Future
+                        ungenerated occurrences will be cancelled with an audit record.
+                      </p>
+                      <div class="field">
+                        <textarea placeholder="Reason for cancellation" rows="3"></textarea>
+                      </div>
+                      <div class="sheet-actions">
+                        <span class="btn danger disabled-solid" aria-disabled="true" role="button" tabindex="-1">
+                          <span class="grow">Confirm cancellation</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /viewport -->
+          </div><!-- /glass -->
+        </div><!-- /phone -->
+
+        <div class="measures">
+          <h3>Measured from source</h3>
+          <ol>
+            <li><b>P1</b> Four <code>flex:1</code> tiles + 3×8 px gaps in 328 px usable → ≈74 px per tile; labels “Skip next” / “Show QR” at 11 pt clip. <code>styles.action:945</code>.</li>
+            <li><b>P7</b> Ring border <code>#65C7A7</code> on <code>#0F766E</code> = <b>2.68:1</b> (needs 3:1). <code>styles.ring:883</code>.</li>
+            <li><b>P7</b> <code>infoLabel #75857E</code> 10 pt = <b>3.88:1</b>; <code>deliveryMeta #718079</code> = <b>4.15:1</b>; <code>heroLabel #BFEADA</code> = <b>4.17:1</b>. All fail 4.5:1.</li>
+            <li><b>P9</b> Strip month arrows <code>36×36</code> (<code>DeliveryCalendarStrip:214</code>), status dots <code>6×6</code> (<code>:228</code>) — no label. <code>link</code> has no <code>minHeight</code>:975.</li>
+            <li><b>P3</b> No <code>isError</code> branch; deliveries error falls through to an empty map at <code>:496</code> — a false empty.</li>
+            <li><b>P10</b> Loading = centred spinner on blank screen (<code>:283</code>), so content jumps.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ PROPOSED ============================ -->
+    <section class="col proposed">
+      <h2>Proposed<span class="tag">morning ledger</span></h2>
+      <p class="sub">
+        Same data, same API contract. Two stacked primary actions, a real amount
+        column, word-bearing status badges, and all five states designed. Every
+        interactive element is a real <code>&lt;button&gt;</code>/link with a
+        visible focus ring and a ≥46 px target.
+      </p>
+
+      <div class="frames">
+        <div class="phone">
+          <div class="caption">360 px</div>
+          <div class="glass">
+            <div class="viewport proposed-ui">
+              <div class="paper-grain" aria-hidden="true"></div>
+
+              <div class="ledger-bar">
+                <button class="back" type="button">
+                  <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+                  Back
+                </button>
+                <div class="plan">Morning Milk · 1 L</div>
+                <button class="more" type="button" aria-label="More options for this subscription">
+                  <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B4F46" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                </button>
+              </div>
+
+              <!-- ===== PROPOSED DEFAULT ===== -->
+              <div class="st st-default" style="--d:flex;flex-direction:column">
+                <div class="ledger-body">
+
+                  <div class="ledger-head">
+                    <div class="cap">
+                      <span class="l">Delivery ledger</span>
+                      <span class="r">ACTIVE</span>
+                    </div>
+                    <div class="fig">
+                      <div class="big"><small>Day</small> 12<small> / 30</small></div>
+                      <div class="bigsub">11 Sep – 10 Oct 2026 · Day 12 of 30</div>
+                    </div>
+                    <div class="rail">
+                      <div class="bar" role="img" aria-label="Term progress: 12 of 30 deliveries completed, 40 percent">
+                        <i style="width:40%"></i>
+                      </div>
+                      <div class="ticks">
+                        <span>start</span><span>day 8</span><span class="now">day 13</span><span>day 22</span><span>day 30</span>
+                      </div>
+                    </div>
+                    <div class="gloss">
+                      <div class="k">Deliveries still prepaid<em>Already paid for in cash — no further payment due on these</em></div>
+                      <div class="v">4<em>of 30</em></div>
+                    </div>
+                  </div>
+
+                  <div class="amount-card">
+                    <div class="hd">
+                      <h3>Next delivery</h3>
+                      <span class="when">Wed, 23 Sep · 05:30–07:00</span>
+                    </div>
+                    <div class="amount-rule"></div>
+                    <div class="amt-row">
+                      <div class="lbl">Milk · 1 L<em>Trusted doorstep, one-time QR</em></div>
+                      <div class="ct">₹40</div>
+                    </div>
+                    <div class="amt-row">
+                      <div class="lbl">Prepaid balance applied<em>Covers day 13 of the term</em></div>
+                      <div class="ct">−₹40</div>
+                    </div>
+                    <div class="amt-total">
+                      <div class="lbl">Due now, at the door</div>
+                      <div class="ct">₹0</div>
+                    </div>
+                    <div class="amt-note">
+                      You prepaid ₹280 on 18&nbsp;Sep for days 8–14. Nothing is owed
+                      until day 15, when ₹40 is collected at handover.
+                    </div>
+                  </div>
+
+                  <div class="act-group">
+                    <button class="btn primary" type="button">
+                      <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>
+                      <span class="grow">Track tomorrow's delivery<span class="hint">Live once the rider is assigned</span></span>
+                    </button>
+
+                    <div class="two-up">
+                      <button class="btn ghost" type="button">
+                        <svg class="ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 4.5 12 8l-6-3.5"/><path d="M12 8v12"/><path d="m6 19.5 6-3.5 6 3.5"/></svg>
+                        <span class="grow">Skip<br>next</span>
+                      </button>
+                      <button class="btn ghost" type="button">
+                        <svg class="ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg>
+                        <span class="grow">Pause<br>plan</span>
+                      </button>
+                    </div>
+
+                    <button class="btn ghost" type="button" aria-expanded="false" aria-controls="more-actions">
+                      <svg class="ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                      <span class="grow">More actions<span class="hint">QR handover, report a problem, cancel</span></span>
+                      <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                  </div>
+
+                  <!-- QR in progress: real progress affordance (was P2) -->
+                  <div class="inline" role="status">
+                    <div class="busy" aria-hidden="true"></div>
+                    <span class="grow"><strong>Preparing your QR…</strong> this usually takes a second.</span>
+                  </div>
+
+                  <div class="prefs">
+                    <div class="hd">
+                      <h3>Delivery preferences</h3>
+                      <button class="edit" type="button">Edit<svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
+                    </div>
+                    <div class="pref-line">
+                      <div class="k">Window</div>
+                      <div class="v">05:30 – 07:00<em>Daily, including Sundays</em></div>
+                    </div>
+                    <div class="pref-line">
+                      <div class="k">Handover</div>
+                      <div class="v">Trusted doorstep<em>Rider scans your one-time QR and photographs the drop</em></div>
+                    </div>
+                    <div class="pref-line">
+                      <div class="k">Funding</div>
+                      <div class="v">₹280 cash, every 7 deliveries<em>Next collection on day 15 at handover</em></div>
+                    </div>
+                  </div>
+
+                  <div class="hist">
+                    <div class="hd">
+                      <h3>Delivery history</h3>
+                      <button class="all" type="button">View all 12</button>
+                    </div>
+
+                    <div class="hrow">
+                      <div class="day">12</div>
+                      <div class="mid">
+                        <div class="dt">Tue, 22 Sep</div>
+                        <div class="sub">05:30–07:00 · photo proof</div>
+                        <span class="badge b-del"><span class="mk">✓</span>Delivered</span>
+                      </div>
+                      <div class="amt"><span class="v">₹0</span><span class="u">due</span></div>
+                    </div>
+
+                    <div class="hrow">
+                      <div class="day">11</div>
+                      <div class="mid">
+                        <div class="dt">Mon, 21 Sep</div>
+                        <div class="sub">05:30–07:00 · skipped by you</div>
+                        <span class="badge b-skip"><span class="mk">—</span>Skipped</span>
+                      </div>
+                      <div class="amt"><span class="v">₹0</span><span class="u">due</span></div>
+                    </div>
+
+                    <div class="hrow">
+                      <div class="day">10</div>
+                      <div class="mid">
+                        <div class="dt">Sun, 20 Sep</div>
+                        <div class="sub">05:30–07:00 · cash collected</div>
+                        <span class="badge b-del"><span class="mk">✓</span>Delivered</span>
+                      </div>
+                      <div class="amt"><span class="v due">₹40</span><span class="u">paid</span></div>
+                    </div>
+
+                    <div class="hrow">
+                      <div class="day">13</div>
+                      <div class="mid">
+                        <div class="dt">Wed, 23 Sep</div>
+                        <div class="sub">05:30–07:00 · scheduled</div>
+                        <span class="badge b-sch"><span class="mk">›</span>Scheduled</span>
+                      </div>
+                      <div class="amt"><span class="v">₹0</span><span class="u">due</span></div>
+                    </div>
+                  </div>
+
+                  <button class="btn danger" type="button">Cancel subscription…</button>
+
+                </div>
+              </div>
+
+              <!-- ===== PROPOSED LOADING ===== -->
+              <div class="st st-loading" style="--d:flex;flex-direction:column">
+                <div class="ledger-body" aria-busy="true" aria-live="polite">
+                  <span class="sr">Loading your subscription…</span>
+                  <div class="ledger-head" style="padding:14px">
+                    <div class="sk sk-cap"></div>
+                    <div class="sk sk-big"></div>
+                    <div style="display:flex;justify-content:space-between;margin-top:14px">
+                      <div class="sk" style="height:9px;width:16%"></div><div class="sk" style="height:9px;width:16%"></div>
+                      <div class="sk" style="height:9px;width:16%"></div><div class="sk" style="height:9px;width:16%"></div>
+                    </div>
+                    <div class="sk sk-bar"></div>
+                  </div>
+                  <div class="amount-card">
+                    <div class="sk" style="height:11px;width:38%"></div>
+                    <div class="amt-row"><div class="sk sk-line"></div><div class="sk sk-amt"></div></div>
+                    <div class="amt-row"><div class="sk sk-line"></div><div class="sk sk-amt"></div></div>
+                    <div class="amt-total"><div class="sk sk-line" style="width:50%"></div><div class="sk" style="height:26px;width:60px"></div></div>
+                  </div>
+                  <div class="act-group">
+                    <div class="sk sk-btn"></div>
+                    <div class="two-up"><div class="sk sk-btn" style="height:60px"></div><div class="sk sk-btn" style="height:60px"></div></div>
+                    <div class="sk sk-btn"></div>
+                  </div>
+                  <div class="hist">
+                    <div class="sk" style="height:11px;width:44%;margin-bottom:12px"></div>
+                    <div class="sk-row"><div class="sk" style="height:34px;width:34px"></div><div class="a-growth"><div class="sk" style="height:12px;width:64%"></div><div class="sk" style="height:10px;width:40%;margin-top:7px"></div></div><div class="sk" style="height:18px;width:52px"></div></div>
+                    <div class="sk-row"><div class="sk" style="height:34px;width:34px"></div><div class="a-growth"><div class="sk" style="height:12px;width:58%"></div><div class="sk" style="height:10px;width:44%;margin-top:7px"></div></div><div class="sk" style="height:18px;width:52px"></div></div>
+                    <div class="sk-row"><div class="sk" style="height:34px;width:34px"></div><div class="a-growth"><div class="sk" style="height:12px;width:60%"></div><div class="sk" style="height:10px;width:38%;margin-top:7px"></div></div><div class="sk" style="height:18px;width:52px"></div></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ===== PROPOSED EMPTY ===== -->
+              <div class="st st-empty" style="--d:flex;flex-direction:column">
+                <div class="ledger-body">
+                  <div class="ledger-head">
+                    <div class="cap"><span class="l">Delivery ledger</span><span class="r">ACTIVE</span></div>
+                    <div class="fig">
+                      <div class="big"><small>Day</small> 0<small> / 30</small></div>
+                      <div class="bigsub">Starts 11 Sep 2026</div>
+                    </div>
+                    <div class="rail">
+                      <div class="bar" role="img" aria-label="Term progress: 0 of 30 deliveries completed, 0 percent"><i style="width:0"></i></div>
+                      <div class="ticks"><span class="now">start</span><span>day 8</span><span>day 15</span><span>day 22</span><span>day 30</span></div>
+                    </div>
+                    <div class="gloss">
+                      <div class="k">Deliveries still prepaid<em>Already paid for in cash</em></div>
+                      <div class="v">0<em>of 30</em></div>
+                    </div>
+                  </div>
+
+                  <div class="amount-card">
+                    <div class="empty-wrap">
+                      <div class="mk" aria-hidden="true">
+                        <svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg>
+
+
+                      </div>
+                      <h3>No deliveries scheduled yet</h3>
+                      <p>
+                        Your plan is active, but no deliveries have been generated.
+                        Aagaam creates the first 7 days automatically the evening
+                        before your start date.
+                      </p>
+                      <div class="facts">
+                        <div><span>Start date</span><b>Fri, 11 Sep</b></div>
+                        <div><span>Delivery window</span><b>05:30 – 07:00</b></div>
+                        <div><span>Handover</span><b>Trusted doorstep</b></div>
+                      </div>
+                      <div class="act-group">
+                        <button class="btn primary" type="button">
+                          <span class="grow">Set up the first delivery<span class="hint">Choose a start date and window</span></span>
+                        </button>
+                        <button class="btn ghost" type="button">
+                          <span class="grow">Contact support<span class="hint">If you expected deliveries to appear already</span></span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ===== PROPOSED ERROR ===== -->
+              <div class="st st-error" style="--d:flex;flex-direction:column">
+                <div class="ledger-body">
+                  <div class="amount-card">
+                    <div class="error-wrap">
+                      <div class="mk" aria-hidden="true">
+                        <svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+                      </div>
+                      <h3>We couldn't load this subscription</h3>
+                      <p>
+                        The request reached Aagaam but the reply didn't arrive. Your
+                        subscription and deliveries are unaffected — this is a display
+                        problem only.
+                      </p>
+                      <div class="act-group">
+                        <button class="btn primary" type="button">
+                          <span class="grow">Try again<span class="hint">Retry the request</span></span>
+                        </button>
+                        <button class="btn ghost" type="button">
+                          <span class="grow">Contact support<span class="hint">Quote reference SUB-4482</span></span>
+                        </button>
+                      </div>
+                      <div class="err-code">Error code: NETWORK_TIMEOUT · ref SUB-4482 · 2026-09-22T06:14Z</div>
+                    </div>
+                  </div>
+
+                  <!-- partial failure: history failed, plan loaded -->
+                  <div class="amount-card">
+                    <div class="hd"><h3>Delivery history (day 13, next)</h3></div>
+                    <div class="inline err">
+                      <span class="grow">Delivery history didn't load. This is not an empty history — it's a failed request.</span>
+                    </div>
+                    <div class="act-group" style="margin-top:10px">
+                      <button class="btn ghost" type="button"><span class="grow">Retry history</span></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ===== PROPOSED OFFLINE ===== -->
+              <div class="st st-offline" style="--d:flex;flex-direction:column">
+                <div class="banner" role="status">
+                  <svg class="ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="m2 2 20 20"/></svg>
+                  <span class="grow"><strong>You're offline.</strong> Showing the last saved copy from 06:02. Changes you make will be sent when you reconnect.</span>
+                  <button class="act" type="button" style="background:none;border:0;color:inherit;cursor:pointer">Retry</button>
+                </div>
+                <div class="ledger-body">
+                  <div class="ledger-head">
+                    <div class="cap"><span class="l">Delivery ledger</span><span class="r">ACTIVE</span></div>
+                    <div class="fig">
+                      <div class="big"><small>Day</small> 12<small> / 30</small></div>
+                      <div class="bigsub">11 Sep – 10 Oct 2026 · Day 12 of 30</div>
+                    </div>
+                    <div class="rail">
+                      <div class="bar" role="img" aria-label="Term progress: 12 of 30 deliveries completed, 40 percent"><i style="width:40%"></i></div>
+                      <div class="ticks"><span>start</span><span>day 8</span><span class="now">day 13</span><span>day 22</span><span>day 30</span></div>
+                    </div>
+                    <div class="gloss">
+                      <div class="k">Deliveries still prepaid<em>Already paid for in cash</em></div>
+                      <div class="v">4<em>of 30</em></div>
+                    </div>
+                  </div>
+
+                  <div class="amount-card">
+                    <div class="hd"><h3>Next delivery</h3><span class="when">Wed, 23 Sep · 05:30–07:00</span></div>
+                    <div class="amt-total" style="border-top:1px solid var(--rule);padding-top:10px">
+                      <div class="lbl">Due now, at the door</div><div class="ct">₹0</div>
+                    </div>
+                    <div class="amt-note">Cached figures — last confirmed with Aagaam at 06:02 today.</div>
+                  </div>
+
+                  <div class="act-group">
+                    <button class="btn ghost" type="button" disabled aria-disabled="true">
+                      <svg class="ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 4.5 12 8l-6-3.5"/><path d="M12 8v12"/><path d="m6 19.5 6-3.5 6 3.5"/></svg>
+                      <span class="grow">Skip next<span class="hint">Needs a connection — will be available when you're back online</span></span>
+                    </button>
+                    <button class="btn primary" type="button">
+                      <span class="grow">Queued: pause plan<span class="hint">Will be sent as soon as you reconnect — tap to cancel</span></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="st st-sheet" style="--d:flex;flex-direction:column">
+                <div class="body">
+                  <div class="sheet-backdrop-head">
+                    <div class="cap"><span class="l">Delivery ledger</span><span class="r">ACTIVE</span></div>
+                    <div class="fig">
+                      <div class="big"><small>Day</small> 12<small> / 30</small></div>
+                      <div class="bigsub">11 Sep – 10 Oct 2026 · Day 12 of 30</div>
+                    </div>
+                    <div class="rail">
+                      <div class="bar" role="img" aria-label="Term progress: 12 of 30 deliveries completed, 40 percent"><i style="width:40%"></i></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="scrim">
+                  <div class="sheet" style="position:relative;display:flex;flex-direction:column;max-height:92%;overflow:hidden">
+                    <div class="sheet-grip"></div>
+                    <div class="sheet-head">
+                      <h3>Cancel subscription?
+                        <span class="why">Nothing is charged after this. You keep the
+                          <b>2</b> deliveries already paid for.</span>
+                      </h3>
+                      <button class="sheet-x" type="button" aria-label="Close and keep my subscription">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                    <div class="sheet-body" style="overflow:auto;padding-bottom:0;min-height:0">
+                      <div class="scope">
+                        <b>Does not touch money already paid.</b> Generated orders stay in the
+                        normal order flow. Future ungenerated occurrences are cancelled and an
+                        audit record is written to your account.
+                      </div>
+                      <div class="field">
+                        <label for="reason">Reason for cancellation <span class="req" aria-hidden="true">*</span></label>
+                        <span class="help" id="reason-help">At least 5 characters. This is kept with your
+                          subscription record — it is not shown to your delivery partner.</span>
+                        <textarea id="reason" aria-describedby="reason-help" rows="3"
+                          placeholder="e.g. Moving out of the service area next week"></textarea>
+                        <span class="count">Needs <b>5</b> more characters before this unlocks</span>
+                      </div>
+                      <div class="chipset" role="group" aria-label="Common reasons — tap to fill the field">
+                        <button class="chip" type="button" aria-pressed="false">Moving away</button>
+                        <button class="chip" type="button" aria-pressed="false">Too expensive</button>
+                        <button class="chip" type="button" aria-pressed="false">Switching brand</button>
+                        <button class="chip" type="button" aria-pressed="false">Delivery timing</button>
+                      </div>
+                      <div class="review-grid">
+                        <dl class="kv" style="margin:0"><dt>Already paid</dt><dd>₹0 pending</dd></dl>
+                        <dl class="kv" style="margin:0"><dt>Deliveries kept</dt><dd>2 funded</dd></dl>
+                      </div>
+                    </div>
+                    <div class="sheet-actions sticky">
+                      <span class="btn danger disabled-solid" aria-disabled="true" role="button" tabindex="-1">
+                        <span class="grow">Confirm cancellation 2 of 5 characters
+                          <span class="hint">Add 3 more characters to unlock</span></span>
+                      </span>
+                      <button class="btn ghost" type="button"><span class="grow">Keep my subscription</span></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+
+            </div><!-- /viewport -->
+          </div><!-- /glass -->
+        </div><!-- /phone -->
+
+        <div class="measures">
+          <h3>What changed, and why</h3>
+          <ol>
+            <li class="ok"><b>P1 fixed</b> Primary action is a full-width row; Skip and Pause sit in a 2-up grid with 60 px height; the 4th action moved under <em>More actions</em>. No label can clip at 328 px.</li>
+            <li class="ok"><b>P2 fixed</b> The QR action now shows a labelled inline progress row (<code>role="status"</code>), not a silently greyed icon.</li>
+            <li class="ok"><b>P3 fixed</b> Two distinct error surfaces: whole-screen load failure with <em>Try again</em>, and a separate <em>history</em> failure that says explicitly it is not an empty history.</li>
+            <li class="ok"><b>P4 fixed</b> Empty state names the cause, shows start date / window / handover, and offers a single next step.</li>
+            <li class="ok"><b>P5 fixed</b> Offline banner with cache timestamp; unavailable actions say why; queued action is visible and cancellable.</li>
+            <li class="ok"><b>P6 fixed</b> One amount column, one rule: gross, prepaid credit, then <em>Due now</em>. Funding stated as “₹280 cash, every 7 deliveries”.</li>
+            <li class="ok"><b>P7 fixed</b> Ink on paper ≥ 14:1; secondary ≥ 6.6:1; muted meta ≥ 5.7:1; on-brand text ≥ 6.4:1. Rail boundary on brand ≥ 6.4:1 (was 2.68:1).</li>
+            <li class="ok"><b>P8 fixed</b> Back, More, Edit, View all, Cancel and every chip are real labelled controls; status badges pair a word with a glyph, so colour is never the only channel.</li>
+            <li class="ok"><b>P9 fixed</b> Every control ≥ 46 px; text links are padded rows rather than bare 17 px text.</li>
+            <li class="ok"><b>P10 fixed</b> Skeletons reserve the real layout height, so nothing jumps when data lands.</li>
+            <li class="ok"><b>P11 fixed</b> Track is only primary while a delivery is live; jargon explained inline; handover mode stated in words with its consequence.</li>
+            <li class="ok"><b>P12</b> <code>prefers-reduced-motion</code> disables the shimmer, spinner and QR-busy animation. See proposal §7 for the RN follow-up.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /compare -->
+
+
+
+  <!-- ============ desktop-width rendering of the proposal ============ -->
+  <section class="desktop-strip">
+    <h2>The same screen at desktop width</h2>
+    <p class="sub">
+      The direction scales without becoming a different product: the ledger rail
+      becomes a real navigation spine, the amount column stays a column, and the
+      actions move to a single row that never wraps.
+    </p>
+
+    <div class="desk">
+      <div class="paper-grain" aria-hidden="true"></div>
+      <div class="desk-bar">
+        <span class="crumbs">My subscriptions / Morning Milk · 1 L</span>
+        <span class="plan">Morning Milk · 1 L</span>
+        <span class="spacer"></span>
+        <div class="search" role="search">
+          <svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          Find a delivery or receipt…
+        </div>
+      </div>
+
+      <div class="desk-grid">
+        <nav class="desk-rail" aria-label="Subscription sections">
+          <h3>Sections</h3>
+          <div class="item on">Delivery ledger</div>
+          <div class="item">Amounts &amp; funding</div>
+          <div class="item">Preferences</div>
+          <div class="item">History</div>
+          <div class="item">Support</div>
+          <div class="gl">
+            <div class="k">Deliveries still prepaid</div>
+            <div class="v">4 / 30</div>
+            <div class="k">Skipped this term</div>
+            <div class="v">2</div>
+          </div>
+        </nav>
+
+        <div class="desk-main">
+          <div>
+            <h1 class="h1">Day 12 of 30</h1>
+            <div class="h1sub">11 Sep – 10 Oct 2026 · 40 % complete · 4 deliveries still prepaid</div>
+          </div>
+
+          <div class="amount-card" style="max-width:none">
+            <div class="hd"><h3>Next delivery</h3><span class="when">Wed, 23 Sep · 05:30–07:00</span></div>
+            <div class="amount-rule"></div>
+            <div class="amt-row"><div class="lbl">Milk · 1 L<em>Trusted doorstep, one-time QR</em></div><div class="ct">₹40</div></div>
+            <div class="amt-row"><div class="lbl">Prepaid balance applied<em>Covers day 13 of the term</em></div><div class="ct">−₹40</div></div>
+            <div class="amt-total"><div class="lbl">Due now, at the door</div><div class="ct">₹0</div></div>
+            <div class="amt-note">You prepaid ₹280 on 18 Sep for days 8–14. Nothing is owed until day 15, when ₹40 is collected at handover.</div>
+          </div>
+
+          <div class="desk-actions">
+            <button class="btn primary" type="button" style="min-width:260px">
+              <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>
+              <span class="grow">Track tomorrow's delivery<span class="hint">Live once the rider is assigned</span></span>
+            </button>
+            <button class="btn ghost" type="button" style="min-width:150px"><span class="grow">Skip next</span></button>
+            <button class="btn ghost" type="button" style="min-width:150px"><span class="grow">Pause plan</span></button>
+            <button class="btn ghost" type="button" style="min-width:190px"><span class="grow">More actions</span></button>
+          </div>
+
+          <div class="wide">
+            <div class="prefs">
+              <div class="hd"><h3>Delivery preferences</h3><button class="edit" type="button">Edit</button></div>
+              <div class="pref-line"><div class="k">Window</div><div class="v">05:30 – 07:00<em>Daily, including Sundays</em></div></div>
+              <div class="pref-line"><div class="k">Handover</div><div class="v">Trusted doorstep<em>Rider scans your one-time QR and photographs the drop</em></div></div>
+              <div class="pref-line"><div class="k">Funding</div><div class="v">₹280 cash, every 7 deliveries<em>Next collection on day 15 at handover</em></div></div>
+            </div>
+
+            <div class="hist">
+              <div class="hd"><h3>Recent deliveries</h3><button class="all" type="button">View all 12</button></div>
+              <div class="hrow"><div class="day">12</div><div class="mid"><div class="dt">Tue, 22 Sep</div><div class="sub">05:30–07:00 · photo proof</div><span class="badge b-del"><span class="mk">✓</span>Delivered</span></div><div class="amt"><span class="v">₹0</span><span class="u">due</span></div></div>
+              <div class="hrow"><div class="day">11</div><div class="mid"><div class="dt">Mon, 21 Sep</div><div class="sub">05:30–07:00 · skipped by you</div><span class="badge b-skip"><span class="mk">—</span>Skipped</span></div><div class="amt"><span class="v">₹0</span><span class="u">due</span></div></div>
+              <div class="hrow"><div class="day">10</div><div class="mid"><div class="dt">Sun, 20 Sep</div><div class="sub">05:30–07:00 · cash collected</div><span class="badge b-del"><span class="mk">✓</span>Delivered</span></div><div class="amt"><span class="v due">₹40</span><span class="u">paid</span></div></div>
+              <div class="hrow"><div class="day">13</div><div class="mid"><div class="dt">Wed, 23 Sep</div><div class="sub">05:30–07:00 · scheduled</div><span class="badge b-sch"><span class="mk">›</span>Scheduled</span></div><div class="amt"><span class="v">₹0</span><span class="u">due</span></div></div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="desk-side">
+          <div class="amount-card">
+            <div class="hd"><h3>Needs your attention</h3></div>
+            <div class="inline err" style="border-radius:6px">
+              <span class="grow">One delivery on 20 Sep was reported twice. Support is reviewing it.</span>
+            </div>
+          </div>
+          <div class="amount-card">
+            <div class="hd"><h3>Support</h3></div>
+            <div class="inline"><span class="grow">Quote <strong>SUB-4482</strong> when you contact us, so we can find this subscription instantly.</span></div>
+            <button class="btn ghost" type="button" style="margin-top:10px"><span class="grow">Contact support</span></button>
+          </div>
+          <button class="btn danger" type="button">Cancel subscription…</button>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <p>
+      <strong>How to read this page.</strong> Use the state buttons near the top to
+      switch all five variants. Everything on the right uses only inline CSS and a
+      system font stack plus a serif fallback for numerals — no fonts are fetched,
+      so it renders identically offline. Interactive controls are real
+      <code>&lt;button&gt;</code> elements: press <span class="kbd">Tab</span> to
+      walk them and confirm the focus ring.
+    </p>
+    <p>
+      Static HTML mockup only. No application code, routing, state, API calls,
+      <code>package.json</code> or native config was touched. Generated by an AI
+      agent (OpenHands) on behalf of Saikumar-bali as a design discussion starting
+      point.
+    </p>
+  </div>
+
+</div><!-- /page -->
+</body>
+</html>
