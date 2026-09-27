@@ -20,10 +20,21 @@ type Props = {
   apiBaseUrl?: string;
 };
 
-// Normalize API base without regex to avoid CodeQL polynomial ReDoS on uncontrolled input.
+const LEGACY_API_HOST = 'accesscam.org';
+
+// Compare the parsed host, not a substring of the raw URL, so the legacy host
+// appearing in a path or query is not mistaken for the legacy origin.
+const apiHost = (value: string) => {
+  const authority = value.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]+)/i)?.[1];
+  return authority?.split('@').pop()?.replace(/:\d+$/, '').toLowerCase() || '';
+};
+
+// Normalize API base without regex backtracking, so uncontrolled input cannot
+// trigger polynomial ReDoS.
 const normalizeApiBase = (apiBaseUrl?: string | null) => {
   let normalized = (apiBaseUrl || 'https://aagaam.in/api').trim();
-  if (!normalized || normalized.includes('accesscam.org')) {
+  const host = apiHost(normalized);
+  if (!normalized || host === LEGACY_API_HOST || host.endsWith(`.${LEGACY_API_HOST}`)) {
     normalized = 'https://aagaam.in/api';
   }
   while (normalized.endsWith('/')) {
