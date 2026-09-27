@@ -2,6 +2,10 @@ export const COLORS = {
   primary: '#0F766E',
   primaryLight: '#CCFBF1',
   primaryDark: '#115E59',
+  // Subscription "Subscribe & Save" brand green. The review screen plan card,
+  // its request button and the plan hero all read this single token so the
+  // subscription surfaces never drift to two different greens.
+  brandGreen: '#0C7659',
   accent: '#14B8A6',
   background: '#F8FAFC',
   surface: '#FFFFFF',
