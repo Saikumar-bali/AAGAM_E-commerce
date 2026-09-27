@@ -28,7 +28,7 @@ import {
   CalendarDays,
 } from 'lucide-react-native';
 import { getProductImage } from '@aagam/utils';
-import { apiClient, useAuthStore } from '@aagam/mobile-shared';
+import { apiClient, useAuthStore, COLORS } from '@aagam/mobile-shared';
 import { useCartStore } from '../../store/cartStore';
 import { PromotionCarousel } from '../../components/promotions/PromotionCarousel';
 import { AagamBrand } from '../../components/AagamBrand';
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   cartBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '600' },
   locationCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDFA', borderRadius: 20, padding: 12, gap: 12, marginBottom: 16 }, locationIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' }, locationCopy: { flex: 1 }, greeting: { color: '#0F172A', fontSize: 12, fontWeight: '500' }, delivering: { marginTop: 4, color: '#475569', fontSize: 12, fontWeight: '500' }, deliveringStrong: { color: '#0F766E', fontWeight: '600' },
   catalogHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 }, backButton: { width: 48, height: 48, borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }, catalogTitle: { flex: 1, color: '#0F172A', fontSize: 25, fontWeight: '600' },
-  subscriptionHero: { minHeight: 102, borderRadius: 20, padding: 16, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
+  subscriptionHero: { minHeight: 102, borderRadius: 20, padding: 16, backgroundColor: COLORS.brandGreen, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
   subscriptionHeroIcon: { width: 49, height: 49, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.17)', alignItems: 'center', justifyContent: 'center' },
   subscriptionHeroCopy: { flex: 1 },
   subscriptionHeroEyebrow: { color: '#BFEADA', fontSize: 9, fontWeight: '600', letterSpacing: 1 },

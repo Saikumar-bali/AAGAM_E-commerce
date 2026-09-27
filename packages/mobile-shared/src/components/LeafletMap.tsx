@@ -20,21 +20,40 @@ type Props = {
   apiBaseUrl?: string;
 };
 
+// Normalize API base without regex to avoid CodeQL polynomial ReDoS on uncontrolled input.
+const normalizeApiBase = (apiBaseUrl?: string | null) => {
+  let normalized = (apiBaseUrl || 'https://aagaam.in/api').trim();
+  if (!normalized || normalized.includes('accesscam.org')) {
+    normalized = 'https://aagaam.in/api';
+  }
+  while (normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
+  }
+  return normalized;
+};
+
+// The web picker calls the gateway through a same-origin Next.js rewrite, so its
+// Google Places requests are never cross-origin. A WebView loading raw HTML has a
+// `null` origin, which the production CORS allow-list rejects, so those same
+// requests were blocked and the UI silently fell back to Mapbox with a different
+// bounding box — the mobile/web search divergence. Giving the WebView a baseUrl
+// that matches the API origin makes its fetches same-origin, exactly like web.
+const apiOrigin = (apiBaseUrl?: string | null) => {
+  const normalized = normalizeApiBase(apiBaseUrl);
+  const match = normalized.match(/^([a-z]+:\/\/[^/]+)/i);
+  return match ? match[1] : normalized;
+};
+
+// Anakapalle bounding box, identical to the web CustomerLocationPicker.
+const ANAKAPALLE_BBOX = '82.85,17.55,83.15,17.85';
+
 const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, googleKey?: string | null, apiBaseUrl?: string | null) => {
   const token = getMapboxToken(explicitToken);
   if (!token) {
     return `<!DOCTYPE html><html><body style="display:flex;align-items:center;justify-content:center;height:100%;margin:0;color:#999;font-size:14px;">Map unavailable – missing Mapbox token</body></html>`;
   }
   const gKey = googleKey || '';
-  // Normalize API base without regex to avoid CodeQL polynomial ReDoS on uncontrolled input.
-  const rawApiBase = apiBaseUrl || 'https://aagaam.in/api';
-  let normalizedApiBase = rawApiBase.trim();
-  if (!normalizedApiBase || normalizedApiBase.includes('accesscam.org')) {
-    normalizedApiBase = 'https://aagaam.in/api';
-  }
-  while (normalizedApiBase.endsWith('/')) {
-    normalizedApiBase = normalizedApiBase.slice(0, -1);
-  }
+  const normalizedApiBase = normalizeApiBase(apiBaseUrl);
   return `
 <!DOCTYPE html>
 <html>
@@ -181,38 +200,19 @@ const MAPBOX_HTML = (lat: number, lng: number, explicitToken?: string | null, go
     }
 
     function renderMapboxResults(query) {
-      var bbox = '82.7,17.5,83.3,17.9';
-      fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}&bbox=' + bbox)
+      // Identical query to the web CustomerLocationPicker: same Anakapalle bbox,
+      // same filters, no country filter, and no India-wide fallback that would
+      // surface places the web picker never shows.
+      fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}&bbox=${ANAKAPALLE_BBOX}')
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data && data.features && data.features.length > 0) {
             renderMapboxFeatures(data.features);
           } else {
-            // If bbox returned nothing, try without bounding box across India
-            fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}')
-              .then(function(r2) { return r2.json(); })
-              .then(function(data2) {
-                if (data2 && data2.features && data2.features.length > 0) {
-                  renderMapboxFeatures(data2.features);
-                } else {
-                  searchResults.style.display = 'none';
-                }
-              })
-              .catch(function() { searchResults.style.display = 'none'; });
+            searchResults.style.display = 'none';
           }
         })
-        .catch(function() {
-          fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&country=in&types=address,place,neighborhood,poi&autocomplete=true&limit=5&proximity=${lng},${lat}')
-            .then(function(r2) { return r2.json(); })
-            .then(function(data2) {
-              if (data2 && data2.features && data2.features.length > 0) {
-                renderMapboxFeatures(data2.features);
-              } else {
-                searchResults.style.display = 'none';
-              }
-            })
-            .catch(function() { searchResults.style.display = 'none'; });
-        });
+        .catch(function() { searchResults.style.display = 'none'; });
     }
 
     searchInput.addEventListener('input', function() {
@@ -305,7 +305,7 @@ export const LeafletMap = ({ latitude, longitude, onPinChange, style, mapboxToke
       <CompatibleWebView
         ref={webViewRef}
         originWhitelist={['*']}
-        source={{ html: LEAFLET_HTML(latitude, longitude, mapboxToken, googleMapsApiKey, apiBaseUrl) }}
+        source={{ html: LEAFLET_HTML(latitude, longitude, mapboxToken, googleMapsApiKey, apiBaseUrl), baseUrl: apiOrigin(apiBaseUrl) }}
         style={styles.webview}
         onMessage={onMessage}
         javaScriptEnabled

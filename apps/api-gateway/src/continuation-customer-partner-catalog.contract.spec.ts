@@ -114,4 +114,20 @@ describe('customer, Partner onboarding and catalog continuation contracts', () =
     expect(checkout).toContain('locationCapturedAt');
     expect(checkout).not.toContain('Open the Profile tab to add your delivery address first.');
   });
+
+  test('mobile map place search matches the web picker exactly', () => {
+    const map = read('packages/mobile-shared/src/components/LeafletMap.tsx');
+    const web = read('apps/admin-dashboard/src/components/customer/CustomerLocationPicker.tsx');
+    // The web picker reaches Google Places same-origin through a Next.js rewrite.
+    // The WebView loads raw HTML with a null origin, which the production CORS
+    // allow-list rejects; a baseUrl on the API origin makes its requests same-origin.
+    expect(map).toContain('baseUrl: apiOrigin(apiBaseUrl)');
+    expect(map).toContain("let normalized = (apiBaseUrl || 'https://aagaam.in/api').trim()");
+    // Mobile must use the same Anakapalle bbox as web, not a wider one.
+    expect(map).toContain("const ANAKAPALLE_BBOX = '82.85,17.55,83.15,17.85'");
+    expect(web).toContain("const bbox = '82.85,17.55,83.15,17.85'");
+    expect(map).not.toContain('82.7,17.5,83.3,17.9');
+    // And it must not keep the India-wide fallback the web picker never had.
+    expect(map).not.toContain('try without bounding box across India');
+  });
 });
