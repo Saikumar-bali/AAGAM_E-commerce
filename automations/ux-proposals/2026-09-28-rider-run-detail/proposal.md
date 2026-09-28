@@ -15,7 +15,7 @@ tolerant of bad connectivity — is what drives everything below.
 This screen is high-traffic and high-stakes: it is the only place a rider can
 start a run, confirm a bag handoff, record arrival, complete a stop with proof,
 report a failure, and settle cash. It also carries the largest diagnosis surface
-in the rider app: 8 distinct UX problems, of which 3 are WCAG text-contrast
+in the rider app: 9 distinct UX problems, of which 3 are WCAG text-contrast
 failures I measured from the literal hex values in the source, not guessed.
 
 Every `file:line` below was re-read against the working tree before this
@@ -216,7 +216,7 @@ milk is the exceptional case; completing the delivery is the common one.
 | # | Problem | Change | Expected effect |
 |---|---|---|---|
 | 1 | Cash figure differs by state (`:549` vs `:565` vs `RiderRunsScreen.tsx:95`) and is mislabelled "cash held" mid-run | One `Cash strip` in the masthead with two explicit figures — `To collect today` and `Cash in hand` — both fed from `CashAccountability` (`expectedCashPaise`, `riderHoldingPaise`), with a footnote `Reconciles per-stop COD ledgers` | The rider always sees one consistent, correctly-labelled pair; removes a trust-destroying "the number changed" moment |
-| 2 | `Boolean(selectedStop.subscriptionDelivery)` is always true, so every cash-due stop says "No OTP needed" (`:576`) while `ProofSummary` says "with customer OTP" (`:171`) | The dead `|| Boolean(...)` is dropped; one component owns the money-and-proof sentence, branching on `cashDuePaise` **and** `proofMode`; the OTP requirement becomes its own labelled row | The rider is never told to skip an OTP that the same screen says is required; one of the two contradictory strings is deleted rather than restyled |
+| 2 | `Boolean(selectedStop.subscriptionDelivery)` is always true, so every cash-due stop says "No OTP needed" (`:576`) while `ProofSummary` says "with customer OTP" (`:171`) | The dead `\|\| Boolean(...)` is dropped; one component owns the money-and-proof sentence, branching on `cashDuePaise` **and** `proofMode`; the OTP requirement becomes its own labelled row | The rider is never told to skip an OTP that the same screen says is required; one of the two contradictory strings is deleted rather than restyled |
 | 3 | "Remaining" defined three ways (`:545`, `:547`), excludes `RETURN_REQUIRED` | Masthead progress counts all non-terminal statuses in one place and shows `3 remaining · 1 to retry · 1 to return` as a single reconciled line | Outstanding work matches what the list below shows |
 | 4 | `#BAF3DD`/`#0F766E` 4.42:1, `#64748B`/`#F3F7F5` 4.40:1, `#94A3B8` placeholders 2.56:1 | New `text.ink2` `#3A4A42` (9.38:1 on card) and `text.ink3` `#5A6B62` (5.65:1) for all secondary/body/label text; every input gets a visible `<label>` plus a `#5A6B62` placeholder | All body and label text clears 4.5:1; placeholder-only fields disappear |
 | 5 | 8 controls under 44pt (`:605` ≈25pt, chips ≈30pt, `:212` 40pt, `:209/:216/:762` 42pt) | Every interactive element is `min-height: 44px` with `min-width: 44px`; chips become 44pt rows in a single-select group | Thumb-accurate while holding a crate |

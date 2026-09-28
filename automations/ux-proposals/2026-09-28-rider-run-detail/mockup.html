@@ -516,7 +516,7 @@ a,button,summary,input,label,[tabindex]:focus{outline:none}
                 <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
               </div>
               <div class="hcopy">
-                <p class="eyebrow">ROUTE RT-0421<span class="pin" title="Hero eyebrow #BAF3DD on #0F766E = 4.51:1, only just at the 4.5:1 line">4</span></p>
+                <p class="eyebrow">ROUTE RT-0421<span class="pin" title="Hero eyebrow #BAF3DD on #0F766E = 4.42:1 - below the 4.5:1 minimum">4</span></p>
                 <p class="htitle">Aagam Dairy &mdash; Anakapalle</p>
               </div>
               <div class="ricon" aria-hidden="true">
@@ -759,8 +759,8 @@ a,button,summary,input,label,[tabindex]:focus{outline:none}
           <span class="ref">RiderRunDetailScreen.tsx:558</span></li>
         <li><b>Counts reconcile.</b> <i>2 of 7 delivered</i> with an explicit legend for done / remaining / retry / return, instead of a bare <i>5 remaining · 1 retry</i> that silently drops <code>RETURN_REQUIRED</code>.
           <span class="ref">RiderRunDetailScreen.tsx:545, :547 &middot; subscriptionOperationsService.ts:16-26</span></li>
-        <li><b>The OTP contradiction is gone.</b> The old sheet said <i>No OTP needed</i> for every cash stop, because <code>Boolean(selectedStop.subscriptionDelivery)</code> is always true &mdash; while the proof block in the same sheet said <i>with customer OTP</i>. Now one row owns the proof requirement, and it agrees with itself.
-          <span class="ref">RiderRunDetailScreen.tsx:576 (dead branch) vs :171</span></li>
+        <li><b>The pictured stop no longer shows conflicting OTP instructions.</b> The current stop card says <i>no OTP</i>, while the current completion sheet says <i>confirm with the customer OTP</i>. The proposed sheet shows the pictured photo/GPS stop with <i>no OTP</i>, so the stop card and the sheet agree.
+          <span class="ref">mockup.html:594, :570, :1266</span></li>
       </ol>
     </div>
 
@@ -993,7 +993,7 @@ a,button,summary,input,label,[tabindex]:focus{outline:none}
     <code>:533</code> renders one message &mdash; &ldquo;Route unavailable&rdquo; &mdash; for every failure, and
     <code>:532</code> a full-screen spinner for every load. The screen already imports
     <code>RiderRunOfflineQueue</code> and replays queued actions on reconnect
-    (<code>:247-252</code>), but there is no offline state to show for it. The proposal splits the two:
+    (<code>:253-260</code>), but there is no offline state to show for it. The proposal splits the two:
     a network drop keeps the cached manifest and offers <i>Sync now</i>; a genuine failure explains
     what failed and what is still safe.
   </p>
@@ -1014,7 +1014,7 @@ a,button,summary,input,label,[tabindex]:focus{outline:none}
     </div>
 
     <div class="frame new">
-      <p class="cap"><span><span class="dot"></span>Proposed &mdash; offline</span><span>360 &times; 740</span></p>
+      <p class="cap"><span><span class="dot"></span>Proposed &mdash; offline (queued ops only)</span><span>360 &times; 740</span></p>
       <div class="phone">
         <div class="scr">
           <div class="mast">
@@ -1036,7 +1036,7 @@ a,button,summary,input,label,[tabindex]:focus{outline:none}
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:1px"><path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="m2 2 20 20"/></svg>
               <div>
                 <p class="k">No signal &mdash; working from the saved manifest</p>
-                <p class="x">2 stops recorded offline. They upload automatically when you're back in range.</p>
+                <p class="x">2 stop updates queued offline. Only queued operations are counted here &mdash; offline proof capture and completion still need a connection. Queued updates upload automatically when you're back in range.</p>
               </div>
               <button class="act">Sync now</button>
             </div>
@@ -1152,7 +1152,7 @@ a,button,summary,input,label,[tabindex]:focus{outline:none}
       <ol>
         <li><b>Offline is not an error.</b> The app already has the data and the queue. Showing a dead-end for a tunnel costs a rider a whole stop.
           <span class="ref">RiderRunDetailScreen.tsx:57, :253-260, :532-533</span></li>
-        <li><b>The queued count is visible.</b> A rider who can see &ldquo;2 stops recorded offline&rdquo; knows the work is safe; today only a toast says so, and it disappears.
+        <li><b>The queued count is visible.</b> A rider who can see &ldquo;2 stop updates queued offline&rdquo; knows those operations are safe; today only a toast says so, and it disappears. The count covers only operations actually queued, not offline proof capture or completion, which are proposed capabilities still to be implemented and validated on device.
           <span class="ref">RiderRunDetailScreen.tsx:553</span></li>
         <li><b>Failure states say what is safe.</b> The proposal names the run, says whether money is at risk, and gives two real routes forward, instead of one &ldquo;Retry&rdquo;.</li>
       </ol>
@@ -1301,14 +1301,14 @@ a,button,summary,input,label,[tabindex]:focus{outline:none}
                     </div>
                     <p class="lbl" id="rate-lbl">Rate per litre</p>
                     <input class="field" id="rate" type="text" inputmode="numeric" aria-labelledby="rate-lbl" placeholder="e.g. 60" value="60" />
-                    <p class="hint">Applied to the days you pick below. Leave the rate as the store default if unsure.</p>
-                    <p class="lbl">Apply to days</p>
-                    <div class="chips" role="radiogroup" aria-label="Days to apply the extra milk">
-                      <button class="rchip" role="radio" aria-checked="false">Mon</button>
-                      <button class="rchip" role="radio" aria-checked="false">Tue</button>
-                      <button class="rchip" role="radio" aria-checked="true">Wed</button>
-                      <button class="rchip" role="radio" aria-checked="false">Thu</button>
-                      <button class="rchip" role="radio" aria-checked="false">Fri</button>
+                    <p class="hint">Applied to the duration you pick below. Leave the rate as the store default if unsure.</p>
+                    <p class="lbl">Apply for</p>
+                    <div class="chips" role="radiogroup" aria-label="Extra milk schedule duration">
+                      <button class="rchip" role="radio" aria-checked="true">Today (1d)</button>
+                      <button class="rchip" role="radio" aria-checked="false">2 Days</button>
+                      <button class="rchip" role="radio" aria-checked="false">3 Days</button>
+                      <button class="rchip" role="radio" aria-checked="false">5 Days</button>
+                      <button class="rchip" role="radio" aria-checked="false">7 Days</button>
                     </div>
                   </div>
                 </details>
