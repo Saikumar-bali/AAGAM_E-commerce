@@ -8,6 +8,10 @@ import { DeliveryRunOperationsService } from './delivery-run-operations.service'
 import { DeliveryRunPlanningService } from './delivery-run-planning.service';
 import { OfflineCustomerService } from './offline-customer.service';
 import { StoreMilkGridService } from './store-milk-grid.service';
+import { StoreMilkGridGridService } from './store-milk-grid.grid.service';
+import { StoreMilkGridQuickActionService } from './store-milk-grid.quick-action.service';
+import { StoreMilkGridDispatchService } from './store-milk-grid.dispatch.service';
+import { StoreMilkGridStatementService } from './store-milk-grid.statement.service';
 import { AdminRegionalRoutingController, RegionalRoutingEventsController } from './regional-routing.controller';
 import { RegionalDeliveryZoneService } from './regional-delivery-zone.service';
 import { RegionalRouteNotificationService } from './regional-route-notification.service';
@@ -83,6 +87,10 @@ import {
     OfflineCustomerService,
     StoreSelfDeliveryService,
     StoreMilkGridService,
+    StoreMilkGridGridService,
+    StoreMilkGridQuickActionService,
+    StoreMilkGridDispatchService,
+    StoreMilkGridStatementService,
   ],
   exports: [
     SubscriptionCalendarService,

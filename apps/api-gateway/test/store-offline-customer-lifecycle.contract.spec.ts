@@ -10,7 +10,8 @@ describe('Store-owned offline customer lifecycle contract', () => {
   const controllerSource = readFileSync(__dirname + '/../src/subscriptions/subscriptions.controller.ts', 'utf8');
   const serviceSource = readFileSync(__dirname + '/../src/subscriptions/offline-customer.service.ts', 'utf8');
   const reportingSource = readFileSync(__dirname + '/../src/subscriptions/subscription-admin-reporting.service.ts', 'utf8');
-  const gridSource = readFileSync(__dirname + '/../src/subscriptions/store-milk-grid.service.ts', 'utf8');
+  const gridSource = readFileSync(__dirname + '/../src/subscriptions/store-milk-grid.grid.service.ts', 'utf8');
+  const gridDispatchSource = readFileSync(__dirname + '/../src/subscriptions/store-milk-grid.dispatch.service.ts', 'utf8');
 
   test('store routes expose the full lifecycle', () => {
     expect(controllerSource).toContain("@Delete('offline-customers/:customerId')");
@@ -48,7 +49,7 @@ describe('Store-owned offline customer lifecycle contract', () => {
     expect(reportingSource).toContain('customer: { isActive: true }');
     expect(reportingSource).toContain('...storeFilter');
     expect(gridSource).toContain('customer: { isActive: true }');
-    expect(gridSource).toContain('subscription: { ...storeFilter, customer: { isActive: true }');
+    expect(gridDispatchSource).toContain('subscription: { ...storeFilter, customer: { isActive: true }');
   });
 
   test('offline customers created through the store are pinned to that store', () => {

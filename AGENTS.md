@@ -176,6 +176,28 @@ Four contract specs (`order-delivery-mobile-ui`, `phase5-delivery-proof-cod-fail
 services, update the path those specs read in the same commit — they fail with a
 path-shaped assertion, not a behavioural one.
 
+## The store milk grid follows the same facade pattern
+
+`subscriptions/store-milk-grid.service.ts` (1,592 lines) was split the same way
+and is now a thin facade:
+
+- `store-milk-grid.types.ts` — `GridCell`, `PlanInfo`, `GridRow` (re-exported
+  from the facade so existing importers keep working).
+- `store-milk-grid.base.ts` — `StoreMilkGridBase`, holding `resolveBaseLiters`
+  and `extractWeightGramsFromName`, the two helpers the grid and the dispatch
+  summary both need. They are `protected`; the static helper is called as
+  `StoreMilkGridBase.extractWeightGramsFromName`.
+- `store-milk-grid.{grid,quick-action,dispatch,statement}.service.ts` — the four
+  use cases (`exportCsv` calls `getGrid`, and `autoDispatchDefaultRiders` calls
+  `dispatchToRider`, so each pair lives together).
+- `subscriptions.controller.ts` is untouched — it still injects the facade.
+
+`store-offline-customer-lifecycle.contract.spec.ts` reads this service's source
+text: it asserts `customer: { isActive: true }` against the grid service and
+`subscription: { ...storeFilter, customer: { isActive: true }` against the
+dispatch service, so a split must keep those literals in the file the spec
+reads.
+
 ### Checking a run
 
 `GET /api/automation/v1/{automation_id}/runs?limit=5` gives `status` and
