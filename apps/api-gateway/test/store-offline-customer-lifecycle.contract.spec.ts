@@ -9,7 +9,8 @@ import { readFileSync } from 'node:fs';
 describe('Store-owned offline customer lifecycle contract', () => {
   const controllerSource = readFileSync(__dirname + '/../src/subscriptions/subscriptions.controller.ts', 'utf8');
   const serviceSource = readFileSync(__dirname + '/../src/subscriptions/offline-customer.service.ts', 'utf8');
-  const reportingSource = readFileSync(__dirname + '/../src/subscriptions/subscription-admin-reporting.service.ts', 'utf8');
+  const reportingSource = readFileSync(__dirname + '/../src/subscriptions/subscription-admin-reporting.read.service.ts', 'utf8');
+  const reportingOfflineSource = readFileSync(__dirname + '/../src/subscriptions/subscription-admin-reporting.offline-customer.service.ts', 'utf8');
   const gridSource = readFileSync(__dirname + '/../src/subscriptions/store-milk-grid.grid.service.ts', 'utf8');
   const gridDispatchSource = readFileSync(__dirname + '/../src/subscriptions/store-milk-grid.dispatch.service.ts', 'utf8');
 
@@ -53,7 +54,7 @@ describe('Store-owned offline customer lifecycle contract', () => {
   });
 
   test('offline customers created through the store are pinned to that store', () => {
-    expect(reportingSource).toContain('offlineStoreId: storeId ?? null');
+    expect(reportingOfflineSource).toContain('offlineStoreId: storeId ?? null');
     expect(controllerSource).toContain('const ownedStore = body.storeId');
   });
 });

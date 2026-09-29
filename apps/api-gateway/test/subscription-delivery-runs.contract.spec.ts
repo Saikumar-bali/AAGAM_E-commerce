@@ -100,7 +100,7 @@ describe('COD subscription delivery runs production contract', () => {
 
   it('exposes role-scoped customer, rider, store and admin APIs', () => {
     const controller = api('subscriptions/subscriptions.controller.ts');
-    const reporting = api('subscriptions/subscription-admin-reporting.service.ts');
+    const reporting = api('subscriptions/subscription-admin-reporting.read.service.ts');
     for (const scope of [
       "@Controller('customer/subscriptions')",
       "@Controller('rider/delivery-runs')",

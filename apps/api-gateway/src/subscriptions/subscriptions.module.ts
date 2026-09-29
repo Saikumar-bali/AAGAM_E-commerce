@@ -25,6 +25,13 @@ import { SubscriptionPreparationService } from './subscription-preparation.servi
 import { SubscriptionExpirationService } from './subscription-expiration.service';
 import { SubscriptionRiderCapacityNotificationService } from './subscription-rider-capacity-notification.service';
 import { SubscriptionAdminReportingService } from './subscription-admin-reporting.service';
+import { SubscriptionAdminReportingPaymentsService } from './subscription-admin-reporting.payments.service';
+import { SubscriptionAdminReportingReadService } from './subscription-admin-reporting.read.service';
+import { SubscriptionAdminReportingCorrectionService } from './subscription-admin-reporting.correction.service';
+import { SubscriptionAdminReportingIssueService } from './subscription-admin-reporting.issue.service';
+import { SubscriptionAdminReportingOfflineCustomerService } from './subscription-admin-reporting.offline-customer.service';
+import { SubscriptionAdminReportingManualSubscriptionService } from './subscription-admin-reporting.manual-subscription.service';
+import { SubscriptionAdminReportingRenewalService } from './subscription-admin-reporting.renewal.service';
 import { SubscriptionCalendarService } from './subscription-calendar.service';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 import { SubscriptionOrderGenerator } from './subscription-order-generator.service';
@@ -83,6 +90,13 @@ import {
     SubscriptionCashFundingService,
     CashDepositBatchService,
     SubscriptionAdminReportingService,
+    SubscriptionAdminReportingPaymentsService,
+    SubscriptionAdminReportingReadService,
+    SubscriptionAdminReportingCorrectionService,
+    SubscriptionAdminReportingIssueService,
+    SubscriptionAdminReportingOfflineCustomerService,
+    SubscriptionAdminReportingManualSubscriptionService,
+    SubscriptionAdminReportingRenewalService,
     SubscriptionSchedulerService,
     OfflineCustomerService,
     StoreSelfDeliveryService,

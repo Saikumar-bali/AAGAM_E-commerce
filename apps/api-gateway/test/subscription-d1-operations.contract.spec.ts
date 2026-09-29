@@ -29,7 +29,7 @@ describe('subscription D-1 operations contracts', () => {
   });
 
   it('surfaces the immutable delivery phone to Admin when the account phone is empty', () => {
-    const reporting = read('subscriptions/subscription-admin-reporting.service.ts');
+    const reporting = read('subscriptions/subscription-admin-reporting.read.service.ts');
 
     expect(reporting).toContain('phone: row.customer.phone || contact.phone');
     expect(reporting).toContain('deliveryContact: contact');

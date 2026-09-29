@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 describe('Manual offline customer & subscription contract', () => {
   const controllerSource = readFileSync(__dirname + '/../src/subscriptions/subscriptions.controller.ts', 'utf8');
   const serviceSource = readFileSync(__dirname + '/../src/subscriptions/subscription-admin-reporting.service.ts', 'utf8');
+  const offlineCustomerSource = readFileSync(__dirname + '/../src/subscriptions/subscription-admin-reporting.offline-customer.service.ts', 'utf8');
   const dtoSource = readFileSync(__dirname + '/../src/subscriptions/subscriptions.dto.ts', 'utf8');
 
   test('exposes manual offline customer and subscription endpoints', () => {
@@ -19,8 +20,8 @@ describe('Manual offline customer & subscription contract', () => {
 
   test('handles synthetic email for offline customers without login', () => {
     expect(serviceSource).toContain('createOfflineCustomer');
-    expect(serviceSource).toContain('offline.');
-    expect(serviceSource).toContain('@aagaam.local');
+    expect(offlineCustomerSource).toContain('offline.');
+    expect(offlineCustomerSource).toContain('@aagaam.local');
     expect(serviceSource).toContain('createManualSubscription');
     expect(serviceSource).toContain('updateManualSubscription');
   });

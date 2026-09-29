@@ -198,6 +198,30 @@ text: it asserts `customer: { isActive: true }` against the grid service and
 dispatch service, so a split must keep those literals in the file the spec
 reads.
 
+## subscription-admin-reporting is also a facade now
+
+`subscriptions/subscription-admin-reporting.service.ts` (1,514 lines) had no
+cross-method calls and one injected dependency, so it split into seven
+use-case services plus the facade:
+
+- `.payments.service.ts` — `reconcileDeliveredDelivery` (the only `this.funding`
+  user, so it carries the `SubscriptionCashFundingService` injection) and
+  `recordCustomerPayment`
+- `.read.service.ts` — the ten admin/store reporting reads, and the file-scope
+  `deliveryContact` helper they share
+- `.correction.service.ts`, `.issue.service.ts`,
+  `.offline-customer.service.ts`, `.manual-subscription.service.ts`,
+  `.renewal.service.ts`
+
+`createManualSubscription` constructs its own `SubscriptionPlanService`, so the
+manual-subscription service does too. The four specs below read this service's
+source text and now read the file that owns each asserted literal:
+`manual-subscription.contract.spec.ts` (offline-customer service for `offline.`
+/ `@aagaam.local`), `store-offline-customer-lifecycle.contract.spec.ts`
+(offline-customer service for `offlineStoreId`, read service for `isActive`),
+`subscription-d1-operations.contract.spec.ts` and
+`subscription-delivery-runs.contract.spec.ts` (read service).
+
 ### Checking a run
 
 `GET /api/automation/v1/{automation_id}/runs?limit=5` gives `status` and
