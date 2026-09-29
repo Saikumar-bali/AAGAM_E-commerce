@@ -104,7 +104,8 @@ async function main() {
   if (!fileContains('apps/api-gateway/src/app.controller.ts', "@Get('ready')")) failures.push('Missing /ready endpoint');
   if (!fileContains('apps/api-gateway/src/app.controller.ts', "@Get('ready/realtime')")) failures.push('Missing /ready/realtime endpoint');
 
-  if (!fileContains('apps/api-gateway/package.json', 'testPathIgnorePatterns=api-smoke.spec.ts')) {
+  if (!fileContains('apps/api-gateway/package.json', 'test:integration')
+    || !fileContains('apps/api-gateway/package.json', 'testPathIgnorePatterns=api-smoke.spec.ts')) {
     warnings.push('Default API tests may still include api-smoke.spec.ts');
   }
 

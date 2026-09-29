@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CouponRedemptionStatus, OrderStatus, PaymentStatus, Role, prisma } from '@aagam/database';
 import { calculateDistance } from '@aagam/utils';
-import { TrackingGateway } from '../tracking.gateway';
+import { TrackingGateway } from '../tracking/tracking.gateway';
 import { RefundsService } from '../payments/refunds.service';
 import { reconcileRiderOperationalStatus } from '../riders/rider-operational-status';
 

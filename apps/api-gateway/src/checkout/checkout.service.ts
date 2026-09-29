@@ -4,7 +4,7 @@ import type { DeliveryFeeRule } from '@aagam/database';
 import { calculateDistance } from '@aagam/utils';
 
 import { CheckoutPlaceOrderDto, CheckoutQuoteDto } from './dto/checkout.dto';
-import { TrackingGateway } from '../tracking.gateway';
+import { TrackingGateway } from '../tracking/tracking.gateway';
 import { NotificationService } from '../notifications/notification.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { OrderCreationService } from '../orders/order-creation.service';
