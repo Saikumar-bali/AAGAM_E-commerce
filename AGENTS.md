@@ -311,6 +311,32 @@ literal: `admin-cancellation-terminal` and `order-delivery-mobile-ui` read
 literal and `rider-portal.service.base.ts` + `rider-portal-activity.service.ts`
 for the bank/crypto literals.
 
+## regional-route-operations.service.ts
+
+`subscriptions/regional-route-operations.service.ts` (1,039 lines) took one
+injected dependency (`RegionalRoutePlanningService`) and split into a facade
+over a shared base:
+
+- `regional-route-operations.service.base.ts` — `run`, `assertVersion`,
+  `assertEditable`, `constraints`, `assertCapacity`,
+  `resetPendingJobOwnership`, `recalculate`, `audit` + every module-level
+  const/type/function and the planner-independent helpers
+- `regional-route-operations.mutation.service.ts` — `previewSplit`, `split`,
+  `merge`, `moveStop`, `reassign`, `reorder`, `cancel`, `interruptAndRecover`
+  (plus `splitCandidates` and `resequence`)
+- `regional-route-operations.query.service.ts` — `dashboard`, `events`
+
+The facade is not a pure delegator: it keeps the original one-argument
+constructor `(RegionalRoutePlanningService)`, wires the planner into the
+mutation service, and itself delegates only the 10 public methods.
+
+Two specs read this service's source text with a `slice` between the literals
+`async split(` and `async merge(`, so those two methods (and the shared tokens
+they need) must stay textually adjacent in one file — they live together in the
+mutation service. Both specs now read
+`regional-route-operations.service.base.ts` + `...mutation.service.ts`
+concatenated, not the facade.
+
 ### Checking a run
 
 `GET /api/automation/v1/{automation_id}/runs?limit=5` gives `status` and

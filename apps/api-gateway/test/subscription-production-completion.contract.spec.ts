@@ -12,7 +12,10 @@ describe('subscription production completion contracts', () => {
   const serviceability = read('apps/api-gateway/src/subscriptions/subscription-serviceability.service.ts');
   const scheduler = read('apps/api-gateway/src/subscriptions/subscription-scheduler.service.ts');
   const planner = read('apps/api-gateway/src/subscriptions/regional-route-planning.service.ts');
-  const operations = read('apps/api-gateway/src/subscriptions/regional-route-operations.service.ts');
+  const operations = [
+    read('apps/api-gateway/src/subscriptions/regional-route-operations.service.base.ts'),
+    read('apps/api-gateway/src/subscriptions/regional-route-operations.mutation.service.ts'),
+  ].join('\n');
   const trustedDrop = read('apps/api-gateway/src/subscriptions/trusted-drop.service.ts');
   const runOperations = read('apps/api-gateway/src/subscriptions/delivery-run-operations.service.ts');
   const deliveryOperations = read('apps/api-gateway/src/orders/delivery-operations.cod.service.ts');
