@@ -168,7 +168,7 @@ describe("Phase 5 pickup, delivery proof, COD, and failed-delivery gate", () => 
 
   it("keeps OTP secrets out of Rider and operations summary responses", () => {
     const operations = api("orders/delivery-operations.base.ts");
-    const rider = api("riders/rider-portal.service.ts");
+    const rider = api("riders/rider-portal-orders.service.ts");
     expect(operations).toContain("delete details.codeHash");
     expect(rider).toContain("THEN \"details\" - 'nonce' - 'salt' - 'codeHash'");
   });

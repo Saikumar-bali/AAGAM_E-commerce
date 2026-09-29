@@ -275,6 +275,42 @@ singleton — so its facade also builds its sub-services itself:
 `deals` calls it; the private validators are `protected` on their services and
 are never delegated.
 
+## rider-portal.service.ts and its two pre-existing partial services
+
+`riders/rider-portal.service.ts` (1,003 lines after removing dead code) had no
+constructor and no injected dependency. It also had a partial, older split:
+`rider-portal-read.service.ts` (625 lines) and
+`rider-portal-secure.service.ts` (377 lines) are already injected separately by
+`rider-portal.controller.ts` and are used for `history`/`profile`/`offerDetail`
+and friends. Two methods on the old service — `history` and `profile` — were
+superseded by those services and were referenced nowhere, so they (and their
+now-unused `TERMINAL_STATUSES` const) were deleted rather than relocated. Do
+not re-add them.
+
+The rest split into a facade over a shared base:
+
+- `rider-portal.service.base.ts` — `rider`, `range`, `activeJob`, `activeJobs`,
+  `safeProfile`, `encryptSensitive` + `ACTIVE_STATUSES`, `jobInclude`
+- `rider-portal-orders.service.ts` — offers, live deliveries, pickup tasks
+- `rider-portal-activity.service.ts` — earnings, COD, performance,
+  availability/breaks, profile, support
+- `rider-portal-admin.service.ts` — the admin operations
+
+`home` is the only public method left on the facade: it needs the inherited
+helpers and nothing else, so it is not a "god" method and delegating it would
+add a pointless file. The facade keeps its no-argument constructor because
+`EligibleRiderPortalService` extends `RiderPortalService` and overrides
+`setStatus`/`endBreak` with a working `super` chain (wired as the provider
+alias in `rider.module.ts`) — keep those two methods overridable.
+
+Four specs read this service's source text and now read the file that owns each
+literal: `admin-cancellation-terminal` and `order-delivery-mobile-ui` read
+`rider-portal-orders.service.ts`, `phase5-delivery-proof-cod-failures` reads
+`rider-portal-orders.service.ts` (the OTP SQL fragment), and
+`phase4-rider-portal` reads `rider-portal-activity.service.ts` for the earnings
+literal and `rider-portal.service.base.ts` + `rider-portal-activity.service.ts`
+for the bank/crypto literals.
+
 ### Checking a run
 
 `GET /api/automation/v1/{automation_id}/runs?limit=5` gives `status` and

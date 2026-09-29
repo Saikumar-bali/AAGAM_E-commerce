@@ -55,7 +55,7 @@ describe("Phase 4 Rider portal regression gate", () => {
   });
 
   it("keeps earnings tied to persisted RiderEarning rows and not order totals", () => {
-    const service = readApi("riders/rider-portal.service.ts");
+    const service = readApi("riders/rider-portal-activity.service.ts");
     const history = readWeb("app/(rider)/rider/history/page.tsx");
     const earnings = readWeb("app/(rider)/rider/earnings/page.tsx");
     expect(service).toContain("prisma.riderEarning.findMany");
@@ -65,7 +65,10 @@ describe("Phase 4 Rider portal regression gate", () => {
   });
 
   it("protects bank values and never returns ciphertext", () => {
-    const service = readApi("riders/rider-portal.service.ts");
+    const service = [
+      readApi("riders/rider-portal.service.base.ts"),
+      readApi("riders/rider-portal-activity.service.ts"),
+    ].join("\n");
     expect(service).toContain("aes-256-gcm");
     expect(service).toContain("RIDER_BANK_ENCRYPTION_KEY");
     expect(service).toContain("bankAccountLast4");

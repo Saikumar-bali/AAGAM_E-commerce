@@ -10,7 +10,7 @@ describe('admin cancellation is terminal across operational workspaces', () => {
   const workflow = read('orders/delivery-workflow.service.ts');
   const routing = read('notifications/notification-routing.service.ts');
   const audience = read('notifications/notification-audience.ts');
-  const riderPortal = read('riders/rider-portal.service.ts');
+  const riderPortal = read('riders/rider-portal-orders.service.ts');
 
   it('cancels accepted assignments as well as pending offers', () => {
     expect(orders).toContain("status: { in: ['CREATED', 'OFFERED', 'ACCEPTED'] }");

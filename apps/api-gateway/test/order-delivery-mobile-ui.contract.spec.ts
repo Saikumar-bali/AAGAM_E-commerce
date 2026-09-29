@@ -65,7 +65,7 @@ describe('order-to-delivery mobile UI contract', () => {
   it('keeps the backend pickup and delivery proof gates authoritative', () => {
     const pickup = read('apps/api-gateway/src/orders/delivery-operations.pickup.service.ts');
     const delivery = read('apps/api-gateway/src/orders/delivery-operations.delivery.service.ts');
-    const riderPortal = read('apps/api-gateway/src/riders/rider-portal.service.ts');
+    const riderPortal = read('apps/api-gateway/src/riders/rider-portal-orders.service.ts');
     expect(pickup).toContain('The Rider item and parcel checklist must be verified before handoff');
     expect(delivery).toContain('Customer delivery OTP/PIN is required');
     expect(delivery).toContain('Collect the full COD amount into the independent COD ledger before completing delivery');
