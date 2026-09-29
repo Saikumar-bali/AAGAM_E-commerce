@@ -63,9 +63,10 @@ describe('order-to-delivery mobile UI contract', () => {
   });
 
   it('keeps the backend pickup and delivery proof gates authoritative', () => {
-    const delivery = read('apps/api-gateway/src/orders/delivery-operations.service.ts');
+    const pickup = read('apps/api-gateway/src/orders/delivery-operations.pickup.service.ts');
+    const delivery = read('apps/api-gateway/src/orders/delivery-operations.delivery.service.ts');
     const riderPortal = read('apps/api-gateway/src/riders/rider-portal.service.ts');
-    expect(delivery).toContain('The Rider item and parcel checklist must be verified before handoff');
+    expect(pickup).toContain('The Rider item and parcel checklist must be verified before handoff');
     expect(delivery).toContain('Customer delivery OTP/PIN is required');
     expect(delivery).toContain('Collect the full COD amount into the independent COD ledger before completing delivery');
     expect(riderPortal).toContain('Every item quantity must match the order before pickup verification');
@@ -90,7 +91,7 @@ describe('order-to-delivery mobile UI contract', () => {
     const migration = read(
       'packages/database/prisma/migrations/20260729184500_invalidate_pickup_challenges_on_problem/migration.sql',
     );
-    const operations = read('apps/api-gateway/src/orders/delivery-operations.service.ts');
+    const operations = read('apps/api-gateway/src/orders/delivery-operations.pickup.service.ts');
     expect(operations).toContain('await this.lock(tx, `pickup-proof:${deliveryJobId}`)');
     expect(migration).toContain("hashtext('pickup-proof:' || NEW.\"deliveryJobId\")");
   });

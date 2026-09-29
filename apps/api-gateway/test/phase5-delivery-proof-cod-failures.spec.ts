@@ -115,7 +115,7 @@ describe("Phase 5 pickup, delivery proof, COD, and failed-delivery gate", () => 
 
   it("keeps Admin force completion role-scoped, auditable, and routed through the canonical workflow", () => {
     const controller = api("orders/delivery-operations.controller.ts");
-    const operations = api("orders/delivery-operations.service.ts");
+    const operations = api("orders/delivery-operations.delivery.service.ts");
     const workflow = api("orders/delivery-workflow.service.ts");
     const orders = api("orders/order.service.ts");
     expect(controller).toContain('@Post("jobs/:deliveryJobId/admin-force-complete")');
@@ -167,7 +167,7 @@ describe("Phase 5 pickup, delivery proof, COD, and failed-delivery gate", () => 
   });
 
   it("keeps OTP secrets out of Rider and operations summary responses", () => {
-    const operations = api("orders/delivery-operations.service.ts");
+    const operations = api("orders/delivery-operations.base.ts");
     const rider = api("riders/rider-portal.service.ts");
     expect(operations).toContain("delete details.codeHash");
     expect(rider).toContain("THEN \"details\" - 'nonce' - 'salt' - 'codeHash'");

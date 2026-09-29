@@ -54,11 +54,12 @@ describe('COD subscription delivery runs production contract', () => {
 
   it('keeps cash collection, OTP proof, funding allocation and stop completion atomic', () => {
     const operations = api('subscriptions/delivery-run-operations.service.ts');
-    const delivery = api('orders/delivery-operations.service.ts');
+    const delivery = api('orders/delivery-operations.delivery.service.ts');
+    const cod = api('orders/delivery-operations.cod.service.ts');
     const funding = api('subscriptions/subscription-cash-funding.service.ts');
     expect(operations).toContain('finalizeDeliveredStopWithinTransaction');
     expect(delivery).toContain('afterDelivery');
-    expect(delivery).toContain('completeCodDelivery');
+    expect(cod).toContain('completeCodDelivery');
     expect(funding).toContain('allocateAfterCodCollectionWithinTransaction');
     expect(funding).toContain('consumeDeliveredWithinTransaction');
     expect(operations).toContain('Prisma.TransactionIsolationLevel.Serializable');

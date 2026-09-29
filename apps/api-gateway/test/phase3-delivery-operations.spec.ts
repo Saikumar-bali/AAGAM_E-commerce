@@ -15,6 +15,13 @@ import {
   ReturnDisposition,
 } from "../src/orders/delivery-operations.dto";
 import { DeliveryOperationsService } from "../src/orders/delivery-operations.service";
+import { DeliveryOperationsQueryService } from "../src/orders/delivery-operations.query.service";
+import { DeliveryOperationsPickupService } from "../src/orders/delivery-operations.pickup.service";
+import { DeliveryOperationsOtpService } from "../src/orders/delivery-operations.otp.service";
+import { DeliveryOperationsDeliveryService } from "../src/orders/delivery-operations.delivery.service";
+import { DeliveryOperationsCodService } from "../src/orders/delivery-operations.cod.service";
+import { DeliveryOperationsFailureService } from "../src/orders/delivery-operations.failure.service";
+import { DeliveryOperationsReturnService } from "../src/orders/delivery-operations.return.service";
 import { DeliveryWorkflowService } from "../src/orders/delivery-workflow.service";
 import { DispatchAssignmentService } from "../src/orders/dispatch-assignment.service";
 import { SubscriptionCashFundingService } from "../src/subscriptions/subscription-cash-funding.service";
@@ -30,7 +37,15 @@ function services() {
   const funding = {
     reconcileDeliveredWithinTransaction: jest.fn(),
   } as unknown as SubscriptionCashFundingService;
-  const operations = new DeliveryOperationsService(workflow, outbox, funding);
+  const operations = new DeliveryOperationsService(
+    new DeliveryOperationsQueryService(workflow, outbox, funding),
+    new DeliveryOperationsPickupService(workflow, outbox, funding),
+    new DeliveryOperationsOtpService(workflow, outbox, funding),
+    new DeliveryOperationsDeliveryService(workflow, outbox, funding),
+    new DeliveryOperationsCodService(workflow, outbox, funding),
+    new DeliveryOperationsFailureService(workflow, outbox, funding),
+    new DeliveryOperationsReturnService(workflow, outbox, funding)
+  );
   return { jobs, workflow, assignments, operations };
 }
 
