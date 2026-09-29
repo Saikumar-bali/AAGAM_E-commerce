@@ -2,7 +2,13 @@ import fs from 'fs';
 import path from 'path';
 
 describe('checkout order notification routing contract', () => {
-  const checkoutSource = fs.readFileSync(path.join(__dirname, '../src/checkout/checkout.service.ts'), 'utf8');
+  const checkoutSource = [
+    '../src/checkout/checkout.service.ts',
+    '../src/checkout/checkout.service.base.ts',
+    '../src/checkout/checkout-serviceability.service.ts',
+    '../src/checkout/checkout-quote.service.ts',
+    '../src/checkout/checkout-place-order.service.ts',
+  ].map((rel) => fs.readFileSync(path.join(__dirname, rel), 'utf8')).join('\n');
   const orderCreationSource = fs.readFileSync(path.join(__dirname, '../src/orders/order-creation.service.ts'), 'utf8');
   const routingSource = fs.readFileSync(path.join(__dirname, '../src/notifications/notification-routing.service.ts'), 'utf8');
   const notificationSource = fs.readFileSync(path.join(__dirname, '../src/notifications/notification.service.ts'), 'utf8');

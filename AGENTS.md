@@ -412,6 +412,32 @@ inventory service. `assignRiderWithinTransaction` /
 because external callers invoke them inside their own transaction. Both specs
 that read this source now read shared + assignment + inventory concatenated.
 
+## checkout.service.ts
+
+`checkout/checkout.service.ts` (741 lines) split into a facade over a shared
+base plus three services:
+
+- `checkout.shared.ts` — `CartItem`, `ResolvedStore`, the `PREORDER_*`
+  constants, `computeEtaMinutes`, `normalizeItems`
+- `checkout.service.base.ts` — `nearestStore`, `resolveStoreForLocation`,
+  `validateDeliveryWindow` (the last is used by both the facade and the
+  place-order service, so it lives on the base)
+- `checkout-serviceability.service.ts` — `serviceability`, `deliverySlots`
+- `checkout-quote.service.ts` — `quote`
+- `checkout-place-order.service.ts` — `placeOrder`, `announceOrderPlaced`
+
+The facade keeps the exact five-argument constructor (2 required + 3 optional)
+with `@Inject(OrderCreationService)` / `@Optional()` semantics unchanged,
+because `checkout-preorder.spec.ts` passes `undefined` as the third argument
+and `phase6b-promotions-coupons.spec.ts` passes a `PromotionsService` there
+(the legacy branch). `validateDeliveryWindow` is inherited from the base —
+`checkout-preorder.spec.ts` reaches it via `(service as any)`. The
+`applyFreeDeliveryThreshold` / `FREE_DELIVERY_MINIMUM_PAISE` re-export from
+`./delivery-pricing` stays on the facade for `free-delivery.spec.ts`. The two
+source-text specs (`checkout-order-notification.contract.spec.ts`,
+`first-order-delivery.contract.spec.ts`) now read facade + base +
+serviceability + quote + place-order concatenated.
+
 ### Checking a run
 
 `GET /api/automation/v1/{automation_id}/runs?limit=5` gives `status` and
