@@ -1,13 +1,13 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Role } from '@aagam/database';
-import { OfflineCustomerService } from '../src/subscriptions/offline-customer.service';
+import { OfflineCustomerServiceBase } from '../src/subscriptions/offline-customer.service.base';
 
 /**
  * Exercises the real ownership predicates the lifecycle methods rely on. These
  * are pure (no Prisma access), so they can be asserted directly.
  */
-describe('OfflineCustomerService ownership predicates', () => {
-  const service = new OfflineCustomerService();
+describe('OfflineCustomerServiceBase ownership predicates', () => {
+  const service = new OfflineCustomerServiceBase();
   const filter = (actor: { id: string; role: Role } | undefined, mutation = false) =>
     mutation
       ? (service as any).mutationOwnershipFilter(actor)

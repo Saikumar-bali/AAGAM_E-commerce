@@ -8,7 +8,13 @@ import { readFileSync } from 'node:fs';
  */
 describe('Store-owned offline customer lifecycle contract', () => {
   const controllerSource = readFileSync(__dirname + '/../src/subscriptions/subscriptions.controller.ts', 'utf8');
-  const serviceSource = readFileSync(__dirname + '/../src/subscriptions/offline-customer.service.ts', 'utf8');
+  const serviceSource = [
+    readFileSync(__dirname + '/../src/subscriptions/offline-customer.service.ts', 'utf8'),
+    readFileSync(__dirname + '/../src/subscriptions/offline-customer.service.base.ts', 'utf8'),
+    readFileSync(__dirname + '/../src/subscriptions/offline-customer-directory.service.ts', 'utf8'),
+    readFileSync(__dirname + '/../src/subscriptions/offline-customer-lifecycle.service.ts', 'utf8'),
+    readFileSync(__dirname + '/../src/subscriptions/offline-customer-purge.service.ts', 'utf8'),
+  ].join('\n');
   const reportingSource = readFileSync(__dirname + '/../src/subscriptions/subscription-admin-reporting.read.service.ts', 'utf8');
   const reportingOfflineSource = readFileSync(__dirname + '/../src/subscriptions/subscription-admin-reporting.offline-customer.service.ts', 'utf8');
   const gridSource = readFileSync(__dirname + '/../src/subscriptions/store-milk-grid.grid.service.ts', 'utf8');
