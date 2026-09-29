@@ -1,7 +1,7 @@
 {
   "name": "aagam-ecommerse",
   "version": "1.0.0",
-  "private": "true",
+  "private": true,
   "packageManager": "npm@11.6.1",
   "workspaces": [
     "apps/*",

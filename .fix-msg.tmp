@@ -1,0 +1,11 @@
+fix: restore hand-written @env declarations and keep private a boolean
+
+Two corrections to the cleanup commit:
+
+- packages/mobile-shared/src/env.d.ts and src/types/env.d.ts are
+  hand-written ambient declarations for the `@env` module, not compiler
+  output. The generated-artifact cleanup removed them, which broke
+  `@aagam/mobile-shared`'s typecheck (`Cannot find module '@env'`) and the
+  CI Build job. Restore them and exempt them from the new ignore rules.
+- The root `private` field had been rewritten to the string "true"; restore
+  the boolean value.
