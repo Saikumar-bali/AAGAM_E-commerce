@@ -53,7 +53,11 @@ describe('COD subscription delivery runs production contract', () => {
   });
 
   it('keeps cash collection, OTP proof, funding allocation and stop completion atomic', () => {
-    const operations = api('subscriptions/delivery-run-operations.service.ts');
+    const operations = [
+      api('subscriptions/delivery-run-pickup.service.ts'),
+      api('subscriptions/delivery-run-stop.service.ts'),
+      api('subscriptions/delivery-run-close.service.ts'),
+    ].join('\n');
     const delivery = api('orders/delivery-operations.delivery.service.ts');
     const cod = api('orders/delivery-operations.cod.service.ts');
     const funding = api('subscriptions/subscription-cash-funding.service.ts');
@@ -67,7 +71,11 @@ describe('COD subscription delivery runs production contract', () => {
 
   it('forbids bulk delivery completion and uses server-owned stop state transitions', () => {
     const controller = api('subscriptions/subscriptions.controller.ts');
-    const operations = api('subscriptions/delivery-run-operations.service.ts');
+    const operations = [
+      api('subscriptions/delivery-run-pickup.service.ts'),
+      api('subscriptions/delivery-run-stop.service.ts'),
+      api('subscriptions/delivery-run-close.service.ts'),
+    ].join('\n');
     expect(controller).toContain("@Post(':runId/stops/:stopId/complete')");
     expect(controller).not.toContain('mark-all-delivered');
     expect(controller).not.toContain('complete-all');
@@ -79,7 +87,11 @@ describe('COD subscription delivery runs production contract', () => {
   it('requires independent store handoff and rider bag receipt before route start', () => {
     const controller = api('subscriptions/subscriptions.controller.ts');
     const planning = api('subscriptions/delivery-run-planning.service.ts');
-    const operations = api('subscriptions/delivery-run-operations.service.ts');
+    const operations = [
+      api('subscriptions/delivery-run-pickup.service.ts'),
+      api('subscriptions/delivery-run-stop.service.ts'),
+      api('subscriptions/delivery-run-close.service.ts'),
+    ].join('\n');
     expect(controller).toContain("@Post('runs/:runId/pickup')");
     expect(controller).toContain("@Post(':runId/pickup')");
     expect(planning).toContain('storeHandoffConfirmedAt');

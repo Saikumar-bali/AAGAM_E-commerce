@@ -17,7 +17,7 @@ describe('subscription production completion contracts', () => {
     read('apps/api-gateway/src/subscriptions/regional-route-operations.mutation.service.ts'),
   ].join('\n');
   const trustedDrop = read('apps/api-gateway/src/subscriptions/trusted-drop.service.ts');
-  const runOperations = read('apps/api-gateway/src/subscriptions/delivery-run-operations.service.ts');
+  const runOperations = read('apps/api-gateway/src/subscriptions/delivery-run-stop.service.ts');
   const deliveryOperations = read('apps/api-gateway/src/orders/delivery-operations.cod.service.ts');
   const upload = read('apps/api-gateway/src/upload/upload.service.ts');
   const notificationRouting = read('apps/api-gateway/src/notifications/notification-routing.service.ts');
