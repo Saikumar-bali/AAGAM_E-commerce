@@ -382,6 +382,36 @@ statics stay on the facade (made public) because
 facade no longer carries them. The lifecycle source-text spec reads facade +
 base + directory + lifecycle + purge concatenated.
 
+## regional-route-planning.service.ts
+
+`subscriptions/regional-route-planning.service.ts` (868 lines) held both the
+delivery-to-run inventory planner and the rider eligibility/assignment engine.
+They shared only module-level pure helpers and one constant, so they split into
+a facade over a shared module plus two services:
+
+- `regional-route-planning.shared.ts` — the `PlanningDelivery`,
+  `ResolvedDelivery`, `RegionalRouteActor`, `RiderScore` types,
+  `ACTIVE_RUN_STATUSES` and the pure helpers (`jsonRecord`, `textFromJson`,
+  `routeHash`, `routeCode`, `policy`, `pointFor`, `hardConstraintFields`,
+  `weightForDelivery`)
+- `regional-route-planning.inventory.service.ts` — `planGeneratedDeliveries`,
+  `createClusterRun`, `writeEvent`
+- `regional-route-assignment.service.ts` — `rankEligibleRiders`,
+  `assignBestEligibleRider`, `validateRiderForRunWithinTransaction`,
+  `assignRiderWithinTransaction`, `assignRider`
+
+The facade keeps the original three-argument constructor
+(`zones, workflow, calendar`) so module wiring is unchanged, and re-exports
+`RegionalRouteActor`/`RiderScore` from the shared module — a type-only import
+of `RegionalRouteActor` from this path already exists in
+`regional-route-operations.service.base.ts`, so the re-export must stay. The
+one cross-cluster call (`planGeneratedDeliveries` →
+`assignBestEligibleRider`) goes through the assignment service held by the
+inventory service. `assignRiderWithinTransaction` /
+`validateRiderForRunWithinTransaction` stay public on the assignment service
+because external callers invoke them inside their own transaction. Both specs
+that read this source now read shared + assignment + inventory concatenated.
+
 ### Checking a run
 
 `GET /api/automation/v1/{automation_id}/runs?limit=5` gives `status` and
