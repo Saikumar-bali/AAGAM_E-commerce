@@ -252,6 +252,29 @@ now reads `order.service.base.ts` (the delivery-job cancellation literals) and
 `phase5-delivery-proof-cod-failures.spec.ts` reads `order.query.service.ts`
 (the `findOne` `deliveryJob` select).
 
+## promotions.service.ts is a facade over a shared base too
+
+`promotions/promotions.service.ts` (1,063 lines) had no constructor and no
+injected dependency — it reaches the DB through the module-level `prisma`
+singleton — so its facade also builds its sub-services itself:
+
+- `promotions.shared.ts` — `DbClient`, `PricingLine`, `couponInclude`,
+  `campaignInclude`
+- `promotions.service.base.ts` — the cross-cutting helpers (`requireText`,
+  `date`, `validateSchedule`, `validateInternalPath`, `effectiveStatus`,
+  `campaignTargetUrl`) plus `adminCoupons`
+- `promotions.campaign.service.ts` — the campaign authoring/listing/feed group
+- `promotions.coupon.service.ts` — the coupon authoring group
+- `promotions.pricing.service.ts` — `evaluateCoupon`, `calculateDiscount`,
+  `publicCoupons`
+
+`deals` is the one method that spans two groups (`activeCampaigns` +
+`publicCoupons`), so it stays on the facade and calls `this.campaign` /
+`this.pricing`. Keep the zero-argument constructor: one test does
+`new PromotionsService()`. `publicCoupons` is public because the facade's
+`deals` calls it; the private validators are `protected` on their services and
+are never delegated.
+
 ### Checking a run
 
 `GET /api/automation/v1/{automation_id}/runs?limit=5` gives `status` and
