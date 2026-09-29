@@ -6,7 +6,7 @@ function read(relativePath: string) {
 }
 
 describe('admin cancellation is terminal across operational workspaces', () => {
-  const orders = read('orders/order.service.ts');
+  const orders = read('orders/order.service.base.ts');
   const workflow = read('orders/delivery-workflow.service.ts');
   const routing = read('notifications/notification-routing.service.ts');
   const audience = read('notifications/notification-audience.ts');

@@ -117,7 +117,7 @@ describe("Phase 5 pickup, delivery proof, COD, and failed-delivery gate", () => 
     const controller = api("orders/delivery-operations.controller.ts");
     const operations = api("orders/delivery-operations.delivery.service.ts");
     const workflow = api("orders/delivery-workflow.service.ts");
-    const orders = api("orders/order.service.ts");
+    const orders = api("orders/order.query.service.ts");
     expect(controller).toContain('@Post("jobs/:deliveryJobId/admin-force-complete")');
     expect(controller).toContain("@Roles(Role.ADMIN)");
     expect(operations).toContain("adminForceCompleteDelivery");

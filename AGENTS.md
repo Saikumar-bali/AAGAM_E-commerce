@@ -222,6 +222,36 @@ source text and now read the file that owns each asserted literal:
 `subscription-d1-operations.contract.spec.ts` and
 `subscription-delivery-runs.contract.spec.ts` (read service).
 
+## order.service.ts is a facade over a shared base
+
+`orders/order.service.ts` (1,118 lines) was the order god-service. Unlike the
+subscriptions services it has real cross-method calls, so the split keeps a
+shared base:
+
+- `order.service.base.ts` — `recordStatusHistory`, `getTracking`,
+  `emitTrackingUpdate` and the cross-cutting internals (`statusNote`,
+  `timestampFieldForStatus`, `computeEta`, `computeTripSummary`,
+  `computeTrackingState`, `haversineKm`, `cancelAssociatedDeliveryJob`,
+  `releaseCouponRedemption`, `completeAssociatedDeliveryJob`). The moved
+  private helpers become `protected`; `updateStatus` calls
+  `emitTrackingUpdate`, so tracking stays on the base rather than in a service.
+- `order.status.service.ts` — `updateStatus` plus the four transition tables.
+- `order.cancellation.service.ts` / `order.rider.service.ts` /
+  `order.query.service.ts` — the remaining use cases.
+
+The facade keeps the exact two-argument constructor
+`(TrackingGateway, RefundsService)`. Roughly 100 test sites call
+`new OrderService(gateway, refunds)`, so it constructs the sub-services itself
+and hands them the gateway/refunds through `useDeps()`; the base exposes them
+as `protected get trackingGateway()` / `protected get refundsService()`. Do not
+change that constructor or move a sub-service call onto another sub-service —
+that would create a cross-service edge the base is designed to avoid.
+
+Two specs read this file's source text: `admin-cancellation-terminal.contract.spec.ts`
+now reads `order.service.base.ts` (the delivery-job cancellation literals) and
+`phase5-delivery-proof-cod-failures.spec.ts` reads `order.query.service.ts`
+(the `findOne` `deliveryJob` select).
+
 ### Checking a run
 
 `GET /api/automation/v1/{automation_id}/runs?limit=5` gives `status` and
