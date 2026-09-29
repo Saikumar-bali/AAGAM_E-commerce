@@ -1,12 +1,10 @@
 /** @type {import('ts-jest').JestConfigWithTsJest} */
+// Full suite: colocated unit specs under src/ plus integration/contract
+// specs under test/. Integration specs share a database and must not run
+// concurrently, hence --runInBand in the npm scripts.
 module.exports = {
-  moduleFileExtensions: ['ts', 'js', 'json'],
-  rootDir: '.',
-  testRegex: '.*\\.spec\\.ts$',
-  transform: {
-    '^.+\\.ts$': 'ts-jest',
-  },
-  collectCoverageFrom: ['src/**/*.ts'],
-  coverageDirectory: './coverage',
-  testEnvironment: 'node',
+  projects: [
+    '<rootDir>/jest.unit.config.js',
+    '<rootDir>/test/jest-e2e.json',
+  ],
 };

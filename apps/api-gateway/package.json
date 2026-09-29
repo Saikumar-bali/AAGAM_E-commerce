@@ -9,6 +9,8 @@
     "start:prod": "node dist/src/main.js",
     "test": "jest --runInBand --testPathIgnorePatterns=api-smoke.spec.ts",
     "test:ci": "jest --runInBand --testPathIgnorePatterns=api-smoke.spec.ts",
+    "test:unit": "jest --config jest.unit.config.js",
+    "test:integration": "jest --config test/jest-e2e.json --runInBand --testPathIgnorePatterns=api-smoke.spec.ts",
     "test:api-smoke": "node scripts/run-api-smoke-if-online.js",
     "test:phase6": "jest --runInBand phase6-catalog.spec.ts",
     "test:phase8": "jest --runInBand phase8",

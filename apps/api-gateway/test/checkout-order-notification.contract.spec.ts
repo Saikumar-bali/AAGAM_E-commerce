@@ -1,0 +1,55 @@
+import fs from 'fs';
+import path from 'path';
+
+describe('checkout order notification routing contract', () => {
+  const checkoutSource = [
+    '../src/checkout/checkout.service.ts',
+    '../src/checkout/checkout.service.base.ts',
+    '../src/checkout/checkout-serviceability.service.ts',
+    '../src/checkout/checkout-quote.service.ts',
+    '../src/checkout/checkout-place-order.service.ts',
+  ].map((rel) => fs.readFileSync(path.join(__dirname, rel), 'utf8')).join('\n');
+  const orderCreationSource = fs.readFileSync(path.join(__dirname, '../src/orders/order-creation.service.ts'), 'utf8');
+  const routingSource = fs.readFileSync(path.join(__dirname, '../src/notifications/notification-routing.service.ts'), 'utf8');
+  const notificationSource = fs.readFileSync(path.join(__dirname, '../src/notifications/notification.service.ts'), 'utf8');
+  const pushSource = fs.readFileSync(path.join(__dirname, '../src/notifications/web-push.service.ts'), 'utf8');
+
+  it('enqueues ORDER_PLACED atomically through the shared order transaction', () => {
+    expect(checkoutSource).toContain('this.orderCreation.createWithinTransaction(tx, {');
+    expect(orderCreationSource).toContain('await enqueueOutboxEvent(tx, {');
+    expect(orderCreationSource).toContain("eventType: 'ORDER_PLACED'");
+    expect(orderCreationSource).toContain("idempotencyKey: `order-created:${input.idempotencyKey}`");
+    expect(orderCreationSource).toContain('storeId: input.storeId');
+  });
+
+  it('does not broadcast an unassigned customer order to every rider token', () => {
+    expect(checkoutSource).not.toContain('Rider push fanout count');
+    expect(checkoutSource).not.toContain('sendNewOrderAlert(');
+    expect(checkoutSource).not.toContain('where: { role: "RIDER", fcmToken: { not: null } }');
+  });
+
+  it('routes order placement to the owning store and assignments to the selected rider', () => {
+    const orderPlacedBlock = routingSource.slice(
+      routingSource.indexOf("case 'ORDER_PLACED':"),
+      routingSource.indexOf("case 'STORE_ACCEPTED_ORDER':"),
+    );
+    expect(orderPlacedBlock).toContain('addStore();');
+    expect(orderPlacedBlock).toContain('addAdmins();');
+    expect(orderPlacedBlock).not.toContain('addRider();');
+
+    const offeredBlock = routingSource.slice(
+      routingSource.indexOf("case 'ASSIGNMENT_OFFERED':"),
+      routingSource.indexOf("case 'ASSIGNMENT_ACCEPTED':"),
+    );
+    expect(offeredBlock).toContain('payload.riderUserId');
+    expect(offeredBlock).toContain('riderProfile');
+    expect(offeredBlock).toContain('add(');
+  });
+
+  it('keeps Store background push independent from the in-app notification preference', () => {
+    expect(notificationSource).toContain('shouldCreateNotificationRecipient(specific || fallback)');
+    expect(pushSource).toContain("channelId: 'aagam_priority_operations_v3'");
+    expect(pushSource).toContain("priority: 'high'");
+    expect(pushSource).toContain('notification: {');
+  });
+});

@@ -2,7 +2,13 @@ import fs from 'fs';
 import path from 'path';
 
 describe('first-order free delivery contract', () => {
-  const checkout = fs.readFileSync(path.join(__dirname, 'checkout.service.ts'), 'utf8');
+  const checkout = [
+    'checkout.service.ts',
+    'checkout.service.base.ts',
+    'checkout-serviceability.service.ts',
+    'checkout-quote.service.ts',
+    'checkout-place-order.service.ts',
+  ].map((rel) => fs.readFileSync(path.join(__dirname, rel), 'utf8')).join('\n');
   const pricing = fs.readFileSync(path.join(__dirname, 'delivery-pricing.ts'), 'utf8');
   const bill = fs.readFileSync(
     path.resolve(__dirname, '../../../admin-dashboard/src/components/customer/BillDetailsCard.tsx'),

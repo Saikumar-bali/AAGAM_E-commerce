@@ -11,6 +11,13 @@ import { DeliveryEventService } from './delivery-event.service';
 import { DeliveryJobService } from './delivery-job.service';
 import { DeliveryOperationsController } from './delivery-operations.controller';
 import { DeliveryOperationsService } from './delivery-operations.service';
+import { DeliveryOperationsQueryService } from './delivery-operations.query.service';
+import { DeliveryOperationsPickupService } from './delivery-operations.pickup.service';
+import { DeliveryOperationsOtpService } from './delivery-operations.otp.service';
+import { DeliveryOperationsDeliveryService } from './delivery-operations.delivery.service';
+import { DeliveryOperationsCodService } from './delivery-operations.cod.service';
+import { DeliveryOperationsFailureService } from './delivery-operations.failure.service';
+import { DeliveryOperationsReturnService } from './delivery-operations.return.service';
 import { DeliveryPhotoProofController } from './delivery-photo-proof.controller';
 import { DeliveryPhotoProofService } from './delivery-photo-proof.service';
 import { DeliveryWorkflowService } from './delivery-workflow.service';
@@ -54,6 +61,13 @@ import { ExcelSyncController } from './excel-sync.controller';
       useClass: AuditedDispatchService,
     },
     DeliveryOperationsService,
+    DeliveryOperationsQueryService,
+    DeliveryOperationsPickupService,
+    DeliveryOperationsOtpService,
+    DeliveryOperationsDeliveryService,
+    DeliveryOperationsCodService,
+    DeliveryOperationsFailureService,
+    DeliveryOperationsReturnService,
     DeliveryPhotoProofService,
     CodSettlementFacadeService,
     PostDeliveryService,

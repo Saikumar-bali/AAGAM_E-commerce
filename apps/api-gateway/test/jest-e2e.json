@@ -1,0 +1,10 @@
+{
+  "displayName": "integration",
+  "moduleFileExtensions": ["ts", "js", "json"],
+  "rootDir": "..",
+  "testRegex": "test/.*\\.spec\\.ts$",
+  "transform": {
+    "^.+\\.ts$": "ts-jest"
+  },
+  "testEnvironment": "node"
+}

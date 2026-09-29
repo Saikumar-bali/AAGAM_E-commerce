@@ -8,6 +8,10 @@ import { DeliveryRunOperationsService } from './delivery-run-operations.service'
 import { DeliveryRunPlanningService } from './delivery-run-planning.service';
 import { OfflineCustomerService } from './offline-customer.service';
 import { StoreMilkGridService } from './store-milk-grid.service';
+import { StoreMilkGridGridService } from './store-milk-grid.grid.service';
+import { StoreMilkGridQuickActionService } from './store-milk-grid.quick-action.service';
+import { StoreMilkGridDispatchService } from './store-milk-grid.dispatch.service';
+import { StoreMilkGridStatementService } from './store-milk-grid.statement.service';
 import { AdminRegionalRoutingController, RegionalRoutingEventsController } from './regional-routing.controller';
 import { RegionalDeliveryZoneService } from './regional-delivery-zone.service';
 import { RegionalRouteNotificationService } from './regional-route-notification.service';
@@ -21,6 +25,13 @@ import { SubscriptionPreparationService } from './subscription-preparation.servi
 import { SubscriptionExpirationService } from './subscription-expiration.service';
 import { SubscriptionRiderCapacityNotificationService } from './subscription-rider-capacity-notification.service';
 import { SubscriptionAdminReportingService } from './subscription-admin-reporting.service';
+import { SubscriptionAdminReportingPaymentsService } from './subscription-admin-reporting.payments.service';
+import { SubscriptionAdminReportingReadService } from './subscription-admin-reporting.read.service';
+import { SubscriptionAdminReportingCorrectionService } from './subscription-admin-reporting.correction.service';
+import { SubscriptionAdminReportingIssueService } from './subscription-admin-reporting.issue.service';
+import { SubscriptionAdminReportingOfflineCustomerService } from './subscription-admin-reporting.offline-customer.service';
+import { SubscriptionAdminReportingManualSubscriptionService } from './subscription-admin-reporting.manual-subscription.service';
+import { SubscriptionAdminReportingRenewalService } from './subscription-admin-reporting.renewal.service';
 import { SubscriptionCalendarService } from './subscription-calendar.service';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 import { SubscriptionOrderGenerator } from './subscription-order-generator.service';
@@ -79,10 +90,21 @@ import {
     SubscriptionCashFundingService,
     CashDepositBatchService,
     SubscriptionAdminReportingService,
+    SubscriptionAdminReportingPaymentsService,
+    SubscriptionAdminReportingReadService,
+    SubscriptionAdminReportingCorrectionService,
+    SubscriptionAdminReportingIssueService,
+    SubscriptionAdminReportingOfflineCustomerService,
+    SubscriptionAdminReportingManualSubscriptionService,
+    SubscriptionAdminReportingRenewalService,
     SubscriptionSchedulerService,
     OfflineCustomerService,
     StoreSelfDeliveryService,
     StoreMilkGridService,
+    StoreMilkGridGridService,
+    StoreMilkGridQuickActionService,
+    StoreMilkGridDispatchService,
+    StoreMilkGridStatementService,
   ],
   exports: [
     SubscriptionCalendarService,

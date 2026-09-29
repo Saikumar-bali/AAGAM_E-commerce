@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 
-import { TrackingGateway } from '../tracking.gateway';
+import { TrackingGateway } from '../tracking/tracking.gateway';
 import { AuthModule } from '../auth/auth.module';
 
 /**

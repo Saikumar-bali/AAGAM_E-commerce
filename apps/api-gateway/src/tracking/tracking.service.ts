@@ -8,7 +8,7 @@ import { OrderStatus, Role, prisma } from '@aagam/database';
 import { DeliveryJobStatus, DeliveryJobStatusType } from '@aagam/types';
 import { calculateDistance } from '@aagam/utils';
 import { OrderService } from '../orders/order.service';
-import { TrackingGateway } from '../tracking.gateway';
+import { TrackingGateway } from '../tracking/tracking.gateway';
 import { RiderLocationDto } from './dto/rider-location.dto';
 
 const TRACKABLE_JOB_STATUSES: DeliveryJobStatusType[] = [
