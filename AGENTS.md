@@ -150,6 +150,32 @@ enabled, because the installed `lmnr` does not accept the `rollout_entrypoint`
 kwarg that the SDK passes; a run with a `TypeError: observe() got an unexpected
 keyword argument` and no actions is that bug, not a model problem.
 
+## Delivery operations are a facade over per-use-case services
+
+`orders/delivery-operations.service.ts` used to be a 2,762-line god service. It
+is now a thin facade: `DeliveryOperationsService` keeps the public method
+surface (controllers and the subscription run services depend on it) and
+delegates each call to a focused service in the same directory.
+
+- `delivery-operations.base.ts` — `DeliveryOperationsBase`, the abstract class
+  holding what every use case needs: the advisory `lock`, the `DeliveryOperation`
+  ledger helpers, proof/OTP hashing, the `assert*OrAdmin` authz checks, and
+  `ensureCodLedger`. Helpers are `protected`, not `private`, so subclasses can
+  use them.
+- `delivery-operations.types.ts` — shared types and constants.
+- `delivery-operations.{query,pickup,otp,delivery,cod,failure,return}.service.ts`
+  — one cohesive use case each, all extending the base.
+
+Add a new use case as a new service, not by growing the facade. The per-use-case
+services are independent; the only cross-flow call is `recordPickupProof`, which
+stays inside the pickup service. Do not re-merge these files.
+
+Four contract specs (`order-delivery-mobile-ui`, `phase5-delivery-proof-cod-failures`,
+`subscription-delivery-runs`, `subscription-production-completion`) assert on the
+**source text** of these files via `read(...)`. If you move a method between the
+services, update the path those specs read in the same commit — they fail with a
+path-shaped assertion, not a behavioural one.
+
 ### Checking a run
 
 `GET /api/automation/v1/{automation_id}/runs?limit=5` gives `status` and
