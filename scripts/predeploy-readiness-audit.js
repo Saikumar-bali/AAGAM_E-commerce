@@ -35,7 +35,7 @@ const requiredFiles = [
   '.env.production.example',
   'apps/api-gateway/src/app.controller.ts',
   'apps/api-gateway/scripts/run-api-smoke-if-online.js',
-  'docs/PHASE_13_QA_HARDENING.md',
+  'docs/runbooks/PHASE_13_QA_HARDENING.md',
 ];
 
 const requiredEnvTemplateKeys = [
