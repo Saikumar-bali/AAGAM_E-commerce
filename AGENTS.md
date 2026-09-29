@@ -41,6 +41,27 @@ npm run test:ci --workspace=apps/api-gateway
 `npm run test:ci` takes several minutes; run it in the background and poll the
 log rather than blocking the terminal.
 
+### Where the specs live
+
+`apps/api-gateway` runs two Jest projects (see `jest.config.js`):
+
+- **unit** — `jest.unit.config.js`, specs colocated under `src/` next to the
+  code they exercise. Fast, no database.
+- **integration** — `test/jest-e2e.json`, specs under `apps/api-gateway/test/`.
+  These are cross-module / contract / DB suites. They share one database, so
+  the npm scripts run them with `--runInBand`.
+
+`npm test` and `npm run test:ci` run both projects; use
+`npm run test:unit` / `npm run test:integration` to run one. `test:ci` still
+ignores `api-smoke.spec.ts`, which needs a live server.
+
+Specs under `test/` reach back into the app with `../src/...` and reach the
+repo root with `path.resolve(__dirname, '../../..')`. If you move a spec
+between the two projects, those depths change — fix them in the same commit.
+
+The `test:phase6/8/9/10/11/12` scripts and their phase-numbered filenames are
+load-bearing: `scripts/predeploy-readiness-audit.js` lists them as required.
+
 ## Comparing against a baseline
 
 To prove whether a change caused a failure, compare failing suites with and
