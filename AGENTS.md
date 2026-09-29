@@ -337,6 +337,51 @@ mutation service. Both specs now read
 `regional-route-operations.service.base.ts` + `...mutation.service.ts`
 concatenated, not the facade.
 
+## delivery-run-operations.service.ts
+
+`subscriptions/delivery-run-operations.service.ts` (931 lines) held the rider's
+whole run lifecycle and split into a facade over a shared base:
+
+- `delivery-run-operations.service.base.ts` — `rider`, `ownedRun` + `Actor`
+- `delivery-run-read.service.ts` — `today`, `details` (no deps)
+- `delivery-run-pickup.service.ts` — `confirmPickupReceipt`, `start`
+- `delivery-run-stop.service.ts` — `arrive`, `issueOtp`, `complete`, `fail`,
+  `reorder`, `finalizeDeliveredStopWithinTransaction`
+- `delivery-run-close.service.ts` — `finish`, `cashAccountability` (no deps)
+- `delivery-run-field.service.ts` — `extraMilk`, `toggleSlot`, `recordPayment`,
+  `skipStop` (no deps)
+
+The facade keeps the original four-argument constructor
+(`workflow, deliveryOperations, funding, trustedDrop`) so the module wiring is
+unchanged, and constructs each child with only the dependencies it needs. Two
+specs read this source: `subscription-delivery-runs` reads the pickup + stop +
+close files, `subscription-production-completion` reads the stop file for its
+`GeofencePhase` literals.
+
+## offline-customer.service.ts
+
+`subscriptions/offline-customer.service.ts` (960 lines, no constructor) split
+into a facade over a shared base:
+
+- `offline-customer.service.base.ts` — `offlineIdentity`, `recycleBinState`,
+  `activeState`, `ownershipFilter`, `mutationOwnershipFilter`,
+  `loadOfflineCustomer` + `OfflineCustomerActor`
+- `offline-customer-directory.service.ts` — `listCustomers`,
+  `getCustomerDetail`, `getDeliveryTracker`, `reactivateCustomer`
+- `offline-customer-lifecycle.service.ts` — `moveToRecycleBin`,
+  `restoreFromRecycleBin`
+- `offline-customer-purge.service.ts` — `permanentDeleteCustomer`,
+  `redactSnapshot`
+
+The `RECYCLE_BIN_PAUSE_PREFIX` / `RECYCLE_BIN_PAUSE_REASON` / `PURGED_EMAIL`
+statics stay on the facade (made public) because
+`store-offline-customer-lifecycle.contract.spec.ts` asserts the literal
+`pauseReason: OfflineCustomerService.RECYCLE_BIN_PAUSE_REASON` in
+`offline-customer.service.ts`. The ownership-predicate unit spec instantiates
+`OfflineCustomerServiceBase` directly — the predicates moved there, and the
+facade no longer carries them. The lifecycle source-text spec reads facade +
+base + directory + lifecycle + purge concatenated.
+
 ### Checking a run
 
 `GET /api/automation/v1/{automation_id}/runs?limit=5` gives `status` and

@@ -7,7 +7,11 @@ const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8');
 describe('regional multi-rider route splitting contracts', () => {
   const migration = read('packages/database/prisma/migrations/20260806103000_regional_multi_rider_route_splitting/migration.sql');
   const schema = read('packages/database/prisma/schema.prisma');
-  const planner = read('apps/api-gateway/src/subscriptions/regional-route-planning.service.ts');
+  const planner = [
+    read('apps/api-gateway/src/subscriptions/regional-route-planning.shared.ts'),
+    read('apps/api-gateway/src/subscriptions/regional-route-assignment.service.ts'),
+    read('apps/api-gateway/src/subscriptions/regional-route-planning.inventory.service.ts'),
+  ].join('\n');
   const operations = [
     read('apps/api-gateway/src/subscriptions/regional-route-operations.service.base.ts'),
     read('apps/api-gateway/src/subscriptions/regional-route-operations.mutation.service.ts'),

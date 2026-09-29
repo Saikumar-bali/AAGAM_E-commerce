@@ -11,7 +11,11 @@ describe('subscription production completion contracts', () => {
   const generator = read('apps/api-gateway/src/subscriptions/subscription-order-generator.service.ts');
   const serviceability = read('apps/api-gateway/src/subscriptions/subscription-serviceability.service.ts');
   const scheduler = read('apps/api-gateway/src/subscriptions/subscription-scheduler.service.ts');
-  const planner = read('apps/api-gateway/src/subscriptions/regional-route-planning.service.ts');
+  const planner = [
+    read('apps/api-gateway/src/subscriptions/regional-route-planning.shared.ts'),
+    read('apps/api-gateway/src/subscriptions/regional-route-assignment.service.ts'),
+    read('apps/api-gateway/src/subscriptions/regional-route-planning.inventory.service.ts'),
+  ].join('\n');
   const operations = [
     read('apps/api-gateway/src/subscriptions/regional-route-operations.service.base.ts'),
     read('apps/api-gateway/src/subscriptions/regional-route-operations.mutation.service.ts'),
