@@ -8,11 +8,18 @@ dist/
 out/
 build/
 *.tsbuildinfo
-# Compiled TS in source dirs
+# Compiled TS in source dirs (build output from `tsc`/`nest build`)
 apps/api-gateway/src/**/*.js
 apps/api-gateway/src/**/*.map
 apps/api-gateway/src/**/*.d.ts
 apps/api-gateway/src/**/*.d.ts.map
+packages/*/src/**/*.js
+packages/*/src/**/*.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
+
+# Compiled config artifacts
+*.config.js.map
 
 # Turbo
 .turbo/
@@ -110,8 +117,7 @@ backups/
 .wrangler/
 pages-output/
 
-# Local docs and deployment notes (not for repo)
-docs/
+# Local deployment notes and data dumps (not for repo)
 RAILWAY_DEPLOYMENT.md
 aagam_data/
 

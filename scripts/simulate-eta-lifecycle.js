@@ -7,7 +7,7 @@
  * $env:ORDER_ID="your-order-id"
  * $env:CUSTOMER_TOKEN="customer-jwt"
  * $env:RIDER_TOKEN="rider-jwt"
- * node tests/simulate_eta_lifecycle.js
+ * node scripts/simulate-eta-lifecycle.js
  *
  * Optional:
  * $env:DO_STALE_CHECK="1"        # waits >6 minutes and verifies stale ETA
