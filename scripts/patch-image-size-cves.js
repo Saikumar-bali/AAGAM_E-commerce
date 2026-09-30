@@ -69,7 +69,16 @@ function patchIcns(root, verifyOnly) {
 
 function main() {
   const verifyOnly = process.argv.includes('--verify');
-  const root = resolvePackageRoot();
+  let root;
+  try {
+    root = resolvePackageRoot();
+  } catch {
+    // image-size left the dependency tree when metro dropped it, so the
+    // advisory it carried is gone. Stay fail-closed: if it ever reappears
+    // unpatched, npm audit flags it again and verify-dependency-security fails.
+    process.stdout.write('image-size is not installed; nothing to patch.\n');
+    return;
+  }
   readPackageVersion(root);
   patchUtils(root, verifyOnly);
   patchIcns(root, verifyOnly);
