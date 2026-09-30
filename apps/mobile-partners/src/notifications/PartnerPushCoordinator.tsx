@@ -98,7 +98,6 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     let disposed = false;
     let pushCleanup: () => void = () => undefined;
     let openedCleanup: () => void = () => undefined;
-    let interval: ReturnType<typeof setInterval> | undefined;
     let pushReverifyInterval: ReturnType<typeof setInterval> | undefined;
     let pushStartupRetry: ReturnType<typeof setTimeout> | undefined;
     let polling = false;
@@ -275,7 +274,7 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     }
 
     void pollInbox();
-    interval = setInterval(() => void pollInbox(), INBOX_POLL_MS);
+    const interval = setInterval(() => void pollInbox(), INBOX_POLL_MS);
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         flushNavigation();

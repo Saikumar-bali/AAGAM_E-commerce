@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 3001",
     "start:railway": "next start -p ${PORT:-3001}",
-    "lint": "next lint"
+    "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {
     "@aagam/types": "*",

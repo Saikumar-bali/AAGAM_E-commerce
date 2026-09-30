@@ -49,6 +49,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Lint
+        run: npm run lint
+
       - name: Validate committed branding PNGs
         run: node scripts/validate-brand-pngs.contract.test.js
 

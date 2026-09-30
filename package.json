@@ -2,7 +2,9 @@
   "name": "aagam-ecommerse",
   "version": "1.0.0",
   "private": true,
+  "license": "UNLICENSED",
   "packageManager": "npm@11.6.1",
+  "engines": { "node": ">=20.19.3" },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -50,6 +52,8 @@
     }
   },
   "scripts": {
+    "lint": "eslint apps packages scripts --ext .ts,.tsx,.js",
+    "lint:fix": "eslint apps packages scripts --ext .ts,.tsx,.js --fix",
     "postinstall": "node scripts/patch-image-size-cves.js",
     "security:image-size": "node scripts/patch-image-size-cves.js --verify && node scripts/test-image-size-cve-patch.js",
     "security:google-uuid": "node scripts/test-google-uuid-security-override.js",
@@ -82,6 +86,9 @@
     "test:inventory:e2e": "npm run test --workspace=apps/api-gateway -- --testPathPattern=inventory-e2e",
     "test:inventory:concurrent": "npm run test --workspace=apps/api-gateway -- --testPathPattern=inventory-concurrent",
     "test:promotions:e2e": "npm run test --workspace=apps/api-gateway -- --testPathPattern=promotions-e2e",
+    "admin:create": "node scripts/create-admin.js",
+    "test:mailjet": "node scripts/test-mailjet-verification.js",
+    "test:admin-orders-console": "node scripts/simulate-admin-orders-console.js",
     "test:partner:e2e": "npm run test --workspace=apps/api-gateway -- --testPathPattern=partner-onboarding-e2e",
     "test:rider:e2e": "npm run test --workspace=apps/api-gateway -- --testPathPattern=rider-tracking-e2e"
   },
@@ -91,7 +98,13 @@
     "@nestjs/platform-express": "11.2.6",
     "@nestjs/platform-socket.io": "11.2.6",
     "@nestjs/websockets": "11.2.6",
+    "@next/eslint-plugin-next": "^15.5.26",
     "@types/mapbox-gl": "^3.4.1",
+    "@typescript-eslint/eslint-plugin": "^8.71.0",
+    "@typescript-eslint/parser": "^8.71.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "react-native-dotenv": "^3.4.11",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
