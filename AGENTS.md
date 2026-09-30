@@ -114,12 +114,11 @@ is absent instead of failing the install. If it returns unpatched, `npm audit`
 flags it again and the gate fails.
 
 The full `test:ci` suite needs more than Node's default heap after the Sentry
-11 / googleapis 182 upgrade, so `test`, `test:ci` and `test:integration` run
-jest through `node --max-old-space-size=6144`. Without it the run dies with
-`Ineffective mark-compacts near heap limit` partway through the integration
-project. Integration specs share one database: never run the suite twice
-without `prisma migrate reset` in between, or `phase6b-promotions-coupons`
-fails on leftover coupon usage.
+11 / googleapis 182 upgrade, so `test` and `test:ci` run jest through
+`node --max-old-space-size=6144`. Without it the run dies with
+`Ineffective mark-compacts near heap limit` partway through. Integration specs
+share one database: never run the suite twice without `prisma migrate reset` in
+between, or `phase6b-promotions-coupons` fails on leftover coupon usage.
 
 ## Automations
 
