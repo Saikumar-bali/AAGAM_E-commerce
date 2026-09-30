@@ -103,6 +103,45 @@ New migrations in this repo are written idempotently
 `DO $$ ... EXCEPTION WHEN duplicate_object` around foreign keys) so that
 `migrate deploy` still succeeds if the DDL was already applied manually.
 
+## Dependency security
+
+`npm audit` must be clean. `.github/workflows/dependency-security-audit.yml`
+runs `scripts/verify-dependency-security.js` on every PR, and
+`scripts/verify-dependency-security.js` fails the build if any advisory URL is
+not on its reviewed allow-list. The allow-list only contains transitive
+advisories that have no in-range fix; each entry carries a comment naming the
+chain and the patched version.
+
+Root `overrides` in `package.json` pin the fixes, scoped to the parent package
+where a global pin would break the tree:
+
+- `ajv` -> `fast-uri 3.1.8` (via `@nestjs/cli`)
+- `@istanbuljs/load-nyc-config` -> `js-yaml 3.15.2`
+- `@react-native-community/cli-config` -> `joi 17.13.8`
+- `@react-native-community/cli-server-api` -> `body-parser 1.20.8`
+- `@react-navigation/native` -> `@react-navigation/core 7.23.0` (drops the
+  `query-string`/`decode-uri-component` chain)
+- `express` -> `qs 6.16.0`
+- `exceljs` -> `uuid 11.1.1`
+
+Overrides are only applied by a fresh resolve: after editing them, delete
+`node_modules` and `package-lock.json` and reinstall. An incremental
+`npm install` leaves the old version in the lockfile (it shows up as
+`invalid: "x" from node_modules/y` in `npm ls`) and the advisory persists.
+
+`image-size` is no longer in the tree (metro 0.84.6 dropped it), so
+`patch-image-size-cves.js` and `test-image-size-cve-patch.js` now no-op when it
+is absent instead of failing the install. If it returns unpatched, `npm audit`
+flags it again and the gate fails.
+
+The full `test:ci` suite needs more than Node's default heap after the Sentry
+11 / googleapis 182 upgrade, so `test`, `test:ci` and `test:integration` run
+jest through `node --max-old-space-size=6144`. Without it the run dies with
+`Ineffective mark-compacts near heap limit` partway through the integration
+project. Integration specs share one database: never run the suite twice
+without `prisma migrate reset` in between, or `phase6b-promotions-coupons`
+fails on leftover coupon usage.
+
 ## Automations
 
 `automations/*.json` records the payloads deployed to the OpenHands automation

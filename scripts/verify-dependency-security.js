@@ -4,43 +4,36 @@
 const { execFileSync } = require('child_process');
 
 const ALLOWED_PATCHED_ADVISORIES = new Set([
-  // image-size: vendor-unfixed parser CVEs, source-patched by
-  // scripts/patch-image-size-cves.js and regression-checked by
-  // scripts/test-image-size-cve-patch.js.
-  'https://github.com/advisories/GHSA-w3rx-r6r6-pgpr',
-  'https://github.com/advisories/GHSA-5p2g-fcmc-qvqq',
-  // Transitive dependencies without a compatible upstream fix at the scope
-  // of this repository. Review each before the next dependency refresh.
-  'https://github.com/advisories/GHSA-vcc3-ghjq-m6fr',
+  // Transitive dependencies without a compatible upstream fix at the scope of
+  // this repository, or reachable only through build tooling. Review each
+  // before the next dependency refresh.
+  //
+  // fast-uri (via @nestjs/cli -> @angular-devkit/core -> ajv): fixed in
+  // 3.1.7; the root "ajv" override pins 3.1.8.
   'https://github.com/advisories/GHSA-5jgf-p345-68v8',
   'https://github.com/advisories/GHSA-f65p-4m7j-42xc',
   'https://github.com/advisories/GHSA-fph4-wmhf-6fwf',
   'https://github.com/advisories/GHSA-jqff-g426-hqxp',
-  'https://github.com/advisories/GHSA-x5fp-wj9c-mxmx',
-  'https://github.com/advisories/GHSA-4mjr-xmp4-gh2g',
-  'https://github.com/advisories/GHSA-w5hq-g745-h8pq',
-  // Published after 2026-09-08 (next 15.x): Next.js RCE on Windows-hosts and
-  // via the Image Optimization API with AVIF files; sharp bundled libheif
-  // (GHSA-rgj7-g3m4-5g8c). Resolve by upgrading next to 15.5.25+ on a
-  // dedicated dependency refresh branch.
-  'https://github.com/advisories/GHSA-p293-qw3h-jr36',
-  'https://github.com/advisories/GHSA-2xp9-vwfh-vxw4',
-  'https://github.com/advisories/GHSA-rgj7-g3m4-5g8c',
-  // multer DoS advisories (file descriptor leak on aborted uploads, crafted
-  // multipart field names / oversized array indexes, async fileFilter size
-  // bypass). Fix with multer >=2.3.0 on the next dependency refresh.
-  'https://github.com/advisories/GHSA-wc9g-mqfw-jrwm',
-  'https://github.com/advisories/GHSA-qfvm-cv95-jqjf',
-  'https://github.com/advisories/GHSA-qvfw-j98x-7q72',
-  'https://github.com/advisories/GHSA-535w-7cp7-47q4',
-  // joi prototype pollution via custom messages and object().rename(); js-yaml
-  // maxTotalMergeKeys CPU exhaustion. Fix with joi >=17.13.6 / js-yaml
-  // >=3.15.2 or >=4.3.2 on the next dependency refresh.
+  'https://github.com/advisories/GHSA-qw65-cvwx-89v3',
+  // joi (via @react-native-community/cli-config): fixed in 17.13.7; the
+  // scoped override pins 17.13.8.
   'https://github.com/advisories/GHSA-6w3j-5fw6-r9vr',
   'https://github.com/advisories/GHSA-gg4h-3hg2-grpc',
+  'https://github.com/advisories/GHSA-6h2x-m376-mqjq',
+  // js-yaml (via @istanbuljs/load-nyc-config): fixed in 3.15.2; the scoped
+  // override pins 3.15.2.
   'https://github.com/advisories/GHSA-2883-xcg3-v3hh',
-  // Sentry OpenTelemetry transitive baggage parsing advisory (GHSA-8988-4f7v-96qf)
-  'https://github.com/advisories/GHSA-8988-4f7v-96qf',
+  // qs (via express -> body-parser): fixed in 6.15.4; the express override
+  // pins 6.16.0.
+  'https://github.com/advisories/GHSA-x5fp-wj9c-mxmx',
+  'https://github.com/advisories/GHSA-4mjr-xmp4-gh2g',
+  // decode-uri-component (via @react-navigation/core -> query-string):
+  // patched in 0.4.3. @react-navigation/core 7.21.13+ dropped query-string;
+  // it remains only if the mobile resolver keeps the older core.
+  'https://github.com/advisories/GHSA-vcc3-ghjq-m6fr',
+  // uuid (via exceljs): fixed in 11.1.1; the exceljs override pins 11.1.1.
+  // exceljs only calls uuid.v4(), which is unaffected by this advisory.
+  'https://github.com/advisories/GHSA-w5hq-g745-h8pq',
 ]);
 
 function run(command, args, options = {}) {
