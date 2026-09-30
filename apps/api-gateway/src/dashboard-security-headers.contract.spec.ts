@@ -20,7 +20,7 @@ describe('dashboard security configuration contract', () => {
 
   it('does not route missing API configuration to a fixed public HTTP host', () => {
     expect(nextConfig).toContain("process.env.API_BACKEND_URL || 'http://127.0.0.1:3005'");
-    expect(nextConfig).not.toMatch(/API_BACKEND_URL\s*\|\|\s*['\"]http:\/\/(?!127\.0\.0\.1|localhost)/);
+    expect(nextConfig).not.toMatch(/API_BACKEND_URL\s*\|\|\s*['"]http:\/\/(?!127\.0\.0\.1|localhost)/);
   });
 
   it('does not suppress dashboard TypeScript build failures', () => {
