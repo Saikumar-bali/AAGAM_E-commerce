@@ -19,7 +19,7 @@
     "@aagam/mobile-shared": "*",
     "@aagam/types": "*",
     "@aagam/utils": "*",
-    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-async-storage/async-storage": "^3.1.1",
     "@react-native-community/datetimepicker": "^8.6.0",
     "@react-native-firebase/app": "^24.0.0",
     "@react-native-firebase/messaging": "^24.0.0",
