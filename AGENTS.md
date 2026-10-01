@@ -102,6 +102,10 @@ where a global pin would break the tree:
   `query-string`/`decode-uri-component` chain)
 - `express` -> `qs 6.16.0`
 - `exceljs` -> `uuid 11.1.1`
+- `@firebase/firestore` -> `@grpc/grpc-js 1.14.5` (the `firebase` 12 /
+  `@firebase/firestore` 4.x line still pins `~1.9.0`, which is inside the
+  affected range; the mobile SDK is exercised only by the customer/partner apps,
+  which do not test through the jest suite)
 
 Overrides are only applied by a fresh resolve: after editing them, delete
 `node_modules` and `package-lock.json` and reinstall. An incremental
