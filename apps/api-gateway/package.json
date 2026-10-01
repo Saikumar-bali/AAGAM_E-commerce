@@ -6,6 +6,7 @@
     "start": "nest start",
     "dev": "nest start --watch",
     "build": "nest build",
+    "lint": "eslint src --ext .ts",
     "start:prod": "node dist/src/main.js",
     "test": "node --max-old-space-size=6144 ../../node_modules/jest/bin/jest.js --runInBand --testPathIgnorePatterns=api-smoke.spec.ts",
     "test:ci": "node --max-old-space-size=6144 ../../node_modules/jest/bin/jest.js --runInBand --testPathIgnorePatterns=api-smoke.spec.ts",

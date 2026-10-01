@@ -41,6 +41,34 @@ npm run test:ci --workspace=apps/api-gateway
 `npm run test:ci` takes several minutes; run it in the background and poll the
 log rather than blocking the terminal.
 
+After `npm ci` (which CI runs, and which wipes generated output), regenerate the
+Prisma client or ~59 suites fail to run with `PrismaClientInitializationError`:
+
+```bash
+npx prisma generate --schema packages/database/prisma/schema.prisma
+```
+
+## Linting
+
+A single root `.eslintrc.js` lints every workspace; there is no per-app ESLint
+config. Run it from the repo root:
+
+```bash
+npm run lint        # 0 errors expected; warnings are tracked debt
+npm run lint:fix
+```
+
+It is syntactic only (no type-aware `project` parsing) so it works without
+building the workspace packages first. CI runs `npm run lint` right after
+`npm install`, before any build. The config deliberately does not extend
+`next/core-web-vitals`: that config bundles its own `eslint-plugin-react-hooks`
+5.x, and ESLint 8 refuses two copies of one plugin name, so the Next rules are
+enabled directly through `@next/eslint-plugin-next` and React comes from the
+single 7.x copy at the repo root. Keep it that way when adding rules.
+
+`apps/admin-dashboard` previously used `next lint`, which prompts interactively
+and hangs in CI; it now uses `eslint` like everything else.
+
 ## Comparing against a baseline
 
 To prove whether a change caused a failure, compare failing suites with and

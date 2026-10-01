@@ -118,8 +118,7 @@ export async function getFCMToken() {
 
 function trackRegistrationWrite<T>(operation: () => Promise<T>): Promise<T | null> {
   if (registrationWritesSuspended) return Promise.resolve(null);
-  let tracked: Promise<T | null>;
-  tracked = Promise.resolve()
+  const tracked: Promise<T | null> = Promise.resolve()
     .then(() => (registrationWritesSuspended ? null : operation()))
     .finally(() => activeRegistrationWrites.delete(tracked));
   activeRegistrationWrites.add(tracked);
