@@ -8,11 +8,11 @@
     "packages/*"
   ],
   "overrides": {
-    "@nestjs/common": "11.1.28",
-    "@nestjs/core": "11.1.28",
-    "@nestjs/platform-express": "11.1.28",
-    "@nestjs/platform-socket.io": "11.1.28",
-    "@nestjs/websockets": "11.1.28",
+    "@nestjs/common": "11.2.6",
+    "@nestjs/core": "11.2.6",
+    "@nestjs/platform-express": "11.2.6",
+    "@nestjs/platform-socket.io": "11.2.6",
+    "@nestjs/websockets": "11.2.6",
     "fast-xml-parser": "5.10.1",
     "gaxios": {
       "uuid": "11.1.1"
@@ -23,7 +23,31 @@
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "postcss": "8.5.23",
-    "sharp": "0.35.3"
+    "sharp": "0.35.5",
+    "ajv": {
+      "fast-uri": "3.1.8"
+    },
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "3.15.2"
+    },
+    "@react-native-community/cli-config": {
+      "joi": "17.13.8"
+    },
+    "@react-native-community/cli-server-api": {
+      "body-parser": "1.20.8"
+    },
+    "@react-navigation/native": {
+      "@react-navigation/core": "7.23.0"
+    },
+    "express": {
+      "qs": "6.16.0"
+    },
+    "exceljs": {
+      "uuid": "11.1.1"
+    },
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "1.14.5"
+    }
   },
   "scripts": {
     "postinstall": "node scripts/patch-image-size-cves.js",
@@ -62,11 +86,11 @@
     "test:rider:e2e": "npm run test --workspace=apps/api-gateway -- --testPathPattern=rider-tracking-e2e"
   },
   "devDependencies": {
-    "@nestjs/common": "11.1.28",
-    "@nestjs/core": "11.1.28",
-    "@nestjs/platform-express": "11.1.28",
-    "@nestjs/platform-socket.io": "11.1.28",
-    "@nestjs/websockets": "11.1.28",
+    "@nestjs/common": "11.2.6",
+    "@nestjs/core": "11.2.6",
+    "@nestjs/platform-express": "11.2.6",
+    "@nestjs/platform-socket.io": "11.2.6",
+    "@nestjs/websockets": "11.2.6",
     "@types/mapbox-gl": "^3.4.1",
     "react-native-dotenv": "^3.4.11",
     "reflect-metadata": "0.2.2",
