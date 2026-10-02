@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Patch, Body, Req, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Param, Post, Patch, Body, Query, Req, UseGuards, ForbiddenException } from '@nestjs/common';
 import { Role } from '@aagam/database';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -22,9 +22,14 @@ export class StoreSelfDeliveryController {
   }
 
   @Get('queue/:storeId')
-  async getTodayQueue(@Param('storeId') storeId: string, @Req() req: AuthenticatedRequest) {
+  async getTodayQueue(
+    @Param('storeId') storeId: string,
+    @Req() req: AuthenticatedRequest,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
     await this.assertStoreOwnership(storeId, req.user);
-    return this.storeDelivery.getTodayQueue(storeId);
+    return this.storeDelivery.getTodayQueue(storeId, { from, to });
   }
 
   @Get('customer-info/:subscriptionDeliveryId')
