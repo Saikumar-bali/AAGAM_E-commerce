@@ -597,7 +597,16 @@ for readiness_path in ready ready/realtime ready/notifications; do
   echo "Readiness check passed: $readiness_url"
 done
 
-# Everything is healthy: hand the build swap back to the volume. The runtime
+# Everything is healthy, so this release is definitely superseded and the
+# previous release's backup is dead weight. on_error() removes it on the
+# failure path; the success path never did, so every successful deploy leaked
+# a ~32 MB mktemp directory that nothing ever collected (three had piled up).
+if [[ -n "${DIST_BACKUP_DIR:-}" && -d "$DIST_BACKUP_DIR" ]]; then
+  echo "Removing build artifact backup $DIST_BACKUP_DIR"
+  rm -rf "$DIST_BACKUP_DIR" || true
+fi
+
+# Hand the build swap back to the volume now that nothing needs it. The runtime
 # keeps its persistent /var/swap/aagam.swap, so this costs nothing at rest and
 # returns ~4 GB of a 19 GB disk on every deploy.
 release_deploy_swap || true
