@@ -66,4 +66,5 @@ export type RootStackParamList = {
   StoreSubscriptionPlans: undefined;
   StoreMilkGrid: undefined;
   StoreOfflineCustomer: undefined;
+  StoreRiderAssignments: undefined;
 };

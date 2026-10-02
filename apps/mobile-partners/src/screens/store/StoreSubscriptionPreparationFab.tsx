@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Box, CalendarClock, CheckCircle2, MapPin, Phone, RefreshCw, Route, X } from 'lucide-react-native';
+import { AlertTriangle, Box, CheckCircle2, MapPin, Phone, RefreshCw, Route, X } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 import { apiClient } from '../../api/client';
 
@@ -50,9 +50,25 @@ function idempotencyKey(row: PreparationRow, decision: string) {
   return `partners-store-preparation:${row.id}:${decision}:${Date.now()}`;
 }
 
-export function StoreSubscriptionPreparationFab() {
+export function usePreparationSummary() {
+  const query = useQuery({
+    queryKey: PREPARATION_KEY,
+    queryFn: async (): Promise<PreparationRow[]> => {
+      const response = await apiClient.get('/store/subscription-preparation', { params: { days: 3 } });
+      return Array.isArray(response.data) ? response.data : [];
+    },
+    refetchInterval: 30_000,
+    retry: 1,
+  });
+  const rows = query.data || [];
+  return {
+    pending: rows.filter((row) => row.readiness.status === 'PENDING').length,
+    shortages: rows.filter((row) => row.readiness.status === 'SHORTAGE').length,
+  };
+}
+
+export function StoreSubscriptionPreparationModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState<Record<string, string>>({});
 
   const query = useQuery({
@@ -66,8 +82,6 @@ export function StoreSubscriptionPreparationFab() {
   });
 
   const rows = query.data || [];
-  const pending = useMemo(() => rows.filter((row) => row.readiness.status === 'PENDING').length, [rows]);
-  const shortages = useMemo(() => rows.filter((row) => row.readiness.status === 'SHORTAGE').length, [rows]);
 
   const mutation = useMutation({
     mutationFn: async ({ row, decision }: { row: PreparationRow; decision: 'READY' | 'SHORTAGE' }) => {
@@ -95,24 +109,11 @@ export function StoreSubscriptionPreparationFab() {
 
   return (
     <>
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel="Open tomorrow subscription preparation"
-        onPress={() => setOpen(true)}
-        style={styles.fab}
-      >
-        <CalendarClock size={17} color="#FFFFFF" />
-        <Text style={styles.fabText}>Tomorrow</Text>
-        {shortages > 0 ? <View style={[styles.badge, styles.badgeDanger]}><Text style={styles.badgeText}>{shortages}</Text></View>
-          : pending > 0 ? <View style={styles.badge}><Text style={styles.badgeTextDark}>{pending}</Text></View>
-            : <CheckCircle2 size={15} color="#B7F7D7" />}
-      </TouchableOpacity>
-
-      <Modal visible={open} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setOpen(false)}>
+      <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
         <View style={styles.screen}>
           <View style={styles.header}>
             <View style={styles.headerCopy}><Text style={styles.eyebrow}>D-1 STOCK READINESS</Text><Text style={styles.title}>Tomorrow preparation</Text><Text style={styles.subtitle}>Confirm stock before delivery day. Forecast confirmation never deducts inventory.</Text></View>
-            <TouchableOpacity accessibilityLabel="Close preparation" onPress={() => setOpen(false)} style={styles.closeButton}><X size={22} color="#FFFFFF" /></TouchableOpacity>
+            <TouchableOpacity accessibilityLabel="Close preparation" onPress={onClose} style={styles.closeButton}><X size={22} color="#FFFFFF" /></TouchableOpacity>
           </View>
 
           <ScrollView

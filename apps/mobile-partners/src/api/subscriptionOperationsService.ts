@@ -498,4 +498,26 @@ export const subscriptionOperationsService = {
     const response = await apiClient.post('/store/subscriptions/manual-subscribe', input);
     return response.data;
   },
+
+  getRiderAssignments: async (date?: string): Promise<any> => {
+    const response = await apiClient.get('/store/subscriptions/rider-assignments', {
+      params: date ? { date } : undefined,
+    });
+    return response.data;
+  },
+
+  getAvailableRiders: async (): Promise<any[]> => {
+    const response = await apiClient.get('/store/subscriptions/available-riders');
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
+  dispatchToRider: async (input: {
+    deliveryIds: string[];
+    riderProfileId: string;
+    slot?: 'AM' | 'PM';
+    saveAsDefaultRider?: boolean;
+  }) => {
+    const response = await apiClient.post('/store/subscriptions/dispatch-to-rider', input);
+    return response.data;
+  },
 };

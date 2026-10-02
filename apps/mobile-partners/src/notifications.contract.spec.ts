@@ -41,11 +41,25 @@ describe('Partners notification delivery contracts', () => {
     const coordinator = read('notifications/PartnerPushCoordinator.tsx');
     const routing = read('domain/partnerNotifications.ts');
     expect(coordinator).toContain('notificationService.getInbox(50)');
-    expect(coordinator).toContain('INBOX_POLL_MS = 10_000');
+    expect(coordinator).toContain('INBOX_POLL_MS = 30_000');
     expect(coordinator).toContain('Push setup unavailable');
     expect(coordinator).toContain('notificationDedupeKey(payload)}:opened');
     expect(routing).toContain("['partner-store-orders']");
     expect(routing).toContain("['rider', 'delivery-workspace']");
+  });
+
+  it('raises a single, accept-gated offer notification instead of polling repeats', () => {
+    const coordinator = read('notifications/PartnerPushCoordinator.tsx');
+    const policy = read('domain/partnerAlertPolicy.ts');
+    expect(coordinator).toContain('alertKeyForPayload(payload)');
+    expect(coordinator).toContain('alertKeysForInboxBootstrap');
+    expect(coordinator).toContain('shouldAlertForInboxItem');
+    expect(coordinator).toContain('rememberAlert');
+    expect(coordinator).toContain('AsyncStorage.getItem(alertedStorageKey)');
+    expect(policy).toContain("return `offer:${payload.assignmentId");
+    expect(policy).toContain('if (item.readAt || item.openedAt) return false;');
+    // The poll loop must never use the old "re-alert the last three unread" burst.
+    expect(coordinator).not.toContain('unseen.slice(-3)');
   });
 
   it('repairs Rider or Store FCM binding without re-prompting notification permission', () => {
@@ -79,9 +93,9 @@ describe('Partners notification delivery contracts', () => {
 
   it('preserves metadata identifiers and prioritizes Store pickup routing', () => {
     const inbox = read('screens/PartnerNotificationsScreen.tsx');
-    const coordinator = read('notifications/PartnerPushCoordinator.tsx');
+    const policy = read('domain/partnerAlertPolicy.ts');
     expect(inbox).toContain('item.assignmentId ?? metadata.assignmentId');
-    expect(coordinator).toContain('item.assignmentId ?? metadata.assignmentId');
+    expect(policy).toContain('assignmentId: item.assignmentId ?? metadata.assignmentId');
     expect(inbox.indexOf("eventType === 'RIDER_AT_STORE'")).toBeLessThan(
       inbox.indexOf('if (openTypedWorkspace(item)) return;'),
     );

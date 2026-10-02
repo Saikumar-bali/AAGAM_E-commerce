@@ -16,7 +16,7 @@ import {
 import { StoreDashboard } from '../screens/store/StoreDashboard';
 import { StoreDeliveryOperationsScreen } from '../screens/store/StoreDeliveryOperationsScreen';
 import { StoreSubscriptionOperationsScreen } from '../screens/store/StoreSubscriptionOperationsScreen';
-import { StoreSubscriptionPreparationFab } from '../screens/store/StoreSubscriptionPreparationFab';
+import { StoreOperationsDock } from '../components/StoreOperationsDock';
 import { StoreInventoryScreen } from '../screens/store/StoreInventoryScreen';
 import { StoreOrdersNavigator } from './StoreOrdersNavigator';
 import { StoreSettingsScreen } from '../screens/store/StoreSettingsScreen';
@@ -27,6 +27,7 @@ import { StoreOfflineCustomerScreen } from '../screens/store/StoreOfflineCustome
 import { StoreSubscribersScreen } from '../screens/store/StoreSubscribersScreen';
 import { StoreSubscriptionPlansScreen } from '../screens/store/StoreSubscriptionPlansScreen';
 import { StoreMilkGridScreen } from '../screens/store/StoreMilkGridScreen';
+import { StoreRiderAssignmentsScreen } from '../screens/store/StoreRiderAssignmentsScreen';
 import { notificationService } from '../api/notificationService';
 import { storeService } from '../api/storeService';
 import { deliveryOperationsService } from '../api/deliveryOperationsService';
@@ -200,7 +201,8 @@ export const StoreNavigator = () => (
       <Stack.Screen name="StoreSubscriptionPlans" component={StoreSubscriptionPlansScreen} />
       <Stack.Screen name="StoreMilkGrid" component={StoreMilkGridScreen} />
       <Stack.Screen name="StoreOfflineCustomer" component={StoreOfflineCustomerScreen} />
+      <Stack.Screen name="StoreRiderAssignments" component={StoreRiderAssignmentsScreen} />
     </Stack.Navigator>
-    <StoreSubscriptionPreparationFab />
+    <StoreOperationsDock />
   </View>
 );
