@@ -6,6 +6,7 @@ import {
   prisma,
 } from '@aagam/database';
 import { enqueueOutboxEvent } from '../notifications/outbox.service';
+import { captureBackgroundError } from '../common/sentry-config';
 
 // Assignment/removal notifications are already emitted directly by the
 // authoritative rider-assignment transaction as ROUTE_ASSIGNED/ROUTE_REMOVED.
@@ -31,15 +32,34 @@ type AudienceMessage = {
   userIds: string[];
 };
 
+// Backlog scanned once on startup (and after a long pause). After that the
+// sweep advances a watermark so old events are not re-enqueued every 10s.
+const INITIAL_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+const FLUSH_INTERVAL_MS = 10_000;
+
 @Injectable()
 export class RegionalRouteNotificationService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RegionalRouteNotificationService.name);
   private timer?: NodeJS.Timeout;
   private running = false;
+  /**
+   * Exclusive lower bound on `(createdAt, id)` for the next sweep.
+   *
+   * Without this the query re-scans the previous 7 days of events on every tick
+   * and re-enqueues each one; the outbox then rejects each as a duplicate. Those
+   * rejections are logged by Postgres as ERRORs and were the single largest
+   * source of disk usage on the VPS.
+   *
+   * `id` is part of the cursor because `createdAt` is `TIMESTAMP(3)`: a single
+   * transaction (e.g. the recovery run that writes DELIVERY_RUN_INTERRUPTED and
+   * RECOVERY_RUN_CREATED together) stamps several rows with the same value, and
+   * a timestamp-only bound would skip any that straddle a `take: 500` page.
+   */
+  private watermark?: { createdAt: Date; id: string };
 
   onModuleInit() {
     if (process.env.NODE_ENV === 'test') return;
-    this.timer = setInterval(() => void this.flush(), 10_000);
+    this.timer = setInterval(() => void this.flush(), FLUSH_INTERVAL_MS);
     this.timer.unref?.();
     void this.flush();
   }
@@ -52,17 +72,63 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
     if (this.running) return;
     this.running = true;
     try {
+      const now = new Date();
+      const cursor = this.watermark;
+      // First run: scan the backlog. Subsequent runs: only events after the
+      // composite cursor. Clamp so a paused process cannot scan unbounded
+      // history in one tick.
+      const lowerBound = new Date(now.getTime() - INITIAL_LOOKBACK_MS);
+
       const events = await prisma.deliveryRouteEvent.findMany({
         where: {
           eventType: { in: ROUTE_NOTIFICATION_EVENTS },
-          createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+          ...(cursor
+            ? {
+                OR: [
+                  { createdAt: { gt: cursor.createdAt } },
+                  { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+                ],
+              }
+            : { createdAt: { gt: lowerBound } }),
         },
-        orderBy: { createdAt: 'asc' },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: 500,
       });
-      for (const event of events) await this.deliver(event);
+
+      for (const event of events) {
+        try {
+          // Deliver before advancing so a thrown error leaves the event queued
+          // for the next tick rather than silently dropped.
+          await this.deliver(event);
+        } catch (error: unknown) {
+          // Isolate per event: one bad event must not abort the batch and
+          // re-enqueue (or stall behind) every later event on each tick. The
+          // watermark is left untouched so the failed event is retried next
+          // tick, and enqueue itself is idempotent, so re-processing an event
+          // whose deliver() failed midway only re-inserts already-committed
+          // outbox rows as duplicates (skipped by idempotency key).
+          captureBackgroundError(
+            this.logger,
+            `Regional route notification delivery failed for event ${event.id}`,
+            error,
+          );
+          break;
+        }
+        if (
+          !this.watermark
+          || event.createdAt > this.watermark.createdAt
+          || (
+            event.createdAt.getTime() === this.watermark.createdAt.getTime()
+            && event.id > this.watermark.id
+          )
+        ) {
+          this.watermark = { createdAt: event.createdAt, id: event.id };
+        }
+      }
+      // With no new events the watermark stays put: the cursor predicate is an
+      // indexed range that simply returns no rows, so there is nothing to bound.
     } catch (error: unknown) {
-      this.logger.error(`Regional route notification flush failed: ${error instanceof Error ? error.message : String(error)}`);
+      captureBackgroundError(this.logger, 'Regional route notification flush failed', error);
     } finally {
       this.running = false;
     }

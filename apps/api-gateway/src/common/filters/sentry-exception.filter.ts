@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import * as Sentry from '@sentry/node';
 import { Request, Response } from 'express';
+import { isSentryEnabled } from '../sentry-config';
 
 @Catch()
 export class SentryExceptionFilter implements ExceptionFilter {
@@ -23,8 +24,13 @@ export class SentryExceptionFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    // Report server-side 5xx errors and unhandled runtime crashes to Sentry
-    if (status >= 500 && process.env.SENTRY_DSN) {
+    // Report server-side 5xx errors and unhandled runtime crashes to Sentry.
+    //
+    // This previously gated on `process.env.SENTRY_DSN`, which production never
+    // set — so `captureException()` was never reached even though the SDK had
+    // initialised from the fallback DSN in instrument.ts. Resolve the same way
+    // the SDK does so the two cannot drift apart.
+    if (status >= 500 && isSentryEnabled) {
       Sentry.withScope((scope) => {
         scope.setTag('path', request.url);
         scope.setTag('method', request.method);

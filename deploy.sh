@@ -52,6 +52,12 @@ on_error() {
     pm2 status || true
     pm2 logs api-gateway --lines 80 --nostream || true
   fi
+  # A failed deploy must not strand the build swap on disk either: it is the
+  # single largest file on a 19 GB volume and the next deploy recreates it.
+  # Guarded because this trap can fire before the function is parsed.
+  if declare -F release_deploy_swap >/dev/null 2>&1; then
+    release_deploy_swap || true
+  fi
   exit "$exit_code"
 }
 trap on_error ERR
@@ -241,6 +247,60 @@ ensure_deploy_memory() {
       echo "Unable to provide minimum memory threshold of 2048 MB to safely perform build."
       exit 1
     fi
+  fi
+}
+
+# Deployment swap is a build-time fixture only. The 1.9 GB host cannot compile
+# the release without ~4 GB of extra headroom, but that file has no business
+# occupying 4 GB of a 19 GB volume while the site is simply running: on this
+# host it sat permanently at 4.1 GB holding 167 MB of pages, and the volume
+# reached 100% during the 2026-10-01 outage.
+#
+# Release it once the deploy is over — on success and on failure alike. The
+# next deploy recreates it in ~1s via fallocate. Only the deployment-owned
+# files are touched; /var/swap/aagam.swap (persistent runtime swap) is never
+# removed.
+#
+# Best-effort by design: cleanup must never turn a successful deploy into a
+# failed one, so every failure path here is swallowed.
+release_deploy_swap() {
+  local swap_file
+  for swap_file in "$DEPLOY_SUPPLEMENTAL_SWAP_FILE" "$DEPLOY_SWAP_FILE"; do
+    [[ -n "$swap_file" && -f "$swap_file" ]] || continue
+
+    if swap_is_active "$swap_file"; then
+      # /proc/swaps columns: Filename Type Size Used Free (all kB).
+      # `exit` inside awk rather than a `| head` pipeline: under
+      # `set -o pipefail` a SIGPIPE from head could fail this assignment.
+      local used_kb
+      used_kb="$(awk -v f="$swap_file" '$1 == f { print $4; exit }' /proc/swaps 2>/dev/null)"
+      [[ "$used_kb" =~ ^[0-9]+$ ]] || used_kb=0
+
+      local available_kb
+      available_kb="$(awk '/MemAvailable:/ { print $2; exit }' /proc/meminfo 2>/dev/null)"
+      [[ "$available_kb" =~ ^[0-9]+$ ]] || available_kb=0
+
+      # swapoff migrates those pages straight back into RAM. Refuse rather
+      # than hand them to the OOM killer: keep 512 MB of headroom after the
+      # migration so the live release is never put at risk by housekeeping.
+      if (( used_kb + 524288 > available_kb )); then
+        echo "Leaving deployment swap in place: $swap_file holds ${used_kb} kB which cannot safely migrate into ${available_kb} kB MemAvailable."
+        continue
+      fi
+
+      echo "Releasing deployment swap $swap_file (${used_kb} kB in use)."
+      if ! sudo swapoff "$swap_file" >/dev/null 2>&1; then
+        echo "swapoff $swap_file failed; leaving it active rather than deleting a mounted swap."
+        continue
+      fi
+    fi
+
+    sudo rm -f "$swap_file" 2>/dev/null || true
+  done
+
+  # Report the space actually returned so a deploy log shows the gain.
+  if command -v df >/dev/null 2>&1; then
+    echo "Disk after deployment swap release: $(df -Ph / | awk 'NR == 2 { print $4 " free (" $5 ")" }')"
   fi
 }
 
@@ -537,5 +597,21 @@ for readiness_path in ready ready/realtime ready/notifications; do
   echo "Readiness check passed: $readiness_url"
 done
 
+# Hand the build swap back to the volume now that nothing needs it. The runtime
+# keeps its persistent /var/swap/aagam.swap, so this costs nothing at rest and
+# returns ~4 GB of a 19 GB disk on every deploy.
+release_deploy_swap || true
+
 pm2 status
 echo "Deployment completed successfully for commit $DEPLOY_SHA"
+
+# Everything is healthy, so this release is definitely superseded and the
+# previous release's backup is dead weight. Removed only after the final
+# failure-capable verification (pm2 status) so on_error() can still restore the
+# build artifacts if that check fails. on_error() removes it on the failure path;
+# the success path never did, so every successful deploy leaked a ~32 MB mktemp
+# directory that nothing ever collected (three had piled up).
+if [[ -n "${DIST_BACKUP_DIR:-}" && -d "$DIST_BACKUP_DIR" ]]; then
+  echo "Removing build artifact backup $DIST_BACKUP_DIR"
+  rm -rf "$DIST_BACKUP_DIR" || true
+fi
