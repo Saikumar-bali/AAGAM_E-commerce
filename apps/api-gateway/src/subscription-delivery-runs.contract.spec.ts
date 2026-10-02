@@ -112,7 +112,7 @@ describe('COD subscription delivery runs production contract', () => {
     expect(controller).toContain('@Roles(Role.STORE_OWNER, Role.ADMIN)');
     expect(controller).toContain('@Roles(Role.ADMIN)');
     expect(controller).toContain('storeDeliveryCalendar(req.user, from, to)');
-    expect(controller).toContain('storeSubscribers(req.user)');
+    expect(controller).toContain('storeSubscribers(req.user, { status })');
     expect(controller).toContain('storeAnalytics(req.user)');
     expect(controller).toContain('listForStore(req.user.id)');
     // Store-scoped views must never scan every subscription/delivery in the database.

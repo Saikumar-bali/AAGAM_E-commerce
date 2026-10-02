@@ -288,6 +288,8 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
   // Modal / Popover States
   const [selectedCell, setSelectedCell] = useState<{ row: GridRow; day: number; cell: GridCell | null } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  // One key per grid-triggered renewal so a double-click replays the same renewal.
+  const renewKeyRef = useRef<string>('');
   const [dispatchModalOpen, setDispatchModalOpen] = useState(false);
   const [dispatchData, setDispatchData] = useState<any>(null);
   const [dispatchLoading, setDispatchLoading] = useState(false);
@@ -2608,12 +2610,14 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                             onClick={async () => {
                               try {
                                 setActionLoading(true);
+                                if (!renewKeyRef.current) renewKeyRef.current = `store-grid-renew:${globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36)}`;
                                 await apiClient.post(
                                   `/store/subscriptions/subscribers/${selectedCell.row.subscriptionId}/renew`,
                                   {
                                     isSamePlan: true,
                                     totalDeliveries: 30,
                                   },
+                                  { headers: { "Idempotency-Key": renewKeyRef.current } },
                                 );
                                 toast.success(`Plan renewed for ${selectedCell.row.customer.name}!`);
                                 setSelectedCell(null);
@@ -2622,6 +2626,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                 toast.error(err.response?.data?.message || 'Renewal failed');
                               } finally {
                                 setActionLoading(false);
+                                renewKeyRef.current = '';
                               }
                             }}
                             className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-800 shadow-xs"

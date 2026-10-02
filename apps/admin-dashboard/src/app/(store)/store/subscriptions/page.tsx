@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import DashboardLayout from "@/components/DashboardLayout";
 import { getToastErrorMessage, useToast } from "@/components/ToastProvider";
@@ -106,6 +106,12 @@ type CashBatch = {
   version: number;
   rider?: { user?: { name?: string | null } | null } | null;
 };
+
+function createIdempotencyKey(scope: string): string {
+  const rand = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36);
+  return `${scope}:${rand}`;
+}
+
 type ExceptionRow = Stop & { deliveryRun: { routeCode: string } };
 type Tab = "grid" | "subscribers" | "plans" | "calendar" | "prep" | "runs" | "forecast" | "cash" | "exceptions" | "analytics";
 
@@ -291,6 +297,10 @@ export default function StoreSubscriptionOperationsPage() {
   const [settlementReference, setSettlementReference] = useState("");
   const [varianceReason, setVarianceReason] = useState("");
   const [subscribers, setSubscribers] = useState<SubscriberRow[]>([]);
+  const [subscriberCounts, setSubscriberCounts] = useState<{ total: number; active: number; paused: number; cancelled: number } | null>(null);
+  // Stable idempotency keys per submit flow so retries/double-clicks replay instead of duplicating.
+  const addCustomerKeyRef = useRef<string>("");
+  const renewalKeyRef = useRef<string>("");
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [calendar, setCalendar] = useState<CalendarRow[]>([]);
   const [analytics, setAnalytics] = useState<StoreAnalytics | null>(null);
@@ -483,7 +493,12 @@ export default function StoreSubscriptionOperationsPage() {
       if (cashResponse.status === "fulfilled") setCash(Array.isArray(cashResponse.value.data) ? cashResponse.value.data : []);
       if (exceptionsResponse.status === "fulfilled") setExceptions(Array.isArray(exceptionsResponse.value.data) ? exceptionsResponse.value.data : []);
       if (prepResponse.status === "fulfilled") setPrepRows(Array.isArray(prepResponse.value.data) ? prepResponse.value.data : []);
-      if (subscribersResponse.status === "fulfilled") setSubscribers(Array.isArray(subscribersResponse.value.data) ? subscribersResponse.value.data : []);
+      if (subscribersResponse.status === "fulfilled") {
+        const payload = subscribersResponse.value.data;
+        const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.subscribers) ? payload.subscribers : [];
+        setSubscribers(rows);
+        setSubscriberCounts(payload?.counts ?? null);
+      }
       const loadedPlans = plansResponse.status === "fulfilled" && Array.isArray(plansResponse.value.data) ? plansResponse.value.data : [];
       setPlans(loadedPlans);
       if (calendarResponse.status === "fulfilled") setCalendar(Array.isArray(calendarResponse.value.data) ? calendarResponse.value.data : []);
@@ -571,6 +586,7 @@ export default function StoreSubscriptionOperationsPage() {
     }
 
     setSavingCustomer(true);
+    if (!addCustomerKeyRef.current) addCustomerKeyRef.current = createIdempotencyKey("store-manual-subscribe");
     try {
       const custRes = await apiClient.post("/store/subscriptions/manual-customer", {
         name: customerForm.name.trim(),
@@ -613,7 +629,7 @@ export default function StoreSubscriptionOperationsPage() {
         initialCashCollectedPaise: customerForm.paymentMode === "DUE" ? 0 : amountPaise,
         storeDelivery: true,
         note: paymentNote,
-      });
+      }, { headers: { "Idempotency-Key": addCustomerKeyRef.current } });
 
       toast.success("Offline customer created successfully with GPS location!");
       setAddCustomerModalOpen(false);
@@ -654,6 +670,7 @@ export default function StoreSubscriptionOperationsPage() {
       toast.error(getToastErrorMessage(err, "Failed to create offline customer subscription"));
     } finally {
       setSavingCustomer(false);
+      addCustomerKeyRef.current = "";
     }
   };
 
@@ -807,8 +824,8 @@ export default function StoreSubscriptionOperationsPage() {
   ).length;
   const tabCounts = useMemo<Record<Tab, number>>(
     () => ({
-      grid: subscribers.length,
-      subscribers: subscribers.length,
+      grid: subscriberCounts?.total ?? subscribers.length,
+      subscribers: subscriberCounts?.total ?? subscribers.length,
       plans: plans.length,
       calendar: 0,
       prep: prepPending + prepShortages,
@@ -818,7 +835,7 @@ export default function StoreSubscriptionOperationsPage() {
       exceptions: exceptions.length,
       analytics: 0,
     }),
-    [subscribers.length, plans.length, prepPending, prepShortages, runs.length, forecastItems, pendingCashCount, exceptions.length]
+    [subscriberCounts, subscribers.length, plans.length, prepPending, prepShortages, runs.length, forecastItems, pendingCashCount, exceptions.length]
   );
 
   return (
@@ -838,7 +855,7 @@ export default function StoreSubscriptionOperationsPage() {
         <section className="grid grid-cols-2 gap-2 xl:grid-cols-4">
           <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 ">
             <div className="flex items-center gap-2 text-emerald-700"><span className="rounded-lg bg-emerald-50 p-1.5"><Users className="h-3.5 w-3.5" /></span><span className="text-xs font-semibold text-slate-600">Subscribers</span></div>
-            <strong className="text-lg text-slate-900">{subscribers.length}</strong>
+            <strong className="text-lg text-slate-900">{subscriberCounts?.total ?? subscribers.length}</strong>
           </div>
           <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 ">
             <div className="flex items-center gap-2 text-emerald-700"><span className="rounded-lg bg-emerald-50 p-1.5"><Archive className="h-3.5 w-3.5" /></span><span className="text-xs font-semibold text-slate-600">Active plans</span></div>
@@ -898,6 +915,7 @@ export default function StoreSubscriptionOperationsPage() {
             {tab === "subscribers" && (
               <SubscribersSection 
                 rows={subscribers} 
+                counts={subscriberCounts}
                 onEdit={(sub) => {
                   setEditingSubscriber(sub);
                   const isCompleted = sub.status === 'COMPLETED' || (sub.completedDeliveries && sub.completedDeliveries >= (sub.fundedDeliveryCount || 30));
@@ -943,7 +961,7 @@ export default function StoreSubscriptionOperationsPage() {
             )}
 
             {tab === "analytics" && (
-              <AnalyticsSection analytics={analytics} runs={runs} cash={cash} subscribers={subscribers} />
+              <AnalyticsSection analytics={analytics} runs={runs} cash={cash} subscribers={subscribers} subscriberCounts={subscriberCounts} />
             )}
 
             {tab === "prep" && (
@@ -1786,6 +1804,7 @@ export default function StoreSubscriptionOperationsPage() {
                       disabled={working === "renew-subscriber"}
                       onClick={async () => {
                         setWorking("renew-subscriber");
+                        if (!renewalKeyRef.current) renewalKeyRef.current = createIdempotencyKey("store-renew");
                         try {
                           const initialCashPaise = Math.round(Number(editForm.initialCollectedRupees || 0) * 100);
                           const splitItems = editForm.renewalType === 'split'
@@ -1817,7 +1836,7 @@ export default function StoreSubscriptionOperationsPage() {
                             initialCashCollectedPaise: initialCashPaise > 0 ? initialCashPaise : undefined,
                             paymentMode: editForm.paymentMode !== 'DUE' ? editForm.paymentMode : undefined,
                             note: editForm.note.trim() || undefined,
-                          });
+                          }, { headers: { "Idempotency-Key": renewalKeyRef.current } });
 
                           toast.success(
                             editForm.renewalType === 'switch'
@@ -1830,6 +1849,7 @@ export default function StoreSubscriptionOperationsPage() {
                           toast.error(getToastErrorMessage(error, "Operation failed"));
                         } finally {
                           setWorking("");
+                          renewalKeyRef.current = "";
                         }
                       }}
                       className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
@@ -2900,41 +2920,71 @@ function StatusPill({ status }: { status: string }) {
 
 function SubscribersSection({
   rows,
+  counts,
   onEdit,
   onViewHistory,
   onCancel,
   onAddOfflineCustomer,
 }: {
   rows: SubscriberRow[];
+  counts?: { total: number; active: number; paused: number; cancelled: number } | null;
   onEdit?: (sub: SubscriberRow) => void;
   onViewHistory?: (sub: SubscriberRow) => void;
   onCancel?: (sub: SubscriberRow) => void;
   onAddOfflineCustomer?: () => void;
 }) {
   const [sourceFilter, setSourceFilter] = useState<'all' | 'online' | 'offline'>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'CANCELLED'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'PAUSED' | 'CANCELLED'>('all');
+  const [cancelledRows, setCancelledRows] = useState<SubscriberRow[]>([]);
+  const [cancelledLoaded, setCancelledLoaded] = useState(false);
+  const [loadingCancelled, setLoadingCancelled] = useState(false);
 
-  const filteredRows = rows.filter((row) => {
+  const isActiveStatus = (status: string) => status === 'ACTIVE' || status === 'PENDING_CASH_COLLECTION' || status === 'PAYMENT_DUE' || status === 'GRACE_PERIOD';
+
+  // Cancelled contracts are history, so they are fetched on demand rather than
+  // shipped with the live subscriber list.
+  useEffect(() => {
+    if (statusFilter !== 'CANCELLED' || cancelledLoaded) return;
+    let active = true;
+    setLoadingCancelled(true);
+    apiClient.get("/store/subscriptions/subscribers", { params: { status: 'cancelled' } })
+      .then((res) => {
+        if (!active) return;
+        const payload = res.data;
+        const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.subscribers) ? payload.subscribers : [];
+        setCancelledRows(rows);
+        setCancelledLoaded(true);
+      })
+      .catch(() => { if (active) setCancelledRows([]); })
+      .finally(() => { if (active) setLoadingCancelled(false); });
+    return () => { active = false; };
+  }, [statusFilter, cancelledLoaded]);
+
+  const displayRows = statusFilter === 'CANCELLED' ? cancelledRows : rows;
+
+  const filteredRows = displayRows.filter((row) => {
     const isOffline = isOfflineSubscriber(row);
     if (sourceFilter === 'offline' && !isOffline) return false;
     if (sourceFilter === 'online' && isOffline) return false;
 
-    if (statusFilter === 'ACTIVE') return row.status === 'ACTIVE';
+    if (statusFilter === 'ACTIVE') return isActiveStatus(row.status);
+    if (statusFilter === 'PAUSED') return row.status === 'PAUSED';
     if (statusFilter === 'CANCELLED') return row.status === 'CANCELLED';
     return true;
   });
 
-  const counts = useMemo(() => {
-    const offlineRows = rows.filter(isOfflineSubscriber);
-    const onlineRows = rows.filter((r) => !isOfflineSubscriber(r));
+  const countsSummary = useMemo(() => {
+    const offlineRows = displayRows.filter(isOfflineSubscriber);
+    const onlineRows = displayRows.filter((r) => !isOfflineSubscriber(r));
     return {
-      all: rows.length,
+      all: statusFilter === 'CANCELLED' ? displayRows.length : (counts?.total ?? rows.length),
       online: onlineRows.length,
       offline: offlineRows.length,
-      active: rows.filter((r) => r.status === 'ACTIVE').length,
-      cancelled: rows.filter((r) => r.status === 'CANCELLED').length,
+      active: counts?.active ?? rows.filter((r) => isActiveStatus(r.status)).length,
+      paused: counts?.paused ?? rows.filter((r) => r.status === 'PAUSED').length,
+      cancelled: counts?.cancelled ?? rows.filter((r) => r.status === 'CANCELLED').length,
     };
-  }, [rows]);
+  }, [rows, counts, displayRows, statusFilter]);
 
   return (
     <section className="space-y-2">
@@ -2960,7 +3010,7 @@ function SubscribersSection({
           </a>
           <div className="flex gap-1">
             {(['all', 'online', 'offline'] as const).map((filter) => {
-              const count = filter === 'all' ? counts.all : filter === 'online' ? counts.online : counts.offline;
+              const count = filter === 'all' ? countsSummary.all : filter === 'online' ? countsSummary.online : countsSummary.offline;
               return (
                 <button
                   key={filter}
@@ -2980,7 +3030,7 @@ function SubscribersSection({
             })}
           </div>
           <div className="flex gap-1 border-l border-slate-200 pl-2">
-            {(['all', 'ACTIVE', 'CANCELLED'] as const).map((status) => (
+            {(['all', 'ACTIVE', 'PAUSED', 'CANCELLED'] as const).map((status) => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
@@ -2992,13 +3042,24 @@ function SubscribersSection({
                     : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                {status === 'all' ? 'All' : status === 'ACTIVE' ? `Active (${counts.active})` : `Cancelled (${counts.cancelled})`}
+                {status === 'all'
+                  ? 'All'
+                  : status === 'ACTIVE'
+                    ? `Active (${countsSummary.active})`
+                    : status === 'PAUSED'
+                      ? `Paused (${countsSummary.paused})`
+                      : `Cancelled (${countsSummary.cancelled})`}
               </button>
             ))}
           </div>
         </div>
       </div>
-      {filteredRows.length ? (
+      {loadingCancelled ? (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+          <h2 className="text-sm font-semibold text-slate-800">Loading cancelled subscriptions…</h2>
+          <p className="mt-1 text-xs font-semibold text-slate-500">Fetching cancellation history for your stores.</p>
+        </div>
+      ) : filteredRows.length ? (
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="min-w-[850px] w-full text-left text-xs">
             <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
@@ -3095,9 +3156,9 @@ function SubscribersSection({
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <h2 className="text-sm font-semibold text-slate-800">No subscribers yet</h2>
-          <p className="mt-1 text-xs font-semibold text-slate-500">Subscriptions tied to your stores will appear here.</p>
-          {onAddOfflineCustomer && (
+          <h2 className="text-sm font-semibold text-slate-800">{statusFilter === 'CANCELLED' ? 'No cancelled subscriptions' : 'No subscribers yet'}</h2>
+          <p className="mt-1 text-xs font-semibold text-slate-500">{statusFilter === 'CANCELLED' ? 'Cancellation history for your stores will appear here.' : 'Subscriptions tied to your stores will appear here.'}</p>
+          {statusFilter !== 'CANCELLED' && onAddOfflineCustomer && (
             <button
               onClick={onAddOfflineCustomer}
               className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800  transition-all"
@@ -3309,19 +3370,22 @@ function AnalyticsSection({
   runs,
   cash,
   subscribers,
+  subscriberCounts,
 }: {
   analytics: StoreAnalytics | null;
   runs: Run[];
   cash: CashBatch[];
   subscribers: SubscriberRow[];
+  subscriberCounts?: { total: number; active: number; paused: number; cancelled: number } | null;
 }) {
   const activeSubs = useMemo(() => {
+    if (subscriberCounts) return subscriberCounts.active;
     if (analytics) {
       const row = analytics.subscriptions.find((r) => r.status === "ACTIVE");
       return row?._count?._all ?? 0;
     }
     return subscribers.filter((s) => s.status === "ACTIVE").length;
-  }, [analytics, subscribers]);
+  }, [analytics, subscribers, subscriberCounts]);
   const collected = useMemo(() => {
     if (analytics) {
       return analytics.subscriptions.reduce((sum, row) => sum + Number(row._sum?.amountCollectedPaise || 0), 0);
@@ -3356,7 +3420,7 @@ function AnalyticsSection({
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <AnalyticCard label="Open runs" value={String(openRuns)} icon={Route} tone="slate" />
             <AnalyticCard label="Batches pending verify" value={String(pendingBatches)} icon={ClipboardCheck} tone="amber" />
-            <AnalyticCard label="Total subscribers" value={String(subscribers.length)} icon={Users} tone="slate" />
+            <AnalyticCard label="Total subscribers" value={String(subscriberCounts?.total ?? subscribers.length)} icon={Users} tone="slate" />
             <AnalyticCard label="Planned deliveries" value={String(plannedDeliveries)} icon={Package} tone="slate" />
           </div>
           <div className="grid gap-3 md:grid-cols-3">

@@ -122,31 +122,61 @@ export class SubscriptionAdminReportingService {
     }));
   }
 
-  /** Store-scoped subscriber list: only subscriptions tied to the owner's stores. */
-  storeSubscribers(actor: { id: string; role: Role }) {
+  /**
+   * Store-scoped subscriber list: only subscriptions tied to the owner's stores.
+   *
+   * Only live contracts count as subscribers. Terminal rows (CANCELLED and
+   * COMPLETED/renewed) remain queryable as history via `status=cancelled` but are
+   * never listed or counted as subscribers, otherwise every cancellation leaves a
+   * phantom row that inflates the store's subscriber total.
+   */
+  async storeSubscribers(actor: { id: string; role: Role }, filter?: { status?: 'active' | 'cancelled' }) {
     const storeFilter = actor.role === Role.ADMIN ? {} : { homeStore: { ownerId: actor.id } };
-    return prisma.customerSubscription.findMany({
-      // A customer moved to the Recycle Bin (or purged) is deactivated, so its
-      // subscription rows must disappear from the store's subscriber list;
-      // otherwise a deletion made in the offline-customer directory still shows
-      // here.
-      // Also exclude COMPLETED subscriptions (renewed ones) to avoid duplicates.
-      where: {
-        ...storeFilter,
-        customer: { isActive: true },
-        status: { not: CustomerSubscriptionStatus.COMPLETED },
-      },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        customer: { select: { id: true, name: true, email: true, phone: true, acquisitionSource: true } },
-        plan: { select: { id: true, code: true, name: true } },
-        planVersion: { select: { id: true, version: true, pricePaise: true, totalDeliveries: true } },
-        homeStore: { select: { id: true, name: true } },
-        deliveries: { select: { cashCollectedPaise: true, status: true, deliverySlot: true } },
-        _count: { select: { deliveries: true, issues: true } },
-      },
-      take: 500,
-    }).then((rows) => rows.map((row) => {
+    const baseWhere = { ...storeFilter, customer: { isActive: true } };
+    const liveStatuses = [
+      CustomerSubscriptionStatus.ACTIVE,
+      CustomerSubscriptionStatus.PENDING_CASH_COLLECTION,
+      CustomerSubscriptionStatus.PAYMENT_DUE,
+      CustomerSubscriptionStatus.GRACE_PERIOD,
+      CustomerSubscriptionStatus.PAUSED,
+    ];
+    const showCancelled = filter?.status === 'cancelled';
+    const statusWhere = showCancelled
+      ? { status: CustomerSubscriptionStatus.CANCELLED }
+      : { status: { in: liveStatuses } };
+
+    const [rows, activeCount, pausedCount, cancelledCount] = await Promise.all([
+      prisma.customerSubscription.findMany({
+        where: { ...baseWhere, ...statusWhere },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          customer: { select: { id: true, name: true, email: true, phone: true, acquisitionSource: true } },
+          plan: { select: { id: true, code: true, name: true } },
+          planVersion: { select: { id: true, version: true, pricePaise: true, totalDeliveries: true } },
+          homeStore: { select: { id: true, name: true } },
+          deliveries: { select: { cashCollectedPaise: true, status: true, deliverySlot: true } },
+          _count: { select: { deliveries: true, issues: true } },
+        },
+        take: 500,
+      }),
+      prisma.customerSubscription.count({
+        where: {
+          ...baseWhere,
+          status: {
+            in: [
+              CustomerSubscriptionStatus.ACTIVE,
+              CustomerSubscriptionStatus.PENDING_CASH_COLLECTION,
+              CustomerSubscriptionStatus.PAYMENT_DUE,
+              CustomerSubscriptionStatus.GRACE_PERIOD,
+            ],
+          },
+        },
+      }),
+      prisma.customerSubscription.count({ where: { ...baseWhere, status: CustomerSubscriptionStatus.PAUSED } }),
+      prisma.customerSubscription.count({ where: { ...baseWhere, status: CustomerSubscriptionStatus.CANCELLED } }),
+    ]);
+
+    const subscribers = rows.map((row) => {
       const contact = deliveryContact(row.addressSnapshot);
       const completedCount = row.deliveries ? row.deliveries.filter((d) => d.status === 'DELIVERED').length : row.completedDeliveries;
       const { amountCollectedPaise, amountDuePaise } = reconcileSubscriptionBalance(row, row.deliveries);
@@ -164,7 +194,18 @@ export class SubscriptionAdminReportingService {
         },
         deliveryContact: contact,
       };
-    }));
+    });
+
+    return {
+      subscribers,
+      counts: {
+        // Live subscribers only: cancelled contracts are deliberately excluded.
+        total: activeCount + pausedCount,
+        active: activeCount,
+        paused: pausedCount,
+        cancelled: cancelledCount,
+      },
+    };
   }
 
   /** Store-scoped delivery calendar for deliveries fulfilled from the owner's stores. */
@@ -576,7 +617,7 @@ export class SubscriptionAdminReportingService {
     selectedWeekdays?: number[];
     vacationRange?: { fromDate?: string; toDate?: string; policy?: 'EXTEND_PLAN' | 'DEDUCT_BILL' };
     splitItems?: { amProductName?: string; amQuantity?: string; pmProductName?: string; pmQuantity?: string };
-  }, actorId: string) {
+  }, actorId: string, idempotencyKey?: string) {
     const store = await prisma.store.findUnique({ where: { id: dto.storeId } });
     if (!store) throw new NotFoundException('Store not found');
 
@@ -641,6 +682,18 @@ export class SubscriptionAdminReportingService {
     const slotEndMinute = rawSlot === 'EVENING' ? 20 * 60 : 9 * 60;
 
     return prisma.$transaction(async (tx) => {
+      const requestKey = idempotencyKey?.trim() || randomUUID();
+      // Serialise retries/double-clicks for this customer+plan and replay the
+      // first result instead of minting a duplicate manual subscription.
+      await tx.$executeRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`manual-subscription:${dto.customerId}:${plan.id}:${requestKey}`}))`,
+      );
+      const replayed = await tx.subscriptionAuditEntry.findUnique({
+        where: { idempotencyKey: `manual-subscription:${dto.customerId}:${plan.id}:${requestKey}` },
+        include: { subscription: true },
+      });
+      if (replayed?.subscription) return replayed.subscription;
+
       const subscription = await tx.customerSubscription.create({
         data: {
           customerId: dto.customerId,
@@ -781,7 +834,7 @@ export class SubscriptionAdminReportingService {
           action: 'ADMIN_MANUAL_SUBSCRIPTION_CREATED',
           reason: dto.note || 'Created manual subscription for store customer',
           metadata: { storeId: store.id, planId: plan.id, totalDeliveries: dto.totalDeliveries, deliverySlot: dto.deliverySlot },
-          idempotencyKey: `manual-subscription:${subscription.id}:${randomUUID()}`,
+          idempotencyKey: `manual-subscription:${dto.customerId}:${plan.id}:${requestKey}`,
         },
       });
 
@@ -1189,8 +1242,21 @@ export class SubscriptionAdminReportingService {
     },
     actorId: string,
     actorRole: Role = Role.ADMIN,
+    idempotencyKey?: string,
   ) {
     return prisma.$transaction(async (tx) => {
+      const requestKey = idempotencyKey?.trim() || randomUUID();
+      // Serialise concurrent submits for the same customer so a double-click
+      // cannot create two renewal cycles, then replay the first result.
+      await tx.$executeRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-renew:${subscriptionId}:${requestKey}`}))`,
+      );
+      const replayed = await tx.subscriptionAuditEntry.findUnique({
+        where: { idempotencyKey: `subscription-renew:${subscriptionId}:${requestKey}` },
+        include: { subscription: true },
+      });
+      if (replayed?.subscription) return replayed.subscription;
+
       const existing = await tx.customerSubscription.findUnique({
         where: { id: subscriptionId },
         include: {
@@ -1438,7 +1504,7 @@ export class SubscriptionAdminReportingService {
             endDate: endDate.toISOString(),
             splitItems: dto.splitItems || null,
           },
-          idempotencyKey: `renewal:${renewalSub.id}:${Date.now()}`,
+          idempotencyKey: `subscription-renew:${subscriptionId}:${requestKey}`,
         },
       });
 

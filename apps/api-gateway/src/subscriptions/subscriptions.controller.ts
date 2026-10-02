@@ -572,8 +572,8 @@ export class StoreSubscriptionsController {
   }
 
   @Get('subscribers')
-  subscribers(@Req() req: AuthenticatedRequest) {
-    return this.reporting.storeSubscribers(req.user);
+  subscribers(@Req() req: AuthenticatedRequest, @Query('status') status?: 'active' | 'cancelled') {
+    return this.reporting.storeSubscribers(req.user, { status });
   }
 
   @Get('subscribers/:subscriptionId/history')
@@ -603,8 +603,9 @@ export class StoreSubscriptionsController {
     @Param('id') id: string,
     @Body() body: RenewSubscriptionDto,
     @Req() req: AuthenticatedRequest,
+    @Headers('idempotency-key') key?: string,
   ) {
-    return this.reporting.renewSubscription(id, body, req.user.id, req.user.role);
+    return this.reporting.renewSubscription(id, body, req.user.id, req.user.role, key);
   }
 
   @Post('subscribers/:id/cancel')
@@ -678,14 +679,18 @@ export class StoreSubscriptionsController {
   }
 
   @Post('manual-subscribe')
-  async createManualSubscription(@Body() body: CreateAdminManualSubscriptionDto, @Req() req: AuthenticatedRequest) {
+  async createManualSubscription(
+    @Body() body: CreateAdminManualSubscriptionDto,
+    @Req() req: AuthenticatedRequest,
+    @Headers('idempotency-key') key?: string,
+  ) {
     if (req.user.role !== Role.ADMIN) {
       const store = await prisma.store.findUnique({ where: { id: body.storeId } });
       if (!store || store.ownerId !== req.user.id) {
         throw new ForbiddenException('You do not own this store');
       }
     }
-    return this.reporting.createManualSubscription(body, req.user.id);
+    return this.reporting.createManualSubscription(body, req.user.id, key);
   }
 
   @Post('custom-subscribe')
