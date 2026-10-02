@@ -224,3 +224,22 @@ survives a timeout, and treat 20 minutes as their own deadline.
 - Test DB is unavailable in the sandbox: jest suites that hit `prisma` fail with
   `Environment variable not found: DATABASE_URL`. Run the full suite from
   `apps/api-gateway` (`npx jest --runInBand`) and treat those as pre-existing.
+
+## Deploys and verifying against aagaam.in
+
+- `.github/workflows/deploy.yml` only runs on `main` (or a manual
+  `workflow_dispatch` with a `ref`). Pushing a feature branch such as `bugs` does
+  **not** deploy, so `https://aagaam.in` keeps serving whatever `main` last
+  built. A fix can be correct in the branch and still absent from the live site —
+  check `git log origin/main..origin/bugs` before trusting a live repro.
+- To reproduce a store-owner issue against the live API without the browser:
+  `POST /api/auth/login` with `{email,password}` returns an HttpOnly
+  `access_token` cookie; save it with `curl -c` and reuse with `curl -b` against
+  `/api/store/subscriptions/*`. This is far more reliable than driving the
+  heavily-polling grid page in the browser (element indices shift every refresh).
+- Subscriber-count bug (fixed on `bugs`): the live `GET /store/subscriptions/subscribers`
+  returned a raw array of every non-terminal contract, so 16 `CANCELLED` rows
+  plus duplicate/superseded live contracts inflated the tab to 58 while the grid
+  showed 36 customers. The fix returns `{subscribers, counts:{total,active,paused,cancelled}}`,
+  dedupes live contracts to one row per customer, and excludes cancelled rows
+  from the live list (queryable via `?status=cancelled`).
