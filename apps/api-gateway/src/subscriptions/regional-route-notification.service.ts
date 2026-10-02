@@ -43,14 +43,19 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
   private timer?: NodeJS.Timeout;
   private running = false;
   /**
-   * Exclusive lower bound on `createdAt` for the next sweep.
+   * Exclusive lower bound on `(createdAt, id)` for the next sweep.
    *
    * Without this the query re-scans the previous 7 days of events on every tick
    * and re-enqueues each one; the outbox then rejects each as a duplicate. Those
    * rejections are logged by Postgres as ERRORs and were the single largest
    * source of disk usage on the VPS.
+   *
+   * `id` is part of the cursor because `createdAt` is `TIMESTAMP(3)`: a single
+   * transaction (e.g. the recovery run that writes DELIVERY_RUN_INTERRUPTED and
+   * RECOVERY_RUN_CREATED together) stamps several rows with the same value, and
+   * a timestamp-only bound would skip any that straddle a `take: 500` page.
    */
-  private watermark?: Date;
+  private watermark?: { createdAt: Date; id: string };
 
   onModuleInit() {
     if (process.env.NODE_ENV === 'test') return;
@@ -68,18 +73,25 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
     this.running = true;
     try {
       const now = new Date();
-      // First run: scan the backlog. Subsequent runs: only events newer than
-      // everything already handled. Clamp so a paused process cannot scan
-      // unbounded history in one tick.
-      const lowerBound =
-        this.watermark ?? new Date(now.getTime() - INITIAL_LOOKBACK_MS);
+      const cursor = this.watermark;
+      // First run: scan the backlog. Subsequent runs: only events after the
+      // composite cursor. Clamp so a paused process cannot scan unbounded
+      // history in one tick.
+      const lowerBound = new Date(now.getTime() - INITIAL_LOOKBACK_MS);
 
       const events = await prisma.deliveryRouteEvent.findMany({
         where: {
           eventType: { in: ROUTE_NOTIFICATION_EVENTS },
-          createdAt: { gt: lowerBound },
+          ...(cursor
+            ? {
+                OR: [
+                  { createdAt: { gt: cursor.createdAt } },
+                  { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+                ],
+              }
+            : { createdAt: { gt: lowerBound } }),
         },
-        orderBy: { createdAt: 'asc' },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: 500,
       });
 
@@ -87,13 +99,19 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
         // Deliver before advancing so a thrown error leaves the event queued
         // for the next tick rather than silently dropped.
         await this.deliver(event);
-        if (!this.watermark || event.createdAt > this.watermark) {
-          this.watermark = event.createdAt;
+        if (
+          !this.watermark
+          || event.createdAt > this.watermark.createdAt
+          || (
+            event.createdAt.getTime() === this.watermark.createdAt.getTime()
+            && event.id > this.watermark.id
+          )
+        ) {
+          this.watermark = { createdAt: event.createdAt, id: event.id };
         }
       }
-      // With no new events the watermark stays put: `createdAt > watermark`
-      // is an indexed range that simply returns no rows, so there is nothing
-      // to bound.
+      // With no new events the watermark stays put: the cursor predicate is an
+      // indexed range that simply returns no rows, so there is nothing to bound.
     } catch (error: unknown) {
       captureBackgroundError(this.logger, 'Regional route notification flush failed', error);
     } finally {

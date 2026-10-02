@@ -15,7 +15,7 @@ import { Logger } from '@nestjs/common';
 const FALLBACK_DSN =
   'https://c90214d1a7d8b5c729e9e4f9b62e0620@o4512080888266752.ingest.de.sentry.io/4512080909959248';
 
-export const sentryDsn: string = process.env.SENTRY_DSN || FALLBACK_DSN;
+export const sentryDsn: string = process.env.SENTRY_DSN ?? FALLBACK_DSN;
 
 /** Reporting is on unless explicitly disabled with SENTRY_DSN='' or SENTRY_ENABLED=false. */
 export const isSentryEnabled: boolean =
