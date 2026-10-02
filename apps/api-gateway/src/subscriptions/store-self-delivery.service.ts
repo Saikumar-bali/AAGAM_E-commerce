@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { CustomerSubscriptionStatus, DeliveryJobStatus, PaymentStatus, Prisma, Role, SubscriptionDeliveryStatus, prisma } from '@aagam/database';
 import { randomUUID } from 'crypto';
+import { DEFAULT_DELIVERY_TIMEZONE, todayInTimezone } from './subscription-timezone';
 
 @Injectable()
 export class StoreSelfDeliveryService {
@@ -295,7 +296,15 @@ export class StoreSelfDeliveryService {
         throw new BadRequestException(`\`${field}\` must be a YYYY-MM-DD date`);
       }
       const day = new Date(`${value}T00:00:00`);
-      if (Number.isNaN(day.getTime())) throw new BadRequestException(`\`${field}\` is not a valid date`);
+      const [year, month, date] = value.split('-').map(Number);
+      if (
+        Number.isNaN(day.getTime()) ||
+        day.getFullYear() !== year ||
+        day.getMonth() !== month - 1 ||
+        day.getDate() !== date
+      ) {
+        throw new BadRequestException(`\`${field}\` is not a valid date`);
+      }
       return day;
     };
     const addDays = (day: Date, days: number) => {
@@ -304,10 +313,10 @@ export class StoreSelfDeliveryService {
       return next;
     };
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const store = await prisma.store.findUnique({ where: { id: storeId }, select: { timezone: true } });
+    const timezone = store?.timezone || DEFAULT_DELIVERY_TIMEZONE;
 
-    const start = range?.from ? parseDay(range.from, 'from') : today;
+    const start = range?.from ? parseDay(range.from, 'from') : todayInTimezone(timezone);
     const end = range?.to
       ? addDays(parseDay(range.to, 'to'), 1)
       : addDays(start, 1);

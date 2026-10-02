@@ -131,6 +131,8 @@ export default function StoreDeliveriesPage() {
   const [verifyNotes, setVerifyNotes] = useState('');
   const [verifyCash, setVerifyCash] = useState('');
   const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifyCashError, setVerifyCashError] = useState<string | null>(null);
+  const [verifyFormError, setVerifyFormError] = useState<string | null>(null);
 
   const [editModal, setEditModal] = useState<DeliveryItem | null>(null);
   const [editStatus, setEditStatus] = useState<'DELIVERED' | 'FAILED'>('DELIVERED');
@@ -203,6 +205,8 @@ export default function StoreDeliveriesPage() {
 
   const openVerify = (delivery: DeliveryItem) => {
     setVerifyError(null);
+    setVerifyCashError(null);
+    setVerifyFormError(null);
     setVerifyModal(delivery);
     setVerifyName(delivery.customer.name || '');
     setVerifyPhone(delivery.customer.phone || '');
@@ -214,7 +218,7 @@ export default function StoreDeliveriesPage() {
     if (!verifyModal) return;
     const cashNum = verifyCash ? Math.round(parseFloat(verifyCash) * 100) : 0;
     if (verifyCash && (!Number.isFinite(cashNum) || cashNum < 0)) {
-      setVerifyError('Enter a valid cash amount, for example 150 or 150.50.');
+      setVerifyCashError('Enter a valid cash amount, for example 150 or 150.50.');
       return;
     }
     if (!verifyName.trim()) {
@@ -233,7 +237,7 @@ export default function StoreDeliveriesPage() {
       setVerifyModal(null);
       if (selectedStoreId) await loadDeliveries(selectedStoreId, 'refresh');
     } catch (err) {
-      setVerifyError(getToastErrorMessage(err, 'Failed to complete delivery'));
+      setVerifyFormError(getToastErrorMessage(err, 'Failed to complete delivery'));
     } finally {
       setWorking('');
     }
@@ -305,6 +309,10 @@ export default function StoreDeliveriesPage() {
     return Array.from({ length: RANGE_DAYS + 1 }, (_, index) => shiftDay(todayKey, index));
   }, [todayKey]);
 
+  // After midnight the stored day can fall out of the rail; fall back to today
+  // without an effect so the rail, filter and label stay consistent.
+  const activeDay = days.includes(selectedDay) ? selectedDay : todayKey;
+
   const searched = useMemo(() => {
     const needle = search.trim().toLowerCase();
     if (!needle) return deliveries;
@@ -322,8 +330,8 @@ export default function StoreDeliveriesPage() {
   );
 
   const dayItems = useMemo(
-    () => slotFiltered.filter((d) => dayKeyOf(d.serviceDate) === selectedDay),
-    [slotFiltered, selectedDay]
+    () => slotFiltered.filter((d) => dayKeyOf(d.serviceDate) === activeDay),
+    [slotFiltered, activeDay]
   );
 
   const countsByDay = useMemo(() => {
@@ -375,11 +383,11 @@ export default function StoreDeliveriesPage() {
   };
 
   const selectedDayLabel =
-    selectedDay === todayKey
+    activeDay === todayKey
       ? 'today'
-      : selectedDay === shiftDay(todayKey, 1)
+      : activeDay === shiftDay(todayKey, 1)
         ? 'tomorrow'
-        : `on ${daySublabel(selectedDay)}`;
+        : `on ${daySublabel(activeDay)}`;
 
   return (
     <DashboardLayout allowedRole="STORE_OWNER">
@@ -423,7 +431,7 @@ export default function StoreDeliveriesPage() {
             <DateRail
               label="Choose a service date"
               days={dateRailDays}
-              value={selectedDay}
+              value={activeDay}
               onChange={setSelectedDay}
             />
           </div>
@@ -687,6 +695,15 @@ export default function StoreDeliveriesPage() {
             </>
           }
         >
+          {verifyFormError && (
+            <div
+              role="alert"
+              className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700"
+            >
+              {verifyFormError}
+            </div>
+          )}
+
           <div className="mb-3 rounded-xl bg-emerald-50 px-3 py-2.5">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Order total</p>
             <p className="mt-0.5 text-2xl font-semibold tabular-nums text-emerald-900">
@@ -698,7 +715,10 @@ export default function StoreDeliveriesPage() {
             <input
               id="verify-name"
               value={verifyName}
-              onChange={(event) => setVerifyName(event.target.value)}
+              onChange={(event) => {
+                setVerifyName(event.target.value);
+                if (verifyError) setVerifyError(null);
+              }}
               autoComplete="name"
               aria-invalid={Boolean(verifyError)}
               aria-describedby={verifyError ? 'verify-name-error' : undefined}
@@ -717,14 +737,19 @@ export default function StoreDeliveriesPage() {
             />
           </OpsField>
 
-          <OpsField label="Cash collected (₹)" htmlFor="verify-cash">
+          <OpsField label="Cash collected (₹)" htmlFor="verify-cash" error={verifyCashError ?? undefined}>
             <input
               id="verify-cash"
               value={verifyCash}
-              onChange={(event) => setVerifyCash(event.target.value)}
+              onChange={(event) => {
+                setVerifyCash(event.target.value);
+                if (verifyCashError) setVerifyCashError(null);
+              }}
               type="text"
               inputMode="decimal"
               autoComplete="off"
+              aria-invalid={Boolean(verifyCashError)}
+              aria-describedby={verifyCashError ? 'verify-cash-error' : undefined}
               className="enterprise-input"
             />
           </OpsField>

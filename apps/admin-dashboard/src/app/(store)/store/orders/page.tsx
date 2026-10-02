@@ -381,7 +381,8 @@ export default function OrdersPage() {
       if (aAction) return a.createdAt.localeCompare(b.createdAt);
       const aTime = a.deliveryWindowStart || "";
       const bTime = b.deliveryWindowStart || "";
-      if (aTime && bTime) return aTime.localeCompare(bTime);
+      if (aTime && bTime) return aTime.localeCompare(bTime) || b.createdAt.localeCompare(a.createdAt);
+      if (aTime !== bTime) return aTime ? -1 : 1;
       return b.createdAt.localeCompare(a.createdAt);
     };
 
