@@ -444,7 +444,7 @@ export class DeliveryJobService {
       data: { status: DispatchAssignmentStatus.EXPIRED, respondedAt: now },
     });
 
-    const [pendingOffers, activeJobs, assignmentHistory] = await Promise.all([
+    const [pendingOffers, activeJobs, assignmentHistory, deliveryRuns] = await Promise.all([
       prisma.dispatchAssignment.findMany({
         where: {
           riderProfileId: rider.id,
@@ -510,6 +510,59 @@ export class DeliveryJobService {
         orderBy: { createdAt: "desc" },
         ...(historyFrom ? {} : { take: 20 }),
       }),
+      // Runs assigned to the rider from today onward. The rider needs the
+      // ordered stops (with coordinates and per-stop cash) to run a whole
+      // route, not just the individual job cards.
+      prisma.deliveryRun.findMany({
+        where: {
+          riderId: rider.id,
+          status: { notIn: ["CANCELLED", "COMPLETED"] as any },
+          serviceDate: { gte: startOfUtcDay(now) },
+        },
+        include: {
+          store: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+              latitude: true,
+              longitude: true,
+            },
+          },
+          stops: {
+            orderBy: { sequenceNumber: "asc" },
+            include: {
+              deliveryJob: {
+                include: {
+                  order: {
+                    include: {
+                      customer: { select: { id: true, name: true, phone: true } },
+                      payment: true,
+                      items: {
+                        include: { product: { select: { id: true, name: true, image: true } } },
+                      },
+                    },
+                  },
+                },
+              },
+              subscriptionDelivery: {
+                include: {
+                  subscription: {
+                    select: {
+                      id: true,
+                      customerId: true,
+                      addressSnapshot: true,
+                      deliveryMethod: true,
+                      trustedDropInstructions: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: [{ serviceDate: "asc" }, { slotStart: "asc" }],
+      }),
     ]);
 
     return {
@@ -518,8 +571,13 @@ export class DeliveryJobService {
       activeJobs,
       activeJob: activeJobs[0] || null,
       assignmentHistory,
+      deliveryRuns,
     };
   }
+}
+
+function startOfUtcDay(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
 }
 
 export { ACTIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES };

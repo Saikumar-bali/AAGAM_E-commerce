@@ -238,7 +238,18 @@ export class RiderDeliveryRunsController {
     private readonly runs: DeliveryRunOperationsService,
     private readonly cash: CashDepositBatchService,
     private readonly trustedDrop: TrustedDropService,
+    private readonly milkGrid: StoreMilkGridService,
   ) {}
+
+  /**
+   * Rider-facing route board: every assigned stop of every run for the day,
+   * with address, coordinates, items and cash, so the rider UI can show the
+   * full assignment and offer one-by-one navigation.
+   */
+  @Get('route-board')
+  routeBoard(@Req() req: AuthenticatedRequest, @Query('date') date?: string) {
+    return this.milkGrid.getRiderRouteBoard(req.user, date);
+  }
 
   @Get('today')
   today(@Req() req: AuthenticatedRequest, @Query('date') date?: string) {
@@ -525,6 +536,7 @@ export class StoreSubscriptionsController {
 
 
   @Post('deliveries/:id/quick-action')
+  @Roles(Role.STORE_OWNER, Role.ADMIN, Role.RIDER)
   quickAction(
     @Param('id') id: string,
     @Body()

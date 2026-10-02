@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import DashboardLayout from "@/components/DashboardLayout";
 import { getToastErrorMessage, useToast } from "@/components/ToastProvider";
 import { apiClient } from "@aagam/utils";
@@ -11,14 +12,17 @@ import {
   ChevronRight,
   CircleAlert,
   Clock3,
+  ExternalLink,
   KeyRound,
   MapPin,
   Navigation,
   Package,
+  Phone,
   RefreshCw,
   Route,
   ShieldCheck,
   Store,
+  Waypoints,
   X,
   Camera,
   Plus,
@@ -63,6 +67,8 @@ type FailureReason =
 
 type RunStop = {
   id: string;
+  subscriptionDeliveryId?: string;
+  deliveryJobId?: string;
   sequenceNumber: number;
   status: StopStatus;
   version: number;
@@ -92,7 +98,13 @@ type RunStop = {
 type Run = {
   id: string;
   routeCode: string;
-  deliveryZone?: { id: string; code: string; name: string } | null;
+  deliveryZone?: {
+    id: string;
+    code: string;
+    name: string;
+    centerLatitude?: number | null;
+    centerLongitude?: number | null;
+  } | null;
   estimatedDistanceKm?: number;
   estimatedDurationMinutes?: number;
   assignmentReasonSummary?: string | null;
@@ -165,11 +177,14 @@ function snapshotText(snapshot: Record<string, unknown> | null | undefined) {
   return (
     [
       "label",
+      "line1",
       "addressLine1",
+      "line2",
       "addressLine2",
       "landmark",
       "city",
       "state",
+      "pincode",
       "postalCode",
     ]
       .map((key) => snapshot?.[key])
@@ -179,6 +194,73 @@ function snapshotText(snapshot: Record<string, unknown> | null | undefined) {
       )
       .join(", ") || "Customer delivery address"
   );
+}
+function stopAddress(stop: RunStop) {
+  return snapshotText(stop.subscriptionDelivery.subscription.addressSnapshot);
+}
+function stopPhone(stop: RunStop) {
+  const snapshot = stop.subscriptionDelivery.subscription.addressSnapshot as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  return (
+    stop.deliveryJob.order.customer?.phone ||
+    (typeof snapshot?.phoneE164 === "string" ? snapshot.phoneE164 : null)
+  );
+}
+function stopCoordinates(stop: RunStop, zone?: Run["deliveryZone"]) {
+  const snapshot = stop.subscriptionDelivery.subscription.addressSnapshot as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  const lat = snapshot?.latitude;
+  const lng = snapshot?.longitude;
+  if (typeof lat === "number" && typeof lng === "number")
+    return { latitude: lat, longitude: lng, approximate: false };
+  if (
+    zone &&
+    typeof zone.centerLatitude === "number" &&
+    typeof zone.centerLongitude === "number"
+  )
+    return {
+      latitude: zone.centerLatitude,
+      longitude: zone.centerLongitude,
+      approximate: true,
+    };
+  return null;
+}
+function googleMapsUrl(latitude: number, longitude: number, label?: string) {
+  const destination = `${latitude},${longitude}`;
+  const params = new URLSearchParams({
+    api: "1",
+    destination,
+    travelmode: "driving",
+  });
+  if (label) params.set("dir_action", "navigate");
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+function googleMapsRouteUrl(stops: RunStop[], zone?: Run["deliveryZone"]) {
+  const points = stops
+    .map((stop) => stopCoordinates(stop, zone))
+    .filter(
+      (point): point is { latitude: number; longitude: number; approximate: boolean } =>
+        Boolean(point)
+    );
+  if (points.length < 2) return null;
+  const origin = points[0];
+  const destination = points[points.length - 1];
+  const waypoints = points
+    .slice(1, -1)
+    .map((point) => `${point.latitude},${point.longitude}`)
+    .join("|");
+  const params = new URLSearchParams({
+    api: "1",
+    origin: `${origin.latitude},${origin.longitude}`,
+    destination: `${destination.latitude},${destination.longitude}`,
+    travelmode: "driving",
+  });
+  if (waypoints) params.set("waypoints", waypoints);
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 function coordinates(): Promise<Coordinates> {
   return new Promise((resolve, reject) => {
@@ -204,6 +286,8 @@ function coordinates(): Promise<Coordinates> {
 
 export default function RiderRunsPage() {
   const toast = useToast();
+  const searchParams = useSearchParams();
+  const deepLinkRunId = searchParams.get("run");
   const [runs, setRuns] = useState<Run[]>([]);
   const [activeRun, setActiveRun] = useState<Run | null>(null);
   const [selectedStop, setSelectedStop] = useState<RunStop | null>(null);
@@ -250,6 +334,9 @@ export default function RiderRunsPage() {
       const rows: Run[] = Array.isArray(response.data) ? response.data : [];
       setRuns(rows);
       const currentId =
+        (deepLinkRunId && rows.some((run) => run.id === deepLinkRunId)
+          ? deepLinkRunId
+          : null) ||
         activeRun?.id ||
         rows.find((run) =>
           ["PICKED_UP", "IN_PROGRESS", "AWAITING_SETTLEMENT"].includes(
@@ -277,7 +364,7 @@ export default function RiderRunsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeRun?.id, toast]);
+  }, [activeRun?.id, deepLinkRunId, toast]);
 
   useEffect(() => {
     void loadRuns();
@@ -507,6 +594,25 @@ export default function RiderRunsPage() {
         await loadRuns();
       },
       "Stop marked as skipped."
+    );
+
+  // One-tap parity with the store's Milk Grid "Mark Delivered". It only toggles
+  // the subscription delivery status; the full Verify-and-complete flow (with
+  // photo/GPS proof) remains available below for funded/verified stops.
+  const markDeliveredQuick = (stop: RunStop) =>
+    act(
+      `quick-deliver-${stop.id}`,
+      async () => {
+        if (!stop.subscriptionDeliveryId)
+          throw new Error("This stop is not linked to a subscription delivery");
+        await apiClient.post(
+          `/store/subscriptions/deliveries/${stop.subscriptionDeliveryId}/quick-action`,
+          { type: "TOGGLE_DELIVERED" }
+        );
+        setSelectedStop(null);
+        await loadRuns();
+      },
+      "Marked delivered. Confirm proof separately if this stop requires it."
     );
 
   const fail = (stop: RunStop) =>
@@ -761,6 +867,55 @@ export default function RiderRunsPage() {
                       {title(activeRun.status)}
                     </span>
                   </div>
+                  {(() => {
+                    const pending = activeStops.filter(
+                      (stop) =>
+                        !["DELIVERED", "FAILED", "CANCELLED"].includes(
+                          stop.status
+                        )
+                    );
+                    const next = pending[0];
+                    const nextPoint = next ? stopCoordinates(next, activeRun.deliveryZone) : null;
+                    const routeUrl = googleMapsRouteUrl(pending, activeRun.deliveryZone);
+                    return (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {next && nextPoint && (
+                          <a
+                            href={googleMapsUrl(
+                              nextPoint.latitude,
+                              nextPoint.longitude
+                            )}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
+                          >
+                            <Navigation className="h-4 w-4" />
+                            Navigate to next stop
+                          </a>
+                        )}
+                        {next && stopPhone(next) && (
+                          <a
+                            href={`tel:${stopPhone(next)}`}
+                            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            <Phone className="h-4 w-4" />
+                            Call {next.deliveryJob.order.customer?.name || "customer"}
+                          </a>
+                        )}
+                        {routeUrl && (
+                          <a
+                            href={routeUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+                          >
+                            <Waypoints className="h-4 w-4" />
+                            Open full route ({pending.length} stops)
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div className="mt-5 flex items-center justify-between text-sm font-bold">
                     <span>
                       {activeRun.completedStopCount} of{" "}
@@ -911,64 +1066,102 @@ export default function RiderRunsPage() {
                       No bulk delivery action
                     </span>
                   </div>
-                  {activeStops.map((stop) => (
-                    <button
-                      key={stop.id}
-                      onClick={() => setSelectedStop(stop)}
-                      className={`w-full rounded-xl border bg-white p-4 text-left  ${
-                        currentStop?.id === stop.id
-                          ? "border-emerald-400 ring-2 ring-emerald-100"
-                          : "border-slate-200"
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <span
-                          className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-semibold ${
-                            stop.status === "DELIVERED"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-slate-100 text-slate-700"
-                          }`}
+                  {activeStops.map((stop) => {
+                    const point = stopCoordinates(stop, activeRun.deliveryZone);
+                    const phone = stopPhone(stop);
+                    return (
+                      <div
+                        key={stop.id}
+                        className={`rounded-xl border bg-white p-4 ${
+                          currentStop?.id === stop.id
+                            ? "border-emerald-400 ring-2 ring-emerald-100"
+                            : "border-slate-200"
+                        }`}
+                      >
+                        <button
+                          onClick={() => setSelectedStop(stop)}
+                          className="flex w-full items-start gap-3 text-left"
                         >
-                          {stop.sequenceNumber}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-slate-900">
-                              {stop.deliveryJob.order.customer?.name ||
-                                "Customer"}
-                            </span>
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
-                              {title(stop.status)}
-                            </span>
-                            {stop.proofMode === "RIDER_PHOTO_GPS" && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal-200 px-2 py-0.5 text-[10px] font-bold text-teal-800">
-                                <Camera className="h-3 w-3 text-teal-600" />
-                                Photo &amp; GPS
-                              </span>
-                            )}
-                          </span>
-                          <span className="mt-1 block truncate text-xs text-slate-500">
-                            {snapshotText(
-                              stop.subscriptionDelivery.subscription
-                                .addressSnapshot
-                            )}
-                          </span>
                           <span
-                            className={`mt-2 block text-xs font-semibold ${
-                              stop.cashDuePaise > 0
-                                ? "text-amber-700"
-                                : "text-emerald-700"
+                            className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-semibold ${
+                              stop.status === "DELIVERED"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-slate-100 text-slate-700"
                             }`}
                           >
-                            {stop.cashDuePaise > 0
-                              ? `Collect ${money(stop.cashDuePaise)} (COD)`
-                              : "Customer due ₹0 · subscription funded"}
+                            {stop.sequenceNumber}
                           </span>
-                        </span>
-                        <ChevronRight className="h-5 w-5 text-slate-400" />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold text-slate-900">
+                                {stop.deliveryJob.order.customer?.name ||
+                                  "Customer"}
+                              </span>
+                              <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
+                                {title(stop.status)}
+                              </span>
+                              {stop.proofMode === "RIDER_PHOTO_GPS" && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal-200 px-2 py-0.5 text-[10px] font-bold text-teal-800">
+                                  <Camera className="h-3 w-3 text-teal-600" />
+                                  Photo &amp; GPS
+                                </span>
+                              )}
+                            </span>
+                            <span className="mt-1 block truncate text-xs text-slate-500">
+                              {stopAddress(stop)}
+                            </span>
+                            <span
+                              className={`mt-2 block text-xs font-semibold ${
+                                stop.cashDuePaise > 0
+                                  ? "text-amber-700"
+                                  : "text-emerald-700"
+                              }`}
+                            >
+                              {stop.cashDuePaise > 0
+                                ? `Collect ${money(stop.cashDuePaise)} (COD)`
+                                : "Customer due ₹0 · subscription funded"}
+                            </span>
+                          </span>
+                          <ChevronRight className="h-5 w-5 text-slate-400" />
+                        </button>
+                        <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                          {point && (
+                            <a
+                              href={googleMapsUrl(
+                                point.latitude,
+                                point.longitude
+                              )}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"
+                            >
+                              <Navigation className="h-3.5 w-3.5" />
+                              Navigate
+                            </a>
+                          )}
+                          {phone && (
+                            <a
+                              href={`tel:${phone}`}
+                              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              <Phone className="h-3.5 w-3.5" />
+                              Call
+                            </a>
+                          )}
+                          {point?.approximate && (
+                            <span className="self-center text-[11px] font-semibold text-amber-700">
+                              Approx. zone pin
+                            </span>
+                          )}
+                          {!point && !phone && (
+                            <span className="text-xs text-slate-400">
+                              No map pin or phone on this stop
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </button>
-                  ))}
+                    );
+                  })}
                 </section>
 
                 {activeRun.status === "IN_PROGRESS" && (
@@ -1098,6 +1291,35 @@ export default function RiderRunsPage() {
                   <X className="h-5 w-5" />
                 </button>
               </div>
+              {(() => {
+                const point = stopCoordinates(selectedStop, activeRun?.deliveryZone);
+                const phone = stopPhone(selectedStop);
+                if (!point && !phone) return null;
+                return (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {point && (
+                      <a
+                        href={googleMapsUrl(point.latitude, point.longitude)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
+                      >
+                        <Navigation className="h-4 w-4" />
+                        Navigate
+                      </a>
+                    )}
+                    {phone && (
+                      <a
+                        href={`tel:${phone}`}
+                        className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        <Phone className="h-4 w-4" />
+                        Call customer
+                      </a>
+                    )}
+                  </div>
+                );
+              })()}
               <div
                 className={`mt-4 rounded-xl border p-4 ${
                   selectedStop.cashDuePaise > 0
@@ -1137,6 +1359,21 @@ export default function RiderRunsPage() {
                       In-Flight Stop Actions
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <button
+                        type="button"
+                        disabled={working === `quick-deliver-${selectedStop.id}`}
+                        onClick={() => markDeliveredQuick(selectedStop)}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-emerald-300 bg-emerald-600 px-2 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition-colors shadow-2xs disabled:opacity-60"
+                        title="Mark this stop delivered (same as the store Milk Grid action)"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>
+                          {working === `quick-deliver-${selectedStop.id}`
+                            ? "Saving…"
+                            : "Mark Delivered"}
+                        </span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => setExtraMilkModalStop(selectedStop)}
