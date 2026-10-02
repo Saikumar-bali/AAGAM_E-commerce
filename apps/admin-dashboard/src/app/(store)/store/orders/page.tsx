@@ -542,7 +542,7 @@ export default function OrdersPage() {
                         className="text-sm font-semibold uppercase tracking-[0.06em] text-slate-600"
                       >
                         {section.title}
-                        <span className="ml-2 text-slate-400 tabular-nums">
+                        <span className="ml-2 text-slate-500 tabular-nums">
                           {section.orders.length}
                         </span>
                       </h2>
@@ -666,9 +666,9 @@ function OrderRow({
 
           <p className="mt-1 truncate text-sm text-slate-600">
             {order.customer?.name || "Customer"}
-            <span className="text-slate-400"> · </span>
+            <span className="text-slate-500"> · </span>
             {order.customer?.phone || order.customer?.email || "No contact"}
-            <span className="text-slate-400"> · </span>
+            <span className="text-slate-500"> · </span>
             {new Date(order.createdAt).toLocaleDateString("en-IN", {
               day: "numeric",
               month: "short",
@@ -743,7 +743,7 @@ function OrderRow({
           className="ml-auto inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1"
         >
           Picking list
-          <span className="tabular-nums text-slate-400">{order.items?.length || 0}</span>
+          <span className="tabular-nums text-slate-500">{order.items?.length || 0}</span>
           <ChevronDown
             className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`}
             aria-hidden="true"
