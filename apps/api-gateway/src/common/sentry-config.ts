@@ -15,7 +15,11 @@ import { Logger } from '@nestjs/common';
 const FALLBACK_DSN =
   'https://c90214d1a7d8b5c729e9e4f9b62e0620@o4512080888266752.ingest.de.sentry.io/4512080909959248';
 
-export const sentryDsn: string = process.env.SENTRY_DSN ?? FALLBACK_DSN;
+// `??` would treat an explicit empty string as "configured" and keep the
+// fallback, defeating the documented `SENTRY_DSN=''` opt-out. Only an unset
+// variable falls back to the built-in DSN.
+export const sentryDsn: string =
+  process.env.SENTRY_DSN === undefined ? FALLBACK_DSN : process.env.SENTRY_DSN;
 
 /** Reporting is on unless explicitly disabled with SENTRY_DSN='' or SENTRY_ENABLED=false. */
 export const isSentryEnabled: boolean =
