@@ -125,60 +125,33 @@ export class SubscriptionAdminReportingService {
   /**
    * Store-scoped subscriber list: only subscriptions tied to the owner's stores.
    *
-   * Only live contracts count as subscribers. Terminal rows (CANCELLED and
-   * COMPLETED/renewed) remain queryable as history via `status=cancelled` but are
-   * never listed or counted as subscribers, otherwise every cancellation leaves a
-   * phantom row that inflates the store's subscriber total.
+   * A subscriber is a *customer*, not a contract. Live contracts are collapsed to
+   * one row per customer (the most recent), matching the milk grid, so duplicate
+   * or superseded subscriptions cannot inflate the total. Terminal rows
+   * (CANCELLED and COMPLETED/renewed) are never counted as subscribers; cancelled
+   * contracts stay queryable as history via `status=cancelled`.
    */
   async storeSubscribers(actor: { id: string; role: Role }, filter?: { status?: 'active' | 'cancelled' }) {
     const storeFilter = actor.role === Role.ADMIN ? {} : { homeStore: { ownerId: actor.id } };
     const baseWhere = { ...storeFilter, customer: { isActive: true } };
-    const liveStatuses = [
+    const activeStatuses = [
       CustomerSubscriptionStatus.ACTIVE,
       CustomerSubscriptionStatus.PENDING_CASH_COLLECTION,
       CustomerSubscriptionStatus.PAYMENT_DUE,
       CustomerSubscriptionStatus.GRACE_PERIOD,
-      CustomerSubscriptionStatus.PAUSED,
     ];
-    const showCancelled = filter?.status === 'cancelled';
-    const statusWhere = showCancelled
-      ? { status: CustomerSubscriptionStatus.CANCELLED }
-      : { status: { in: liveStatuses } };
+    const include = {
+      customer: { select: { id: true, name: true, email: true, phone: true, acquisitionSource: true } },
+      plan: { select: { id: true, code: true, name: true } },
+      planVersion: { select: { id: true, version: true, pricePaise: true, totalDeliveries: true } },
+      homeStore: { select: { id: true, name: true } },
+      deliveries: { select: { cashCollectedPaise: true, status: true, deliverySlot: true } },
+      _count: { select: { deliveries: true, issues: true } },
+    } as const;
 
-    const [rows, activeCount, pausedCount, cancelledCount] = await Promise.all([
-      prisma.customerSubscription.findMany({
-        where: { ...baseWhere, ...statusWhere },
-        orderBy: { createdAt: 'desc' },
-        include: {
-          customer: { select: { id: true, name: true, email: true, phone: true, acquisitionSource: true } },
-          plan: { select: { id: true, code: true, name: true } },
-          planVersion: { select: { id: true, version: true, pricePaise: true, totalDeliveries: true } },
-          homeStore: { select: { id: true, name: true } },
-          deliveries: { select: { cashCollectedPaise: true, status: true, deliverySlot: true } },
-          _count: { select: { deliveries: true, issues: true } },
-        },
-        take: 500,
-      }),
-      prisma.customerSubscription.count({
-        where: {
-          ...baseWhere,
-          status: {
-            in: [
-              CustomerSubscriptionStatus.ACTIVE,
-              CustomerSubscriptionStatus.PENDING_CASH_COLLECTION,
-              CustomerSubscriptionStatus.PAYMENT_DUE,
-              CustomerSubscriptionStatus.GRACE_PERIOD,
-            ],
-          },
-        },
-      }),
-      prisma.customerSubscription.count({ where: { ...baseWhere, status: CustomerSubscriptionStatus.PAUSED } }),
-      prisma.customerSubscription.count({ where: { ...baseWhere, status: CustomerSubscriptionStatus.CANCELLED } }),
-    ]);
-
-    const subscribers = rows.map((row) => {
+    const mapRow = (row: any) => {
       const contact = deliveryContact(row.addressSnapshot);
-      const completedCount = row.deliveries ? row.deliveries.filter((d) => d.status === 'DELIVERED').length : row.completedDeliveries;
+      const completedCount = row.deliveries ? row.deliveries.filter((d: any) => d.status === 'DELIVERED').length : row.completedDeliveries;
       const { amountCollectedPaise, amountDuePaise } = reconcileSubscriptionBalance(row, row.deliveries);
       const completedDeliveries = Math.max(row.completedDeliveries || 0, completedCount);
       const status = (amountDuePaise === 0 && row.status === 'PENDING_CASH_COLLECTION') ? 'ACTIVE' : row.status;
@@ -194,14 +167,45 @@ export class SubscriptionAdminReportingService {
         },
         deliveryContact: contact,
       };
-    });
+    };
+
+    const showCancelled = filter?.status === 'cancelled';
+
+    const [liveRowsRaw, cancelledCount] = await Promise.all([
+      prisma.customerSubscription.findMany({
+        where: { ...baseWhere, status: { in: [...activeStatuses, CustomerSubscriptionStatus.PAUSED] } },
+        orderBy: { createdAt: 'desc' },
+        include,
+        take: 500,
+      }),
+      prisma.customerSubscription.count({ where: { ...baseWhere, status: CustomerSubscriptionStatus.CANCELLED } }),
+    ]);
+
+    // Keep the newest live contract per customer (rows are newest-first).
+    const liveByCustomer = new Map<string, ReturnType<typeof mapRow>>();
+    for (const row of liveRowsRaw.map(mapRow)) {
+      if (!liveByCustomer.has(row.customer.id)) liveByCustomer.set(row.customer.id, row);
+    }
+    const liveRows = [...liveByCustomer.values()];
+    const pausedCount = liveRows.filter((row) => row.status === 'PAUSED').length;
+
+    let subscribers = liveRows;
+    if (showCancelled) {
+      const cancelledRows = await prisma.customerSubscription.findMany({
+        where: { ...baseWhere, status: CustomerSubscriptionStatus.CANCELLED },
+        orderBy: { createdAt: 'desc' },
+        include,
+        take: 500,
+      });
+      subscribers = cancelledRows.map(mapRow);
+    }
 
     return {
       subscribers,
       counts: {
         // Live subscribers only: cancelled contracts are deliberately excluded.
-        total: activeCount + pausedCount,
-        active: activeCount,
+        total: liveRows.length,
+        active: liveRows.length - pausedCount,
         paused: pausedCount,
         cancelled: cancelledCount,
       },

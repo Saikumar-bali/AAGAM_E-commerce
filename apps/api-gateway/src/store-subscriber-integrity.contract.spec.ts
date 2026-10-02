@@ -16,16 +16,22 @@ describe('Store subscriber integrity contract', () => {
   );
 
   it('excludes cancelled and completed contracts from the subscriber list', () => {
-    expect(reporting).toContain('const liveStatuses = [');
-    expect(reporting).toContain('status: { in: liveStatuses }');
+    expect(reporting).toContain('const activeStatuses = [');
+    expect(reporting).toContain('status: { in: [...activeStatuses, CustomerSubscriptionStatus.PAUSED] }');
     expect(reporting).toContain('status: CustomerSubscriptionStatus.CANCELLED');
     // The subscriber list must not fall back to "everything except COMPLETED".
     expect(reporting).not.toContain('status: { not: CustomerSubscriptionStatus.COMPLETED }');
   });
 
+  it('collapses live contracts to one subscriber row per customer', () => {
+    expect(reporting).toContain('const liveByCustomer = new Map<string, ReturnType<typeof mapRow>>()');
+    expect(reporting).toContain('if (!liveByCustomer.has(row.customer.id)) liveByCustomer.set(row.customer.id, row)');
+    expect(reporting).toContain('total: liveRows.length');
+  });
+
   it('returns explicit subscriber counts instead of leaning on array length', () => {
     expect(reporting).toContain('cancelled: cancelledCount');
-    expect(reporting).toContain('total: activeCount + pausedCount');
+    expect(reporting).toContain('active: liveRows.length - pausedCount');
     expect(controller).toContain("@Query('status') status?: 'active' | 'cancelled'");
   });
 
