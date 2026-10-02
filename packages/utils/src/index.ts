@@ -1,5 +1,6 @@
 export * from './api-client';
 export * from './customer-address';
+export * from './customer-source';
 export * from './product-images';
 export * from './order-pricing';
 

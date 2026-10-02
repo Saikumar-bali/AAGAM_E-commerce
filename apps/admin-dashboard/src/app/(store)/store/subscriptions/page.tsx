@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import DashboardLayout from "@/components/DashboardLayout";
 import { getToastErrorMessage, useToast } from "@/components/ToastProvider";
-import { apiClient } from "@aagam/utils";
+import { apiClient, isOfflineSubscription } from "@aagam/utils";
 import {
   AlertTriangle,
   Archive,
@@ -225,14 +225,9 @@ function isOfflineSubscriber(row: {
   deliveryMethod?: string | null;
   customer?: { email?: string | null; phone?: string | null; acquisitionSource?: string | null } | null;
 }): boolean {
-  return Boolean(
-    row.source === 'manual' ||
-    row.source === 'custom_manual' ||
-    row.customer?.email?.startsWith('offline.') ||
-    row.customer?.phone?.startsWith('offline_') ||
-    row.customer?.acquisitionSource === 'OFFLINE' ||
-    row.customer?.acquisitionSource === 'OFFLINE_STORE'
-  );
+  // Shared with the milk grid and the admin Subscribers tab so every surface
+  // classifies online/offline customers identically.
+  return isOfflineSubscription(row);
 }
 
 export default function StoreSubscriptionOperationsPage() {

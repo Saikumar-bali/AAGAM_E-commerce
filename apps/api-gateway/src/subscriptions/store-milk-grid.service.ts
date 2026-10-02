@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { prisma, Role, SubscriptionDeliveryStatus, PaymentMethod, PaymentStatus } from '@aagam/database';
 import { parseAddOns, parseVolumeLiters, sumAddOnLiters } from './delivery-add-on';
 import { computeVoidAdjustment, reconcileSubscriptionBalance } from './subscription-balances';
+import { isOfflineSubscription } from '@aagam/utils';
 
 export interface GridCell {
   deliveryId: string;
@@ -110,7 +111,9 @@ export class StoreMilkGridService {
         ],
       },
       include: {
-        customer: { select: { id: true, name: true, phone: true } },
+        // email + acquisitionSource feed the shared isOfflineSubscription()
+        // check: source alone is NULL for manually added subscribers.
+        customer: { select: { id: true, name: true, phone: true, email: true, acquisitionSource: true } },
         plan: { select: { id: true, name: true, code: true } },
         homeStore: { select: { id: true, name: true } },
         defaultRider: {
@@ -348,7 +351,7 @@ export class StoreMilkGridService {
             || (activeSub.addressSnapshot as any)?.phoneE164
             || '—',
           address,
-          customerType: activeSub.source === 'manual' || activeSub.source === 'custom_manual' ? 'offline' : 'online',
+          customerType: isOfflineSubscription(activeSub) ? 'offline' : 'online',
         },
         plan: {
           id: activeSub.plan.id,

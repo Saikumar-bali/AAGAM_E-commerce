@@ -628,6 +628,10 @@ export class SubscriptionAdminReportingService {
       const subscription = await tx.customerSubscription.create({
         data: {
           customerId: dto.customerId,
+          // Manual/offline subscriptions must be stamped so the grid's ON/OFF
+          // pill and the Subscribers tab agree; NULL source used to read as
+          // "online" on the grid even for walk-in offline customers.
+          source: 'manual',
           planId: plan.id,
           planVersionId: version.id,
           addressId: address.id,
