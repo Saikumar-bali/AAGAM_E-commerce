@@ -427,33 +427,83 @@ export default function CurrentDeliveryPage() {
               {job.status === "DELIVERY_FAILED" && (
                 <div className="mt-4 rounded-xl border border-red-200 bg-white p-4">
                   <p className="text-xs font-semibold uppercase text-red-500">
-                    System resolution
+                    Parcel is with you
                   </p>
                   <p className="mt-1 font-semibold text-red-950">
-                    {String(
-                      job.failureDecisions?.[0]?.decidedAction ||
-                        "Pending decision"
-                    ).replace(/_/g, " ")}
+                    Take this parcel back to the store
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
-                    {job.failureDecisions?.[0]?.rationale}
+                    The delivery failed, so the goods still belong to the store.
+                    Return them to{" "}
+                    <span className="font-semibold">
+                      {order.store?.name || "the store"}
+                    </span>{" "}
+                    so staff can inspect the parcel and settle the order.
                   </p>
-                  {job.failureDecisions?.[0]?.decidedAction ===
-                    "RETURN_TO_STORE" && (
+                  {job.failureDecisions?.[0]?.decidedAction &&
+                    job.failureDecisions[0].decidedAction !==
+                      "RETURN_TO_STORE" && (
+                      <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                        Dispatch suggested{" "}
+                        {String(
+                          job.failureDecisions[0].decidedAction
+                        ).replace(/_/g, " ")}{" "}
+                        — you can still return the parcel now.
+                      </p>
+                    )}
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       disabled={working}
-                      onClick={() =>
-                        operate(
-                          `/orders/delivery-operations/jobs/${job.id}/return/start`,
-                          {},
-                          makeKey("return", job.id)
-                        )
-                      }
-                      className="mt-3 rounded-xl bg-red-700 px-4 py-3 text-sm font-semibold text-white"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "Return this parcel to the store? The store will confirm receipt."
+                          )
+                        ) {
+                          void operate(
+                            `/orders/delivery-operations/jobs/${job.id}/return/start`,
+                            {},
+                            makeKey("return", job.id)
+                          );
+                        }
+                      }}
+                      className="rounded-xl bg-red-700 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40"
                     >
-                      Start authorized return to store
+                      Return parcel to store
                     </button>
-                  )}
+                    <a
+                      target="_blank"
+                      rel="noreferrer"
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${order.store?.latitude},${order.store?.longitude}`}
+                      className="rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-semibold text-red-700"
+                    >
+                      <Navigation className="mr-2 inline h-4 w-4" />
+                      Directions to store
+                    </a>
+                  </div>
+                </div>
+              )}
+              {job.status === "RETURNING_TO_STORE" && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-xs font-semibold uppercase text-amber-600">
+                    Returning to store
+                  </p>
+                  <p className="mt-1 font-semibold text-amber-950">
+                    Hand the parcel to store staff
+                  </p>
+                  <p className="mt-1 text-sm text-amber-800">
+                    Store staff will confirm receipt and complete the return
+                    inspection. Keep the parcel with you until then.
+                  </p>
+                  <a
+                    target="_blank"
+                    rel="noreferrer"
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${order.store?.latitude},${order.store?.longitude}`}
+                    className="mt-3 inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white"
+                  >
+                    <Navigation className="h-4 w-4" />
+                    Navigate to store
+                  </a>
                 </div>
               )}
             </section>

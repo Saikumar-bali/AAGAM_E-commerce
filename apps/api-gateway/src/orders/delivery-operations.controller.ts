@@ -133,7 +133,15 @@ export class DeliveryOperationsController {
     @Req() req: any,
     @Headers("idempotency-key") idempotencyKey?: string
   ) {
-    return this.operations.startReturn(deliveryJobId, req.user, idempotencyKey);
+    // A rider asking to bring a failed parcel back is an explicit override of
+    // the policy suggestion; an admin keeps the stricter authorization check.
+    const riderInitiated = req.user?.role === Role.RIDER;
+    return this.operations.startReturn(
+      deliveryJobId,
+      req.user,
+      idempotencyKey,
+      riderInitiated
+    );
   }
 
   @Post("jobs/:deliveryJobId/return/confirm")

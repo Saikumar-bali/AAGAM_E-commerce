@@ -243,3 +243,19 @@ survives a timeout, and treat 20 minutes as their own deadline.
   showed 36 customers. The fix returns `{subscribers, counts:{total,active,paused,cancelled}}`,
   dedupes live contracts to one row per customer, and excludes cancelled rows
   from the live list (queryable via `?status=cancelled`).
+
+## Rider returns and freeing BUSY riders
+
+- Failed-delivery return: the parcel is physically with the rider, so the rider
+  must always have a way to hand it back. `POST /orders/delivery-operations/jobs/:id/return/start`
+  now passes `riderInitiated` when the caller is a `RIDER`; `startReturn` then
+  supersedes the policy default (retry/escalate) with an auditable
+  `RETURN_TO_STORE` override decision instead of refusing. Admin calls keep the
+  strict policy check.
+- `GET /riders` (ADMIN) now returns each rider with `workload`
+  `{activeDeliveries, activeRuns, canBeFreed}`. The admin riders page shows this
+  next to the Busy badge and offers **Make available** (Busy → Online) / **Set
+  online** (Offline → Online). `PATCH /riders/:id/status` allows an admin to
+  release a BUSY rider to ONLINE without a fake GPS ping, but still refuses when
+  the rider holds active deliveries/runs and returns a message explaining why.
+

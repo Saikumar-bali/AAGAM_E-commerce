@@ -56,6 +56,36 @@ export class RiderService {
       .map(({ rider }) => rider);
   }
 
+  /**
+   * Same rider list as findAll(), but each rider also carries the live count of
+   * work that keeps them BUSY. The admin UI uses this to decide whether a rider
+   * can be freed, and to explain the BUSY badge in plain language.
+   */
+  async findAllWithWorkload() {
+    const riders = await this.findAll();
+    const workload = await Promise.all(
+      riders.map(async (rider) => {
+        const work = await this.blockingWork(prisma, rider.id);
+        return [
+          rider.id,
+          {
+            activeDeliveries: work.activeJobs,
+            activeRuns: work.activeRuns,
+            canBeFreed:
+              rider.status === 'BUSY' &&
+              work.activeJobs === 0 &&
+              work.activeRuns === 0,
+          },
+        ] as const;
+      }),
+    );
+    const byRider = new Map(workload);
+    return riders.map((rider) => ({
+      ...rider,
+      workload: byRider.get(rider.id),
+    }));
+  }
+
   async findOne(id: string) {
     return prisma.riderProfile.findUnique({
       where: { id },
@@ -98,10 +128,34 @@ export class RiderService {
           becomesOnline && !coordinates && rider.status === 'BUSY'
             ? await this.hasFreshAvailability(tx, rider.id)
             : false;
-        if (becomesOnline && !coordinates && !canReuseFreshAvailability) {
+        // An administrator releasing a BUSY rider whose work is finished is a
+        // deliberate availability correction. It must not require a fake GPS
+        // ping: a rider can be freed to ONLINE with their last known position
+        // and picked up by dispatch once a real heartbeat arrives. Riders going
+        // online from OFFLINE still need a location so dispatch can rank them.
+        const releasingBusy =
+          becomesOnline && rider.status === 'BUSY' && !coordinates;
+        if (
+          becomesOnline &&
+          !coordinates &&
+          !canReuseFreshAvailability &&
+          !releasingBusy
+        ) {
           throw new BadRequestException(
             'Current latitude and longitude are required before setting the Rider online',
           );
+        }
+        if (releasingBusy) {
+          const blocking = await this.blockingWork(tx, rider.id);
+          if (blocking.activeJobs > 0 || blocking.activeRuns > 0) {
+            throw new ConflictException(
+              `Rider is still handling ${blocking.activeJobs} active ${
+                blocking.activeJobs === 1 ? 'delivery' : 'deliveries'
+              } and ${blocking.activeRuns} ${
+                blocking.activeRuns === 1 ? 'run' : 'runs'
+              }. Complete or reassign them before making the Rider available.`,
+            );
+          }
         }
 
         const updated = await tx.riderProfile.update({
@@ -117,7 +171,7 @@ export class RiderService {
         if (data.status === 'OFFLINE') {
           await this.clearAvailability(tx, rider.id);
         }
-        return { updated, wakeWaitingJobs: becomesOnline };
+        return { updated, wakeWaitingJobs: becomesOnline, releasedFromBusy: releasingBusy };
       },
       { isolationLevel: 'Serializable' as any },
     );
@@ -433,6 +487,48 @@ export class RiderService {
       },
     });
     return candidates.find((job) => isOccupyingDeliveryJob(job)) || null;
+  }
+
+  /**
+   * Counts the work that legitimately keeps a rider BUSY. Used to explain why
+   * an administrator cannot simply free a rider, and to mirror the occupancy
+   * rule used by the notification reconcile sweep so the admin UI and the
+   * background sweep agree.
+   */
+  private async blockingWork(tx: DbClient, riderProfileId: string) {
+    const [jobs, activeRuns] = await Promise.all([
+      tx.deliveryJob.findMany({
+        where: {
+          currentRiderId: riderProfileId,
+          status: {
+            notIn: [
+              DeliveryJobStatus.DELIVERED,
+              DeliveryJobStatus.RETURNED_TO_STORE,
+              DeliveryJobStatus.CANCELLED,
+            ] as any,
+          },
+        },
+        select: {
+          id: true,
+          status: true,
+          failureDecisions: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { status: true, createdAt: true, appliedAt: true },
+          },
+        },
+      }),
+      tx.deliveryRun.count({
+        where: {
+          riderId: riderProfileId,
+          status: { notIn: ['COMPLETED', 'CANCELLED'] as any },
+        },
+      }),
+    ]);
+    return {
+      activeJobs: jobs.filter((job) => isOccupyingDeliveryJob(job)).length,
+      activeRuns,
+    };
   }
 
   private lockStatus(tx: DbClient, riderUserId: string) {

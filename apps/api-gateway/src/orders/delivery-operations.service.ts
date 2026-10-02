@@ -2127,7 +2127,8 @@ export class DeliveryOperationsService {
   async startReturn(
     deliveryJobId: string,
     actor: Actor,
-    idempotencyKey?: string
+    idempotencyKey?: string,
+    riderInitiated = false
   ) {
     return prisma.$transaction(
       async (tx) => {
@@ -2159,15 +2160,54 @@ export class DeliveryOperationsService {
           },
           orderBy: { createdAt: "desc" },
         });
-        if (
-          !decision ||
-          decision.decidedAction !== DeliveryResolutionAction.RETURN_TO_STORE
-        ) {
-          throw new BadRequestException(
-            `System resolution is ${
-              decision?.decidedAction || "not available"
-            }; return-to-store is not authorized`
-          );
+        const decisionAllowsReturn =
+          decision?.decidedAction === DeliveryResolutionAction.RETURN_TO_STORE;
+        // A failed parcel is physically with the rider. The policy default
+        // (retry / escalate) describes what dispatch would prefer, but it does
+        // not give the rider anywhere to put the goods. When the assigned rider
+        // chooses to bring the parcel back, record that as a rider override
+        // decision so the return is authorized and auditable rather than
+        // leaving the parcel stranded.
+        let effectiveDecision = decision;
+        if (!decisionAllowsReturn) {
+          if (!riderInitiated || actor.role !== Role.RIDER) {
+            throw new BadRequestException(
+              `System resolution is ${
+                decision?.decidedAction || "not available"
+              }; return-to-store is not authorized`
+            );
+          }
+          if (decision) {
+            await tx.deliveryFailureDecision.update({
+              where: { id: decision.id },
+              data: {
+                status: DeliveryResolutionStatus.SUPERSEDED,
+                overrideReason:
+                  "Assigned rider is returning the undelivered parcel to the store",
+                overriddenByUserId: actor.id,
+              },
+            });
+          }
+          effectiveDecision = await tx.deliveryFailureDecision.create({
+            data: {
+              deliveryJobId,
+              orderId: job.orderId,
+              failureOperationId: `rider-return:${deliveryJobId}:${randomUUID()}`,
+              reason: decision?.reason || job.failureDecisions?.[0]?.reason,
+              recommendedAction:
+                decision?.recommendedAction ||
+                DeliveryResolutionAction.RETURN_TO_STORE,
+              decidedAction: DeliveryResolutionAction.RETURN_TO_STORE,
+              status: DeliveryResolutionStatus.DECIDED,
+              policyVersion: decision?.policyVersion || "rider-initiated-v1",
+              rationale:
+                "The assigned rider is returning the undelivered parcel to the store.",
+              decidedBy: actor.id,
+              overrideReason:
+                "Assigned rider is returning the undelivered parcel to the store",
+              overriddenByUserId: actor.id,
+            },
+          });
         }
         const changed = await this.workflow.transitionWithinTransaction(
           tx,
@@ -2176,7 +2216,7 @@ export class DeliveryOperationsService {
           actor,
           {
             expectedStatus: DeliveryJobStatus.DELIVERY_FAILED,
-            metadata: { phase3Operation: true },
+            metadata: { phase3Operation: true, riderInitiated },
           }
         );
         const operation = await this.createOperation(tx, {
@@ -2187,17 +2227,20 @@ export class DeliveryOperationsService {
           idempotencyKey: key,
           details: {
             startedAt: new Date().toISOString(),
-            decisionId: decision.id,
+            decisionId: effectiveDecision?.id || null,
+            riderInitiated,
           },
         });
-        await tx.deliveryFailureDecision.update({
-          where: { id: decision.id },
-          data: {
-            status: DeliveryResolutionStatus.COMPLETED,
-            appliedByUserId: actor.id,
-            appliedAt: new Date(),
-          },
-        });
+        if (effectiveDecision) {
+          await tx.deliveryFailureDecision.update({
+            where: { id: effectiveDecision.id },
+            data: {
+              status: DeliveryResolutionStatus.COMPLETED,
+              appliedByUserId: actor.id,
+              appliedAt: new Date(),
+            },
+          });
+        }
         await this.notify(
           tx,
           job,
