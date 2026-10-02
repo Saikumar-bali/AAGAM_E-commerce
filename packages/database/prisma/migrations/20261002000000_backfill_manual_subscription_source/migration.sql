@@ -23,7 +23,7 @@ WHERE cs."source" IS NULL
       WHERE u."id" = cs."customerId"
         AND (
           u."acquisitionSource" IN ('OFFLINE', 'OFFLINE_STORE')
-          OR u."email" LIKE 'offline.%'
+          OR u."email" LIKE 'offline.%@aagaam.local'
           OR u."phone" LIKE 'offline\_%'
         )
     )

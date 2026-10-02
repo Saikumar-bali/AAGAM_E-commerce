@@ -35,6 +35,15 @@ describe('isOfflineSubscription', () => {
     expect(isOfflineSubscription({ source: null, customer: { phone: 'offline_123' } })).toBe(true);
   });
 
+  it('does not flag a real registered email that merely starts with "offline."', () => {
+    expect(
+      isOfflineSubscription({
+        source: null,
+        customer: { email: 'offline.enquiries@gmail.com', phone: '9876543210', acquisitionSource: null },
+      }),
+    ).toBe(false);
+  });
+
   it('flags acquisitionSource OFFLINE as offline', () => {
     expect(isOfflineSubscription({ source: null, customer: { acquisitionSource: 'OFFLINE' } })).toBe(true);
   });

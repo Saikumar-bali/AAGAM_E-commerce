@@ -22,10 +22,17 @@ export type SubscriptionSourceInput = {
 
 export function isOfflineSubscription(subscription: SubscriptionSourceInput): boolean {
   const customer = subscription.customer;
+  // Match the backend's authoritative offline identity (offline-customer.service.ts
+  // `offlineIdentity`): the synthetic email is both prefixed `offline.` and
+  // suffixed `@aagaam.local`. Requiring the suffix avoids mislabelling a real
+  // registered customer whose email merely starts with "offline.".
+  const syntheticOfflineEmail =
+    Boolean(customer?.email?.startsWith('offline.')) &&
+    Boolean(customer?.email?.endsWith('@aagaam.local'));
   return Boolean(
     subscription.source === 'manual' ||
       subscription.source === 'custom_manual' ||
-      customer?.email?.startsWith('offline.') ||
+      syntheticOfflineEmail ||
       String(customer?.phone ?? '').startsWith('offline_') ||
       customer?.acquisitionSource === 'OFFLINE' ||
       customer?.acquisitionSource === 'OFFLINE_STORE',
