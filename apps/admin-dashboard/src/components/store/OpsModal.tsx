@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 
 type OpsModalProps = {
@@ -30,6 +30,8 @@ export default function OpsModal({
 }: OpsModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
+  const descriptionId = useId();
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -57,8 +59,8 @@ export default function OpsModal({
   return (
     <dialog
       ref={dialogRef}
-      aria-labelledby="ops-modal-title"
-      aria-describedby={description ? "ops-modal-description" : undefined}
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
       onCancel={(event) => {
         // Let React own the open state instead of the element closing itself.
         event.preventDefault();
@@ -73,14 +75,14 @@ export default function OpsModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2
-              id="ops-modal-title"
+              id={titleId}
               className="text-lg font-semibold tracking-tight text-slate-950"
             >
               {title}
             </h2>
             {description && (
               <p
-                id="ops-modal-description"
+                id={descriptionId}
                 className="mt-1 text-sm text-slate-500"
               >
                 {description}
