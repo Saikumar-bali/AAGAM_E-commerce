@@ -6,6 +6,7 @@ import {
   prisma,
 } from '@aagam/database';
 import { enqueueOutboxEvent } from '../notifications/outbox.service';
+import { captureBackgroundError } from '../common/sentry-config';
 
 // Assignment/removal notifications are already emitted directly by the
 // authoritative rider-assignment transaction as ROUTE_ASSIGNED/ROUTE_REMOVED.
@@ -31,15 +32,29 @@ type AudienceMessage = {
   userIds: string[];
 };
 
+// Backlog scanned once on startup (and after a long pause). After that the
+// sweep advances a watermark so old events are not re-enqueued every 10s.
+const INITIAL_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+const FLUSH_INTERVAL_MS = 10_000;
+
 @Injectable()
 export class RegionalRouteNotificationService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RegionalRouteNotificationService.name);
   private timer?: NodeJS.Timeout;
   private running = false;
+  /**
+   * Exclusive lower bound on `createdAt` for the next sweep.
+   *
+   * Without this the query re-scans the previous 7 days of events on every tick
+   * and re-enqueues each one; the outbox then rejects each as a duplicate. Those
+   * rejections are logged by Postgres as ERRORs and were the single largest
+   * source of disk usage on the VPS.
+   */
+  private watermark?: Date;
 
   onModuleInit() {
     if (process.env.NODE_ENV === 'test') return;
-    this.timer = setInterval(() => void this.flush(), 10_000);
+    this.timer = setInterval(() => void this.flush(), FLUSH_INTERVAL_MS);
     this.timer.unref?.();
     void this.flush();
   }
@@ -52,17 +67,35 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
     if (this.running) return;
     this.running = true;
     try {
+      const now = new Date();
+      // First run: scan the backlog. Subsequent runs: only events newer than
+      // everything already handled. Clamp so a paused process cannot scan
+      // unbounded history in one tick.
+      const lowerBound =
+        this.watermark ?? new Date(now.getTime() - INITIAL_LOOKBACK_MS);
+
       const events = await prisma.deliveryRouteEvent.findMany({
         where: {
           eventType: { in: ROUTE_NOTIFICATION_EVENTS },
-          createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+          createdAt: { gt: lowerBound },
         },
         orderBy: { createdAt: 'asc' },
         take: 500,
       });
-      for (const event of events) await this.deliver(event);
+
+      for (const event of events) {
+        // Deliver before advancing so a thrown error leaves the event queued
+        // for the next tick rather than silently dropped.
+        await this.deliver(event);
+        if (!this.watermark || event.createdAt > this.watermark) {
+          this.watermark = event.createdAt;
+        }
+      }
+      // With no new events the watermark stays put: `createdAt > watermark`
+      // is an indexed range that simply returns no rows, so there is nothing
+      // to bound.
     } catch (error: unknown) {
-      this.logger.error(`Regional route notification flush failed: ${error instanceof Error ? error.message : String(error)}`);
+      captureBackgroundError(this.logger, 'Regional route notification flush failed', error);
     } finally {
       this.running = false;
     }

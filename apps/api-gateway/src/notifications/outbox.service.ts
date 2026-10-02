@@ -13,27 +13,46 @@ export type EnqueueOutboxInput = {
   availableAt?: Date;
 };
 
+/**
+ * Insert an outbox event, ignoring it if the idempotency key already exists.
+ *
+ * This previously did `create()` and caught `P2002`. Postgres still logs every
+ * unique violation as an ERROR — with the full INSERT statement — so the
+ * idempotent callers that re-enqueue on a timer produced 655,804 logged
+ * violations (~1.5 GB) and eventually filled the disk, taking the site down.
+ *
+ * `createMany({ skipDuplicates: true })` emits `INSERT ... ON CONFLICT DO
+ * NOTHING`, which never raises and therefore never logs an error. The row is
+ * then fetched so callers that read the returned event keep working.
+ */
 export async function enqueueOutboxEvent(
   tx: DbClient,
   input: EnqueueOutboxInput,
 ) {
-  try {
-    return await tx.outboxEvent.create({
-      data: {
-        eventType: input.eventType,
-        aggregateType: input.aggregateType,
-        aggregateId: input.aggregateId,
-        payload: input.payload,
-        idempotencyKey: input.idempotencyKey,
-        availableAt: input.availableAt || new Date(),
-      },
-    });
-  } catch (error: any) {
-    if (error?.code === 'P2002') {
-      return tx.outboxEvent.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+  const data = {
+    eventType: input.eventType,
+    aggregateType: input.aggregateType,
+    aggregateId: input.aggregateId,
+    payload: input.payload,
+    idempotencyKey: input.idempotencyKey,
+    availableAt: input.availableAt || new Date(),
+  };
+
+  // Keep a fallback for adapters that do not implement createMany (e.g. some
+  // test doubles): preserve the old create/catch behaviour there.
+  if (typeof tx.outboxEvent?.createMany !== 'function') {
+    try {
+      return await tx.outboxEvent.create({ data });
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        return tx.outboxEvent.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+      }
+      throw error;
     }
-    throw error;
   }
+
+  await tx.outboxEvent.createMany({ data: [data], skipDuplicates: true });
+  return tx.outboxEvent.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
 }
 
 @Injectable()

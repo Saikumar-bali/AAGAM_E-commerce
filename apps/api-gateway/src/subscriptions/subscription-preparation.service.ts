@@ -18,6 +18,7 @@ import {
 } from '@aagam/database';
 import { randomUUID } from 'crypto';
 import { enqueueOutboxEvent } from '../notifications/outbox.service';
+import { captureBackgroundError } from '../common/sentry-config';
 import { RegionalRoutePlanningService } from './regional-route-planning.service';
 import {
   StoreStockReadinessDecision,
@@ -121,7 +122,7 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
       await this.notifyUpcomingPreparation();
       await this.finalizeNearTermRiderAssignments();
     } catch (error: unknown) {
-      this.logger.error(`Subscription preparation cycle failed: ${error instanceof Error ? error.message : String(error)}`);
+      captureBackgroundError(this.logger, 'Subscription preparation cycle failed', error);
     } finally {
       this.running = false;
     }

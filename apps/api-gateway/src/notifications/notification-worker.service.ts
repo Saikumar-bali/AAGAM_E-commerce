@@ -8,6 +8,7 @@ import {
 } from '../riders/rider-operational-status';
 import { NotificationService } from './notification.service';
 import { OutboxService } from './outbox.service';
+import { captureBackgroundError } from '../common/sentry-config';
 
 export type NotificationBatchResult = {
   claimed: number;
@@ -57,21 +58,13 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
     );
     this.timer = setInterval(() => {
       void this.processBatch().catch((error) => {
-        this.logger.error(
-          `Batch failed: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
+        captureBackgroundError(this.logger, 'Batch failed', error);
       });
     }, intervalMs);
     this.timer.unref?.();
 
     void this.processBatch().catch((error) => {
-      this.logger.error(
-        `Initial batch failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      captureBackgroundError(this.logger, 'Initial batch failed', error);
     });
   }
 
