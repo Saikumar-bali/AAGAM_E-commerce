@@ -1044,7 +1044,7 @@ export class StoreMilkGridService {
   /**
    * Return approved active delivery riders for store selection.
    */
-  async getAvailableRiders(_actor: { id: string; role: Role }) {
+  async getAvailableRiders(actor: { id: string; role: Role; email?: string }) {
     const riders = await prisma.riderProfile.findMany({
       where: {
         approvalStatus: 'APPROVED',
@@ -1056,12 +1056,231 @@ export class StoreMilkGridService {
       orderBy: { updatedAt: 'desc' },
     });
 
+    const isMaster = actor.role === Role.ADMIN || (actor.email && (actor.email.includes('aagaam') || actor.email.includes('aagam') || actor.email.includes('store@')));
+    const dayStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate(), 0, 0, 0, 0));
+    const dayEnd = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate(), 23, 59, 59, 999));
+
+    // Count active (non-cancelled, non-completed) runs so the store sees real
+    // workload instead of the undefined value the UI used to render.
+    const counts = await prisma.deliveryRun.groupBy({
+      by: ['riderId'],
+      where: {
+        riderId: { not: null },
+        status: { notIn: ['CANCELLED', 'COMPLETED'] },
+        serviceDate: { gte: dayStart, lte: dayEnd },
+        ...(isMaster ? {} : { store: { ownerId: actor.id } }),
+      },
+      _count: { _all: true },
+    });
+    const countByRider = new Map(counts.map((c) => [c.riderId as string, c._count._all]));
+
     return riders.map((r) => ({
       id: r.id,
       name: r.user.name || 'Delivery Rider',
       phone: r.user.phone || '',
       status: r.status,
+      pendingRunCount: countByRider.get(r.id) ?? 0,
     }));
+  }
+
+  /**
+   * Builds the rider dispatch board for a service date: which customers are
+   * assigned to which rider (with timings and cash) and which are still
+   * unassigned. This is the single source the store uses to audit dispatch.
+   */
+  async getRiderAssignments(actor: { id: string; role: Role; email?: string }, dateStr?: string) {
+    const base = dateStr ? new Date(dateStr) : new Date();
+    const dayStart = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), 0, 0, 0, 0));
+    const dayEnd = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), 23, 59, 59, 999));
+
+    const isMaster = actor.role === Role.ADMIN || (actor.email && (actor.email.includes('aagaam') || actor.email.includes('aagam') || actor.email.includes('store@')));
+    const storeFilter = isMaster ? {} : { homeStore: { ownerId: actor.id } };
+
+    const deliveries = await prisma.subscriptionDelivery.findMany({
+      where: {
+        serviceDate: { gte: dayStart, lte: dayEnd },
+        subscription: { ...storeFilter, customer: { isActive: true } },
+      },
+      include: {
+        subscription: {
+          include: {
+            customer: { select: { id: true, name: true, phone: true } },
+            plan: { select: { id: true, name: true, code: true } },
+          },
+        },
+        order: { select: { id: true, status: true } },
+        runStop: {
+          include: {
+            deliveryRun: {
+              include: {
+                rider: {
+                  include: { user: { select: { id: true, name: true, phone: true } } },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { sequenceNumber: 'asc' },
+    });
+
+    const slotWindow = (serviceDate: Date, slot: string) => {
+      const start = new Date(serviceDate);
+      start.setUTCHours(slot === 'PM' ? 17 : 5, 0, 0, 0);
+      const end = new Date(serviceDate);
+      end.setUTCHours(slot === 'PM' ? 21 : 9, 0, 0, 0);
+      return { start: start.toISOString(), end: end.toISOString() };
+    };
+
+    const toStop = (d: (typeof deliveries)[number]) => {
+      const planName = d.subscription.plan.name || '';
+      const isBuffalo = planName.toLowerCase().includes('buffalo') || planName.toLowerCase().includes('bm');
+      const baseQty = this.resolveBaseLiters(planName, d.subscription.priceSnapshot, d.deliverySlot, (d.subscription as any).itemsSnapshot);
+      const extraLiters = sumAddOnLiters(d.deferredReason, d.failureReason);
+      const addr = d.subscription.addressSnapshot as any;
+      return {
+        stopId: d.runStop?.id ?? null,
+        sequenceNumber: d.runStop?.sequenceNumber ?? d.sequenceNumber,
+        stopStatus: d.runStop?.status ?? null,
+        deliveryId: d.id,
+        deliveryStatus: d.status,
+        proofMode: d.runStop?.proofMode ?? d.proofMode,
+        slot: d.deliverySlot,
+        customer: {
+          id: d.subscription.customer.id,
+          name: d.subscription.customer.name || 'Customer',
+          phone: d.subscription.customer.phone || '—',
+        },
+        address: addr?.line1 || addr?.street || 'Local Area',
+        product: `${baseQty}L ${isBuffalo ? 'BM' : 'CM'}`,
+        liters: d.status === 'SKIPPED' ? 0 : baseQty + extraLiters,
+        cashDuePaise: d.cashDuePaise || 0,
+        cashCollectedPaise: d.cashCollectedPaise || 0,
+        orderId: d.order?.id ?? null,
+        orderStatus: d.order?.status ?? null,
+      };
+    };
+
+    // Assigned = delivery has a run stop whose run is owned by a rider.
+    const riderMap = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        phone: string;
+        profileStatus: string;
+        vehicleType: string | null;
+        vehicleNumber: string | null;
+        runs: Map<
+          string,
+          {
+            id: string;
+            routeCode: string;
+            slot: string;
+            status: string;
+            totalStopCount: number;
+            expectedCashPaise: number;
+            timings: { slotStart: string; slotEnd: string; startedAt: string | null; pickupConfirmedAt: string | null; completedAt: string | null };
+            stops: ReturnType<typeof toStop>[];
+          }
+        >;
+      }
+    >();
+
+    const unassigned: ReturnType<typeof toStop>[] = [];
+    let assignedCount = 0;
+    let unassignedCount = 0;
+    let cashToCollectPaise = 0;
+    let cashCollectedPaise = 0;
+    let totalLiters = 0;
+    const slotCounts: Record<string, number> = { AM: 0, PM: 0 };
+
+    for (const d of deliveries) {
+      if (d.status === 'CANCELLED') continue;
+      slotCounts[d.deliverySlot] = (slotCounts[d.deliverySlot] || 0) + 1;
+      const stop = toStop(d);
+      cashToCollectPaise += stop.cashDuePaise;
+      cashCollectedPaise += stop.cashCollectedPaise;
+      totalLiters += stop.liters;
+
+      const run = d.runStop?.deliveryRun;
+      const rider = run?.rider;
+      if (!run || !rider) {
+        unassignedCount++;
+        unassigned.push(stop);
+        continue;
+      }
+
+      assignedCount++;
+      const riderEntry =
+        riderMap.get(rider.id) ||
+        {
+          id: rider.id,
+          name: rider.user?.name || 'Delivery Rider',
+          phone: rider.user?.phone || '',
+          profileStatus: rider.status,
+          vehicleType: (rider as any).vehicleType ?? null,
+          vehicleNumber: (rider as any).vehicleNumber ?? null,
+          runs: new Map(),
+        };
+      riderMap.set(rider.id, riderEntry);
+
+      const runEntry =
+        riderEntry.runs.get(run.id) ||
+        {
+          id: run.id,
+          routeCode: run.routeCode,
+          slot: run.deliverySlot,
+          status: run.status,
+          totalStopCount: run.totalStopCount,
+          expectedCashPaise: run.expectedCashPaise,
+          timings: {
+            ...slotWindow(run.serviceDate, run.deliverySlot),
+            startedAt: run.startedAt ? run.startedAt.toISOString() : null,
+            pickupConfirmedAt: run.pickupConfirmedAt ? run.pickupConfirmedAt.toISOString() : null,
+            completedAt: run.completedAt ? run.completedAt.toISOString() : null,
+          },
+          stops: [],
+        };
+      runEntry.stops.push(stop);
+      riderEntry.runs.set(run.id, runEntry);
+    }
+
+    const riders = Array.from(riderMap.values())
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        phone: r.phone,
+        profileStatus: r.profileStatus,
+        vehicleType: r.vehicleType,
+        vehicleNumber: r.vehicleNumber,
+        runs: Array.from(r.runs.values()).map((run) => ({
+          ...run,
+          totalStopCount: run.stops.length || run.totalStopCount,
+          cashToCollectPaise: run.stops.reduce((sum, s) => sum + s.cashDuePaise, 0),
+        })),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return {
+      date: dayStart.toISOString().slice(0, 10),
+      slots: {
+        AM: slotWindow(dayStart, 'AM'),
+        PM: slotWindow(dayStart, 'PM'),
+      },
+      totals: {
+        stops: assignedCount + unassignedCount,
+        assigned: assignedCount,
+        unassigned: unassignedCount,
+        riders: riders.length,
+        slotCounts,
+        totalLiters,
+        cashToCollectPaise,
+        cashCollectedPaise,
+      },
+      riders,
+      unassigned,
+    };
   }
 
   /**
@@ -1194,8 +1413,8 @@ export class StoreMilkGridService {
 
         for (const d of groupDeliveries) {
           let jobId = d.deliveryJobId;
+          let orderId = d.order?.id;
           if (!jobId) {
-            let orderId = d.order?.id;
             if (!orderId) {
               const newOrder = await tx.order.create({
                 data: {
@@ -1297,6 +1516,36 @@ export class StoreMilkGridService {
                 expectedItemCount: 1,
                 expectedParcelCount: 1,
                 status: 'ARRIVED',
+              },
+            });
+          } else if (stop.deliveryRunId !== run.id) {
+            // A planning run may have already reserved this delivery. Move the
+            // stop onto the rider's run so the dispatch actually takes effect.
+            stop = await tx.deliveryRunStop.update({
+              where: { id: stop.id },
+              data: {
+                deliveryRunId: run.id,
+                sequenceNumber: nextSeq++,
+                movedFromRunId: stop.deliveryRunId,
+                lastMovedAt: new Date(),
+                status: 'ARRIVED',
+                version: { increment: 1 },
+              },
+            });
+          }
+
+          // Keep the order's rider in sync: the orders board and tracking read
+          // order.riderId, which the dispatch path previously left untouched.
+          if (orderId) {
+            await tx.order.updateMany({
+              where: {
+                id: orderId,
+                status: { notIn: ['DELIVERED', 'CANCELLED', 'STORE_DELIVERED'] },
+              },
+              data: {
+                riderId: rider.id,
+                riderAssignedAt: new Date(),
+                status: 'RIDER_ASSIGNED',
               },
             });
           }

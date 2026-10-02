@@ -484,6 +484,11 @@ export class StoreSubscriptionsController {
     return this.milkGrid.getAvailableRiders(req.user);
   }
 
+  @Get('rider-assignments')
+  riderAssignments(@Req() req: AuthenticatedRequest, @Query('date') date?: string) {
+    return this.milkGrid.getRiderAssignments(req.user, date);
+  }
+
   @Post('dispatch-to-rider')
   dispatchToRider(
     @Body() body: DispatchToRiderDto,

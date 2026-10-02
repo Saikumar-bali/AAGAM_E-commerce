@@ -10,6 +10,7 @@ import {
   Archive,
   Banknote,
   BarChart3,
+  Bike,
   Box,
   CalendarDays,
   Check,
@@ -37,6 +38,7 @@ import {
   XCircle,
 } from "lucide-react";
 import MilkDeliveryGrid from "@/components/MilkDeliveryGrid";
+import RiderAssignmentsDialog from "@/components/RiderAssignmentsDialog";
 
 const CustomerLocationPicker = dynamic(
   () => import("@/components/customer/CustomerLocationPicker"),
@@ -113,7 +115,7 @@ function createIdempotencyKey(scope: string): string {
 }
 
 type ExceptionRow = Stop & { deliveryRun: { routeCode: string } };
-type Tab = "grid" | "subscribers" | "plans" | "calendar" | "prep" | "runs" | "forecast" | "cash" | "exceptions" | "analytics";
+type Tab = "grid" | "subscribers" | "riders" | "plans" | "calendar" | "prep" | "runs" | "forecast" | "cash" | "exceptions" | "analytics";
 
 type SubscriberRow = {
   id: string;
@@ -286,6 +288,7 @@ export default function StoreSubscriptionOperationsPage() {
   const [shortageNotes, setShortageNotes] = useState<Record<string, string>>({});
   const [shortageDialogOpen, setShortageDialogOpen] = useState<string | null>(null);
   const [prepModalOpen, setPrepModalOpen] = useState(false);
+  const [riderBoardOpen, setRiderBoardOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState("");
   const [packingRun, setPackingRun] = useState<Run | null>(null);
@@ -826,6 +829,7 @@ export default function StoreSubscriptionOperationsPage() {
     () => ({
       grid: subscriberCounts?.total ?? subscribers.length,
       subscribers: subscriberCounts?.total ?? subscribers.length,
+      riders: 0,
       plans: plans.length,
       calendar: 0,
       prep: prepPending + prepShortages,
@@ -847,7 +851,8 @@ export default function StoreSubscriptionOperationsPage() {
           </div>
           <div className="flex flex-wrap gap-1.5">
             <button onClick={() => void load()} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"><RefreshCw className="h-3.5 w-3.5" /> Refresh</button>
-            <button onClick={() => setPrepModalOpen(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-slate-900 hover:bg-amber-300"><ClipboardCheck className="h-3.5 w-3.5" /> Tomorrow Prep</button>
+            <button onClick={() => setRiderBoardOpen(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-700"><Bike className="h-3.5 w-3.5" /> Rider Assignments</button>
+            <button onClick={() => setPrepModalOpen(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"><ClipboardCheck className="h-3.5 w-3.5" /> Prep list</button>
             <a href="/store/deliveries" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"><Truck className="h-3.5 w-3.5" /> Deliver at store</a>
           </div>
         </section>
@@ -876,7 +881,8 @@ export default function StoreSubscriptionOperationsPage() {
             [
               ["grid", "Milk Grid (Sheet View)", FileSpreadsheet],
               ["subscribers", "Subscribers", Users],
-              ["prep", "Tomorrow Prep", ClipboardCheck],
+              ["riders", "Rider Assignments", Bike],
+              ["prep", "Prep list", ClipboardCheck],
               ["forecast", "Demand", BarChart3],
               ["plans", "Plans", Archive],
               ["calendar", "Calendar", CalendarDays],
@@ -962,6 +968,33 @@ export default function StoreSubscriptionOperationsPage() {
 
             {tab === "analytics" && (
               <AnalyticsSection analytics={analytics} runs={runs} cash={cash} subscribers={subscribers} subscriberCounts={subscriberCounts} />
+            )}
+
+            {tab === "riders" && (
+              <section className="space-y-3">
+                <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-100 text-violet-700">
+                        <Bike className="h-5 w-5" />
+                      </span>
+                      <div>
+                        <h2 className="text-sm font-semibold text-slate-900">Rider assignments</h2>
+                        <p className="mt-0.5 max-w-xl text-xs text-slate-600">
+                          See exactly which customers are assigned to which rider for any service
+                          date, the delivery timings, cash to collect, and who is still unassigned.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setRiderBoardOpen(true)}
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-700"
+                    >
+                      <Bike className="h-3.5 w-3.5" /> Open Rider Assignments
+                    </button>
+                  </div>
+                </div>
+              </section>
             )}
 
             {tab === "prep" && (
@@ -1465,6 +1498,8 @@ export default function StoreSubscriptionOperationsPage() {
             </div>
           </Modal>
         )}
+
+        {riderBoardOpen && <RiderAssignmentsDialog onClose={() => setRiderBoardOpen(false)} />}
 
         {prepModalOpen && (
           <Modal title="Prepare before delivery day" onClose={() => setPrepModalOpen(false)}>
