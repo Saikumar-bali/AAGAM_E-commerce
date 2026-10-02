@@ -96,9 +96,24 @@ export class RegionalRouteNotificationService implements OnModuleInit, OnModuleD
       });
 
       for (const event of events) {
-        // Deliver before advancing so a thrown error leaves the event queued
-        // for the next tick rather than silently dropped.
-        await this.deliver(event);
+        try {
+          // Deliver before advancing so a thrown error leaves the event queued
+          // for the next tick rather than silently dropped.
+          await this.deliver(event);
+        } catch (error: unknown) {
+          // Isolate per event: one bad event must not abort the batch and
+          // re-enqueue (or stall behind) every later event on each tick. The
+          // watermark is left untouched so the failed event is retried next
+          // tick, and enqueue itself is idempotent, so re-processing an event
+          // whose deliver() failed midway only re-inserts already-committed
+          // outbox rows as duplicates (skipped by idempotency key).
+          captureBackgroundError(
+            this.logger,
+            `Regional route notification delivery failed for event ${event.id}`,
+            error,
+          );
+          break;
+        }
         if (
           !this.watermark
           || event.createdAt > this.watermark.createdAt
