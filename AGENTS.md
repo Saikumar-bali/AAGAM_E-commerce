@@ -205,3 +205,22 @@ keyword argument` and no actions is that bug, not a model problem.
 `current_phase`. `Timed out: command timed out or was killed` means the run hit
 the 1800s cap. The prompts therefore push their fixes before reporting, so work
 survives a timeout, and treat 20 minutes as their own deadline.
+
+## Rider assignment visibility (store)
+
+- `GET /store/subscriptions/rider-assignments?date=YYYY-MM-DD` (StoreSubscriptionsController)
+  returns `{ date, slots, totals, riders[], unassigned[] }` grouping assigned stops
+  per rider-owned run. A delivery counts as "assigned" only when it has a
+  `DeliveryRunStop` whose `deliveryRun.rider` is set — the milk grid matrix and
+  the orders board read different fields, so keep `order.riderId` and the run
+  stop in sync.
+- `dispatchToRider` (store-milk-grid.service.ts) must always create or move a
+  `DeliveryRunStop` onto the rider's run and set `order.riderId` +
+  `riderAssignedAt`; otherwise a dispatch shows as done but the grid/runs/orders
+  show "unassigned".
+- Store subscriptions UI: `RiderAssignmentsDialog` is opened from the header
+  button and the "Rider Assignments" tab; the old "Tomorrow Prep" is now the
+  "Prep list" tab.
+- Test DB is unavailable in the sandbox: jest suites that hit `prisma` fail with
+  `Environment variable not found: DATABASE_URL`. Run the full suite from
+  `apps/api-gateway` (`npx jest --runInBand`) and treat those as pre-existing.
