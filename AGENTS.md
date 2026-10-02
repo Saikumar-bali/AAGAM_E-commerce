@@ -259,3 +259,35 @@ survives a timeout, and treat 20 minutes as their own deadline.
   release a BUSY rider to ONLINE without a fake GPS ping, but still refuses when
   the rider holds active deliveries/runs and returns a message explaining why.
 
+## Rider-assignment visibility (mobile)
+
+- Live `aagaam.in` (revision `6caa4b6`) has **no** rider-assignment surfaces,
+  so the dispatch result cannot be read from the live API yet:
+  `GET /store/subscriptions/rider-assignments` → 404, `.../available-riders` → 404.
+  The inclusion/exclusion of the rider dispatch board is itself a candidate
+  deploy/branch issue.
+- Fallback that works live: `GET /store/subscription-operations/runs?serviceDate=YYYY-MM-DD`
+  returns runs with `riderId`, `rider`, and `stops[]`; a stop with
+  `deliveryJobId` (especially a non-`PLANNED` status) is a rider-assigned
+  delivery. `runs` for a store scope already returns all stores the owner can see.
+- Count delivered as of 2026-10-02: one rider-assigned customer — the single
+  early-dispatched AM run `RUN-AAGA-AM-2026-10-03-f2ce` (`riderId ff7e0aba…`,
+  rider `saikumarbali`, status `IN_PROGRESS`). Every other `2026-10-03` run
+  (`RUN-ANAKAPAL-…`) and the `2026-10-01` run has `riderId: null`, so 0
+  customers are assigned via the board.
+- Mobile entry point: the old floating **"Tomorrow"** prep FAB is replaced by
+  `StoreOperationsDock` (Rider Assignments primary, Preparation secondary).
+  Rider Assignments calls `GET/POST /store/subscriptions/*`, so the screen is
+  inert until that controller is deployed to the environment being tested.
+
+## Mobile partner offer alerts
+
+- `apps/mobile-partners/src/domain/partnerAlertPolicy.ts` makes offer alerts
+  once-only and accept-gated. The persistent alerted set lives in AsyncStorage
+  (`aagam:partner:alerted:<session>`), the first inbox load is a reconciliation
+  pass (`alertKeysForInboxBootstrap`), and inbox polling (30s) only backstops
+  missed FCM pushes. Never reintroduce the old `unseen.slice(-3)` re-alert burst.
+- The live `SUPABASE_DB_URL` in this sandbox points at an unrelated project
+  (trading/`public.instruments` schema), not the AAGAM database. Read live store
+  data through the API with a store-owner login cookie instead.
+
