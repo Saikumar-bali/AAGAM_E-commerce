@@ -294,11 +294,21 @@ survives a timeout, and treat 20 minutes as their own deadline.
   returns runs with `riderId`, `rider`, and `stops[]`; a stop with
   `deliveryJobId` (especially a non-`PLANNED` status) is a rider-assigned
   delivery. `runs` for a store scope already returns all stores the owner can see.
-- Count delivered as of 2026-10-02: one rider-assigned customer — the single
-  early-dispatched AM run `RUN-AAGA-AM-2026-10-03-f2ce` (`riderId ff7e0aba…`,
-  rider `saikumarbali`, status `IN_PROGRESS`). Every other `2026-10-03` run
-  (`RUN-ANAKAPAL-…`) and the `2026-10-01` run has `riderId: null`, so 0
-  customers are assigned via the board.
+- Count re-verified live on 2026-10-02 against `aagaam.in` (revision still
+  `6caa4b6` on `main`; `bugs` is not deployed): **0 customers are assigned via
+  the board** for `2026-10-03`. `GET /store/subscriptions/rider-assignments`
+  is still `404` (and `.../available-riders` is now `200`), so the board cannot
+  be read live. Fallback `runs` shows the single early-dispatched AM run
+  `RUN-AAGA-AM-2026-10-03-f2ce` (`riderId ff7e0aba...`, rider `saikumarbali`,
+  status `IN_PROGRESS`) with **0 stops** (`totalStopCount: 0`), so it assigns
+  no customer. Every `RUN-ANAKAPAL-...` run on `2026-10-03` has `riderId: null`
+  even though its stops carry a `deliveryJobId` - that linkage is created at
+  order generation, not by a rider dispatch, so it must not be read as
+  "assigned". The only true dispatch signal is a `DeliveryRunStop` on a run
+  whose `riderId` is set; the delivery `dispatch-summary` for the day reports
+  `ASSIGNED: 1` (delivery `cmuqgalkr2x9vvo0d47f60wcq`, stop 3), but its run
+  stop lives on the riderless `RUN-ANAKAPAL-20261003-01-D8A121`, i.e. the
+  order's `riderId` and its run stop are out of sync. Net board count: 0.
 - Mobile entry point: the old floating **"Tomorrow"** prep FAB is replaced by
   `StoreOperationsDock` (Rider Assignments primary, Preparation secondary).
   Rider Assignments calls `GET/POST /store/subscriptions/*`, so the screen is
