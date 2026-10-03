@@ -5,6 +5,7 @@ import { parseAddOns, parseVolumeLiters, sumAddOnLiters } from './delivery-add-o
 import { computeVoidAdjustment, reconcileSubscriptionBalance } from './subscription-balances';
 import { isOfflineSubscription } from '@aagam/utils';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
+import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 
 export interface GridCell {
   deliveryId: string;
@@ -56,6 +57,9 @@ export interface GridRow {
     dailyQuantity: string;
   };
   slot: string;
+  /** Live subscription state so the store can see a paused/upcoming customer. */
+  status: string;
+  pauseEffectiveFrom?: string | null;
   defaultRider?: {
     id: string;
     name: string;
@@ -80,7 +84,10 @@ export interface GridRow {
 
 @Injectable()
 export class StoreMilkGridService {
-  constructor(private readonly funding: SubscriptionCashFundingService) {}
+  constructor(
+    private readonly funding: SubscriptionCashFundingService,
+    private readonly lifecycle: SubscriptionLifecycleService,
+  ) {}
 
   /**
    * Generates a 2D Matrix of all store subscribers across days 1-31 of the requested month.
@@ -363,6 +370,8 @@ export class StoreMilkGridService {
           dailyQuantity: allPlans[0]?.dailyQuantity || `${allPlans[0]?.name || 'Milk Plan'}`,
         },
         slot: splitItems ? 'AM+PM' : (activeSub.deliveryWindowStartMinute >= 900 ? 'PM' : 'AM'),
+        status: activeSub.status,
+        pauseEffectiveFrom: (activeSub as any).pauseEffectiveFrom?.toISOString() || null,
         defaultRider: (activeSub as any).defaultRider?.user
           ? {
               id: (activeSub as any).defaultRider.id,
@@ -684,8 +693,8 @@ export class StoreMilkGridService {
         updatedCashCollected = 0;
       }
 
-      const updated = await prisma.$transaction([
-        prisma.subscriptionDelivery.update({
+      const updated = await prisma.$transaction(async (tx) => {
+        const nextDelivery = await tx.subscriptionDelivery.update({
           where: { id: deliveryId },
           data: {
             status: SubscriptionDeliveryStatus.SKIPPED,
@@ -695,8 +704,15 @@ export class StoreMilkGridService {
             deliveredByStoreUserId: null,
             cashCollectedPaise: updatedCashCollected,
           },
-        }),
-        prisma.customerSubscription.update({
+        });
+        // Same teardown as the customer skip path: cancel the order, delivery
+        // job and run stop so the store grid and the rider board agree.
+        await this.lifecycle.cancelRiderArtifactsWithinTransaction(
+          tx,
+          deliveryId,
+          `Subscription delivery skipped: ${action.note?.trim() || 'Not taken / Skipped by customer'}`,
+        );
+        const nextSub = await tx.customerSubscription.update({
           where: { id: sub.id },
           data: {
             completedDeliveries: newCompleted,
@@ -704,8 +720,9 @@ export class StoreMilkGridService {
             amountCollectedPaise: Math.max(0, (sub.amountCollectedPaise || 0) + cashDelta),
             amountDuePaise: Math.max(0, (sub.amountDuePaise || 0) - cashDelta),
           },
-        }),
-      ]);
+        });
+        return [nextDelivery, nextSub] as const;
+      });
 
       return { success: true, delivery: updated[0], subscription: updated[1] };
     }
@@ -1056,6 +1073,9 @@ export class StoreMilkGridService {
       where: {
         serviceDate: { gte: dayStart, lte: dayEnd },
         subscription: { ...storeFilter, customer: { isActive: true }, status: { not: 'COMPLETED' } },
+        // Skipped and cancelled occurrences are not milk to prep. Counting them
+        // inflated the store's daily stop/litre totals after a customer skip.
+        status: { notIn: [SubscriptionDeliveryStatus.SKIPPED, SubscriptionDeliveryStatus.CANCELLED] },
       },
       include: {
         subscription: {
@@ -1540,7 +1560,12 @@ export class StoreMilkGridService {
     if (!rider) throw new BadRequestException('Selected rider is not active and approved');
 
     const deliveries = await prisma.subscriptionDelivery.findMany({
-      where: { id: { in: dto.deliveryIds } },
+      where: {
+        id: { in: dto.deliveryIds },
+        // A skipped or cancelled occurrence is not deliverable; dispatching it
+        // would resurrect the stop the skip/pause teardown just cancelled.
+        status: { notIn: [SubscriptionDeliveryStatus.SKIPPED, SubscriptionDeliveryStatus.CANCELLED] },
+      },
       include: {
         subscription: {
           include: {

@@ -1,5 +1,6 @@
 import { prisma, Role } from '@aagam/database';
 import { StoreMilkGridService } from './store-milk-grid.service';
+import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 
 jest.mock('@aagam/database', () => ({
   prisma: {
@@ -17,6 +18,7 @@ jest.mock('@aagam/database', () => ({
     DELIVERED: 'DELIVERED',
     ASSIGNED: 'ASSIGNED',
     SKIPPED: 'SKIPPED',
+    CANCELLED: 'CANCELLED',
     RESCHEDULED: 'RESCHEDULED',
     FAILED: 'FAILED',
   },
@@ -27,7 +29,8 @@ jest.mock('@aagam/database', () => ({
 describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entitlement', () => {
   const consume = jest.fn();
   const funding: any = { consumeDeliveredWithinTransaction: consume };
-  const service = new StoreMilkGridService(funding);
+  const lifecycle = new SubscriptionLifecycleService();
+  const service = new StoreMilkGridService(funding, lifecycle);
   const tx: any = {
     subscriptionDelivery: { update: jest.fn().mockResolvedValue({ id: 'del-1' }) },
     customerSubscription: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ id: 'sub-1' }) },
@@ -89,6 +92,27 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
         data: expect.objectContaining({ remainingFundedDeliveries: 1 }),
       }),
     );
+  });
+
+  it('cancels the rider run stop when the store marks a delivery skipped', async () => {
+    (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(
+      delivery({ runStop: { id: 'stop-1', deliveryRunId: 'run-1' }, deliveryJobId: 'job-1' }),
+    );
+    tx.deliveryRunStop = { findUnique: jest.fn().mockResolvedValue({ id: 'stop-1', deliveryRunId: 'run-1', deliveryJobId: 'job-1' }), update: jest.fn().mockResolvedValue({}), aggregate: jest.fn().mockResolvedValue({ _count: { _all: 0 }, _sum: {} }), count: jest.fn().mockResolvedValue(0) };
+    tx.deliveryJob = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+    tx.order = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+    tx.deliveryRun = { update: jest.fn().mockResolvedValue({}) };
+    tx.subscriptionDelivery.findUnique = jest.fn().mockResolvedValue({ deliveryJobId: 'job-1', order: { id: 'order-1' } });
+
+    const result = await service.executeQuickAction({ id: 'store-user', role: Role.ADMIN }, 'del-1', { type: 'SKIP' });
+
+    expect(tx.deliveryRunStop.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'stop-1' }, data: expect.objectContaining({ status: 'CANCELLED' }) }),
+    );
+    expect(tx.deliveryJob.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELLED' }) }),
+    );
+    expect(result.success).toBe(true);
   });
 
   describe('dispatchToRider', () => {
@@ -158,6 +182,18 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
         expect.objectContaining({
           where: { id: 'del-1' },
           data: expect.objectContaining({ status: 'ASSIGNED' }),
+        }),
+      );
+    });
+
+    it('does not dispatch skipped deliveries', async () => {
+      await service.dispatchToRider({ id: 'store-user', role: Role.ADMIN }, { deliveryIds: ['del-1'], riderProfileId: 'rider-1' });
+
+      expect(prisma.subscriptionDelivery.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: { notIn: ['SKIPPED', 'CANCELLED'] },
+          }),
         }),
       );
     });

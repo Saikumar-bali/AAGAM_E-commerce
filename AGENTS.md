@@ -325,3 +325,34 @@ survives a timeout, and treat 20 minutes as their own deadline.
   (trading/`public.instruments` schema), not the AAGAM database. Read live store
   data through the API with a store-owner login cookie instead.
 
+## Subscription skip / pause lifecycle (fixed on `bugs`)
+
+- Root cause of the grid-vs-rider split: skip and pause only flipped
+  `SubscriptionDelivery.status`. The skip cutoff (12h) is later than order
+  generation (18-24h), so the skipped/paused day usually already owned an
+  `Order`, a `DeliveryJob` and a `DeliveryRunStop`. The grid showed NOT TAKEN
+  while the rider board still had a live stop.
+- `SubscriptionLifecycleService` is now the single teardown used by every path
+  (customer skip, customer pause, store SKIP quick action). It cancels the run
+  stop + delivery job + order, recomputes the run's stop counters, marks
+  pause-window occurrences `SKIPPED` with `skipReason = 'PAUSED_WINDOW'`
+  (keeping their order), restores them on resume (`ORDER_GENERATED` if the row
+  already had an order, else `SCHEDULED`), and shifts every non-terminal
+  delivery + its order on resume (previously only `SCHEDULED` rows moved, so a
+  generated paused day stayed due on the old date).
+- Customer `skip()` now accepts `SCHEDULED` **or** `ORDER_GENERATED` within the
+  cutoff, and its extension row carries the skipped row's `deliverySlot`,
+  `storeId` and `deliveryZoneId` (it used to default to AM with no zone).
+- `dispatchToRider` excludes `SKIPPED`/`CANCELLED` deliveries, and
+  `getDispatchSummary` no longer counts skipped/cancelled rows as milk to prep.
+- Store grid rows now expose `status` / `pauseEffectiveFrom`, and
+  `MilkDeliveryGrid` renders a **PAUSED** badge so the store sees a paused
+  customer. Paused customers stay in the grid (filter includes `PAUSED`) so the
+  store can still see and bill them.
+- Handover proof: `SubscriptionDeliveryMethod` (PERSONAL_HANDOVER /
+  TRUSTED_DROP / SECURITY_RECEPTION) is a rider-delivery concept. It is
+  genuinely enforced for rider runs, but silently discarded for store delivery
+  (`dispatchToRider` overwrites `proofMode`; store self-delivery verifies by
+  name/phone). Do not remove the three options globally; gate the customer
+  picker on store-delivery/pickup so a discarded choice is not asked.
+

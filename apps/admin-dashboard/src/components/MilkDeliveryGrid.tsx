@@ -89,6 +89,8 @@ interface GridRow {
     dailyQuantity: string;
   };
   slot: string;
+  status?: string;
+  pauseEffectiveFrom?: string | null;
   defaultRider?: {
     id: string;
     name: string;
@@ -960,6 +962,14 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               }`}>
                 {row.customer.customerType === 'offline' ? 'OFFLINE' : 'ONLINE'}
               </span>
+              {row.status === 'PAUSED' && (
+                <span
+                  className="inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[8px] font-semibold leading-none bg-rose-100 text-rose-700 border border-rose-200"
+                  title={row.pauseEffectiveFrom ? `Paused from ${new Date(row.pauseEffectiveFrom).toLocaleDateString()}` : 'Paused'}
+                >
+                  PAUSED{row.pauseEffectiveFrom ? ` FROM ${new Date(row.pauseEffectiveFrom).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}` : ''}
+                </span>
+              )}
               {isPending && mobileSortMode === 'pending-first' && (
                 <span className="rounded bg-slate-100 px-1 py-0.5 text-[9px] font-bold text-slate-500">
                   Seq #{originalIndex + 1}

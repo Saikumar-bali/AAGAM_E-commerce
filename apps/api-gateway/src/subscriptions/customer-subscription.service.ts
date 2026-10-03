@@ -35,6 +35,7 @@ import {
 } from './subscription-calendar.service';
 import { nullableJson, requiredJson } from '../common/prisma-json';
 import { SubscriptionServiceabilityService } from './subscription-serviceability.service';
+import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 
 
 type DeliveryMethodPolicy = {
@@ -75,6 +76,7 @@ export class CustomerSubscriptionService {
   constructor(
     private readonly calendar: SubscriptionCalendarService,
     private readonly serviceability: SubscriptionServiceabilityService,
+    private readonly lifecycle: SubscriptionLifecycleService,
   ) {}
 
   private proofMode(method: SubscriptionDeliveryMethod) {
@@ -412,8 +414,9 @@ export class CustomerSubscriptionService {
         where: { id: deliveryId, subscriptionId },
       });
       if (!delivery) throw new NotFoundException('Subscription delivery not found');
-      if (delivery.status !== SubscriptionDeliveryStatus.SCHEDULED) {
-        throw new ConflictException('Only an ungenerated scheduled delivery can be skipped');
+      if (delivery.status !== SubscriptionDeliveryStatus.SCHEDULED &&
+          delivery.status !== SubscriptionDeliveryStatus.ORDER_GENERATED) {
+        throw new ConflictException('Only a scheduled or generated delivery can be skipped');
       }
       const timezone = subscription.deliveryZone?.timezone || 'Asia/Kolkata';
       const deliveryWindow = this.calendar.window(delivery.serviceDate, subscription.deliveryWindowStartMinute, subscription.deliveryWindowEndMinute, timezone);
@@ -423,6 +426,14 @@ export class CustomerSubscriptionService {
         where: { id: deliveryId },
         data: { status: SubscriptionDeliveryStatus.SKIPPED, skippedAt: new Date(), skipReason: dto.reason?.trim() || 'CUSTOMER_REQUEST' },
       });
+      // The skip cutoff is later than order generation, so this row can already
+      // own an order, a delivery job and a run stop. Cancel them together or the
+      // rider keeps a stop the grid has already marked NOT TAKEN.
+      await this.lifecycle.cancelRiderArtifactsWithinTransaction(
+        tx,
+        deliveryId,
+        `Subscription delivery skipped: ${dto.reason?.trim() || 'CUSTOMER_REQUEST'}`,
+      );
       if (delivery.cashDuePaise > 0) {
         const next = await tx.subscriptionDelivery.findFirst({
           where: { subscriptionId, status: SubscriptionDeliveryStatus.SCHEDULED, serviceDate: { gt: delivery.serviceDate } },
@@ -443,6 +454,11 @@ export class CustomerSubscriptionService {
           generationKey: `subscription:${subscriptionId}:extension:${latest.sequenceNumber + 1}:${extensionDate.toISOString().slice(0, 10)}`,
           cashDuePaise: 0,
           proofMode: this.proofMode(subscription.deliveryMethod),
+          // Carry the skipped row's routing so the extension is picked up by the
+          // same store/zone/slot instead of defaulting to AM with no zone.
+          deliverySlot: delivery.deliverySlot,
+          storeId: delivery.storeId,
+          deliveryZoneId: delivery.deliveryZoneId,
           rescheduledFromDate: delivery.serviceDate,
         },
       });
@@ -493,6 +509,15 @@ export class CustomerSubscriptionService {
     return prisma.$transaction(async (tx) => {
       const existing = await tx.subscriptionAuditEntry.findUnique({ where: { idempotencyKey: key } });
       if (existing) return tx.customerSubscription.findUnique({ where: { id } });
+      // The pause takes effect on a future service day, but that day's order and
+      // run stop may already be generated. Pull them back so the rider network
+      // stops showing a customer who is paused.
+      await this.lifecycle.cancelPausedRiderArtifactsWithinTransaction(
+        tx,
+        id,
+        effective,
+        `Subscription paused: ${dto.reason?.trim() || 'CUSTOMER_REQUEST'}`,
+      );
       const updated = await tx.customerSubscription.update({
         where: { id },
         data: {
@@ -527,16 +552,14 @@ export class CustomerSubscriptionService {
       const existing = await tx.subscriptionAuditEntry.findUnique({ where: { idempotencyKey: key } });
       if (existing) return tx.customerSubscription.findUnique({ where: { id } });
       if (shiftDays > 0) {
-        await tx.$executeRaw(Prisma.sql`
-          UPDATE "SubscriptionDelivery"
-          SET "serviceDate" = "serviceDate" + (${shiftDays} * INTERVAL '1 day'),
-              "rescheduledFromDate" = COALESCE("rescheduledFromDate", "serviceDate"),
-              "rescheduledToDate" = "serviceDate" + (${shiftDays} * INTERVAL '1 day'),
-              "updatedAt" = NOW()
-          WHERE "subscriptionId" = ${id}
-            AND "status" = 'SCHEDULED'::"SubscriptionDeliveryStatus"
-            AND "serviceDate" >= ${effective}
-        `);
+        // Un-mark the occurrences the pause suspended, then shift every
+        // non-terminal delivery (not only SCHEDULED). A paused day that had
+        // already been generated keeps its order and must move with the plan,
+        // otherwise the customer is billed on the original date.
+        await this.lifecycle.restorePausedDeliveriesWithinTransaction(tx, id, effective);
+        await this.lifecycle.shiftResumedDeliveriesWithinTransaction(tx, id, effective, shiftDays);
+      } else {
+        await this.lifecycle.restorePausedDeliveriesWithinTransaction(tx, id, effective);
       }
       const latest = await tx.subscriptionDelivery.findFirst({ where: { subscriptionId: id }, orderBy: { serviceDate: 'desc' } });
       const next = await this.nextScheduledDate(tx, id);
