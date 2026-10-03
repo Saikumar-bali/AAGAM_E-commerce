@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { CustomerSubscriptionStatus, DeliveryJobStatus, PaymentStatus, Prisma, Role, SubscriptionDeliveryStatus, prisma } from '@aagam/database';
 import { randomUUID } from 'crypto';
+import { DEFAULT_DELIVERY_TIMEZONE, todayInTimezone } from './subscription-timezone';
 
 @Injectable()
 export class StoreSelfDeliveryService {
@@ -284,11 +285,48 @@ export class StoreSelfDeliveryService {
     });
   }
 
-  async getTodayQueue(storeId: string) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+  /**
+   * Store self-delivery queue. Defaults to today so existing callers keep
+   * their behaviour; `from` / `to` (inclusive, `YYYY-MM-DD`) widen the window
+   * so a client can plan the days ahead without a second endpoint.
+   */
+  async getTodayQueue(storeId: string, range?: { from?: string; to?: string }) {
+    const parseDay = (value: string, field: string) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        throw new BadRequestException(`\`${field}\` must be a YYYY-MM-DD date`);
+      }
+      const day = new Date(`${value}T00:00:00`);
+      const [year, month, date] = value.split('-').map(Number);
+      if (
+        Number.isNaN(day.getTime()) ||
+        day.getFullYear() !== year ||
+        day.getMonth() !== month - 1 ||
+        day.getDate() !== date
+      ) {
+        throw new BadRequestException(`\`${field}\` is not a valid date`);
+      }
+      return day;
+    };
+    const addDays = (day: Date, days: number) => {
+      const next = new Date(day);
+      next.setDate(next.getDate() + days);
+      return next;
+    };
+
+    const store = await prisma.store.findUnique({ where: { id: storeId }, select: { timezone: true } });
+    const timezone = store?.timezone || DEFAULT_DELIVERY_TIMEZONE;
+
+    const start = range?.from ? parseDay(range.from, 'from') : todayInTimezone(timezone);
+    const end = range?.to
+      ? addDays(parseDay(range.to, 'to'), 1)
+      : addDays(start, 1);
+    if (end.getTime() <= start.getTime()) {
+      throw new BadRequestException('`to` must be on or after `from`');
+    }
+    if (end.getTime() - start.getTime() > 31 * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException('Date range cannot exceed 31 days');
+    }
+    const endExclusive = end;
 
     const deliveries = await prisma.subscriptionDelivery.findMany({
       where: {
@@ -296,7 +334,7 @@ export class StoreSelfDeliveryService {
           { storeId },
           { subscription: { homeStoreId: storeId } },
         ],
-        serviceDate: { gte: today, lt: tomorrow },
+        serviceDate: { gte: start, lt: endExclusive },
         status: { in: ['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED', 'STORE_DELIVERING', 'DELIVERED', 'FAILED'] },
         // The store fulfils every one of its own subscription deliveries that
         // is not claimed by the rider network: explicitly store-delivery rows

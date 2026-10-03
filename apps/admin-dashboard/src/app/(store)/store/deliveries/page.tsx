@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ElementType } from 'react';
 import { apiClient } from '@aagam/utils';
 import DashboardLayout from '@/components/DashboardLayout';
 import { getToastErrorMessage, useToast } from '@/components/ToastProvider';
@@ -8,18 +8,17 @@ import {
   CheckCircle2,
   Clock,
   Edit3,
-  Loader2,
   MapPin,
   Package,
-  PackageCheck,
   Phone,
-  RefreshCw,
   Route,
   Truck,
   XCircle,
   AlertTriangle,
-  User,
 } from 'lucide-react';
+import OpsModal, { OpsField } from '@/components/store/OpsModal';
+import { DateRail, EmptyState, ResultsNote, SearchField, SegmentedControl } from '@/components/store/OpsControls';
+import { KpiStrip, PageHeader, RefreshButton } from '@/components/store/OpsSummary';
 
 type DeliveryItem = {
   id: string;
@@ -38,46 +37,114 @@ type DeliveryItem = {
   subscription: { storeDelivery: boolean } | null;
 };
 
-type StatusFilter = 'all' | 'pending' | 'delivering' | 'delivered' | 'failed';
+type StatusGroup = 'all' | 'pending' | 'delivering' | 'delivered' | 'failed';
+type SlotFilter = 'all' | 'AM' | 'PM';
+
+const PENDING_STATUSES = ['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED'];
+const STARTABLE_STATUSES = ['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED'];
+/** How far ahead the rail reaches: today + this many days. */
+const RANGE_DAYS = 13;
+
+const STATUS_META: Record<string, { color: string; icon: ElementType; label: string }> = {
+  SCHEDULED: { color: 'bg-slate-100 text-slate-700', icon: Clock, label: 'Scheduled' },
+  ORDER_GENERATED: { color: 'bg-blue-100 text-blue-800', icon: Clock, label: 'Ready' },
+  PREPARING: { color: 'bg-amber-100 text-amber-800', icon: Clock, label: 'Preparing' },
+  PACKED: { color: 'bg-emerald-100 text-emerald-800', icon: Package, label: 'Packed' },
+  STORE_DELIVERING: { color: 'bg-orange-100 text-orange-800', icon: Truck, label: 'Out for delivery' },
+  DELIVERED: { color: 'bg-emerald-100 text-emerald-800', icon: CheckCircle2, label: 'Delivered' },
+  FAILED: { color: 'bg-red-100 text-red-700', icon: XCircle, label: 'Failed' },
+};
 
 function money(paise: number) {
   return `₹${(Number(paise || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 }
 
+/** YYYY-MM-DD of an instant in the store's timezone (Asia/Kolkata). */
+function dayKeyOf(value: string | Date) {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
+function shiftDay(key: string, days: number) {
+  const [year, month, day] = key.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function dayLabel(key: string, todayKey: string) {
+  if (key === todayKey) return 'Today';
+  if (key === shiftDay(todayKey, 1)) return 'Tomorrow';
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-IN', {
+    weekday: 'short',
+    timeZone: 'UTC',
+  });
+}
+
+function daySublabel(key: string) {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+}
+
 function statusBadge(status: string) {
-  const config: Record<string, { color: string; icon: any; label: string }> = {
-    ORDER_GENERATED: { color: 'bg-blue-100 text-blue-700', icon: Clock, label: 'Ready' },
-    PREPARING: { color: 'bg-amber-100 text-amber-700', icon: Clock, label: 'Preparing' },
-    PACKED: { color: 'bg-emerald-100 text-emerald-700', icon: Package, label: 'Packed' },
-    STORE_DELIVERING: { color: 'bg-orange-100 text-orange-700', icon: Truck, label: 'Out for Delivery' },
-    DELIVERED: { color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2, label: 'Delivered' },
-    FAILED: { color: 'bg-red-100 text-red-700', icon: XCircle, label: 'Failed' },
-  };
-  const cfg = config[status] || { color: 'bg-slate-100 text-slate-600', icon: Clock, label: status };
+  const cfg = STATUS_META[status] || { color: 'bg-slate-100 text-slate-700', icon: Clock, label: status };
   const Icon = cfg.icon;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-semibold ${cfg.color}`}>
-      <Icon className="h-3 w-3" /> {cfg.label}
+    <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-semibold ${cfg.color}`}>
+      <Icon className="h-3 w-3" aria-hidden="true" /> {cfg.label}
     </span>
   );
 }
 
+function groupOf(status: string): StatusGroup {
+  if (status === 'STORE_DELIVERING') return 'delivering';
+  if (status === 'DELIVERED') return 'delivered';
+  if (status === 'FAILED') return 'failed';
+  if (PENDING_STATUSES.includes(status)) return 'pending';
+  return 'pending';
+}
+
 export default function StoreDeliveriesPage() {
   const toast = useToast();
+  const todayKey = dayKeyOf(new Date());
+
   const [deliveries, setDeliveries] = useState<DeliveryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [working, setWorking] = useState('');
-  const [filter, setFilter] = useState<StatusFilter>('all');
   const [stores, setStores] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
+
+  const [search, setSearch] = useState('');
+  const [statusGroup, setStatusGroup] = useState<StatusGroup>('all');
+  const [slot, setSlot] = useState<SlotFilter>('all');
+  const [selectedDay, setSelectedDay] = useState(todayKey);
 
   const [verifyModal, setVerifyModal] = useState<DeliveryItem | null>(null);
   const [verifyName, setVerifyName] = useState('');
   const [verifyPhone, setVerifyPhone] = useState('');
   const [verifyNotes, setVerifyNotes] = useState('');
   const [verifyCash, setVerifyCash] = useState('');
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifyCashError, setVerifyCashError] = useState<string | null>(null);
+  const [verifyFormError, setVerifyFormError] = useState<string | null>(null);
 
-  const loadStores = async () => {
+  const [editModal, setEditModal] = useState<DeliveryItem | null>(null);
+  const [editStatus, setEditStatus] = useState<'DELIVERED' | 'FAILED'>('DELIVERED');
+  const [editCash, setEditCash] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const [failModal, setFailModal] = useState<DeliveryItem | null>(null);
+  const [failReason, setFailReason] = useState('');
+  const [failError, setFailError] = useState<string | null>(null);
+
+  const loadStores = useCallback(async () => {
     try {
       const res = await apiClient.get('/stores/mine');
       const storeList = Array.isArray(res.data) ? res.data : res.data?.items || [];
@@ -86,39 +153,49 @@ export default function StoreDeliveriesPage() {
     } catch (err) {
       toast.error(getToastErrorMessage(err, 'Failed to load stores'));
     }
-  };
+  }, [toast]);
 
-  const loadDeliveries = async (storeId: string, abortSignal?: AbortSignal) => {
-    if (!storeId) return;
-    setLoading(true);
-    try {
-      const res = await apiClient.get(`/store-self-delivery/queue/${storeId}`, { signal: abortSignal });
-      if (!abortSignal?.aborted) {
-        setDeliveries(Array.isArray(res.data) ? res.data : []);
+  const loadDeliveries = useCallback(
+    async (storeId: string, mode: 'initial' | 'refresh' = 'initial', abortSignal?: AbortSignal) => {
+      if (!storeId) return;
+      if (mode === 'refresh') setRefreshing(true);
+      else setLoading(true);
+      try {
+        const res = await apiClient.get(`/store-self-delivery/queue/${storeId}`, {
+          params: { from: todayKey, to: shiftDay(todayKey, RANGE_DAYS) },
+          signal: abortSignal,
+        });
+        if (!abortSignal?.aborted) setDeliveries(Array.isArray(res.data) ? res.data : []);
+      } catch (err: any) {
+        if (err.name === 'AbortError' || err.name === 'CanceledError') return;
+        toast.error(getToastErrorMessage(err, 'Failed to load deliveries'));
+      } finally {
+        if (!abortSignal?.aborted) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
-    } catch (err: any) {
-      if (err.name === 'AbortError' || err.name === 'CanceledError') return;
-      toast.error(getToastErrorMessage(err, 'Failed to load deliveries'));
-    } finally {
-      if (!abortSignal?.aborted) setLoading(false);
-    }
-  };
+    },
+    [todayKey, toast]
+  );
 
-  useEffect(() => { void loadStores(); }, []);
-  
+  useEffect(() => {
+    void loadStores();
+  }, [loadStores]);
+
   useEffect(() => {
     if (!selectedStoreId) return;
     const controller = new AbortController();
-    void loadDeliveries(selectedStoreId, controller.signal);
+    void loadDeliveries(selectedStoreId, 'initial', controller.signal);
     return () => controller.abort();
-  }, [selectedStoreId]);
+  }, [selectedStoreId, loadDeliveries]);
 
   const startDelivery = async (deliveryId: string) => {
     setWorking(deliveryId);
     try {
       await apiClient.post(`/store-self-delivery/start/${deliveryId}`);
-      toast.success('Delivery started. Verify customer on arrival.');
-      if (selectedStoreId) await loadDeliveries(selectedStoreId);
+      toast.success('Delivery started. Verify the customer on arrival.');
+      if (selectedStoreId) await loadDeliveries(selectedStoreId, 'refresh');
     } catch (err) {
       toast.error(getToastErrorMessage(err, 'Failed to start delivery'));
     } finally {
@@ -127,6 +204,9 @@ export default function StoreDeliveriesPage() {
   };
 
   const openVerify = (delivery: DeliveryItem) => {
+    setVerifyError(null);
+    setVerifyCashError(null);
+    setVerifyFormError(null);
     setVerifyModal(delivery);
     setVerifyName(delivery.customer.name || '');
     setVerifyPhone(delivery.customer.phone || '');
@@ -138,11 +218,11 @@ export default function StoreDeliveriesPage() {
     if (!verifyModal) return;
     const cashNum = verifyCash ? Math.round(parseFloat(verifyCash) * 100) : 0;
     if (verifyCash && (!Number.isFinite(cashNum) || cashNum < 0)) {
-      toast.warning('Enter a valid cash amount.');
+      setVerifyCashError('Enter a valid cash amount, for example 150 or 150.50.');
       return;
     }
     if (!verifyName.trim()) {
-      toast.warning('Enter the customer name for verification.');
+      setVerifyError('Enter the customer name used for verification.');
       return;
     }
     setWorking(verifyModal.id);
@@ -155,37 +235,41 @@ export default function StoreDeliveriesPage() {
       });
       toast.success('Delivery completed and verified.');
       setVerifyModal(null);
-      if (selectedStoreId) await loadDeliveries(selectedStoreId);
+      if (selectedStoreId) await loadDeliveries(selectedStoreId, 'refresh');
     } catch (err) {
-      toast.error(getToastErrorMessage(err, 'Failed to complete delivery'));
+      setVerifyFormError(getToastErrorMessage(err, 'Failed to complete delivery'));
     } finally {
       setWorking('');
     }
   };
 
-  const markFailed = async (deliveryId: string, reason: string) => {
-    if (!reason.trim()) {
-      toast.warning('Enter a failure reason.');
+  const openFail = (delivery: DeliveryItem) => {
+    setFailError(null);
+    setFailReason('');
+    setFailModal(delivery);
+  };
+
+  const submitFailure = async () => {
+    if (!failModal) return;
+    if (!failReason.trim()) {
+      setFailError('A failure reason is required so the admin can follow up.');
       return;
     }
-    setWorking(deliveryId);
+    setWorking(failModal.id);
     try {
-      await apiClient.post(`/store-self-delivery/fail/${deliveryId}`, { reason: reason.trim() });
+      await apiClient.post(`/store-self-delivery/fail/${failModal.id}`, { reason: failReason.trim() });
       toast.success('Delivery marked as failed.');
-      if (selectedStoreId) await loadDeliveries(selectedStoreId);
+      setFailModal(null);
+      if (selectedStoreId) await loadDeliveries(selectedStoreId, 'refresh');
     } catch (err) {
-      toast.error(getToastErrorMessage(err, 'Failed to record failure'));
+      setFailError(getToastErrorMessage(err, 'Failed to record failure'));
     } finally {
       setWorking('');
     }
   };
 
-  const [editModal, setEditModal] = useState<DeliveryItem | null>(null);
-  const [editStatus, setEditStatus] = useState<'DELIVERED' | 'FAILED'>('DELIVERED');
-  const [editCash, setEditCash] = useState('');
-  const [editNotes, setEditNotes] = useState('');
-
   const openEdit = (delivery: DeliveryItem) => {
+    setEditError(null);
     setEditModal(delivery);
     setEditStatus(delivery.status === 'FAILED' ? 'FAILED' : 'DELIVERED');
     setEditCash(String((delivery.cashCollectedPaise || delivery.expectedAmountPaise) / 100));
@@ -196,11 +280,11 @@ export default function StoreDeliveriesPage() {
     if (!editModal) return;
     const cashNum = editCash ? Math.round(parseFloat(editCash) * 100) : 0;
     if (editCash && (!Number.isFinite(cashNum) || cashNum < 0)) {
-      toast.warning('Enter a valid cash amount.');
+      setEditError('Enter a valid cash amount, for example 150 or 150.50.');
       return;
     }
     if (editStatus === 'FAILED' && !editNotes.trim()) {
-      toast.warning('Enter a failure reason.');
+      setEditError('A failure reason is required.');
       return;
     }
     setWorking(editModal.id);
@@ -213,372 +297,590 @@ export default function StoreDeliveriesPage() {
       });
       toast.success(`Delivery marked as ${editStatus.toLowerCase()}.`);
       setEditModal(null);
-      await loadDeliveries(selectedStoreId);
+      await loadDeliveries(selectedStoreId, 'refresh');
     } catch (err) {
-      toast.error(getToastErrorMessage(err, 'Failed to update delivery'));
+      setEditError(getToastErrorMessage(err, 'Failed to update delivery'));
     } finally {
       setWorking('');
     }
   };
 
-  const filteredDeliveries = deliveries.filter((d) => {
-    if (filter === 'all') return true;
-    if (filter === 'pending') return ['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED'].includes(d.status);
-    if (filter === 'delivering') return d.status === 'STORE_DELIVERING';
-    if (filter === 'delivered') return d.status === 'DELIVERED';
-    if (filter === 'failed') return d.status === 'FAILED';
-    return true;
-  });
+  const days = useMemo(() => {
+    return Array.from({ length: RANGE_DAYS + 1 }, (_, index) => shiftDay(todayKey, index));
+  }, [todayKey]);
 
-  const counts = {
-    all: deliveries.length,
-    pending: deliveries.filter((d) => ['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED'].includes(d.status)).length,
-    delivering: deliveries.filter((d) => d.status === 'STORE_DELIVERING').length,
-    delivered: deliveries.filter((d) => d.status === 'DELIVERED').length,
-    failed: deliveries.filter((d) => d.status === 'FAILED').length,
+  // After midnight the stored day can fall out of the rail; fall back to today
+  // without an effect so the rail, filter and label stay consistent.
+  const activeDay = days.includes(selectedDay) ? selectedDay : todayKey;
+
+  const searched = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return deliveries;
+    return deliveries.filter((d) =>
+      [String(d.sequenceNumber), d.customer.name, d.customer.phone, d.address.line1, d.address.city]
+        .join(' ')
+        .toLowerCase()
+        .includes(needle)
+    );
+  }, [deliveries, search]);
+
+  const slotFiltered = useMemo(
+    () => (slot === 'all' ? searched : searched.filter((d) => d.deliverySlot === slot)),
+    [searched, slot]
+  );
+
+  const dayItems = useMemo(
+    () => slotFiltered.filter((d) => dayKeyOf(d.serviceDate) === activeDay),
+    [slotFiltered, activeDay]
+  );
+
+  const countsByDay = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const d of slotFiltered) {
+      const key = dayKeyOf(d.serviceDate);
+      map[key] = (map[key] || 0) + 1;
+    }
+    return map;
+  }, [slotFiltered]);
+
+  const counts = useMemo(() => {
+    const base = { all: dayItems.length, pending: 0, delivering: 0, delivered: 0, failed: 0 };
+    for (const d of dayItems) base[groupOf(d.status)] += 1;
+    return base;
+  }, [dayItems]);
+
+  const cash = useMemo(() => {
+    let outstanding = 0;
+    let recorded = 0;
+    for (const d of dayItems) {
+      if (d.status === 'DELIVERED' || d.status === 'FAILED') {
+        recorded += d.cashCollectedPaise || 0;
+      } else {
+        outstanding += d.expectedAmountPaise || 0;
+      }
+    }
+    return { outstanding, recorded };
+  }, [dayItems]);
+
+  const filtered = useMemo(
+    () => (statusGroup === 'all' ? dayItems : dayItems.filter((d) => groupOf(d.status) === statusGroup)),
+    [dayItems, statusGroup]
+  );
+
+  const dateRailDays = days.map((key) => ({
+    key,
+    label: dayLabel(key, todayKey),
+    sublabel: daySublabel(key),
+    count: countsByDay[key] || 0,
+    isToday: key === todayKey,
+  }));
+
+  const activeFilterCount = (search.trim() ? 1 : 0) + (slot === 'all' ? 0 : 1) + (statusGroup === 'all' ? 0 : 1);
+  const clearFilters = () => {
+    setSearch('');
+    setSlot('all');
+    setStatusGroup('all');
   };
 
-  const totalCash = deliveries
-    .filter((d) => d.status === 'DELIVERED')
-    .reduce((sum, d) => sum + (d.cashCollectedPaise || d.expectedAmountPaise || 0), 0);
+  const selectedDayLabel =
+    activeDay === todayKey
+      ? 'today'
+      : activeDay === shiftDay(todayKey, 1)
+        ? 'tomorrow'
+        : `on ${daySublabel(activeDay)}`;
 
   return (
     <DashboardLayout allowedRole="STORE_OWNER">
-      <div className="space-y-4 p-3 sm:p-4">
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-lg font-hero text-slate-900">Store Deliveries</h1>
-            <p className="text-xs font-label text-slate-500">Manage subscription deliveries assigned to your store.</p>
+      <div className="space-y-5">
+        <PageHeader
+          kicker="Store deliveries"
+          title="Subscription deliveries"
+          description="Every row is a subscription day for this store. Use the date rail to see what is due today and what is coming."
+          actions={
+            <>
+              {stores.length > 1 && (
+                <>
+                  <label htmlFor="delivery-store" className="sr-only">
+                    Select store
+                  </label>
+                  <select
+                    id="delivery-store"
+                    value={selectedStoreId}
+                    onChange={(event) => setSelectedStoreId(event.target.value)}
+                    className="enterprise-input min-h-[42px] w-auto py-2 text-sm"
+                  >
+                    <option value="">Select store</option>
+                    {stores.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+              <RefreshButton
+                onClick={() => selectedStoreId && void loadDeliveries(selectedStoreId, 'refresh')}
+                busy={refreshing}
+              />
+            </>
+          }
+        />
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+          <div className="min-w-0 flex-1">
+            <DateRail
+              label="Choose a service date"
+              days={dateRailDays}
+              value={activeDay}
+              onChange={setSelectedDay}
+            />
           </div>
-          <div className="flex gap-2">
-            {stores.length > 1 && (
-              <select
-                value={selectedStoreId}
-                onChange={(e) => setSelectedStoreId(e.target.value)}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-nav"
+          <div className="flex shrink-0 items-center gap-5 rounded-xl border border-slate-200 bg-white px-4 py-2.5">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">To collect</p>
+              <p className="text-lg font-semibold tabular-nums text-amber-700">{money(cash.outstanding)}</p>
+            </div>
+            <div className="border-l border-slate-100 pl-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Recorded</p>
+              <p className="text-lg font-semibold tabular-nums text-emerald-700">{money(cash.recorded)}</p>
+            </div>
+          </div>
+        </div>
+
+        <KpiStrip
+          label="Filter deliveries by status"
+          onSelect={(id) => setStatusGroup((current) => (current === id ? 'all' : (id as StatusGroup)))}
+          tiles={[
+            { id: 'all', label: 'All', value: counts.all, active: statusGroup === 'all' },
+            { id: 'pending', label: 'Pending', value: counts.pending, tone: 'blue', active: statusGroup === 'pending' },
+            {
+              id: 'delivering',
+              label: 'Out for delivery',
+              value: counts.delivering,
+              tone: 'amber',
+              active: statusGroup === 'delivering',
+            },
+            {
+              id: 'delivered',
+              label: 'Delivered',
+              value: counts.delivered,
+              tone: 'emerald',
+              active: statusGroup === 'delivered',
+            },
+            { id: 'failed', label: 'Failed', value: counts.failed, tone: 'red', active: statusGroup === 'failed' },
+          ]}
+        />
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <SearchField
+            id="deliveries-search"
+            value={search}
+            onChange={setSearch}
+            placeholder="Search customer, phone or sequence"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <SegmentedControl<SlotFilter>
+              label="Delivery slot"
+              value={slot}
+              onChange={setSlot}
+              options={[
+                { value: 'all', label: 'All slots', count: searched.length },
+                { value: 'AM', label: 'Morning' },
+                { value: 'PM', label: 'Evening' },
+              ]}
+            />
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
               >
-                <option value="">Select Store</option>
-                {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+                Clear {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''}
+              </button>
             )}
-            <button
-              onClick={() => { if (selectedStoreId) void loadDeliveries(selectedStoreId); }}
-              disabled={!selectedStoreId}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-nav text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-            </button>
           </div>
-        </header>
+        </div>
 
-        <section className="grid gap-2 sm:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 ">
-            <p className="text-[10px] font-badge text-slate-400">Today's Deliveries</p>
-            <p className="mt-1 text-xl font-kpi text-slate-900">{counts.all}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 ">
-            <p className="text-[10px] font-badge text-slate-400">Pending</p>
-            <p className="mt-1 text-xl font-kpi text-blue-700">{counts.pending}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 ">
-            <p className="text-[10px] font-badge text-slate-400">Out for Delivery</p>
-            <p className="mt-1 text-xl font-kpi text-orange-700">{counts.delivering}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 ">
-            <p className="text-[10px] font-badge text-slate-400">Cash to Collect</p>
-            <p className="mt-1 text-xl font-kpi text-emerald-700">{money(totalCash)}</p>
-          </div>
-        </section>
-
-        <nav className="flex gap-1.5 overflow-x-auto">
-          {(['all', 'pending', 'delivering', 'delivered', 'failed'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-nav ${filter === f ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1)} ({counts[f]})
-            </button>
-          ))}
-        </nav>
+        <ResultsNote
+          message={`${filtered.length} of ${counts.all} deliveries shown ${selectedDayLabel}.`}
+        />
 
         {!selectedStoreId ? (
-          <div className="grid min-h-48 place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-            <div>
-              <Truck className="mx-auto h-10 w-10 text-slate-300" />
-              <p className="mt-3 font-semibold text-slate-700">Select a store to view deliveries</p>
-            </div>
-          </div>
+          <EmptyState
+            icon={<Truck className="h-10 w-10" aria-hidden="true" />}
+            title="Select a store to view deliveries"
+            description="Deliveries are grouped by store. Pick one above to load its queue."
+          />
         ) : loading ? (
-          <div className="grid min-h-48 place-items-center">
-            <Loader2 className="h-8 w-8 animate-spin text-emerald-700" />
+          <div className="space-y-3" aria-busy="true">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100" />
+            ))}
           </div>
-        ) : filteredDeliveries.length === 0 ? (
-          <div className="grid min-h-48 place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-            <div>
-              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
-              <p className="mt-3 font-semibold text-slate-700">No deliveries found</p>
-              <p className="mt-1 text-xs text-slate-500">
-                {filter === 'all' ? 'No deliveries scheduled for today.' : `No ${filter} deliveries.`}
-              </p>
-            </div>
-          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={<CheckCircle2 className="h-10 w-10" aria-hidden="true" />}
+            title={activeFilterCount > 0 ? 'No deliveries match these filters' : `Nothing scheduled ${selectedDayLabel}`}
+            description={
+              activeFilterCount > 0
+                ? 'Clear a filter or search another customer to see the rest of this day.'
+                : counts.all > 0
+                  ? `${counts.all} deliveries exist for this day but none match the current view.`
+                  : 'Subscription days appear here once the plan generates them.'
+            }
+            action={
+              activeFilterCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="enterprise-button min-h-[40px] px-4 py-2 text-sm"
+                >
+                  Clear filters
+                </button>
+              ) : undefined
+            }
+          />
         ) : (
-          <div className="space-y-3">
-            {filteredDeliveries.map((d) => (
-              <article key={d.id} className="rounded-xl border border-slate-200 bg-white p-4 ">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
-                      <Route className="h-5 w-5" />
-                    </span>
-                    <div>
-                      <p className="font-semibold text-slate-900">
-                        #{d.sequenceNumber} · {d.customer.name || 'Customer'}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500 flex items-center gap-1">
-                        <Phone className="h-3 w-3" /> {d.customer.phone || 'No phone'}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500 flex items-center gap-1">
-                        <MapPin className="h-3 w-3" /> {d.address.line1}, {d.address.city} {d.address.pincode}
-                      </p>
-                      {d.order && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {d.order.items.slice(0, 3).map((item, idx) => (
-                            <span key={idx} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
-                              {item.quantity}× {item.name}
-                            </span>
-                          ))}
-                          {d.order.items.length > 3 && (
-                            <span className="text-[10px] text-slate-400">+{d.order.items.length - 3} more</span>
+          <div className="space-y-3" aria-busy={refreshing}>
+            {filtered.map((d) => {
+              const canStart = STARTABLE_STATUSES.includes(d.status) && dayKeyOf(d.serviceDate) <= todayKey;
+              return (
+                <article key={d.id} className="enterprise-card p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-800" aria-hidden="true">
+                        <Route className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-950">
+                          #{d.sequenceNumber} · {d.customer.name || 'Customer'}
+                        </p>
+                        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-600">
+                          <Phone className="h-3 w-3 shrink-0" aria-hidden="true" />
+                          {d.customer.phone || 'No phone'}
+                        </p>
+                        <p className="mt-0.5 flex items-start gap-1.5 text-xs text-slate-600">
+                          <MapPin className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+                          <span className="min-w-0 truncate">
+                            {d.address.line1}, {d.address.city} {d.address.pincode}
+                          </span>
+                        </p>
+                        {d.order && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {d.order.items.slice(0, 3).map((item, idx) => (
+                              <span
+                                key={idx}
+                                className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700"
+                              >
+                                {item.quantity}× {item.name}
+                              </span>
+                            ))}
+                            {d.order.items.length > 3 && (
+                              <span className="text-[11px] text-slate-500">
+                                +{d.order.items.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      {statusBadge(d.status)}
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+                            d.deliverySlot === 'AM' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'
+                          }`}
+                        >
+                          {d.deliverySlot}
+                        </span>
+                        <span className="text-xs tabular-nums text-slate-600">{d.window}</span>
+                      </div>
+                      {d.status === 'DELIVERED' && d.cashCollectedPaise ? (
+                        <div className="text-right">
+                          <p className="text-sm font-semibold tabular-nums text-emerald-700">
+                            {money(d.cashCollectedPaise)}
+                          </p>
+                          {d.cashCollectedPaise !== d.expectedAmountPaise && (
+                            <p className="text-[11px] text-slate-500">Expected {money(d.expectedAmountPaise)}</p>
                           )}
                         </div>
+                      ) : (
+                        <p className="text-sm font-semibold tabular-nums text-slate-950">
+                          {money(d.expectedAmountPaise)}
+                        </p>
                       )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    {statusBadge(d.status)}
-                    <div className="mt-1 flex items-center justify-end gap-1.5">
-                      <span className={`rounded-lg px-1.5 py-0.5 text-[10px] font-semibold ${
-                        d.deliverySlot === 'AM' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'
-                      }`}>{d.deliverySlot}</span>
-                      <span className="text-xs text-slate-500">{d.window}</span>
-                    </div>
-                    {d.status === 'DELIVERED' && d.cashCollectedPaise ? (
-                      <div className="mt-1">
-                        <p className="text-sm font-semibold text-emerald-700">{money(d.cashCollectedPaise)}</p>
-                        {d.cashCollectedPaise !== d.expectedAmountPaise && (
-                          <p className="text-[10px] text-slate-400">Expected: {money(d.expectedAmountPaise)}</p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="mt-1 text-sm font-semibold text-slate-900">{money(d.expectedAmountPaise)}</p>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {canStart && (
+                      <button
+                        type="button"
+                        disabled={working === d.id}
+                        onClick={() => void startDelivery(d.id)}
+                        className="inline-flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-slate-950 px-3 text-xs font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 disabled:opacity-50 sm:flex-none"
+                      >
+                        <Truck className="h-3.5 w-3.5" aria-hidden="true" /> Start delivery
+                      </button>
                     )}
-                  </div>
-                </div>
-
-                <div className="mt-3 flex gap-2">
-                  {['SCHEDULED', 'ORDER_GENERATED', 'PREPARING', 'PACKED'].includes(d.status) && (
+                    {d.status === 'STORE_DELIVERING' && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={working === d.id}
+                          onClick={() => openVerify(d)}
+                          className="inline-flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 disabled:opacity-50 sm:flex-none"
+                        >
+                          <Package className="h-3.5 w-3.5" aria-hidden="true" /> Complete &amp; collect cash
+                        </button>
+                        <button
+                          type="button"
+                          disabled={working === d.id}
+                          onClick={() => openFail(d)}
+                          className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-semibold text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1 disabled:opacity-50"
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> Mark failed
+                        </button>
+                      </>
+                    )}
+                    {d.status === 'DELIVERED' && (
+                      <span className="inline-flex min-h-[38px] items-center gap-1 text-xs font-semibold text-emerald-700">
+                        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> Delivered
+                      </span>
+                    )}
+                    {d.status === 'FAILED' && (
+                      <span className="inline-flex min-h-[38px] items-center gap-1 text-xs font-semibold text-red-600">
+                        <XCircle className="h-3.5 w-3.5" aria-hidden="true" /> Failed
+                      </span>
+                    )}
                     <button
-                      disabled={working === d.id}
-                      onClick={() => void startDelivery(d.id)}
-                      className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                      type="button"
+                      onClick={() => openEdit(d)}
+                      className="ml-auto inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1"
                     >
-                      <Truck className="h-3.5 w-3.5" /> Start Delivery
+                      <Edit3 className="h-3.5 w-3.5" aria-hidden="true" /> Edit
                     </button>
-                  )}
-                  {d.status === 'STORE_DELIVERING' && (
-                    <>
-                      <button
-                        disabled={working === d.id}
-                        onClick={() => openVerify(d)}
-                        className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-700 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
-                      >
-                        <PackageCheck className="h-3.5 w-3.5" /> Complete & Collect Cash
-                      </button>
-                      <button
-                        disabled={working === d.id}
-                        onClick={() => {
-                          const reason = prompt('Enter failure reason:');
-                          if (reason) void markFailed(d.id, reason);
-                        }}
-                        className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
-                      >
-                        <AlertTriangle className="h-3.5 w-3.5" /> Failed
-                      </button>
-                    </>
-                  )}
-                  {d.status === 'DELIVERED' && (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Delivered
-                    </span>
-                  )}
-                  {d.status === 'FAILED' && (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-red-700">
-                      <XCircle className="h-3.5 w-3.5" /> Failed
-                    </span>
-                  )}
-                  <button
-                    onClick={() => openEdit(d)}
-                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    <Edit3 className="h-3.5 w-3.5" /> Edit
-                  </button>
-                </div>
-              </article>
-            ))}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
 
-        {verifyModal && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0  sm:items-center sm:p-4">
-            <div className="max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5  sm:rounded-xl">
-              <h2 className="text-lg font-semibold text-slate-900">Verify & Complete Delivery</h2>
-              <p className="mt-1 text-xs text-slate-500">Customer: {verifyModal.customer.name}</p>
-
-              <div className="mt-4 space-y-3">
-                <div className="rounded-xl bg-emerald-50 p-3">
-                  <p className="text-[10px] font-semibold uppercase text-emerald-700">Order Total</p>
-                  <p className="mt-1 text-2xl font-semibold text-emerald-900">
-                    {money(verifyModal.expectedAmountPaise)}
-                  </p>
-                </div>
-
-                <label className="block text-xs font-semibold text-slate-700">
-                  Customer Name (for verification)
-                  <input
-                    value={verifyName}
-                    onChange={(e) => setVerifyName(e.target.value)}
-                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                    placeholder="Verify customer name"
-                  />
-                </label>
-
-                <label className="block text-xs font-semibold text-slate-700">
-                  Customer Phone (for verification)
-                  <input
-                    value={verifyPhone}
-                    onChange={(e) => setVerifyPhone(e.target.value)}
-                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                    placeholder="Verify phone number"
-                  />
-                </label>
-
-                <label className="block text-xs font-semibold text-slate-700">
-                  Cash Collected (₹)
-                  <input
-                    value={verifyCash}
-                    onChange={(e) => setVerifyCash(e.target.value)}
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                    placeholder="Enter amount collected"
-                  />
-                </label>
-
-                <label className="block text-xs font-semibold text-slate-700">
-                  Notes (optional)
-                  <textarea
-                    value={verifyNotes}
-                    onChange={(e) => setVerifyNotes(e.target.value)}
-                    rows={2}
-                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                    placeholder="Any delivery notes"
-                  />
-                </label>
-              </div>
-
-              <div className="mt-4 flex gap-2">
-                <button
-                  onClick={() => setVerifyModal(null)}
-                  className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  disabled={working === verifyModal.id}
-                  onClick={() => void completeDelivery()}
-                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-xs font-semibold text-white disabled:opacity-50"
-                >
-                  {working === verifyModal.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Complete Delivery
-                </button>
-              </div>
+        <OpsModal
+          open={Boolean(verifyModal)}
+          title="Complete & collect cash"
+          description={verifyModal ? `#${verifyModal.sequenceNumber} · ${verifyModal.customer.name}` : undefined}
+          onClose={() => setVerifyModal(null)}
+          initialFocus="#verify-cash"
+          footer={
+            <>
+              <button
+                type="button"
+                disabled={working === verifyModal?.id}
+                onClick={() => void completeDelivery()}
+                className="enterprise-button min-h-[42px] px-4 py-2 text-sm"
+              >
+                Complete delivery
+              </button>
+              <button
+                type="button"
+                onClick={() => setVerifyModal(null)}
+                className="min-h-[42px] rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+              >
+                Cancel
+              </button>
+            </>
+          }
+        >
+          {verifyFormError && (
+            <div
+              role="alert"
+              className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700"
+            >
+              {verifyFormError}
             </div>
+          )}
+
+          <div className="mb-3 rounded-xl bg-emerald-50 px-3 py-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Order total</p>
+            <p className="mt-0.5 text-2xl font-semibold tabular-nums text-emerald-900">
+              {verifyModal ? money(verifyModal.expectedAmountPaise) : '—'}
+            </p>
           </div>
-        )}
 
-        {editModal && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0  sm:items-center sm:p-4">
-            <div className="max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5  sm:rounded-xl">
-              <h2 className="text-lg font-semibold text-slate-900">Edit Delivery</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Customer: {editModal.customer.name} · #{editModal.sequenceNumber}
-              </p>
+          <OpsField label="Customer name (for verification)" htmlFor="verify-name" error={verifyError ?? undefined}>
+            <input
+              id="verify-name"
+              value={verifyName}
+              onChange={(event) => {
+                setVerifyName(event.target.value);
+                if (verifyError) setVerifyError(null);
+              }}
+              autoComplete="name"
+              aria-invalid={Boolean(verifyError)}
+              aria-describedby={verifyError ? 'verify-name-error' : undefined}
+              className="enterprise-input"
+            />
+          </OpsField>
 
-              <div className="mt-4 space-y-3">
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-[10px] font-semibold uppercase text-slate-500">Current Status</p>
-                  <p className="mt-1">{statusBadge(editModal.status)}</p>
-                </div>
+          <OpsField label="Customer phone (for verification)" htmlFor="verify-phone">
+            <input
+              id="verify-phone"
+              value={verifyPhone}
+              onChange={(event) => setVerifyPhone(event.target.value)}
+              autoComplete="tel"
+              inputMode="tel"
+              className="enterprise-input"
+            />
+          </OpsField>
 
-                <label className="block text-xs font-semibold text-slate-700">
-                  Update Status
-                  <select
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value as 'DELIVERED' | 'FAILED')}
-                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                  >
-                    <option value="DELIVERED">Delivered</option>
-                    <option value="FAILED">Failed</option>
-                  </select>
-                </label>
+          <OpsField label="Cash collected (₹)" htmlFor="verify-cash" error={verifyCashError ?? undefined}>
+            <input
+              id="verify-cash"
+              value={verifyCash}
+              onChange={(event) => {
+                setVerifyCash(event.target.value);
+                if (verifyCashError) setVerifyCashError(null);
+              }}
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              aria-invalid={Boolean(verifyCashError)}
+              aria-describedby={verifyCashError ? 'verify-cash-error' : undefined}
+              className="enterprise-input"
+            />
+          </OpsField>
 
-                <label className="block text-xs font-semibold text-slate-700">
-                  Cash Collected (₹)
-                  <input
-                    value={editCash}
-                    onChange={(e) => setEditCash(e.target.value)}
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                    placeholder="Enter amount collected"
-                  />
-                </label>
+          <OpsField label="Notes (optional)" htmlFor="verify-notes">
+            <textarea
+              id="verify-notes"
+              value={verifyNotes}
+              onChange={(event) => setVerifyNotes(event.target.value)}
+              rows={2}
+              className="enterprise-input"
+            />
+          </OpsField>
+        </OpsModal>
 
-                <label className="block text-xs font-semibold text-slate-700">
-                  Notes
-                  <textarea
-                    value={editNotes}
-                    onChange={(e) => setEditNotes(e.target.value)}
-                    rows={2}
-                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                    placeholder={editStatus === 'FAILED' ? 'Failure reason (required)' : 'Delivery notes (optional)'}
-                  />
-                </label>
-              </div>
+        <OpsModal
+          open={Boolean(failModal)}
+          title="Mark delivery as failed"
+          description={failModal ? `#${failModal.sequenceNumber} · ${failModal.customer.name}` : undefined}
+          onClose={() => setFailModal(null)}
+          initialFocus="#fail-reason"
+          footer={
+            <>
+              <button
+                type="button"
+                disabled={working === failModal?.id}
+                onClick={() => void submitFailure()}
+                className="min-h-[42px] rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:opacity-50"
+              >
+                Mark as failed
+              </button>
+              <button
+                type="button"
+                onClick={() => setFailModal(null)}
+                className="min-h-[42px] rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+              >
+                Cancel
+              </button>
+            </>
+          }
+        >
+          <OpsField
+            label="Why did this delivery fail?"
+            htmlFor="fail-reason"
+            hint="Recorded against the subscription so the admin can re-attempt or credit the day."
+            error={failError ?? undefined}
+          >
+            <textarea
+              id="fail-reason"
+              value={failReason}
+              onChange={(event) => setFailReason(event.target.value)}
+              rows={3}
+              aria-invalid={Boolean(failError)}
+              aria-describedby={failError ? 'fail-reason-error' : undefined}
+              className="enterprise-input"
+            />
+          </OpsField>
+        </OpsModal>
 
-              <div className="mt-4 flex gap-2">
-                <button
-                  onClick={() => setEditModal(null)}
-                  className="min-h-10 flex-1 rounded-xl border border-slate-200 text-xs font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  disabled={working === editModal.id}
-                  onClick={() => void submitEdit()}
-                  className={`inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-50 ${editStatus === 'FAILED' ? 'bg-red-600' : 'bg-emerald-700'}`}
-                >
-                  {working === editModal.id ? <Loader2 className="h-4 w-4 animate-spin" /> : editStatus === 'FAILED' ? <XCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Mark as {editStatus === 'FAILED' ? 'Failed' : 'Delivered'}
-                </button>
-              </div>
-            </div>
+        <OpsModal
+          open={Boolean(editModal)}
+          title="Edit delivery record"
+          description={editModal ? `#${editModal.sequenceNumber} · ${editModal.customer.name}` : undefined}
+          onClose={() => setEditModal(null)}
+          initialFocus="#edit-status"
+          footer={
+            <>
+              <button
+                type="button"
+                disabled={working === editModal?.id}
+                onClick={() => void submitEdit()}
+                className={`min-h-[42px] rounded-xl px-4 text-sm font-semibold text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 ${
+                  editStatus === 'FAILED'
+                    ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500'
+                    : 'bg-emerald-700 hover:bg-emerald-800 focus-visible:ring-emerald-500'
+                }`}
+              >
+                Save changes
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditModal(null)}
+                className="min-h-[42px] rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+              >
+                Cancel
+              </button>
+            </>
+          }
+        >
+          <div className="mb-3 rounded-xl bg-slate-50 px-3 py-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Current status</p>
+            <p className="mt-1">{editModal ? statusBadge(editModal.status) : null}</p>
           </div>
-        )}
+
+          <OpsField label="Update status" htmlFor="edit-status" error={editError ?? undefined}>
+            <select
+              id="edit-status"
+              value={editStatus}
+              onChange={(event) => setEditStatus(event.target.value as 'DELIVERED' | 'FAILED')}
+              className="enterprise-input"
+            >
+              <option value="DELIVERED">Delivered</option>
+              <option value="FAILED">Failed</option>
+            </select>
+          </OpsField>
+
+          <OpsField label="Cash collected (₹)" htmlFor="edit-cash">
+            <input
+              id="edit-cash"
+              value={editCash}
+              onChange={(event) => setEditCash(event.target.value)}
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              className="enterprise-input"
+            />
+          </OpsField>
+
+          <OpsField
+            label={editStatus === 'FAILED' ? 'Failure reason (required)' : 'Notes (optional)'}
+            htmlFor="edit-notes"
+          >
+            <textarea
+              id="edit-notes"
+              value={editNotes}
+              onChange={(event) => setEditNotes(event.target.value)}
+              rows={2}
+              className="enterprise-input"
+            />
+          </OpsField>
+        </OpsModal>
       </div>
     </DashboardLayout>
   );
