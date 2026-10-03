@@ -99,7 +99,7 @@
     "@nestjs/platform-socket.io": "11.2.6",
     "@nestjs/websockets": "11.2.6",
     "@next/eslint-plugin-next": "^15.5.26",
-    "@types/mapbox-gl": "^3.4.1",
+    "@types/mapbox-gl": "^3.5.0",
     "@typescript-eslint/eslint-plugin": "^8.71.0",
     "@typescript-eslint/parser": "^8.71.0",
     "eslint": "^8.57.1",
