@@ -125,6 +125,7 @@ type SubscriberRow = {
   deliveryWindowStartMinute?: number | null;
   deliveryWindowEndMinute?: number | null;
   priceSnapshot?: { splitItems?: unknown } | null;
+  deliveries?: Array<{ status?: string | null; deliverySlot?: "AM" | "PM" | null }>;
   homeStore: { id: string; name: string } | null;
   customer: { id: string; name: string | null; email: string | null; phone: string | null; acquisitionSource?: string | null };
   deliveryContact?: { phone: string; name?: string | null } | null;
@@ -240,9 +241,28 @@ function isOfflineSubscriber(row: {
 
 /** Slot of a subscription as rendered by the milk grid: split plans show AM+PM. */
 function subscriberSlot(row: {
+  deliveries?: Array<{ status?: string | null; deliverySlot?: "AM" | "PM" | null }>;
   priceSnapshot?: { splitItems?: unknown } | null;
   deliveryWindowStartMinute?: number | null;
 }): "AM" | "PM" | "AM+PM" {
+  const remainingStatuses = new Set([
+    "SCHEDULED",
+    "GENERATING",
+    "ORDER_GENERATED",
+    "PREPARING",
+    "PACKED",
+    "ASSIGNED",
+    "RESCHEDULED",
+  ]);
+  const remainingSlots = new Set(
+    (row.deliveries ?? [])
+      .filter((delivery) => remainingStatuses.has(delivery.status ?? ""))
+      .map((delivery) => delivery.deliverySlot)
+      .filter((slot): slot is "AM" | "PM" => slot === "AM" || slot === "PM"),
+  );
+  if (remainingSlots.has("AM") && remainingSlots.has("PM")) return "AM+PM";
+  if (remainingSlots.has("PM")) return "PM";
+  if (remainingSlots.has("AM")) return "AM";
   if (row.priceSnapshot?.splitItems) return "AM+PM";
   return (row.deliveryWindowStartMinute ?? 0) >= 900 ? "PM" : "AM";
 }

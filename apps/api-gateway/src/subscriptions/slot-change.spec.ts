@@ -77,9 +77,11 @@ describe('updateManualSubscription — slot change applies to the whole remainin
       expect.arrayContaining(['DELIVERED', 'SKIPPED', 'FAILED', 'CANCELLED']),
     );
 
-    // Split-guard excluded d3; d1 + d2 flipped to PM.
+    // Split-guard excluded d3; d1 + d2 flipped to PM. The eligible-status
+    // predicate is re-asserted in the update so a delivery that advanced past
+    // selection cannot have its slot rewritten.
     expect(prisma.subscriptionDelivery.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: ['d1', 'd2'] } },
+      where: { id: { in: ['d1', 'd2'] }, status: { in: remainingQuery.where.status.in } },
       data: { deliverySlot: 'PM' },
     });
 

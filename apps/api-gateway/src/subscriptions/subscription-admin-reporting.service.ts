@@ -40,6 +40,17 @@ function deliveryContact(snapshot: Prisma.JsonValue) {
   };
 }
 
+/** Delivery statuses that have not run yet, so their slot can still be changed. */
+const REMAINING_DELIVERY_STATUSES = [
+  SubscriptionDeliveryStatus.SCHEDULED,
+  SubscriptionDeliveryStatus.GENERATING,
+  SubscriptionDeliveryStatus.ORDER_GENERATED,
+  SubscriptionDeliveryStatus.PREPARING,
+  SubscriptionDeliveryStatus.PACKED,
+  SubscriptionDeliveryStatus.ASSIGNED,
+  SubscriptionDeliveryStatus.RESCHEDULED,
+];
+
 @Injectable()
 export class SubscriptionAdminReportingService {
   constructor(private readonly funding: SubscriptionCashFundingService) {}
@@ -131,7 +142,7 @@ export class SubscriptionAdminReportingService {
         plan: { select: { id: true, code: true, name: true } },
         planVersion: { select: { id: true, version: true, pricePaise: true, totalDeliveries: true } },
         homeStore: { select: { id: true, name: true } },
-        deliveries: { select: { cashCollectedPaise: true, status: true } },
+        deliveries: { select: { cashCollectedPaise: true, status: true, deliverySlot: true } },
         _count: { select: { deliveries: true, issues: true } },
       },
       take: 500,
@@ -847,17 +858,7 @@ export class SubscriptionAdminReportingService {
       where: {
         subscriptionId: subscription.id,
         deliverySlot: { not: targetSlot },
-        status: {
-          in: [
-            SubscriptionDeliveryStatus.SCHEDULED,
-            SubscriptionDeliveryStatus.GENERATING,
-            SubscriptionDeliveryStatus.ORDER_GENERATED,
-            SubscriptionDeliveryStatus.PREPARING,
-            SubscriptionDeliveryStatus.PACKED,
-            SubscriptionDeliveryStatus.ASSIGNED,
-            SubscriptionDeliveryStatus.RESCHEDULED,
-          ],
-        },
+        status: { in: REMAINING_DELIVERY_STATUSES },
       },
       select: { id: true, serviceDate: true },
       orderBy: { serviceDate: 'asc' },
@@ -878,7 +879,9 @@ export class SubscriptionAdminReportingService {
     if (!flipIds.length) return { deliveries: 0, orders: 0 };
 
     const { count } = await tx.subscriptionDelivery.updateMany({
-      where: { id: { in: flipIds } },
+      // Re-assert the eligible statuses so a delivery that advanced to
+      // OUT_FOR_DELIVERY/DELIVERED after the selection above is not rewritten.
+      where: { id: { in: flipIds }, status: { in: REMAINING_DELIVERY_STATUSES } },
       data: { deliverySlot: targetSlot },
     });
 
